@@ -4,6 +4,7 @@
 [![Conformance](https://github.com/stephrobert/feint/actions/workflows/conformance.yml/badge.svg)](https://github.com/stephrobert/feint/actions/workflows/conformance.yml)
 [![Drift](https://github.com/stephrobert/feint/actions/workflows/drift.yml/badge.svg)](https://github.com/stephrobert/feint/actions/workflows/drift.yml)
 [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/stephrobert/feint?label=OpenSSF%20Scorecard)](https://securityscorecards.dev/viewer/?uri=github.com/stephrobert/feint)
+[![Plumber compliance](https://score.getplumber.io/github.com/stephrobert/feint.svg)](https://score.getplumber.io/github.com/stephrobert/feint)
 [![SLSA build provenance](https://img.shields.io/badge/SLSA-build%20provenance-blue)](https://slsa.dev/spec/v1.0/levels)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/stephrobert/feint)](https://goreportcard.com/report/github.com/stephrobert/feint)

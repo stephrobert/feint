@@ -119,7 +119,17 @@ jobs:
           # the runner does not have, and installing a kernel module to run a CLI
           # is a worse trade than the documented fallback.
           (cd "${workdir}" && ./oapi-cli.AppImage --appimage-extract >/dev/null)
-          sudo ln -sf "${workdir}/squashfs-root/AppRun" /usr/local/bin/oapi-cli
+          # A wrapper, not a symlink to AppRun. AppRun resolves its own files
+          # through $APPDIR, and a symlink leaves it unset: the CLI then looked
+          # for /import-ssl.sh at the filesystem root and exited 127. Measured on
+          # the first CI run of this suite — locally the extraction is invoked
+          # from its own directory, which hid it.
+          sudo tee /usr/local/bin/oapi-cli >/dev/null <<WRAPPER
+          #!/usr/bin/env bash
+          export APPDIR="${workdir}/squashfs-root"
+          exec "\${APPDIR}/AppRun" "\$@"
+          WRAPPER
+          sudo chmod 0755 /usr/local/bin/oapi-cli
           oapi-cli --version
 
       - name: Run the Outscale CLI conformance suite

@@ -49,8 +49,21 @@ jobs:
       # and the first shellcheck run found a case pattern that had never matched
       # what it was written to match.
       - name: shellcheck
+        env:
+          # The same version mise pins for the hook. `apt install shellcheck`
+          # was taking whatever ubuntu-24.04 carries, which reported ten SC2015
+          # findings the local 0.11.0 does not: the hook could not predict CI,
+          # which is the one thing a mirrored gate has to do.
+          SHELLCHECK_VERSION: '0.11.0'
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y shellcheck
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          asset="shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
+          curl -fsSL -o "${workdir}/${asset}" \
+            "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/${asset}"
+          tar -xJf "${workdir}/${asset}" -C "${workdir}"
+          sudo install -m 0755 "${workdir}/shellcheck-v${SHELLCHECK_VERSION}/shellcheck" /usr/local/bin/shellcheck
+          shellcheck --version
           # -z and xargs -0 rather than $(git ls-files): a command substitution
           # word-splits, so a path with a space would be linted as two files that
           # do not exist. actionlint caught it in this very step, which is the
@@ -151,11 +164,20 @@ jobs:
 
       # The binary has to answer, not merely link. A control plane that builds
       # and cannot serve is exactly the gap between "built" and "exercised".
+      # `serve` in the foreground, not `start`: the self-detaching mode exits
+      # immediately on both macOS runners, measured on this repository's first
+      # public CI run. That is a limitation of the daemonising path rather than
+      # of the emulator, docs/limits.md records it, and this step proves the part
+      # that must hold everywhere — the binary serves the API on this platform.
       - name: The emulator answers on this platform
         run: |
           set -euo pipefail
           go build -o feint ./cmd/feint
-          ./feint start --addr 127.0.0.1:4599
-          ./feint status
+          ./feint serve --addr 127.0.0.1:4599 &
+          pid=$!
+          for _ in $(seq 1 30); do
+            curl -fsS localhost:4599/_feint/health >/dev/null 2>&1 && break
+            sleep 1
+          done
           curl -fsS localhost:4599/_feint/health
-          ./feint stop
+          kill "$pid"

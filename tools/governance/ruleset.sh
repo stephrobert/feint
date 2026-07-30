@@ -41,25 +41,43 @@ need() { command -v "$1" >/dev/null 2>&1 || { echo "$1 is required" >&2; exit 1;
 need gh
 need jq
 
-# The comparable shape: the API answers with ids, timestamps and _links that the
-# declaration cannot carry, so both sides are reduced to what was decided.
+# What is compared, and why it is not equality.
+#
+# The API answers with more than was declared: ids, timestamps, _links, and
+# default parameters the file never mentions (`required_reviewers: []` appeared
+# on the very first apply). Demanding equality would make this gate red forever
+# on fields nobody decided, which is how a gate becomes something people disable.
+#
+# So the question asked is containment: **everything the file declares is in
+# force**. A field the repository adds and the file ignores is not drift; a field
+# the file declares and the repository contradicts is.
+# shellcheck disable=SC2016  # this is jq source, not shell: nothing here may expand
+DECLARED_IN_FORCE='
+def in_force($want; $got):
+  if ($want | type) == "object" then
+    ($got | type) == "object" and
+    all($want | keys_unsorted[];
+        . as $k | ($got | has($k)) and in_force($want[$k]; $got[$k]))
+  elif ($want | type) == "array" then
+    ($got | type) == "array" and
+    ($want | length) == ($got | length) and
+    all(range(0; $want | length); in_force($want[.]; $got[.]))
+  else $want == $got
+  end;
+'
+
+# Sorted so that the order of the required checks, which is not a decision, does
+# not read as one.
 normalise() {
-  jq -S '{
-    name, target, enforcement,
-    conditions,
-    bypass_actors: (.bypass_actors // [] | map({actor_id, actor_type, bypass_mode}) | sort_by(.actor_id)),
-    rules: (.rules // [] | map(select(.type != "creation")) | sort_by(.type) | map({
-      type,
-      parameters: (
-        if .parameters == null then null
-        else .parameters
-          # Ordering of the required checks is not a decision.
-          | (if has("required_status_checks")
-             then .required_status_checks |= (map({context}) | sort_by(.context))
-             else . end)
-        end)
-    }))
-  }'
+  jq -S '
+    .rules = ((.rules // []) | sort_by(.type) | map(
+      if .parameters.required_status_checks
+      then .parameters.required_status_checks |= (map({context}) | sort_by(.context))
+      else . end))
+    | .bypass_actors = ((.bypass_actors // []) | sort_by(.actor_id))
+    | del(.id, .created_at, .updated_at, ._links, .source, .source_type,
+          .node_id, .current_user_can_bypass, .links)
+  '
 }
 
 live_ruleset() {
@@ -94,11 +112,12 @@ case "$ACTION" in
     fi
     want="$(normalise < "$FILE")"
     got="$(printf '%s' "$live" | normalise)"
-    if [ "$want" = "$got" ]; then
-      echo "the ruleset on ${REPO} matches ${FILE}"
+    if jq -n --argjson want "$want" --argjson got "$got" \
+         "${DECLARED_IN_FORCE} in_force(\$want; \$got)" | grep -q true; then
+      echo "every rule declared in ${FILE} is in force on ${REPO}"
       exit 0
     fi
-    echo "the ruleset on ${REPO} differs from ${FILE}:" >&2
+    echo "the ruleset on ${REPO} no longer matches ${FILE}:" >&2
     diff <(printf '%s\n' "$want") <(printf '%s\n' "$got") | head -40 >&2
     echo >&2
     echo "left is the file, right is what the repository enforces." >&2

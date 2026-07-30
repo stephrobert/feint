@@ -39,6 +39,11 @@ jobs:
     environment: Prod
     permissions:
       contents: read
+      # OIDC, and it is what makes the README badge trustworthy: the score is
+      # published to score.getplumber.io through a CI-native identity token, so
+      # a local run cannot publish and nobody can spoof another repository's
+      # badge. Publishing only ever happens from this workflow, on main.
+      id-token: write
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -91,4 +96,4 @@ jobs:
           # .plumber.yaml documents, which reads exactly like a pass.
           GH_TOKEN: ${{ secrets.ADMIN_READ_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.ADMIN_READ_TOKEN }}
-        run: plumber analyze --min-score B
+        run: plumber analyze --min-score B --score-push
