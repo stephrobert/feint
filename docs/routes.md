@@ -108,85 +108,104 @@ counted.
 | `POST` | `/vpc/v2/regions/{region}/private-networks` | `vpc/v2/API.CreatePrivateNetwork` |
 | `POST` | `/vpc/v2/regions/{region}/vpcs` | `vpc/v2/API.CreateVPC` |
 
-### Declined on purpose (74)
+### Declined on purpose (92)
 
-Operations this pack knowingly does not serve. Declining is a decision the
-drift gate records, which is what separates it from having missed one.
+Operations this pack knowingly does not serve, and why. Declining is a
+decision the drift gate records, which is what separates it from having
+missed one — and the reason is what separates a decision from a list.
 
-- `instance/v1/API.ApplyBlockMigration`
-- `instance/v1/API.CheckBlockMigrationOrganizationQuotas`
-- `instance/v1/API.ExportSnapshot`
-- `instance/v1/API.GetDashboard`
-- `instance/v1/API.GetServerCompatibleTypes`
-- `instance/v1/API.GetServerTypesAvailability`
-- `instance/v1/API.ListDefaultSecurityGroupRules`
-- `instance/v1/API.ListVolumesTypes`
-- `instance/v1/API.PlanBlockMigration`
-- `instance/v1/MetadataAPI.DeleteUserData`
-- `instance/v1/MetadataAPI.GetMetadata`
-- `instance/v1/MetadataAPI.GetUserData`
-- `instance/v1/MetadataAPI.ListUserData`
-- `instance/v1/MetadataAPI.SetUserData`
-- `instance/v2alpha1/API.AddSecurityGroupRules`
-- `instance/v2alpha1/API.AttachServerFileSystem`
-- `instance/v2alpha1/API.AttachServerIP`
-- `instance/v2alpha1/API.AttachServerPrivateNetworkInterface`
-- `instance/v2alpha1/API.AttachServerVolume`
-- `instance/v2alpha1/API.CheckTemplate`
-- `instance/v2alpha1/API.CreatePlacementGroup`
-- `instance/v2alpha1/API.CreatePrivateNetworkInterface`
-- `instance/v2alpha1/API.CreateSecurityGroup`
-- `instance/v2alpha1/API.CreateServer`
-- `instance/v2alpha1/API.CreateServerFromTemplate`
-- `instance/v2alpha1/API.CreateTemplate`
-- `instance/v2alpha1/API.DeletePlacementGroup`
-- `instance/v2alpha1/API.DeletePrivateNetworkInterface`
-- `instance/v2alpha1/API.DeleteSecurityGroup`
-- `instance/v2alpha1/API.DeleteSecurityGroupRules`
-- `instance/v2alpha1/API.DeleteServer`
-- `instance/v2alpha1/API.DeleteTemplate`
-- `instance/v2alpha1/API.DeleteTemplateUserData`
-- `instance/v2alpha1/API.DeleteUserData`
-- `instance/v2alpha1/API.DetachServerFileSystem`
-- `instance/v2alpha1/API.DetachServerIP`
-- `instance/v2alpha1/API.DetachServerPrivateNetworkInterface`
-- `instance/v2alpha1/API.DetachServerVolume`
-- `instance/v2alpha1/API.GetPlacementGroup`
-- `instance/v2alpha1/API.GetPrivateNetworkInterface`
-- `instance/v2alpha1/API.GetResourceCounts`
-- `instance/v2alpha1/API.GetSecurityGroup`
-- `instance/v2alpha1/API.GetServer`
-- `instance/v2alpha1/API.GetServerCloudInit`
-- `instance/v2alpha1/API.GetTemplate`
-- `instance/v2alpha1/API.GetTemplateCloudInit`
-- `instance/v2alpha1/API.GetTemplateUserData`
-- `instance/v2alpha1/API.GetUserData`
-- `instance/v2alpha1/API.ListPlacementGroups`
-- `instance/v2alpha1/API.ListPrivateNetworkInterfaces`
-- `instance/v2alpha1/API.ListSecurityGroups`
-- `instance/v2alpha1/API.ListServerTypes`
-- `instance/v2alpha1/API.ListServers`
-- `instance/v2alpha1/API.ListTemplateUserDataKeys`
-- `instance/v2alpha1/API.ListTemplates`
-- `instance/v2alpha1/API.ListUserDataKeys`
-- `instance/v2alpha1/API.PauseServer`
-- `instance/v2alpha1/API.RebootServer`
-- `instance/v2alpha1/API.SetSecurityGroupRules`
-- `instance/v2alpha1/API.SetServerCloudInit`
-- `instance/v2alpha1/API.SetServerDefaultIP`
-- `instance/v2alpha1/API.SetTemplateCloudInit`
-- `instance/v2alpha1/API.SetTemplateUserData`
-- `instance/v2alpha1/API.SetUserData`
-- `instance/v2alpha1/API.StartServer`
-- `instance/v2alpha1/API.StopAndDeleteServer`
-- `instance/v2alpha1/API.StopServer`
-- `instance/v2alpha1/API.UpdatePlacementGroup`
-- `instance/v2alpha1/API.UpdatePrivateNetworkInterface`
-- `instance/v2alpha1/API.UpdateSecurityGroup`
-- `instance/v2alpha1/API.UpdateSecurityGroupRule`
-- `instance/v2alpha1/API.UpdateServer`
-- `instance/v2alpha1/API.UpdateTemplate`
-- `ipam/v1alpha1/API.ListIPs`
+- `instance/v1/API.ApplyBlockMigration` — there is no legacy storage behind this emulator to migrate from, so a plan would describe a move between two things that are the same store
+- `instance/v1/API.CheckBlockMigrationOrganizationQuotas` — capacity and quotas are the provider's fleet, and a local emulator that answered would be inventing headroom a client could plan against
+- `instance/v1/API.ExportSnapshot` — it writes into Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md
+- `instance/v1/API.GetDashboard` — its thirteen counters span resources this pack does not serve, so every total would be short by the unemulated remainder with nothing saying which
+- `instance/v1/API.GetServerCompatibleTypes` — capacity and quotas are the provider's fleet, and a local emulator that answered would be inventing headroom a client could plan against
+- `instance/v1/API.GetServerTypesAvailability` — capacity and quotas are the provider's fleet, and a local emulator that answered would be inventing headroom a client could plan against
+- `instance/v1/API.ListDefaultSecurityGroupRules` — the seeded rule set is a value the SDK does not carry, so an invented list would state which ports a real client believes are open, and docs/limits.md records that these rules do filter packets
+- `instance/v1/API.ListVolumesTypes` — capacity and quotas are the provider's fleet, and a local emulator that answered would be inventing headroom a client could plan against
+- `instance/v1/API.PlanBlockMigration` — there is no legacy storage behind this emulator to migrate from, so a plan would describe a move between two things that are the same store
+- `instance/v1/MetadataAPI.DeleteUserData` — the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials
+- `instance/v1/MetadataAPI.GetMetadata` — the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials
+- `instance/v1/MetadataAPI.GetUserData` — the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials
+- `instance/v1/MetadataAPI.ListUserData` — the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials
+- `instance/v1/MetadataAPI.SetUserData` — the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials
+- `instance/v2alpha1/API.AddSecurityGroupRules` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.AttachServerFileSystem` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.AttachServerIP` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.AttachServerPrivateNetworkInterface` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.AttachServerVolume` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.CheckTemplate` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.CreatePlacementGroup` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.CreatePrivateNetworkInterface` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.CreateSecurityGroup` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.CreateServer` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.CreateServerFromTemplate` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.CreateTemplate` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.DeletePlacementGroup` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.DeletePrivateNetworkInterface` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.DeleteSecurityGroup` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.DeleteSecurityGroupRules` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.DeleteServer` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.DeleteTemplate` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.DeleteTemplateUserData` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.DeleteUserData` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.DetachServerFileSystem` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.DetachServerIP` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.DetachServerPrivateNetworkInterface` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.DetachServerVolume` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.GetPlacementGroup` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.GetPrivateNetworkInterface` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.GetResourceCounts` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.GetSecurityGroup` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.GetServer` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.GetServerCloudInit` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.GetTemplate` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.GetTemplateCloudInit` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.GetTemplateUserData` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.GetUserData` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.ListPlacementGroups` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.ListPrivateNetworkInterfaces` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.ListSecurityGroups` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.ListServerTypes` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.ListServers` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.ListTemplateUserDataKeys` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.ListTemplates` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.ListUserDataKeys` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.PauseServer` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.RebootServer` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.SetSecurityGroupRules` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.SetServerCloudInit` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.SetServerDefaultIP` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.SetTemplateCloudInit` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.SetTemplateUserData` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.SetUserData` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.StartServer` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.StopAndDeleteServer` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.StopServer` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.UpdatePlacementGroup` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.UpdatePrivateNetworkInterface` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.UpdateSecurityGroup` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.UpdateSecurityGroupRule` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.UpdateServer` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/API.UpdateTemplate` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/VolumeAPI.CreateSnapshot` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/VolumeAPI.CreateVolume` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/VolumeAPI.DeleteSnapshot` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/VolumeAPI.DeleteVolume` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/VolumeAPI.ExportSnapshotToObjectStorage` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/VolumeAPI.GetSnapshot` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/VolumeAPI.GetVolume` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/VolumeAPI.ImportSnapshotFromObjectStorage` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/VolumeAPI.ListSnapshots` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/VolumeAPI.ListVolumeTypes` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/VolumeAPI.ListVolumes` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/VolumeAPI.UpdateSnapshot` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance/v2alpha1/VolumeAPI.UpdateVolume` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `ipam/v1alpha1/API.ListIPs` — ipam/v1alpha1 is the superseded draft of ipam/v1, which is served
+- `vpc/v2/API.AddPrivateNetworkS3Endpoint` — they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md
+- `vpc/v2/API.DeletePrivateNetworkS3Endpoint` — they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md
+- `vpc/v2/API.DisableS3Endpoint` — they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md
+- `vpc/v2/API.EnableS3Endpoint` — they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md
+- `vpc/v2/API.SetPrivateNetworksS3Endpoint` — they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md
 
 ## Outscale
 
@@ -217,52 +236,53 @@ drift gate records, which is what separates it from having missed one.
 
 ### Declined on purpose (43)
 
-Operations this pack knowingly does not serve. Declining is a decision the
-drift gate records, which is what separates it from having missed one.
+Operations this pack knowingly does not serve, and why. Declining is a
+decision the drift gate records, which is what separates it from having
+missed one — and the reason is what separates a decision from a list.
 
-- `oks/Client.CreateCluster`
-- `oks/Client.CreateProject`
-- `oks/Client.DeleteCluster`
-- `oks/Client.DeleteProject`
-- `oks/Client.GetCPSubregions`
-- `oks/Client.GetCluster`
-- `oks/Client.GetClusterTemplate`
-- `oks/Client.GetControlPlanePlans`
-- `oks/Client.GetKubeconfig`
-- `oks/Client.GetKubeconfigWithPubkeyNACL`
-- `oks/Client.GetKubernetesVersions`
-- `oks/Client.GetNetPeeringAcceptanceTemplate`
-- `oks/Client.GetNetPeeringRequestTemplate`
-- `oks/Client.GetNodepoolTemplate`
-- `oks/Client.GetProject`
-- `oks/Client.GetProjectNets`
-- `oks/Client.GetProjectPublicIps`
-- `oks/Client.GetProjectQuotas`
-- `oks/Client.GetProjectSnapshots`
-- `oks/Client.GetProjectTemplate`
-- `oks/Client.GetQuotas`
-- `oks/Client.ListAllClusters`
-- `oks/Client.ListClustersByProjectID`
-- `oks/Client.ListProjects`
-- `oks/Client.UpdateCluster`
-- `oks/Client.UpdateProject`
-- `oks/Client.UpgradeCluster`
-- `osc/Client.CreateAccount`
-- `osc/Client.CreateImageExportTask`
-- `osc/Client.CreateSnapshotExportTask`
-- `osc/Client.DeleteExportTask`
-- `osc/Client.ReadAccounts`
-- `osc/Client.ReadApiLogs`
-- `osc/Client.ReadCatalog`
-- `osc/Client.ReadCatalogs`
-- `osc/Client.ReadConsumptionAccount`
-- `osc/Client.ReadFlexibleGpuCatalog`
-- `osc/Client.ReadImageExportTasks`
-- `osc/Client.ReadPublicCatalog`
-- `osc/Client.ReadQuotas`
-- `osc/Client.ReadSnapshotExportTasks`
-- `osc/Client.ReadUnitPrice`
-- `osc/Client.UpdateAccount`
+- `oks/Client.CreateCluster` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.CreateProject` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.DeleteCluster` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.DeleteProject` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.GetCPSubregions` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.GetCluster` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.GetClusterTemplate` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.GetControlPlanePlans` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.GetKubeconfig` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.GetKubeconfigWithPubkeyNACL` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.GetKubernetesVersions` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.GetNetPeeringAcceptanceTemplate` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.GetNetPeeringRequestTemplate` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.GetNodepoolTemplate` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.GetProject` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.GetProjectNets` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.GetProjectPublicIps` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.GetProjectQuotas` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.GetProjectSnapshots` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.GetProjectTemplate` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.GetQuotas` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.ListAllClusters` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.ListClustersByProjectID` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.ListProjects` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.UpdateCluster` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.UpdateProject` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `oks/Client.UpgradeCluster` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `osc/Client.CreateAccount` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
+- `osc/Client.CreateImageExportTask` — Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale
+- `osc/Client.CreateSnapshotExportTask` — Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale
+- `osc/Client.DeleteExportTask` — Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale
+- `osc/Client.ReadAccounts` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
+- `osc/Client.ReadApiLogs` — the trail records calls made against Outscale's platform, and nothing here made any of them
+- `osc/Client.ReadCatalog` — no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so
+- `osc/Client.ReadCatalogs` — no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so
+- `osc/Client.ReadConsumptionAccount` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
+- `osc/Client.ReadFlexibleGpuCatalog` — no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so
+- `osc/Client.ReadImageExportTasks` — Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale
+- `osc/Client.ReadPublicCatalog` — no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so
+- `osc/Client.ReadQuotas` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
+- `osc/Client.ReadSnapshotExportTasks` — Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale
+- `osc/Client.ReadUnitPrice` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
+- `osc/Client.UpdateAccount` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
 
 ## Exoscale
 

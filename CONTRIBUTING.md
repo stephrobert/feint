@@ -1,4 +1,4 @@
-# Contributing to feint
+# Contributing to Feint
 
 ## The one rule
 
@@ -219,6 +219,6 @@ tests beside the code, and a comment that says why rather than what.
 Do not open a public issue for a vulnerability. Report it privately through GitHub
 private vulnerability reporting.
 
-Remember what feint is: a service that authenticates nobody and grants
+Remember what Feint is: a service that authenticates nobody and grants
 everything. Any change that makes it easier to expose on a real network deserves
 scrutiny.

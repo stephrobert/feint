@@ -1,6 +1,6 @@
 # Limits
 
-What feint deliberately does not do, and why. Stating this precisely matters
+What Feint deliberately does not do, and why. Stating this precisely matters
 more than the feature list: an emulator that lies about its coverage is worse
 than one that is small.
 
@@ -51,7 +51,7 @@ first points an existing Terraform at the emulator — would then fail on the on
 thing that has nothing to do with what they are testing.
 
 The cost is real and worth stating plainly: **a typo in an image id is not caught
-here, and will be caught in production.** feint proves that a request is
+here, and will be caught in production.** Feint proves that a request is
 well-formed and that the response is shaped like the provider's, not that the
 resources it names exist.
 
@@ -74,12 +74,12 @@ with `transient_state`, because Terraform depends on that error.
 No signature is checked, on any provider. Credentials must merely be well-formed,
 because the SDKs validate their shape client-side before sending anything.
 
-This means feint must never be exposed on a network you do not control. It is a
+This means Feint must never be exposed on a network you do not control. It is a
 development tool that grants everything to everyone, by design.
 
 ## Docker was removed: it cannot back an emulated network
 
-feint shipped a Docker driver and no longer does. Incus is the only machine
+Feint shipped a Docker driver and no longer does. Incus is the only machine
 runtime, and the reason is the network, not a preference between runtimes.
 
 Emulating a cloud means emulating its addressing plan, and that needs four

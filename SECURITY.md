@@ -1,8 +1,8 @@
 # Security policy
 
-## What feint is, and what that means for you
+## What Feint is, and what that means for you
 
-feint emulates cloud APIs so you can run tests without an account. It is a
+Feint emulates cloud APIs so you can run tests without an account. It is a
 **development tool**. It accepts every credential it is given without verifying
 any of them, it answers on plain HTTP, and it holds its state in memory. That is
 deliberate — the point is to run without an account — and it makes the emulator
@@ -15,7 +15,7 @@ container it runs in cannot leave.
 Listening on the loopback is not by itself enough, and the emulator does not
 pretend otherwise. A web page the operator visits can resolve its own name to
 `127.0.0.1` and have the browser issue requests here on its behalf — DNS
-rebinding, against which a listen address protects nothing. So when feint is
+rebinding, against which a listen address protects nothing. So when Feint is
 bound to a loopback address it **refuses requests whose `Host` header names
 anything else**, which a browser cannot forge. Bind it elsewhere with `--addr`
 and the check steps aside, because that exposure was asked for.

@@ -70,7 +70,7 @@ func renderPrereq(goMod string) string {
 		" `--vm incus-ovn`: subnets that are actually separate, so two VPCs cannot reach each other. |\n")
 
 	fmt.Fprintf(&b, "\n%s is a floor rather than a preference: below it the runtime refuses ACLs on a\n", floor)
-	b.WriteString("NIC, and the failure reads like a feint bug rather than a missing feature. Ubuntu\n")
+	b.WriteString("NIC, and the failure reads like a Feint bug rather than a missing feature. Ubuntu\n")
 	b.WriteString("24.04 ships 6.0.0 and will not move past it, so the Zabbly stable channel is the\n")
 	fmt.Fprintf(&b, "practical way to a supported version. `feint doctor` checks all of this against\n"+
 		"the same %s, and says what to install, which is the point of having it.\n", floor)

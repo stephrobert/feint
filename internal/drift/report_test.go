@@ -21,7 +21,7 @@ func upstream() []drift.Operation {
 func TestCompareClassifies(t *testing.T) {
 	rep := drift.Compare("scaleway", upstream(),
 		[]string{"instance/v1/API.ListServers", "instance/v1/API.CreateServer"},
-		[]string{"instance/v1/API.GetDashboard"},
+		map[string]string{"instance/v1/API.GetDashboard": "out of scope for this test"},
 	)
 
 	if rep.Total != 4 || rep.Implemented != 2 || rep.Declined != 1 || rep.Unknown != 1 {
@@ -98,7 +98,7 @@ func mixedVersions() []drift.Operation {
 func TestVersionsSplitsAProductAcrossItsAPIVersions(t *testing.T) {
 	rep := drift.Compare("scaleway", mixedVersions(),
 		[]string{"instance/v1/API.ListServers"},
-		[]string{"instance/v2alpha1/API.ListServers"},
+		map[string]string{"instance/v2alpha1/API.ListServers": "out of scope for this test"},
 	)
 	instance := rep.ByProduct()["instance"]
 
@@ -122,7 +122,7 @@ func TestVersionsSplitsAProductAcrossItsAPIVersions(t *testing.T) {
 func TestWriteTextBreaksDownMultiVersionProducts(t *testing.T) {
 	rep := drift.Compare("scaleway", mixedVersions(),
 		[]string{"instance/v1/API.ListServers", "rdb/v1/API.ListInstances"},
-		[]string{"instance/v2alpha1/API.ListServers"},
+		map[string]string{"instance/v2alpha1/API.ListServers": "out of scope for this test"},
 	)
 
 	var buf bytes.Buffer
@@ -142,7 +142,7 @@ func TestWriteTextBreaksDownMultiVersionProducts(t *testing.T) {
 func TestWriteJSONCarriesPerVersionCounts(t *testing.T) {
 	rep := drift.Compare("scaleway", mixedVersions(),
 		[]string{"instance/v1/API.ListServers"},
-		[]string{"instance/v2alpha1/API.ListServers"},
+		map[string]string{"instance/v2alpha1/API.ListServers": "out of scope for this test"},
 	)
 
 	var buf bytes.Buffer
@@ -195,5 +195,42 @@ func TestWriteJSONIsConsumableByTheDocsSite(t *testing.T) {
 	}
 	if got.Provider != "scaleway" || got.Total != 4 || len(got.Products) != 2 {
 		t.Fatalf("unexpected payload: %+v", got)
+	}
+}
+
+// An operation declined with no reason must stay declined.
+//
+// This is the test the fix shipped without, and its absence was the finding: the
+// original defect used the reason string as an in-band sentinel
+// (`declinedSet[op.Name] != ""`), so an empty reason silently became "untriaged"
+// *and* was reported as an orphan — an operation that matches upstream announced
+// as matching nothing. Reintroducing that defect passed the entire suite, which
+// means the comment describing the repair was the only thing guarding it.
+func TestAnEmptyReasonStaysDeclinedAndIsNamed(t *testing.T) {
+	rep := drift.Compare("scaleway", upstream(), nil,
+		map[string]string{"instance/v1/API.ListServers": ""})
+
+	if rep.Declined != 1 {
+		t.Errorf("an empty reason reclassified the operation: declined=%d, unknown=%d", rep.Declined, rep.Unknown)
+	}
+	if len(rep.Orphans) != 0 {
+		t.Errorf("an operation that exists upstream was reported as an orphan: %v", rep.Orphans)
+	}
+	if len(rep.Unexplained) != 1 || rep.Unexplained[0] != "instance/v1/API.ListServers" {
+		t.Errorf("the missing reason was not named: %v", rep.Unexplained)
+	}
+	for _, e := range rep.Entries {
+		if e.Operation == "instance/v1/API.ListServers" && e.Status != drift.StatusDeclined {
+			t.Errorf("status is %q, want declined", e.Status)
+		}
+	}
+}
+
+// And the accepting half: a reason that is there must not be reported.
+func TestAReasonThatIsThereIsNotReported(t *testing.T) {
+	rep := drift.Compare("scaleway", upstream(), nil,
+		map[string]string{"instance/v1/API.ListServers": "a local emulator has no inventory to report on"})
+	if len(rep.Unexplained) != 0 {
+		t.Errorf("a declared reason was reported as missing: %v", rep.Unexplained)
 	}
 }

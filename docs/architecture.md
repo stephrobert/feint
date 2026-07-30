@@ -1,6 +1,6 @@
 # Architecture
 
-How feint is put together, and why it is put together that way. This is the page
+How Feint is put together, and why it is put together that way. This is the page
 to read before changing anything under `internal/`; the [README](../README.md)
 covers what the emulator does, and `docs/limits.md` what it deliberately does
 not.

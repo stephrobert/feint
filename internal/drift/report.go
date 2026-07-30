@@ -25,6 +25,11 @@ const (
 type Entry struct {
 	Operation string `json:"operation"`
 	Product   string `json:"product"`
+	// Reason is why a declined operation is declined, empty for every other
+	// status. It is carried here rather than looked up by the caller because
+	// each renderer would otherwise have to join two lists and one of them
+	// would forget.
+	Reason string `json:"reason,omitempty"`
 	// Version is the product's API version, empty when the SDK carries none
 	// (Outscale's flat namespace). It is kept per entry because triage verdicts
 	// differ per version: a stable v1 addition is work, an alpha rewrite is a
@@ -35,21 +40,31 @@ type Entry struct {
 
 // Report is the coverage of one provider.
 type Report struct {
-	Provider    string  `json:"provider"`
-	Total       int     `json:"total"`
-	Implemented int     `json:"implemented"`
-	Declined    int     `json:"declined"`
-	Unknown     int     `json:"unknown"`
-	Entries     []Entry `json:"entries"`
+	Provider    string `json:"provider"`
+	Total       int    `json:"total"`
+	Implemented int    `json:"implemented"`
+	Declined    int    `json:"declined"`
+	// Unexplained lists declined operations whose reason is missing. It is a
+	// defect in the pack rather than drift, and it is reported rather than
+	// silently classified: the gate reads it and fails, so "declined with no
+	// reason" can never be mistaken for "untriaged".
+	// No json tag: WriteJSON builds its own map and does not carry this, and a
+	// tag advertising a field the wire never has is the same lie one layer down.
+	Unexplained []string `json:"-"`
+	Unknown     int      `json:"unknown"`
+	Entries     []Entry  `json:"entries"`
 	// Orphans are routes whose Operation matches nothing upstream: either a
 	// typo, or an operation upstream just removed. Both need a human.
 	Orphans []string `json:"orphans"`
 }
 
 // Compare joins the upstream surface with what the pack claims.
-func Compare(provider string, upstream []Operation, served, declined []string) Report {
+// Compare joins the upstream surface against what a pack serves and what it
+// declines. declined maps an operation to the reason it is refused, so a report
+// can say why rather than only how many.
+func Compare(provider string, upstream []Operation, served []string, declined map[string]string) Report {
 	servedSet := toSet(served)
-	declinedSet := toSet(declined)
+	declinedSet := declined
 
 	rep := Report{Provider: provider, Total: len(upstream)}
 	matched := make(map[string]bool, len(servedSet))
@@ -61,8 +76,20 @@ func Compare(provider string, upstream []Operation, served, declined []string) R
 			e.Status = StatusImplemented
 			matched[op.Name] = true
 			rep.Implemented++
-		case declinedSet[op.Name]:
+		case declinedIs(declinedSet, op.Name):
+			// Membership, not the reason string. Deciding on `!= ""` made an
+			// empty reason reclassify the operation as untriaged *and* report it
+			// as an orphan — an upstream-matching operation announced as having
+			// no upstream match, on the one signal this report exists to keep
+			// reliable. An audit reproduced both.
 			e.Status = StatusDeclined
+			e.Reason = declinedSet[op.Name]
+			if strings.TrimSpace(e.Reason) == "" {
+				// Named rather than tolerated: the caller's own guard should
+				// have caught this, and a report that stays silent here is how
+				// the guard's absence goes unnoticed.
+				rep.Unexplained = append(rep.Unexplained, op.Name)
+			}
 			matched[op.Name] = true
 			rep.Declined++
 		default:
@@ -279,7 +306,11 @@ func (r Report) WriteList(w io.Writer) error {
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Operation < entries[j].Operation })
 
 	for _, e := range entries {
-		if _, err := fmt.Fprintf(w, "%-12s %s\n", e.Status, e.Operation); err != nil {
+		line := fmt.Sprintf("%-12s %s", e.Status, e.Operation)
+		if e.Reason != "" {
+			line += " — " + e.Reason
+		}
+		if _, err := fmt.Fprintf(w, "%s\n", line); err != nil {
 			return err
 		}
 	}
@@ -332,4 +363,12 @@ func (r Report) WriteJSON(w io.Writer) error {
 		"orphans":     r.Orphans,
 		"products":    views,
 	})
+}
+
+// declinedIs reports whether the pack declined this operation, whatever its
+// reason says. Separated from the reason lookup so that no future edit can make
+// classification depend on the text again.
+func declinedIs(declined map[string]string, name string) bool {
+	_, ok := declined[name]
+	return ok
 }

@@ -16,6 +16,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
+	"strings"
 	"syscall"
 	"time"
 
@@ -339,16 +340,20 @@ func loadContracts(dir string) (map[string]*contract.Doc, error) {
 	return docs, nil
 }
 
+// packsFor is which packs the emulator mounts. A variable rather than a literal
+// so a test can hand over a pack of its own — the hardwired list was what made
+// coverage()'s own gate untestable, and an audit named it three times before it
+// was worth the seam. Production never assigns it.
+var packsFor = func(env *emulator.Env) []emulator.Pack {
+	return []emulator.Pack{scaleway.New(env), outscale.New(env), exoscale.New(env)}
+}
+
 // newServer builds the emulator with every pack mounted. With contracts, every
 // response is checked against the provider's own API description.
 func newServer(contracts map[string]*contract.Doc) (*emulator.Server, *emulator.Env, error) {
 	env := emulator.DefaultEnv()
 	env.Contracts = contracts
-	srv, err := emulator.NewServer(env,
-		scaleway.New(env),
-		outscale.New(env),
-		exoscale.New(env),
-	)
+	srv, err := emulator.NewServer(env, packsFor(env)...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -564,7 +569,8 @@ func coverage(args []string, stdout, stderr io.Writer) int {
 		return exitError
 	}
 
-	var served, declined []string
+	var served []string
+	declined := map[string]string{}
 	for _, p := range srv.Packs() {
 		if p.Name() != *provider {
 			continue
@@ -572,14 +578,36 @@ func coverage(args []string, stdout, stderr io.Writer) int {
 		for _, r := range p.Routes() {
 			served = append(served, r.Operation)
 		}
-		declined = append(declined, p.Declined()...)
+		// The whole guard, here rather than only in `go test`. The gate used to
+		// fail on an empty reason and let "TODO" through, so a placeholder
+		// reached the report and only CI's test job would ever have said so — a
+		// control enforced in one of its two places is a control somebody
+		// bypasses by running the other.
+		if problems := declineProblems(p); len(problems) > 0 {
+			for _, line := range problems {
+				fmt.Fprintf(stderr, "feint: %s\n", line)
+			}
+			// exitError, not exitDrift: the exit codes are a contract the CI
+			// depends on — 1 is an error, 2 is drift — and a pack declining
+			// something without a usable reason is a defect in this repository,
+			// not upstream movement. Returning 2 would have drift.yml open a
+			// triage pull request for something no triage can fix.
+			return exitError
+		}
+		for _, d := range p.Declined() {
+			declined[d.Operation] = d.Reason
+		}
 	}
 
 	// Restrict both sides to the same products, otherwise a route serving another
 	// product looks like an orphan.
 	if len(productList) > 0 {
 		served = drift.OnlyProductNames(served, productList)
-		declined = drift.OnlyProductNames(declined, productList)
+		kept := map[string]string{}
+		for _, op := range drift.OnlyProductNames(emulator.DeclinedOperations(declinesOf(declined)), productList) {
+			kept[op] = declined[op]
+		}
+		declined = kept
 	}
 
 	rep := drift.Compare(*provider, upstream, served, declined)
@@ -618,6 +646,19 @@ func coverage(args []string, stdout, stderr io.Writer) int {
 		return exitError
 	}
 
+	// A refusal without a reason is a defect in the pack, and it now has its own
+	// verdict: before this, an empty reason reclassified the operation as
+	// untriaged and reported it as an orphan, so the gate failed while naming the
+	// wrong thing.
+	if len(rep.Unexplained) > 0 {
+		fmt.Fprintf(stderr, "feint: %d declined operation(s) carry no reason: %s\n",
+			len(rep.Unexplained), strings.Join(rep.Unexplained, ", "))
+		fmt.Fprintln(stderr, "feint: a refusal without a reason is indistinguishable from an oversight")
+		// exitError like its twin above, and for the same reason: this is a
+		// defect in a pack, not upstream movement. Fixing one branch and leaving
+		// the other is the pattern this repository has a paragraph about.
+		return exitError
+	}
 	if len(rep.Orphans) > 0 {
 		fmt.Fprintf(stderr, "feint: %d route(s) reference an operation that no longer exists upstream\n", len(rep.Orphans))
 		return exitDrift
@@ -651,10 +692,15 @@ func catalog(args []string, stdout io.Writer) error {
 		Path      string `json:"path"`
 		Operation string `json:"operation"`
 	}
+	type declineView struct {
+		Operation string `json:"operation"`
+		Reason    string `json:"reason"`
+	}
+
 	type packView struct {
-		Provider string      `json:"provider"`
-		Routes   []routeView `json:"routes"`
-		Declined []string    `json:"declined"`
+		Provider string        `json:"provider"`
+		Routes   []routeView   `json:"routes"`
+		Declined []declineView `json:"declined"`
 	}
 
 	packs := make([]packView, 0, len(srv.Packs()))
@@ -663,9 +709,12 @@ func catalog(args []string, stdout io.Writer) error {
 		for _, r := range p.Routes() {
 			routes = append(routes, routeView{Method: r.Method, Path: r.Path, Operation: r.Operation})
 		}
-		declined := p.Declined()
-		if declined == nil {
-			declined = []string{}
+		// The reason travels with the operation here too: /_feint/routes is what
+		// a reader hits when they want to know why something is refused, and a
+		// list of bare names sent them back to the source.
+		declined := make([]declineView, 0, len(p.Declined()))
+		for _, d := range p.Declined() {
+			declined = append(declined, declineView{Operation: d.Operation, Reason: d.Reason})
 		}
 		packs = append(packs, packView{Provider: p.Name(), Routes: routes, Declined: declined})
 	}
@@ -719,4 +768,53 @@ func parseLogLevel(name string) (slog.Level, error) {
 	default:
 		return 0, fmt.Errorf("unknown log level %q (error, warn, info, debug)", name)
 	}
+}
+
+// declinesOf turns the operation-to-reason map back into the slice the product
+// filter takes. One conversion in one place: the filter works on names, the
+// report needs reasons, and doing this at each call site is how one of them
+// drops the reason.
+func declinesOf(declined map[string]string) []emulator.Decline {
+	out := make([]emulator.Decline, 0, len(declined))
+	for op, reason := range declined {
+		out = append(out, emulator.Decline{Operation: op, Reason: reason})
+	}
+	return out
+}
+
+// declineProblems is what makes a pack's refusals unusable, as sentences.
+//
+// Two tests, and the difference between them is the point.
+// TestTheGateRefusesUnusableRefusals proves this function refuses a placeholder
+// and a duplicate and accepts a clean pack. TestCoverageRefusesAPackWithUnusableRefusals
+// proves coverage() still calls it, by mounting a broken pack through packsFor
+// and asserting the exit code — deleting the call site now fails that test.
+//
+// It took four audits to get here. The first version of this paragraph declared
+// the gap and misdiagnosed it (blaming an SDK checkout that `feint coverage` does
+// not need); the second declared it accurately and left it. A declared intention
+// with a plan is still not a control, so the seam was added and the plan carried
+// out.
+//
+// The second gate below, on rep.Unexplained, stays unreachable defence in depth:
+// an empty reason trips this function first, so that branch only fires if this
+// one is deleted. That is deliberate and stated rather than mistaken for a live
+// verdict.
+//
+// Extracted from coverage() so it can be tested. Inline it was unfalsifiable: an
+// audit deleted the block that consumed it and the entire suite stayed green,
+// which is the same defect as a comment describing a control — the control
+// existed and nothing proved it ran.
+func declineProblems(p emulator.Pack) []string {
+	var out []string
+	declined := p.Declined()
+	if bad := emulator.UnexplainedDeclines(declined); len(bad) > 0 {
+		out = append(out, fmt.Sprintf("%s declines %d operation(s) with no usable reason: %s",
+			p.Name(), len(bad), strings.Join(bad, ", ")))
+	}
+	if dup := emulator.DuplicateDeclines(declined); len(dup) > 0 {
+		out = append(out, fmt.Sprintf("%s declines %s more than once, so two documents disagree about the reason",
+			p.Name(), strings.Join(dup, ", ")))
+	}
+	return out
 }

@@ -1,13 +1,13 @@
 {
-  "declined": 74,
+  "declined": 92,
   "implemented": 49,
   "orphans": null,
   "products": [
     {
       "product": "instance",
-      "total": 137,
+      "total": 150,
       "implemented": 37,
-      "declined": 73,
+      "declined": 86,
       "unknown": 27,
       "versions": [
         {
@@ -19,9 +19,9 @@
         },
         {
           "version": "v2alpha1",
-          "total": 59,
+          "total": 72,
           "implemented": 0,
-          "declined": 59,
+          "declined": 72,
           "unknown": 0
         }
       ]
@@ -51,22 +51,22 @@
     },
     {
       "product": "vpc",
-      "total": 32,
+      "total": 37,
       "implemented": 10,
-      "declined": 0,
+      "declined": 5,
       "unknown": 22,
       "versions": [
         {
           "version": "v2",
-          "total": 32,
+          "total": 37,
           "implemented": 10,
-          "declined": 0,
+          "declined": 5,
           "unknown": 22
         }
       ]
     }
   ],
   "provider": "scaleway",
-  "total": 179,
+  "total": 197,
   "unknown": 56
 }

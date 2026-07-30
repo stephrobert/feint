@@ -471,7 +471,7 @@ here.
 - **A fourth provider before the third is usable.** Otherwise the result is
   three half-empty shopfronts instead of two full ones.
 - **The container image as the nominal mode.** Self-detachment is the only point
-  where feint beats all three comparable emulators at once; a JVM or CPython
+  where Feint beats all three comparable emulators at once; a JVM or CPython
   process cannot daemonise cleanly, a static Go binary can. The image exists so
   the emulator can enter other people's tooling, not to replace the binary.
 - **Checking that an identifier exists.** A create naming an image the emulator

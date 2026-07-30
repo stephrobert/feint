@@ -82,7 +82,7 @@ func (p *Pack) Routes() []emulator.Route {
 //
 // The names were wrong here too, and for the same reason. They are checked now:
 // the drift report calls out an entry matching nothing upstream.
-func (p *Pack) Declined() []string {
+func (p *Pack) Declined() []emulator.Decline {
 	// Nothing is declined here yet, and the empty list is the honest answer
 	// rather than a placeholder.
 	//

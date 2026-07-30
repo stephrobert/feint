@@ -92,10 +92,16 @@ type Pack interface {
 	Name() string
 	// Routes lists everything the pack serves.
 	Routes() []Route
-	// Declined lists upstream operations the pack knowingly does not serve, so
-	// the drift report can separate "not done yet" from "deliberately out of
-	// scope". Every entry must use the same naming as Route.Operation.
-	Declined() []string
+	// Declined lists upstream operations the pack knowingly does not serve,
+	// each with the reason, so the drift report can separate "not done yet"
+	// from "deliberately out of scope" and say which. Every entry must use the
+	// same naming as Route.Operation.
+	//
+	// The reason is data rather than a comment because everything that consumes
+	// this list — the coverage report, `feint coverage`, the generated route
+	// reference — used to print a count of refusals a reader had to open three
+	// provider files to understand.
+	Declined() []Decline
 	// Env is what a real client of this provider needs in its environment to
 	// reach the emulator instead of the cloud.
 	//

@@ -1,6 +1,6 @@
 # The mark
 
-![feint](assets/brand/feint-lockup-light.svg)
+![Feint](assets/brand/feint-lockup-light.svg)
 
 The logo is two strokes and nothing else. A solid path climbs and then flattens:
 that is the surface the emulator actually serves. A dashed path leaves the same
@@ -75,7 +75,7 @@ a rendering bug.
 
 ## Licence
 
-**The name *feint* and the logo are not covered by the Apache 2.0 licence** that
+**The name *Feint* and the logo are not covered by the Apache 2.0 licence** that
 covers the code. They may be used to refer to this project — in an article, a
 talk, a comparison, a list of tools — without asking. They may not be used as the
 mark of a fork, a product or a service, or in a way that suggests the project

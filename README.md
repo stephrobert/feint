@@ -1,6 +1,6 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/feint-lockup-dark.svg">
-  <img src="docs/assets/brand/feint-lockup-light.svg" alt="feint" width="230">
+  <img src="docs/assets/brand/feint-lockup-light.svg" alt="Feint" width="230">
 </picture>
 
 # Every European cloud needs an emulator
@@ -20,7 +20,7 @@
 AWS has LocalStack. Azure has Azurite. European clouds have had nothing, and
 their users test against a paying account or not at all.
 
-feint emulates their APIs so that SDKs, CLIs and Terraform run against your
+Feint emulates their APIs so that SDKs, CLIs and Terraform run against your
 laptop. **Scaleway, Outscale and Exoscale are the first three** — the
 architecture exists so a fourth changes nothing outside its own pack, and the
 scan that keeps them honest reads whatever SDK or API description that provider
@@ -51,7 +51,7 @@ Scaleway serves `/<product>/v<N>/…`, Outscale `POST /api/v1/<Action>`, Exoscal
 `/v2/<resource>` — so one `http.ServeMux` hosts all three, and the server refuses
 to start if two packs claim the same route.
 
-![Starting feint, pointing the official Scaleway CLI at it, and applying a Terraform configuration against it](docs/assets/quickstart.gif)
+![Starting Feint, pointing the official Scaleway CLI at it, and applying a Terraform configuration against it](docs/assets/quickstart.gif)
 
 Every command in that recording really ran: the emulator starts, the official
 `scw` CLI creates a server, the official Terraform provider applies a
@@ -71,7 +71,7 @@ It needs Incus with OVN; `mise run demo:network` records it.
 
 ## Prerequisites
 
-**None, for what most people came for.** feint is one static binary with no
+**None, for what most people came for.** Feint is one static binary with no
 external dependencies: it emulates the three control planes, holds its state in
 memory, and needs no daemon, no container runtime and no account. If you are
 pointing `scw`, `oapi-cli`, `exo` or Terraform at an emulator, stop reading here
@@ -89,7 +89,7 @@ Two things are needed only for what they enable:
 | OVN (`ovn-central`, `ovn-host`, Open vSwitch) | optional | `--vm incus-ovn`: subnets that are actually separate, so two VPCs cannot reach each other. |
 
 6.0.4 is a floor rather than a preference: below it the runtime refuses ACLs on a
-NIC, and the failure reads like a feint bug rather than a missing feature. Ubuntu
+NIC, and the failure reads like a Feint bug rather than a missing feature. Ubuntu
 24.04 ships 6.0.0 and will not move past it, so the Zabbly stable channel is the
 practical way to a supported version. `feint doctor` checks all of this against
 the same 6.0.4, and says what to install, which is the point of having it.
@@ -358,7 +358,7 @@ measured*: EPEL and Zabbly still package no Incus for Enterprise Linux 10, and
 the COPR chroot that appeared for it (checked 2026-07-30) has not been driven
 by the install play yet.
 
-This is what separates feint from a mock server, and it is measured rather than
+This is what separates Feint from a mock server, and it is measured rather than
 claimed: the block a client asks for is the block it gets, the address the API
 publishes is the address the machine carries, a security group's default policy
 closes a port for real, and authorising it afterwards opens it without restarting
@@ -522,14 +522,14 @@ what this emulator serves, declines on purpose, or has not triaged yet.
 
 #### Scaleway
 
-55 routes mounted, 27% of the measured upstream surface served.
+55 routes mounted, 24% of the measured upstream surface served.
 
 | Product | Served | Declined | Untriaged | Upstream |
 |---|--:|--:|--:|--:|
-| `instance` | 37 | 73 | 27 | 137 |
+| `instance` | 37 | 86 | 27 | 150 |
 | `ipam` | 2 | 1 | 7 | 10 |
-| `vpc` | 10 | 0 | 22 | 32 |
-| **Total** | **49** | **74** | **56** | **179** |
+| `vpc` | 10 | 5 | 22 | 37 |
+| **Total** | **49** | **92** | **56** | **197** |
 
 Routes are also mounted for `iam` (5), `marketplace` (1), which the coverage gate does not scan yet:
 they are served against a surface nobody measures, so no drift would be
@@ -650,7 +650,7 @@ things.
 
 Apache 2.0. See [LICENSE](LICENSE).
 
-feint emulates APIs compatible with the SDKs, CLIs and Terraform providers of
+Feint emulates APIs compatible with the SDKs, CLIs and Terraform providers of
 Scaleway, 3DS Outscale and Exoscale. It is an **independent project, not
 affiliated with, endorsed by, sponsored by or certified by** any of them. Those
 names appear here only to identify which APIs are emulated, which is what

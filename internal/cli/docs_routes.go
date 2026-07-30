@@ -5,6 +5,8 @@ import (
 	"os"
 	"sort"
 	"strings"
+
+	"github.com/stephrobert/feint/internal/core/emulator"
 )
 
 // The reference a reader needs before installing anything: is my resource
@@ -72,17 +74,18 @@ func renderRoutes() (string, error) {
 			b.WriteString("\n")
 		}
 
-		declined := append([]string(nil), p.Declined()...)
-		sort.Strings(declined)
+		declined := append([]emulator.Decline(nil), p.Declined()...)
+		sort.Slice(declined, func(i, j int) bool { return declined[i].Operation < declined[j].Operation })
 		fmt.Fprintf(&b, "### Declined on purpose (%d)\n\n", len(declined))
 		if len(declined) == 0 {
 			b.WriteString("Nothing yet: everything upstream declares is either served or untriaged.\n")
 			continue
 		}
-		b.WriteString("Operations this pack knowingly does not serve. Declining is a decision the\n")
-		b.WriteString("drift gate records, which is what separates it from having missed one.\n\n")
-		for _, op := range declined {
-			fmt.Fprintf(&b, "- `%s`\n", op)
+		b.WriteString("Operations this pack knowingly does not serve, and why. Declining is a\n")
+		b.WriteString("decision the drift gate records, which is what separates it from having\n")
+		b.WriteString("missed one — and the reason is what separates a decision from a list.\n\n")
+		for _, d := range declined {
+			fmt.Fprintf(&b, "- `%s` — %s\n", d.Operation, d.Reason)
 		}
 	}
 

@@ -19,9 +19,9 @@ type stubPack struct {
 	routes []emulator.Route
 }
 
-func (s stubPack) Name() string             { return s.name }
-func (s stubPack) Routes() []emulator.Route { return s.routes }
-func (s stubPack) Declined() []string       { return nil }
+func (s stubPack) Name() string                 { return s.name }
+func (s stubPack) Routes() []emulator.Route     { return s.routes }
+func (s stubPack) Declined() []emulator.Decline { return nil }
 
 // Env is mandatory on the interface, and deliberately so: a pack that cannot say
 // how to point a client at it is a pack nobody can use. A stub answers with one
