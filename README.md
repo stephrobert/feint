@@ -542,8 +542,8 @@ reported if it moved.
 | Product | Served | Declined | Untriaged | Upstream |
 |---|--:|--:|--:|--:|
 | `oks` | 0 | 27 | 0 | 27 |
-| `osc` | 20 | 16 | 199 | 235 |
-| **Total** | **20** | **43** | **199** | **262** |
+| `osc` | 20 | 119 | 96 | 235 |
+| **Total** | **20** | **146** | **96** | **262** |
 
 #### Exoscale
 

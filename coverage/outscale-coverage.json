@@ -1,5 +1,5 @@
 {
-  "declined": 43,
+  "declined": 146,
   "implemented": 20,
   "orphans": null,
   "products": [
@@ -14,11 +14,11 @@
       "product": "osc",
       "total": 235,
       "implemented": 20,
-      "declined": 16,
-      "unknown": 199
+      "declined": 119,
+      "unknown": 96
     }
   ],
   "provider": "outscale",
   "total": 262,
-  "unknown": 199
+  "unknown": 96
 }

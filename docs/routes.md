@@ -234,7 +234,7 @@ missed one — and the reason is what separates a decision from a list.
 | `POST` | `/api/v1/StopVms` | `osc/Client.StopVms` |
 | `POST` | `/api/v1/UpdateVm` | `osc/Client.UpdateVm` |
 
-### Declined on purpose (43)
+### Declined on purpose (146)
 
 Operations this pack knowingly does not serve, and why. Declining is a
 decision the drift gate records, which is what separates it from having
@@ -267,22 +267,125 @@ missed one — and the reason is what separates a decision from a list.
 - `oks/Client.UpdateCluster` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
 - `oks/Client.UpdateProject` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
 - `oks/Client.UpgradeCluster` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
+- `osc/Client.AddUserToUserGroup` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.CreateAccessKey` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
 - `osc/Client.CreateAccount` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
+- `osc/Client.CreateApiAccessRule` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.CreateCa` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.CreateClientGateway` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `osc/Client.CreateDedicatedGroup` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
+- `osc/Client.CreateDirectLink` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `osc/Client.CreateDirectLinkInterface` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `osc/Client.CreateFlexibleGpu` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
 - `osc/Client.CreateImageExportTask` — Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale
+- `osc/Client.CreatePolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.CreatePolicyVersion` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.CreateProductType` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
 - `osc/Client.CreateSnapshotExportTask` — Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale
+- `osc/Client.CreateUser` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.CreateUserGroup` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.CreateVirtualGateway` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `osc/Client.CreateVmGroup` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
+- `osc/Client.CreateVmTemplate` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
+- `osc/Client.CreateVpnConnection` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `osc/Client.CreateVpnConnectionRoute` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `osc/Client.DeleteAccessKey` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.DeleteApiAccessRule` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.DeleteCa` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.DeleteClientGateway` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `osc/Client.DeleteDedicatedGroup` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
+- `osc/Client.DeleteDirectLink` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `osc/Client.DeleteDirectLinkInterface` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
 - `osc/Client.DeleteExportTask` — Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale
+- `osc/Client.DeleteFlexibleGpu` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
+- `osc/Client.DeletePolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.DeletePolicyVersion` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.DeleteProductType` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
+- `osc/Client.DeleteUser` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.DeleteUserGroup` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.DeleteUserGroupPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.DeleteUserPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.DeleteVirtualGateway` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `osc/Client.DeleteVmGroup` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
+- `osc/Client.DeleteVmTemplate` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
+- `osc/Client.DeleteVpnConnection` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `osc/Client.DeleteVpnConnectionRoute` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `osc/Client.DisableOutscaleLogin` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.DisableOutscaleLoginForUsers` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.DisableOutscaleLoginPerUsers` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.EnableOutscaleLogin` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.EnableOutscaleLoginForUsers` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.EnableOutscaleLoginPerUsers` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.LinkFlexibleGpu` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
+- `osc/Client.LinkManagedPolicyToUserGroup` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.LinkPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.LinkVirtualGateway` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `osc/Client.PutUserGroupPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.PutUserPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.ReadAccessKeys` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
 - `osc/Client.ReadAccounts` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
+- `osc/Client.ReadApiAccessPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.ReadApiAccessRules` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
 - `osc/Client.ReadApiLogs` — the trail records calls made against Outscale's platform, and nothing here made any of them
+- `osc/Client.ReadCO2EmissionAccount` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
+- `osc/Client.ReadCas` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
 - `osc/Client.ReadCatalog` — no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so
 - `osc/Client.ReadCatalogs` — no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so
+- `osc/Client.ReadClientGateways` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
 - `osc/Client.ReadConsumptionAccount` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
+- `osc/Client.ReadDedicatedGroups` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
+- `osc/Client.ReadDirectLinkInterfaces` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `osc/Client.ReadDirectLinks` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `osc/Client.ReadEntitiesLinkedToPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
 - `osc/Client.ReadFlexibleGpuCatalog` — no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so
+- `osc/Client.ReadFlexibleGpus` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
 - `osc/Client.ReadImageExportTasks` — Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale
+- `osc/Client.ReadLinkedPolicies` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.ReadLocations` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `osc/Client.ReadManagedPoliciesLinkedToUserGroup` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.ReadPolicies` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.ReadPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.ReadPolicyVersion` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.ReadPolicyVersions` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.ReadProductTypes` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
 - `osc/Client.ReadPublicCatalog` — no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so
 - `osc/Client.ReadQuotas` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
 - `osc/Client.ReadSnapshotExportTasks` — Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale
 - `osc/Client.ReadUnitPrice` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
+- `osc/Client.ReadUserGroup` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.ReadUserGroupPolicies` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.ReadUserGroupPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.ReadUserGroups` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.ReadUserGroupsPerUser` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.ReadUserPolicies` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.ReadUserPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.ReadUsers` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.ReadVirtualGateways` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `osc/Client.ReadVmGroups` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
+- `osc/Client.ReadVmTemplates` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
+- `osc/Client.ReadVpnConnections` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `osc/Client.RemoveUserFromUserGroup` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.ScaleDownVmGroup` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
+- `osc/Client.ScaleUpVmGroup` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
+- `osc/Client.SetDefaultPolicyVersion` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.UnlinkFlexibleGpu` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
+- `osc/Client.UnlinkManagedPolicyFromUserGroup` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.UnlinkPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.UnlinkVirtualGateway` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `osc/Client.UpdateAccessKey` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
 - `osc/Client.UpdateAccount` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
+- `osc/Client.UpdateApiAccessPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.UpdateApiAccessRule` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.UpdateCa` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.UpdateDedicatedGroup` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
+- `osc/Client.UpdateDirectLinkInterface` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `osc/Client.UpdateFlexibleGpu` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
+- `osc/Client.UpdateRoutePropagation` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `osc/Client.UpdateUser` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.UpdateUserGroup` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `osc/Client.UpdateVmGroup` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
+- `osc/Client.UpdateVmTemplate` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
+- `osc/Client.UpdateVpnConnection` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
 
 ## Exoscale
 
