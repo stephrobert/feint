@@ -146,17 +146,33 @@ fi
 # blocks the release it was written to authorise.
 conformance_jobs='^(scw-cli|terraform|opentofu|oapi-cli|exo-cli|probe)$'
 
+# And the query is written out rather than parameterised, because the previous
+# attempt to parameterise it is what broke this gate a second time.
+#
+# `gh api --jq --arg jobs "$re" '<expr>'` looks like the jq CLI and is not: gh has
+# no --arg, so --jq took the string "--arg" as its expression, the call failed,
+# `2>/dev/null` swallowed the error, and an empty result was read as "no run
+# found". The gate then refused a tag on a commit whose six conformance jobs were
+# green — the exact failure the comment above says it fixed, one layer deeper.
+#
+# The lesson is the reason for the third branch below: a failed measurement and
+# an absent result are different answers, and only one of them is about the
+# repository.
 if git remote | grep -q . && command -v gh >/dev/null 2>&1; then
   sha="$(git rev-parse HEAD)"
-  # shellcheck disable=SC2016 # $jobs is a jq variable, bound by --arg above
-  state="$(gh api "repos/{owner}/{repo}/commits/$sha/check-runs" \
-           --jq --arg jobs "$conformance_jobs" \
-           '[.check_runs[] | select(.name | test($jobs)) | .conclusion] | unique | join(",")' 2>/dev/null)"
-  case "$state" in
-    success)   ok "conformance is green on this commit" ;;
-    "")        ko "no conformance run found for this commit" "push it and wait for CI" ;;
-    *)         ko "conformance is $state on this commit" "the emulator's whole claim is that these pass" ;;
-  esac
+  if runs="$(gh api "repos/{owner}/{repo}/commits/$sha/check-runs?per_page=100" \
+             --jq '.check_runs[] | "\(.name)\t\(.conclusion)"' 2>/dev/null)"; then
+    state="$(printf '%s\n' "$runs" \
+             | awk -F'\t' -v re="$conformance_jobs" '$1 ~ re { print $2 }' \
+             | sort -u | paste -sd, -)"
+    case "$state" in
+      success)   ok "conformance is green on this commit" ;;
+      "")        ko "no conformance run found for this commit" "push it and wait for CI" ;;
+      *)         ko "conformance is $state on this commit" "the emulator's whole claim is that these pass" ;;
+    esac
+  else
+    ko "could not ask CI about this commit" "gh api failed: check authentication, not the commit"
+  fi
 else
   printf "  %s·%s conformance on CI not checked (no remote, or gh is not installed)\n" "$DIM" "$OFF"
 fi
