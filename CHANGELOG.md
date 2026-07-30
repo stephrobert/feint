@@ -11,7 +11,7 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
-## [Unreleased]
+## [0.2.0]
 
 ### Added
 
@@ -135,4 +135,5 @@ against the providers' own SDKs rather than followed by hand.
   `unread_request_fields` run after run while Terraform looped. An introspection
   nobody gates on is a confession nobody hears.
 
+[0.2.0]: https://github.com/stephrobert/feint/releases/tag/v0.2.0
 [0.1.0]: https://github.com/stephrobert/feint/releases/tag/v0.1.0
