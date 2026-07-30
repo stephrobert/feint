@@ -112,6 +112,23 @@ case "$ACTION" in
     fi
     want="$(normalise < "$FILE")"
     got="$(printf '%s' "$live" | normalise)"
+
+    # Bypass actors are privileged information. A workflow's GITHUB_TOKEN reads
+    # the ruleset and gets `"bypass_actors": []` whatever the ruleset actually
+    # carries, so comparing them would fail this gate on every pull request for
+    # a difference that is not there. Measured: the same call with an
+    # Administration-scoped token returns the actor the file declares.
+    #
+    # Dropped from the comparison and *said*, never dropped silently: a gate
+    # that quietly stops checking something is the failure this repository keeps
+    # finding. Verifying that half needs a privileged token, and a privileged
+    # token has no business in a pull_request run.
+    if [ "$(printf '%s' "$got" | jq -c '.bypass_actors')" = "[]" ] &&
+       [ "$(printf '%s' "$want" | jq -c '.bypass_actors')" != "[]" ]; then
+      echo "note: bypass actors are not readable with this token; that half is unverified." >&2
+      want="$(printf '%s' "$want" | jq 'del(.bypass_actors)')"
+      got="$(printf '%s' "$got" | jq 'del(.bypass_actors)')"
+    fi
     if jq -n --argjson want "$want" --argjson got "$got" \
          "${DECLARED_IN_FORCE} in_force(\$want; \$got)" | grep -q true; then
       echo "every rule declared in ${FILE} is in force on ${REPO}"
