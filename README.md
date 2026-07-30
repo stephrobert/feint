@@ -1,4 +1,9 @@
-# FEINT — Every European cloud needs an emulator
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/feint-lockup-dark.svg">
+  <img src="docs/assets/brand/feint-lockup-light.svg" alt="feint" width="230">
+</picture>
+
+# Every European cloud needs an emulator
 
 [![Go](https://github.com/stephrobert/feint/actions/workflows/go.yml/badge.svg)](https://github.com/stephrobert/feint/actions/workflows/go.yml)
 [![Conformance](https://github.com/stephrobert/feint/actions/workflows/conformance.yml/badge.svg)](https://github.com/stephrobert/feint/actions/workflows/conformance.yml)
@@ -24,6 +29,11 @@ publishes.
 The name is the fencing move: *feinte*, from Old French *feindre* — a movement
 made to look like the real one, so the opponent commits. That is the whole test
 here. The official client commits, and cannot tell.
+
+The mark draws the same argument: a solid line for the surface actually served, a
+dashed one leaving the same corner at the same angle for what the provider
+announced and nobody has driven yet. [docs/brand.md](docs/brand.md) has the files
+and what may be done with them.
 
 <!-- banner:start -->
 ```bash
@@ -633,6 +643,10 @@ official client can.
 ---
 
 ## License
+
+Apache 2.0 for the code. **The name and the logo are not covered by it** —
+[docs/brand.md](docs/brand.md) says what may be done with them, which is most
+things.
 
 Apache 2.0. See [LICENSE](LICENSE).
 

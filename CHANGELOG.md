@@ -11,6 +11,20 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
+## [Unreleased]
+
+### Added
+
+- **`feint version --check`**, which asks GitHub whether a newer release exists
+  and prints the command to install it, pinned to that version. Asked for rather
+  than volunteered: nothing reaches the network unless the flag is typed, and
+  `FEINT_NO_UPDATE_CHECK=1` refuses it outright. The binary never updates itself
+  — telling beats rewriting something somebody verified.
+- **Brand files**, in `docs/assets/brand/`, with `docs/brand.md` for what may be
+  done with them. The wordmark is outlines rather than text, so the lockup
+  renders the same on GitHub as in a slide, and the licence section states what
+  the Apache licence does not cover: the name and the logo.
+
 ## [0.1.0]
 
 The first published version. It carries three emulated providers on one port,

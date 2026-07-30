@@ -127,8 +127,11 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		// The flag forms are aliases, not a second way of doing it: a user who
 		// types `feint --version` and gets "unknown command" concludes the
 		// binary is broken, and they are not wrong to.
-		fmt.Fprintln(stdout, released())
-		return exitOK
+		//
+		// `--check` asks GitHub whether a newer release exists. Asked for, never
+		// volunteered: nothing here reaches the network unless a user typed the
+		// flag, which is what keeps "no account, no telemetry, ever" true.
+		return versionCheck(args[2:], stdout, stderr)
 	case "-h", "--help", "help":
 		usage(stdout)
 		return exitOK
