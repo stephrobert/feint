@@ -83,8 +83,8 @@ jobs:
           workdir="$(mktemp -d)"
           base="https://github.com/scaleway/scaleway-cli/releases/download/v${SCW_VERSION}"
           asset="scaleway-cli_${SCW_VERSION}_linux_amd64"
-          curl -fsSL -o "${workdir}/${asset}" "${base}/${asset}"
-          curl -fsSL -o "${workdir}/sums" "${base}/SHA256SUMS"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/${asset}" "${base}/${asset}"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/sums" "${base}/SHA256SUMS"
           (cd "${workdir}" && grep " ${asset}$" sums | sha256sum -c -)
           sudo install -m 0755 "${workdir}/${asset}" /usr/local/bin/scw
           scw version
@@ -111,7 +111,7 @@ jobs:
         run: |
           set -euo pipefail
           workdir="$(mktemp -d)"
-          curl -fsSL -o "${workdir}/oapi-cli.AppImage" \
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/oapi-cli.AppImage" \
             "https://github.com/outscale/oapi-cli/releases/download/${OAPI_VERSION}/oapi-cli-x86_64.AppImage"
           echo "${OAPI_SHA256}  ${workdir}/oapi-cli.AppImage" | sha256sum -c -
           chmod +x "${workdir}/oapi-cli.AppImage"
@@ -150,8 +150,8 @@ jobs:
           version="${EXO_VERSION#v}"
           base="https://github.com/exoscale/cli/releases/download/${EXO_VERSION}"
           asset="exoscale-cli_${version}_linux_amd64.tar.gz"
-          curl -fsSL -o "${workdir}/${asset}" "${base}/${asset}"
-          curl -fsSL -o "${workdir}/sums" "${base}/exoscale-cli_${version}_checksums.txt"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/${asset}" "${base}/${asset}"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/sums" "${base}/exoscale-cli_${version}_checksums.txt"
           (cd "${workdir}" && grep " ${asset}$" sums | sha256sum -c -)
           tar -xzf "${workdir}/${asset}" -C "${workdir}" exo
           sudo install -m 0755 "${workdir}/exo" /usr/local/bin/exo
@@ -178,8 +178,8 @@ jobs:
           workdir="$(mktemp -d)"
           base="https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}"
           asset="terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
-          curl -fsSL -o "${workdir}/${asset}" "${base}/${asset}"
-          curl -fsSL -o "${workdir}/sums" "${base}/terraform_${TERRAFORM_VERSION}_SHA256SUMS"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/${asset}" "${base}/${asset}"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/sums" "${base}/terraform_${TERRAFORM_VERSION}_SHA256SUMS"
           (cd "${workdir}" && grep " ${asset}$" sums | sha256sum -c -)
           sudo unzip -o "${workdir}/${asset}" terraform -d /usr/local/bin
           terraform version
@@ -197,8 +197,8 @@ jobs:
           workdir="$(mktemp -d)"
           base="https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}"
           asset="tofu_${TOFU_VERSION}_linux_amd64.zip"
-          curl -fsSL -o "${workdir}/${asset}" "${base}/${asset}"
-          curl -fsSL -o "${workdir}/sums" "${base}/tofu_${TOFU_VERSION}_SHA256SUMS"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/${asset}" "${base}/${asset}"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/sums" "${base}/tofu_${TOFU_VERSION}_SHA256SUMS"
           (cd "${workdir}" && grep " ${asset}$" sums | sha256sum -c -)
           sudo unzip -o "${workdir}/${asset}" tofu -d /usr/local/bin
           tofu version
