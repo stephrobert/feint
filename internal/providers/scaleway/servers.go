@@ -713,8 +713,19 @@ func (p *Pack) setServerVolumes(server *resource.Resource, wanted map[string]vol
 			if !found || vol.Tenant.Zone != server.Tenant.Zone {
 				return fmt.Errorf("volume %s does not exist in %s", tmpl.ID, server.Tenant.Zone)
 			}
-			// A volume this call just created: it can belong to nobody else.
-			_ = p.attachVolume(vol, server, name)
+			// An existing volume, which another live server may hold. The
+			// verdict was thrown away here — under a comment copied from the
+			// case below, where the volume really is new — so `scw instance
+			// server update <thief> volumes.0.id=<their-root>` took it, both
+			// servers listed it, and the patched server's own root was
+			// detached with no error. A fourth audit found it: the shared
+			// question was asked and its answer dropped, which is worse than
+			// not asking, because the guard reads as present.
+			//
+			// TestAttachingDoesNotStealAnotherServersVolume fails without this.
+			if err := p.attachVolume(vol, server, name); err != nil {
+				return err
+			}
 			p.env.Store.Put(vol)
 			keep[vol.ID] = true
 			view[key] = volumeView(vol)

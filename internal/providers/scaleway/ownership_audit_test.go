@@ -123,6 +123,13 @@ func TestAttachingDoesNotStealAnotherServersVolume(t *testing.T) {
 				t.Fatalf("the owner has no root volume: %v", srv)
 			}
 
+			// The thief's own root, which a failed steal must not cost it.
+			_, out = do(t, ts, "GET", zone+"/servers/"+thief, "")
+			srv, _ = out["server"].(map[string]any)
+			volumes, _ = srv["volumes"].(map[string]any)
+			own, _ := volumes["0"].(map[string]any)
+			ownRoot, _ := own["id"].(string)
+
 			door.take(t, ts, thief, rootID)
 
 			// Whatever the status, the volume must not have moved: a create that
@@ -133,6 +140,25 @@ func TestAttachingDoesNotStealAnotherServersVolume(t *testing.T) {
 			server, _ := vol["server"].(map[string]any)
 			if server == nil || server["id"] != owner {
 				t.Errorf("%s moved the root volume: it now names %v", door.what, vol["server"])
+			}
+
+			// The two consequences the first version of this test did not
+			// assert, which is how the PATCH door went on stealing through
+			// three audits: the thief must not list the volume, and must not
+			// have lost its own root doing so.
+			_, out = do(t, ts, "GET", zone+"/servers/"+thief, "")
+			srv, _ = out["server"].(map[string]any)
+			volumes, _ = srv["volumes"].(map[string]any)
+			for key, entry := range volumes {
+				listed, _ := entry.(map[string]any)
+				if id, _ := listed["id"].(string); id == rootID {
+					t.Errorf("%s: the thief lists the owner's volume under %q — both servers hold it", door.what, key)
+				}
+			}
+			_, out = do(t, ts, "GET", zone+"/volumes/"+ownRoot, "")
+			vol, _ = out["volume"].(map[string]any)
+			if holder, _ := vol["server"].(map[string]any); holder == nil || holder["id"] != thief {
+				t.Errorf("%s: the thief's own root was detached by the attempt: %v", door.what, vol["server"])
 			}
 		})
 	}
