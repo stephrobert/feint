@@ -11,6 +11,45 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
+## [0.3.1]
+
+### Fixed
+
+- **The Outscale conformance suite measured whatever answered on 4599**,
+  whatever port it was asked to drive: `oapi-cli` lets the environment win over
+  `--config`, and the credentials file pinned `OSC_ENDPOINT_API`. The suite's
+  own endpoint argument was inert, so a run could report on a different server
+  than the one under test — or on nothing. The guard that refuses to run when
+  that variable is unset existed and was called only by the Scaleway suite.
+- **`scw instance server update <server> volumes.0.id=<another server's root>`
+  answered 200** and moved the volume: both servers then listed it, and the
+  patched server's own root was silently detached. The ownership check lived in
+  the shared layer and one of its three callers discarded the verdict.
+- **A create whose resource disappeared mid-boot left a machine running** with
+  a runtime configured — invisible to the control plane, so nothing would ever
+  stop it. Reachable through `PUT /_feint/state`, which the snapshot format
+  documents as a supported path.
+- **`feint coverage` gave four snapshot read operations a reason that describes
+  a create**, which is the "true of the family, false of the member" defect the
+  reasons exist to prevent.
+
+### Added
+
+- **`TestEveryCitedTestExists` indexes citations by package.** A comment naming
+  a test that lives in another package is accepted only when it says which one;
+  a homonym elsewhere no longer satisfies a citation pointing at nothing. It
+  also joins comment lines before matching, so a citation split over two lines
+  is seen.
+
+### Changed
+
+- **The release preflight derives the version from the commits again.** It
+  reported "commitizen is not installed" on the machine that cuts releases,
+  where the commitizen pre-commit hook runs on every commit from an environment
+  that is not on the `PATH`; v0.3.0 was therefore tagged on a number derived by
+  hand. It now runs commitizen through `uvx`, pinned to the version the hook
+  uses. Checked after the fact: the commits did imply 0.3.0.
+
 ## [0.3.0]
 
 ### Changed
