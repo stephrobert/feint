@@ -112,6 +112,11 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "GET", Path: zones + "/volumes/{id}", Operation: "instance/v1/API.GetVolume", Handler: p.getVolume},
 		{Method: "PATCH", Path: zones + "/volumes/{id}", Operation: "instance/v1/API.UpdateVolume", Handler: p.updateVolume},
 		{Method: "DELETE", Path: zones + "/volumes/{id}", Operation: "instance/v1/API.DeleteVolume", Handler: p.deleteVolume},
+		// The pair `scw instance server terminate` walks before terminating:
+		// every emulated server owns a root volume, so the CLI always detaches
+		// first, and a 501 here failed the command outright.
+		{Method: "POST", Path: zones + "/servers/{id}/attach-volume", Operation: "instance/v1/API.AttachServerVolume", Handler: p.attachServerVolume},
+		{Method: "POST", Path: zones + "/servers/{id}/detach-volume", Operation: "instance/v1/API.DetachServerVolume", Handler: p.detachServerVolume},
 
 		// VPCs and Private Networks. This is what turns a declared block into a
 		// real bridge: the subnet is validated, checked against its siblings for

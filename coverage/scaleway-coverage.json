@@ -1,6 +1,6 @@
 {
   "declined": 176,
-  "implemented": 55,
+  "implemented": 57,
   "orphans": null,
   "products": [
     {
@@ -22,16 +22,16 @@
     {
       "product": "instance",
       "total": 150,
-      "implemented": 37,
+      "implemented": 39,
       "declined": 86,
-      "unknown": 27,
+      "unknown": 25,
       "versions": [
         {
           "version": "v1",
           "total": 78,
-          "implemented": 37,
+          "implemented": 39,
           "declined": 14,
-          "unknown": 27
+          "unknown": 25
         },
         {
           "version": "v2alpha1",
@@ -100,5 +100,5 @@
   ],
   "provider": "scaleway",
   "total": 288,
-  "unknown": 57
+  "unknown": 55
 }

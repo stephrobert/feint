@@ -2,6 +2,7 @@ package scaleway
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/netip"
 
@@ -30,10 +31,36 @@ type createIPRequest struct {
 
 // updateIPRequest carries pointers because the API distinguishes "leave alone"
 // from "clear": a null server detaches the address.
+//
+// Server is json.RawMessage, not *string, and that is the whole fix. The SDK
+// sends `{"server": null}` for a detach (NullableStringValue), and
+// encoding/json cannot tell JSON null from an absent field through a *string:
+// both decode to nil. So `scw instance ip detach` answered 200 and did nothing,
+// leaving the address attached — with a runtime on, still routed to the machine
+// — while the struct comment above claimed a null server detaches. A comment
+// that was not a control, on the defect class this project is built around.
+//
+// TestDetachingAnAddressActuallyDetachesIt fails without this.
 type updateIPRequest struct {
-	Reverse *string   `json:"reverse"`
-	Server  *string   `json:"server"`
-	Tags    *[]string `json:"tags"`
+	Reverse *string         `json:"reverse"`
+	Server  json.RawMessage `json:"server"`
+	Tags    *[]string       `json:"tags"`
+}
+
+// serverField reads the three states the API distinguishes: absent (leave
+// alone), null or empty (detach), an id (attach).
+func serverField(raw json.RawMessage) (id string, present, clears bool) {
+	if len(raw) == 0 {
+		return "", false, false
+	}
+	if string(raw) == "null" {
+		return "", true, true
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return "", true, false
+	}
+	return s, true, s == ""
 }
 
 func (p *Pack) createIP(w http.ResponseWriter, r *http.Request) {
@@ -130,14 +157,31 @@ func (p *Pack) listIPs(w http.ResponseWriter, r *http.Request) {
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"ips": ips, "total_count": len(all)})
 }
 
+// ipByRef resolves the path parameter the SDK documents as "IP ID or address to
+// get" — the same for update and delete. Only the id was honoured, so a client
+// naming the address got not_found where the real API answers.
+//
+// TestAnAddressIsAValidIPReference fails without this.
+func (p *Pack) ipByRef(ref, zone string) (*resource.Resource, bool) {
+	if res, ok := p.env.Store.Get(Name, kindIP, ref); ok && res.Tenant.Zone == zone {
+		return res, true
+	}
+	for _, res := range p.env.Store.List(kindIP, resource.Tenant{Provider: Name, Zone: zone}) {
+		if address, _ := res.Attrs["address"].(string); address == ref {
+			return res, true
+		}
+	}
+	return nil, false
+}
+
 func (p *Pack) getIP(w http.ResponseWriter, r *http.Request) {
 	zone, ok := zoneOf(w, r)
 	if !ok {
 		return
 	}
 	id := r.PathValue("id")
-	res, found := p.env.Store.Get(Name, kindIP, id)
-	if !found || res.Tenant.Zone != zone {
+	res, found := p.ipByRef(id, zone)
+	if !found {
 		writeNotFound(w, "ip", id)
 		return
 	}
@@ -156,8 +200,8 @@ func (p *Pack) updateIP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
-	res, found := p.env.Store.Get(Name, kindIP, id)
-	if !found || res.Tenant.Zone != zone {
+	res, found := p.ipByRef(id, zone)
+	if !found {
 		writeNotFound(w, "ip", id)
 		return
 	}
@@ -175,15 +219,16 @@ func (p *Pack) updateIP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// A null server detaches, which is how the API frees an address.
-	if req.Server != nil {
-		if *req.Server == "" {
+	serverID, serverGiven, clears := serverField(req.Server)
+	if serverGiven {
+		if clears {
 			p.detachAddress(r.Context(), res)
 			res.Attrs["server"] = nil
 			res.State = "detached"
 		} else {
-			server, ok := p.env.Store.Get(Name, kindServer, *req.Server)
+			server, ok := p.env.Store.Get(Name, kindServer, serverID)
 			if !ok || server.Tenant.Zone != zone {
-				writeNotFound(w, "server", *req.Server)
+				writeNotFound(w, "server", serverID)
 				return
 			}
 			// Moving the address means taking it back first: the route lives on
@@ -279,8 +324,8 @@ func (p *Pack) deleteIP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
-	res, found := p.env.Store.Get(Name, kindIP, id)
-	if !found || res.Tenant.Zone != zone {
+	res, found := p.ipByRef(id, zone)
+	if !found {
 		writeNotFound(w, "ip", id)
 		return
 	}
@@ -299,4 +344,25 @@ func ipView(res *resource.Resource) map[string]any {
 	out["zone"] = res.Tenant.Zone
 	out["state"] = res.State
 	return out
+}
+
+// releaseAddressesOf detaches every flexible IP a server carried.
+//
+// Called when the server goes away, by delete and by terminate alike: an address
+// naming a resource that no longer exists is the defect this project exists to
+// avoid, and it is worse with a machine runtime, where the route outlives the
+// machine.
+//
+// TestDeletingAServerReleasesItsAddresses fails without this.
+func (p *Pack) releaseAddressesOf(ctx context.Context, serverID, zone string) {
+	for _, ip := range p.env.Store.List(kindIP, resource.Tenant{Provider: Name, Zone: zone}) {
+		attached, _ := ip.Attrs["server"].(map[string]any)
+		if attached == nil || attached["id"] != serverID {
+			continue
+		}
+		p.detachAddress(ctx, ip)
+		ip.Attrs["server"] = nil
+		ip.State = "detached"
+		p.env.Store.Commit(ip, p.env.Now())
+	}
 }

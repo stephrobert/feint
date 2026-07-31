@@ -9,7 +9,6 @@
   ],
   "unknown": [
     "instance/v1/API.AttachServerFileSystem",
-    "instance/v1/API.AttachServerVolume",
     "instance/v1/API.AttachVolume",
     "instance/v1/API.CreateImage",
     "instance/v1/API.CreatePlacementGroup",
@@ -18,7 +17,6 @@
     "instance/v1/API.DeletePlacementGroup",
     "instance/v1/API.DeleteSnapshot",
     "instance/v1/API.DetachServerFileSystem",
-    "instance/v1/API.DetachServerVolume",
     "instance/v1/API.DetachVolume",
     "instance/v1/API.GetPlacementGroup",
     "instance/v1/API.GetPlacementGroupServers",
