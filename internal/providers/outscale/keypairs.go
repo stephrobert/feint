@@ -56,6 +56,18 @@ func (p *Pack) createKeypair(w http.ResponseWriter, r *http.Request) {
 			"because it would have to hand out a private key that only looks usable")
 		return
 	}
+	// Refused at entry, before the store, the way the Scaleway pack refuses an
+	// SSH key. The value is rendered into a cloud-config by text/template, and a
+	// newline in it opens a top-level YAML key; a value that is not a key at all
+	// produces a machine that boots, holds the wrong bytes and refuses every
+	// login — the failure machines.go warns about, arriving through the door
+	// nobody guarded.
+	//
+	// TestAKeypairRefusesWhatIsNotAKey fails without this.
+	if !looksLikePublicKey(req.PublicKey) {
+		p.badRequest(w, "PublicKey is not an OpenSSH public key")
+		return
+	}
 
 	now := p.env.Now()
 	res := &resource.Resource{
@@ -179,4 +191,27 @@ func fingerprint(publicKey string) string {
 		parts = append(parts, hexed[i:i+2])
 	}
 	return strings.Join(parts, ":")
+}
+
+// looksLikePublicKey accepts the OpenSSH one-line form.
+//
+// The one-line part is the security check rather than tidiness: the value is
+// concatenated into a YAML document by text/template, and strings.Fields splits
+// on newlines exactly like spaces, so the control character test has to come
+// first. Same reasoning, and the same order, as the Scaleway pack's own check.
+func looksLikePublicKey(key string) bool {
+	if strings.ContainsAny(key, "\n\r\x00") {
+		return false
+	}
+	fields := strings.Fields(strings.TrimSpace(key))
+	if len(fields) < 2 {
+		return false
+	}
+	switch fields[0] {
+	case "ssh-rsa", "ssh-ed25519", "ssh-dss",
+		"ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521",
+		"sk-ssh-ed25519@openssh.com", "sk-ecdsa-sha2-nistp256@openssh.com":
+		return true
+	}
+	return false
 }

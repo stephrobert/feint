@@ -164,6 +164,30 @@ func (p *Pack) createVms(w http.ResponseWriter, r *http.Request) {
 
 	now := p.env.Now()
 	vms := make([]map[string]any, 0, count)
+
+	// Allocation is read-modify-write over the store: what is free is computed
+	// from what exists. The mutex on this pack was written for exactly that and
+	// the Vm path never took it, so twelve concurrent creates handed one address
+	// to two machines — with a runtime, two containers configured with the same
+	// static IP. The Net and Subnet paths have always taken it.
+	//
+	// Held across the whole batch rather than per Vm: releasing between two Vms
+	// of one create lets another create interleave and take the address this one
+	// is about to use.
+	p.addresses.Lock()
+	defer p.addresses.Unlock()
+
+	// created tracks what to undo if the batch cannot reach its minimum. An
+	// error answer that leaves machines running is worse than a refusal: the
+	// client owns resources it was told it did not get, and Terraform never
+	// tracks them.
+	var created []*resource.Resource
+	unwind := func() {
+		for _, res := range created {
+			p.removeMachine(r.Context(), res)
+			p.env.Store.Delete(Name, kindVM, res.ID)
+		}
+	}
 	for range count {
 		res := &resource.Resource{
 			ID:      newVMID(p.env.NewID()),
@@ -183,9 +207,11 @@ func (p *Pack) createVms(w http.ResponseWriter, r *http.Request) {
 			place, err := p.placeInSubnet(req.SubnetID)
 			switch {
 			case errors.Is(err, errUnknownSubnet):
+				unwind()
 				p.notFound(w, "Subnet", req.SubnetID)
 				return
 			case err != nil:
+				unwind()
 				p.conflict(w, "cannot place a Vm in "+req.SubnetID+": "+err.Error())
 				return
 			}
@@ -205,6 +231,7 @@ func (p *Pack) createVms(w http.ResponseWriter, r *http.Request) {
 			p.powerOn(r.Context(), res)
 		}
 		p.env.Store.Put(res)
+		created = append(created, res)
 		vms = append(vms, p.vmView(res))
 	}
 

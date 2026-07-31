@@ -93,10 +93,34 @@ type deleteSubnetRequest struct {
 	DryRun   *bool  `json:"DryRun"`
 }
 
+// dryRun answers the way the API does when a client asks whether a call would
+// work: it validates and changes nothing.
+//
+// The field was declared on six request structs here and read by none of them,
+// so `CreateNet --DryRun` created the Net — and `CreateSubnet --DryRun` created
+// a bridge on the operator's host. A declared-but-unread field is invisible to
+// the unread-field report, which is exactly what placement.go warns about, and
+// an audit found it that way rather than through the report.
+//
+// The SDK's answer carries the marker in ResponseContext; a client checks for it
+// rather than for an empty body.
+//
+// TestDryRunChangesNothing fails without this.
+func (p *Pack) answerDryRun(w http.ResponseWriter) {
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{
+		"ResponseContext": p.context(),
+		"DryRun":          true,
+	})
+}
+
 func (p *Pack) createNet(w http.ResponseWriter, r *http.Request) {
 	var req createNetRequest
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
+		return
+	}
+	if req.DryRun != nil && *req.DryRun {
+		p.answerDryRun(w)
 		return
 	}
 
@@ -170,6 +194,10 @@ func (p *Pack) deleteNet(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
+	if req.DryRun != nil && *req.DryRun {
+		p.answerDryRun(w)
+		return
+	}
 	if _, found := p.env.Store.Get(Name, kindNet, req.NetID); !found {
 		p.notFound(w, "Net", req.NetID)
 		return
@@ -192,6 +220,10 @@ func (p *Pack) createSubnet(w http.ResponseWriter, r *http.Request) {
 	var req createSubnetRequest
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
+		return
+	}
+	if req.DryRun != nil && *req.DryRun {
+		p.answerDryRun(w)
 		return
 	}
 
@@ -296,18 +328,34 @@ func (p *Pack) deleteSubnet(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
-	res, found := p.env.Store.Get(Name, kindSubnet, req.SubnetID)
+	if req.DryRun != nil && *req.DryRun {
+		p.answerDryRun(w)
+		return
+	}
+	subnet, found := p.env.Store.Get(Name, kindSubnet, req.SubnetID)
 	if !found {
 		p.notFound(w, "Subnet", req.SubnetID)
 		return
 	}
 
-	p.removeBackingNetwork(r.Context(), res)
-	p.env.Store.Delete(Name, kindSubnet, req.SubnetID)
+	// A Subnet does not vanish under the machines placed in it. The Net path
+	// above has always refused while subnets remained, and this one checked
+	// nothing: an audit deleted a subnet under a running Vm, then its Net, and
+	// ReadVms went on naming both. With a runtime it tore down the backing
+	// network under attached machines — and the destructive paths are the ones
+	// this repository's own instructions say to guard first.
+	//
+	// TestASubnetDoesNotDeleteUnderAVm fails without this.
+	for _, vm := range p.env.Store.List(kindVM, resource.Tenant{Provider: Name}) {
+		if stringOf(vm.Attrs["SubnetId"]) == req.SubnetID {
+			p.conflict(w, "the Subnet "+req.SubnetID+" still holds "+vm.ID)
+			return
+		}
+	}
 
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"ResponseContext": p.context(),
-	})
+	p.removeBackingNetwork(r.Context(), subnet)
+	p.env.Store.Delete(Name, kindSubnet, req.SubnetID)
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
 }
 
 // ---- Views and plumbing ------------------------------------------------------
@@ -333,8 +381,26 @@ func (p *Pack) subnetView(res *resource.Resource) map[string]any {
 	out["SubnetId"] = res.ID
 	out["State"] = res.State
 
+	// Computed from the mask *and* from what is allocated, which is what the
+	// comment on this view has always claimed and what it did not do: a fresh
+	// allocator was built and nothing reserved, so a /24 with three machines in
+	// it still answered 251. The conformance suite only ever read empty subnets,
+	// so it proved the mask half and the comment asserted the rest.
+	//
+	// A stored count would go stale the moment an address is taken; this one
+	// cannot, because it is derived on every read.
+	//
+	// TestAvailableIpsCountFollowsTheMachines fails without the reservation loop.
 	if prefix, err := prefixOf(res, "IpRange"); err == nil {
 		if allocator, err := network.NewAllocator(prefix, reservedPerSubnet); err == nil {
+			for _, vm := range p.env.Store.List(kindVM, resource.Tenant{Provider: Name}) {
+				if stringOf(vm.Attrs["SubnetId"]) != res.ID {
+					continue
+				}
+				if taken, parseErr := netip.ParseAddr(stringOf(vm.Attrs["PrivateIp"])); parseErr == nil {
+					_ = allocator.Reserve(taken)
+				}
+			}
 			out["AvailableIpsCount"] = allocator.Available()
 		}
 	}
