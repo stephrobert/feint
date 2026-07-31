@@ -62,6 +62,36 @@ conformance client walks:
 - **A keypair accepted anything**, including a multi-line value that cloud-init
   refuses later — the machine booted holding the wrong bytes and refused every
   login.
+- **`terraform destroy` failed for good on a server with `additional_volume_ids`**
+  (Scaleway). Terminate did not detach its volumes, so the disk went on naming a
+  server that answered 404 and every retry hit "volume is still attached". The
+  provider walks terminate, not delete, and only delete released anything.
+- **Three doors attached a volume and one asked whether it was free** (Scaleway):
+  a create or an update naming another server's root volume moved it, and both
+  servers then listed it.
+- **Creating a server took an address off a live machine** without withdrawing
+  it, so under a runtime two machines claimed the same address.
+- **`scw instance ip delete <address>`** answered success and kept the address.
+- **`precondition failed:` printed with nothing after the colon**: the token the
+  pack emitted was not one of the three the SDK renders.
+- **`scw instance volume list name=vol`** came back empty against a volume called
+  `myvolume`: the SDK documents that filter as a substring, with that example.
+
+### Added
+
+- **`TestEveryCitedTestExists`** walks every comment in the repository and fails
+  when it cites a test that does not exist. Three audits in a row found a fix
+  whose comment named the test that would fail without it, when that test had
+  never been written — including in the commit that invoked the rule while
+  breaking it. A rule written down three times and broken three times needed a
+  check rather than a fourth restatement.
+- **The Scaleway upstream surface is fully triaged**: 0 operations left
+  undecided across instance, vpc, ipam, iam and marketplace.
+- **The conformance fixture walks volumes and addresses**: attach, refuse the
+  delete under a server, detach, delete; then resolve and delete an IP by its
+  address; and a Terraform apply/destroy over `additional_volume_ids`. Every
+  defect the audits found lived in the gap between that fixture and what the
+  pack claimed. 68 of 91 routes are now proven by a real client, up from 64.
 
 ### Limits that moved
 
