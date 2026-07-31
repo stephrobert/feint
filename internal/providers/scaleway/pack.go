@@ -182,6 +182,111 @@ func (p *Pack) NotFound(w http.ResponseWriter, r *http.Request) {
 // a list somebody can act on rather than a number nobody reads.
 func (p *Pack) Declined() []emulator.Decline {
 	return slices.Concat(
+		// SW-1's second half: the instance, vpc and ipam columns the gate showed
+		// as untriaged. Every block below says what the emulator would have to
+		// have in order to answer, which is what makes a refusal revisitable —
+		// "not triaged yet" and "out of scope" are different answers.
+
+		// A snapshot and an image are bytes. An emulated volume is a size and a
+		// name in a store, with nothing written behind it.
+		emulator.Because("a snapshot copies the bytes of a volume, and an emulated volume is a size and a name with nothing written behind it, so the object produced would restore nothing",
+			"instance/v1/API.CreateSnapshot",
+			"instance/v1/API.DeleteSnapshot",
+			"instance/v1/API.GetSnapshot",
+			"instance/v1/API.ListSnapshots",
+			"instance/v1/API.UpdateSnapshot"),
+
+		// The catalogue is a fixed table, for the reason CLAUDE.md records: the
+		// CLI resolves a default image before it creates anything, so the table
+		// exists to be read, not to be written.
+		emulator.Because("the pack answers image lookups from the fixed catalogue the CLI resolves against, so creating or editing one would edit a table nothing can add to",
+			"instance/v1/API.CreateImage",
+			"instance/v1/API.DeleteImage",
+			"instance/v1/API.ListImages",
+			"instance/v1/API.UpdateImage"),
+
+		emulator.Because("placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked",
+			"instance/v1/API.CreatePlacementGroup",
+			"instance/v1/API.DeletePlacementGroup",
+			"instance/v1/API.GetPlacementGroup",
+			"instance/v1/API.GetPlacementGroupServers",
+			"instance/v1/API.ListPlacementGroups",
+			"instance/v1/API.SetPlacementGroup",
+			"instance/v1/API.SetPlacementGroupServers",
+			"instance/v1/API.UpdatePlacementGroup",
+			"instance/v1/API.UpdatePlacementGroupServers"),
+
+		emulator.Because("it mounts Scaleway's File Storage product, and there is no filesystem service behind this emulator for a machine to mount",
+			"instance/v1/API.AttachServerFileSystem",
+			"instance/v1/API.DetachServerFileSystem"),
+
+		// Written by hand in instance_utils.go and marked deprecated there, which
+		// is why the scan sees them at all: it reads every non-test file rather
+		// than the generated ones only.
+		emulator.Because("the SDK's hand-written helpers, deprecated upstream in favour of AttachServerVolume and DetachServerVolume, which this pack serves and which the CLI calls",
+			"instance/v1/API.AttachVolume",
+			"instance/v1/API.DetachVolume"),
+
+		emulator.Because("the server already publishes allowed_actions, derived from its state, so a second listing would be a second place to keep in step with the first",
+			"instance/v1/API.ListServerActions"),
+
+		emulator.Because("its request carries tags and nothing else, and the pack stores no tag on a private NIC, so it would answer success over a field nothing reads back",
+			"instance/v1/API.UpdatePrivateNIC"),
+
+		// The IPAM half, and the reason it is read-only here.
+		emulator.Because("addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures",
+			"instance/v1/API.ReleaseIPToIpam",
+			"ipam/v1/API.AttachIP",
+			"ipam/v1/API.BookIP",
+			"ipam/v1/API.DetachIP",
+			"ipam/v1/API.MoveIP",
+			"ipam/v1/API.ReleaseIP",
+			"ipam/v1/API.ReleaseIPSet",
+			"ipam/v1/API.UpdateIP"),
+
+		// Routing, and the honest half of the mode difference: only OVN has a
+		// router to program, and a route the bridge mode cannot apply is a
+		// topology the packets do not follow.
+		emulator.Because("routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take",
+			"vpc/v2/API.CreateRoute",
+			"vpc/v2/API.DeleteRoute",
+			"vpc/v2/API.GetRoute",
+			"vpc/v2/API.UpdateRoute",
+			"vpc/v2/API.EnableRouting",
+			"vpc/v2/API.EnableCustomRoutesPropagation",
+			"vpc/v2/RoutesWithNexthopAPI.ListRoutesWithNexthop"),
+
+		// A rule recorded and never enforced is worse than a refusal: it is
+		// indistinguishable from protection.
+		emulator.Because("filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced",
+			"vpc/v2/API.CreateIngressRule",
+			"vpc/v2/API.DeleteIngressRule",
+			"vpc/v2/API.GetIngressRule",
+			"vpc/v2/API.ListIngressRules",
+			"vpc/v2/API.UpdateIngressRule",
+			"vpc/v2/API.GetACL",
+			"vpc/v2/API.SetACL"),
+
+		// Peering is the exact inverse of the property this project measures.
+		emulator.Because("it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart",
+			"vpc/v2/API.CreateVPCConnector",
+			"vpc/v2/API.DeleteVPCConnector",
+			"vpc/v2/API.GetVPCConnector",
+			"vpc/v2/API.ListVPCConnectors",
+			"vpc/v2/API.UpdateVPCConnector"),
+
+		emulator.Because("the runtime writes a fixed address on each interface at boot instead of leasing one, so there is no DHCP server behind these networks to enable",
+			"vpc/v2/API.EnableDHCP"),
+
+		emulator.Because("the pack publishes a private network's subnets on the network itself, which is where ListPrivateNetworks already returns them",
+			"vpc/v2/API.ListSubnets"),
+
+		emulator.Because("it compares the subnets of a fleet of VPCs against each other, and no client in tools/conformance drives it",
+			"vpc/v2/API.ListSubnetOverlaps"),
+
+		emulator.Because("the CLI resolves its default image through ListLocalImages, which is served, so a per-id lookup would be a second door onto the same fixed table",
+			"marketplace/v2/API.GetLocalImage"),
+
 		// The provider's fleet: what types are available, what a quota allows,
 		// what a migration would be permitted. A local emulator has none of it
 		// and cannot invent headroom without telling a client something false

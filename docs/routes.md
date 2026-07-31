@@ -110,7 +110,7 @@ counted.
 | `POST` | `/vpc/v2/regions/{region}/private-networks` | `vpc/v2/API.CreatePrivateNetwork` |
 | `POST` | `/vpc/v2/regions/{region}/vpcs` | `vpc/v2/API.CreateVPC` |
 
-### Declined on purpose (176)
+### Declined on purpose (231)
 
 Operations this pack knowingly does not serve, and why. Declining is a
 decision the drift gate records, which is what separates it from having
@@ -195,14 +195,39 @@ missed one — and the reason is what separates a decision from a list.
 - `iam/v1alpha1/API.UpdateWebAuthnAuthenticator` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
 - `iam/v1alpha1/API.ValidateUserMFAOTP` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
 - `instance/v1/API.ApplyBlockMigration` — there is no legacy storage behind this emulator to migrate from, so a plan would describe a move between two things that are the same store
+- `instance/v1/API.AttachServerFileSystem` — it mounts Scaleway's File Storage product, and there is no filesystem service behind this emulator for a machine to mount
+- `instance/v1/API.AttachVolume` — the SDK's hand-written helpers, deprecated upstream in favour of AttachServerVolume and DetachServerVolume, which this pack serves and which the CLI calls
 - `instance/v1/API.CheckBlockMigrationOrganizationQuotas` — capacity and quotas are the provider's fleet, and a local emulator that answered would be inventing headroom a client could plan against
+- `instance/v1/API.CreateImage` — the pack answers image lookups from the fixed catalogue the CLI resolves against, so creating or editing one would edit a table nothing can add to
+- `instance/v1/API.CreatePlacementGroup` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
+- `instance/v1/API.CreateSnapshot` — a snapshot copies the bytes of a volume, and an emulated volume is a size and a name with nothing written behind it, so the object produced would restore nothing
+- `instance/v1/API.DeleteImage` — the pack answers image lookups from the fixed catalogue the CLI resolves against, so creating or editing one would edit a table nothing can add to
+- `instance/v1/API.DeletePlacementGroup` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
+- `instance/v1/API.DeleteSnapshot` — a snapshot copies the bytes of a volume, and an emulated volume is a size and a name with nothing written behind it, so the object produced would restore nothing
+- `instance/v1/API.DetachServerFileSystem` — it mounts Scaleway's File Storage product, and there is no filesystem service behind this emulator for a machine to mount
+- `instance/v1/API.DetachVolume` — the SDK's hand-written helpers, deprecated upstream in favour of AttachServerVolume and DetachServerVolume, which this pack serves and which the CLI calls
 - `instance/v1/API.ExportSnapshot` — it writes into Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md
 - `instance/v1/API.GetDashboard` — its thirteen counters span resources this pack does not serve, so every total would be short by the unemulated remainder with nothing saying which
+- `instance/v1/API.GetPlacementGroup` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
+- `instance/v1/API.GetPlacementGroupServers` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
 - `instance/v1/API.GetServerCompatibleTypes` — capacity and quotas are the provider's fleet, and a local emulator that answered would be inventing headroom a client could plan against
 - `instance/v1/API.GetServerTypesAvailability` — capacity and quotas are the provider's fleet, and a local emulator that answered would be inventing headroom a client could plan against
+- `instance/v1/API.GetSnapshot` — a snapshot copies the bytes of a volume, and an emulated volume is a size and a name with nothing written behind it, so the object produced would restore nothing
 - `instance/v1/API.ListDefaultSecurityGroupRules` — the seeded rule set is a value the SDK does not carry, so an invented list would state which ports a real client believes are open, and docs/limits.md records that these rules do filter packets
+- `instance/v1/API.ListImages` — the pack answers image lookups from the fixed catalogue the CLI resolves against, so creating or editing one would edit a table nothing can add to
+- `instance/v1/API.ListPlacementGroups` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
+- `instance/v1/API.ListServerActions` — the server already publishes allowed_actions, derived from its state, so a second listing would be a second place to keep in step with the first
+- `instance/v1/API.ListSnapshots` — a snapshot copies the bytes of a volume, and an emulated volume is a size and a name with nothing written behind it, so the object produced would restore nothing
 - `instance/v1/API.ListVolumesTypes` — capacity and quotas are the provider's fleet, and a local emulator that answered would be inventing headroom a client could plan against
 - `instance/v1/API.PlanBlockMigration` — there is no legacy storage behind this emulator to migrate from, so a plan would describe a move between two things that are the same store
+- `instance/v1/API.ReleaseIPToIpam` — addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures
+- `instance/v1/API.SetPlacementGroup` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
+- `instance/v1/API.SetPlacementGroupServers` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
+- `instance/v1/API.UpdateImage` — the pack answers image lookups from the fixed catalogue the CLI resolves against, so creating or editing one would edit a table nothing can add to
+- `instance/v1/API.UpdatePlacementGroup` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
+- `instance/v1/API.UpdatePlacementGroupServers` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
+- `instance/v1/API.UpdatePrivateNIC` — its request carries tags and nothing else, and the pack stores no tag on a private NIC, so it would answer success over a field nothing reads back
+- `instance/v1/API.UpdateSnapshot` — a snapshot copies the bytes of a volume, and an emulated volume is a size and a name with nothing written behind it, so the object produced would restore nothing
 - `instance/v1/MetadataAPI.DeleteUserData` — the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials
 - `instance/v1/MetadataAPI.GetMetadata` — the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials
 - `instance/v1/MetadataAPI.GetUserData` — the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials
@@ -280,18 +305,48 @@ missed one — and the reason is what separates a decision from a list.
 - `instance/v2alpha1/VolumeAPI.ListVolumes` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
 - `instance/v2alpha1/VolumeAPI.UpdateSnapshot` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
 - `instance/v2alpha1/VolumeAPI.UpdateVolume` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `ipam/v1/API.AttachIP` — addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures
+- `ipam/v1/API.BookIP` — addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures
+- `ipam/v1/API.DetachIP` — addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures
+- `ipam/v1/API.MoveIP` — addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures
+- `ipam/v1/API.ReleaseIP` — addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures
+- `ipam/v1/API.ReleaseIPSet` — addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures
+- `ipam/v1/API.UpdateIP` — addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures
 - `ipam/v1alpha1/API.ListIPs` — ipam/v1alpha1 is the superseded draft of ipam/v1, which is served
 - `marketplace/v2/API.GetCategory` — the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long
 - `marketplace/v2/API.GetImage` — the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long
+- `marketplace/v2/API.GetLocalImage` — the CLI resolves its default image through ListLocalImages, which is served, so a per-id lookup would be a second door onto the same fixed table
 - `marketplace/v2/API.GetVersion` — the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long
 - `marketplace/v2/API.ListCategories` — the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long
 - `marketplace/v2/API.ListImages` — the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long
 - `marketplace/v2/API.ListVersions` — the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long
 - `vpc/v2/API.AddPrivateNetworkS3Endpoint` — they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md
+- `vpc/v2/API.CreateIngressRule` — filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced
+- `vpc/v2/API.CreateRoute` — routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take
+- `vpc/v2/API.CreateVPCConnector` — it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart
+- `vpc/v2/API.DeleteIngressRule` — filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced
 - `vpc/v2/API.DeletePrivateNetworkS3Endpoint` — they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md
+- `vpc/v2/API.DeleteRoute` — routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take
+- `vpc/v2/API.DeleteVPCConnector` — it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart
 - `vpc/v2/API.DisableS3Endpoint` — they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md
+- `vpc/v2/API.EnableCustomRoutesPropagation` — routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take
+- `vpc/v2/API.EnableDHCP` — the runtime writes a fixed address on each interface at boot instead of leasing one, so there is no DHCP server behind these networks to enable
+- `vpc/v2/API.EnableRouting` — routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take
 - `vpc/v2/API.EnableS3Endpoint` — they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md
+- `vpc/v2/API.GetACL` — filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced
+- `vpc/v2/API.GetIngressRule` — filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced
+- `vpc/v2/API.GetRoute` — routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take
+- `vpc/v2/API.GetVPCConnector` — it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart
+- `vpc/v2/API.ListIngressRules` — filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced
+- `vpc/v2/API.ListSubnetOverlaps` — it compares the subnets of a fleet of VPCs against each other, and no client in tools/conformance drives it
+- `vpc/v2/API.ListSubnets` — the pack publishes a private network's subnets on the network itself, which is where ListPrivateNetworks already returns them
+- `vpc/v2/API.ListVPCConnectors` — it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart
+- `vpc/v2/API.SetACL` — filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced
 - `vpc/v2/API.SetPrivateNetworksS3Endpoint` — they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md
+- `vpc/v2/API.UpdateIngressRule` — filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced
+- `vpc/v2/API.UpdateRoute` — routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take
+- `vpc/v2/API.UpdateVPCConnector` — it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart
+- `vpc/v2/RoutesWithNexthopAPI.ListRoutesWithNexthop` — routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take
 
 ## Outscale
 

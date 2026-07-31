@@ -280,7 +280,7 @@ func (p *Pack) createServer(w http.ResponseWriter, r *http.Request) {
 		"hostname":        req.Name,
 		"tags":            orEmpty(req.Tags),
 		"image":           p.imageView(zone, resolvedImageID, imageLabel),
-		"volumes":         p.attachTemplateVolumes(req.Volumes, rootVol, zone, res.ID),
+		"volumes":         p.attachTemplateVolumes(req.Volumes, rootVol, res, zone, req.Name),
 		// Deprecated upstream, and "always null when routed_ip_enabled is True",
 		// which is this emulator's default. The address of a server on a private
 		// network is read through its NIC and ipam/v1, not here.
@@ -825,7 +825,7 @@ func deref(p *bool, fallback bool) bool {
 // server actually has.
 //
 // TestAdditionalVolumesAreAttachedAtCreate fails without this.
-func (p *Pack) attachTemplateVolumes(templates map[string]volumeTemplate, root *resource.Resource, zone, serverID string) map[string]any {
+func (p *Pack) attachTemplateVolumes(templates map[string]volumeTemplate, root, server *resource.Resource, zone, serverName string) map[string]any {
 	out := map[string]any{"0": volumeView(root)}
 	for key, tpl := range templates {
 		if key == "0" || tpl.ID == "" {
@@ -835,8 +835,7 @@ func (p *Pack) attachTemplateVolumes(templates map[string]volumeTemplate, root *
 		if !ok || vol.Tenant.Zone != zone {
 			continue
 		}
-		vol.Attrs["server"] = map[string]any{"id": serverID}
-		vol.State = "in_use"
+		p.attachVolume(vol, server, serverName)
 		p.env.Store.Put(vol)
 		out[key] = volumeView(vol)
 	}
@@ -881,14 +880,14 @@ func (p *Pack) attachServerVolume(w http.ResponseWriter, r *http.Request) {
 	}
 	// The API refuses to move a volume already in use, and Terraform reads that
 	// error rather than guessing.
-	if server, _ := vol.Attrs["server"].(map[string]any); server != nil && server["id"] != id {
+	if owner := vol.Runtime[runtimeServerKey]; owner != "" && owner != id {
 		writePrecondition(w, "volume", vol.ID, "the volume is attached to another server")
 		return
 	}
 
 	key := p.nextVolumeKey(res)
-	vol.Attrs["server"] = map[string]any{"id": id}
-	vol.State = "in_use"
+	serverName, _ := res.Attrs["name"].(string)
+	p.attachVolume(vol, res, serverName)
 	p.env.Store.Put(vol)
 
 	volumes := volumeMapOf(res)
@@ -931,8 +930,6 @@ func (p *Pack) detachServerVolume(w http.ResponseWriter, r *http.Request) {
 		}
 		delete(volumes, key)
 		if vol, ok := p.env.Store.Get(Name, kindVolume, req.VolumeID); ok {
-			vol.Attrs["server"] = nil
-			vol.State = "available"
 			p.detachVolume(vol)
 			p.env.Store.Put(vol)
 		}

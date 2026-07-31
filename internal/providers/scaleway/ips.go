@@ -331,7 +331,7 @@ func (p *Pack) deleteIP(w http.ResponseWriter, r *http.Request) {
 	}
 	// The address stops being routed with the record that described it.
 	p.detachAddress(r.Context(), res)
-	p.env.Store.Delete(Name, kindIP, id)
+	p.env.Store.Delete(Name, kindIP, res.ID)
 	w.WriteHeader(http.StatusNoContent)
 }
 
