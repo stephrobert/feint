@@ -147,4 +147,64 @@ scw instance server delete "$with_ip_id" zone="$ZONE" >/dev/null || fail "cleanu
 scw instance ip delete "$ip_id" zone="$ZONE" >/dev/null || fail "cleanup: ip delete rejected"
 ok "reserved, attached, and reported"
 
+# The volume and address lifecycles, walked by the CLI rather than asserted in a
+# unit test. Two whole-pack audits found every one of their defects in the gap
+# between this fixture and what the pack claimed: an attached volume answering a
+# state no SDK declares (which made `tofu apply` time out for five minutes), a
+# volume detached on one path and not the other, and `ip delete <address>`
+# answering success while the address survived. Unit tests read JSON, so they
+# saw none of it. The fixture is the thing that had to grow.
+echo "- a volume is attached, refuses to be deleted under its server, and comes back"
+vol="$(scw instance volume create name=conformance-vol volume-type=b_ssd size=10G zone="$ZONE" -o json)" \
+  || fail "volume create rejected: $vol"
+vol_id="$(printf '%s' "$vol" | jq -r '(.volume // .).id')"
+[ -n "$vol_id" ] && [ "$vol_id" != null ] || fail "no id in the volume create response: $vol"
+
+vol_server="$(scw instance server create name=conformance-vol-host type=DEV1-S zone="$ZONE" -o json)" \
+  || fail "create for the volume test rejected: $vol_server"
+vol_server_id="$(printf '%s' "$vol_server" | jq -r '.id')"
+
+scw instance server attach-volume server-id="$vol_server_id" volume-id="$vol_id" zone="$ZONE" -o json >/dev/null \
+  || fail "attach-volume rejected"
+# The state must be one the SDK declares, or every official waiter hangs on it:
+# VolumeState has eight values and "in_use" is not one of them.
+state="$(scw instance volume get "$vol_id" zone="$ZONE" -o json | jq -r '(.volume // .).state')"
+case "$state" in
+  available|snapshotting|fetching|saving|attaching|resizing|hotsyncing|error) ;;
+  *) fail "an attached volume answers state '$state', which VolumeState does not declare" ;;
+esac
+scw instance volume get "$vol_id" zone="$ZONE" -o json \
+  | jq -e --arg s "$vol_server_id" '(.volume // .).server.id == $s' >/dev/null \
+  || fail "the attached volume does not name its server"
+
+# The real API refuses this, and a client destroying in the wrong order depends
+# on the refusal to retry.
+if scw instance volume delete "$vol_id" zone="$ZONE" >/dev/null 2>&1; then
+  fail "the volume deleted while attached to a server"
+fi
+
+scw instance server detach-volume server-id="$vol_server_id" volume-id="$vol_id" zone="$ZONE" -o json >/dev/null \
+  || fail "detach-volume rejected"
+scw instance volume get "$vol_id" zone="$ZONE" -o json \
+  | jq -e '(.volume // .).server == null' >/dev/null \
+  || fail "the detached volume still names a server"
+scw instance volume delete "$vol_id" zone="$ZONE" >/dev/null || fail "delete rejected once detached"
+scw instance server stop "$vol_server_id" zone="$ZONE" >/dev/null || fail "cleanup: poweroff rejected"
+scw instance server delete "$vol_server_id" zone="$ZONE" >/dev/null || fail "cleanup: delete rejected"
+ok "attached, refused, detached, deleted"
+
+echo "- an address is a valid reference for get and for delete"
+byaddr="$(scw instance ip create zone="$ZONE" -o json)" || fail "ip create rejected: $byaddr"
+byaddr_id="$(printf '%s' "$byaddr" | jq -r '(.ip // .).id')"
+byaddr_address="$(printf '%s' "$byaddr" | jq -r '(.ip // .).address')"
+scw instance ip get "$byaddr_address" zone="$ZONE" -o json \
+  | jq -e --arg i "$byaddr_id" '(.ip // .).id == $i' >/dev/null \
+  || fail "get by address does not resolve to the same ip"
+scw instance ip delete "$byaddr_address" zone="$ZONE" >/dev/null || fail "delete by address rejected"
+# The half that was broken: it answered success and kept the address.
+if scw instance ip get "$byaddr_id" zone="$ZONE" -o json >/dev/null 2>&1; then
+  fail "the address survived its own delete"
+fi
+ok "resolved and deleted by address"
+
 echo "conformance: scw CLI passed"

@@ -277,21 +277,12 @@ func (p *Pack) deleteSecurityGroup(w http.ResponseWriter, r *http.Request) {
 	// that error: without it a destroy silently removes the group every later
 	// server creation needs.
 	if isProjectDefault(res) {
-		emulator.WriteJSON(w, http.StatusBadRequest, APIError{
-			Type:       "precondition_failed",
-			Message:    "cannot delete the default security group of the project",
-			Resource:   "security_group",
-			ResourceID: res.ID,
-		})
+		writePrecondition(w, "security_group", res.ID, "the default security group of a project cannot be deleted")
 		return
 	}
 	if servers := p.serversUsing(res); len(servers) > 0 {
-		emulator.WriteJSON(w, http.StatusBadRequest, APIError{
-			Type:       "precondition_failed",
-			Message:    "security group is still attached to " + servers[0] + " and cannot be deleted",
-			Resource:   "security_group",
-			ResourceID: res.ID,
-		})
+		writePrecondition(w, "security_group", res.ID,
+			"the security group is still attached to "+servers[0]+" and cannot be deleted")
 		return
 	}
 

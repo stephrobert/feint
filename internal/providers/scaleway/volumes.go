@@ -142,12 +142,8 @@ func (p *Pack) deleteVolume(w http.ResponseWriter, r *http.Request) {
 	// destroys in the wrong order depends on that error to retry.
 	if res.Runtime[runtimeServerKey] != "" {
 		if _, stillThere := p.env.Store.Get(Name, kindServer, res.Runtime[runtimeServerKey]); stillThere {
-			emulator.WriteJSON(w, http.StatusBadRequest, APIError{
-				Type:       "precondition_failed",
-				Message:    "volume is attached to a server and cannot be deleted",
-				Resource:   "volume",
-				ResourceID: res.ID,
-			})
+			writePrecondition(w, "volume", res.ID,
+				"the volume is attached to a server and cannot be deleted")
 			return
 		}
 	}

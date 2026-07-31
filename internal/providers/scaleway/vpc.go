@@ -700,15 +700,20 @@ func (p *Pack) resourceOf(w http.ResponseWriter, r *http.Request, kind, segment,
 //
 // TestPreconditionCarriesItsReason fails without this.
 func writePrecondition(w http.ResponseWriter, kind, id, message string) {
-	// The SDK's Precondition field is a short machine-readable token; the
-	// human sentence goes in help_message, where the CLI prints it.
-	precondition := "resource_still_in_use"
-	if kind != "" {
-		precondition = kind + "_" + precondition
-	}
+	// The SDK's Precondition field is a short machine-readable token, and
+	// PreconditionFailedError.Error() switches on exactly three of them:
+	// unknown_precondition, resource_still_in_use, attribute_must_be_set. A
+	// token outside that set renders as the empty string, so `scw instance
+	// security-group delete <default>` printed "precondition failed: " with
+	// nothing after the colon — an audit reproduced it against the first
+	// version of this function, which built "<kind>_resource_still_in_use".
+	// The kind is carried by the resource field instead, which is where the
+	// HTTP API puts it.
+	//
+	// TestAPreconditionRendersAsASentence fails without this.
 	emulator.WriteJSON(w, http.StatusBadRequest, map[string]any{
 		"type":         "precondition_failed",
-		"precondition": precondition,
+		"precondition": "resource_still_in_use",
 		"help_message": message,
 		// Kept beside the SDK fields rather than instead of them: the HTTP API
 		// carries them and a client reading the raw body still finds them.

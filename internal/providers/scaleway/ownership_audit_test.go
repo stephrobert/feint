@@ -3,6 +3,7 @@ package scaleway_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -168,5 +169,75 @@ func TestDeletingAServerReleasesTheVolumesItHeld(t *testing.T) {
 	}
 	if state, _ := vol["state"].(string); state != "available" {
 		t.Errorf("the released volume is %q, want available", state)
+	}
+}
+
+// A precondition renders as a sentence in the client, not as an empty string.
+//
+// PreconditionFailedError.Error() in scw/errors.go switches on exactly three
+// tokens and returns "" for anything else, then appends help_message after a
+// comma. The pack built "<kind>_resource_still_in_use", so `scw instance
+// security-group delete <default>` printed "precondition failed: " with
+// nothing after the colon, and the paths that had not been migrated printed a
+// dangling comma. Reproducing the SDK's switch here rather than importing it
+// is the zero-dependency rule; the table is copied from that file and the
+// comment above each site names it.
+//
+// This is the second of the two tests a previous commit cited without writing.
+func TestAPreconditionRendersAsASentence(t *testing.T) {
+	rendered := func(body map[string]any) string {
+		var msg string
+		switch body["precondition"] {
+		case "unknown_precondition":
+			msg = "unknown precondition"
+		case "resource_still_in_use":
+			msg = "resource is still in use"
+		case "attribute_must_be_set":
+			msg = "attribute must be set"
+		}
+		if help, _ := body["help_message"].(string); help != "" {
+			msg += ", " + help
+		}
+		return msg
+	}
+
+	ts := newTestServer(t)
+	srvID := aServer(t, ts, "holder")
+	volID := aVolume(t, ts, "held")
+	if status, out := do(t, ts, "POST", zone+"/servers/"+srvID+"/attach-volume",
+		`{"volume_id":"`+volID+`"}`); status != http.StatusOK {
+		t.Fatalf("attach-volume: %d %v", status, out)
+	}
+	_, groups := do(t, ts, "GET", zone+"/security_groups", "")
+	list, _ := groups["security_groups"].([]any)
+	first, _ := list[0].(map[string]any)
+	groupID, _ := first["id"].(string)
+
+	for _, probe := range []struct {
+		what   string
+		method string
+		path   string
+	}{
+		// The volume path, which the audit found still on the old shape.
+		{"an attached volume", "DELETE", zone + "/volumes/" + volID},
+		// The security-group path, which is the one it reproduced live.
+		{"the project's default security group", "DELETE", zone + "/security_groups/" + groupID},
+	} {
+		status, body := do(t, ts, probe.method, probe.path, "")
+		if status != http.StatusBadRequest {
+			t.Errorf("%s: deleting it answered %d, want 400", probe.what, status)
+			continue
+		}
+		if body["type"] != "precondition_failed" {
+			t.Errorf("%s: type is %v, want precondition_failed", probe.what, body["type"])
+		}
+		sentence := rendered(body)
+		if sentence == "" {
+			t.Errorf("%s: the SDK would print \"precondition failed: \" and nothing else (precondition=%v)",
+				probe.what, body["precondition"])
+		}
+		if strings.HasPrefix(sentence, ",") {
+			t.Errorf("%s: the SDK would print a dangling comma: %q", probe.what, sentence)
+		}
 	}
 }
