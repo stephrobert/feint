@@ -59,7 +59,17 @@ SUBBLOCK="${FEINT_TEST_SUBNET_BLOCK:-10.182.9.0/24}"
 set -a
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/fake-credentials.env"
+# The endpoint comes from the argument, not from the credentials file: oapi-cli
+# lets the environment override --config, so a pinned value there silently wins
+# over the port this run was asked to measure.
+# shellcheck disable=SC2034 # read by oapi-cli from the environment, not here
+OSC_ENDPOINT_API="$ENDPOINT"
 set +a
+
+# And it must be set, because an unset one sends oapi-cli looking for the
+# operator's stored profile. guard_local checked where we intend to go; this
+# checks the client cannot go anywhere else.
+guard_no_real_profile OSC_ENDPOINT_API oapi-cli
 
 WORK="$(mktemp -d)"
 cat > "$WORK/config.json" <<EOF

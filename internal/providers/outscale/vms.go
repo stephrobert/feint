@@ -189,12 +189,24 @@ func (p *Pack) createVms(w http.ResponseWriter, r *http.Request) {
 		// intended. The store clones on Put, so the machine name and the running
 		// state have to be written back explicitly.
 		if boot {
+			// Serialised on the target, like every other lifecycle path here:
+			// deleteVms and transitionOne both take it, and the create did not,
+			// so a delete arriving mid-boot raced the start it was meant to
+			// cancel.
+			unlock := p.binding().Serialise(res.ID)
 			p.powerOn(r.Context(), res)
 			if !p.env.Store.Commit(res, p.env.Now()) {
-				// Deleted while it was starting. Not an error: the client asked
-				// for a machine it then removed.
+				// Gone while it was starting — a delete, or a snapshot restored
+				// over it, which `PUT /_feint/state` does and snapshot.go
+				// documents as a designed path. The machine has to go with it:
+				// the previous version just skipped the answer, leaving a
+				// container running that the control plane no longer describes,
+				// and a machine nobody describes is a machine nobody stops.
+				p.removeMachine(r.Context(), res)
+				unlock()
 				continue
 			}
+			unlock()
 		}
 		vms = append(vms, p.vmView(res))
 	}

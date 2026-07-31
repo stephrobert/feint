@@ -1,12 +1,17 @@
 package outscale_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/core/machine"
+	"github.com/stephrobert/feint/internal/providers/outscale"
 )
 
 // The defects a whole-pack audit found on paths the conformance suite does not
@@ -322,4 +327,134 @@ func TestASubnetDoesNotDeleteUnderARace(t *testing.T) {
 			}
 		}
 	}
+}
+
+// A create whose resource disappears leaves no machine behind.
+//
+// createVms started the machine outside the per-target lock every other
+// lifecycle path takes, and when the commit failed it merely skipped the answer:
+// the container went on running while the control plane described nothing. An
+// audit obtained it with `PUT /_feint/state` carrying an empty list — a designed
+// path, since internal/cli/snapshot.go documents the format as meant to be
+// loaded into another instance.
+//
+// A machine the control plane does not describe is a machine nobody thinks to
+// stop, which is the worst outcome this layer can produce.
+func TestACreateWhoseResourceVanishesLeavesNoMachineBehind(t *testing.T) {
+	runtime := newBlockingRuntime()
+	ts := newRuntimeServer(t, runtime)
+	_, subnetID := netAndSubnet(t, ts, "10.51.0.0/16", "10.51.1.0/24")
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		post(t, ts, "CreateVms", `{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`"}`)
+	}()
+
+	// The machine is starting; empty the store under it.
+	<-runtime.entered
+	req, err := http.NewRequest(http.MethodPut, ts.URL+"/_feint/state", strings.NewReader("[]"))
+	if err != nil {
+		t.Fatalf("build the restore: %v", err)
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("restore an empty state: %v", err)
+	}
+	_ = res.Body.Close()
+	// Checked, because a refused restore would leave this test measuring
+	// nothing while looking green.
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("the restore answered %d; the store was not emptied", res.StatusCode)
+	}
+	close(runtime.release)
+	<-done
+
+	if left := runtime.running(); len(left) != 0 {
+		t.Errorf("the API describes no machine and %v is still running on the host", left)
+	}
+}
+
+// blockingRuntime holds Start until the test lets it go, so "while it was
+// starting" is a fact rather than a probability.
+type blockingRuntime struct {
+	mu       sync.Mutex
+	machines map[string]bool
+	entered  chan string
+	release  chan struct{}
+}
+
+func newBlockingRuntime() *blockingRuntime {
+	return &blockingRuntime{
+		machines: map[string]bool{},
+		entered:  make(chan string, 8),
+		release:  make(chan struct{}),
+	}
+}
+
+func (f *blockingRuntime) Name() string                   { return "fake" }
+func (f *blockingRuntime) Available(context.Context) bool { return true }
+
+func (f *blockingRuntime) Start(_ context.Context, spec machine.Spec) (machine.Machine, error) {
+	select {
+	case f.entered <- spec.Name:
+	default:
+	}
+	<-f.release
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.machines[spec.Name] = true
+	return machine.Machine{Name: spec.Name, Running: true}, nil
+}
+
+func (f *blockingRuntime) Stop(_ context.Context, n string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.machines[n] = false
+	return nil
+}
+
+func (f *blockingRuntime) Remove(_ context.Context, n string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.machines, n)
+	return nil
+}
+
+func (f *blockingRuntime) Inspect(_ context.Context, n string) (machine.Machine, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if running, found := f.machines[n]; found {
+		return machine.Machine{Name: n, Running: running}, true, nil
+	}
+	return machine.Machine{}, false, nil
+}
+
+func (f *blockingRuntime) EnsureNetwork(context.Context, machine.NetworkSpec) error { return nil }
+func (f *blockingRuntime) Attach(context.Context, string, machine.Attachment) error { return nil }
+func (f *blockingRuntime) RemoveNetwork(context.Context, string) error              { return nil }
+
+func (f *blockingRuntime) running() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []string
+	for name, up := range f.machines {
+		if up {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+func newRuntimeServer(t *testing.T, drv machine.Driver) *httptest.Server {
+	t.Helper()
+	env := emulator.DefaultEnv()
+	env.Machines = drv
+	srv, err := emulator.NewServer(env, outscale.New(env))
+	if err != nil {
+		t.Fatalf("build emulator: %v", err)
+	}
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+	return ts
 }

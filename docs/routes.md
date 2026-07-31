@@ -203,7 +203,7 @@ missed one — and the reason is what separates a decision from a list.
 - `instance/v1/API.CreateSnapshot` — a snapshot copies the bytes of a volume, and an emulated volume is a size and a name with nothing written behind it, so the object produced would restore nothing
 - `instance/v1/API.DeleteImage` — the pack answers image lookups from the fixed catalogue the CLI resolves against, so creating or editing one would edit a table nothing can add to
 - `instance/v1/API.DeletePlacementGroup` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
-- `instance/v1/API.DeleteSnapshot` — a snapshot copies the bytes of a volume, and an emulated volume is a size and a name with nothing written behind it, so the object produced would restore nothing
+- `instance/v1/API.DeleteSnapshot` — creating a snapshot is declined, so no snapshot can exist in this emulator for these calls to read, edit or delete
 - `instance/v1/API.DetachServerFileSystem` — it mounts Scaleway's File Storage product, and there is no filesystem service behind this emulator for a machine to mount
 - `instance/v1/API.DetachVolume` — the SDK's hand-written helpers, deprecated upstream in favour of AttachServerVolume and DetachServerVolume, which this pack serves and which the CLI calls
 - `instance/v1/API.ExportSnapshot` — it writes into Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md
@@ -212,12 +212,12 @@ missed one — and the reason is what separates a decision from a list.
 - `instance/v1/API.GetPlacementGroupServers` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
 - `instance/v1/API.GetServerCompatibleTypes` — capacity and quotas are the provider's fleet, and a local emulator that answered would be inventing headroom a client could plan against
 - `instance/v1/API.GetServerTypesAvailability` — capacity and quotas are the provider's fleet, and a local emulator that answered would be inventing headroom a client could plan against
-- `instance/v1/API.GetSnapshot` — a snapshot copies the bytes of a volume, and an emulated volume is a size and a name with nothing written behind it, so the object produced would restore nothing
+- `instance/v1/API.GetSnapshot` — creating a snapshot is declined, so no snapshot can exist in this emulator for these calls to read, edit or delete
 - `instance/v1/API.ListDefaultSecurityGroupRules` — the seeded rule set is a value the SDK does not carry, so an invented list would state which ports a real client believes are open, and docs/limits.md records that these rules do filter packets
 - `instance/v1/API.ListImages` — the catalogue exists so the CLI can resolve one image by id before a create, and listing it would publish six fixed entries as if they were an inventory a client could grow
 - `instance/v1/API.ListPlacementGroups` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
 - `instance/v1/API.ListServerActions` — the server already publishes allowed_actions, derived from its state, so a second listing would be a second place to keep in step with the first
-- `instance/v1/API.ListSnapshots` — a snapshot copies the bytes of a volume, and an emulated volume is a size and a name with nothing written behind it, so the object produced would restore nothing
+- `instance/v1/API.ListSnapshots` — creating a snapshot is declined, so no snapshot can exist in this emulator for these calls to read, edit or delete
 - `instance/v1/API.ListVolumesTypes` — the emulator serves one volume type, b_ssd, because that is what its catalogue attaches, so a type list would describe capabilities nothing here can create
 - `instance/v1/API.PlanBlockMigration` — there is no legacy storage behind this emulator to migrate from, so a plan would describe a move between two things that are the same store
 - `instance/v1/API.ReleaseIPToIpam` — addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures
@@ -227,7 +227,7 @@ missed one — and the reason is what separates a decision from a list.
 - `instance/v1/API.UpdatePlacementGroup` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
 - `instance/v1/API.UpdatePlacementGroupServers` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
 - `instance/v1/API.UpdatePrivateNIC` — its request carries tags and nothing else, and the pack stores no tag on a private NIC, so it would answer success over a field nothing reads back
-- `instance/v1/API.UpdateSnapshot` — a snapshot copies the bytes of a volume, and an emulated volume is a size and a name with nothing written behind it, so the object produced would restore nothing
+- `instance/v1/API.UpdateSnapshot` — creating a snapshot is declined, so no snapshot can exist in this emulator for these calls to read, edit or delete
 - `instance/v1/MetadataAPI.DeleteUserData` — the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials
 - `instance/v1/MetadataAPI.GetMetadata` — the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials
 - `instance/v1/MetadataAPI.GetUserData` — the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials

@@ -189,10 +189,18 @@ func (p *Pack) Declined() []emulator.Decline {
 		// have in order to answer, which is what makes a refusal revisitable —
 		// "not triaged yet" and "out of scope" are different answers.
 
-		// A snapshot and an image are bytes. An emulated volume is a size and a
-		// name in a store, with nothing written behind it.
+		// A snapshot is bytes. An emulated volume is a size and a name in a
+		// store, with nothing written behind it.
 		emulator.Because("a snapshot copies the bytes of a volume, and an emulated volume is a size and a name with nothing written behind it, so the object produced would restore nothing",
-			"instance/v1/API.CreateSnapshot",
+			"instance/v1/API.CreateSnapshot"),
+
+		// The four reads are separated for the reason ListImages already
+		// established below: the sentence above is about producing an object,
+		// which is true of the create and false of everything that only reads
+		// one. An audit found the family reason applied to members it does not
+		// describe — the defect this repository keeps meeting, and the reason
+		// Declined() carries prose at all.
+		emulator.Because("creating a snapshot is declined, so no snapshot can exist in this emulator for these calls to read, edit or delete",
 			"instance/v1/API.DeleteSnapshot",
 			"instance/v1/API.GetSnapshot",
 			"instance/v1/API.ListSnapshots",
