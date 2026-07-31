@@ -97,12 +97,31 @@ esac
 # checkable against the commits since the last one, and a mismatch is worth a
 # sentence before it is worth a release.
 #
-# It reports rather than refuses when commitizen is absent: a maintainer without
-# the Python tooling must still be able to cut a release, and every other check
-# here already had that property.
+# It reports rather than refuses when commitizen cannot be reached at all: a
+# maintainer without the Python tooling must still be able to cut a release, and
+# every other check here already had that property.
+#
+# But "cannot be reached" is not the same as "is not on the PATH", and treating
+# them as one skipped this check on the station that cuts the releases — where
+# the commitizen pre-commit hook runs on every single commit, through pre-commit's
+# own isolated environment. So v0.3.0 was published with the number derived by
+# hand rather than from the commits. uv is already a declared tool of this
+# project (mise.toml), so uvx runs commitizen without installing anything, at the
+# version .pre-commit-config.yaml pins — the same one the hook uses, because two
+# versions of the same tool disagreeing about an increment is a defect nobody
+# would think to look for.
+cz_version="$(sed -n '/commitizen-tools\/commitizen/,/rev:/s/.*rev: *v\{0,1\}\([0-9.]*\).*/\1/p' \
+  .pre-commit-config.yaml | head -1)"
+cz_cmd=""
 if command -v cz >/dev/null 2>&1; then
+  cz_cmd="cz"
+elif command -v uvx >/dev/null 2>&1 && [ -n "$cz_version" ]; then
+  cz_cmd="uvx --from commitizen==$cz_version cz"
+fi
+
+if [ -n "$cz_cmd" ]; then
   # --yes so it never prompts, --dry-run so it writes nothing at all.
-  implied="$(cz bump --dry-run --yes 2>/dev/null | grep -oE 'v?[0-9]+\.[0-9]+\.[0-9]+' | tail -1)"
+  implied="$($cz_cmd bump --dry-run --yes 2>/dev/null | grep -oE 'v?[0-9]+\.[0-9]+\.[0-9]+' | tail -1)"
   if [ -z "$implied" ]; then
     # No bump to compute: no conventional commit since the last tag, which is
     # the ordinary case for the first release.
@@ -111,10 +130,10 @@ if command -v cz >/dev/null 2>&1; then
     ok "$VERSION is what the commits since the last tag imply"
   else
     ko "the commits imply v${implied#v}, not $VERSION" \
-       "read: cz bump --dry-run. Tag what the commits say, or say why in the CHANGELOG"
+       "read: $cz_cmd bump --dry-run. Tag what the commits say, or say why in the CHANGELOG"
   fi
 else
-  ok "${DIM}skipped: commitizen is not installed, so the implied version was not derived${OFF}"
+  ok "${DIM}skipped: neither cz nor uvx is available, so the implied version was not derived${OFF}"
 fi
 
 # --- what a reader of the release will look for -----------------------------
