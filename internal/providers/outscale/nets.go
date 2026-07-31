@@ -93,34 +93,10 @@ type deleteSubnetRequest struct {
 	DryRun   *bool  `json:"DryRun"`
 }
 
-// dryRun answers the way the API does when a client asks whether a call would
-// work: it validates and changes nothing.
-//
-// The field was declared on six request structs here and read by none of them,
-// so `CreateNet --DryRun` created the Net — and `CreateSubnet --DryRun` created
-// a bridge on the operator's host. A declared-but-unread field is invisible to
-// the unread-field report, which is exactly what placement.go warns about, and
-// an audit found it that way rather than through the report.
-//
-// The SDK's answer carries the marker in ResponseContext; a client checks for it
-// rather than for an empty body.
-//
-// TestDryRunChangesNothing fails without this.
-func (p *Pack) answerDryRun(w http.ResponseWriter) {
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"ResponseContext": p.context(),
-		"DryRun":          true,
-	})
-}
-
 func (p *Pack) createNet(w http.ResponseWriter, r *http.Request) {
 	var req createNetRequest
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
-		return
-	}
-	if req.DryRun != nil && *req.DryRun {
-		p.answerDryRun(w)
 		return
 	}
 
@@ -194,10 +170,6 @@ func (p *Pack) deleteNet(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
-	if req.DryRun != nil && *req.DryRun {
-		p.answerDryRun(w)
-		return
-	}
 	if _, found := p.env.Store.Get(Name, kindNet, req.NetID); !found {
 		p.notFound(w, "Net", req.NetID)
 		return
@@ -220,10 +192,6 @@ func (p *Pack) createSubnet(w http.ResponseWriter, r *http.Request) {
 	var req createSubnetRequest
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
-		return
-	}
-	if req.DryRun != nil && *req.DryRun {
-		p.answerDryRun(w)
 		return
 	}
 
@@ -328,10 +296,6 @@ func (p *Pack) deleteSubnet(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
-	if req.DryRun != nil && *req.DryRun {
-		p.answerDryRun(w)
-		return
-	}
 	subnet, found := p.env.Store.Get(Name, kindSubnet, req.SubnetID)
 	if !found {
 		p.notFound(w, "Subnet", req.SubnetID)
@@ -345,16 +309,35 @@ func (p *Pack) deleteSubnet(w http.ResponseWriter, r *http.Request) {
 	// network under attached machines — and the destructive paths are the ones
 	// this repository's own instructions say to guard first.
 	//
-	// TestASubnetDoesNotDeleteUnderAVm fails without this.
+	// Under the addressing lock, which is where allocateVms places a Vm: without
+	// it the guard reads an empty list while a create is between its placement
+	// and its Put, and the Subnet goes out under a machine that lands a
+	// microsecond later. The first version checked outside the lock, which made
+	// the guard true only when nothing else was running.
+	//
+	// TestASubnetDoesNotDeleteUnderAVm fails without the guard.
+	// TestASubnetDoesNotDeleteUnderARace holds the invariant under sixty racing
+	// rounds, and — measured, not assumed — it still passes when the lock is
+	// removed: the window between the List and the Delete is a few microseconds
+	// and nothing in the test can widen it. So the lock is argued from the
+	// allocation path, which does hold it, and the race test is a regression net,
+	// not the proof. Saying which is which is the point.
+	p.addresses.Lock()
 	for _, vm := range p.env.Store.List(kindVM, resource.Tenant{Provider: Name}) {
 		if stringOf(vm.Attrs["SubnetId"]) == req.SubnetID {
+			p.addresses.Unlock()
 			p.conflict(w, "the Subnet "+req.SubnetID+" still holds "+vm.ID)
 			return
 		}
 	}
-
-	p.removeBackingNetwork(r.Context(), subnet)
+	// Removed from the store under the lock, so a create that wakes up next
+	// fails to resolve it rather than placing a Vm in a Subnet being deleted.
 	p.env.Store.Delete(Name, kindSubnet, req.SubnetID)
+	p.addresses.Unlock()
+
+	// The runtime call is slow and stays outside: the Subnet is already
+	// unreachable to every other handler by this point.
+	p.removeBackingNetwork(r.Context(), subnet)
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
 }
 

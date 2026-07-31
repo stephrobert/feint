@@ -165,29 +165,65 @@ func (p *Pack) createVms(w http.ResponseWriter, r *http.Request) {
 	now := p.env.Now()
 	vms := make([]map[string]any, 0, count)
 
-	// Allocation is read-modify-write over the store: what is free is computed
-	// from what exists. The mutex on this pack was written for exactly that and
-	// the Vm path never took it, so twelve concurrent creates handed one address
-	// to two machines — with a runtime, two containers configured with the same
-	// static IP. The Net and Subnet paths have always taken it.
-	//
-	// Held across the whole batch rather than per Vm: releasing between two Vms
-	// of one create lets another create interleave and take the address this one
-	// is about to use.
-	p.addresses.Lock()
-	defer p.addresses.Unlock()
-
-	// created tracks what to undo if the batch cannot reach its minimum. An
-	// error answer that leaves machines running is worse than a refusal: the
-	// client owns resources it was told it did not get, and Terraform never
-	// tracks them.
-	var created []*resource.Resource
-	unwind := func() {
+	created, err := p.allocateVms(req, count, now)
+	if err != nil {
+		// An error answer that leaves machines running is worse than a refusal:
+		// the client owns resources it was told it did not get, and Terraform
+		// never tracks them. Undone outside the addressing lock, because
+		// removeMachine reaches the runtime.
 		for _, res := range created {
 			p.removeMachine(r.Context(), res)
 			p.env.Store.Delete(Name, kindVM, res.ID)
 		}
+		if errors.Is(err, errUnknownSubnet) {
+			p.notFound(w, "Subnet", req.SubnetID)
+			return
+		}
+		p.conflict(w, "cannot place a Vm in "+req.SubnetID+": "+err.Error())
+		return
 	}
+
+	for _, res := range created {
+		// Started after the address is reserved and before the answer is built,
+		// so the create reports what the boot produced rather than what it
+		// intended. The store clones on Put, so the machine name and the running
+		// state have to be written back explicitly.
+		if boot {
+			p.powerOn(r.Context(), res)
+			if !p.env.Store.Commit(res, p.env.Now()) {
+				// Deleted while it was starting. Not an error: the client asked
+				// for a machine it then removed.
+				continue
+			}
+		}
+		vms = append(vms, p.vmView(res))
+	}
+
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{
+		"Vms":             vms,
+		"ResponseContext": p.context(),
+	})
+}
+
+// allocateVms reserves count machines and stores them stopped, under the lock
+// that guards the addressing plane. It never boots one: a container start takes
+// tens of seconds, and this lock is what every other create on the pack waits
+// behind — "un effet de bord lent ne tient pas dans le verrou".
+//
+// Allocation is read-modify-write over the store: what is free is computed from
+// what exists. The mutex was written for exactly that and the Vm path never took
+// it, so twelve concurrent creates handed one address to two machines — with a
+// runtime, two containers configured with the same static IP.
+// TestConcurrentCreatesDoNotShareAnAddress fails without it.
+//
+// It returns what it stored even when it fails, so the caller can undo the
+// batch. Releasing between two Vms of one batch would let another create take an
+// address this one is about to use, so the whole batch allocates at once.
+func (p *Pack) allocateVms(req createVmsRequest, count int, now time.Time) ([]*resource.Resource, error) {
+	p.addresses.Lock()
+	defer p.addresses.Unlock()
+
+	created := make([]*resource.Resource, 0, count)
 	for range count {
 		res := &resource.Resource{
 			ID:      newVMID(p.env.NewID()),
@@ -202,18 +238,14 @@ func (p *Pack) createVms(w http.ResponseWriter, r *http.Request) {
 			},
 		}
 		// The Subnet the client asked for, resolved before anything is stored: a
-		// Vm placed nowhere is not a Vm the client asked for.
+		// Vm placed nowhere is not a Vm the client asked for. Reading it here,
+		// under the lock, is also what makes deleteSubnet's guard hold: the two
+		// cannot interleave, so a Subnet either still exists for this batch or
+		// is already gone for it.
 		if req.SubnetID != "" {
 			place, err := p.placeInSubnet(req.SubnetID)
-			switch {
-			case errors.Is(err, errUnknownSubnet):
-				unwind()
-				p.notFound(w, "Subnet", req.SubnetID)
-				return
-			case err != nil:
-				unwind()
-				p.conflict(w, "cannot place a Vm in "+req.SubnetID+": "+err.Error())
-				return
+			if err != nil {
+				return created, err
 			}
 			place.apply(res)
 		}
@@ -223,22 +255,10 @@ func (p *Pack) createVms(w http.ResponseWriter, r *http.Request) {
 		if req.UserData != "" {
 			res.Attrs["UserData"] = req.UserData
 		}
-		// Started before it is stored, and stored once. The store clones on Put,
-		// so writing first and booting after left the running state and the
-		// machine name only in the copy this function holds: the create answered
-		// running and every later read said stopped.
-		if boot {
-			p.powerOn(r.Context(), res)
-		}
 		p.env.Store.Put(res)
 		created = append(created, res)
-		vms = append(vms, p.vmView(res))
 	}
-
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Vms":             vms,
-		"ResponseContext": p.context(),
-	})
+	return created, nil
 }
 
 func (p *Pack) updateVm(w http.ResponseWriter, r *http.Request) {

@@ -17,6 +17,9 @@
 package outscale
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -55,14 +58,61 @@ func (p *Pack) Name() string { return Name }
 func operation(action string) string { return "osc/Client." + action }
 
 // route declares one action. Outscale has no path structure to speak of: every
+// maxDryRunProbe bounds the body read to answer a dry run. Generous for a
+// request document and far below the 4 MiB the server accepts.
+const maxDryRunProbe = 1 << 20
+
 // call is a POST on /api/v1/<Action>, so a route is fully described by its
 // action name and its handler.
-func route(action string, handler http.HandlerFunc) emulator.Route {
+func (p *Pack) route(action string, handler http.HandlerFunc) emulator.Route {
 	return emulator.Route{
 		Method:    "POST",
 		Path:      pathPrefix + action,
 		Operation: operation(action),
-		Handler:   handler,
+		Handler:   p.dryRunnable(handler),
+	}
+}
+
+// dryRunnable answers a DryRun without reaching the handler.
+//
+// Here rather than in each request struct, because the field is on all twenty
+// served actions in Outscale's own API description and the first attempt at this
+// honoured it in six: an audit then ran `DeleteVms {"DryRun": true}` and watched
+// the machine be destroyed. A control implemented per handler is a control the
+// destructive handlers were missing, which is the worst possible distribution of
+// it.
+//
+// What this does NOT do is validate, and saying so is the point: the real API
+// checks the request and reports what would happen. Here the body is read and
+// the call stops. A client gets "nothing changed", which is true, and never
+// "your request is valid", which would be invented. docs/limits.md records the
+// difference.
+//
+// TestDryRunReachesNoHandler fails without this.
+func (p *Pack) dryRunnable(handler http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Bounded like every other body: a dry run must not be a way to make the
+		// emulator read an unbounded request.
+		body, err := io.ReadAll(io.LimitReader(r.Body, maxDryRunProbe))
+		if err != nil {
+			handler(w, r)
+			return
+		}
+		// The body is put back whatever happens: the handler owns it from here.
+		r.Body = io.NopCloser(bytes.NewReader(body))
+
+		var probe struct {
+			DryRun *bool `json:"DryRun"`
+		}
+		if err := json.Unmarshal(body, &probe); err != nil || probe.DryRun == nil || !*probe.DryRun {
+			handler(w, r)
+			return
+		}
+		// ResponseContext alone. The first version answered a top-level
+		// "DryRun": true, which the pack's own contract rejects — the response
+		// schemas are closed — and the comment claimed the SDK carries the
+		// marker there. It does not: ResponseContext is {RequestId}.
+		emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
 	}
 }
 
@@ -70,37 +120,37 @@ func route(action string, handler http.HandlerFunc) emulator.Route {
 func (p *Pack) Routes() []emulator.Route {
 	return []emulator.Route{
 		// Vms: the machine and its lifecycle.
-		route("ReadVms", p.readVms),
-		route("CreateVms", p.createVms),
-		route("UpdateVm", p.updateVm),
-		route("DeleteVms", p.deleteVms),
-		route("StartVms", p.startVms),
-		route("StopVms", p.stopVms),
-		route("RebootVms", p.rebootVms),
+		p.route("ReadVms", p.readVms),
+		p.route("CreateVms", p.createVms),
+		p.route("UpdateVm", p.updateVm),
+		p.route("DeleteVms", p.deleteVms),
+		p.route("StartVms", p.startVms),
+		p.route("StopVms", p.stopVms),
+		p.route("RebootVms", p.rebootVms),
 
 		// The inventory every client reads before it creates anything. The
 		// Scaleway pack learned this the hard way: decline the catalogue and the
 		// official CLI cannot create a server at all.
-		route("ReadVmTypes", p.readVmTypes),
-		route("ReadImages", p.readImages),
-		route("ReadRegions", p.readRegions),
-		route("ReadSubregions", p.readSubregions),
+		p.route("ReadVmTypes", p.readVmTypes),
+		p.route("ReadImages", p.readImages),
+		p.route("ReadRegions", p.readRegions),
+		p.route("ReadSubregions", p.readSubregions),
 
 		// Nets and Subnets: the addressing plane. A block is parsed, its mask
 		// bounded, its containment and its overlap checked, and the address count
 		// computed from the mask — none of which the emulators this project
 		// measures itself against do.
-		route("CreateNet", p.createNet),
-		route("ReadNets", p.readNets),
-		route("DeleteNet", p.deleteNet),
-		route("CreateSubnet", p.createSubnet),
-		route("ReadSubnets", p.readSubnets),
-		route("DeleteSubnet", p.deleteSubnet),
+		p.route("CreateNet", p.createNet),
+		p.route("ReadNets", p.readNets),
+		p.route("DeleteNet", p.deleteNet),
+		p.route("CreateSubnet", p.createSubnet),
+		p.route("ReadSubnets", p.readSubnets),
+		p.route("DeleteSubnet", p.deleteSubnet),
 
 		// Keypairs, on the critical path to a machine anyone can log into.
-		route("CreateKeypair", p.createKeypair),
-		route("ReadKeypairs", p.readKeypairs),
-		route("DeleteKeypair", p.deleteKeypair),
+		p.route("CreateKeypair", p.createKeypair),
+		p.route("ReadKeypairs", p.readKeypairs),
+		p.route("DeleteKeypair", p.deleteKeypair),
 	}
 }
 
