@@ -100,6 +100,12 @@ case "$plan_status" in
   *) fail "the second plan errored with status $plan_status" ;;
 esac
 
+# Zoned, like every id the provider returns: fr-par-1/<uuid>. The server id
+# above is trimmed the same way.
+volume_id="$("$TF" output -raw volume_id)"
+volume_uuid="${volume_id##*/}"
+[ -n "$volume_uuid" ] || fail "no volume id in the outputs"
+
 echo "- destroy"
 "$TF" destroy -no-color -auto-approve -var "endpoint=$ENDPOINT"
 DESTROYED=1
@@ -108,6 +114,12 @@ DESTROYED=1
 # whatever the delete answered. Ask the emulator.
 code="$(curl -s -o /dev/null -w '%{http_code}' "$ENDPOINT/instance/v1/zones/$ZONE/servers/$server_uuid")"
 [ "$code" = "404" ] || fail "the destroyed server still answers $code"
+# And the volume with it. The provider destroys through terminate, which used to
+# leave every additional volume naming a server that answered 404: `destroy`
+# then failed with "volume is still attached to a server" on every retry, and no
+# fixture here carried a volume to show it.
+code="$(curl -s -o /dev/null -w '%{http_code}' "$ENDPOINT/instance/v1/zones/$ZONE/volumes/$volume_uuid")"
+[ "$code" = "404" ] || fail "the destroyed volume still answers $code"
 ok "destroyed, and gone from the API"
 
 echo "conformance: $TF apply/destroy passed"

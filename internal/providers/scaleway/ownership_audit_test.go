@@ -1,10 +1,14 @@
 package scaleway_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+
+	"github.com/stephrobert/feint/internal/core/machine"
 )
 
 // What a second whole-pack audit found in the fixes of the first one. Every
@@ -83,92 +87,198 @@ func TestAVolumeStateIsOneTheSDKDeclares(t *testing.T) {
 // Runtime[runtimeServerKey]. So it saw nothing on a root volume, and an audit
 // moved one server's root volume onto another: both then listed it.
 func TestAttachingDoesNotStealAnotherServersVolume(t *testing.T) {
-	ts := newTestServer(t)
-	first := aServer(t, ts, "first")
-	second := aServer(t, ts, "second")
+	// Three doors onto the same fact. A third audit walked the two the previous
+	// fix had not touched: only attach-volume asked the question, so a create
+	// naming another server's root volume moved it and both servers listed it.
+	for _, door := range []struct {
+		what string
+		take func(t *testing.T, ts *httptest.Server, thief, volume string) int
+	}{
+		{"attach-volume", func(t *testing.T, ts *httptest.Server, thief, volume string) int {
+			status, _ := do(t, ts, "POST", zone+"/servers/"+thief+"/attach-volume", `{"volume_id":"`+volume+`"}`)
+			return status
+		}},
+		{"a create naming it", func(t *testing.T, ts *httptest.Server, _, volume string) int {
+			status, _ := do(t, ts, "POST", zone+"/servers",
+				`{"name":"thief","commercial_type":"DEV1-S","image":"ubuntu_jammy","volumes":{"1":{"id":"`+volume+`"}}}`)
+			return status
+		}},
+		{"an update naming it", func(t *testing.T, ts *httptest.Server, thief, volume string) int {
+			status, _ := do(t, ts, "PATCH", zone+"/servers/"+thief,
+				`{"volumes":{"1":{"id":"`+volume+`"}}}`)
+			return status
+		}},
+	} {
+		t.Run(door.what, func(t *testing.T) {
+			ts := newTestServer(t)
+			owner := aServer(t, ts, "owner")
+			thief := aServer(t, ts, "thief-host")
 
-	_, out := do(t, ts, "GET", zone+"/servers/"+first, "")
-	srv, _ := out["server"].(map[string]any)
-	volumes, _ := srv["volumes"].(map[string]any)
-	root, _ := volumes["0"].(map[string]any)
-	rootID, _ := root["id"].(string)
-	if rootID == "" {
-		t.Fatalf("the first server has no root volume: %v", srv)
-	}
+			_, out := do(t, ts, "GET", zone+"/servers/"+owner, "")
+			srv, _ := out["server"].(map[string]any)
+			volumes, _ := srv["volumes"].(map[string]any)
+			root, _ := volumes["0"].(map[string]any)
+			rootID, _ := root["id"].(string)
+			if rootID == "" {
+				t.Fatalf("the owner has no root volume: %v", srv)
+			}
 
-	status, body := do(t, ts, "POST", zone+"/servers/"+second+"/attach-volume",
-		`{"volume_id":"`+rootID+`"}`)
-	if status == http.StatusOK {
-		t.Fatalf("the root volume of %s was attached to %s: %v", first, second, body)
-	}
+			door.take(t, ts, thief, rootID)
 
-	// And the first server still has it, rather than having half lost it.
-	_, out = do(t, ts, "GET", zone+"/volumes/"+rootID, "")
-	vol, _ := out["volume"].(map[string]any)
-	if server, _ := vol["server"].(map[string]any); server == nil || server["id"] != first {
-		t.Errorf("the refused attach moved the volume: it now names %v", vol["server"])
+			// Whatever the status, the volume must not have moved: a create that
+			// skips an unavailable volume answers 201, and that is fine — what is
+			// not fine is the owner losing its disk.
+			_, out = do(t, ts, "GET", zone+"/volumes/"+rootID, "")
+			vol, _ := out["volume"].(map[string]any)
+			server, _ := vol["server"].(map[string]any)
+			if server == nil || server["id"] != owner {
+				t.Errorf("%s moved the root volume: it now names %v", door.what, vol["server"])
+			}
+		})
 	}
 }
 
-// An address is a valid reference for every verb that takes one, delete
-// included.
+// Terminate gives back exactly what delete gives back.
 //
-// The lookup by address was added for GET and PATCH; delete resolved through it
-// and then removed the *reference the client typed* rather than the id it had
-// just resolved. `scw instance ip delete 203.0.113.7` answered 204 and the
-// address survived — a 200-that-does-nothing, which is the class the lookup was
-// added to fix, reintroduced one door over.
+// They are two doors to one state and they disagreed twice: first about
+// addresses, then about volumes. Terminate kept the volumes attached to a
+// server that answered 404, so `tofu destroy` on a server with
+// additional_volume_ids failed with "volume is still attached to a server" on
+// every retry — the provider walks terminate, not delete.
+func TestTerminateReleasesWhatDeleteReleases(t *testing.T) {
+	for _, door := range []struct {
+		what string
+		kill func(t *testing.T, ts *httptest.Server, id string)
+	}{
+		{"delete", func(t *testing.T, ts *httptest.Server, id string) {
+			do(t, ts, "DELETE", zone+"/servers/"+id, "")
+		}},
+		{"terminate", func(t *testing.T, ts *httptest.Server, id string) {
+			do(t, ts, "POST", zone+"/servers/"+id+"/action", `{"action":"terminate"}`)
+		}},
+	} {
+		t.Run(door.what, func(t *testing.T) {
+			ts := newTestServer(t)
+			srvID := aServer(t, ts, "doomed")
+			volID := aVolume(t, ts, "extra")
+			if status, out := do(t, ts, "POST", zone+"/servers/"+srvID+"/attach-volume",
+				`{"volume_id":"`+volID+`"}`); status != http.StatusOK {
+				t.Fatalf("attach-volume: %d %v", status, out)
+			}
+
+			door.kill(t, ts, srvID)
+
+			_, out := do(t, ts, "GET", zone+"/volumes/"+volID, "")
+			vol, _ := out["volume"].(map[string]any)
+			if server := vol["server"]; server != nil {
+				t.Errorf("after %s the volume still names %v", door.what, server)
+			}
+			// And it can be deleted, which is the operation Terraform retries.
+			if status, _ := do(t, ts, "DELETE", zone+"/volumes/"+volID, ""); status != http.StatusNoContent {
+				t.Errorf("after %s the volume cannot be deleted: %d", door.what, status)
+			}
+		})
+	}
+}
+
+// Creating a server does not take an address off a live machine.
 //
-// This is one of the two tests a previous commit cited by name without ever
-// writing it. It exists now.
-func TestAnAddressIsAValidIPReference(t *testing.T) {
-	ts := newTestServer(t)
+// updateIP unroutes the previous holder before it routes the new one; the
+// create path set the new owner and left the address on the old machine, so
+// under a runtime two machines claimed the same /32. Nothing in the API shows
+// it — public_ips is computed, so the first server simply stops listing it —
+// which is why this is asserted through the runtime, the way the machine-driver
+// skill says argument-level facts have to be.
+func TestCreatingAServerDoesNotStealALiveAddress(t *testing.T) {
+	runtime := &routingRuntime{fakeRuntime: newFakeRuntime()}
+	close(runtime.release) // nothing here needs to block
+	ts := newRuntimeTestServer(t, runtime)
+
 	_, out := do(t, ts, "POST", zone+"/ips", `{}`)
 	ip, _ := out["ip"].(map[string]any)
+	ipID, _ := ip["id"].(string)
 	address, _ := ip["address"].(string)
-	id, _ := ip["id"].(string)
-	if address == "" || id == "" {
-		t.Fatalf("no address allocated: %v", out)
-	}
 
-	if status, _ := do(t, ts, "GET", zone+"/ips/"+address, ""); status != http.StatusOK {
-		t.Errorf("GET by address: %d", status)
+	_, out = do(t, ts, "POST", zone+"/servers",
+		`{"name":"first","commercial_type":"DEV1-S","image":"ubuntu_jammy","public_ip":"`+ipID+`"}`)
+	srv, _ := out["server"].(map[string]any)
+	firstID, _ := srv["id"].(string)
+	// Started, so there is a machine to take the address off: a create leaves
+	// the server stopped, and withdrawing from nothing proves nothing.
+	if status, body := do(t, ts, "POST", zone+"/servers/"+firstID+"/action",
+		`{"action":"poweron"}`); status != http.StatusAccepted {
+		t.Fatalf("poweron: %d %v", status, body)
 	}
-	if status, _ := do(t, ts, "DELETE", zone+"/ips/"+address, ""); status != http.StatusNoContent {
-		t.Errorf("DELETE by address: %d", status)
+	before := runtime.unrouted()
+
+	do(t, ts, "POST", zone+"/servers",
+		`{"name":"second","commercial_type":"DEV1-S","image":"ubuntu_jammy","public_ip":"`+ipID+`"}`)
+
+	after := runtime.unrouted()
+	if len(after) != len(before)+1 {
+		t.Fatalf("the address moved without being withdrawn from the first machine: %v", after)
 	}
-	// The one the previous version got wrong: it answered, and kept it.
-	if status, _ := do(t, ts, "GET", zone+"/ips/"+id, ""); status != http.StatusNotFound {
-		t.Errorf("the address survived its own delete: GET by id answered %d", status)
+	if got := after[len(after)-1]; got.address != address {
+		t.Errorf("withdrew %q, want the address that moved (%q)", got.address, address)
+	}
+	if after[len(after)-1].machine == "" {
+		t.Error("withdrew the address from no machine at all")
 	}
 }
 
-// Deleting a server leaves its volumes available, not owned by a ghost.
+// routingRuntime is a fakeRuntime that also carries addresses, so a test can
+// assert what was withdrawn and from which machine.
+type routingRuntime struct {
+	*fakeRuntime
+
+	mu     sync.Mutex
+	routes []withdrawal
+}
+
+type withdrawal struct{ machine, address string }
+
+func (r *routingRuntime) RouteAddress(_ context.Context, _ machine.AddressSpec) error { return nil }
+
+func (r *routingRuntime) UnrouteAddress(_ context.Context, name, address string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.routes = append(r.routes, withdrawal{machine: name, address: address})
+	return nil
+}
+
+func (r *routingRuntime) unrouted() []withdrawal {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]withdrawal(nil), r.routes...)
+}
+
+// The volume list filters by substring, the way the SDK documents it.
 //
-// volumesOf reads Runtime, and the attach paths wrote Attrs, so a deleted
-// server left every verb-attached volume claiming it forever — through the API
-// and through Terraform, where a tainted replace left the volume naming a
-// server that no longer existed.
-func TestDeletingAServerReleasesTheVolumesItHeld(t *testing.T) {
+// instance_sdk.go gives the example itself: "vol" will return "myvolume" but
+// not "data". Compared by equality, `scw instance volume list name=vol` came
+// back empty against a volume called myvolume — while filterServers, twenty
+// lines away in the sibling file, had just been fixed to match the SDK and
+// carries the quote in its comment. Same defect, one file over, found by a
+// third audit.
+func TestVolumesFilterByNameLikeTheSDKSays(t *testing.T) {
 	ts := newTestServer(t)
-	srvID := aServer(t, ts, "doomed")
-	volID := aVolume(t, ts, "attached")
+	aVolume(t, ts, "myvolume")
+	aVolume(t, ts, "data")
 
-	if status, out := do(t, ts, "POST", zone+"/servers/"+srvID+"/attach-volume",
-		`{"volume_id":"`+volID+`"}`); status != http.StatusOK {
-		t.Fatalf("attach-volume: %d %v", status, out)
+	_, out := do(t, ts, "GET", zone+"/volumes?name=vol", "")
+	volumes, _ := out["volumes"].([]any)
+	if len(volumes) != 1 {
+		t.Fatalf("name=vol matched %d volume(s), want the one called myvolume: %v", len(volumes), out)
 	}
-	if status, _ := do(t, ts, "DELETE", zone+"/servers/"+srvID, ""); status != http.StatusNoContent {
-		t.Fatalf("delete server: %d", status)
+	vol, _ := volumes[0].(map[string]any)
+	if name, _ := vol["name"].(string); name != "myvolume" {
+		t.Errorf("name=vol matched %q", name)
 	}
-
-	_, out := do(t, ts, "GET", zone+"/volumes/"+volID, "")
-	vol, _ := out["volume"].(map[string]any)
-	if server := vol["server"]; server != nil {
-		t.Errorf("the volume still names %v after its server was deleted", server)
-	}
-	if state, _ := vol["state"].(string); state != "available" {
-		t.Errorf("the released volume is %q, want available", state)
+	// And it still refuses what does not contain it, or the filter would just be
+	// a way to return everything.
+	_, out = do(t, ts, "GET", zone+"/volumes?name=absent", "")
+	if volumes, _ = out["volumes"].([]any); len(volumes) != 0 {
+		t.Errorf("name=absent matched %d volume(s)", len(volumes))
 	}
 }
 
@@ -239,5 +349,38 @@ func TestAPreconditionRendersAsASentence(t *testing.T) {
 		if strings.HasPrefix(sentence, ",") {
 			t.Errorf("%s: the SDK would print a dangling comma: %q", probe.what, sentence)
 		}
+	}
+}
+
+// An address is a valid reference for every verb that takes one, delete
+// included.
+//
+// The lookup by address was added for GET and PATCH; delete resolved through it
+// and then removed the *reference the client typed* rather than the id it had
+// just resolved. `scw instance ip delete 203.0.113.7` answered 204 and the
+// address survived — a 200-that-does-nothing, which is the class the lookup was
+// added to fix, reintroduced one door over.
+//
+// This is one of the two tests a previous commit cited by name without ever
+// writing it. It exists now.
+func TestAnAddressIsAValidIPReference(t *testing.T) {
+	ts := newTestServer(t)
+	_, out := do(t, ts, "POST", zone+"/ips", `{}`)
+	ip, _ := out["ip"].(map[string]any)
+	address, _ := ip["address"].(string)
+	id, _ := ip["id"].(string)
+	if address == "" || id == "" {
+		t.Fatalf("no address allocated: %v", out)
+	}
+
+	if status, _ := do(t, ts, "GET", zone+"/ips/"+address, ""); status != http.StatusOK {
+		t.Errorf("GET by address: %d", status)
+	}
+	if status, _ := do(t, ts, "DELETE", zone+"/ips/"+address, ""); status != http.StatusNoContent {
+		t.Errorf("DELETE by address: %d", status)
+	}
+	// The one the previous version got wrong: it answered, and kept it.
+	if status, _ := do(t, ts, "GET", zone+"/ips/"+id, ""); status != http.StatusNotFound {
+		t.Errorf("the address survived its own delete: GET by id answered %d", status)
 	}
 }

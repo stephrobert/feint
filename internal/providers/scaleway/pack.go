@@ -68,8 +68,10 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "PATCH", Path: zones + "/ips/{id}", Operation: "instance/v1/API.UpdateIP", Handler: p.updateIP},
 		{Method: "DELETE", Path: zones + "/ips/{id}", Operation: "instance/v1/API.DeleteIP", Handler: p.deleteIP},
 
-		// Security groups and their rules. The whole product is served and none
-		// of it is enforced: see securitygroups.go and docs/limits.md.
+		// Security groups and their rules. The whole product is served, and the
+		// rules are enforced when a machine runtime is configured: docs/limits.md
+		// records the measurement. Without --vm there is no packet to filter, so
+		// the control plane answers and nothing is applied.
 		{Method: "GET", Path: zones + "/security_groups", Operation: "instance/v1/API.ListSecurityGroups", Handler: p.listSecurityGroups},
 		{Method: "POST", Path: zones + "/security_groups", Operation: "instance/v1/API.CreateSecurityGroup", Handler: p.createSecurityGroup},
 		{Method: "GET", Path: zones + "/security_groups/{id}", Operation: "instance/v1/API.GetSecurityGroup", Handler: p.getSecurityGroup},
@@ -202,8 +204,13 @@ func (p *Pack) Declined() []emulator.Decline {
 		emulator.Because("the pack answers image lookups from the fixed catalogue the CLI resolves against, so creating or editing one would edit a table nothing can add to",
 			"instance/v1/API.CreateImage",
 			"instance/v1/API.DeleteImage",
-			"instance/v1/API.ListImages",
 			"instance/v1/API.UpdateImage"),
+
+		// ListImages only reads, so the reason above is false of it. Its own is
+		// that GetImage answers from the catalogue by id, which is what the CLI
+		// resolves against; listing would publish the table as an inventory.
+		emulator.Because("the catalogue exists so the CLI can resolve one image by id before a create, and listing it would publish six fixed entries as if they were an inventory a client could grow",
+			"instance/v1/API.ListImages"),
 
 		emulator.Because("placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked",
 			"instance/v1/API.CreatePlacementGroup",
@@ -295,7 +302,6 @@ func (p *Pack) Declined() []emulator.Decline {
 		emulator.Because("capacity and quotas are the provider's fleet, and a local emulator that answered would be inventing headroom a client could plan against",
 			"instance/v1/API.GetServerTypesAvailability",
 			"instance/v1/API.GetServerCompatibleTypes",
-			"instance/v1/API.ListVolumesTypes",
 			"instance/v1/API.CheckBlockMigrationOrganizationQuotas"),
 
 		// GetDashboard is separated from the group above, because "no inventory"
@@ -306,6 +312,13 @@ func (p *Pack) Declined() []emulator.Decline {
 		// declined is the other half: it also counts products this pack does not
 		// serve, so every total would be short by the unemulated remainder with
 		// nothing in the answer saying which.
+		// ListVolumesTypes is not in the block above, and an audit was right to
+		// say so: it returns a catalogue of volume types with their constraints,
+		// which is the same nature as ListServersTypes — served. It is declined
+		// for the reason that actually applies to it.
+		emulator.Because("the emulator serves one volume type, b_ssd, because that is what its catalogue attaches, so a type list would describe capabilities nothing here can create",
+			"instance/v1/API.ListVolumesTypes"),
+
 		emulator.Because("its thirteen counters span resources this pack does not serve, so every total would be short by the unemulated remainder with nothing saying which",
 			"instance/v1/API.GetDashboard"),
 
@@ -445,10 +458,11 @@ func (p *Pack) Declined() []emulator.Decline {
 		// list images no local image maps to, or claim the catalogue is six
 		// entries long.
 		//
-		// GetLocalImage is deliberately NOT here: `scw instance server create`
-		// resolves the default image through the marketplace before it posts
-		// anything, and declining a call a client walks first is the trap this
-		// repository has a section about. It stays on the work list.
+		// GetLocalImage used to be described here as deliberately kept off the
+		// list; it is now declined, with its own reason, in the SW-1 block above.
+		// What the CLI walks before a create is ListLocalImages, which is served
+		// — that is the call the trap is about, and an audit found this comment
+		// contradicting the block it introduces.
 		emulator.Because("the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long",
 			"marketplace/v2/API.GetCategory",
 			"marketplace/v2/API.GetImage",

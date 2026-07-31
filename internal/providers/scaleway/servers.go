@@ -1,6 +1,7 @@
 package scaleway
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -179,7 +180,9 @@ func (p *Pack) rootVolume(server *resource.Resource, name, project, organization
 	// it, so honouring a local type here would make it refuse the very creation
 	// it just asked for. Stated rather than silently overridden.
 	vol := p.newVolume(server.Tenant.Zone, project, organization, volumeName, "b_ssd", size)
-	p.attachVolume(vol, server, name)
+	// A volume this call just built: it can belong to nobody else, so the only
+	// error attachVolume returns cannot happen here.
+	_ = p.attachVolume(vol, server, name)
 	// Built, not stored. Storing here put the volume in the store before the
 	// flexible IPs were validated, so a create refused with a 404 left an
 	// orphan disk attached to a server that never existed — the very defect the
@@ -321,6 +324,23 @@ func (p *Pack) createServer(w http.ResponseWriter, r *http.Request) {
 	p.env.Store.Put(rootVol)
 	p.env.Store.Put(res)
 	for _, ip := range attach {
+		// Taken from whoever held it, the way updateIP does: it unroutes the
+		// previous machine before it routes the new one. This loop set the new
+		// owner and left the old machine carrying the address, so under a
+		// runtime two machines claimed the same /32 — and the first server lost
+		// its address with no error anywhere.
+		//
+		// TestCreatingAServerDoesNotStealALiveAddress fails without this.
+		// detachAddress reads the previous holder out of the record itself, so
+		// it has to run before the record is rewritten — the first version
+		// passed it the new server, which type-checks and reads no address at
+		// all, and the falsification caught it because the test kept passing
+		// with the call removed.
+		if previous, _ := ip.Attrs["server"].(map[string]any); previous != nil {
+			if id, _ := previous["id"].(string); id != "" && id != res.ID {
+				p.detachAddress(r.Context(), ip)
+			}
+		}
 		ip.Attrs["server"] = map[string]any{"id": res.ID, "name": req.Name}
 		// The state moves with the attachment. This path used to set the server
 		// and leave the state at "detached", so every address attached at create
@@ -441,21 +461,33 @@ func (p *Pack) deleteServer(w http.ResponseWriter, r *http.Request) {
 	}
 	p.removeMachine(r.Context(), res)
 	p.env.Store.Delete(Name, kindServer, id)
-	// Volumes are detached, not deleted: deleting a server does not delete its
-	// disks on Scaleway, which is why `scw instance server delete` takes a
-	// with-volumes flag and then removes them itself. The CLI polls each volume
-	// after the server is gone, so one that vanished with it fails the delete
-	// with "waiting for volume failed: resource volume is not found".
+	p.releaseServerResources(r.Context(), id, zone)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// releaseServerResources gives back what a gone server held. Both doors to that
+// state call it — DELETE /servers/{id} and the terminate action — because an
+// audit found them disagreeing twice: first about addresses, then about
+// volumes, each time on the door the previous fix had not touched.
+//
+// Volumes are detached, not deleted: deleting a server does not delete its
+// disks on Scaleway, which is why `scw instance server delete` takes a
+// with-volumes flag and then removes them itself. The CLI polls each volume
+// after the server is gone, so one that vanished with it fails the delete with
+// "waiting for volume failed: resource volume is not found".
+//
+// Addresses go back to the pool. They used to keep naming the deleted server,
+// so `scw instance ip list` showed an address attached to something that no
+// longer existed — and with a runtime on, the route stayed on a machine that
+// had just been destroyed.
+//
+// TestTerminateReleasesWhatDeleteReleases fails without this.
+func (p *Pack) releaseServerResources(ctx context.Context, id, zone string) {
 	for _, vol := range p.volumesOf(id) {
 		p.detachVolume(vol)
 		p.env.Store.Put(vol)
 	}
-	// The addresses go back to the pool. They used to keep naming the deleted
-	// server, so `scw instance ip list` showed an address attached to something
-	// that no longer existed — and with a runtime on, the route stayed on a
-	// machine that had just been destroyed. The real API detaches them.
-	p.releaseAddressesOf(r.Context(), id, zone)
-	w.WriteHeader(http.StatusNoContent)
+	p.releaseAddressesOf(ctx, id, zone)
 }
 
 // serverAction drives the lifecycle. Transitions are immediate: a local emulator
@@ -536,11 +568,12 @@ func (p *Pack) serverAction(w http.ResponseWriter, r *http.Request) {
 	case "terminate":
 		p.removeMachine(r.Context(), res)
 		p.env.Store.Delete(Name, kindServer, id)
-		// Same release as deleteServer: terminate is the other door to the same
-		// state, and an audit found the two paths disagreeing about volumes
-		// already. One of them keeping addresses pointed at a dead server would
-		// be the same defect twice.
-		p.releaseAddressesOf(r.Context(), id, zone)
+		// One function for both doors, because writing the release twice is how
+		// they came to disagree: delete detached its volumes and terminate did
+		// not, so `tofu destroy` on a server with additional_volume_ids failed
+		// with "volume is still attached to a server" on every retry — the
+		// volume named a server that answered 404.
+		p.releaseServerResources(r.Context(), id, zone)
 		emulator.WriteJSON(w, http.StatusAccepted, map[string]any{"task": task(p.env.NewID(), "server_terminate", now)})
 		return
 	case "backup":
@@ -672,7 +705,8 @@ func (p *Pack) setServerVolumes(server *resource.Resource, wanted map[string]vol
 			if !found || vol.Tenant.Zone != server.Tenant.Zone {
 				return fmt.Errorf("volume %s does not exist in %s", tmpl.ID, server.Tenant.Zone)
 			}
-			p.attachVolume(vol, server, name)
+			// A volume this call just created: it can belong to nobody else.
+			_ = p.attachVolume(vol, server, name)
 			p.env.Store.Put(vol)
 			keep[vol.ID] = true
 			view[key] = volumeView(vol)
@@ -686,7 +720,8 @@ func (p *Pack) setServerVolumes(server *resource.Resource, wanted map[string]vol
 				volumeName = name + "-" + key
 			}
 			vol := p.newVolume(server.Tenant.Zone, project, organization, volumeName, orDefault(tmpl.VolumeType, "b_ssd"), uint64(tmpl.Size))
-			p.attachVolume(vol, server, name)
+			// A volume this call just created: it can belong to nobody else.
+			_ = p.attachVolume(vol, server, name)
 			p.env.Store.Put(vol)
 			keep[vol.ID] = true
 			view[key] = volumeView(vol)
@@ -835,7 +870,12 @@ func (p *Pack) attachTemplateVolumes(templates map[string]volumeTemplate, root, 
 		if !ok || vol.Tenant.Zone != zone {
 			continue
 		}
-		p.attachVolume(vol, server, serverName)
+		// Skipped rather than refused, like an unknown id above: the answer says
+		// which volumes the server actually has, and a create must not take a
+		// disk from a running machine.
+		if err := p.attachVolume(vol, server, serverName); err != nil {
+			continue
+		}
 		p.env.Store.Put(vol)
 		out[key] = volumeView(vol)
 	}
@@ -880,14 +920,12 @@ func (p *Pack) attachServerVolume(w http.ResponseWriter, r *http.Request) {
 	}
 	// The API refuses to move a volume already in use, and Terraform reads that
 	// error rather than guessing.
-	if owner := vol.Runtime[runtimeServerKey]; owner != "" && owner != id {
+	key := p.nextVolumeKey(res)
+	serverName, _ := res.Attrs["name"].(string)
+	if err := p.attachVolume(vol, res, serverName); err != nil {
 		writePrecondition(w, "volume", vol.ID, "the volume is attached to another server")
 		return
 	}
-
-	key := p.nextVolumeKey(res)
-	serverName, _ := res.Attrs["name"].(string)
-	p.attachVolume(vol, res, serverName)
 	p.env.Store.Put(vol)
 
 	volumes := volumeMapOf(res)

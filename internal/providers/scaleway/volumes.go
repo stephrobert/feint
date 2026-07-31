@@ -1,7 +1,9 @@
 package scaleway
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
@@ -47,10 +49,15 @@ func (p *Pack) listVolumes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	all := p.env.Store.List(kindVolume, p.scopeOf(r, zone))
+	// A substring, not an equality: instance_sdk.go documents the filter with its
+	// own example — "vol" returns "myvolume" but not "data". Compared by equality
+	// here, `scw instance volume list name=vol` came back empty against a volume
+	// called myvolume, while the servers list next door had just been fixed to
+	// match the SDK. TestVolumesFilterByNameLikeTheSDKSays fails without this.
 	if name := r.URL.Query().Get("name"); name != "" {
 		filtered := all[:0]
 		for _, res := range all {
-			if res.Attrs["name"] == name {
+			if stored, _ := res.Attrs["name"].(string); strings.Contains(stored, name) {
 				filtered = append(filtered, res)
 			}
 		}
@@ -174,14 +181,36 @@ func (p *Pack) newVolume(zone, project, organization, name, volumeType string, s
 	}
 }
 
-// attachVolume records which server a volume belongs to, and returns the
-// {id, name} pair the server's own volume map carries.
-func (p *Pack) attachVolume(vol *resource.Resource, server *resource.Resource, serverName string) {
+// attachVolume records which server a volume belongs to, refusing a volume
+// another live server already holds.
+//
+// The question lives here rather than in a handler because there are three
+// doors onto it — POST /servers with a volumes map, PATCH /servers with the
+// same, and POST /servers/{id}/attach-volume — and an audit walked every one
+// that lacked the check. Only attach-volume had it, so a create naming another
+// server's root volume moved it and left both servers listing it. CLAUDE.md
+// names this exact shape: a control copied per caller is a control one caller
+// is missing.
+//
+// A volume whose server no longer exists is free: terminate and delete both
+// release their volumes, but a snapshot restored from another instance can
+// carry the stale name, and refusing over a server nobody can see would be
+// unfixable through the API.
+//
+// TestAttachingDoesNotStealAnotherServersVolume covers all three doors and
+// fails without this.
+func (p *Pack) attachVolume(vol *resource.Resource, server *resource.Resource, serverName string) error {
+	if owner := vol.Runtime[runtimeServerKey]; owner != "" && owner != server.ID {
+		if _, alive := p.env.Store.Get(Name, kindServer, owner); alive {
+			return fmt.Errorf("volume %s is attached to server %s", vol.ID, owner)
+		}
+	}
 	if vol.Runtime == nil {
 		vol.Runtime = map[string]string{}
 	}
 	vol.Runtime[runtimeServerKey] = server.ID
 	vol.Attrs["server_name"] = serverName
+	return nil
 }
 
 // detachVolume releases a volume from its server, leaving it available. This is

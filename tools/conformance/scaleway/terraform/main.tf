@@ -74,10 +74,27 @@ resource "scaleway_vpc_private_network" "conformance" {
   }
 }
 
+# The volume the server carries besides its root. This resource is here because
+# its absence cost two audits: an attached volume answering a state VolumeState
+# does not declare made `apply` hang for five minutes on WaitForVolume, and a
+# terminate that did not detach made `destroy` fail with "volume is still
+# attached to a server" on every retry. Both were invisible to unit tests, which
+# read JSON, and to this fixture, which had no volume in it.
+resource "scaleway_instance_volume" "conformance" {
+  name       = "conformance-tf-data"
+  type       = "b_ssd"
+  size_in_gb = 10
+  zone       = "fr-par-1"
+}
+
 resource "scaleway_instance_server" "conformance" {
   name = "conformance-tf"
   type = "DEV1-S"
   zone = "fr-par-1"
+
+  # The path both defects lived on: the provider attaches it at create and
+  # detaches it at destroy, through terminate rather than delete.
+  additional_volume_ids = [scaleway_instance_volume.conformance.id]
 
   # The provider requires an image and resolves the label through the marketplace, which the
   # emulator serves from its fixed catalogue (internal/providers/scaleway/catalog.go). It returns a
@@ -105,4 +122,8 @@ output "private_network_id" {
 
 output "security_group_id" {
   value = scaleway_instance_security_group.conformance.id
+}
+
+output "volume_id" {
+  value = scaleway_instance_volume.conformance.id
 }

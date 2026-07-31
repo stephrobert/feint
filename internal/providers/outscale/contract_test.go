@@ -127,7 +127,7 @@ func TestEveryRouteNamesItsSDKOperation(t *testing.T) {
 	}
 }
 
-// TestTheContractIsTheOneWeShipGuards against a stale artefact: the emulator
+// TestTheContractIsTheOneWeShip guards against a stale artefact: the emulator
 // would validate against a version of the API nobody serves.
 func TestTheContractIsTheOneWeShip(t *testing.T) {
 	doc := contractDoc(t)

@@ -698,7 +698,7 @@ func (p *Pack) resourceOf(w http.ResponseWriter, r *http.Request, kind, segment,
 // deleting a default security group. errors.go says the field names mirror the
 // SDK structs; for this family they did not.
 //
-// TestPreconditionCarriesItsReason fails without this.
+// TestAPreconditionRendersAsASentence fails without this.
 func writePrecondition(w http.ResponseWriter, kind, id, message string) {
 	// The SDK's Precondition field is a short machine-readable token, and
 	// PreconditionFailedError.Error() switches on exactly three of them:
