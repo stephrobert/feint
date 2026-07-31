@@ -522,18 +522,16 @@ what this emulator serves, declines on purpose, or has not triaged yet.
 
 #### Scaleway
 
-55 routes mounted, 24% of the measured upstream surface served.
+55 routes mounted, 19% of the measured upstream surface served.
 
 | Product | Served | Declined | Untriaged | Upstream |
 |---|--:|--:|--:|--:|
+| `iam` | 5 | 78 | 0 | 83 |
 | `instance` | 37 | 86 | 27 | 150 |
 | `ipam` | 2 | 1 | 7 | 10 |
+| `marketplace` | 1 | 6 | 1 | 8 |
 | `vpc` | 10 | 5 | 22 | 37 |
-| **Total** | **49** | **92** | **56** | **197** |
-
-Routes are also mounted for `iam` (5), `marketplace` (1), which the coverage gate does not scan yet:
-they are served against a surface nobody measures, so no drift would be
-reported if it moved.
+| **Total** | **55** | **176** | **57** | **288** |
 
 #### Outscale
 

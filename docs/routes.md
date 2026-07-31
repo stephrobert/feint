@@ -108,12 +108,90 @@ counted.
 | `POST` | `/vpc/v2/regions/{region}/private-networks` | `vpc/v2/API.CreatePrivateNetwork` |
 | `POST` | `/vpc/v2/regions/{region}/vpcs` | `vpc/v2/API.CreateVPC` |
 
-### Declined on purpose (92)
+### Declined on purpose (176)
 
 Operations this pack knowingly does not serve, and why. Declining is a
 decision the drift gate records, which is what separates it from having
 missed one — and the reason is what separates a decision from a list.
 
+- `iam/v1alpha1/API.AddGroupMember` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.AddGroupMembers` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.AddSamlCertificate` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.ClonePolicy` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.CreateAPIKey` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.CreateApplication` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.CreateGroup` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.CreateJWT` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.CreatePolicy` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.CreateScimToken` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.CreateUser` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.CreateUserMFAOTP` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.DeleteAPIKey` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.DeleteApplication` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.DeleteGroup` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.DeleteJWT` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.DeletePolicy` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.DeleteSaml` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.DeleteSamlCertificate` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.DeleteScim` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.DeleteScimToken` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.DeleteUser` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.DeleteUserMFAOTP` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.DeleteWebAuthnAuthenticator` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.EnableOrganizationSaml` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.EnableOrganizationScim` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.FinishUserWebAuthnRegistration` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.GetAPIKey` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.GetApplication` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.GetGroup` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.GetJWT` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.GetLog` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.GetOrganization` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.GetOrganizationSaml` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.GetOrganizationScim` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.GetOrganizationSecuritySettings` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.GetPolicy` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.GetQuotum` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.GetSamlCertificate` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.GetUser` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.GetUserConnections` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.InitiateUserConnection` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.JoinUserConnection` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.ListAPIKeys` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.ListApplications` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.ListGracePeriods` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.ListGroups` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.ListJWTs` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.ListLogs` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.ListPermissionSets` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.ListPolicies` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.ListQuota` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.ListRules` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.ListSamlCertificates` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.ListScimTokens` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.ListUserWebAuthnAuthenticators` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.ListUsers` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.LockUser` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.ParseSamlMetadata` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.RemoveGroupMember` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.RemoveUserConnection` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.SetGroupMembers` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.SetOrganizationAlias` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.SetRules` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.StartUserWebAuthnRegistration` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.UnlockUser` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.UpdateAPIKey` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.UpdateApplication` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.UpdateGroup` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.UpdateOrganizationLoginMethods` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.UpdateOrganizationSecuritySettings` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.UpdatePolicy` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.UpdateSaml` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.UpdateUser` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.UpdateUserPassword` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.UpdateUserUsername` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.UpdateWebAuthnAuthenticator` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `iam/v1alpha1/API.ValidateUserMFAOTP` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
 - `instance/v1/API.ApplyBlockMigration` — there is no legacy storage behind this emulator to migrate from, so a plan would describe a move between two things that are the same store
 - `instance/v1/API.CheckBlockMigrationOrganizationQuotas` — capacity and quotas are the provider's fleet, and a local emulator that answered would be inventing headroom a client could plan against
 - `instance/v1/API.ExportSnapshot` — it writes into Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md
@@ -201,6 +279,12 @@ missed one — and the reason is what separates a decision from a list.
 - `instance/v2alpha1/VolumeAPI.UpdateSnapshot` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
 - `instance/v2alpha1/VolumeAPI.UpdateVolume` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
 - `ipam/v1alpha1/API.ListIPs` — ipam/v1alpha1 is the superseded draft of ipam/v1, which is served
+- `marketplace/v2/API.GetCategory` — the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long
+- `marketplace/v2/API.GetImage` — the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long
+- `marketplace/v2/API.GetVersion` — the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long
+- `marketplace/v2/API.ListCategories` — the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long
+- `marketplace/v2/API.ListImages` — the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long
+- `marketplace/v2/API.ListVersions` — the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long
 - `vpc/v2/API.AddPrivateNetworkS3Endpoint` — they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md
 - `vpc/v2/API.DeletePrivateNetworkS3Endpoint` — they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md
 - `vpc/v2/API.DisableS3Endpoint` — they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md

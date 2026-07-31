@@ -1,8 +1,10 @@
 {
   "provider": "scaleway",
   "products": [
+    "iam",
     "instance",
     "ipam",
+    "marketplace",
     "vpc"
   ],
   "unknown": [
@@ -40,6 +42,7 @@
     "ipam/v1/API.ReleaseIP",
     "ipam/v1/API.ReleaseIPSet",
     "ipam/v1/API.UpdateIP",
+    "marketplace/v2/API.GetLocalImage",
     "vpc/v2/API.CreateIngressRule",
     "vpc/v2/API.CreateRoute",
     "vpc/v2/API.CreateVPCConnector",

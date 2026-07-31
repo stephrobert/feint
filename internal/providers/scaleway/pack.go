@@ -234,6 +234,119 @@ func (p *Pack) Declined() []emulator.Decline {
 			"instance/v1/MetadataAPI.SetUserData",
 			"instance/v1/MetadataAPI.DeleteUserData"),
 
+		// IAM, everything except the SSH keys the pack serves.
+		//
+		// Users, groups, applications, policies, API keys, JWTs, SAML, SCIM,
+		// WebAuthn, MFA, the security settings and the audit log. The emulator
+		// accepts every credential on purpose — SECURITY.md states it and
+		// docs/roadmap.md lists verifying signatures under Not planned — so an
+		// access control served here would describe rules nothing enforces: a
+		// client could read back a policy denying an action and watch the
+		// emulator perform it.
+		//
+		// SSH keys are the exception and stay served, because they are not access
+		// control: they are the public key a machine boots with, and cloud-init
+		// installs it for real when --vm is on.
+		emulator.Because("the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+			"iam/v1alpha1/API.AddGroupMember",
+			"iam/v1alpha1/API.AddGroupMembers",
+			"iam/v1alpha1/API.AddSamlCertificate",
+			"iam/v1alpha1/API.ClonePolicy",
+			"iam/v1alpha1/API.CreateAPIKey",
+			"iam/v1alpha1/API.CreateApplication",
+			"iam/v1alpha1/API.CreateGroup",
+			"iam/v1alpha1/API.CreateJWT",
+			"iam/v1alpha1/API.CreatePolicy",
+			"iam/v1alpha1/API.CreateScimToken",
+			"iam/v1alpha1/API.CreateUser",
+			"iam/v1alpha1/API.CreateUserMFAOTP",
+			"iam/v1alpha1/API.DeleteAPIKey",
+			"iam/v1alpha1/API.DeleteApplication",
+			"iam/v1alpha1/API.DeleteGroup",
+			"iam/v1alpha1/API.DeleteJWT",
+			"iam/v1alpha1/API.DeletePolicy",
+			"iam/v1alpha1/API.DeleteSaml",
+			"iam/v1alpha1/API.DeleteSamlCertificate",
+			"iam/v1alpha1/API.DeleteScim",
+			"iam/v1alpha1/API.DeleteScimToken",
+			"iam/v1alpha1/API.DeleteUser",
+			"iam/v1alpha1/API.DeleteUserMFAOTP",
+			"iam/v1alpha1/API.DeleteWebAuthnAuthenticator",
+			"iam/v1alpha1/API.EnableOrganizationSaml",
+			"iam/v1alpha1/API.EnableOrganizationScim",
+			"iam/v1alpha1/API.FinishUserWebAuthnRegistration",
+			"iam/v1alpha1/API.GetAPIKey",
+			"iam/v1alpha1/API.GetApplication",
+			"iam/v1alpha1/API.GetGroup",
+			"iam/v1alpha1/API.GetJWT",
+			"iam/v1alpha1/API.GetLog",
+			"iam/v1alpha1/API.GetOrganization",
+			"iam/v1alpha1/API.GetOrganizationSaml",
+			"iam/v1alpha1/API.GetOrganizationScim",
+			"iam/v1alpha1/API.GetOrganizationSecuritySettings",
+			"iam/v1alpha1/API.GetPolicy",
+			"iam/v1alpha1/API.GetQuotum",
+			"iam/v1alpha1/API.GetSamlCertificate",
+			"iam/v1alpha1/API.GetUser",
+			"iam/v1alpha1/API.GetUserConnections",
+			"iam/v1alpha1/API.InitiateUserConnection",
+			"iam/v1alpha1/API.JoinUserConnection",
+			"iam/v1alpha1/API.ListAPIKeys",
+			"iam/v1alpha1/API.ListApplications",
+			"iam/v1alpha1/API.ListGracePeriods",
+			"iam/v1alpha1/API.ListGroups",
+			"iam/v1alpha1/API.ListJWTs",
+			"iam/v1alpha1/API.ListLogs",
+			"iam/v1alpha1/API.ListPermissionSets",
+			"iam/v1alpha1/API.ListPolicies",
+			"iam/v1alpha1/API.ListQuota",
+			"iam/v1alpha1/API.ListRules",
+			"iam/v1alpha1/API.ListSamlCertificates",
+			"iam/v1alpha1/API.ListScimTokens",
+			"iam/v1alpha1/API.ListUserWebAuthnAuthenticators",
+			"iam/v1alpha1/API.ListUsers",
+			"iam/v1alpha1/API.LockUser",
+			"iam/v1alpha1/API.ParseSamlMetadata",
+			"iam/v1alpha1/API.RemoveGroupMember",
+			"iam/v1alpha1/API.RemoveUserConnection",
+			"iam/v1alpha1/API.SetGroupMembers",
+			"iam/v1alpha1/API.SetOrganizationAlias",
+			"iam/v1alpha1/API.SetRules",
+			"iam/v1alpha1/API.StartUserWebAuthnRegistration",
+			"iam/v1alpha1/API.UnlockUser",
+			"iam/v1alpha1/API.UpdateAPIKey",
+			"iam/v1alpha1/API.UpdateApplication",
+			"iam/v1alpha1/API.UpdateGroup",
+			"iam/v1alpha1/API.UpdateOrganizationLoginMethods",
+			"iam/v1alpha1/API.UpdateOrganizationSecuritySettings",
+			"iam/v1alpha1/API.UpdatePolicy",
+			"iam/v1alpha1/API.UpdateSaml",
+			"iam/v1alpha1/API.UpdateUser",
+			"iam/v1alpha1/API.UpdateUserPassword",
+			"iam/v1alpha1/API.UpdateUserUsername",
+			"iam/v1alpha1/API.UpdateWebAuthnAuthenticator",
+			"iam/v1alpha1/API.ValidateUserMFAOTP"),
+
+		// The marketplace beyond the local images the emulator serves.
+		//
+		// Categories, versions and the global image index are a catalogue of
+		// every image Scaleway publishes across every zone. The emulator has a
+		// small fixed table instead, and answering the index from it would either
+		// list images no local image maps to, or claim the catalogue is six
+		// entries long.
+		//
+		// GetLocalImage is deliberately NOT here: `scw instance server create`
+		// resolves the default image through the marketplace before it posts
+		// anything, and declining a call a client walks first is the trap this
+		// repository has a section about. It stays on the work list.
+		emulator.Because("the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long",
+			"marketplace/v2/API.GetCategory",
+			"marketplace/v2/API.GetImage",
+			"marketplace/v2/API.GetVersion",
+			"marketplace/v2/API.ListCategories",
+			"marketplace/v2/API.ListImages",
+			"marketplace/v2/API.ListVersions"),
+
 		// The five S3 endpoints vpc/v2 grew since the last scan. They attach a
 		// private network to Object Storage, and Object Storage is refused here
 		// for a reason docs/limits.md measured: the Terraform provider builds the
