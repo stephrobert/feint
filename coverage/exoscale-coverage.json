@@ -1,5 +1,5 @@
 {
-  "declined": 0,
+  "declined": 248,
   "implemented": 14,
   "orphans": null,
   "products": [
@@ -7,20 +7,20 @@
       "product": "exoscale",
       "total": 372,
       "implemented": 14,
-      "declined": 0,
-      "unknown": 358,
+      "declined": 248,
+      "unknown": 110,
       "versions": [
         {
           "version": "2.0.0",
           "total": 372,
           "implemented": 14,
-          "declined": 0,
-          "unknown": 358
+          "declined": 248,
+          "unknown": 110
         }
       ]
     }
   ],
   "provider": "exoscale",
   "total": 372,
-  "unknown": 358
+  "unknown": 110
 }

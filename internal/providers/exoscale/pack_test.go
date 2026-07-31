@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/core/store"
 	"github.com/stephrobert/feint/internal/providers/exoscale"
 )
 
@@ -226,5 +227,27 @@ func TestWithoutARuntimeAnInstanceStillReachesRunning(t *testing.T) {
 	instance, _ := instances[0].(map[string]any)
 	if instance["state"] != "running" {
 		t.Fatalf("state is %v, want running", instance["state"])
+	}
+}
+
+// Quotas and the organisation read stay on the work list.
+//
+// They were declined once, and an audit caught it: the roadmap keeps them in
+// scope as small read-only calls several clients make, and `exo limits` — a
+// first-class command of the official CLI — walks that path. The correction was
+// recorded in a comment, which on this repository is the failure mode with the
+// longest record. This is the falsifiable form: re-declining any of the three
+// fails here.
+func TestQuotasAndOrganisationAreNotDeclined(t *testing.T) {
+	pack := exoscale.New(&emulator.Env{Store: store.New()})
+	kept := map[string]bool{
+		"exoscale/v2.get-quota":        true,
+		"exoscale/v2.list-quotas":      true,
+		"exoscale/v2.get-organization": true,
+	}
+	for _, d := range pack.Declined() {
+		if kept[d.Operation] {
+			t.Errorf("%s is declined; the roadmap keeps it in scope as a read several clients make", d.Operation)
+		}
 	}
 }

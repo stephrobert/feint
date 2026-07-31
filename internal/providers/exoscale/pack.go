@@ -14,6 +14,7 @@ package exoscale
 
 import (
 	"net/http"
+	"slices"
 	"sort"
 	"time"
 
@@ -83,17 +84,314 @@ func (p *Pack) Routes() []emulator.Route {
 // The names were wrong here too, and for the same reason. They are checked now:
 // the drift report calls out an entry matching nothing upstream.
 func (p *Pack) Declined() []emulator.Decline {
-	// Nothing is declined here yet, and the empty list is the honest answer
-	// rather than a placeholder.
+	// Exoscale's managed services, declined by name.
 	//
-	// The catalogue endpoints used to be, with a comment arguing they were not on
-	// the critical path of a create because the API takes a type and a template
-	// by id. That was true of the API and false of the client: `exo` lists zones,
-	// types and templates and registers an SSH key before it posts anything, and
-	// a 404 on any of them ends the command. The reasoning was sound and the
-	// conclusion was wrong, which is why the rule here is to measure the client
-	// rather than read the specification.
-	return nil
+	// Listed one by one rather than by prefix, deliberately: a prefix rule would
+	// swallow whatever upstream adds under a declined family, and the whole point
+	// of this file is that additions are seen. The scan reports a new operation
+	// as untriaged even inside a family already refused, and somebody decides.
+	//
+	// What is NOT here is the IaaS surface — instances, block storage, private
+	// networks, elastic IPs, security groups, load balancers, snapshots,
+	// templates, anti-affinity groups, VPCs. Those are the work list this pack is
+	// built to serve, and declining them to flatten the report would be the
+	// widened denominator docs/roadmap.md forbids.
+	return slices.Concat(
+		// Managed databases: PostgreSQL, MySQL, Kafka, OpenSearch, Valkey,
+		// ClickHouse, Grafana, their users, their settings, their integrations
+		// and their migrations.
+		//
+		// The largest family upstream by a wide margin, and the one an emulator
+		// can say least about. Each service is a real engine Exoscale runs,
+		// backs up and upgrades; the emulator has no engine, and a create that
+		// answered "running" would hand a client a connection string to nothing.
+		// The distance between the two is not a matter of routes to write.
+		emulator.Because("these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+			"exoscale/v2.attach-dbaas-service-to-endpoint",
+			"exoscale/v2.create-dbaas-clickhouse-user",
+			"exoscale/v2.create-dbaas-external-endpoint-datadog",
+			"exoscale/v2.create-dbaas-external-endpoint-elasticsearch",
+			"exoscale/v2.create-dbaas-external-endpoint-opensearch",
+			"exoscale/v2.create-dbaas-external-endpoint-prometheus",
+			"exoscale/v2.create-dbaas-external-endpoint-rsyslog",
+			"exoscale/v2.create-dbaas-integration",
+			"exoscale/v2.create-dbaas-kafka-schema-registry-acl-config",
+			"exoscale/v2.create-dbaas-kafka-topic-acl-config",
+			"exoscale/v2.create-dbaas-kafka-user",
+			"exoscale/v2.create-dbaas-mysql-database",
+			"exoscale/v2.create-dbaas-mysql-user",
+			"exoscale/v2.create-dbaas-opensearch-user",
+			"exoscale/v2.create-dbaas-pg-connection-pool",
+			"exoscale/v2.create-dbaas-pg-database",
+			"exoscale/v2.create-dbaas-pg-upgrade-check",
+			"exoscale/v2.create-dbaas-postgres-user",
+			"exoscale/v2.create-dbaas-service-clickhouse",
+			"exoscale/v2.create-dbaas-service-grafana",
+			"exoscale/v2.create-dbaas-service-kafka",
+			"exoscale/v2.create-dbaas-service-mysql",
+			"exoscale/v2.create-dbaas-service-opensearch",
+			"exoscale/v2.create-dbaas-service-pg",
+			"exoscale/v2.create-dbaas-service-thanos",
+			"exoscale/v2.create-dbaas-service-valkey",
+			"exoscale/v2.create-dbaas-task-migration-check",
+			"exoscale/v2.create-dbaas-valkey-user",
+			"exoscale/v2.delete-dbaas-clickhouse-user",
+			"exoscale/v2.delete-dbaas-external-endpoint-datadog",
+			"exoscale/v2.delete-dbaas-external-endpoint-elasticsearch",
+			"exoscale/v2.delete-dbaas-external-endpoint-opensearch",
+			"exoscale/v2.delete-dbaas-external-endpoint-prometheus",
+			"exoscale/v2.delete-dbaas-external-endpoint-rsyslog",
+			"exoscale/v2.delete-dbaas-integration",
+			"exoscale/v2.delete-dbaas-kafka-schema-registry-acl-config",
+			"exoscale/v2.delete-dbaas-kafka-topic-acl-config",
+			"exoscale/v2.delete-dbaas-kafka-user",
+			"exoscale/v2.delete-dbaas-mysql-database",
+			"exoscale/v2.delete-dbaas-mysql-user",
+			"exoscale/v2.delete-dbaas-opensearch-user",
+			"exoscale/v2.delete-dbaas-pg-connection-pool",
+			"exoscale/v2.delete-dbaas-pg-database",
+			"exoscale/v2.delete-dbaas-postgres-user",
+			"exoscale/v2.delete-dbaas-service",
+			"exoscale/v2.delete-dbaas-service-clickhouse",
+			"exoscale/v2.delete-dbaas-service-grafana",
+			"exoscale/v2.delete-dbaas-service-kafka",
+			"exoscale/v2.delete-dbaas-service-mysql",
+			"exoscale/v2.delete-dbaas-service-opensearch",
+			"exoscale/v2.delete-dbaas-service-pg",
+			"exoscale/v2.delete-dbaas-service-thanos",
+			"exoscale/v2.delete-dbaas-service-valkey",
+			"exoscale/v2.delete-dbaas-valkey-user",
+			"exoscale/v2.detach-dbaas-service-from-endpoint",
+			"exoscale/v2.enable-dbaas-mysql-writes",
+			"exoscale/v2.get-dbaas-ca-certificate",
+			"exoscale/v2.get-dbaas-clickhouse-acl-config",
+			"exoscale/v2.get-dbaas-external-endpoint-datadog",
+			"exoscale/v2.get-dbaas-external-endpoint-elasticsearch",
+			"exoscale/v2.get-dbaas-external-endpoint-opensearch",
+			"exoscale/v2.get-dbaas-external-endpoint-prometheus",
+			"exoscale/v2.get-dbaas-external-endpoint-rsyslog",
+			"exoscale/v2.get-dbaas-external-integration",
+			"exoscale/v2.get-dbaas-external-integration-settings-datadog",
+			"exoscale/v2.get-dbaas-integration",
+			"exoscale/v2.get-dbaas-kafka-acl-config",
+			"exoscale/v2.get-dbaas-migration-status",
+			"exoscale/v2.get-dbaas-opensearch-acl-config",
+			"exoscale/v2.get-dbaas-service-clickhouse",
+			"exoscale/v2.get-dbaas-service-grafana",
+			"exoscale/v2.get-dbaas-service-kafka",
+			"exoscale/v2.get-dbaas-service-logs",
+			"exoscale/v2.get-dbaas-service-metrics",
+			"exoscale/v2.get-dbaas-service-mysql",
+			"exoscale/v2.get-dbaas-service-opensearch",
+			"exoscale/v2.get-dbaas-service-pg",
+			"exoscale/v2.get-dbaas-service-thanos",
+			"exoscale/v2.get-dbaas-service-type",
+			"exoscale/v2.get-dbaas-service-valkey",
+			"exoscale/v2.get-dbaas-settings-clickhouse",
+			"exoscale/v2.get-dbaas-settings-grafana",
+			"exoscale/v2.get-dbaas-settings-kafka",
+			"exoscale/v2.get-dbaas-settings-mysql",
+			"exoscale/v2.get-dbaas-settings-opensearch",
+			"exoscale/v2.get-dbaas-settings-pg",
+			"exoscale/v2.get-dbaas-settings-thanos",
+			"exoscale/v2.get-dbaas-settings-valkey",
+			"exoscale/v2.get-dbaas-task",
+			"exoscale/v2.list-dbaas-clickhouse-users",
+			"exoscale/v2.list-dbaas-external-endpoint-types",
+			"exoscale/v2.list-dbaas-external-endpoints",
+			"exoscale/v2.list-dbaas-external-integrations",
+			"exoscale/v2.list-dbaas-integration-settings",
+			"exoscale/v2.list-dbaas-integration-types",
+			"exoscale/v2.list-dbaas-service-types",
+			"exoscale/v2.list-dbaas-services",
+			"exoscale/v2.list-dbaas-valkey-users",
+			"exoscale/v2.reset-dbaas-clickhouse-user-password",
+			"exoscale/v2.reset-dbaas-grafana-user-password",
+			"exoscale/v2.reset-dbaas-kafka-user-password",
+			"exoscale/v2.reset-dbaas-mysql-user-password",
+			"exoscale/v2.reset-dbaas-opensearch-user-password",
+			"exoscale/v2.reset-dbaas-postgres-user-password",
+			"exoscale/v2.reset-dbaas-valkey-user-password",
+			"exoscale/v2.reveal-dbaas-clickhouse-user-password",
+			"exoscale/v2.reveal-dbaas-grafana-user-password",
+			"exoscale/v2.reveal-dbaas-kafka-connect-password",
+			"exoscale/v2.reveal-dbaas-kafka-user-password",
+			"exoscale/v2.reveal-dbaas-mysql-user-password",
+			"exoscale/v2.reveal-dbaas-opensearch-user-password",
+			"exoscale/v2.reveal-dbaas-postgres-user-password",
+			"exoscale/v2.reveal-dbaas-thanos-user-password",
+			"exoscale/v2.reveal-dbaas-valkey-user-password",
+			"exoscale/v2.start-dbaas-clickhouse-maintenance",
+			"exoscale/v2.start-dbaas-grafana-maintenance",
+			"exoscale/v2.start-dbaas-kafka-maintenance",
+			"exoscale/v2.start-dbaas-mysql-maintenance",
+			"exoscale/v2.start-dbaas-opensearch-maintenance",
+			"exoscale/v2.start-dbaas-pg-maintenance",
+			"exoscale/v2.start-dbaas-thanos-maintenance",
+			"exoscale/v2.start-dbaas-valkey-maintenance",
+			"exoscale/v2.stop-dbaas-mysql-migration",
+			"exoscale/v2.stop-dbaas-pg-migration",
+			"exoscale/v2.stop-dbaas-valkey-migration",
+			"exoscale/v2.update-dbaas-external-endpoint-datadog",
+			"exoscale/v2.update-dbaas-external-endpoint-elasticsearch",
+			"exoscale/v2.update-dbaas-external-endpoint-opensearch",
+			"exoscale/v2.update-dbaas-external-endpoint-prometheus",
+			"exoscale/v2.update-dbaas-external-endpoint-rsyslog",
+			"exoscale/v2.update-dbaas-external-integration-settings-datadog",
+			"exoscale/v2.update-dbaas-integration",
+			"exoscale/v2.update-dbaas-opensearch-acl-config",
+			"exoscale/v2.update-dbaas-pg-connection-pool",
+			"exoscale/v2.update-dbaas-postgres-allow-replication",
+			"exoscale/v2.update-dbaas-service-clickhouse",
+			"exoscale/v2.update-dbaas-service-grafana",
+			"exoscale/v2.update-dbaas-service-kafka",
+			"exoscale/v2.update-dbaas-service-mysql",
+			"exoscale/v2.update-dbaas-service-opensearch",
+			"exoscale/v2.update-dbaas-service-pg",
+			"exoscale/v2.update-dbaas-service-thanos",
+			"exoscale/v2.update-dbaas-service-valkey",
+			"exoscale/v2.update-dbaas-valkey-user-access-control"),
+
+		// Scalable Kubernetes Service: clusters, nodepools, their upgrades and
+		// their kubeconfig.
+		emulator.Because("a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
+			"exoscale/v2.create-sks-cluster",
+			"exoscale/v2.create-sks-nodepool",
+			"exoscale/v2.delete-sks-cluster",
+			"exoscale/v2.delete-sks-nodepool",
+			"exoscale/v2.evict-sks-nodepool-members",
+			"exoscale/v2.generate-sks-cluster-kubeconfig",
+			"exoscale/v2.generate-sks-karpenter-exoscale-nodeclass",
+			"exoscale/v2.generate-sks-karpenter-nodepool",
+			"exoscale/v2.get-active-nodepool-template",
+			"exoscale/v2.get-sks-cluster",
+			"exoscale/v2.get-sks-cluster-authority-cert",
+			"exoscale/v2.get-sks-cluster-inspection",
+			"exoscale/v2.get-sks-nodepool",
+			"exoscale/v2.list-sks-cluster-deprecated-resources",
+			"exoscale/v2.list-sks-cluster-versions",
+			"exoscale/v2.list-sks-clusters",
+			"exoscale/v2.rotate-sks-ccm-credentials",
+			"exoscale/v2.rotate-sks-csi-credentials",
+			"exoscale/v2.rotate-sks-karpenter-credentials",
+			"exoscale/v2.rotate-sks-operators-ca",
+			"exoscale/v2.scale-sks-nodepool",
+			"exoscale/v2.update-sks-cluster",
+			"exoscale/v2.update-sks-nodepool",
+			"exoscale/v2.upgrade-sks-cluster",
+			"exoscale/v2.upgrade-sks-cluster-service-level"),
+
+		// The AI surface: models, deployments, the inference engine.
+		emulator.Because("inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
+			"exoscale/v2.create-ai-api-key",
+			"exoscale/v2.get-user-org-consumption-quota",
+			"exoscale/v2.reveal-deployment-api-key",
+			"exoscale/v2.create-deployment",
+			"exoscale/v2.create-model",
+			"exoscale/v2.delete-ai-api-key",
+			"exoscale/v2.delete-deployment",
+			"exoscale/v2.delete-model",
+			"exoscale/v2.get-ai-api-key",
+			"exoscale/v2.get-deployment",
+			"exoscale/v2.get-deployment-logs",
+			"exoscale/v2.get-inference-engine-help",
+			"exoscale/v2.get-model",
+			"exoscale/v2.list-ai-api-keys",
+			"exoscale/v2.list-ai-instance-types",
+			"exoscale/v2.list-deployments",
+			"exoscale/v2.list-models",
+			"exoscale/v2.reveal-ai-api-key",
+			"exoscale/v2.rotate-ai-api-key",
+			"exoscale/v2.scale-deployment",
+			"exoscale/v2.update-ai-api-key",
+			"exoscale/v2.update-deployment"),
+
+		// Key management: keys, their material, and the operations that use
+		// them — encrypt, decrypt, re-encrypt, data-key derivation.
+		emulator.Because("a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing",
+			"exoscale/v2.cancel-kms-key-deletion",
+			"exoscale/v2.create-kms-key",
+			"exoscale/v2.decrypt",
+			"exoscale/v2.disable-kms-key",
+			"exoscale/v2.disable-kms-key-rotation",
+			"exoscale/v2.enable-kms-key",
+			"exoscale/v2.enable-kms-key-rotation",
+			"exoscale/v2.encrypt",
+			"exoscale/v2.generate-data-key",
+			"exoscale/v2.get-kms-key",
+			"exoscale/v2.list-kms-key-rotations",
+			"exoscale/v2.list-kms-keys",
+			"exoscale/v2.re-encrypt",
+			"exoscale/v2.replicate-kms-key",
+			"exoscale/v2.rotate-kms-key",
+			"exoscale/v2.schedule-kms-key-deletion"),
+
+		// Managed DNS: domains, records, and reverse records for instances and
+		// elastic IPs.
+		emulator.Because("authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
+			"exoscale/v2.create-dns-domain",
+			"exoscale/v2.create-dns-domain-record",
+			"exoscale/v2.delete-dns-domain",
+			"exoscale/v2.delete-dns-domain-record",
+			"exoscale/v2.delete-reverse-dns-elastic-ip",
+			"exoscale/v2.delete-reverse-dns-instance",
+			"exoscale/v2.get-dns-domain",
+			"exoscale/v2.get-dns-domain-record",
+			"exoscale/v2.get-dns-domain-zone-file",
+			"exoscale/v2.get-reverse-dns-elastic-ip",
+			"exoscale/v2.get-reverse-dns-instance",
+			"exoscale/v2.list-dns-domain-records",
+			"exoscale/v2.list-dns-domains",
+			"exoscale/v2.update-dns-domain-record",
+			"exoscale/v2.update-reverse-dns-elastic-ip",
+			"exoscale/v2.update-reverse-dns-instance"),
+
+		// Identity and access: roles, policies, API keys, organisation users.
+		//
+		// Same reason as the Outscale pack, one API over: this emulator accepts
+		// every credential on purpose — SECURITY.md says so and the roadmap
+		// lists verifying signatures under Not planned.
+		emulator.Because("the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies",
+			"exoscale/v2.assume-iam-role",
+			"exoscale/v2.create-api-key",
+			"exoscale/v2.create-iam-role",
+			"exoscale/v2.create-user",
+			"exoscale/v2.delete-api-key",
+			"exoscale/v2.delete-iam-role",
+			"exoscale/v2.delete-user",
+			"exoscale/v2.get-api-key",
+			"exoscale/v2.get-iam-organization-policy",
+			"exoscale/v2.get-iam-role",
+			"exoscale/v2.list-api-keys",
+			"exoscale/v2.list-iam-roles",
+			"exoscale/v2.list-users",
+			"exoscale/v2.reset-iam-organization-policy",
+			"exoscale/v2.update-iam-organization-policy",
+			"exoscale/v2.update-iam-role",
+			"exoscale/v2.update-iam-role-policy",
+			"exoscale/v2.update-user-role"),
+
+		// Simple Object Storage.
+		emulator.Because("object storage is refused across this project for a measured reason: clients build the S3 endpoint in code, so serving it needs DNS interception and a certificate, recorded in docs/limits.md",
+			"exoscale/v2.get-sos-presigned-url",
+			"exoscale/v2.list-sos-buckets-usage"),
+
+		// The organisation's own consumption: balance, usage, environmental
+		// impact.
+		//
+		// Quotas are deliberately NOT here, and neither is the organisation
+		// itself. An audit caught them swept in: docs/roadmap-exoscale-iaas.md
+		// keeps them in scope as small read-only calls several clients make, and
+		// `exo limits` — a first-class command of the official CLI — died on the
+		// refusal. A quota is a limit this emulator can state as its own claim,
+		// the way it already states a catalogue.
+		emulator.Because("there is no account behind this emulator and no consumption to report, so any figure here would be one it invented and somebody planned against",
+			"exoscale/v2.get-env-impact",
+			"exoscale/v2.get-impact-estimate",
+			"exoscale/v2.get-impact-report",
+			"exoscale/v2.get-live-balance",
+			"exoscale/v2.get-usage-report"),
+	)
 }
 
 // apiPrefix is the whole of Exoscale's URL space here: their API description

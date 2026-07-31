@@ -408,7 +408,258 @@ missed one — and the reason is what separates a decision from a list.
 | `POST` | `/v2/instance` | `exoscale/v2.create-instance` |
 | `POST` | `/v2/ssh-key` | `exoscale/v2.register-ssh-key` |
 
-### Declined on purpose (0)
+### Declined on purpose (248)
 
-Nothing yet: everything upstream declares is either served or untriaged.
+Operations this pack knowingly does not serve, and why. Declining is a
+decision the drift gate records, which is what separates it from having
+missed one — and the reason is what separates a decision from a list.
+
+- `exoscale/v2.assume-iam-role` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
+- `exoscale/v2.attach-dbaas-service-to-endpoint` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.cancel-kms-key-deletion` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
+- `exoscale/v2.create-ai-api-key` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `exoscale/v2.create-api-key` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
+- `exoscale/v2.create-dbaas-clickhouse-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-external-endpoint-datadog` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-external-endpoint-elasticsearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-external-endpoint-opensearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-external-endpoint-prometheus` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-external-endpoint-rsyslog` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-integration` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-kafka-schema-registry-acl-config` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-kafka-topic-acl-config` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-kafka-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-mysql-database` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-mysql-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-opensearch-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-pg-connection-pool` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-pg-database` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-pg-upgrade-check` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-postgres-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-service-clickhouse` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-service-grafana` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-service-kafka` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-service-mysql` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-service-opensearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-service-pg` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-service-thanos` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-service-valkey` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-task-migration-check` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-dbaas-valkey-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.create-deployment` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `exoscale/v2.create-dns-domain` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
+- `exoscale/v2.create-dns-domain-record` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
+- `exoscale/v2.create-iam-role` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
+- `exoscale/v2.create-kms-key` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
+- `exoscale/v2.create-model` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `exoscale/v2.create-sks-cluster` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.create-sks-nodepool` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.create-user` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
+- `exoscale/v2.decrypt` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
+- `exoscale/v2.delete-ai-api-key` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `exoscale/v2.delete-api-key` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
+- `exoscale/v2.delete-dbaas-clickhouse-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-external-endpoint-datadog` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-external-endpoint-elasticsearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-external-endpoint-opensearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-external-endpoint-prometheus` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-external-endpoint-rsyslog` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-integration` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-kafka-schema-registry-acl-config` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-kafka-topic-acl-config` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-kafka-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-mysql-database` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-mysql-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-opensearch-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-pg-connection-pool` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-pg-database` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-postgres-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-service` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-service-clickhouse` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-service-grafana` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-service-kafka` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-service-mysql` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-service-opensearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-service-pg` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-service-thanos` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-service-valkey` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-dbaas-valkey-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.delete-deployment` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `exoscale/v2.delete-dns-domain` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
+- `exoscale/v2.delete-dns-domain-record` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
+- `exoscale/v2.delete-iam-role` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
+- `exoscale/v2.delete-model` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `exoscale/v2.delete-reverse-dns-elastic-ip` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
+- `exoscale/v2.delete-reverse-dns-instance` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
+- `exoscale/v2.delete-sks-cluster` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.delete-sks-nodepool` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.delete-user` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
+- `exoscale/v2.detach-dbaas-service-from-endpoint` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.disable-kms-key` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
+- `exoscale/v2.disable-kms-key-rotation` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
+- `exoscale/v2.enable-dbaas-mysql-writes` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.enable-kms-key` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
+- `exoscale/v2.enable-kms-key-rotation` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
+- `exoscale/v2.encrypt` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
+- `exoscale/v2.evict-sks-nodepool-members` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.generate-data-key` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
+- `exoscale/v2.generate-sks-cluster-kubeconfig` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.generate-sks-karpenter-exoscale-nodeclass` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.generate-sks-karpenter-nodepool` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.get-active-nodepool-template` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.get-ai-api-key` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `exoscale/v2.get-api-key` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
+- `exoscale/v2.get-dbaas-ca-certificate` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-clickhouse-acl-config` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-external-endpoint-datadog` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-external-endpoint-elasticsearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-external-endpoint-opensearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-external-endpoint-prometheus` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-external-endpoint-rsyslog` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-external-integration` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-external-integration-settings-datadog` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-integration` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-kafka-acl-config` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-migration-status` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-opensearch-acl-config` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-service-clickhouse` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-service-grafana` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-service-kafka` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-service-logs` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-service-metrics` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-service-mysql` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-service-opensearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-service-pg` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-service-thanos` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-service-type` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-service-valkey` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-settings-clickhouse` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-settings-grafana` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-settings-kafka` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-settings-mysql` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-settings-opensearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-settings-pg` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-settings-thanos` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-settings-valkey` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-dbaas-task` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.get-deployment` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `exoscale/v2.get-deployment-logs` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `exoscale/v2.get-dns-domain` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
+- `exoscale/v2.get-dns-domain-record` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
+- `exoscale/v2.get-dns-domain-zone-file` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
+- `exoscale/v2.get-env-impact` — there is no account behind this emulator and no consumption to report, so any figure here would be one it invented and somebody planned against
+- `exoscale/v2.get-iam-organization-policy` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
+- `exoscale/v2.get-iam-role` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
+- `exoscale/v2.get-impact-estimate` — there is no account behind this emulator and no consumption to report, so any figure here would be one it invented and somebody planned against
+- `exoscale/v2.get-impact-report` — there is no account behind this emulator and no consumption to report, so any figure here would be one it invented and somebody planned against
+- `exoscale/v2.get-inference-engine-help` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `exoscale/v2.get-kms-key` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
+- `exoscale/v2.get-live-balance` — there is no account behind this emulator and no consumption to report, so any figure here would be one it invented and somebody planned against
+- `exoscale/v2.get-model` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `exoscale/v2.get-reverse-dns-elastic-ip` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
+- `exoscale/v2.get-reverse-dns-instance` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
+- `exoscale/v2.get-sks-cluster` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.get-sks-cluster-authority-cert` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.get-sks-cluster-inspection` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.get-sks-nodepool` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.get-sos-presigned-url` — object storage is refused across this project for a measured reason: clients build the S3 endpoint in code, so serving it needs DNS interception and a certificate, recorded in docs/limits.md
+- `exoscale/v2.get-usage-report` — there is no account behind this emulator and no consumption to report, so any figure here would be one it invented and somebody planned against
+- `exoscale/v2.get-user-org-consumption-quota` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `exoscale/v2.list-ai-api-keys` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `exoscale/v2.list-ai-instance-types` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `exoscale/v2.list-api-keys` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
+- `exoscale/v2.list-dbaas-clickhouse-users` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.list-dbaas-external-endpoint-types` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.list-dbaas-external-endpoints` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.list-dbaas-external-integrations` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.list-dbaas-integration-settings` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.list-dbaas-integration-types` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.list-dbaas-service-types` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.list-dbaas-services` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.list-dbaas-valkey-users` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.list-deployments` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `exoscale/v2.list-dns-domain-records` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
+- `exoscale/v2.list-dns-domains` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
+- `exoscale/v2.list-iam-roles` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
+- `exoscale/v2.list-kms-key-rotations` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
+- `exoscale/v2.list-kms-keys` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
+- `exoscale/v2.list-models` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `exoscale/v2.list-sks-cluster-deprecated-resources` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.list-sks-cluster-versions` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.list-sks-clusters` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.list-sos-buckets-usage` — object storage is refused across this project for a measured reason: clients build the S3 endpoint in code, so serving it needs DNS interception and a certificate, recorded in docs/limits.md
+- `exoscale/v2.list-users` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
+- `exoscale/v2.re-encrypt` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
+- `exoscale/v2.replicate-kms-key` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
+- `exoscale/v2.reset-dbaas-clickhouse-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.reset-dbaas-grafana-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.reset-dbaas-kafka-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.reset-dbaas-mysql-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.reset-dbaas-opensearch-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.reset-dbaas-postgres-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.reset-dbaas-valkey-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.reset-iam-organization-policy` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
+- `exoscale/v2.reveal-ai-api-key` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `exoscale/v2.reveal-dbaas-clickhouse-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.reveal-dbaas-grafana-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.reveal-dbaas-kafka-connect-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.reveal-dbaas-kafka-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.reveal-dbaas-mysql-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.reveal-dbaas-opensearch-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.reveal-dbaas-postgres-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.reveal-dbaas-thanos-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.reveal-dbaas-valkey-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.reveal-deployment-api-key` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `exoscale/v2.rotate-ai-api-key` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `exoscale/v2.rotate-kms-key` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
+- `exoscale/v2.rotate-sks-ccm-credentials` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.rotate-sks-csi-credentials` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.rotate-sks-karpenter-credentials` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.rotate-sks-operators-ca` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.scale-deployment` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `exoscale/v2.scale-sks-nodepool` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.schedule-kms-key-deletion` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
+- `exoscale/v2.start-dbaas-clickhouse-maintenance` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.start-dbaas-grafana-maintenance` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.start-dbaas-kafka-maintenance` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.start-dbaas-mysql-maintenance` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.start-dbaas-opensearch-maintenance` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.start-dbaas-pg-maintenance` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.start-dbaas-thanos-maintenance` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.start-dbaas-valkey-maintenance` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.stop-dbaas-mysql-migration` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.stop-dbaas-pg-migration` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.stop-dbaas-valkey-migration` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.update-ai-api-key` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `exoscale/v2.update-dbaas-external-endpoint-datadog` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.update-dbaas-external-endpoint-elasticsearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.update-dbaas-external-endpoint-opensearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.update-dbaas-external-endpoint-prometheus` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.update-dbaas-external-endpoint-rsyslog` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.update-dbaas-external-integration-settings-datadog` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.update-dbaas-integration` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.update-dbaas-opensearch-acl-config` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.update-dbaas-pg-connection-pool` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.update-dbaas-postgres-allow-replication` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.update-dbaas-service-clickhouse` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.update-dbaas-service-grafana` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.update-dbaas-service-kafka` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.update-dbaas-service-mysql` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.update-dbaas-service-opensearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.update-dbaas-service-pg` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.update-dbaas-service-thanos` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.update-dbaas-service-valkey` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.update-dbaas-valkey-user-access-control` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `exoscale/v2.update-deployment` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `exoscale/v2.update-dns-domain-record` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
+- `exoscale/v2.update-iam-organization-policy` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
+- `exoscale/v2.update-iam-role` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
+- `exoscale/v2.update-iam-role-policy` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
+- `exoscale/v2.update-reverse-dns-elastic-ip` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
+- `exoscale/v2.update-reverse-dns-instance` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
+- `exoscale/v2.update-sks-cluster` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.update-sks-nodepool` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.update-user-role` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
+- `exoscale/v2.upgrade-sks-cluster` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `exoscale/v2.upgrade-sks-cluster-service-level` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
 <!-- routes:end -->

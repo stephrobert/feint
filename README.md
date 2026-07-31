@@ -551,8 +551,8 @@ reported if it moved.
 
 | Product | Served | Declined | Untriaged | Upstream |
 |---|--:|--:|--:|--:|
-| `exoscale` | 14 | 0 | 358 | 372 |
-| **Total** | **14** | **0** | **358** | **372** |
+| `exoscale` | 14 | 248 | 110 | 372 |
+| **Total** | **14** | **248** | **110** | **372** |
 
 **Declined** is a decision, not a gap: an operation nobody intends to emulate,
 with the reason in the pack's `Declined()`. **Untriaged** is the honest column —
