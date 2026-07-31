@@ -573,6 +573,14 @@ func (p *Pack) serverAction(w http.ResponseWriter, r *http.Request) {
 		// not, so `tofu destroy` on a server with additional_volume_ids failed
 		// with "volume is still attached to a server" on every retry — the
 		// volume named a server that answered 404.
+		//
+		// Detached, not deleted, and that is upstream's own rule rather than a
+		// simplification: instance_sdk.go:4670 says terminate "will result in
+		// the deletion of l_ssd and scratch volumes types, sbs_volume volumes
+		// will only be detached". Every volume this pack attaches is b_ssd, so
+		// every one of them survives its server. A manual run of the whole
+		// lifecycle expected the root volume to vanish here and was wrong; the
+		// SDK is what settled it.
 		p.releaseServerResources(r.Context(), id, zone)
 		emulator.WriteJSON(w, http.StatusAccepted, map[string]any{"task": task(p.env.NewID(), "server_terminate", now)})
 		return
