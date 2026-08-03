@@ -90,13 +90,24 @@ func (p *Pack) readVms(w http.ResponseWriter, r *http.Request) {
 		// A virtual machine gets its address tens of seconds after it starts,
 		// so a create cannot wait for one. It is filled in here instead, on the
 		// read a client is making anyway.
-		if p.refreshMachine(r.Context(), res) {
-			// Committed, not Put: this read ran outside the lock and a delete
-			// may have landed since. A false return means it did, and the Vm
-			// belongs in nobody's answer.
-			if !p.env.Store.Commit(res, p.env.Now()) {
-				continue
+		// This read writes: a virtual machine gets its address late, and the
+		// refresh publishes it. So it is serialised like every other writer —
+		// an audit noted that a read could otherwise lose a concurrent write,
+		// which is the same defect as UpdateVm's, through a door nobody thinks
+		// of as mutating.
+		refreshed := func() bool {
+			unlock := p.binding().Serialise(res.ID)
+			defer unlock()
+			if !p.refreshMachine(r.Context(), res) {
+				return true
 			}
+			// Committed, not Put: this read ran outside the store lock and a
+			// delete may have landed since. A false return means it did, and
+			// the Vm belongs in nobody's answer.
+			return p.env.Store.Commit(res, p.env.Now())
+		}()
+		if !refreshed {
+			continue
 		}
 		vms = append(vms, p.vmView(res))
 	}
@@ -117,14 +128,7 @@ func (p *Pack) createVms(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, "ImageId is required")
 		return
 	}
-	if req.KeypairName != "" && !p.keypairExists(req.KeypairName) {
-		p.notFound(w, "keypair", req.KeypairName)
-		return
-	}
-	// The API caps user data at 500 KiB. Accepting more would let through a
-	// script the real one refuses.
-	if len(req.UserData) > cloudinit.MaxUserData {
-		p.badRequest(w, "UserData is limited to 500 kibibytes")
+	if !p.validVmFields(w, req.KeypairName, req.UserData) {
 		return
 	}
 
@@ -273,12 +277,51 @@ func (p *Pack) allocateVms(req createVmsRequest, count int, now time.Time) ([]*r
 	return created, nil
 }
 
+// validVmFields checks what both CreateVms and UpdateVm must check, and answers
+// the client itself so the two cannot drift.
+//
+// They had drifted: UpdateVm took a 600 KiB user data the create refuses at 500,
+// and a KeypairName no keypair answers to. The second is the worse of the two —
+// at the next StartVms, authorizedKeys returns nothing, the machine boots with
+// no key, nobody can log in, and the API goes on stating that a keypair is
+// attached.
+//
+// TestUpdateVmValidatesWhatCreateValidates fails without this.
+func (p *Pack) validVmFields(w http.ResponseWriter, keypair, userData string) bool {
+	if keypair != "" && !p.keypairExists(keypair) {
+		p.notFound(w, "keypair", keypair)
+		return false
+	}
+	// The API caps user data at 500 KiB. Accepting more would let through a
+	// script the real one refuses.
+	if len(userData) > cloudinit.MaxUserData {
+		p.badRequest(w, "UserData is limited to 500 kibibytes")
+		return false
+	}
+	return true
+}
+
 func (p *Pack) updateVm(w http.ResponseWriter, r *http.Request) {
 	var req updateVMRequest
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
 		return
 	}
+	if !p.validVmFields(w, req.KeypairName, req.UserData) {
+		return
+	}
+
+	// Serialised on the target, like transitionOne and deleteVms. Without it,
+	// Commit replaces State, Runtime and Attrs wholesale over whatever a
+	// concurrent start had just written: an audit watched UpdateVm answer 200
+	// with a UserData the store did not hold, and Terraform would re-propose
+	// that change on every plan. In the other order it is a stopped state
+	// overwriting a running one whose container is alive.
+	//
+	// TestUpdateVmAndStartVmsDoNotOverwriteEachOther fails without this.
+	unlock := p.binding().Serialise(req.VMID)
+	defer unlock()
+
 	res, ok := p.env.Store.Get(Name, kindVM, req.VMID)
 	if !ok {
 		p.notFound(w, "VM", req.VMID)

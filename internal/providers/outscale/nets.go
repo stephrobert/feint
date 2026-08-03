@@ -177,11 +177,23 @@ func (p *Pack) deleteNet(w http.ResponseWriter, r *http.Request) {
 	// A Net holding subnets does not go, which is what the real API answers and
 	// what Terraform's destroy order relies on: it removes the subnets first and
 	// would report our success as a cycle it did not need to break.
+	//
+	// Under the addressing lock, which is where a subnet is placed in a Net. The
+	// guard was here and the lock was not, so the list was empty by construction
+	// for the whole window a create was open: an audit deleted a Net and watched
+	// a Subnet land in it, naming a Net the pack no longer serves, with its
+	// bridge left on the host. The same reasoning that put deleteSubnet under
+	// this lock applies here, and it was applied to only one of the two.
+	//
+	// TestANetDoesNotDeleteUnderASubnetBeingCreated fails without this.
+	p.addresses.Lock()
 	if subnets := p.subnetsOf(req.NetID); len(subnets) > 0 {
+		p.addresses.Unlock()
 		p.conflict(w, "the Net "+req.NetID+" still holds "+strconv.Itoa(len(subnets))+" subnet(s)")
 		return
 	}
 	p.env.Store.Delete(Name, kindNet, req.NetID)
+	p.addresses.Unlock()
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"ResponseContext": p.context(),
@@ -220,10 +232,24 @@ func (p *Pack) createSubnet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Reserved under the lock, created outside it. Holding the addressing plane
+	// across `incus network create` — hundreds of milliseconds to seconds — put
+	// every other CreateVms, CreateNet and CreateSubnet in a queue behind it: a
+	// terraform apply making ten subnets serialised them completely, measured at
+	// 1.5 s for one unrelated CreateNet. "Un effet de bord lent ne tient pas dans
+	// le verrou" was applied to the Vm path and left violated here.
+	//
+	// The reservation is what the lock is for: the resource is stored before the
+	// runtime call, so a concurrent create sees the range as taken and no two
+	// subnets can claim it. If the runtime then refuses, the reservation is
+	// withdrawn.
+	//
+	// TestSubnetCreateDoesNotHoldTheAddressingLockAcrossTheRuntime fails
+	// without this.
 	p.addresses.Lock()
-	defer p.addresses.Unlock()
 
 	if other, clash := network.FirstOverlap(prefix, p.subnetPrefixes(req.NetID)); clash {
+		p.addresses.Unlock()
 		p.conflict(w, "IpRange "+prefix.String()+" overlaps the subnet on "+other.String())
 		return
 	}
@@ -245,17 +271,35 @@ func (p *Pack) createSubnet(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
+	// Stored before the runtime call and before the lock is released: this is the
+	// reservation, and it is what makes a concurrent create see the range as
+	// taken.
+	p.env.Store.Put(res)
+	p.addresses.Unlock()
+
 	// The subnet is a real network on the runtime, which is what makes an
 	// address published here an address a machine can carry. Without a runtime
 	// this is a no-op and the control plane still answers.
 	if err := p.ensureBackingNetwork(r.Context(), res, prefix); err != nil {
+		// The reservation goes back, or a refused create would hold a range
+		// nothing owns. Delete rather than Commit: there is nothing to keep.
+		p.env.Store.Delete(Name, kindSubnet, res.ID)
 		p.logger().Error("could not create the backing network",
 			"subnet", res.ID, "range", prefix, "error", err)
 		p.conflict(w, "the machine runtime could not provide a network for "+prefix.String()+
 			"; the block is most likely already in use on this host: "+err.Error())
 		return
 	}
-	p.env.Store.Put(res)
+	// The runtime wrote the network name into Runtime, so the reservation is
+	// updated rather than replaced: a Put would resurrect a subnet deleted while
+	// the network was being created.
+	if !p.env.Store.Commit(res, p.env.Now()) {
+		// Deleted while its network was being made. Take the network back down
+		// rather than leave it on the host.
+		p.removeBackingNetwork(r.Context(), res)
+		p.notFound(w, "Subnet", res.ID)
+		return
+	}
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"Subnet":          p.subnetView(res),

@@ -57,11 +57,13 @@ func (p *Pack) Name() string { return Name }
 // keys on, which is why both live one string apart.
 func operation(action string) string { return "osc/Client." + action }
 
-// route declares one action. Outscale has no path structure to speak of: every
 // maxDryRunProbe bounds the body read to answer a dry run. Generous for a
-// request document and far below the 4 MiB the server accepts.
-const maxDryRunProbe = 1 << 20
+// request document, and matched to what the server accepts rather than chosen
+// below it: the probe puts the body back for the handler, so a smaller bound
+// here truncated real requests.
+const maxDryRunProbe = emulator.MaxBody
 
+// route declares one action. Outscale has no path structure to speak of: every
 // call is a POST on /api/v1/<Action>, so a route is fully described by its
 // action name and its handler.
 func (p *Pack) route(action string, handler http.HandlerFunc) emulator.Route {

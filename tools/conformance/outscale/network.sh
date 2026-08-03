@@ -45,10 +45,17 @@ fi
 
 # The runtime CLI is how the host is inspected. Asking the emulator whether it
 # created a network would be asking the accused for the verdict.
-RUNTIME_CLI="${FEINT_VM:-incus}"
-RUNTIME_CLI="${RUNTIME_CLI%%-vm}"
-command -v "$RUNTIME_CLI" >/dev/null 2>&1 \
-  || fail "the runtime CLI $RUNTIME_CLI is not on PATH, so nothing can be verified"
+#
+# It is `incus` for all three modes. The first version derived it from FEINT_VM
+# and stripped "-vm", which left "incus-ovn" untouched: the whole suite then
+# failed with "the runtime CLI incus-ovn is not on PATH" in the one mode that
+# delivers isolation between two VPCs, right after the Scaleway suite had proved
+# that isolation in the same run. CLAUDE.md says a mode declares what it can do
+# rather than having it deduced from its name; deducing a *tool* from that name
+# is the same mistake one level down. The sibling suite gets it right by not
+# deriving anything.
+command -v incus >/dev/null 2>&1 \
+  || fail "the incus client is not on PATH, so nothing can be verified"
 
 # Deliberately obscure. A lab bridge or a VPN already holding this range makes
 # the create fail, which is the emulator being honest rather than handing back a
@@ -109,13 +116,13 @@ sub_id="$(printf '%s' "$sub" | jq -r '.Subnet.SubnetId')"
 found=""
 while IFS= read -r line; do
   name="${line%%,*}"
-  addr="$("$RUNTIME_CLI" network get "$name" ipv4.address 2>/dev/null || true)"
+  addr="$(incus network get "$name" ipv4.address 2>/dev/null || true)"
   if [ "$addr" != "" ] && [ "${addr#*/}" = "${SUBBLOCK#*/}" ]; then
     case "$addr" in
       "${SUBBLOCK%.*}."*) found="$name" ;;
     esac
   fi
-done < <("$RUNTIME_CLI" network list -f csv 2>/dev/null | grep '^fnt-' || true)
+done < <(incus network list -f csv 2>/dev/null | grep '^fnt-' || true)
 
 [ -n "$found" ] || fail "no host network carries $SUBBLOCK: the Subnet is an answer, not a network"
 ok "$sub_id is backed by $found on ${SUBBLOCK}"
@@ -124,7 +131,7 @@ ok "$sub_id is backed by $found on ${SUBBLOCK}"
 # silently renumbers gives a machine an address the API never published, which is
 # precisely the failure floci ships: it computes an address from the CIDR, then
 # overwrites it with the bridge's own.
-gw="$("$RUNTIME_CLI" network get "$found" ipv4.address)"
+gw="$(incus network get "$found" ipv4.address)"
 [ "${gw#*/}" = "${SUBBLOCK#*/}" ] \
   || fail "the host network carries mask /${gw#*/}, the Subnet declared /${SUBBLOCK#*/}"
 ok "the mask on the host is the mask the client asked for"
@@ -150,7 +157,7 @@ esac
 # container gets its address a few seconds after it starts.
 carried=""
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-  if "$RUNTIME_CLI" list -f csv -c n4 2>/dev/null | grep -q "$private_ip"; then
+  if incus list -f csv -c n4 2>/dev/null | grep -q "$private_ip"; then
     carried="yes"
     break
   fi
@@ -166,7 +173,7 @@ echo "- the network goes when the Subnet goes"
 osc DeleteSubnet --SubnetId "$sub_id" >/dev/null || fail "DeleteSubnet rejected"
 sub_id=""
 sleep 1
-if "$RUNTIME_CLI" network list -f csv 2>/dev/null | grep -q "^$found,"; then
+if incus network list -f csv 2>/dev/null | grep -q "^$found,"; then
   fail "the host network $found outlived its Subnet"
 fi
 ok "deleted, and the host is as it was"

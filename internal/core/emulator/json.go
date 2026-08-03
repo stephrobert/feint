@@ -12,9 +12,15 @@ import (
 	"sync"
 )
 
-// maxBody caps request bodies. The emulator only ever receives control-plane
+// MaxBody caps request bodies. The emulator only ever receives control-plane
 // payloads; anything larger is a client bug or an attempt to exhaust memory.
-const maxBody = 4 << 20
+//
+// Exported because a pack that reads a body before the decoder does — the
+// Outscale DryRun probe — has to use the same number. It used its own, one
+// quarter of this one, and put the truncated body back for the handler: a valid
+// 1.2 MiB request came out as "unexpected end of JSON input". Two constants for
+// one limit is how they disagree.
+const MaxBody = 4 << 20
 
 // writeJSON serializes v with the given status. Encoding errors are not
 // reported to the client: the status line is already written by then, so the
@@ -44,7 +50,7 @@ func WriteJSON(w http.ResponseWriter, status int, v any) { writeJSON(w, status, 
 // to thread a value none of them care about. The report travels on the request
 // context, put there by the observer.
 func DecodeJSON(r *http.Request, v any) error {
-	body, err := io.ReadAll(io.LimitReader(r.Body, maxBody))
+	body, err := io.ReadAll(io.LimitReader(r.Body, MaxBody))
 	if err != nil {
 		return err
 	}
