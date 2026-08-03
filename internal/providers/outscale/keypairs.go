@@ -28,10 +28,12 @@ type createKeypairRequest struct {
 }
 
 type readKeypairsRequest struct {
-	Filters struct {
-		KeypairNames []string `json:"KeypairNames"`
-	} `json:"Filters"`
+	Filters filterSet `json:"Filters"`
 }
+
+// keypairFilters are what a keypair answers from what is stored. Tags are not
+// modelled on a keypair here, so they are refused.
+var keypairFilters = []string{"KeypairNames", "KeypairFingerprints", "KeypairTypes"}
 
 type deleteKeypairRequest struct {
 	KeypairName string `json:"KeypairName"`
@@ -101,15 +103,18 @@ func (p *Pack) readKeypairs(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
-	wanted := make(map[string]bool, len(req.Filters.KeypairNames))
-	for _, name := range req.Filters.KeypairNames {
-		wanted[name] = true
+	if p.refuseUnsupported(w, req.Filters, keypairFilters...) {
+		return
 	}
 
 	out := make([]map[string]any, 0)
 	for _, res := range p.env.Store.List(kindKeypair, resource.Tenant{Provider: Name}) {
 		name, _ := res.Attrs["KeypairName"].(string)
-		if len(wanted) > 0 && !wanted[name] {
+		fingerprint, _ := res.Attrs["KeypairFingerprint"].(string)
+		keyType, _ := res.Attrs["KeypairType"].(string)
+		if !matchesStrings(req.Filters, "KeypairNames", name) ||
+			!matchesStrings(req.Filters, "KeypairFingerprints", fingerprint) ||
+			!matchesStrings(req.Filters, "KeypairTypes", keyType) {
 			continue
 		}
 		out = append(out, keypairView(res))

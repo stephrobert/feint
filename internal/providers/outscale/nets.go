@@ -69,18 +69,21 @@ type createSubnetRequest struct {
 }
 
 type readNetsRequest struct {
-	Filters struct {
-		NetIDs []string `json:"NetIds"`
-	} `json:"Filters"`
-	DryRun *bool `json:"DryRun"`
+	Filters filterSet `json:"Filters"`
+	DryRun  *bool     `json:"DryRun"`
 }
 
+// netFilters and subnetFilters are what these resources can answer from what is
+// stored. Tags, DHCP option sets and subregions are not modelled, so they are
+// refused rather than silently matched.
+var (
+	netFilters    = []string{"NetIds", "IpRanges", "States"}
+	subnetFilters = []string{"SubnetIds", "NetIds", "IpRanges", "States"}
+)
+
 type readSubnetsRequest struct {
-	Filters struct {
-		SubnetIDs []string `json:"SubnetIds"`
-		NetIDs    []string `json:"NetIds"`
-	} `json:"Filters"`
-	DryRun *bool `json:"DryRun"`
+	Filters filterSet `json:"Filters"`
+	DryRun  *bool     `json:"DryRun"`
 }
 
 type deleteNetRequest struct {
@@ -148,11 +151,16 @@ func (p *Pack) readNets(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
-	wanted := setOf(req.Filters.NetIDs)
+	if p.refuseUnsupported(w, req.Filters, netFilters...) {
+		return
+	}
 
 	nets := make([]map[string]any, 0)
 	for _, res := range p.env.Store.List(kindNet, resource.Tenant{Provider: Name}) {
-		if len(wanted) > 0 && !wanted[res.ID] {
+		ipRange, _ := res.Attrs["IpRange"].(string)
+		if !matchesStrings(req.Filters, "NetIds", res.ID) ||
+			!matchesStrings(req.Filters, "IpRanges", ipRange) ||
+			!matchesStrings(req.Filters, "States", res.State) {
 			continue
 		}
 		nets = append(nets, netView(res))
@@ -313,16 +321,18 @@ func (p *Pack) readSubnets(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
-	wantedIDs := setOf(req.Filters.SubnetIDs)
-	wantedNets := setOf(req.Filters.NetIDs)
+	if p.refuseUnsupported(w, req.Filters, subnetFilters...) {
+		return
+	}
 
 	subnets := make([]map[string]any, 0)
 	for _, res := range p.env.Store.List(kindSubnet, resource.Tenant{Provider: Name}) {
 		netID, _ := res.Attrs["NetId"].(string)
-		if len(wantedIDs) > 0 && !wantedIDs[res.ID] {
-			continue
-		}
-		if len(wantedNets) > 0 && !wantedNets[netID] {
+		ipRange, _ := res.Attrs["IpRange"].(string)
+		if !matchesStrings(req.Filters, "SubnetIds", res.ID) ||
+			!matchesStrings(req.Filters, "NetIds", netID) ||
+			!matchesStrings(req.Filters, "IpRanges", ipRange) ||
+			!matchesStrings(req.Filters, "States", res.State) {
 			continue
 		}
 		subnets = append(subnets, p.subnetView(res))
@@ -506,15 +516,4 @@ func (p *Pack) removeBackingNetwork(ctx context.Context, res *resource.Resource)
 		p.logger().Error("could not remove the backing network",
 			"subnet", res.ID, "network", res.Runtime[runtimeNetworkKey], "error", err)
 	}
-}
-
-func setOf(values []string) map[string]bool {
-	if len(values) == 0 {
-		return nil
-	}
-	out := make(map[string]bool, len(values))
-	for _, v := range values {
-		out[v] = true
-	}
-	return out
 }

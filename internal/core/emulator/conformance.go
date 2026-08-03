@@ -85,7 +85,8 @@ func (o *observer) wrap(provider string, r Route) http.HandlerFunc {
 
 		if doc == nil {
 			// No contract for this provider: buffering a response nobody will
-			// check would cost memory for nothing.
+			// check would cost memory for nothing. Without a recorder there is
+			// no status to read, so every request counts.
 			r.Handler(w, req)
 			o.recordUnread(r.Operation, rep.fields())
 			return
@@ -93,7 +94,14 @@ func (o *observer) wrap(provider string, r Route) http.HandlerFunc {
 
 		rec := &recorder{ResponseWriter: w, status: http.StatusOK}
 		r.Handler(rec, req)
-		o.recordUnread(r.Operation, rep.fields())
+		// Only a request the handler accepted. A field named in a 4xx was not
+		// ignored, it was refused — which is the opposite of the defect this
+		// report exists to find, and the answer told the client so. Counting it
+		// made a suite that deliberately probes a refusal fail the gate, and
+		// the fix for that must not be to stop probing refusals.
+		if rec.status < 400 {
+			o.recordUnread(r.Operation, rep.fields())
+		}
 		o.check(doc, r.Operation, rec)
 	}
 }

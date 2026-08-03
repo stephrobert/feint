@@ -811,3 +811,94 @@ func TestABodyTheServerAcceptsReachesTheHandler(t *testing.T) {
 		t.Errorf("the answer is not the handler's verdict on the field: %q", details)
 	}
 }
+
+// A filter this pack does not apply is refused, not ignored.
+//
+// The API description declares 66 filters on a Vm and the pack read one. Every
+// other one returned the whole inventory with a 200: an audit sent
+// `--Filters.SubnetIds[] subnet-deadbeef` against seven machines and got all
+// seven back. A script that deletes what a filter matched would have deleted
+// everything, and nothing in the answer would have said so.
+func TestAnUnsupportedFilterIsRefused(t *testing.T) {
+	ts := newServer(t)
+	_, subnetID := netAndSubnet(t, ts, "10.60.0.0/16", "10.60.1.0/24")
+	post(t, ts, "CreateVms", `{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+
+	for _, probe := range []struct{ action, body string }{
+		{"ReadVms", `{"Filters":{"Architectures":["x86_64"]}}`},
+		{"ReadVms", `{"Filters":{"Tags":["a=b"]}}`},
+		{"ReadNets", `{"Filters":{"DhcpOptionsSetIds":["dopt-1"]}}`},
+		{"ReadSubnets", `{"Filters":{"SubregionNames":["eu-west-2a"]}}`},
+		{"ReadKeypairs", `{"Filters":{"TagKeys":["env"]}}`},
+	} {
+		status, out := post(t, ts, probe.action, probe.body)
+		if status == http.StatusOK {
+			t.Errorf("%s applied nothing and answered 200 for %s: %v", probe.action, probe.body, out)
+			continue
+		}
+		// The refusal has to name the field, or a caller cannot act on it.
+		errs, _ := out["Errors"].([]any)
+		if len(errs) == 0 {
+			t.Errorf("%s refused without saying why: %v", probe.action, out)
+			continue
+		}
+		first, _ := errs[0].(map[string]any)
+		details, _ := first["Details"].(string)
+		if !strings.Contains(details, "filter") {
+			t.Errorf("%s: the refusal does not mention the filter: %q", probe.action, details)
+		}
+	}
+}
+
+// The filters that are served actually filter.
+//
+// A guard that refuses everything passes every attack test and breaks the
+// product, so the accepting half is asserted too — and each filter is asserted
+// on a value that exists and one that does not, because a filter that always
+// matches and a filter that never matches are equally useless.
+func TestTheServedFiltersFilter(t *testing.T) {
+	ts := newServer(t)
+	_, subnetID := netAndSubnet(t, ts, "10.61.0.0/16", "10.61.1.0/24")
+	_, out := post(t, ts, "CreateVms",
+		`{"ImageId":"ami-11111111","SubnetId":"`+subnetID+`","VmType":"tinav6.c2r2p2","BootOnCreation":false}`)
+	vms, _ := out["Vms"].([]any)
+	vm, _ := vms[0].(map[string]any)
+	vmID, _ := vm["VmId"].(string)
+	post(t, ts, "CreateVms", `{"ImageId":"ami-22222222","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+
+	count := func(body string) int {
+		_, out := post(t, ts, "ReadVms", body)
+		vms, _ := out["Vms"].([]any)
+		return len(vms)
+	}
+	if n := count(`{}`); n != 2 {
+		t.Fatalf("no filter returned %d machines, want 2", n)
+	}
+	for _, probe := range []struct {
+		body string
+		want int
+	}{
+		{`{"Filters":{"VmIds":["` + vmID + `"]}}`, 1},
+		{`{"Filters":{"VmIds":["i-does-not-exist"]}}`, 0},
+		{`{"Filters":{"ImageIds":["ami-11111111"]}}`, 1},
+		{`{"Filters":{"ImageIds":["ami-99999999"]}}`, 0},
+		{`{"Filters":{"VmTypes":["tinav6.c2r2p2"]}}`, 1},
+		{`{"Filters":{"SubnetIds":["` + subnetID + `"]}}`, 2},
+		{`{"Filters":{"SubnetIds":["subnet-deadbeef"]}}`, 0},
+		{`{"Filters":{"VmStates":["stopped"]}}`, 2},
+		{`{"Filters":{"VmStates":["running"]}}`, 0},
+		// Conjunctive, like upstream: both must hold.
+		{`{"Filters":{"ImageIds":["ami-11111111"],"VmTypes":["tinav6.c2r2p2"]}}`, 1},
+		{`{"Filters":{"ImageIds":["ami-11111111"],"VmTypes":["nope"]}}`, 0},
+	} {
+		if n := count(probe.body); n != probe.want {
+			t.Errorf("%s returned %d machine(s), want %d", probe.body, n, probe.want)
+		}
+	}
+
+	// And an empty filter list matches nothing rather than everything: asking
+	// for none of a set is not asking for all of it.
+	if n := count(`{"Filters":{"VmIds":[]}}`); n != 0 {
+		t.Errorf("an empty VmIds matched %d machine(s), want 0", n)
+	}
+}

@@ -173,6 +173,19 @@ printf '%s' "$vms" | jq -e '.Vms | length == 0' >/dev/null \
   || fail "a fresh account already holds machines: $vms"
 ok "envelope carries a RequestId, and the account is empty"
 
+echo "- a filter the client sends is applied, not ignored"
+# The defect this replaces: every filter but VmIds returned the whole inventory
+# with a 200, and no conformance script sent one, so score.sh never saw the
+# unread fields. A filter that matches nothing must answer nothing.
+absent="$(osc ReadVms --Filters.VmIds[] i-00000000)" || fail "a filtered ReadVms was rejected: $absent"
+printf '%s' "$absent" | jq -e '.Vms | length == 0' >/dev/null \
+  || fail "a filter on an id that does not exist returned machines: $absent"
+# And a filter this pack does not serve is refused rather than silently dropped.
+if osc ReadVms --Filters.Architectures[] x86_64 >/dev/null 2>&1; then
+  fail "an unemulated filter was accepted, which is indistinguishable from applying it"
+fi
+ok "filters apply, and an unserved one is refused"
+
 echo "- create, from the catalogue the emulator just published"
 created="$(osc CreateVms --ImageId "$image_id" --VmType "$default_type" --KeypairName conformance)" \
   || fail "CreateVms rejected: $created"

@@ -38,9 +38,16 @@ const maxVMsPerCreate = 20
 const defaultVMType = "tinav6.c1r1p2"
 
 type readVmsRequest struct {
-	Filters struct {
-		VMIDs []string `json:"VmIds"`
-	} `json:"Filters"`
+	Filters filterSet `json:"Filters"`
+}
+
+// vmFilters are the ones a Vm can answer from what this pack stores. Everything
+// else FiltersVm declares — 66 fields, most of them about block device
+// mappings, NIC sub-objects and account ids the emulator has no model for — is
+// refused rather than ignored.
+var vmFilters = []string{
+	"VmIds", "VmStates", "ImageIds", "VmTypes", "KeypairNames",
+	"SubnetIds", "NetIds", "PrivateIps",
 }
 
 // createVmsRequest is the subset of CreateVmsRequest this pack honours. The
@@ -77,14 +84,13 @@ func (p *Pack) readVms(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wanted := make(map[string]bool, len(req.Filters.VMIDs))
-	for _, id := range req.Filters.VMIDs {
-		wanted[id] = true
+	if p.refuseUnsupported(w, req.Filters, vmFilters...) {
+		return
 	}
 
 	vms := make([]map[string]any, 0)
 	for _, res := range p.env.Store.List(kindVM, resource.Tenant{Provider: Name}) {
-		if len(wanted) > 0 && !wanted[res.ID] {
+		if !p.vmMatches(res, req.Filters) {
 			continue
 		}
 		// A virtual machine gets its address tens of seconds after it starts,
@@ -116,6 +122,25 @@ func (p *Pack) readVms(w http.ResponseWriter, r *http.Request) {
 		"Vms":             vms,
 		"ResponseContext": p.context(),
 	})
+}
+
+// vmMatches applies every filter this pack serves. A Vm has to pass all of
+// them: Outscale's filters are conjunctive, and treating them as alternatives
+// would answer more than was asked for, which is the defect this whole file
+// exists to remove.
+func (p *Pack) vmMatches(res *resource.Resource, f filterSet) bool {
+	attr := func(key string) string {
+		value, _ := res.Attrs[key].(string)
+		return value
+	}
+	return matchesStrings(f, "VmIds", res.ID) &&
+		matchesStrings(f, "VmStates", res.State) &&
+		matchesStrings(f, "ImageIds", attr("ImageId")) &&
+		matchesStrings(f, "VmTypes", attr("VmType")) &&
+		matchesStrings(f, "KeypairNames", attr("KeypairName")) &&
+		matchesStrings(f, "SubnetIds", attr("SubnetId")) &&
+		matchesStrings(f, "NetIds", attr("NetId")) &&
+		matchesStrings(f, "PrivateIps", p.addressOf(res))
 }
 
 func (p *Pack) createVms(w http.ResponseWriter, r *http.Request) {
