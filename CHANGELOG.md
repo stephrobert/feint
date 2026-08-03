@@ -11,6 +11,63 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
+## [0.3.2]
+
+### Fixed
+
+- **`FEINT_VM=incus-ovn mise run conformance` could not run at all.** The
+  Outscale network suite built a binary name out of the mode name and looked for
+  `incus-ovn`, which does not exist — so the one mode that delivers isolation
+  between two VPCs was the one that could not be verified end to end. It passes
+  now, both network suites included.
+- **A virtual machine never carried the address the API published** with
+  `--vm incus-vm`. Four causes: the interface was added while the machine was
+  still coming up, which failed intermittently; the guest names its interfaces
+  differently from the runtime, so the address was applied to a name that does
+  not exist inside; the generated hardware address is not stored where the
+  driver looked for it; and when the attachment failed anyway, the private NIC
+  went on answering `available`. It now answers `syncing_error`, so a client
+  learns what the log knew.
+- **Every filter but one was ignored** on the Outscale reads, and answered with
+  the whole inventory and a 200 — indistinguishable from success, so a script
+  that deletes what a filter matched deleted everything. Filters are now applied
+  or refused with the field named; Vms filter on ids, states, images, types,
+  keypairs, subnets, nets and addresses, Nets and Subnets on ids, ranges and
+  states, keypairs on names, fingerprints and types.
+- **The SSH key fingerprint matched nothing a client can compute.** It was taken
+  over the whole key line, comment included, instead of the decoded key, so it
+  differed from what `ssh-keygen -l -E md5` prints and changed when only the
+  comment changed. `KeypairType` also answered `ssh-rsa` for every key,
+  including ed25519 ones, and a key whose material is not valid base64 was
+  accepted — which boots a machine holding bytes no SSH daemon will read.
+- **`UpdateVm` accepted what `CreateVms` refuses**: a user data over the 500 KiB
+  cap, and a keypair that does not exist — the second boots a machine nobody can
+  log into while the API states a key is attached.
+- **A 200 whose write was lost**: `UpdateVm` took no per-target lock, so a
+  concurrent start overwrote what it had just reported as saved, and Terraform
+  re-proposed the same change on every plan.
+- **A Subnet could land in a Net that was already deleted**, leaving a bridge on
+  the host under nothing, and a `terraform apply` creating ten subnets
+  serialised them behind each other because the addressing lock was held across
+  the runtime call.
+- **A stopped Vm outside a Subnet lost its private address.** Outscale keeps it
+  until the machine is terminated.
+- **A request over 1 MiB was truncated before the handler saw it**, and came back
+  as a syntax error about a document the client had sent whole.
+- **`DryRun: false`, a legitimate request, failed this project's own
+  conformance gate.**
+
+### Added
+
+- **`docs/limits.md` says what `DryRun` does here**: it is answered before any
+  handler runs, so nothing happens — the half that matters for a host — and it
+  does not validate, so a dry run of a malformed request answers 200 here and
+  400 upstream. The code cited that section for two releases before it existed.
+- **The conformance suites drive what they had never driven**: a filter, a
+  `DryRun`, and a real SSH key whose fingerprint is checked against the value
+  `ssh-keygen` prints. Every defect above lived in the gap between the suite and
+  the claim.
+
 ## [0.3.1]
 
 ### Fixed
