@@ -235,6 +235,43 @@ restrictive group probed from an unrestricted neighbour — filters exactly as
 upstream does. Across two subnets the receiver's policy always holds, because
 traffic enters through the router port and no sender rule matches there.
 
+## A private NIC cannot be hot-plugged into a running virtual machine
+
+`--vm incus-vm` gives each server its own kernel. It does not give it a private
+NIC after boot: Incus refuses to add the device to a running virtual machine,
+and says why.
+
+```text
+Failed to start device "eth1": Failed adding NIC device:
+GenericError: PCI: slot 0 function 0 not available for virtio-net-pci,
+in use by virtio-balloon-pci,id=qemu_balloon
+```
+
+Measured on Incus 7.x with the emulator's own fixture: a server created, started
+and then attached to a private network. The container modes attach it without
+trouble, because a veth pair needs no PCI slot.
+
+Two things follow, and both are in the code rather than only here.
+
+**The NIC says so.** When the runtime refuses the attachment, the private NIC is
+answered as `syncing_error`, which is a state `PrivateNICState` declares. It used
+to stay `available` while the failure lived in a log line, so the API published
+an address through IPAM that the guest never carried — the one failure this
+project exists to avoid. Polling the guest for three minutes confirmed it never
+took the address.
+
+**The address is applied on the guest's own interface, once its agent answers.**
+Two separate defects were fixed on the way to measuring this one: the driver
+passed Incus's device name (`eth1`) into a guest that names the interface
+`enp6s0`, and it configured the interface before the virtual machine's agent had
+started, which answers `VM agent isn't currently running` rather than "not
+running". Both are fixed and tested through the injectable runner; neither is
+enough to work around the PCI limit above.
+
+The order that does work with `incus-vm` is to attach before the first boot,
+which is what `terraform apply` does when the NIC is part of the same plan as
+the server.
+
 ## Outscale and Exoscale are starters
 
 Both packs exist to prove the core stays protocol-neutral: three genuinely

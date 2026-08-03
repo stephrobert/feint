@@ -154,7 +154,20 @@ func (p *Pack) createPrivateNIC(w http.ResponseWriter, r *http.Request) {
 	// The machine follows the control plane, not the other way round: the
 	// address published here is the one it must carry. A running machine has to
 	// be restarted to pick up a new interface, which is also true upstream.
-	p.attachMachineToNetwork(r.Context(), server, pn, address)
+	//
+	// When the runtime refuses, the NIC says so instead of the failure living
+	// only in a log line. PrivateNICState declares syncing_error for exactly
+	// this, so nothing is invented. It was measured under --vm incus-vm, where
+	// Incus cannot hot-plug a NIC into a running virtual machine ("PCI: slot 0
+	// function 0 not available for virtio-net-pci"): the attachment failed, the
+	// pack logged it, and the API went on publishing an address the machine did
+	// not carry — the one thing this project exists to avoid.
+	//
+	// TestARefusedAttachmentIsVisibleOnTheNIC fails without this.
+	if err := p.attachMachineToNetwork(r.Context(), server, pn, address); err != nil {
+		res.State = "syncing_error"
+		p.env.Store.Put(res)
+	}
 
 	// The rule set binds to interfaces, so a NIC created after the server was
 	// powered on carries none until this runs. Without it the security group
@@ -238,14 +251,16 @@ func hexPair(b byte) string {
 // Everything here degrades quietly, as elsewhere in the pack: with no runtime,
 // or with one that refuses, the control plane still answers and the NIC still
 // exists. The log is then the only way to learn why nothing is attached.
-func (p *Pack) attachMachineToNetwork(ctx context.Context, server, pn *resource.Resource, address netip.Addr) {
+func (p *Pack) attachMachineToNetwork(ctx context.Context, server, pn *resource.Resource, address netip.Addr) error {
+	// No runtime, or nothing started yet: there is no machine to refuse, so the
+	// NIC is not in error. The address is applied when the machine boots.
 	if p.env.Machines == nil {
-		return
+		return nil
 	}
 	networkName := pn.Runtime[runtimeNetworkKey]
 	machineName := server.Runtime[runtimeMachineKey]
 	if networkName == "" || machineName == "" {
-		return
+		return nil
 	}
 	// The mask travels with the address: reserving it on the bridge is not the
 	// same as the guest carrying it, and configuring the interface needs both.
@@ -253,7 +268,7 @@ func (p *Pack) attachMachineToNetwork(ctx context.Context, server, pn *resource.
 	if err != nil {
 		p.logger().Error("private network has no usable subnet",
 			"private_network", pn.ID, "error", err)
-		return
+		return err
 	}
 	if err := p.env.Machines.Attach(ctx, machineName, machine.Attachment{
 		Network:   networkName,
@@ -262,7 +277,9 @@ func (p *Pack) attachMachineToNetwork(ctx context.Context, server, pn *resource.
 	}); err != nil {
 		p.logger().Error("could not attach the machine to the private network",
 			"server", server.ID, "private_network", pn.ID, "address", address, "error", err)
+		return err
 	}
+	return nil
 }
 
 // privateNICView is the wire shape, and it carries no address on purpose:

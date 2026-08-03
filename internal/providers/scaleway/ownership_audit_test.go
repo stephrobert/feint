@@ -2,6 +2,7 @@ package scaleway_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -409,4 +410,56 @@ func TestAnAddressIsAValidIPReference(t *testing.T) {
 	if status, _ := do(t, ts, "GET", zone+"/ips/"+id, ""); status != http.StatusNotFound {
 		t.Errorf("the address survived its own delete: GET by id answered %d", status)
 	}
+}
+
+// A refused attachment is visible on the NIC.
+//
+// Measured under --vm incus-vm: Incus cannot hot-plug a NIC into a running
+// virtual machine on this host ("PCI: slot 0 function 0 not available for
+// virtio-net-pci, in use by virtio-balloon-pci"). The attachment failed, the
+// pack logged it, and the API went on publishing an address the machine did not
+// carry — three minutes of polling confirmed the guest never took it.
+//
+// PrivateNICState declares syncing_error for exactly this, so nothing is
+// invented. A client that reads the NIC now learns what the log knew.
+func TestARefusedAttachmentIsVisibleOnTheNIC(t *testing.T) {
+	refusing := &refusingRuntime{fakeRuntime: newFakeRuntime()}
+	close(refusing.release)
+	ts := newRuntimeTestServer(t, refusing)
+
+	srvID := aServer(t, ts, "vm-host")
+	if status, _ := do(t, ts, "POST", zone+"/servers/"+srvID+"/action",
+		`{"action":"poweron"}`); status != http.StatusAccepted {
+		t.Fatalf("poweron")
+	}
+	_, out := do(t, ts, "POST", "/vpc/v2/regions/fr-par/private-networks",
+		`{"name":"net","subnets":["10.190.0.0/24"]}`)
+	pnID, _ := out["id"].(string)
+	if pnID == "" {
+		t.Fatalf("no private network: %v", out)
+	}
+
+	_, out = do(t, ts, "POST", zone+"/servers/"+srvID+"/private_nics",
+		`{"private_network_id":"`+pnID+`"}`)
+	nic, _ := out["private_nic"].(map[string]any)
+	if nic == nil {
+		t.Fatalf("no NIC created: %v", out)
+	}
+	nicID, _ := nic["id"].(string)
+
+	_, out = do(t, ts, "GET", zone+"/servers/"+srvID+"/private_nics/"+nicID, "")
+	nic, _ = out["private_nic"].(map[string]any)
+	if state, _ := nic["state"].(string); state != "syncing_error" {
+		t.Errorf("the NIC says %q after the runtime refused the attachment, want syncing_error", state)
+	}
+}
+
+// refusingRuntime attaches nothing, the way Incus refuses a hot-plugged NIC on a
+// running virtual machine.
+type refusingRuntime struct {
+	*fakeRuntime
+}
+
+func (r *refusingRuntime) Attach(context.Context, string, machine.Attachment) error {
+	return errors.New(`Failed to start device "eth1": PCI: slot 0 function 0 not available`)
 }

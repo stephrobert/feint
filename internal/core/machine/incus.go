@@ -63,6 +63,12 @@ type Incus struct {
 	// second half is the conformance suite's job and cannot be faked.
 	runner func(ctx context.Context, args ...string) ([]byte, error)
 
+	// agentPoll overrides how often a virtual machine is asked whether its
+	// agent answers. Only a test sets it, for the same reason runner exists:
+	// waiting two seconds per probe would make the suite pay for a property it
+	// can hold in milliseconds.
+	agentPoll time.Duration
+
 	// attachMu serialises interface allocation. Attach reads the device list and
 	// then adds a device under a name it believes free; two concurrent calls
 	// without the lock pick the same name, and the loser's attachment silently
@@ -250,6 +256,21 @@ func (d *Incus) Attach(ctx context.Context, name string, att Attachment) error {
 	d.attachMu.Lock()
 	defer d.attachMu.Unlock()
 
+	// A virtual machine is ready for a device once its agent answers, and not
+	// when `incus start` returns. Adding one while the firmware is still
+	// enumerating the bus fails intermittently — measured twice on the same
+	// code: once the device was added and only its address was missing, once
+	// the add itself was refused with "PCI: slot 0 function 0 not available for
+	// virtio-net-pci, in use by virtio-balloon-pci". Incus documents NIC
+	// hotplug as supported for VMs, so the timing was the difference, not the
+	// capability. A stopped machine is not waited for: attaching cold is the
+	// ordinary Terraform order and needs no agent.
+	//
+	// TestAVirtualMachineWaitsBeforeAddingADevice fails without this.
+	if err := d.waitForAgent(ctx, name); err != nil {
+		return fmt.Errorf("wait for %s to be ready for a device: %w", name, err)
+	}
+
 	devices, err := d.instanceDevices(ctx, name)
 	if err != nil {
 		return fmt.Errorf("inspect %s before attaching: %w", name, err)
@@ -304,16 +325,155 @@ func (d *Incus) Attach(ctx context.Context, name string, att Attachment) error {
 // same as the guest carrying it: a NIC added or re-added on a running machine
 // has no DHCP client on it, so the driver configures it directly.
 func (d *Incus) configureGuestAddress(ctx context.Context, name, device, cidr string) error {
-	if _, err := d.run(ctx, "exec", name, "--", "ip", "address", "add", cidr, "dev", device); err != nil &&
+	// The device name is Incus's, not the guest's. A container sees `eth1`
+	// because Incus names the veth end; a virtual machine sees `enp6s0`,
+	// because the kernel names a PCI device. Passing the Incus name into the
+	// guest was a no-op there: an audit measured a VM carrying its bridge
+	// address and loopback and never the address the API had published, for
+	// three minutes, while the device on the host correctly held the
+	// reservation.
+	//
+	// TestAVirtualMachineIsConfiguredOnItsOwnInterfaceName fails without this.
+	iface, err := d.guestInterface(ctx, name, device)
+	if err != nil {
+		return err
+	}
+	if _, err := d.run(ctx, "exec", name, "--", "ip", "address", "add", cidr, "dev", iface); err != nil &&
 		// "file exists" is the address already being there, which is the
 		// outcome this call wants.
 		!strings.Contains(strings.ToLower(err.Error()), "file exists") {
 		return fmt.Errorf("give %s to %s inside the guest: %w", cidr, name, err)
 	}
-	if _, err := d.run(ctx, "exec", name, "--", "ip", "link", "set", device, "up"); err != nil {
-		return fmt.Errorf("bring %s up inside %s: %w", device, name, err)
+	if _, err := d.run(ctx, "exec", name, "--", "ip", "link", "set", iface, "up"); err != nil {
+		return fmt.Errorf("bring %s up inside %s: %w", iface, name, err)
 	}
 	return nil
+}
+
+// agentPoll is how often a virtual machine is asked whether its agent answers,
+// and agentWait is how long that is worth doing. A VM boots in tens of seconds;
+// beyond a minute the machine has a problem the caller should hear about rather
+// than wait through.
+const (
+	agentPoll = 2 * time.Second
+	agentWait = 90 * time.Second
+)
+
+// waitForAgent blocks until a virtual machine answers `incus exec`, and does
+// nothing at all for a container.
+//
+// TestAVirtualMachineWaitsBeforeAddingADevice fails without this.
+func (d *Incus) waitForAgent(ctx context.Context, name string) error {
+	if !d.VM {
+		return nil
+	}
+	poll := d.agentPoll
+	if poll <= 0 {
+		poll = agentPoll
+	}
+	deadline := time.Now().Add(agentWait)
+	for {
+		_, err := d.run(ctx, "exec", name, "--", "true")
+		if err == nil {
+			return nil
+		}
+		if isNotRunning(err) {
+			// Nothing to wait for: the device is added cold and the address is
+			// applied at boot. This is the ordinary Terraform order.
+			return nil
+		}
+		if !isAgentNotReady(err) {
+			// Anything else is the caller's problem, reported rather than
+			// waited through: a machine that is gone will not come back.
+			return fmt.Errorf("reach the agent of %s: %w", name, err)
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("the agent of %s did not answer within %s", name, agentWait)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(poll):
+		}
+	}
+}
+
+// guestInterface answers what the guest calls the interface Incus knows as
+// device.
+//
+// For a container the two names are the same and this costs one lookup that
+// confirms it. For a virtual machine they are never the same, and the link is
+// the MAC address: Incus reports it per interface in the instance state, keyed
+// by the guest's own name, and the device carries the same value.
+func (d *Incus) guestInterface(ctx context.Context, name, device string) (string, error) {
+	if !d.VM {
+		return device, nil
+	}
+	out, err := d.run(ctx, "query", "/1.0/instances/"+name+"/state")
+	if err != nil {
+		return "", fmt.Errorf("read the state of %s to name its interfaces: %w", name, err)
+	}
+	var state struct {
+		Network map[string]struct {
+			HWAddr string `json:"hwaddr"`
+		} `json:"network"`
+	}
+	if err := json.Unmarshal(out, &state); err != nil {
+		return "", fmt.Errorf("decode the state of %s: %w", name, err)
+	}
+	wanted, err := d.deviceMAC(ctx, name, device)
+	if err != nil {
+		return "", err
+	}
+	for iface, cfg := range state.Network {
+		if iface == "lo" {
+			continue
+		}
+		if strings.EqualFold(cfg.HWAddr, wanted) {
+			return iface, nil
+		}
+	}
+	// Refused rather than guessed: configuring the wrong interface would put
+	// the address on another network, and the caller is about to publish it.
+	return "", fmt.Errorf("no interface in %s carries the address of device %s (%s)", name, device, wanted)
+}
+
+// deviceMAC reads the hardware address Incus gave a device. It is the only
+// value both sides agree on: the host knows the device by name, the guest
+// knows the interface by name, and neither name matches on a virtual machine.
+func (d *Incus) deviceMAC(ctx context.Context, name, device string) (string, error) {
+	out, err := d.run(ctx, "config", "device", "get", name, device, "hwaddr")
+	if err == nil {
+		if mac := strings.TrimSpace(string(out)); mac != "" {
+			return mac, nil
+		}
+	}
+	// A device that does not declare one gets a generated address, and Incus
+	// keeps it in the instance's volatile configuration rather than in the
+	// device: `volatile.<device>.hwaddr`. Reading only the device found nothing
+	// and refused every attachment with "declares no hardware address",
+	// measured on three consecutive virtual machines.
+	raw, err := d.run(ctx, "query", "/1.0/instances/"+name)
+	if err != nil {
+		return "", fmt.Errorf("read %s to find the address of device %s: %w", name, device, err)
+	}
+	var instance struct {
+		Config          map[string]string            `json:"config"`
+		ExpandedDevices map[string]map[string]string `json:"expanded_devices"`
+		Devices         map[string]map[string]string `json:"devices"`
+	}
+	if err := json.Unmarshal(raw, &instance); err != nil {
+		return "", fmt.Errorf("decode %s: %w", name, err)
+	}
+	for _, set := range []map[string]map[string]string{instance.Devices, instance.ExpandedDevices} {
+		if mac := set[device]["hwaddr"]; mac != "" {
+			return mac, nil
+		}
+	}
+	if mac := instance.Config["volatile."+device+".hwaddr"]; mac != "" {
+		return mac, nil
+	}
+	return "", fmt.Errorf("device %s of %s declares no hardware address", device, name)
 }
 
 // instanceView is one machine's devices: its own, and the ones a profile adds.

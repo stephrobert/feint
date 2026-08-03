@@ -108,6 +108,15 @@ func isNotRunning(err error) bool {
 	return strings.Contains(strings.ToLower(err.Error()), "is not running")
 }
 
+// isAgentNotReady recognises a virtual machine whose guest agent has not
+// started yet. It is distinct from isNotRunning on purpose: the instance is
+// running, and it will answer in a few seconds. Reading the two as one is what
+// made a VM report its attachment as failed and never take its address.
+func isAgentNotReady(err error) bool {
+	return strings.Contains(strings.ToLower(err.Error()), "agent isn't currently running") ||
+		strings.Contains(strings.ToLower(err.Error()), "agent is not currently running")
+}
+
 // isNotFound recognises "it does not exist" from an error message.
 //
 // Prefer gone(): the daemon answers 404 over its API, which is a fact rather
