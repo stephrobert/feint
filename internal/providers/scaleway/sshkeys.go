@@ -1,15 +1,13 @@
 package scaleway
 
 import (
-	"crypto/md5" //nolint:gosec // SSH fingerprints are MD5 by protocol, not a security choice here
-	"encoding/base64"
-	"encoding/hex"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/resource"
+	"github.com/stephrobert/feint/internal/core/sshkey"
 )
 
 // SSH keys are what turn an emulated server into a machine you can log into.
@@ -63,7 +61,7 @@ func (p *Pack) createSSHKey(w http.ResponseWriter, r *http.Request) {
 	}
 	// The API rejects anything that is not an SSH public key, and so must the
 	// emulator: a malformed key silently breaks every later login attempt.
-	if !looksLikePublicKey(req.PublicKey) {
+	if !sshkey.Valid(req.PublicKey) {
 		writeInvalidArguments(w, ArgumentError{
 			ArgumentName: "public_key",
 			Reason:       "constraint",
@@ -87,7 +85,7 @@ func (p *Pack) createSSHKey(w http.ResponseWriter, r *http.Request) {
 		Attrs: map[string]any{
 			"name":            orDefault(req.Name, "key"),
 			"public_key":      strings.TrimSpace(req.PublicKey),
-			"fingerprint":     fingerprint(req.PublicKey),
+			"fingerprint":     sshkey.FingerprintMD5(req.PublicKey),
 			"project_id":      project,
 			"organization_id": organization,
 			"disabled":        false,
@@ -168,58 +166,4 @@ func sshKeyView(res *resource.Resource) map[string]any {
 	out["created_at"] = res.Created.Format(time.RFC3339)
 	out["updated_at"] = res.Updated.Format(time.RFC3339)
 	return out
-}
-
-// looksLikePublicKey accepts the OpenSSH one-line format. It validates the
-// shape, not the cryptography: the emulator has no reason to reject a
-// well-formed key it cannot parse.
-//
-// "One-line" is enforced rather than assumed, and that is a security check, not
-// tidiness. The stored value is rendered into a cloud-config document by
-// text/template, which concatenates without escaping, so a key carrying a newline
-// opens a top-level YAML key of the attacker's choosing: an audit obtained
-// runcmd, bootcmd and write_files that way. strings.Fields below splits on
-// newlines just like spaces, which is exactly why the check has to come first.
-//
-// The contamination is why this matters more than it looks: an authorized key
-// applies to every machine the project starts afterwards, including one a
-// terraform apply creates without ever supplying user data.
-func looksLikePublicKey(key string) bool {
-	if strings.ContainsAny(key, "\n\r\x00") {
-		return false
-	}
-	fields := strings.Fields(strings.TrimSpace(key))
-	if len(fields) < 2 {
-		return false
-	}
-	switch fields[0] {
-	case "ssh-rsa", "ssh-ed25519", "ssh-dss",
-		"ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521",
-		"sk-ssh-ed25519@openssh.com", "sk-ecdsa-sha2-nistp256@openssh.com":
-	default:
-		return false
-	}
-	_, err := base64.StdEncoding.DecodeString(fields[1])
-	return err == nil
-}
-
-// fingerprint mirrors what the API returns: Scaleway exposes the MD5 form, the
-// colon-separated one ssh-keygen printed by default for years.
-func fingerprint(key string) string {
-	fields := strings.Fields(strings.TrimSpace(key))
-	if len(fields) < 2 {
-		return ""
-	}
-	blob, err := base64.StdEncoding.DecodeString(fields[1])
-	if err != nil {
-		return ""
-	}
-
-	sum := md5.Sum(blob) //nolint:gosec // the SSH fingerprint format is MD5, not a security decision
-	hexed := hex.EncodeToString(sum[:])
-	parts := make([]string, 0, len(hexed)/2)
-	for i := 0; i+2 <= len(hexed); i += 2 {
-		parts = append(parts, hexed[i:i+2])
-	}
-	return strings.Join(parts, ":")
 }

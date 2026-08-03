@@ -155,7 +155,7 @@ keys="$(osc ReadKeypairs)" || fail "ReadKeypairs rejected: $keys"
 printf '%s' "$keys" | jq -e '.Keypairs | length == 0' >/dev/null \
   || fail "a fresh account already holds keypairs: $keys"
 created_key="$(osc CreateKeypair --KeypairName conformance \
-  --PublicKey "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForConformance conformance@feint")" \
+  --PublicKey "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIr6pEFlAFO3YU0DNW/r8SkpjdbptN9ockkO2BtIolSD conformance@feint")" \
   || fail "CreateKeypair rejected: $created_key"
 printf '%s' "$created_key" | jq -e '.Keypair.KeypairFingerprint | length > 0' >/dev/null \
   || fail "the keypair came back without a fingerprint: $created_key"
@@ -163,7 +163,12 @@ printf '%s' "$created_key" | jq -e '.Keypair.KeypairFingerprint | length > 0' >/
 # never generates one, so it must never claim to have.
 printf '%s' "$created_key" | jq -e '.Keypair | has("PrivateKey") | not' >/dev/null \
   || fail "the emulator handed out a private key it did not generate: $created_key"
-ok "keypair conformance registered"
+printf '%s' "$created_key" | jq -e '.Keypair.KeypairType == "ssh-ed25519"' >/dev/null \
+  || fail "the keypair type is not the key's own: $created_key"
+printf '%s' "$created_key" \
+  | jq -e '.Keypair.KeypairFingerprint == "6b:d8:0e:65:b1:58:fd:61:94:3a:b3:42:e6:e1:2c:01"' >/dev/null \
+  || fail "the fingerprint is not the one ssh-keygen -l -E md5 prints: $created_key"
+ok "keypair conformance registered, with the type and fingerprint of the key itself"
 
 echo "- read an empty account"
 vms="$(osc ReadVms)" || fail "ReadVms rejected: $vms"

@@ -213,6 +213,12 @@ func TestAKeypairRefusesWhatIsNotAKey(t *testing.T) {
 	for _, bad := range []string{
 		"definitely not a key",
 		"ssh-rsa AAAA\nruncmd:\n  - touch /tmp/pwned",
+		// Well-shaped and not a key: the algorithm is real, the material is not
+		// base64. Scaleway refused it and Outscale took it, which is what a
+		// duplicated check does over time — and this test did not cover it, so
+		// the mutation that removes the check survived until it did.
+		"ssh-ed25519 !!!!not-base64-at-all!!!! user@host",
+		"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI= trailing-garbage-in-material",
 		"",
 	} {
 		if bad == "" {
@@ -224,7 +230,11 @@ func TestAKeypairRefusesWhatIsNotAKey(t *testing.T) {
 	}
 	// The accepting half: a real key must pass, or the check would only be a way
 	// to refuse.
-	good := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleExampleExampleExampleExampleEx user@host"
+	// A real key, from ssh-keygen. The first version of this test used a
+	// plausible-looking string whose material is not valid base64, and it
+	// passed — because the pack did not check. Its own fixture was made of the
+	// defect it was meant to hold.
+	good := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIr6pEFlAFO3YU0DNW/r8SkpjdbptN9ockkO2BtIolSD conformance@feint"
 	if status, out := post(t, ts, "CreateKeypair", `{"KeypairName":"good","PublicKey":`+quote(good)+`}`); status != http.StatusOK {
 		t.Errorf("refused a real key: %d %v", status, out)
 	}
@@ -900,5 +910,41 @@ func TestTheServedFiltersFilter(t *testing.T) {
 	// for none of a set is not asking for all of it.
 	if n := count(`{"Filters":{"VmIds":[]}}`); n != 0 {
 		t.Errorf("an empty VmIds matched %d machine(s), want 0", n)
+	}
+}
+
+// The fingerprint is the one ssh-keygen prints.
+//
+// It was computed over the whole line — algorithm prefix and comment included —
+// so it matched nothing a client could reproduce, and renaming the comment
+// changed the fingerprint of the same key. The value below comes from
+// `ssh-keygen -l -E md5` on the key above, which is the only authority that
+// settles it.
+func TestTheFingerprintIsTheOneSshKeygenPrints(t *testing.T) {
+	const (
+		key  = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIr6pEFlAFO3YU0DNW/r8SkpjdbptN9ockkO2BtIolSD conformance@feint"
+		want = "6b:d8:0e:65:b1:58:fd:61:94:3a:b3:42:e6:e1:2c:01"
+	)
+	ts := newServer(t)
+	_, out := post(t, ts, "CreateKeypair", `{"KeypairName":"real","PublicKey":`+quote(key)+`}`)
+	pair, _ := out["Keypair"].(map[string]any)
+	if pair == nil {
+		t.Fatalf("no keypair in the answer: %v", out)
+	}
+	if got, _ := pair["KeypairFingerprint"].(string); got != want {
+		t.Errorf("fingerprint %q, want the one ssh-keygen prints (%q)", got, want)
+	}
+	// And the type is the key's own, not a constant: every key used to answer
+	// ssh-rsa, ed25519 ones included.
+	if got, _ := pair["KeypairType"].(string); got != "ssh-ed25519" {
+		t.Errorf("KeypairType %q for an ed25519 key", got)
+	}
+	// The comment must not reach the fingerprint: the same key renamed is the
+	// same key.
+	renamed := strings.Replace(key, "conformance@feint", "someone@else", 1)
+	_, out = post(t, ts, "CreateKeypair", `{"KeypairName":"renamed","PublicKey":`+quote(renamed)+`}`)
+	pair, _ = out["Keypair"].(map[string]any)
+	if got, _ := pair["KeypairFingerprint"].(string); got != want {
+		t.Errorf("renaming the comment changed the fingerprint: %q", got)
 	}
 }

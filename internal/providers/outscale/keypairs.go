@@ -1,13 +1,12 @@
 package outscale
 
 import (
-	"crypto/md5" //nolint:gosec // fingerprint format, not a security control
-	"encoding/hex"
 	"net/http"
 	"strings"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/resource"
+	"github.com/stephrobert/feint/internal/core/sshkey"
 )
 
 // Keypairs are on the critical path to a machine anyone can log into: without
@@ -66,7 +65,8 @@ func (p *Pack) createKeypair(w http.ResponseWriter, r *http.Request) {
 	// nobody guarded.
 	//
 	// TestAKeypairRefusesWhatIsNotAKey fails without this.
-	if !looksLikePublicKey(req.PublicKey) {
+	parsed, err := sshkey.Parse(req.PublicKey)
+	if err != nil {
 		p.badRequest(w, "PublicKey is not an OpenSSH public key")
 		return
 	}
@@ -80,9 +80,12 @@ func (p *Pack) createKeypair(w http.ResponseWriter, r *http.Request) {
 		Created: now,
 		Updated: now,
 		Attrs: map[string]any{
-			"KeypairName":        req.KeypairName,
-			"KeypairType":        "ssh-rsa",
-			"KeypairFingerprint": fingerprint(req.PublicKey),
+			"KeypairName": req.KeypairName,
+			// The algorithm the client sent, not a constant. Hardcoding
+			// "ssh-rsa" made every key answer that, ed25519 ones included, and
+			// KeypairType is a declared schema field a client can filter on.
+			"KeypairType":        parsed.Algorithm,
+			"KeypairFingerprint": parsed.FingerprintMD5(),
 			// The material itself never leaves through the API: no Outscale
 			// response carries a PublicKey field, so it lives out of Attrs, in
 			// Runtime, where a view cannot pick it up by accident.
@@ -183,40 +186,4 @@ func keypairView(res *resource.Resource) map[string]any {
 	}
 	out["KeypairId"] = res.ID
 	return out
-}
-
-// fingerprint is the MD5 digest of the key material, colon-separated, which is
-// the shape ssh-keygen -l prints and what a client compares against. MD5 is the
-// format, not a security choice: nothing here authenticates anything.
-func fingerprint(publicKey string) string {
-	sum := md5.Sum([]byte(strings.TrimSpace(publicKey))) //nolint:gosec // format, not security
-	hexed := hex.EncodeToString(sum[:])
-	parts := make([]string, 0, len(hexed)/2)
-	for i := 0; i < len(hexed); i += 2 {
-		parts = append(parts, hexed[i:i+2])
-	}
-	return strings.Join(parts, ":")
-}
-
-// looksLikePublicKey accepts the OpenSSH one-line form.
-//
-// The one-line part is the security check rather than tidiness: the value is
-// concatenated into a YAML document by text/template, and strings.Fields splits
-// on newlines exactly like spaces, so the control character test has to come
-// first. Same reasoning, and the same order, as the Scaleway pack's own check.
-func looksLikePublicKey(key string) bool {
-	if strings.ContainsAny(key, "\n\r\x00") {
-		return false
-	}
-	fields := strings.Fields(strings.TrimSpace(key))
-	if len(fields) < 2 {
-		return false
-	}
-	switch fields[0] {
-	case "ssh-rsa", "ssh-ed25519", "ssh-dss",
-		"ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521",
-		"sk-ssh-ed25519@openssh.com", "sk-ecdsa-sha2-nistp256@openssh.com":
-		return true
-	}
-	return false
 }
