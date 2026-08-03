@@ -182,6 +182,10 @@ echo "- a filter the client sends is applied, not ignored"
 # The defect this replaces: every filter but VmIds returned the whole inventory
 # with a 200, and no conformance script sent one, so score.sh never saw the
 # unread fields. A filter that matches nothing must answer nothing.
+# DryRun false is a legitimate request, and it used to fail this project's own
+# gate: the flag is answered at the mount point, so no handler decodes it and it
+# counted as a field nobody read.
+plain="$(osc ReadVms --DryRun false)" || fail "ReadVms with DryRun false was rejected: $plain"
 absent="$(osc ReadVms --Filters.VmIds[] i-00000000)" || fail "a filtered ReadVms was rejected: $absent"
 printf '%s' "$absent" | jq -e '.Vms | length == 0' >/dev/null \
   || fail "a filter on an id that does not exist returned machines: $absent"

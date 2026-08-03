@@ -272,6 +272,31 @@ The order that does work with `incus-vm` is to attach before the first boot,
 which is what `terraform apply` does when the NIC is part of the same plan as
 the server.
 
+## DryRun answers, and does not validate
+
+Outscale declares `DryRun` on every action, and the real API uses it to say
+whether the request *would* have been accepted: it validates the arguments and
+answers without changing anything.
+
+This emulator honours the first half. The flag is answered at the mount point,
+before the handler runs, so nothing is created, started or deleted — which is
+the property that matters for a host, and the one a client relies on to probe
+safely.
+
+It does not honour the second half. A dry run of a malformed request answers 200
+here and 400 upstream, because no handler ever sees it. A client using `DryRun`
+as a validator therefore learns nothing from this emulator, and a client using it
+to avoid a side effect is served correctly.
+
+The reason it is not implemented per handler is measured rather than aesthetic:
+the first attempt honoured the flag inside six handlers, and Outscale declares it
+on all twenty served actions. `DeleteVms --DryRun true` destroyed the machine —
+a control implemented per handler was missing from exactly the destructive ones.
+Answering at the mount point cannot have that gap, and gives up validation to
+get there.
+
+`TestDryRunReachesNoHandler` holds the half that is served.
+
 ## Outscale and Exoscale are starters
 
 Both packs exist to prove the core stays protocol-neutral: three genuinely

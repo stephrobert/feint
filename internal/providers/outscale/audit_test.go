@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/stephrobert/feint/internal/contract"
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/machine"
 	"github.com/stephrobert/feint/internal/providers/outscale"
@@ -695,7 +697,9 @@ func (f *countingRuntime) Inspect(_ context.Context, n string) (machine.Machine,
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.counts[n] > 0 {
-		return machine.Machine{Name: n, Running: true}, true, nil
+		// With an address, the way a real runtime answers once the machine is
+		// up. Without one, TestAStoppedVmKeepsItsPrivateAddress skipped itself.
+		return machine.Machine{Name: n, Running: true, IP: "10.99.0.7"}, true, nil
 	}
 	return machine.Machine{}, false, nil
 }
@@ -946,5 +950,97 @@ func TestTheFingerprintIsTheOneSshKeygenPrints(t *testing.T) {
 	pair, _ = out["Keypair"].(map[string]any)
 	if got, _ := pair["KeypairFingerprint"].(string); got != want {
 		t.Errorf("renaming the comment changed the fingerprint: %q", got)
+	}
+}
+
+// A legitimate DryRun: false does not fail the conformance gate.
+//
+// Outscale declares DryRun on all twenty of its actions and this pack answers it
+// at the mount point, so no handler decodes it. The unread-field report
+// therefore counted it as a field nobody read, and `tools/conformance/score.sh`
+// turns that list into exit 1: a request every client is entitled to send failed
+// this project's own gate. It went unnoticed only because no script sent the
+// flag.
+//
+// The fix must not be to declare DryRun on twenty request structs — that
+// quietens the report by lying to it, since the handlers still would not read
+// it. The middleware says what it read instead.
+func TestDryRunFalseDoesNotFailTheGate(t *testing.T) {
+	env := emulator.DefaultEnv()
+	env.Contracts = map[string]*contract.Doc{"outscale": outscaleContract(t)}
+	srv, err := emulator.NewServer(env, outscale.New(env))
+	if err != nil {
+		t.Fatalf("build emulator: %v", err)
+	}
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+
+	if status, _ := post(t, ts, "ReadVms", `{"DryRun":false}`); status != http.StatusOK {
+		t.Fatalf("ReadVms with DryRun false answered %d", status)
+	}
+
+	res, err := http.Get(ts.URL + "/_feint/conformance") //nolint:noctx // test client
+	if err != nil {
+		t.Fatalf("read the conformance report: %v", err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	var report struct {
+		Unread map[string][]string `json:"unread_request_fields"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&report); err != nil {
+		t.Fatalf("decode the report: %v", err)
+	}
+	for operation, fields := range report.Unread {
+		for _, field := range fields {
+			if field == "DryRun" {
+				t.Errorf("%s reports DryRun as unread, which fails score.sh for a legitimate request", operation)
+			}
+		}
+	}
+}
+
+// outscaleContract loads the API description this pack ships against, the way
+// the observer does in a real run.
+func outscaleContract(t *testing.T) *contract.Doc {
+	t.Helper()
+	doc, err := contract.Load(filepath.Join("..", "..", "..", "contracts", "outscale.json"))
+	if err != nil {
+		t.Fatalf("load the Outscale contract: %v", err)
+	}
+	return doc
+}
+
+// A stopped Vm keeps its private address.
+//
+// PowerOff clears the runtime binding's address, correctly, since nothing
+// answers there any more. A Vm placed in a Subnet was unaffected — its address
+// lives in Attrs — and a Vm created without one lost it: one field, two
+// behaviours. Terraform reading private_ip saw null after a stop, and Outscale
+// keeps the address until the machine is terminated.
+func TestAStoppedVmKeepsItsPrivateAddress(t *testing.T) {
+	runtime := newCountingRuntime()
+	ts := newRuntimeServer(t, runtime)
+
+	// No Subnet: this is the case that had the address only in the binding.
+	_, out := post(t, ts, "CreateVms", `{"ImageId":"ami-12345678"}`)
+	vms, _ := out["Vms"].([]any)
+	vm, _ := vms[0].(map[string]any)
+	vmID, _ := vm["VmId"].(string)
+	// Published on the read, the way a virtual machine's address is: it arrives
+	// tens of seconds after the start, so the create cannot carry it.
+	_, out = post(t, ts, "ReadVms", `{"Filters":{"VmIds":["`+vmID+`"]}}`)
+	vms, _ = out["Vms"].([]any)
+	vm, _ = vms[0].(map[string]any)
+	running, _ := vm["PrivateIp"].(string)
+	if running == "" {
+		t.Fatalf("the running Vm publishes no address, so this test measures nothing: %v", vm)
+	}
+
+	post(t, ts, "StopVms", `{"VmIds":["`+vmID+`"]}`)
+	_, out = post(t, ts, "ReadVms", `{"Filters":{"VmIds":["`+vmID+`"]}}`)
+	vms, _ = out["Vms"].([]any)
+	vm, _ = vms[0].(map[string]any)
+	if stopped, _ := vm["PrivateIp"].(string); stopped != running {
+		t.Errorf("a stopped Vm answers PrivateIp %q, want the %q it had running", stopped, running)
 	}
 }

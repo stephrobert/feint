@@ -66,10 +66,40 @@ func DecodeJSON(r *http.Request, v any) error {
 	return nil
 }
 
+// MarkRead records that something outside the handler's own request type read a
+// field, so the report stops calling it unread.
+//
+// It exists for one shape: a value consumed before the handler runs. Outscale
+// declares DryRun on all twenty of its actions and answers it at the mount
+// point, so no handler decodes it — which made `DryRun: false` count as a field
+// no handler read, and a perfectly legitimate request fail this project's own
+// conformance gate. Declaring the field on twenty request structs instead would
+// have quietened the report by lying to it: the handlers still would not read
+// it.
+//
+// It is deliberately narrow. A pack that calls this for a field it simply
+// ignores has disabled the check that exists to catch exactly that, so the call
+// belongs next to the code that does the reading, and nowhere else.
+func MarkRead(r *http.Request, fields ...string) {
+	rep, watching := r.Context().Value(reportKey{}).(*requestReport)
+	if !watching {
+		return
+	}
+	rep.mu.Lock()
+	defer rep.mu.Unlock()
+	if rep.read == nil {
+		rep.read = make(map[string]bool, len(fields))
+	}
+	for _, field := range fields {
+		rep.read[field] = true
+	}
+}
+
 // requestReport collects what one request turned out to carry and nobody read.
 type requestReport struct {
 	mu     sync.Mutex
 	unread []string
+	read   map[string]bool
 }
 
 // reportKey is the private context key the observer files a report under.
@@ -92,7 +122,13 @@ func (rep *requestReport) add(fields []string) {
 func (rep *requestReport) fields() []string {
 	rep.mu.Lock()
 	defer rep.mu.Unlock()
-	return append([]string(nil), rep.unread...)
+	out := make([]string, 0, len(rep.unread))
+	for _, field := range rep.unread {
+		if !rep.read[field] {
+			out = append(out, field)
+		}
+	}
+	return out
 }
 
 // unreadFields lists the JSON keys the body carries that v's type does not

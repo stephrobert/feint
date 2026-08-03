@@ -90,6 +90,27 @@ func (p *Pack) powerOn(ctx context.Context, res *resource.Resource) {
 		CloudInit: cloudinit.Decode(userData),
 		Labels:    map[string]string{"feint.vm": res.ID},
 	})
+	p.rememberAddress(res)
+}
+
+// rememberAddress keeps the private address on the resource, not only on the
+// runtime binding.
+//
+// PowerOff clears Runtime[address] — correctly, since nothing answers there any
+// more — and a Vm placed in a Subnet was unaffected because its address lives in
+// Attrs. A Vm created without one had it nowhere else, so stopping it emptied
+// PrivateIp: one field, two behaviours, and Terraform reading private_ip saw
+// null after a stop. Outscale keeps the private address of a stopped Vm; it is
+// released when the machine is terminated, with the resource.
+//
+// TestAStoppedVmKeepsItsPrivateAddress fails without this.
+func (p *Pack) rememberAddress(res *resource.Resource) {
+	if _, already := res.Attrs["PrivateIp"]; already {
+		return
+	}
+	if address := p.addressOf(res); address != "" {
+		res.Attrs["PrivateIp"] = address
+	}
 }
 
 // powerOff stops the backing machine, keeping its filesystem.
@@ -105,7 +126,13 @@ func (p *Pack) removeMachine(ctx context.Context, res *resource.Resource) {
 
 // refreshMachine republishes the address of a running VM.
 func (p *Pack) refreshMachine(ctx context.Context, res *resource.Resource) bool {
-	return p.binding().RefreshIfRunning(ctx, res)
+	changed := p.binding().RefreshIfRunning(ctx, res)
+	if changed {
+		// A virtual machine gets its address tens of seconds after it starts,
+		// so this is where it first becomes known for one.
+		p.rememberAddress(res)
+	}
+	return changed
 }
 
 // addressOf is what a Vm publishes as PrivateIp. Outscale's Vm schema declares

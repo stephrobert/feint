@@ -93,6 +93,11 @@ func (p *Pack) route(action string, handler http.HandlerFunc) emulator.Route {
 // TestDryRunReachesNoHandler fails without this.
 func (p *Pack) dryRunnable(handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Read here rather than by a handler, so the unread-field report is
+		// told: otherwise `DryRun: false` — a legitimate request every client
+		// can send — counted as a field nobody read and failed the conformance
+		// gate. TestDryRunFalseDoesNotFailTheGate holds it.
+		emulator.MarkRead(r, "DryRun")
 		// Bounded like every other body: a dry run must not be a way to make the
 		// emulator read an unbounded request.
 		body, err := io.ReadAll(io.LimitReader(r.Body, maxDryRunProbe))
