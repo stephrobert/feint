@@ -14,6 +14,7 @@ package exoscale
 
 import (
 	"net/http"
+	"os"
 	"slices"
 	"sort"
 	"strings"
@@ -56,7 +57,7 @@ func operation(id string) string { return "exoscale/v2." + id }
 
 // Routes implements emulator.Pack.
 func (p *Pack) Routes() []emulator.Route {
-	return []emulator.Route{
+	return p.guardSplitClients([]emulator.Route{
 		{Method: "GET", Path: "/v2/instance", Operation: operation("list-instances"), Handler: p.listInstances},
 		{Method: "POST", Path: "/v2/instance", Operation: operation("create-instance"), Handler: p.createInstance},
 		{Method: "GET", Path: "/v2/instance/{id}", Operation: operation("get-instance"), Handler: p.getInstance},
@@ -82,7 +83,7 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "GET", Path: "/v2/quota/{name}", Operation: operation("get-quota"), Handler: p.getQuota},
 		{Method: "GET", Path: "/v2/ssh-key/{name}", Operation: operation("get-ssh-key"), Handler: p.getSSHKey},
 		{Method: "DELETE", Path: "/v2/ssh-key/{name}", Operation: operation("delete-ssh-key"), Handler: p.deleteSSHKey},
-	}
+	})
 }
 
 // Declined implements emulator.Pack.
@@ -396,6 +397,54 @@ func (p *Pack) Declined() []emulator.Decline {
 			"exoscale/v2.get-live-balance",
 			"exoscale/v2.get-usage-report"),
 	)
+}
+
+// guardSplitClients refuses a client this emulator can only half serve.
+//
+// The Terraform provider honours EXOSCALE_API_ENDPOINT for its egoscale v3
+// client and builds a v2 client with no endpoint option at all. So an apply
+// does not fail and does not work: it splits. Some resources answer from here,
+// and the rest are created on the real cloud, in one run, with whatever
+// credentials the environment holds. Measured on 0.70.0, with outbound traffic
+// routed to a proxy that was not listening: `exoscale_ssh_key` tried
+// `https://api-ch-gva-2.exoscale.com/v2/ssh-key` with the variable set.
+//
+// Half-serving that client is the worst of the three outcomes. A clean refusal
+// tells the operator what is happening, at the moment it happens, in the
+// client's own dialect; a half-success is indistinguishable from working until
+// the invoice.
+//
+// The escape hatch is named rather than hidden: someone who understands the
+// split and wants the v3 half anyway sets FEINT_EXOSCALE_ALLOW_TERRAFORM=1, and
+// owns what the other half does. A guard with no way past it gets worked around
+// by copying the emulator, which teaches nothing.
+//
+// TestTheTerraformProviderIsRefused fails without this.
+func (p *Pack) guardSplitClients(routes []emulator.Route) []emulator.Route {
+	for i := range routes {
+		handler := routes[i].Handler
+		routes[i].Handler = func(w http.ResponseWriter, r *http.Request) {
+			if splitClient(r.UserAgent()) && os.Getenv("FEINT_EXOSCALE_ALLOW_TERRAFORM") == "" {
+				writeError(w, http.StatusBadRequest,
+					"the Exoscale Terraform provider only honours EXOSCALE_API_ENDPOINT for half of "+
+						"its calls: the rest reach the real cloud and create billable resources. "+
+						"feint refuses rather than serve half an apply. Set "+
+						"FEINT_EXOSCALE_ALLOW_TERRAFORM=1 if you understand that and want the half "+
+						"it can serve. See docs/limits.md.")
+				return
+			}
+			handler(w, r)
+		}
+	}
+	return routes
+}
+
+// splitClient recognises the Terraform provider by the user agent it sets
+// itself: `Exoscale-Terraform-Provider/<version> …`. The exo CLI sends its own
+// and is served normally, which is the point — this refuses one client, not a
+// product.
+func splitClient(userAgent string) bool {
+	return strings.Contains(userAgent, "Exoscale-Terraform-Provider")
 }
 
 // apiPrefix is the whole of Exoscale's URL space here: their API description

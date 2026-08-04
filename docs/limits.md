@@ -297,6 +297,67 @@ get there.
 
 `TestDryRunReachesNoHandler` holds the half that is served.
 
+## The Exoscale Terraform provider is refused, and why
+
+`terraform apply` works against Scaleway here, through the provider's `api_url`
+attribute. It does not work against Exoscale, and the reason is not something
+this emulator can fix.
+
+`exoscale/exoscale` 0.70.0 builds **two** clients in `pkg/provider/provider.go`:
+
+```go
+// egoscale v3
+if ep := os.Getenv("EXOSCALE_API_ENDPOINT"); ep != "" {
+    opts = append(opts, exov3.ClientOptWithEndpoint(exov3.Endpoint(ep)), ...)
+}
+```
+
+and an egoscale **v2** client, created with no endpoint option at all. The
+variable is therefore honoured for one and ignored for the other.
+
+An apply does not fail cleanly and does not work: it **splits**. Some resources
+answer from this emulator, and the rest are created on the real cloud, in the
+same run, with whatever credentials the environment holds.
+
+Measured on 0.70.0 without a byte leaving the machine — outbound traffic routed
+to a proxy that was not listening, so the attempt is visible and cannot succeed:
+
+```text
+Error: Post "https://api-ch-gva-2.exoscale.com/v2/ssh-key"
+       proxyconnect tcp: dial tcp 127.0.0.1:4740: connect: connection refused
+```
+
+with `EXOSCALE_API_ENDPOINT=http://127.0.0.1:4733/v2` set. The emulator saw
+nothing.
+
+**There is no endpoint setting to reach for.** `tofu providers schema -json`
+lists five provider attributes — `key`, `secret`, `timeout`, `environment`,
+`sos_endpoint` — and their own documentation lists the same five. `sos_endpoint`
+is Object Storage only; `environment` composes a `%s-%s.exoscale.com` domain.
+Neither points anywhere local.
+
+**So the emulator refuses that client**, by the user agent it sets itself
+(`Exoscale-Terraform-Provider/…`), with a message saying what is happening. Half
+serving it is the worst of the three outcomes: a half-success is
+indistinguishable from working until the invoice arrives.
+
+The refusal can be lifted by someone who understands the split and wants the
+half this emulator can serve:
+
+```bash
+FEINT_EXOSCALE_ALLOW_TERRAFORM=1 feint serve
+```
+
+That variable is named rather than hidden on purpose. A guard with no way past
+it gets worked around by copying the emulator, which teaches nobody anything.
+
+The `exo` CLI is unaffected and is driven by the conformance suite: it reads
+`EXOSCALE_API_ENDPOINT` for everything.
+
+Closing this properly needs an endpoint option on the provider's v2 client,
+which is upstream work. Until then, `feint env exoscale` prints the warning on
+stderr, where `eval` cannot swallow it.
+
 ## Outscale and Exoscale are starters
 
 Both packs exist to prove the core stays protocol-neutral: three genuinely

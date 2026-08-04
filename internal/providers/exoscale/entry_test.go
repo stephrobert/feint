@@ -3,6 +3,7 @@ package exoscale_test
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
@@ -277,5 +278,67 @@ func TestQuotasAreCountedNotInvented(t *testing.T) {
 	}
 	if rec, _ := call(t, h, "GET", "/v2/quota/not-a-resource", ""); rec.Code != http.StatusNotFound {
 		t.Errorf("an unknown quota answered %d, want 404", rec.Code)
+	}
+}
+
+// The Terraform provider is refused, because this emulator can only half serve
+// it.
+//
+// exoscale/exoscale 0.70.0 honours EXOSCALE_API_ENDPOINT for its egoscale v3
+// client and builds a v2 client with no endpoint option. An apply therefore
+// splits: some resources answer from here and the rest are created on the real
+// cloud, in one run, with whatever credentials the environment holds. Measured
+// on 0.70.0 with outbound traffic routed to a proxy that was not listening —
+// `exoscale_ssh_key` tried https://api-ch-gva-2.exoscale.com/v2/ssh-key with
+// the variable set.
+//
+// A half-success is indistinguishable from working until the invoice, which is
+// why this is a refusal rather than a log line.
+func TestTheTerraformProviderIsRefused(t *testing.T) {
+	h := serve(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/v2/zone", nil)
+	req.Header.Set("User-Agent",
+		"Exoscale-Terraform-Provider/0.70.0 (abc1234) Terraform-SDK/2.34.0 egoscale/2")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("the Terraform provider was served: %d %s", rec.Code, rec.Body.String())
+	}
+	// The refusal has to say what is happening and how to override it, or an
+	// operator reads it as the emulator being broken.
+	for _, want := range []string{"billable", "FEINT_EXOSCALE_ALLOW_TERRAFORM"} {
+		if !strings.Contains(rec.Body.String(), want) {
+			t.Errorf("the refusal does not mention %q: %s", want, rec.Body.String())
+		}
+	}
+
+	// The exo CLI, and anything else, is served normally. A guard that refused
+	// every client would pass this test's first half and break the product.
+	plain := httptest.NewRequest(http.MethodGet, "/v2/zone", nil)
+	plain.Header.Set("User-Agent", "exoscale-cli/1.95.1")
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, plain)
+	if rec.Code != http.StatusOK {
+		t.Errorf("the exo CLI was refused too: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+// And the escape hatch works, for someone who understands the split.
+//
+// A guard with no way past it gets worked around by copying the emulator, which
+// teaches nothing and leaves the operator worse informed.
+func TestTheTerraformRefusalCanBeOverridden(t *testing.T) {
+	t.Setenv("FEINT_EXOSCALE_ALLOW_TERRAFORM", "1")
+	h := serve(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/v2/zone", nil)
+	req.Header.Set("User-Agent", "Exoscale-Terraform-Provider/0.70.0 (abc1234)")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("the override did not let the provider through: %d %s", rec.Code, rec.Body.String())
 	}
 }
