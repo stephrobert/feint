@@ -11,6 +11,47 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
+## [0.3.3]
+
+### Fixed
+
+- **An Exoscale instance could be created with none of the fields the API
+  requires**, and one such instance made `exo compute instance list` stop
+  listing: every instance created after it disappeared from the official CLI's
+  output.
+- **A registered SSH key never reached the machine it was attached to.** The
+  pack kept a name and a fingerprint and dropped the key itself, so the instance
+  booted with no user and no way in, while the API published an address on it.
+- **A key sent as `ssh-key` was accepted and dropped.** Their API documents both
+  `ssh-key` and `ssh-keys`, neither deprecated; the pack read only the plural.
+- **Nothing was checked at the Exoscale entry**: names and keys carrying control
+  characters were stored and given back verbatim.
+- **`exo limits` answered 404.** It is a first-class command of the official
+  CLI, and the quota routes were neither served nor refused.
+
+### Added
+
+- **Quotas, counted rather than invented.** The limit is a claim this emulator
+  makes, like its catalogue; the usage is a fact it holds, counted from the
+  store. `exo limits` reports zero instances on a fresh emulator and one after a
+  create, and the conformance suite checks exactly that.
+- **69 of 93 routes are proven by a real client**, up from 68 of 91.
+
+### Changed
+
+- **The Exoscale Terraform provider is refused, with an explanation.** It
+  honours `EXOSCALE_API_ENDPOINT` for half of its calls and reaches the real
+  cloud with the other half, so an apply split between this emulator and a
+  paying account — measured, without a byte leaving the machine. Half serving a
+  client is worse than refusing it: a half-success is indistinguishable from
+  working until the invoice. `FEINT_EXOSCALE_ALLOW_TERRAFORM=1` lifts the
+  refusal for anyone who understands the split, and `docs/limits.md` carries the
+  whole reasoning. The `exo` CLI is unaffected.
+
+  This is a behaviour change a user can observe, and it is a patch rather than a
+  minor on purpose: what stops working was never working — it was creating
+  resources on a real account while looking local.
+
 ## [0.3.2]
 
 ### Fixed
