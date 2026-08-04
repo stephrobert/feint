@@ -1,26 +1,26 @@
 {
   "declined": 248,
-  "implemented": 14,
+  "implemented": 16,
   "orphans": null,
   "products": [
     {
       "product": "exoscale",
       "total": 372,
-      "implemented": 14,
+      "implemented": 16,
       "declined": 248,
-      "unknown": 110,
+      "unknown": 108,
       "versions": [
         {
           "version": "2.0.0",
           "total": 372,
-          "implemented": 14,
+          "implemented": 16,
           "declined": 248,
-          "unknown": 110
+          "unknown": 108
         }
       ]
     }
   ],
   "provider": "exoscale",
   "total": 372,
-  "unknown": 110
+  "unknown": 108
 }

@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/core/resource"
 )
 
 // The inventory the official client reads before it does anything else.
@@ -136,4 +137,58 @@ func allZones() []any {
 		out = append(out, name)
 	}
 	return out
+}
+
+// quotaResources are the limits `exo limits` prints, and they are counted from
+// the store rather than invented.
+//
+// A quota is one of the few figures an emulator can state honestly: the limit is
+// its own claim, the way the catalogue above is, and the usage is a fact it
+// holds. `exo limits` is a first-class command of the official CLI and it died
+// on a 404 — the quota routes were neither served nor declined, which is the
+// least defensible state a route can be in.
+//
+// The names come from their API description's own examples. The limits are
+// deliberately generous: an emulator that refused a create for a quota it made
+// up would be inventing a wall, which is the opposite of what this file is for.
+//
+// TestQuotasAreCountedNotInvented fails without this.
+var quotaResources = []struct {
+	name  string
+	limit int
+	kind  string
+}{
+	{"instance", 100, kindInstance},
+	{"ssh-key", 100, kindSSHKey},
+	{"snapshot", 100, ""},
+	{"template", 100, ""},
+}
+
+func (p *Pack) listQuotas(w http.ResponseWriter, _ *http.Request) {
+	quotas := make([]map[string]any, 0, len(quotaResources))
+	for _, q := range quotaResources {
+		quotas = append(quotas, p.quotaOf(q.name, q.limit, q.kind))
+	}
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{"quotas": quotas})
+}
+
+func (p *Pack) getQuota(w http.ResponseWriter, r *http.Request) {
+	for _, q := range quotaResources {
+		if q.name == r.PathValue("name") {
+			emulator.WriteJSON(w, http.StatusOK, p.quotaOf(q.name, q.limit, q.kind))
+			return
+		}
+	}
+	writeError(w, http.StatusNotFound, "no quota named "+r.PathValue("name"))
+}
+
+// quotaOf counts what the store holds for a resource this pack serves, and
+// answers zero for one it does not. Zero is the truth here: no snapshot can
+// exist while the operation that creates one is declined.
+func (p *Pack) quotaOf(name string, limit int, kind string) map[string]any {
+	usage := 0
+	if kind != "" {
+		usage = len(p.env.Store.List(kind, resource.Tenant{Provider: Name}))
+	}
+	return map[string]any{"resource": name, "limit": limit, "usage": usage}
 }

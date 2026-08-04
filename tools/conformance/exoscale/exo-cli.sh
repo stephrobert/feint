@@ -99,6 +99,20 @@ printf '%s' "$keys" | jq -e 'any(.[]; .name == "conformance" and (.fingerprint |
 exoc -Q compute ssh-key delete conformance --force >/dev/null || fail "ssh-key delete rejected"
 ok "registered with a computed fingerprint, and removed"
 
+echo "- the limits a client reads, counted rather than invented"
+# The CLI relabels what the API returns — "instance" becomes "Compute
+# instances", usage becomes used — so the assertion is on what the client
+# prints, which is the only thing a user sees.
+limits="$(exoc -O json limits)" || fail "exo limits rejected: $limits"
+printf '%s' "$limits" | jq -e 'any(.[]; .resource == "Compute instances")' >/dev/null \
+  || fail "no instance quota in the limits: $limits"
+used_before="$(printf '%s' "$limits" | jq -r '.[] | select(.resource == "Compute instances") | .used')"
+if [ "$used_before" = "0" ]; then
+  ok "limits served, no instance in use yet"
+else
+  fail "a fresh account already uses $used_before instance(s)"
+fi
+
 echo "- create, from the catalogue the emulator just published"
 exoc compute instance create conformance \
   --zone "$EXOSCALE_ZONE" --template "$template_name" --instance-type "$type_name" \

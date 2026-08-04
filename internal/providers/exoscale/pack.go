@@ -75,6 +75,11 @@ func (p *Pack) Routes() []emulator.Route {
 		// registers one of its own before it posts the instance.
 		{Method: "POST", Path: "/v2/ssh-key", Operation: operation("register-ssh-key"), Handler: p.registerSSHKey},
 		{Method: "GET", Path: "/v2/ssh-key", Operation: operation("list-ssh-keys"), Handler: p.listSSHKeys},
+
+		// Quotas, which `exo limits` reads. See catalog.go for why they are
+		// counted rather than invented.
+		{Method: "GET", Path: "/v2/quota", Operation: operation("list-quotas"), Handler: p.listQuotas},
+		{Method: "GET", Path: "/v2/quota/{name}", Operation: operation("get-quota"), Handler: p.getQuota},
 		{Method: "GET", Path: "/v2/ssh-key/{name}", Operation: operation("get-ssh-key"), Handler: p.getSSHKey},
 		{Method: "DELETE", Path: "/v2/ssh-key/{name}", Operation: operation("delete-ssh-key"), Handler: p.deleteSSHKey},
 	}
@@ -380,12 +385,10 @@ func (p *Pack) Declined() []emulator.Decline {
 		// The organisation's own consumption: balance, usage, environmental
 		// impact.
 		//
-		// Quotas are deliberately NOT here, and neither is the organisation
-		// itself. An audit caught them swept in: docs/roadmap-exoscale-iaas.md
-		// keeps them in scope as small read-only calls several clients make, and
-		// `exo limits` — a first-class command of the official CLI — died on the
-		// refusal. A quota is a limit this emulator can state as its own claim,
-		// the way it already states a catalogue.
+		// Quotas are not here because they are served now: `exo limits` reads
+		// them, and it died on a 404 for two releases. A quota is a limit this
+		// emulator can state as its own claim, the way it states a catalogue,
+		// and a usage it can count. The organisation itself is still not here.
 		emulator.Because("there is no account behind this emulator and no consumption to report, so any figure here would be one it invented and somebody planned against",
 			"exoscale/v2.get-env-impact",
 			"exoscale/v2.get-impact-estimate",

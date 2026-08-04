@@ -233,3 +233,49 @@ func serveWith(t *testing.T, drv machine.Driver) http.Handler {
 	}
 	return srv.Handler()
 }
+
+// Quotas are counted, not invented.
+//
+// `exo limits` is a first-class command of the official CLI and it answered 404
+// for two releases: the quota routes were neither served nor declined, which is
+// the least defensible state a route can be in. A quota is one of the few
+// figures an emulator can state honestly — the limit is its own claim, like the
+// catalogue, and the usage is a fact it holds.
+func TestQuotasAreCountedNotInvented(t *testing.T) {
+	h := serve(t)
+
+	usage := func(resource string) float64 {
+		_, out := call(t, h, "GET", "/v2/quota", "")
+		quotas, _ := out["quotas"].([]any)
+		for _, entry := range quotas {
+			q, _ := entry.(map[string]any)
+			if q["resource"] == resource {
+				used, _ := q["usage"].(float64)
+				return used
+			}
+		}
+		t.Fatalf("no quota for %s: %v", resource, out)
+		return -1
+	}
+
+	if before := usage("instance"); before != 0 {
+		t.Fatalf("a fresh emulator reports %v instances in use", before)
+	}
+	call(t, h, "POST", "/v2/instance", `{
+		"name":"one",
+		"instance-type":{"id":"21624abb-764e-4def-81d7-9fc54b5957fb"},
+		"template":{"id":"11111111-1111-4111-8111-111111111111"},
+		"disk-size":10
+	}`)
+	if after := usage("instance"); after != 1 {
+		t.Errorf("after one create the quota reports %v, want 1 — a figure that does not move is invented", after)
+	}
+
+	// The by-name read the CLI makes, and a name that answers to nothing.
+	if rec, _ := call(t, h, "GET", "/v2/quota/instance", ""); rec.Code != http.StatusOK {
+		t.Errorf("get-quota answered %d", rec.Code)
+	}
+	if rec, _ := call(t, h, "GET", "/v2/quota/not-a-resource", ""); rec.Code != http.StatusNotFound {
+		t.Errorf("an unknown quota answered %d, want 404", rec.Code)
+	}
+}
