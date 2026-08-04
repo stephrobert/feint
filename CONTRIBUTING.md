@@ -30,6 +30,27 @@ It installs two hook types, and the second one is easy to miss: `pre-commit` and
 `commit-msg`. The configuration declares both through
 `default_install_hook_types`, so the single command is enough.
 
+### If you are contributing from a fork
+
+Nothing will run on your pull request until a maintainer approves it. GitHub
+holds every workflow in `action_required` for contributions from forks, which is
+the right default — it is what stops a fork from editing a workflow to read this
+repository's secrets — but it means `gh pr checks` answers "no checks reported"
+and you see no feedback at all, not even a failing one.
+
+So the local gates are not a nicety for you, they are the only ones you have
+until someone looks:
+
+```bash
+mise run check         # what CI runs on every pull request
+mise run conformance   # the real clients, for anything touching a route or a suite
+```
+
+A pull request has already been merged here that broke the Exoscale conformance
+suite, with nothing on the page to say so. Running the suite yourself is what
+would have shown it, and it is why the AI-assisted checklist asks whether you
+ran it rather than whether you expect it to pass.
+
 The upstream SDKs the drift scan reads are cloned on demand:
 
 ```bash

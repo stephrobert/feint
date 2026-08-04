@@ -1,3 +1,24 @@
+<!--
+Two things that surprise first-time contributors here, both worth thirty seconds
+before you push:
+
+1. **From a fork, no CI runs until a maintainer approves it.** GitHub holds every
+   workflow in `action_required` — its protection against a fork editing a
+   workflow to reach this repository's secrets — so `gh pr checks` answers "no
+   checks reported" and you get no feedback at all, not even a red one. That is
+   normal. It is not your pull request being ignored, and it means the first
+   review is human. A pull request has already been merged here that broke a
+   conformance suite with nothing on the page to say so.
+
+2. **Commit subjects must be Conventional Commits**, because the version is
+   derived from them: `fix(exoscale): read both key forms`. A check enforces it,
+   and it will fail after you push rather than before.
+
+`pre-commit install` catches the second one locally, along with everything else
+CI runs. It is the first step of CONTRIBUTING.md and it is not a courtesy: git
+hooks are not versioned, so a fresh clone has none of them.
+-->
+
 # Summary
 
 <!-- What does this change, and why? -->
