@@ -131,7 +131,9 @@ func TestTheCatalogueACreateWalksIsServed(t *testing.T) {
 // against `ssh-keygen -l -E md5` would catch anything else.
 func TestRegisteringAKeyComputesItsFingerprint(t *testing.T) {
 	h := serve(t)
-	const key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForConformance test@feint"
+	// A real key from ssh-keygen. The fixture used to be a plausible string whose
+	// material is not valid base64, and it passed because nothing checked.
+	const key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIr6pEFlAFO3YU0DNW/r8SkpjdbptN9ockkO2BtIolSD conformance@feint"
 
 	rec, _ := call(t, h, "POST", "/v2/ssh-key",
 		`{"name":"k1","public-key":"`+key+`"}`)
@@ -163,7 +165,7 @@ func TestRegisteringAKeyComputesItsFingerprint(t *testing.T) {
 func TestCreateGivesBackWhatTheClientAttached(t *testing.T) {
 	h := serve(t)
 	call(t, h, "POST", "/v2/ssh-key",
-		`{"name":"k1","public-key":"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample test@feint"}`)
+		`{"name":"k1","public-key":"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIr6pEFlAFO3YU0DNW/r8SkpjdbptN9ockkO2BtIolSD conformance@feint"}`)
 
 	rec, _ := call(t, h, "POST", "/v2/instance", `{
 		"name": "demo",
@@ -212,7 +214,8 @@ func TestWithoutARuntimeAnInstanceStillReachesRunning(t *testing.T) {
 	rec, created := call(t, h, "POST", "/v2/instance", `{
 		"name": "demo",
 		"instance-type": {"id": "21624abb-764e-4def-81d7-9fc54b5957fb"},
-		"template": {"id": "11111111-1111-4111-8111-111111111111"}
+		"template": {"id": "11111111-1111-4111-8111-111111111111"},
+		"disk-size": 10
 	}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("create answered %d: %s", rec.Code, rec.Body.String())

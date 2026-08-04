@@ -1,14 +1,12 @@
 package exoscale
 
 import (
-	"crypto/md5" //nolint:gosec // the fingerprint format is MD5 by definition, not a security choice
-	"encoding/base64"
-	"encoding/hex"
 	"net/http"
 	"strings"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/resource"
+	"github.com/stephrobert/feint/internal/core/sshkey"
 )
 
 // SSH keys, which are on the critical path of a create and were not obvious.
@@ -45,6 +43,23 @@ func (p *Pack) registerSSHKey(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "public-key is required")
 		return
 	}
+	// The same reader the other two packs use. Nothing was checked here: a name
+	// carrying a newline and a multi-line "key" were both stored verbatim and
+	// restituted, and cloudinit renders YAML with text/template, which
+	// concatenates without escaping. There is no injection while the material is
+	// never rendered — and the fix below renders it, which is exactly why this
+	// comes first.
+	//
+	// TestExoscaleRefusesWhatIsNotAKey fails without this.
+	parsed, err := sshkey.Parse(req.PublicKey)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "public-key is not an OpenSSH public key")
+		return
+	}
+	if strings.ContainsAny(req.Name, "\n\r\x00") {
+		writeError(w, http.StatusBadRequest, "name carries control characters")
+		return
+	}
 	if _, exists := p.env.Store.Get(Name, kindSSHKey, req.Name); exists {
 		writeError(w, http.StatusConflict, "an SSH key named "+req.Name+" already exists")
 		return
@@ -63,8 +78,19 @@ func (p *Pack) registerSSHKey(w http.ResponseWriter, r *http.Request) {
 		Updated: now,
 		Attrs: map[string]any{
 			"name":        req.Name,
-			"fingerprint": fingerprintOf(req.PublicKey),
+			"fingerprint": parsed.FingerprintMD5(),
 		},
+		// The key material, which the API does not publish and a machine needs.
+		// Dropping it meant a registered key could never open the machine it was
+		// attached to: the instance booted with empty cloud-init, no user, no
+		// sshd on a minimal image — and the pack published an address on it.
+		//
+		// Runtime rather than Attrs, because no route may return it.
+		//
+		// TestAnExoscaleKeyReachesTheMachine fails without this.
+		// The canonical form, not the bytes the client sent: a key read from a
+		// file carries its trailing newline, and cloud-init refuses that.
+		Runtime: map[string]string{"public-key": parsed.String()},
 	}
 	p.env.Store.Put(res)
 
@@ -108,34 +134,4 @@ func sshKeyView(res *resource.Resource) map[string]any {
 		"name":        res.Attrs["name"],
 		"fingerprint": res.Attrs["fingerprint"],
 	}
-}
-
-// fingerprintOf computes the colon-separated MD5 digest of the key blob, which
-// is the format every SSH tool prints and every client expects to be able to
-// compare against `ssh-keygen -l -E md5`.
-//
-// MD5 is the format, not a security decision: it is what the fingerprint of a
-// registered key is, on Exoscale as on AWS. Nothing here authenticates anything.
-//
-// A key whose blob does not decode gets a digest of the whole string rather than
-// an error. The emulator is not a key validator, and refusing at this point
-// would fail a create over a field no downstream behaviour depends on.
-func fingerprintOf(publicKey string) string {
-	blob := publicKey
-	if fields := strings.Fields(publicKey); len(fields) >= 2 {
-		if raw, err := base64.StdEncoding.DecodeString(fields[1]); err == nil {
-			sum := md5.Sum(raw) //nolint:gosec // see above: this is a display format
-			return colonHex(sum[:])
-		}
-	}
-	sum := md5.Sum([]byte(blob)) //nolint:gosec // see above
-	return colonHex(sum[:])
-}
-
-func colonHex(sum []byte) string {
-	out := make([]string, 0, len(sum))
-	for _, b := range sum {
-		out = append(out, hex.EncodeToString([]byte{b}))
-	}
-	return strings.Join(out, ":")
 }

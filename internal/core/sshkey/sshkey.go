@@ -65,10 +65,21 @@ var algorithms = map[string]bool{
 // a shape check and opened a top-level key in a cloud-config. So the control
 // characters are refused before anything is split.
 func Parse(key string) (Key, error) {
+	// Trimmed first, then checked. A key read from a file ends with a newline —
+	// `ssh-keygen` writes one, `cat key.pub` carries it, and the Exoscale
+	// conformance suite feeds exactly that — so refusing every control character
+	// before trimming rejected legitimate keys. It was caught by the real client:
+	// `exo compute ssh-key register` failed on a file this repository wrote
+	// itself.
+	//
+	// What must stay refused is a control character *inside* the value, which is
+	// what opens a second top-level key in a cloud-config. TrimSpace only takes
+	// leading and trailing whitespace, so a multi-line payload still fails here.
+	key = strings.TrimSpace(key)
 	if strings.ContainsAny(key, "\n\r\x00") {
 		return Key{}, ErrNotAKey
 	}
-	fields := strings.Fields(strings.TrimSpace(key))
+	fields := strings.Fields(key)
 	if len(fields) < 2 {
 		return Key{}, ErrNotAKey
 	}
@@ -84,6 +95,21 @@ func Parse(key string) (Key, error) {
 		Blob:      blob,
 		Comment:   strings.Join(fields[2:], " "),
 	}, nil
+}
+
+// String renders the key in its canonical one-line form.
+//
+// A caller that stores what the client sent stores whatever surrounded it: a key
+// read from a file arrives with its trailing newline, and cloud-init then
+// refuses it as "authorized key 0 carries a control character" — measured with
+// the real exo CLI, on a file this repository writes itself. What is stored is
+// the key, not the bytes it travelled in.
+func (k Key) String() string {
+	out := k.Algorithm + " " + base64.StdEncoding.EncodeToString(k.Blob)
+	if k.Comment != "" {
+		out += " " + k.Comment
+	}
+	return out
 }
 
 // Valid reports whether a string is a public key, for the callers that only

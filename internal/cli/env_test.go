@@ -60,19 +60,27 @@ func TestEnvPutsNothingButExportsOnStdout(t *testing.T) {
 	}
 }
 
-// The Exoscale note is the reason the Note field exists: that provider's CLI
-// reads no endpoint variable at all, and a user handed variables that do not
-// work for their client, without being told, is worse served than one told
-// nothing.
+// The Exoscale note is the reason the Note field exists, and what it warns about
+// has changed twice as the clients did. It said the exo CLI ignores these
+// variables, until a contributor showed it reads them (#51); it now says the
+// Terraform provider honours EXOSCALE_API_ENDPOINT for its v3 client and not
+// its v2 one, so an apply splits between this emulator and the real cloud.
+//
+// What this test holds is the property that does not change with a client: a
+// warning that costs money if unread reaches stderr, and never stdout, where
+// eval would execute it.
 func TestEnvSendsItsNoteToStderr(t *testing.T) {
 	code, printed, errOut := run("env", "exoscale")
 	if code != 0 {
 		t.Fatalf("exited %d: %s", code, errOut)
 	}
-	if !strings.Contains(errOut, "config file") {
+	if !strings.Contains(errOut, "terraform") {
 		t.Fatalf("the exoscale caveat is not on stderr: %q", errOut)
 	}
-	if strings.Contains(printed, "config file") {
+	if !strings.Contains(errOut, "billable") {
+		t.Fatalf("the caveat does not say what it costs: %q", errOut)
+	}
+	if strings.Contains(printed, "terraform") {
 		t.Fatalf("the caveat leaked onto stdout, where eval would execute it:\n%s", printed)
 	}
 }

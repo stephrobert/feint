@@ -89,7 +89,7 @@ printf '%s' "$keys_before" | jq -e 'length == 0' >/dev/null \
 # anybody holds. The fingerprint must be computed from the blob rather than
 # invented: a client comparing it against ssh-keygen -l -E md5 would catch it.
 cat > "$WORK/key.pub" <<'KEY'
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForConformance conformance@feint
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIr6pEFlAFO3YU0DNW/r8SkpjdbptN9ockkO2BtIolSD conformance@feint
 KEY
 exoc compute ssh-key register conformance "$WORK/key.pub" >/dev/null \
   || fail "ssh-key register rejected"

@@ -1,0 +1,235 @@
+package exoscale_test
+
+import (
+	"context"
+	"net/http"
+	"strings"
+	"sync"
+	"testing"
+
+	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/core/machine"
+	"github.com/stephrobert/feint/internal/providers/exoscale"
+)
+
+// What a whole-pack audit found on the Exoscale entry paths: nothing was
+// checked. Each test below fails without its fix, and each was falsified by
+// removing the fix in a copy outside the repository.
+
+// A real key, from ssh-keygen. Every fixture in this repository that used a
+// plausible-looking string instead passed because the pack did not check.
+const realKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIr6pEFlAFO3YU0DNW/r8SkpjdbptN9ockkO2BtIolSD conformance@feint"
+
+// A create must carry what the API description declares required.
+//
+// contracts/exoscale.json declares disk-size, instance-type and template
+// required; the pack checked only name, which upstream does not require. An
+// instance created with only a name answered 200 with template {"id": ""}, and
+// `exo compute instance list` then printed "unable to retrieve Compute instance
+// type" and stopped listing at it — four instances in the store, one in the
+// CLI's answer. docs/limits.md accepts plausible-but-unknown ids; an absent
+// reference is a different class.
+func TestExoscaleRefusesAnIncompleteCreate(t *testing.T) {
+	h := serve(t)
+	for _, body := range []string{
+		`{"name":"bare"}`,
+		`{"name":"n","template":{"id":"11111111-1111-4111-8111-111111111111"},"disk-size":10}`,
+		`{"name":"n","instance-type":{"id":"21624abb-764e-4def-81d7-9fc54b5957fb"},"disk-size":10}`,
+		`{"name":"n","instance-type":{"id":"21624abb-764e-4def-81d7-9fc54b5957fb"},"template":{"id":"11111111-1111-4111-8111-111111111111"}}`,
+	} {
+		if rec, out := call(t, h, "POST", "/v2/instance", body); rec.Code == http.StatusOK {
+			t.Errorf("%s was accepted: %v", body, out)
+		}
+	}
+	// The accepting half, or the check would only be a way to refuse.
+	rec, out := call(t, h, "POST", "/v2/instance", `{
+		"name":"complete",
+		"instance-type":{"id":"21624abb-764e-4def-81d7-9fc54b5957fb"},
+		"template":{"id":"11111111-1111-4111-8111-111111111111"},
+		"disk-size":10
+	}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("a complete create was refused: %d %v", rec.Code, out)
+	}
+}
+
+// The pack refuses what is not an OpenSSH key, like its two siblings.
+//
+// Anything was stored: a name carrying a newline, and a multi-line "key"
+// embedding a cloud-config directive. There was no injection while the material
+// was never rendered — and it is rendered now, which is why this comes first.
+func TestExoscaleRefusesWhatIsNotAKey(t *testing.T) {
+	h := serve(t)
+	for _, body := range []string{
+		`{"name":"k","public-key":"definitely not a key"}`,
+		`{"name":"k","public-key":"ssh-ed25519 !!!!not-base64-at-all!!!! user@host"}`,
+		"{\"name\":\"k\",\"public-key\":\"ssh-rsa AAAA\\nruncmd:\\n  - touch /tmp/pwned\"}",
+		"{\"name\":\"evil\\nkey\",\"public-key\":\"" + realKey + "\"}",
+	} {
+		if rec, out := call(t, h, "POST", "/v2/ssh-key", body); rec.Code == http.StatusOK {
+			t.Errorf("accepted %s: %v", body, out)
+		}
+	}
+	if rec, out := call(t, h, "POST", "/v2/ssh-key",
+		`{"name":"good","public-key":"`+realKey+`"}`); rec.Code != http.StatusOK {
+		t.Fatalf("a real key was refused: %d %v", rec.Code, out)
+	}
+}
+
+// An instance names its keys through either form the API documents.
+//
+// Their create-instance operation declares both "ssh-key" (Instance SSH Key)
+// and "ssh-keys" (Instance SSH Keys), with neither deprecated. The pack read
+// only the plural, so a client sending one key had it accepted and dropped.
+func TestExoscaleReadsBothKeyForms(t *testing.T) {
+	for _, form := range []struct {
+		what string
+		body string
+	}{
+		{"singular", `"ssh-key":{"name":"mine"}`},
+		{"plural", `"ssh-keys":[{"name":"mine"}]`},
+	} {
+		t.Run(form.what, func(t *testing.T) {
+			h := serve(t)
+			call(t, h, "POST", "/v2/ssh-key", `{"name":"mine","public-key":"`+realKey+`"}`)
+			call(t, h, "POST", "/v2/instance", `{
+				"name":"host",
+				"instance-type":{"id":"21624abb-764e-4def-81d7-9fc54b5957fb"},
+				"template":{"id":"11111111-1111-4111-8111-111111111111"},
+				"disk-size":10,`+form.body+`
+			}`)
+
+			_, out := call(t, h, "GET", "/v2/instance", "")
+			instances, _ := out["instances"].([]any)
+			if len(instances) != 1 {
+				t.Fatalf("no instance created: %v", out)
+			}
+			instance, _ := instances[0].(map[string]any)
+			refs, _ := instance["ssh-keys"].([]any)
+			if len(refs) != 1 {
+				t.Fatalf("the %s form was dropped: %v", form.what, instance["ssh-keys"])
+			}
+			ref, _ := refs[0].(map[string]any)
+			if ref["name"] != "mine" {
+				t.Errorf("the instance names %v", ref["name"])
+			}
+			// And the fingerprint is resolved, not invented.
+			if fp, _ := ref["fingerprint"].(string); !strings.Contains(fp, ":") {
+				t.Errorf("no fingerprint resolved for the key: %v", ref)
+			}
+		})
+	}
+}
+
+// The key material never leaves through the API.
+//
+// It is stored now, so that a machine can carry it. Their schema does not
+// declare public-key on a response, and `additionalProperties: false` would
+// refuse it — but the point is not the schema: a public key is not secret, and
+// publishing what a client did not ask for is how a pack starts inventing.
+func TestExoscaleNeverPublishesKeyMaterial(t *testing.T) {
+	h := serve(t)
+	call(t, h, "POST", "/v2/ssh-key", `{"name":"mine","public-key":"`+realKey+`"}`)
+	for _, path := range []string{"/v2/ssh-key", "/v2/ssh-key/mine"} {
+		rec, _ := call(t, h, "GET", path, "")
+		if strings.Contains(rec.Body.String(), "AAAAC3Nza") {
+			t.Errorf("%s published the key material: %s", path, rec.Body.String())
+		}
+	}
+}
+
+// The registered key reaches the machine.
+//
+// The pack stored a name and a fingerprint and dropped the material, so a
+// registered key could never open the instance it was attached to: the machine
+// booted with empty cloud-init — no user provisioned, no sshd on a minimal
+// image — while the API published an address on it. Both sibling packs passed
+// their keys; this one did not, which is the fixed-on-one-side class again.
+//
+// It also makes Boot.User real: cloudinit.Render returns "" when there are no
+// keys, so the field CLAUDE.md celebrates as existing because of Exoscale was
+// dead code on the only pack that motivated it.
+func TestAnExoscaleKeyReachesTheMachine(t *testing.T) {
+	driver := &recordingRuntime{}
+	h := serveWith(t, driver)
+
+	call(t, h, "POST", "/v2/ssh-key", `{"name":"mine","public-key":"`+realKey+`"}`)
+	call(t, h, "POST", "/v2/instance", `{
+		"name":"host",
+		"instance-type":{"id":"21624abb-764e-4def-81d7-9fc54b5957fb"},
+		"template":{"id":"11111111-1111-4111-8111-111111111111"},
+		"disk-size":10,
+		"ssh-keys":[{"name":"mine"}],
+		"auto-start":true
+	}`)
+
+	keys := driver.keys()
+	if len(keys) == 0 {
+		t.Fatal("the machine was started with no authorized key")
+	}
+	if keys[0] != realKey {
+		t.Errorf("the machine carries %q, want the key that was registered", keys[0])
+	}
+	// And the boot carries the template's login, which is the whole reason
+	// Boot.User exists.
+	if driver.user() == "" {
+		t.Error("the boot names no user, so Boot.User is still dead code here")
+	}
+}
+
+// recordingRuntime keeps the boot it was handed, so a test can assert on what
+// reached the machine rather than on what the pack meant to send.
+type recordingRuntime struct {
+	mu    sync.Mutex
+	specs []machine.Spec
+}
+
+func (r *recordingRuntime) Name() string                   { return "recording" }
+func (r *recordingRuntime) Available(context.Context) bool { return true }
+
+func (r *recordingRuntime) Start(_ context.Context, spec machine.Spec) (machine.Machine, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.specs = append(r.specs, spec)
+	return machine.Machine{Name: spec.Name, Running: true}, nil
+}
+
+func (r *recordingRuntime) Stop(context.Context, string) error   { return nil }
+func (r *recordingRuntime) Remove(context.Context, string) error { return nil }
+
+func (r *recordingRuntime) Inspect(context.Context, string) (machine.Machine, bool, error) {
+	return machine.Machine{}, false, nil
+}
+
+func (r *recordingRuntime) EnsureNetwork(context.Context, machine.NetworkSpec) error { return nil }
+func (r *recordingRuntime) Attach(context.Context, string, machine.Attachment) error { return nil }
+func (r *recordingRuntime) RemoveNetwork(context.Context, string) error              { return nil }
+
+func (r *recordingRuntime) keys() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.specs) == 0 {
+		return nil
+	}
+	return r.specs[0].AuthorizedKeys
+}
+
+func (r *recordingRuntime) user() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.specs) == 0 {
+		return ""
+	}
+	return r.specs[0].User
+}
+
+func serveWith(t *testing.T, drv machine.Driver) http.Handler {
+	t.Helper()
+	env := emulator.DefaultEnv()
+	env.Machines = drv
+	srv, err := emulator.NewServer(env, exoscale.New(env))
+	if err != nil {
+		t.Fatalf("build the server: %v", err)
+	}
+	return srv.Handler()
+}

@@ -105,11 +105,50 @@ func (p *Pack) start(ctx context.Context, res *resource.Resource) {
 		Image:    image,
 		Hostname: name,
 		User:     user,
+		// The key the client registered, so the machine it is attached to can
+		// actually be opened. Nothing was passed here: the instance booted with
+		// empty cloud-init — no user provisioned, no sshd on a minimal image —
+		// while the pack published an address on it, which binding.go itself
+		// calls "an address the API publishes and nothing answers on".
+		//
+		// It also makes Boot.User real. CLAUDE.md celebrates that field as
+		// existing because Exoscale declares its default user per template, and
+		// it was dead code on the only pack that motivated it, since Render
+		// returns "" when there are no keys.
+		//
+		// TestAnExoscaleKeyReachesTheMachine fails without this.
+		AuthorizedKeys: p.authorizedKeys(res),
 		// Decoded here, stored encoded: Exoscale documents user-data as base64,
 		// so that is what a read gives back and what cloud-init must not see.
 		CloudInit: cloudinit.Decode(userData),
 		Labels:    map[string]string{"feint.instance": res.ID},
 	})
+}
+
+// authorizedKeys is the material of the key an instance names, or nothing.
+//
+// The key is addressed by name — Exoscale's identifier for it — and its material
+// lives in Runtime because no route may return it.
+func (p *Pack) authorizedKeys(res *resource.Resource) []string {
+	refs, _ := res.Attrs["ssh-keys"].([]any)
+	out := make([]string, 0, len(refs))
+	for _, entry := range refs {
+		ref, _ := entry.(map[string]any)
+		name, _ := ref["name"].(string)
+		if name == "" {
+			continue
+		}
+		key, found := p.env.Store.Get(Name, kindSSHKey, name)
+		if !found {
+			// A name that answers to nothing: the create accepted it, and the
+			// machine gets no key rather than an invented one.
+			continue
+		}
+		if material := key.Runtime["public-key"]; material != "" {
+			out = append(out, material)
+		}
+	}
+	return out
 }
 
 // destroy removes the backing machine, so a leftover cannot outlive the instance
