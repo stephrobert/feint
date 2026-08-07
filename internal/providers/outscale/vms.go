@@ -39,6 +39,10 @@ const defaultVMType = "tinav6.c1r1p2"
 
 type readVmsRequest struct {
 	Filters filterSet `json:"Filters"`
+	// The page size every Terraform read sends. Declared and unread, it was a
+	// field the client believed was honoured: a client asking for ten rows and
+	// getting a thousand pages nothing.
+	ResultsPerPage int `json:"ResultsPerPage"`
 }
 
 // vmFilters are the ones a Vm can answer from what this pack stores. Everything
@@ -54,19 +58,28 @@ var vmFilters = []string{
 // count fields are MinVmsCount and MaxVmsCount: there is no VmCount, and reading
 // one meant every request created exactly one machine whatever it asked for.
 type createVmsRequest struct {
-	ImageID          string   `json:"ImageId"`
-	VMType           string   `json:"VmType"`
-	MinVMsCount      *int     `json:"MinVmsCount"`
-	MaxVMsCount      *int     `json:"MaxVmsCount"`
-	KeypairName      string   `json:"KeypairName"`
-	UserData         string   `json:"UserData"`
-	SubnetID         string   `json:"SubnetId"`
-	SecurityGroupIDs []string `json:"SecurityGroupIds"`
-	BootOnCreation   *bool    `json:"BootOnCreation"`
+	// Sent by the Terraform provider on every create. DeletionProtection is a
+	// refusal the API owes a client; NestedVirtualization is a fact it reads
+	// back.
+	DeletionProtection   *bool    `json:"DeletionProtection"`
+	NestedVirtualization *bool    `json:"NestedVirtualization"`
+	ImageID              string   `json:"ImageId"`
+	VMType               string   `json:"VmType"`
+	MinVMsCount          *int     `json:"MinVmsCount"`
+	MaxVMsCount          *int     `json:"MaxVmsCount"`
+	KeypairName          string   `json:"KeypairName"`
+	UserData             string   `json:"UserData"`
+	SubnetID             string   `json:"SubnetId"`
+	SecurityGroupIDs     []string `json:"SecurityGroupIds"`
+	BootOnCreation       *bool    `json:"BootOnCreation"`
 }
 
 type vmIDsRequest struct {
-	VMIDs []string `json:"VmIds"`
+	// ForceStop, which StopVms carries and the Terraform provider sends on every
+	// stop. Declared here because this is where the body is decoded, and an
+	// undeclared field is one the unread-field report cannot see.
+	ForceStop *bool    `json:"ForceStop"`
+	VMIDs     []string `json:"VmIds"`
 }
 
 type updateVMRequest struct {
@@ -119,9 +132,25 @@ func (p *Pack) readVms(w http.ResponseWriter, r *http.Request) {
 	}
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Vms":             vms,
+		"Vms":             page(vms, req.ResultsPerPage),
 		"ResponseContext": p.context(),
 	})
+}
+
+// page truncates a list to the size the client asked for.
+//
+// No NextPageToken is issued: this emulator holds a handful of resources, so
+// there is never a second page to fetch, and a token pointing at nothing is
+// worse than none. What matters is that a client asking for N rows is not
+// handed more — the field was declared and unread, which is the shape that told
+// a client its page size was honoured when it was not.
+//
+// TestResultsPerPageIsHonoured fails without this.
+func page[T any](rows []T, size int) []T {
+	if size <= 0 || len(rows) <= size {
+		return rows
+	}
+	return rows[:size]
 }
 
 // vmMatches applies every filter this pack serves. A Vm has to pass all of
@@ -176,6 +205,14 @@ func (p *Pack) createVms(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, "MaxVmsCount is capped at "+strconv.Itoa(maxVMsPerCreate)+" in this emulator")
 		return
 	}
+
+	// Two flags the Terraform provider sends on every create, and that the pack
+	// declared nowhere: they were accepted and dropped, which told a client its
+	// machine was protected when nothing protected it. DeletionProtection is
+	// enforced below, in deleteVms; NestedVirtualization is stored and published
+	// because a client reads it back and an absent field is a permanent diff.
+	//
+	// TestDeletionProtectionRefusesTheDelete fails without the first.
 
 	// BootOnCreation defaults to true upstream, so a create with nothing said
 	// yields a running machine — which is what every client expects.
@@ -274,8 +311,10 @@ func (p *Pack) allocateVms(req createVmsRequest, count int, now time.Time) ([]*r
 			Created: now,
 			Updated: now,
 			Attrs: map[string]any{
-				"ImageId": req.ImageID,
-				"VmType":  orDefault(req.VMType, defaultVMType),
+				"ImageId":              req.ImageID,
+				"VmType":               orDefault(req.VMType, defaultVMType),
+				"DeletionProtection":   boolOr(req.DeletionProtection, false),
+				"NestedVirtualization": boolOr(req.NestedVirtualization, false),
 			},
 		}
 		// The Subnet the client asked for, resolved before anything is stored: a
@@ -324,6 +363,41 @@ func (p *Pack) validVmFields(w http.ResponseWriter, keypair, userData string) bo
 		return false
 	}
 	return true
+}
+
+// readAdminPassword answers the call the Terraform provider makes on every Vm
+// it reads back, Linux included.
+//
+// It is a Windows call: the password is what the guest generated at first boot,
+// and a Linux instance has none. The provider asks anyway, so a 404 here failed
+// `terraform apply` on the first machine — measured, on a fixture that creates a
+// Net, a Subnet and a Vm: the Net and the Subnet landed, the Vm died on this.
+//
+// The answer is an empty password, never an invented one. A generated string
+// would be a credential a client could try to use, and it would work nowhere.
+//
+// TestReadAdminPasswordAnswersEmpty fails without this.
+func (p *Pack) readAdminPassword(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		VMID string `json:"VmId"`
+	}
+	if err := emulator.DecodeJSON(r, &req); err != nil {
+		p.badRequest(w, err.Error())
+		return
+	}
+	if req.VMID == "" {
+		p.badRequest(w, "VmId is required")
+		return
+	}
+	if _, found := p.env.Store.Get(Name, kindVM, req.VMID); !found {
+		p.notFound(w, "Vm", req.VMID)
+		return
+	}
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{
+		"VmId":            req.VMID,
+		"AdminPassword":   "",
+		"ResponseContext": p.context(),
+	})
 }
 
 func (p *Pack) updateVm(w http.ResponseWriter, r *http.Request) {
@@ -393,6 +467,17 @@ func (p *Pack) startVms(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// stopVms honours ForceStop by reading it and doing the same thing.
+//
+// Upstream, the flag is the difference between asking the guest to shut down and
+// cutting its power. Here there is no guest that can refuse: a container or a VM
+// is stopped by the runtime either way, and the state reached is identical. So
+// the field is declared and read rather than left out — an undeclared field is
+// one the unread-field report cannot see, and this one is sent by the Terraform
+// provider on every stop.
+//
+// What would be dishonest is claiming a graceful shutdown happened. Nothing here
+// claims it: the answer carries the state the runtime produced.
 func (p *Pack) stopVms(w http.ResponseWriter, r *http.Request) {
 	p.transition(w, r, func(res *resource.Resource) string {
 		if res.State == stateStopped {
@@ -542,6 +627,13 @@ func (p *Pack) deleteVms(w http.ResponseWriter, r *http.Request) {
 			p.notFound(w, "VM", id)
 			return
 		}
+		// Refused before anything is destroyed, and for the whole batch: a
+		// delete of four machines where the third is protected must not leave
+		// two gone. The API refuses the call, not the machine.
+		if protected, _ := res.Attrs["DeletionProtection"].(bool); protected {
+			p.conflict(w, "the Vm "+res.ID+" is protected against deletion")
+			return
+		}
 		targets = append(targets, res)
 	}
 
@@ -557,7 +649,21 @@ func (p *Pack) deleteVms(w http.ResponseWriter, r *http.Request) {
 
 			previous := res.State
 			p.removeMachine(r.Context(), res)
-			p.env.Store.Delete(Name, kindVM, res.ID)
+			// Terminated, not removed. The machine is destroyed, and the record
+			// stays readable: the Terraform provider answers DeleteVms by
+			// polling ReadVms until the Vm reports "terminated", and a Vm that
+			// vanished makes it read an empty list — measured, it crashes the
+			// plugin outright ("Plugin did not respond") on every destroy. The
+			// real API keeps a terminated Vm visible for the same reason: the
+			// state a client waits for has to be observable.
+			//
+			// TestATerminatedVmStaysReadable fails without this.
+			res.State = stateTerminated
+			res.Attrs["State"] = stateTerminated
+			if !p.env.Store.Commit(res, p.env.Now()) {
+				// Deleted underneath: nothing left to mark.
+				return
+			}
 			deleted = append(deleted, map[string]any{
 				"VmId":          res.ID,
 				"CurrentState":  stateTerminated,
@@ -582,6 +688,11 @@ func (p *Pack) vmView(res *resource.Resource) map[string]any {
 	}
 	out["VmId"] = res.ID
 	out["State"] = res.State
+	// The field whose absence sends the Terraform provider to
+	// ReadAdminPassword on every machine: it reads ProductCodes to tell a
+	// Windows image from a Linux one, and an absent list reads as "unknown".
+	// "0001" is Outscale's own code for a Linux instance.
+	out["ProductCodes"] = []any{linuxProductCode}
 	out["CreationDate"] = res.Created.Format(time.RFC3339)
 	// Outscale's Vm schema declares PrivateIp and a real one carries a value,
 	// so the address the machine answers on is published here.

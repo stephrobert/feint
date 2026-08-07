@@ -111,8 +111,15 @@ description = "Drive the running emulator with the real scw CLI"
 run = "tools/conformance/scaleway/scw-cli.sh http://$FEINT_ADDR"
 
 [tasks."conformance:terraform"]
-description = "Run the real Terraform provider against the running emulator"
-run = "tools/conformance/scaleway/terraform.sh http://$FEINT_ADDR"
+description = "Run the real Terraform providers against the running emulator"
+run = [
+  "tools/conformance/scaleway/terraform.sh http://$FEINT_ADDR",
+  "tools/conformance/outscale/terraform.sh http://$FEINT_ADDR",
+]
+
+[tasks."conformance:terraform:outscale"]
+description = "Run the real Outscale Terraform provider against the running emulator"
+run = "tools/conformance/outscale/terraform.sh http://$FEINT_ADDR"
 
 [tasks."conformance:network"]
 description = "Prove the emulated network is real: blocks, addresses, and a firewall that filters. Needs FEINT_VM=incus"
@@ -204,6 +211,7 @@ trap './feint stop --addr $FEINT_ADDR >/dev/null 2>&1 || true' EXIT
 tools/conformance/scaleway/scw-cli.sh "http://$FEINT_ADDR"
 tools/conformance/scaleway/terraform.sh "http://$FEINT_ADDR"
 tools/conformance/outscale/oapi-cli.sh "http://$FEINT_ADDR"
+tools/conformance/outscale/terraform.sh "http://$FEINT_ADDR"
 tools/conformance/exoscale/exo-cli.sh "http://$FEINT_ADDR"
 # Every route driven from its provider's API description. Skipped when a machine
 # runtime is on: a synthetic walk of every Create* would start a container each.

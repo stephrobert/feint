@@ -270,9 +270,17 @@ deleted="$(osc DeleteVms '--VmIds[]' "$vm_id")" || fail "DeleteVms rejected: $de
 printf '%s' "$deleted" | jq -e --arg id "$vm_id" \
   'any(.Vms[]; .VmId == $id and .CurrentState == "terminated")' >/dev/null \
   || fail "delete did not report the transition: $deleted"
+# A deleted machine stays readable, and says it is terminated.
+#
+# This used to assert that it disappeared, which is what the emulator did — and
+# it crashed the Terraform provider outright on every destroy: the provider
+# answers DeleteVms by polling ReadVms until the Vm reports "terminated", and an
+# empty list is not a state it knows how to wait for. The real API keeps a
+# terminated Vm visible for exactly that reason.
 vms="$(osc ReadVms)" || fail "ReadVms rejected: $vms"
-printf '%s' "$vms" | jq -e --arg id "$vm_id" 'all(.Vms[]; .VmId != $id)' >/dev/null \
-  || fail "the machine is still listed after delete: $vms"
+printf '%s' "$vms" | jq -e --arg id "$vm_id" \
+  'any(.Vms[]; .VmId == $id and .State == "terminated")' >/dev/null \
+  || fail "the deleted machine is not readable as terminated: $vms"
 ok "deleted, and gone"
 
 # The error paths matter as much as the happy one. A client that cannot decode

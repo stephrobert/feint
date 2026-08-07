@@ -358,6 +358,32 @@ Closing this properly needs an endpoint option on the provider's v2 client,
 which is upstream work. Until then, `feint env exoscale` prints the warning on
 stderr, where `eval` cannot swallow it.
 
+## A terminated Vm stays terminated, and stays
+
+Deleting an Outscale Vm here leaves the record readable, reporting
+`State: terminated`, and it stays that way until the emulator restarts.
+
+The visibility is not a convenience, it is required. The Terraform provider
+answers `DeleteVms` by polling `ReadVms` until the Vm reports `terminated`; a
+record that vanished makes it read an empty list, and the plugin crashes outright
+— "Plugin did not respond", on every destroy. The real API keeps a terminated Vm
+readable for the same reason: a state a client waits for has to be observable.
+
+What differs is how long. Upstream, a terminated Vm disappears after a few
+minutes. Here it never does, because this emulator has no clock of its own to
+expire anything on and inventing one would mean a background timer whose only
+purpose is to make a resource vanish while a test is looking at it.
+
+The practical consequences, none of them silent:
+
+- `ReadVms` with no filter lists terminated machines. A client counting machines
+  must filter on `VmStates`, which this pack serves — that is what the filter is
+  for, and it is why refusing an unserved filter matters.
+- A terminated Vm holds nothing: it is ignored when a Subnet is deleted and when
+  addresses are counted. Otherwise `terraform destroy` failed on the Subnet,
+  naming the machine it had just terminated.
+- `feint restart` clears them, like everything else: the store is in memory.
+
 ## Outscale and Exoscale are starters
 
 Both packs exist to prove the core stays protocol-neutral: three genuinely

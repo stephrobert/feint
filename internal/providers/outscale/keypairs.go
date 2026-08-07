@@ -36,6 +36,7 @@ var keypairFilters = []string{"KeypairNames", "KeypairFingerprints", "KeypairTyp
 
 type deleteKeypairRequest struct {
 	KeypairName string `json:"KeypairName"`
+	KeypairID   string `json:"KeypairId"`
 }
 
 func (p *Pack) createKeypair(w http.ResponseWriter, r *http.Request) {
@@ -135,9 +136,9 @@ func (p *Pack) deleteKeypair(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
-	res := p.keypairByName(req.KeypairName)
+	res := p.keypairByRef(req.KeypairName, req.KeypairID)
 	if res == nil {
-		p.notFound(w, "keypair", req.KeypairName)
+		p.notFound(w, "keypair", firstNonEmpty(req.KeypairName, req.KeypairID))
 		return
 	}
 	p.env.Store.Delete(Name, kindKeypair, res.ID)
@@ -150,6 +151,29 @@ func (p *Pack) deleteKeypair(w http.ResponseWriter, r *http.Request) {
 // runtimePublicKey is where the key material is kept. Runtime, never Attrs, so
 // it cannot reach an API response through a view that copies every attribute.
 const runtimePublicKey = "public_key"
+
+// keypairByRef resolves either form the API accepts. Their DeleteKeypairRequest
+// declares KeypairId and KeypairName side by side, and the Terraform provider
+// sends the id.
+//
+// TestAKeypairIsAddressableByIdAndByName fails without this.
+func (p *Pack) keypairByRef(name, id string) *resource.Resource {
+	if name != "" {
+		return p.keypairByName(name)
+	}
+	if id == "" {
+		return nil
+	}
+	// The store's own identifier, which is what keypairView publishes as
+	// KeypairId. An attribute of the same name would be a second identity: the
+	// first version of this fix added one, the view went on publishing res.ID,
+	// and the two never matched.
+	res, found := p.env.Store.Get(Name, kindKeypair, id)
+	if !found {
+		return nil
+	}
+	return res
+}
 
 func (p *Pack) keypairByName(name string) *resource.Resource {
 	if name == "" {
@@ -186,4 +210,15 @@ func keypairView(res *resource.Resource) map[string]any {
 	}
 	out["KeypairId"] = res.ID
 	return out
+}
+
+// firstNonEmpty names whichever reference the client used, so a refusal quotes
+// what was sent rather than an empty string.
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }

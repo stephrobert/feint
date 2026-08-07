@@ -34,6 +34,7 @@ const Name = "outscale"
 const (
 	kindVM      = "vm"
 	kindKeypair = "keypair"
+	kindVolume  = "volume"
 )
 
 // Pack implements emulator.Pack for Outscale.
@@ -130,6 +131,22 @@ func (p *Pack) Routes() []emulator.Route {
 		p.route("ReadVms", p.readVms),
 		p.route("CreateVms", p.createVms),
 		p.route("UpdateVm", p.updateVm),
+		p.route("ReadAdminPassword", p.readAdminPassword),
+
+		// Tags, which the Terraform provider calls on almost every resource.
+		p.route("CreateTags", p.createTags),
+		p.route("ReadTags", p.readTags),
+		p.route("DeleteTags", p.deleteTags),
+
+		// Volumes, which the Terraform provider creates and reads back, and the
+		// lightweight state view it polls.
+		p.route("CreateVolume", p.createVolume),
+		p.route("ReadVolumes", p.readVolumes),
+		p.route("UpdateVolume", p.updateVolume),
+		p.route("DeleteVolume", p.deleteVolume),
+		p.route("LinkVolume", p.linkVolume),
+		p.route("UnlinkVolume", p.unlinkVolume),
+		p.route("ReadVmsState", p.readVmsState),
 		p.route("DeleteVms", p.deleteVms),
 		p.route("StartVms", p.startVms),
 		p.route("StopVms", p.stopVms),
@@ -230,6 +247,15 @@ func hexOf(seed string, n int) string {
 		return trimmed + strings.Repeat("0", n-len(trimmed))
 	}
 	return trimmed[:n]
+}
+
+// boolOr reads an optional boolean the way the API treats one: absent means the
+// default, which is not the same as false when the field is a refusal.
+func boolOr(v *bool, fallback bool) bool {
+	if v == nil {
+		return fallback
+	}
+	return *v
 }
 
 func orDefault(v, fallback string) string {

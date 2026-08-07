@@ -1,6 +1,6 @@
 {
   "declined": 146,
-  "implemented": 20,
+  "implemented": 31,
   "orphans": null,
   "products": [
     {
@@ -12,13 +12,13 @@
     },
     {
       "product": "osc",
-      "total": 235,
-      "implemented": 20,
+      "total": 236,
+      "implemented": 31,
       "declined": 119,
-      "unknown": 96
+      "unknown": 86
     }
   ],
   "provider": "outscale",
-  "total": 262,
-  "unknown": 96
+  "total": 263,
+  "unknown": 86
 }

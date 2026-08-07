@@ -69,8 +69,9 @@ type createSubnetRequest struct {
 }
 
 type readNetsRequest struct {
-	Filters filterSet `json:"Filters"`
-	DryRun  *bool     `json:"DryRun"`
+	Filters        filterSet `json:"Filters"`
+	DryRun         *bool     `json:"DryRun"`
+	ResultsPerPage int       `json:"ResultsPerPage"`
 }
 
 // netFilters and subnetFilters are what these resources can answer from what is
@@ -82,8 +83,9 @@ var (
 )
 
 type readSubnetsRequest struct {
-	Filters filterSet `json:"Filters"`
-	DryRun  *bool     `json:"DryRun"`
+	Filters        filterSet `json:"Filters"`
+	DryRun         *bool     `json:"DryRun"`
+	ResultsPerPage int       `json:"ResultsPerPage"`
 }
 
 type deleteNetRequest struct {
@@ -167,7 +169,7 @@ func (p *Pack) readNets(w http.ResponseWriter, r *http.Request) {
 	}
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Nets":            nets,
+		"Nets":            page(nets, req.ResultsPerPage),
 		"ResponseContext": p.context(),
 	})
 }
@@ -339,7 +341,7 @@ func (p *Pack) readSubnets(w http.ResponseWriter, r *http.Request) {
 	}
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Subnets":         subnets,
+		"Subnets":         page(subnets, req.ResultsPerPage),
 		"ResponseContext": p.context(),
 	})
 }
@@ -378,6 +380,14 @@ func (p *Pack) deleteSubnet(w http.ResponseWriter, r *http.Request) {
 	// not the proof. Saying which is which is the point.
 	p.addresses.Lock()
 	for _, vm := range p.env.Store.List(kindVM, resource.Tenant{Provider: Name}) {
+		// A terminated Vm holds nothing. It stays in the store because the
+		// Terraform provider polls ReadVms until it reports "terminated", and a
+		// record that vanished crashes its waiter — but counting it here made
+		// `terraform destroy` fail on the Subnet right after, with the Vm it was
+		// waiting for as the reason.
+		if vm.State == stateTerminated {
+			continue
+		}
 		if stringOf(vm.Attrs["SubnetId"]) == req.SubnetID {
 			p.addresses.Unlock()
 			p.conflict(w, "the Subnet "+req.SubnetID+" still holds "+vm.ID)
@@ -431,6 +441,11 @@ func (p *Pack) subnetView(res *resource.Resource) map[string]any {
 	if prefix, err := prefixOf(res, "IpRange"); err == nil {
 		if allocator, err := network.NewAllocator(prefix, reservedPerSubnet); err == nil {
 			for _, vm := range p.env.Store.List(kindVM, resource.Tenant{Provider: Name}) {
+				// Same reason as the delete guard above: a terminated machine
+				// occupies no address.
+				if vm.State == stateTerminated {
+					continue
+				}
 				if stringOf(vm.Attrs["SubnetId"]) != res.ID {
 					continue
 				}

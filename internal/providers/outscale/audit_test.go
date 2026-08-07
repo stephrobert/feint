@@ -1044,3 +1044,367 @@ func TestAStoppedVmKeepsItsPrivateAddress(t *testing.T) {
 		t.Errorf("a stopped Vm answers PrivateIp %q, want the %q it had running", stopped, running)
 	}
 }
+
+// What the Terraform provider needs, and what nothing else asked for.
+//
+// Every test below covers a call or a field that only the provider walks. The
+// pack served the CLI for two releases without any of them, which is why a
+// suite that stops at one client proves less than it looks.
+
+// ReadAdminPassword answers, and answers empty.
+//
+// It is a Windows call, and the provider makes it on every Vm it reads back,
+// Linux included: an absent ProductCodes list reads as "unknown", so it asks. A
+// 404 killed `terraform apply` on the first machine. The password is empty
+// rather than generated — a made-up credential is one a client could try to
+// use, and it would work nowhere.
+func TestReadAdminPasswordAnswersEmpty(t *testing.T) {
+	ts := newServer(t)
+	_, subnetID := netAndSubnet(t, ts, "10.62.0.0/16", "10.62.1.0/24")
+	_, out := post(t, ts, "CreateVms",
+		`{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+	vms, _ := out["Vms"].([]any)
+	vm, _ := vms[0].(map[string]any)
+	vmID, _ := vm["VmId"].(string)
+
+	// The field whose absence causes the call in the first place.
+	if codes, _ := vm["ProductCodes"].([]any); len(codes) == 0 {
+		t.Error("the Vm publishes no ProductCodes, which is what sends the provider here")
+	}
+
+	status, answer := post(t, ts, "ReadAdminPassword", `{"VmId":"`+vmID+`"}`)
+	if status != http.StatusOK {
+		t.Fatalf("ReadAdminPassword answered %d: %v", status, answer)
+	}
+	password, present := answer["AdminPassword"]
+	if !present {
+		t.Error("no AdminPassword in the answer")
+	}
+	if password != "" {
+		t.Errorf("an invented password was handed out: %q", password)
+	}
+	// And an unknown machine is a refusal, not an empty password.
+	if status, _ := post(t, ts, "ReadAdminPassword", `{"VmId":"i-00000000"}`); status == http.StatusOK {
+		t.Error("a password was answered for a Vm that does not exist")
+	}
+}
+
+// Tags live on the resource they name.
+//
+// The provider calls CreateTags on almost every resource, and reads them back
+// on the next plan. Two entries for one key, or an order that moves between
+// reads, is a permanent diff in somebody's configuration.
+func TestTagsAreStoredOnTheResourceTheyName(t *testing.T) {
+	ts := newServer(t)
+	_, out := post(t, ts, "CreateNet", `{"IpRange":"10.63.0.0/16"}`)
+	n, _ := out["Net"].(map[string]any)
+	netID, _ := n["NetId"].(string)
+
+	post(t, ts, "CreateTags",
+		`{"ResourceIds":["`+netID+`"],"Tags":[{"Key":"name","Value":"one"},{"Key":"env","Value":"test"}]}`)
+
+	tagsOfNet := func() map[string]string {
+		_, out := post(t, ts, "ReadNets", `{}`)
+		nets, _ := out["Nets"].([]any)
+		first, _ := nets[0].(map[string]any)
+		entries, _ := first["Tags"].([]any)
+		got := map[string]string{}
+		for _, entry := range entries {
+			tag, _ := entry.(map[string]any)
+			key, _ := tag["Key"].(string)
+			value, _ := tag["Value"].(string)
+			got[key] = value
+		}
+		return got
+	}
+	if got := tagsOfNet(); got["name"] != "one" || got["env"] != "test" {
+		t.Fatalf("the tags are not on the Net: %v", got)
+	}
+
+	// A key given twice replaces rather than repeats: a Tags block is a desired
+	// state, and a second apply must not produce two entries for one key.
+	post(t, ts, "CreateTags", `{"ResourceIds":["`+netID+`"],"Tags":[{"Key":"name","Value":"two"}]}`)
+	if got := tagsOfNet(); got["name"] != "two" || len(got) != 2 {
+		t.Errorf("re-tagging produced %v, want name replaced and env kept", got)
+	}
+
+	// The flat view, which is a different shape and says what each tag is on.
+	_, out = post(t, ts, "ReadTags", `{}`)
+	tags, _ := out["Tags"].([]any)
+	if len(tags) != 2 {
+		t.Fatalf("ReadTags answered %d tag(s), want 2: %v", len(tags), out)
+	}
+	first, _ := tags[0].(map[string]any)
+	if first["ResourceId"] != netID || first["ResourceType"] != "net" {
+		t.Errorf("a tag does not name what it is on: %v", first)
+	}
+
+	post(t, ts, "DeleteTags", `{"ResourceIds":["`+netID+`"],"Tags":[{"Key":"env","Value":"test"}]}`)
+	if got := tagsOfNet(); len(got) != 1 || got["name"] != "two" {
+		t.Errorf("after the delete: %v", got)
+	}
+}
+
+// DeletionProtection refuses the delete, for the whole batch.
+//
+// The provider sends the flag on every create. Declared nowhere, it was accepted
+// and dropped, which told a client its machine was protected when nothing
+// protected it — the answer worse than a 400, because it is indistinguishable
+// from success.
+func TestDeletionProtectionRefusesTheDelete(t *testing.T) {
+	ts := newServer(t)
+	_, subnetID := netAndSubnet(t, ts, "10.64.0.0/16", "10.64.1.0/24")
+
+	_, out := post(t, ts, "CreateVms",
+		`{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+	vms, _ := out["Vms"].([]any)
+	plain, _ := vms[0].(map[string]any)
+	plainID, _ := plain["VmId"].(string)
+
+	_, out = post(t, ts, "CreateVms",
+		`{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false,"DeletionProtection":true}`)
+	vms, _ = out["Vms"].([]any)
+	guarded, _ := vms[0].(map[string]any)
+	guardedID, _ := guarded["VmId"].(string)
+	if protected, _ := guarded["DeletionProtection"].(bool); !protected {
+		t.Fatalf("the flag was dropped: %v", guarded)
+	}
+
+	if status, _ := post(t, ts, "DeleteVms", `{"VmIds":["`+guardedID+`"]}`); status == http.StatusOK {
+		t.Error("a protected Vm was deleted")
+	}
+	// And a batch containing it deletes nothing: the API refuses the call, not
+	// the machine, so a delete of two must not leave one gone.
+	post(t, ts, "DeleteVms", `{"VmIds":["`+plainID+`","`+guardedID+`"]}`)
+	_, out = post(t, ts, "ReadVms", `{"Filters":{"VmIds":["`+plainID+`"]}}`)
+	vms, _ = out["Vms"].([]any)
+	if len(vms) == 0 {
+		t.Fatalf("the batch deleted the unprotected Vm before refusing")
+	}
+	first, _ := vms[0].(map[string]any)
+	if state, _ := first["State"].(string); state == "terminated" {
+		t.Error("the batch terminated the unprotected Vm before refusing the protected one")
+	}
+}
+
+// ResultsPerPage is honoured.
+//
+// Every Terraform read sends it. Declared and unread, it told a client its page
+// size was applied while the answer carried everything.
+func TestResultsPerPageIsHonoured(t *testing.T) {
+	ts := newServer(t)
+	_, subnetID := netAndSubnet(t, ts, "10.65.0.0/16", "10.65.1.0/24")
+	for range 3 {
+		post(t, ts, "CreateVms",
+			`{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+	}
+
+	count := func(body string) int {
+		_, out := post(t, ts, "ReadVms", body)
+		vms, _ := out["Vms"].([]any)
+		return len(vms)
+	}
+	if n := count(`{}`); n != 3 {
+		t.Fatalf("no page size returned %d machines, want 3", n)
+	}
+	if n := count(`{"ResultsPerPage":2}`); n != 2 {
+		t.Errorf("ResultsPerPage 2 returned %d machines", n)
+	}
+	// A page larger than the answer is not an error, and returns what there is.
+	if n := count(`{"ResultsPerPage":50}`); n != 3 {
+		t.Errorf("ResultsPerPage 50 returned %d machines, want all 3", n)
+	}
+}
+
+// A terminated Vm stays readable.
+//
+// The Terraform provider answers DeleteVms by polling ReadVms until the Vm
+// reports "terminated". The pack removed the record, so the provider read an
+// empty list and the plugin crashed outright — "Plugin did not respond", on
+// every destroy, measured with the published provider v1.7.0.
+func TestATerminatedVmStaysReadable(t *testing.T) {
+	ts := newServer(t)
+	_, subnetID := netAndSubnet(t, ts, "10.66.0.0/16", "10.66.1.0/24")
+	_, out := post(t, ts, "CreateVms",
+		`{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+	vms, _ := out["Vms"].([]any)
+	vm, _ := vms[0].(map[string]any)
+	vmID, _ := vm["VmId"].(string)
+
+	post(t, ts, "DeleteVms", `{"VmIds":["`+vmID+`"]}`)
+
+	_, out = post(t, ts, "ReadVms", `{"Filters":{"VmIds":["`+vmID+`"]}}`)
+	vms, _ = out["Vms"].([]any)
+	if len(vms) != 1 {
+		t.Fatalf("the deleted Vm is not readable: %v", out)
+	}
+	vm, _ = vms[0].(map[string]any)
+	if state, _ := vm["State"].(string); state != "terminated" {
+		t.Errorf("the deleted Vm reports %q, want terminated", state)
+	}
+
+	// And it holds nothing: the Subnet it was in must delete, which is what
+	// failed right after the first version of this fix.
+	if status, out := post(t, ts, "DeleteSubnet", `{"SubnetId":"`+subnetID+`"}`); status != http.StatusOK {
+		t.Errorf("the Subnet refuses to go under a terminated Vm: %d %v", status, out)
+	}
+}
+
+// A keypair answers to its id and to its name.
+//
+// Their DeleteKeypairRequest declares KeypairId and KeypairName side by side,
+// and the Terraform provider creates by name then destroys by id. The pack read
+// only the name, so every destroy failed with "the keypair  does not exist" —
+// with the gap where the id should have been.
+//
+// The first fix added a KeypairId attribute, which was worse: the view already
+// published res.ID under that name, so there were two identities and they never
+// matched. There is one, and it is the store's.
+func TestAKeypairIsAddressableByIdAndByName(t *testing.T) {
+	const key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIr6pEFlAFO3YU0DNW/r8SkpjdbptN9ockkO2BtIolSD conformance@feint"
+
+	for _, form := range []struct {
+		what string
+		body func(id, name string) string
+	}{
+		{"by name", func(_, name string) string { return `{"KeypairName":"` + name + `"}` }},
+		{"by id", func(id, _ string) string { return `{"KeypairId":"` + id + `"}` }},
+	} {
+		t.Run(form.what, func(t *testing.T) {
+			ts := newServer(t)
+			_, out := post(t, ts, "CreateKeypair", `{"KeypairName":"mine","PublicKey":`+quote(key)+`}`)
+			pair, _ := out["Keypair"].(map[string]any)
+			id, _ := pair["KeypairId"].(string)
+			name, _ := pair["KeypairName"].(string)
+			if id == "" {
+				t.Fatalf("the keypair carries no id: %v", pair)
+			}
+
+			if status, out := post(t, ts, "DeleteKeypair", form.body(id, name)); status != http.StatusOK {
+				t.Fatalf("delete %s answered %d: %v", form.what, status, out)
+			}
+			_, out = post(t, ts, "ReadKeypairs", `{}`)
+			pairs, _ := out["Keypairs"].([]any)
+			if len(pairs) != 0 {
+				t.Errorf("the keypair survived a delete %s: %v", form.what, out)
+			}
+		})
+	}
+}
+
+// A volume is created, read, linked and unlinked.
+//
+// The pack served none, so `outscale_volume` failed on CreateVolume and the plan
+// died before the machine it was for. Nothing in the CLI suite creates a volume,
+// which is why the gap survived until a Terraform fixture existed.
+func TestAVolumeIsCreatedReadAndLinked(t *testing.T) {
+	ts := newServer(t)
+	_, subnetID := netAndSubnet(t, ts, "10.67.0.0/16", "10.67.1.0/24")
+
+	status, out := post(t, ts, "CreateVolume", `{"SubregionName":"eu-west-2a","Size":10}`)
+	if status != http.StatusOK {
+		t.Fatalf("CreateVolume answered %d: %v", status, out)
+	}
+	volume, _ := out["Volume"].(map[string]any)
+	volumeID, _ := volume["VolumeId"].(string)
+	if volumeID == "" {
+		t.Fatalf("no volume id: %v", out)
+	}
+	if state, _ := volume["State"].(string); state != "available" {
+		t.Errorf("a fresh volume is %q, want available", state)
+	}
+
+	// The one field their schema marks required.
+	if status, _ := post(t, ts, "CreateVolume", `{"Size":10}`); status == http.StatusOK {
+		t.Error("a volume was created without a SubregionName")
+	}
+
+	_, out = post(t, ts, "CreateVms",
+		`{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+	vms, _ := out["Vms"].([]any)
+	vm, _ := vms[0].(map[string]any)
+	vmID, _ := vm["VmId"].(string)
+
+	if status, out := post(t, ts, "LinkVolume",
+		`{"VolumeId":"`+volumeID+`","VmId":"`+vmID+`","DeviceName":"/dev/xvdb"}`); status != http.StatusOK {
+		t.Fatalf("LinkVolume answered %d: %v", status, out)
+	}
+	_, out = post(t, ts, "ReadVolumes", `{"Filters":{"VolumeIds":["`+volumeID+`"]}}`)
+	volumes, _ := out["Volumes"].([]any)
+	if len(volumes) != 1 {
+		t.Fatalf("the volume is not readable: %v", out)
+	}
+	volume, _ = volumes[0].(map[string]any)
+	links, _ := volume["LinkedVolumes"].([]any)
+	if len(links) != 1 {
+		t.Fatalf("the link is not published: %v", volume)
+	}
+	link, _ := links[0].(map[string]any)
+	if link["VmId"] != vmID || link["DeviceName"] != "/dev/xvdb" {
+		t.Errorf("the link names %v on %v", link["VmId"], link["DeviceName"])
+	}
+
+	// A linked volume does not go: a client destroying in the wrong order needs
+	// that refusal to retry.
+	if status, _ := post(t, ts, "DeleteVolume", `{"VolumeId":"`+volumeID+`"}`); status == http.StatusOK {
+		t.Error("a linked volume was deleted")
+	}
+	post(t, ts, "UnlinkVolume", `{"VolumeId":"`+volumeID+`"}`)
+	if status, out := post(t, ts, "DeleteVolume", `{"VolumeId":"`+volumeID+`"}`); status != http.StatusOK {
+		t.Errorf("an unlinked volume refuses to go: %d %v", status, out)
+	}
+}
+
+// A volume grows and does not shrink.
+//
+// A filesystem does not survive its disk getting smaller, and the real API
+// refuses. Accepting it would answer success to a request that destroys data
+// everywhere else.
+func TestAVolumeDoesNotShrink(t *testing.T) {
+	ts := newServer(t)
+	_, out := post(t, ts, "CreateVolume", `{"SubregionName":"eu-west-2a","Size":10}`)
+	volume, _ := out["Volume"].(map[string]any)
+	volumeID, _ := volume["VolumeId"].(string)
+
+	if status, out := post(t, ts, "UpdateVolume", `{"VolumeId":"`+volumeID+`","Size":20}`); status != http.StatusOK {
+		t.Fatalf("growing a volume answered %d: %v", status, out)
+	}
+	if status, _ := post(t, ts, "UpdateVolume", `{"VolumeId":"`+volumeID+`","Size":5}`); status == http.StatusOK {
+		t.Error("a volume was shrunk")
+	}
+	_, out = post(t, ts, "ReadVolumes", `{}`)
+	volumes, _ := out["Volumes"].([]any)
+	volume, _ = volumes[0].(map[string]any)
+	if size, _ := volume["Size"].(float64); size != 20 {
+		t.Errorf("the volume is %v after a refused shrink, want 20", size)
+	}
+}
+
+// ReadVmsState answers running machines by default.
+//
+// AllVms false is the API's own default, and a client polling for what is up
+// must not be handed what is terminated — which now stays readable.
+func TestReadVmsStateAnswersRunningByDefault(t *testing.T) {
+	ts := newServer(t)
+	_, subnetID := netAndSubnet(t, ts, "10.68.0.0/16", "10.68.1.0/24")
+	_, out := post(t, ts, "CreateVms", `{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`"}`)
+	vms, _ := out["Vms"].([]any)
+	vm, _ := vms[0].(map[string]any)
+	vmID, _ := vm["VmId"].(string)
+
+	states := func(body string) []any {
+		_, out := post(t, ts, "ReadVmsState", body)
+		list, _ := out["VmStates"].([]any)
+		return list
+	}
+	if got := states(`{}`); len(got) != 1 {
+		t.Fatalf("a running machine is not reported: %v", got)
+	}
+	post(t, ts, "DeleteVms", `{"VmIds":["`+vmID+`"]}`)
+	if got := states(`{}`); len(got) != 0 {
+		t.Errorf("a terminated machine is reported as running: %v", got)
+	}
+	if got := states(`{"AllVms":true}`); len(got) != 1 {
+		t.Errorf("AllVms does not include the terminated machine: %v", got)
+	}
+}

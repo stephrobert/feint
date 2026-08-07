@@ -45,10 +45,16 @@ var vmTypes = []map[string]any{
 // No OsFamily field: that one belongs to Vm, not to Image, and the first run of
 // the contract check said so. Which image boots which distribution is emulator
 // business and lives in runtimeImages below, out of anything a client reads.
+// linuxProductCode is Outscale's own code for a Linux image, and the field whose
+// absence sends the Terraform provider to ReadAdminPassword on every machine it
+// reads back — a Windows call, on a Linux instance, because an absent list reads
+// as "unknown". The Vm view publishes the same value for the same reason.
+const linuxProductCode = "0001"
+
 var images = []map[string]any{
-	{"ImageId": "ami-00000001", "ImageName": "Ubuntu-24.04-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID},
-	{"ImageId": "ami-00000002", "ImageName": "Debian-12-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID},
-	{"ImageId": "ami-00000003", "ImageName": "Alpine-3.21-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID},
+	{"ImageId": "ami-00000001", "ImageName": "Ubuntu-24.04-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID, "ProductCodes": []any{linuxProductCode}},
+	{"ImageId": "ami-00000002", "ImageName": "Debian-12-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID, "ProductCodes": []any{linuxProductCode}},
+	{"ImageId": "ami-00000003", "ImageName": "Alpine-3.21-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID, "ProductCodes": []any{linuxProductCode}},
 }
 
 // runtimeImages maps an emulated OMI onto what the machine driver boots. Kept
