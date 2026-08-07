@@ -11,6 +11,44 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
+## [0.4.1]
+
+### Fixed
+
+- **`feint clean` collects the state directories nobody was collecting.**
+  Measured on a development station after one day: fourteen directories under
+  `XDG_RUNTIME_DIR` for two live emulators, twelve of which described nothing at
+  all. `stop` clears the record and leaves the directory holding the log — right
+  on its own, since a crash is read after the fact or not at all — but nothing
+  ever swept them, so the state directory stopped being readable as an answer to
+  "what is running". A live emulator is never touched, whatever its age.
+- **`feint clean --vm off` now exits 0.** It swept, it said so, and it exited 1,
+  because the sweep used to be reachable only through a machine runtime. `off`
+  is the default of `serve` and the majority of runs, so this was the common
+  path rather than an edge — and a success that exits like a failure is the
+  ambiguity this project refuses everywhere else. A runtime that genuinely
+  cannot be swept still fails.
+
+  The message `nothing was left behind` gains `on the runtime`, and is now
+  printed in every mode. `tools/conformance/scaleway/network.sh` decides the
+  runtime is clean by matching that line, and it must not change its answer
+  because a directory was collected.
+
+### Changed
+
+- **The roadmap carries the queue that came out of comparing this project with
+  LocalStack**, paid tiers included, and the refusals that comparison forced.
+  Three items outrank a batch, on one filter — which of them lower the cost of
+  coverage: recording what a real client and a real cloud say to each other, the
+  emulator as an importable package, and fault injection. The refusal to
+  intercept DNS and terminate TLS is reopened as a question rather than
+  decided: the measurement it rests on stands, the cost estimate that followed
+  it was never made.
+- **`CONTRIBUTING.md` says how an issue title reads.** A defect is titled by the
+  symptom, because the diagnosis is often wrong when the issue is opened and the
+  title outlives it; a unit of delivery carries its batch code, which is what a
+  commit closes it by naming.
+
 ## [0.4.0]
 
 ### Added
