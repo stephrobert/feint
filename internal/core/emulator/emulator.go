@@ -157,6 +157,9 @@ type Server struct {
 	packs    []Pack
 	mux      *http.ServeMux
 	observer *observer
+	// self records the patterns of the endpoints the emulator serves about
+	// itself, so they can be enumerated rather than remembered.
+	self []string
 }
 
 // NewServer mounts the packs. It fails when two packs claim the same route,
@@ -181,16 +184,43 @@ func NewServer(env *Env, packs ...Pack) (*Server, error) {
 		}
 	}
 
-	s.mux.HandleFunc("GET /_feint/health", s.handleHealth)
-	s.mux.HandleFunc("GET /_feint/routes", s.handleRoutes)
-	s.mux.HandleFunc("GET /_feint/conformance", s.handleConformance)
-	s.mux.HandleFunc("GET /_feint/state", s.handleStateRead)
-	s.mux.HandleFunc("PUT /_feint/state", s.handleStateWrite)
+	s.mountSelf("GET /_feint/health", s.handleHealth)
+	s.mountSelf("GET /_feint/routes", s.handleRoutes)
+	s.mountSelf("GET /_feint/conformance", s.handleConformance)
+	s.mountSelf("GET /_feint/state", s.handleStateRead)
+	s.mountSelf("PUT /_feint/state", s.handleStateWrite)
 
 	// "/" matches anything no other pattern does, and net/http 1.22 patterns are
 	// specific-wins, so this never shadows a mounted route.
 	s.mux.HandleFunc("/", s.handleUnrouted)
 	return s, nil
+}
+
+// mountSelf registers an endpoint the emulator serves about itself, and records
+// its pattern.
+//
+// These are deliberately not Routes. A Route names the upstream operation the
+// coverage report joins on, and none of these names one: they are feint's own
+// surface rather than a provider's. Giving them an invented Operation would put
+// each of them in the drift report as an orphan — a route pointing at an
+// operation no SDK has — which is precisely the signal that report exists to
+// carry.
+func (s *Server) mountSelf(pattern string, h http.HandlerFunc) {
+	s.self = append(s.self, pattern)
+	s.mux.HandleFunc(pattern, h)
+}
+
+// SelfRoutes returns the "METHOD /path" pattern of every endpoint the emulator
+// serves about itself, in mount order.
+//
+// Exported for the sake of enumeration. The page under /_feint/ui must never
+// become a way to drive the emulator, and the only mechanical form of that
+// promise is a list somebody can walk: TestThePageAddsOnlyGETRoutes reads this
+// one and fails on anything that is not a GET.
+func (s *Server) SelfRoutes() []string {
+	out := make([]string, len(s.self))
+	copy(out, s.self)
+	return out
 }
 
 // handleUnrouted answers a request no route claimed, in the dialect of whichever
