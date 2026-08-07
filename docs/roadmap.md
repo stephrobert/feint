@@ -266,6 +266,160 @@ has shown to a real client.
 
 ---
 
+## The tooling that makes the sequence above cheaper
+
+The waves are the product. This section is the tooling around them, and it
+exists because of one comparison: LocalStack's feature grid, paid tiers
+included, was read against this project. Most of that grid is not transposable,
+and the reason is measured rather than felt — its differentiating features
+(chaos injection, an IAM policy stream, a traffic inspector) were built on top
+of near-complete coverage, where the generated tables in the README still show a
+minority of the surface served and two untriaged columns that are not yet zero.
+Copying the grid now would be a second storey on foundations still being poured,
+and every feature added is one more surface to hold against an upstream that
+moves by hundreds of operations a year.
+
+The figures are deliberately not repeated here, for the reason stated at the top
+of this page: a count frozen into prose rots, and the tables regenerate. The
+issues linked below carry the numbers as measured on the day they were written,
+which is what an issue is for.
+
+So the useful question is not *which LocalStack features are missing here*. It
+is **which of them lower the cost of coverage**, since coverage is what the
+sequence above spends its time on. Three answer yes, and they are the only three
+that outrank a batch.
+
+### 1. Record what a real client and a real cloud say to each other — #72, #73, #74
+
+Head of the queue. Everything this repository knows about how an official client
+addresses an endpoint was found with a throwaway logging proxy:
+`tools/conformance/README.md` says so three times, and the sharpest of the three
+is that `exo compute instance create` issues four reads before it posts
+anything, *every one of which was declined here until a proxy showed them going
+past — a unit test would never have found them*. The tool that produced the most
+valuable measurements in this repository is the only one that was never built.
+
+Three deliverables, each usable without the next: `feint proxy` records a
+redacted transcript (#72); `feint replay` compares the emulator's answer with the
+one the real cloud gave (#73); `feint coverage --observed` orders the untriaged
+column by what a client was actually seen calling (#74).
+
+The last one is why this heads the list. Every wave above is a bet about which
+operation a user hits first, and the bet is currently unmeasurable — which is an
+odd position for a project whose argument is that one measures the surface
+rather than following it. A transcript replaces the bet with a count.
+
+**Evidence:** as each issue states. The one that governs the family: a
+transcript recorded through the proxy contains neither a credential nor a secret
+from the body, proven by a test that fails when the redaction call is removed.
+Recording happens on a human's own station, against their own account, never in
+CI.
+
+### 2. The emulator as an importable package — #75
+
+`Server.Handler() http.Handler` already exists; everything that would use it is
+under `internal/`, so nothing outside this module can. Two items on this page
+pay for that today: the testcontainers module must start a published image to
+reach a handler that could be a function call, and *"a fourth provider changes
+nothing in `internal/core`"* is admitted above to be untested — as it must
+remain, since three packs in one tree can share a mistake for a year without
+noticing.
+
+One commit answers both, because both need the same types to stop being
+internal. It is also the one thing a container-shaped competitor cannot copy: a
+container does not become a function call in someone's test binary.
+
+The cost is real and belongs next to the benefit: whatever leaves `internal/`
+becomes an API this project breaks people with. Deciding *which* types is
+deciding how much future freedom to sell, so the answer is the smallest set that
+passes the evidence, not the set that looks tidy.
+
+**Evidence:** a module outside this one, with no `replace` directive, starts the
+emulator in-process and drives it with the official Scaleway SDK; and that same
+module defines a `Pack` of its own, importing nothing under `internal/`. The
+second is the first real evidence for an architecture claim this page has been
+making from the beginning.
+
+### 3. Fault injection — #26
+
+Already open, and it stays third. It does not lower the cost of coverage, so it
+earns its place on a different argument: it is middleware over the `ServeMux`,
+it costs little, and what it produces is measurements about the behaviour of
+official clients — whether the Scaleway Terraform provider really retries a 429,
+whether `exo`'s waiter converges on a slow asynchronous operation — which is
+this project's raw material. Nobody can test that today without degrading a real
+account.
+
+It also composes with the first item: a recorded transcript carries a real 429
+with the body the cloud actually sent, which answers by measurement the question
+that issue leaves open about what an injected error must look like.
+
+### The arbitration to reopen: DNS interception and TLS termination — #76
+
+Not a fourth queue item. A refusal whose cost was never measured, which is a
+different defect and one this repository takes seriously everywhere else.
+
+[limits.md](limits.md) declines object storage because the Scaleway Terraform
+provider builds `https://s3.<region>.scw.cloud` in code, so redirecting it needs
+DNS interception plus a certificate the provider accepts, *"which is a project
+of its own"*. The first half is a measurement and it is right. The second half
+is an estimate nobody has made, and rule 3's demand that a refusal carry a
+reason is not satisfied by a size nobody has weighed.
+
+What reopens it is not a wish for object storage. It is that the blocker is
+generic: **every client whose endpoint is built in code rather than read from a
+setting** is unreachable for the same reason, and this project does not know how
+many of those exist. That number could settle the question in either direction.
+
+**This page does not decide it.** What #76 asks for is four measurements, before
+anyone writes a resolver: how many hardcoded endpoints exist across the three
+providers' Terraform providers, CLIs and SDKs, and which operations each one
+costs; what each client needs to accept a locally minted certificate, with the
+sharp line between an environment variable scoped to one command and an
+installation into the operator's system trust store; whether a DNS server is
+needed at all, or whether a hosts entry or a resolver flag covers the measured
+cases; and what the standard library gives for free, since a local CA is cheap
+in `crypto/x509` and a DNS server has no standard-library answer at all.
+
+**Evidence:** [limits.md](limits.md) replaces *"a project of its own"* with those
+numbers and a verdict. Refused, and it moves into "Not planned" with prose of
+`Declined()` quality. Retained, and it becomes an item here with an official
+client named in advance. Either answer closes it; the present state, a refusal
+resting on an unmeasured cost, is the only one that does not.
+
+### Considered in the same pass, and not queued
+
+Named rather than left floating, which is the same discipline as `Declined()`:
+
+- **Declarative seed state** (#77), a fixture file a reviewer can read where a
+  snapshot is a generated blob. Real, small, and behind the three above. Its
+  file format is JSON, not YAML: there is no YAML parser in the standard
+  library and a three-line `go.mod` is not spent on making a fixture prettier.
+- **Least-privilege policy generation** — deriving a Scaleway IAM or Outscale
+  EIM policy from the operations a run was observed to need. It is the strongest
+  product idea in the comparison, it observes rather than verifies (so it does
+  not disturb the decision never to check signatures), and the observer already
+  holds most of the data. It waits because it is differentiation, and
+  differentiation built on a surface this thin is a demo.
+- **Deterministic control of transition times** — how long an emulated
+  asynchronous operation takes, so a waiter's timeout becomes testable. A cousin
+  of fault injection, but not the same seam: the delay lives in the pack's
+  lifecycle rather than in front of the handler. Noted on #26.
+- **An inspection TUI.** Superseded for now by the read-only page the binary
+  serves about itself (#67, #68, #69), which shows the same data. Revisit only if
+  that page proves to be the wrong surface.
+- **A public per-provider coverage site.** The tables are already generated by
+  `feint docs`; turning them into a static site is acquisition work, not
+  coverage work, and it is ordered accordingly.
+- **Multi-project and multi-organisation boundaries.** Filed here mostly to
+  correct the premise: `resource.Tenant` already carries a Project, and the
+  Scaleway pack already scopes SSH keys, security groups, volumes and IPs by
+  the `project_id` the client sends. What is genuinely fixed is
+  `organization_id`, and servers are not project-scoped. So this is a smaller
+  and better-defined piece of work than it looks, and it still waits.
+
+---
+
 ## Next, what a user will ask for first
 
 ### What "probed" and "refused" prove gets tightened
@@ -403,11 +557,20 @@ document sets.
 
 The reason is stated and measured in [limits.md](limits.md): the Scaleway
 Terraform provider hardcodes `https://s3.<region>.scw.cloud`, so supporting it
-needs DNS interception and TLS termination rather than an endpoint setting. That
-decision stands. What changes is that the "no" gets a "here is how": the SDK and
-CLI paths honour `SCW_S3_ENDPOINT`, so a documented feint-plus-MinIO page covers
-the S3 workflow for everything except the Terraform path, which the page says
-plainly.
+needs DNS interception and TLS termination rather than an endpoint setting.
+Emulating S3 is not the hard part and never was; reaching the emulator is.
+
+**What that "no" rests on is now itself in question** — see the arbitration
+reopened above and #76. The measurement (the endpoint is built in code) stands;
+the estimate that followed it ("a project of its own") has never been made, and
+the blocker turns out to be generic rather than specific to object storage. So
+this item is no longer a settled refusal, it is a refusal waiting on a cost.
+
+What does not wait is the "here is how": the SDK and CLI paths honour
+`SCW_S3_ENDPOINT`, so a documented feint-plus-MinIO page covers the S3 workflow
+for everything except the Terraform path, which the page says plainly. That page
+is worth writing whichever way #76 goes, because it is the answer for anyone who
+needs S3 this month.
 
 **Evidence:** the page's commands are executed in CI the way the README's are:
 `scw` pointed at MinIO through `SCW_S3_ENDPOINT` puts and gets an object.
@@ -493,6 +656,51 @@ here.
   [limits.md](limits.md). Reintroducing it means answering that first.
 - **Verifying signatures.** Every credential is accepted on purpose, so the tool
   runs without an account. [SECURITY.md](../SECURITY.md) states the consequence.
+
+### Refused after reading a competitor's grid
+
+Added from the LocalStack comparison that produced the section above. These
+exist there, several of them behind a paywall, and naming them is worth more
+than letting them float as things nobody has ruled on — which is the same reason
+`Declined()` takes a reason.
+
+- **Hosted ephemeral instances and preview environments.** Their Cloud Sandbox
+  runs the emulator on someone else's machine, reachable by a URL, which needs
+  an account and a bill. That is a frontal contradiction with the first line of
+  the README, and the contradiction is the point rather than a detail of
+  packaging. Nothing about it becomes acceptable at a different price.
+- **A Kubernetes operator, a Helm chart, or a cluster-side executor.** The
+  audience is a developer's workstation and a CI runner, not a cluster. The
+  container image already being built covers the `services:` block and the
+  compose file, which is what that audience actually asks for. An operator would
+  be maintained for a deployment shape nobody here has been asked for.
+- **SSO, SCIM, shared workspaces, usage dashboards.** Enterprise seat features.
+  They monetise an emulator; they do not emulate anything. A team that wants
+  shared state has `feint snapshot` and a file.
+- **A race on service count**, restated because the comparison makes the pull
+  concrete: managed databases, managed Kubernetes, serverless. Already refused
+  above, and the grid is exactly the pressure that refusal exists to resist.
+
+### Posed, not decided: cost estimation
+
+One item from that comparison is neither kept nor refused, and pretending
+otherwise would be the dishonest option.
+
+**Billing, quotas and capacity are refused above**, and correctly: an emulator
+has no capacity to report, so any number it invents is a lie with a schema
+around it. **Estimating what a `terraform plan` would cost** on the three
+providers' public price lists is a different question. It invents nothing — the
+grids are published — it answers something a user genuinely wants before an
+apply, and nothing tools it today for the European clouds.
+
+It is written down here because it does not fit either list. The most likely
+answer is that it is an adjacent product and a separate binary rather than a
+mode of this one: it needs no emulation, no store and no machine runtime, it
+reads a plan and a price list, and folding it in would put a price table in a
+repository whose whole discipline is that fixed tables are fiction
+([limits.md](limits.md) says exactly that about the catalogue). Adjacent, not
+included — but that is a leaning, not a decision, and it stays here until
+somebody makes one.
 
 ---
 
