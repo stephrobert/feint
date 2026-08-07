@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/core/machine"
 	"github.com/stephrobert/feint/internal/providers/exoscale"
 	"github.com/stephrobert/feint/internal/providers/outscale"
 	"github.com/stephrobert/feint/internal/providers/scaleway"
@@ -386,5 +387,68 @@ func TestThePageCarriesEveryOperationBehindTheCounts(t *testing.T) {
 	}
 	if view.Probes == nil {
 		t.Error("the conformance view carries no per-operation probe count, so probed cannot be opened")
+	}
+}
+
+// mute is a machine driver that declares nothing: it does not implement
+// machine.Capable at all, which is the case the health payload has to be able to
+// express. No such driver ships today, and that is precisely why this exists —
+// the fourth one will, and it must not be read as refusing five capabilities it
+// was never asked about.
+//
+// It embeds the Driver interface rather than the no-op driver, and that is the
+// whole trick: embedding Noop would inherit Noop's own Capabilities method and
+// make this driver a declaring one, which is the opposite of what it is for. A
+// nil embedded interface satisfies Driver at compile time and panics if anything
+// calls through it — nothing here does, because the health endpoint asks for the
+// name and for a type assertion, and both are answered above.
+type mute struct{ machine.Driver }
+
+func (mute) Name() string { return "mute" }
+
+// A driver that declared nothing is not a driver that refused everything.
+//
+// On the wire, five falses and silence look identical, so a page reading them
+// would print "no" on behalf of a driver that never spoke. That is the rule
+// "une capacité non déclarée vaut absente" inverted into a claim, and it is the
+// half-truth docs/limits.md exists to prevent: the page must say "not declared".
+//
+// The machines region reads this same payload, which is why the distinction is
+// made on the wire rather than in the page: a second driver, a second reader, or
+// a script with jq would each have to reinvent it otherwise.
+func TestAnUndeclaredDriverIsNotTheSameAsOneThatDeclaresNothing(t *testing.T) {
+	read := func(driver machine.Driver) map[string]any {
+		env := emulator.DefaultEnv()
+		env.Machines = driver
+		srv, err := emulator.NewServer(env)
+		if err != nil {
+			t.Fatalf("build emulator: %v", err)
+		}
+		var out map[string]any
+		if err := json.Unmarshal(uiGet(t, srv, "/_feint/health").Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode health: %v", err)
+		}
+		return out
+	}
+
+	// The no-op driver declares: it runs nothing and says so, which is a claim.
+	silentButDeclaring := read(machine.Noop{})
+	caps, ok := silentButDeclaring["capabilities"].(map[string]any)
+	if !ok {
+		t.Fatalf("a driver that declares got no capability object: %v", silentButDeclaring["capabilities"])
+	}
+	if caps["isolation"] != false {
+		t.Errorf("the declaring driver's isolation is %v, want false", caps["isolation"])
+	}
+
+	// A driver that never implemented Capable declares nothing, and the payload
+	// has to be able to say so.
+	undeclared := read(mute{})
+	if undeclared["capabilities"] != nil {
+		t.Errorf("a driver that declares nothing published %v; "+
+			"absent and refused would then read the same", undeclared["capabilities"])
+	}
+	if undeclared["machines"] != "mute" {
+		t.Errorf("the driver name is %v, want the driver's own", undeclared["machines"])
 	}
 }

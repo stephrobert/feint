@@ -96,6 +96,12 @@
     <div id="inventory-groups" class="groups"></div>
   </section>
 
+  <!-- The machines region is built by the script, and only when a driver
+       declares itself. With --vm off it is absent from the document rather than
+       hidden by a rule: a region styled away is a region a reader can find in
+       the inspector and believe. -->
+  <div id="machines-slot"></div>
+
   <!-- The versioned gap with the upstream surface, with the date and the command. -->
   <section class="card" id="upstream-card">
     <div class="card-head">

@@ -93,6 +93,7 @@
   function renderHealth(data) {
     setText(byId("driver"), data.machines || "none");
     setText(byId("resources"), data.resources);
+    renderMachines(data);
   }
 
   /* ---- operation lists, the shape every drill-down uses ------------------ */
@@ -810,6 +811,127 @@
     } else {
       setText(written, "");
     }
+  }
+
+  /* ---- machines ---------------------------------------------------------- */
+
+  /* Built only when a runtime is configured, and from what that runtime
+     declares. Never deduced from the mode name: that is the rule docs/limits.md
+     states, and the reason it exists is that somebody running one mode and
+     reading a README about another finds out when a test that should fail
+     passes.
+
+     With no runtime the region is absent from the document rather than hidden by
+     a rule. A region styled away is a region a reader finds in the inspector and
+     believes. */
+
+  var machinesSlot = byId("machines-slot");
+  var machinesCard = null;
+
+  /* The order is the one docs/limits.md argues in: machines, then what they
+     carry, then the one capability that separates the modes. The labels are this
+     page's words for the fields the health payload publishes; the verdicts are
+     never this page's. */
+  var CAPABILITIES = [
+    { key: "machines", label: "machines" },
+    { key: "addresses", label: "addresses" },
+    { key: "firewall", label: "firewall" },
+    { key: "isolation", label: "isolation" },
+    { key: "own_kernel", label: "own kernel" }
+  ];
+
+  function buildMachinesCard() {
+    var card = document.createElement("section");
+    card.className = "card";
+    card.id = "machines-card";
+
+    var head = document.createElement("div");
+    head.className = "card-head";
+    var title = document.createElement("h2");
+    title.textContent = "machines";
+    var hint = document.createElement("span");
+    hint.className = "hint";
+    hint.textContent = "declared by the runtime, never deduced";
+    head.appendChild(title);
+    head.appendChild(hint);
+    card.appendChild(head);
+
+    var driverLine = document.createElement("p");
+    driverLine.className = "driver-line";
+    var driverLabel = document.createElement("span");
+    driverLabel.className = "key";
+    driverLabel.textContent = "driver";
+    var driverName = document.createElement("span");
+    driverName.className = "name";
+    driverLine.appendChild(driverLabel);
+    driverLine.appendChild(driverName);
+    card.appendChild(driverLine);
+
+    var caps = document.createElement("ul");
+    caps.className = "caps";
+    var chips = {};
+    CAPABILITIES.forEach(function (cap) {
+      var li = document.createElement("li");
+      li.className = "cap";
+      var glyph = document.createElement("span");
+      glyph.className = "glyph";
+      var label = document.createElement("span");
+      label.textContent = cap.label;
+      li.appendChild(glyph);
+      li.appendChild(label);
+      caps.appendChild(li);
+      chips[cap.key] = { chip: li, glyph: glyph };
+    });
+    card.appendChild(caps);
+
+    var note = document.createElement("p");
+    note.className = "note";
+    card.appendChild(note);
+
+    machinesSlot.appendChild(card);
+    document.querySelector("main").classList.add("has-machines");
+    return { card: card, driver: driverName, chips: chips, note: note };
+  }
+
+  function renderMachines(data) {
+    var driver = data.machines || "none";
+    if (driver === "none") {
+      /* Removed, not hidden: with no runtime there is nothing to say, and a
+         region that says nothing is a region that invites a reader to wonder
+         what it would have said. */
+      if (machinesCard) {
+        machinesSlot.removeChild(machinesCard.card);
+        document.querySelector("main").classList.remove("has-machines");
+        machinesCard = null;
+      }
+      return;
+    }
+    if (!machinesCard) { machinesCard = buildMachinesCard(); }
+    setText(machinesCard.driver, driver);
+
+    /* null means the driver declared nothing at all, which is not the same as
+       declaring everything false — and the page must never turn silence into a
+       refusal on a driver's behalf. */
+    var declared = data.capabilities;
+    CAPABILITIES.forEach(function (cap) {
+      var node = machinesCard.chips[cap.key];
+      if (!declared) {
+        node.chip.setAttribute("data-state", "undeclared");
+        setText(node.glyph, "?");
+        node.chip.title = "this driver declares no capabilities";
+        return;
+      }
+      var yes = declared[cap.key] === true;
+      node.chip.setAttribute("data-state", yes ? "yes" : "no");
+      setText(node.glyph, yes ? "✓" : "✗");
+      node.chip.title = yes
+        ? "declared by this runtime"
+        : "this runtime declares it does not deliver this";
+    });
+
+    setText(machinesCard.note, declared
+      ? "What the runtime reports about these machines arrives in the call log, on the same timeline as the calls."
+      : "This driver declares no capabilities, so nothing here is claimed about it — which is different from claiming it delivers none.");
   }
 
   /* ---- the call log ------------------------------------------------------ */

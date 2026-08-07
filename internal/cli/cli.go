@@ -447,7 +447,7 @@ func serve(args []string, stdout io.Writer) error {
 	defer stopWatching()
 	if watcher, ok := driver.(machine.Watcher); ok {
 		if events, err := watcher.Watch(watchCtx); err == nil {
-			go reportRuntimeEvents(events, env.Log)
+			go reportRuntimeEvents(events, env.Log, srv)
 		} else {
 			env.Log.Warn("could not watch the machine runtime", "error", err)
 		}
@@ -781,7 +781,11 @@ func catalog(args []string, stdout io.Writer) error {
 // Levels are mapped rather than copied: a runtime warning about a resource the
 // emulator created is worth an operator's attention, and a lifecycle change is
 // not, which is why the latter is debug.
-func reportRuntimeEvents(events <-chan machine.Event, log *slog.Logger) {
+// The server is the second reader: what the runtime says about a machine the
+// emulator created belongs on the same timeline as the calls that created it. An
+// operator reading "the server is running" needs to see the container behind it
+// stop, and until now that only reached the process log at debug level.
+func reportRuntimeEvents(events <-chan machine.Event, log *slog.Logger, srv *emulator.Server) {
 	// Consecutive duplicates are dropped: the daemon logs its teardown race
 	// once per concurrent list, so a single stop raced by a watcher produces
 	// tens of identical lines in a second, and the repetition carries nothing.
@@ -792,6 +796,9 @@ func reportRuntimeEvents(events <-chan machine.Event, log *slog.Logger) {
 			continue
 		}
 		lastKey = key
+		if srv != nil {
+			srv.PublishRuntimeEvent(event.Kind, event.Level, event.Action, event.Resource, event.Message)
+		}
 		switch {
 		case event.Kind == "lifecycle":
 			log.Debug("runtime "+event.Action, "resource", event.Resource)

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/core/machine"
 )
 
 // What is running, and how much of the real API it is standing in for.
@@ -31,17 +32,17 @@ import (
 const statusTimeout = 2 * time.Second
 
 type healthResponse struct {
-	Status       string   `json:"status"`
-	Providers    []string `json:"providers"`
-	Resources    int      `json:"resources"`
-	Machines     string   `json:"machines"`
-	Capabilities struct {
-		Machines  bool `json:"machines"`
-		Addresses bool `json:"addresses"`
-		Firewall  bool `json:"firewall"`
-		Isolation bool `json:"isolation"`
-		OwnKernel bool `json:"own_kernel"`
-	} `json:"capabilities"`
+	Status    string   `json:"status"`
+	Providers []string `json:"providers"`
+	Resources int      `json:"resources"`
+	Machines  string   `json:"machines"`
+	// Capabilities is machine.Capabilities, imported rather than redeclared, and
+	// a pointer because the wire distinguishes a driver that declared nothing
+	// from one that declared everything false. This package has already paid for
+	// hand-copying a shape the server publishes: the conformance view, with a key
+	// nothing emitted, which made this very command print 0 for the number it
+	// exists to report.
+	Capabilities *machine.Capabilities `json:"capabilities"`
 }
 
 type routeResponse struct {
@@ -166,8 +167,14 @@ func writeStatusText(w io.Writer, r statusReport, health healthResponse) {
 	fmt.Fprintf(w, "  machines   %s", r.Machines)
 	if health.Machines != "none" {
 		// The capability that separates the runtime modes, said here rather than
-		// left in a document nobody opens at this moment.
-		fmt.Fprintf(w, " (isolation: %v)", health.Capabilities.Isolation)
+		// left in a document nobody opens at this moment. A driver that declared
+		// nothing gets "not declared", never "false": absent and refused are not
+		// the same claim, and only one of them is ours to make.
+		if health.Capabilities == nil {
+			fmt.Fprint(w, " (isolation: not declared)")
+		} else {
+			fmt.Fprintf(w, " (isolation: %v)", health.Capabilities.Isolation)
+		}
 	}
 	fmt.Fprintln(w)
 	if len(r.Contracts) > 0 {

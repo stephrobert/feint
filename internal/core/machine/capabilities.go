@@ -54,10 +54,33 @@ type Capable interface {
 // promised. A driver that gains a capability declares it; nothing here guesses
 // from a type name.
 func CapabilitiesOf(d Driver) Capabilities {
-	if c, ok := d.(Capable); ok {
-		return c.Capabilities()
+	if c := Declared(d); c != nil {
+		return *c
 	}
 	return Capabilities{}
+}
+
+// Declared returns what a driver says it delivers, or nil when it says nothing.
+//
+// CapabilitiesOf cannot express that difference and does not need to: a suite
+// gating on isolation wants a bool, and absent is the safe answer. A reader
+// does need it. On the wire, a driver that declares every capability false and
+// a driver that declares nothing are the same object of five falses, so a page
+// showing "no" for both would state, on behalf of a driver that never spoke,
+// something nobody promised — which is the exact half-truth "une capacité non
+// déclarée vaut absente" exists to prevent, inverted.
+//
+// So /_feint/health answers null rather than an object when nothing was
+// declared, and the page prints "not declared".
+// TestAnUndeclaredDriverIsNotTheSameAsOneThatDeclaresNothing in
+// internal/core/emulator fails without this.
+func Declared(d Driver) *Capabilities {
+	c, ok := d.(Capable)
+	if !ok {
+		return nil
+	}
+	caps := c.Capabilities()
+	return &caps
 }
 
 // Capabilities implements Capable for the no-op driver: it runs nothing, and

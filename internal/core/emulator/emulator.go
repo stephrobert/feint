@@ -305,10 +305,13 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 		providers = append(providers, p.Name())
 	}
 	driver := "none"
-	capabilities := machine.Capabilities{}
+	var capabilities *machine.Capabilities
 	if s.env.Machines != nil {
 		driver = s.env.Machines.Name()
-		capabilities = machine.CapabilitiesOf(s.env.Machines)
+		// Declared rather than CapabilitiesOf: null on the wire when the driver
+		// said nothing, so a reader can tell "no" from "nobody promised". Five
+		// falses cannot.
+		capabilities = machine.Declared(s.env.Machines)
 	}
 	// The capabilities are published because the difference between the runtime
 	// modes was recorded only in documentation — that is, nowhere at the moment
