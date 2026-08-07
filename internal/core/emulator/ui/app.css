@@ -460,9 +460,146 @@ button.clipped.open { white-space: pre-wrap; }
 }
 .runtime-label { font-size: 0.72rem; color: var(--faint); margin-bottom: 0.2rem; }
 
+/* ---- drill-downs -------------------------------------------------------- */
+
+/* A legend entry is a control, and it has to look like one before it is
+   hovered: a number nobody knows they can open is a number nobody opens. */
+button.legend-open {
+  font: inherit;
+  font-size: 0.83rem;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 0.1rem 0.4rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-bottom-style: dotted;
+  border-bottom-color: var(--border-strong);
+}
+button.legend-open:hover { background: var(--surface-2); border-color: var(--border-strong); }
+button.legend-open[aria-expanded="true"] {
+  background: var(--surface-2);
+  border-color: var(--muted);
+  border-bottom-style: solid;
+  color: var(--text);
+}
+button.legend-open b { color: var(--text); font-weight: 600; }
+button.legend-open:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+
+.drill {
+  margin-top: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.drill-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.drill-title { font-size: 0.8rem; color: var(--muted); }
+.drill-head .search { margin-left: auto; min-width: 12rem; }
+
+.op-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.3rem 0.6rem 0.5rem;
+  max-height: 22rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.op {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.22rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  font-size: 0.8rem;
+}
+.op:last-child { border-bottom: 0; }
+.op-empty { color: var(--faint); font-size: 0.8rem; padding: 0.3rem 0; list-style: none; }
+
+.op-status {
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.02rem 0.35rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  color: var(--muted);
+  white-space: nowrap;
+  flex: 0 0 auto;
+  min-width: 5.6rem;
+  text-align: center;
+}
+.op-status[data-status="driven"], .op-status[data-status="served"] {
+  color: var(--proven); border-color: color-mix(in srgb, var(--proven) 45%, var(--border)); background: var(--proven-soft);
+}
+.op-status[data-status="probed"] {
+  color: var(--probed); border-color: color-mix(in srgb, var(--probed) 45%, var(--border)); background: var(--probed-soft);
+}
+.op-status[data-status="untriaged"], .op-status[data-status="violation"], .op-status[data-status="unread"] {
+  color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); background: var(--danger-soft);
+}
+
+.op-name { font-size: 0.8rem; }
+.op-route { color: var(--faint); font-size: 0.74rem; }
+.op-note { color: var(--muted); font-size: 0.76rem; }
+/* The reason takes the whole second line. It is a sentence, not a label, and
+   squeezing it into a column would be the surest way to make it unread. */
+.op-reason {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 0.78rem;
+  padding-left: 6.1rem;
+  line-height: 1.4;
+}
+
+/* A row whose reason is the one printed above it. The rule is what says so
+   without repeating the sentence forty times. */
+.op-continued { border-bottom: 0; padding-top: 0.1rem; }
+.op-continued .op-status { opacity: 0.55; }
+
+.note-details { margin-top: 0.7rem; }
+.note-details > summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  list-style: none;
+}
+.note-details > summary::-webkit-details-marker { display: none; }
+.note-details > summary::before { content: "▸ "; }
+.note-details[open] > summary::before { content: "▾ "; }
+.note-details > summary.warn { color: var(--danger); }
+.note-details .op-list {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  margin-top: 0.4rem;
+}
+
 /* ---- upstream rows ------------------------------------------------------ */
 
 .rows { display: flex; flex-direction: column; gap: 0.55rem; }
+
+.row-details > summary { list-style: none; cursor: pointer; }
+.row-details > summary::-webkit-details-marker { display: none; }
+.row-details > summary:hover { background: var(--surface-2); }
+.row-details > summary { border-radius: var(--radius-sm); padding: 0.15rem 0.3rem; margin: -0.15rem -0.3rem; }
+.row-body { padding: 0.5rem 0 0.3rem 0.3rem; }
+.row-body .search { margin-bottom: 0.35rem; width: 100%; }
+.row-body .op-list {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
 
 .row { display: grid; grid-template-columns: minmax(7rem, 12rem) 1fr auto; gap: 0.75rem; align-items: center; }
 .row .name { font-size: 0.84rem; }

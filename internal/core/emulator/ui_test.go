@@ -320,3 +320,71 @@ func uiAssetFiles(t *testing.T) map[string]string {
 	}
 	return out
 }
+
+// Every aggregate the page shows can be opened onto what it is made of.
+//
+// The endpoint half of that promise is testable and this is it: the page's data
+// carries one entry per upstream operation, with the reason a declined one is
+// declined, so no count on the page is a dead end. Without it a reader who wants
+// to know what "111 declined" means has to open a Go file, which is the gesture
+// this page exists to remove.
+//
+// The join is drift.Compare's and is only carried across here — asserted by the
+// drift package's own TestTheArtefactCarriesTheReasonEachOperationIsDeclined.
+// What this one holds is that the boundary does not drop it.
+func TestThePageCarriesEveryOperationBehindTheCounts(t *testing.T) {
+	srv, mounted := newUIServer(t, "127.0.0.1:4599", emulator.UI{
+		Upstream: func() emulator.UpstreamView {
+			return emulator.UpstreamView{
+				Available: true,
+				Source:    "coverage",
+				Products: []emulator.UpstreamProduct{
+					{Provider: "a-cloud", Product: "compute", Served: 1, Declined: 1, Untriaged: 1, Total: 3},
+				},
+				Operations: []emulator.UpstreamOperation{
+					{Operation: "compute/v1/API.List", Provider: "a-cloud", Product: "compute", Status: "implemented"},
+					{Operation: "compute/v1/API.Drop", Provider: "a-cloud", Product: "compute", Status: "declined",
+						Reason: "the emulator runs nothing this would drop"},
+					{Operation: "compute/v1/API.New", Provider: "a-cloud", Product: "compute", Status: "unknown"},
+				},
+			}
+		},
+	})
+	if !mounted {
+		t.Fatal("the page was not mounted")
+	}
+
+	var data struct {
+		Upstream emulator.UpstreamView `json:"upstream"`
+	}
+	if err := json.Unmarshal(uiGet(t, srv, "/_feint/ui/data").Body.Bytes(), &data); err != nil {
+		t.Fatalf("decode the page's data: %v", err)
+	}
+
+	if len(data.Upstream.Operations) != 3 {
+		t.Fatalf("the counts arrived with %d operations behind them, want 3", len(data.Upstream.Operations))
+	}
+	var declined emulator.UpstreamOperation
+	for _, op := range data.Upstream.Operations {
+		if op.Status == "declined" {
+			declined = op
+		}
+	}
+	if declined.Reason == "" {
+		t.Error("a declined operation arrived without its reason, which is the only thing that makes the count actionable")
+	}
+	if declined.Provider == "" || declined.Product == "" {
+		t.Errorf("an operation arrived without the product it belongs to: %+v", declined)
+	}
+
+	// The per-operation probe counts, on the shared conformance type. Probed is
+	// a scalar, so without this map the page can say how many routes only a
+	// probe reached and never which.
+	var view emulator.ConformanceView
+	if err := json.Unmarshal(uiGet(t, srv, "/_feint/conformance").Body.Bytes(), &view); err != nil {
+		t.Fatalf("decode the conformance view: %v", err)
+	}
+	if view.Probes == nil {
+		t.Error("the conformance view carries no per-operation probe count, so probed cannot be opened")
+	}
+}

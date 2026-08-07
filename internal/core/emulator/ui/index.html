@@ -48,14 +48,35 @@
       <span class="seg probed" id="seg-probed"></span>
     </div>
 
+    <!-- Every number here opens. A count nobody can unfold sends the reader to a
+         Go file, which is the gesture this page exists to remove. -->
     <ul class="legend">
-      <li><span class="swatch driven" aria-hidden="true"></span><b class="mono" id="n-driven">&mdash;</b> driven by a real client</li>
-      <li><span class="swatch probed" aria-hidden="true"></span><b class="mono" id="n-probed">&mdash;</b> probed, behaviour unproven</li>
-      <li><span class="swatch unproven" aria-hidden="true"></span><b class="mono" id="n-unproven">&mdash;</b> never proven</li>
+      <li><button type="button" class="legend-open" id="open-driven" data-group="driven" aria-expanded="false" aria-controls="proof-drill">
+        <span class="swatch driven" aria-hidden="true"></span><b class="mono" id="n-driven">&mdash;</b> driven by a real client</button></li>
+      <li><button type="button" class="legend-open" id="open-probed" data-group="probed" aria-expanded="false" aria-controls="proof-drill">
+        <span class="swatch probed" aria-hidden="true"></span><b class="mono" id="n-probed">&mdash;</b> probed, behaviour unproven</button></li>
+      <li><button type="button" class="legend-open" id="open-unproven" data-group="unproven" aria-expanded="false" aria-controls="proof-drill">
+        <span class="swatch unproven" aria-hidden="true"></span><b class="mono" id="n-unproven">&mdash;</b> never proven</button></li>
     </ul>
 
+    <div class="drill" id="proof-drill" hidden>
+      <div class="drill-head">
+        <span class="drill-title" id="proof-drill-title"></span>
+        <input type="search" id="proof-drill-filter" class="search" placeholder="filter these operations" autocomplete="off" spellcheck="false">
+        <button type="button" id="proof-drill-close" class="ghost">close</button>
+      </div>
+      <ol class="op-list" id="proof-drill-list"></ol>
+    </div>
+
     <p class="note" id="contracts-note">&nbsp;</p>
-    <p class="note warn" id="violations-note" hidden></p>
+    <details class="note-details" id="violations-note" hidden>
+      <summary class="warn" id="violations-summary"></summary>
+      <ol class="op-list" id="violations-list"></ol>
+    </details>
+    <details class="note-details" id="unread-note" hidden>
+      <summary class="warn" id="unread-summary"></summary>
+      <ol class="op-list" id="unread-list"></ol>
+    </details>
   </section>
 
   <!-- Everything the session created, read from the store, grouped by whatever
@@ -83,6 +104,7 @@
     </div>
     <div id="upstream-rows" class="rows"></div>
     <p class="note" id="upstream-empty" hidden></p>
+    <p class="note" id="upstream-hint">Open a product to read every operation it declines, and the reason it was declined.</p>
     <p class="provenance">
       <span id="upstream-source" class="mono">&mdash;</span>
       <span id="upstream-written"></span>

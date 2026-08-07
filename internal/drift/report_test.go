@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stephrobert/feint/internal/drift"
 )
@@ -232,5 +233,100 @@ func TestAReasonThatIsThereIsNotReported(t *testing.T) {
 		map[string]string{"instance/v1/API.ListServers": "a local emulator has no inventory to report on"})
 	if len(rep.Unexplained) != 0 {
 		t.Errorf("a declared reason was reported as missing: %v", rep.Unexplained)
+	}
+}
+
+// The artefact carries the verdict of every operation, with the reason a
+// declined one is declined.
+//
+// The counts alone are what a table needs and not what a reader needs: "111
+// declined" on one product is a number nobody can act on, and the argument for
+// each of those refusals is already written in the pack's Declined() block. It
+// used to be reachable only through `feint coverage --format list`, which needs
+// an SDK checkout and a scan, so nobody read it.
+//
+// Shipping the entries is also what stops a second implementation of the
+// comparison. Compare owns the join between the upstream surface, what the packs
+// serve and what they decline; a reader that recomputed it — the page, say —
+// would be a second answer nobody could reconcile with the command.
+func TestTheArtefactCarriesTheReasonEachOperationIsDeclined(t *testing.T) {
+	rep := drift.Compare("scaleway", upstream(),
+		[]string{"instance/v1/API.ListServers"},
+		map[string]string{"instance/v1/API.CreateServer": "the emulator creates servers through another route"},
+	)
+
+	var buf bytes.Buffer
+	if err := rep.WriteJSON(&buf); err != nil {
+		t.Fatalf("write json: %v", err)
+	}
+	// Decoded through the type the writer uses, which is the whole point of the
+	// change this test guards: a hand-written reader here would prove that a
+	// hand-written reader can be kept in step, not that the format has one owner.
+	got, err := drift.LoadCoverage(&buf)
+	if err != nil {
+		t.Fatalf("read back the artefact: %v", err)
+	}
+
+	if len(got.Entries) != len(rep.Entries) {
+		t.Fatalf("the artefact carries %d entries, the report has %d", len(got.Entries), len(rep.Entries))
+	}
+	var declined, served int
+	for _, e := range got.Entries {
+		switch e.Operation {
+		case "instance/v1/API.CreateServer":
+			declined++
+			if e.Status != drift.StatusDeclined {
+				t.Errorf("CreateServer is %q, want declined", e.Status)
+			}
+			if e.Reason == "" {
+				t.Error("the reason did not survive the artefact, which is the only reason to carry entries at all")
+			}
+		case "instance/v1/API.ListServers":
+			served++
+			if e.Status != drift.StatusImplemented {
+				t.Errorf("ListServers is %q, want implemented", e.Status)
+			}
+		}
+	}
+	if declined != 1 || served != 1 {
+		t.Errorf("the artefact lost operations: %d declined, %d implemented", declined, served)
+	}
+}
+
+// Two runs over an unchanged surface produce the same bytes.
+//
+// The artefact is committed, and the weekly workflow decides that the upstream
+// API moved by diffing this directory. An unstable order — or a timestamp —
+// would open a drift pull request every Monday whether or not anything had
+// changed, and a gate that fires every week is a gate everybody learns to
+// ignore.
+func TestTheArtefactIsByteStableAcrossRuns(t *testing.T) {
+	declined := map[string]string{"instance/v1/API.CreateServer": "a reason"}
+	report := func() drift.Report {
+		return drift.Compare("scaleway", upstream(), []string{"instance/v1/API.ListServers"}, declined)
+	}
+
+	// The order the scan happened to produce must not reach the file. Asserted
+	// by reversing it rather than by running twice: two runs of the same code
+	// over the same input agree whatever the order, so a repeat would pass with
+	// the sort deleted — measured, in a falsification run where exactly that
+	// mutation survived.
+	shuffled := report()
+	for i, j := 0, len(shuffled.Entries)-1; i < j; i, j = i+1, j-1 {
+		shuffled.Entries[i], shuffled.Entries[j] = shuffled.Entries[j], shuffled.Entries[i]
+	}
+
+	var first, second bytes.Buffer
+	if err := report().WriteJSON(&first); err != nil {
+		t.Fatalf("write json: %v", err)
+	}
+	if err := shuffled.WriteJSON(&second); err != nil {
+		t.Fatalf("write json: %v", err)
+	}
+	if first.String() != second.String() {
+		t.Errorf("the artefact carries the order the scan produced:\n%s\n---\n%s", first.String(), second.String())
+	}
+	if strings.Contains(first.String(), time.Now().UTC().Format("2006-01-02")) {
+		t.Error("the artefact carries today's date; a timestamp here opens a drift pull request every week")
 	}
 }

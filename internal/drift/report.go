@@ -1,7 +1,6 @@
 package drift
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
@@ -48,8 +47,9 @@ type Report struct {
 	// defect in the pack rather than drift, and it is reported rather than
 	// silently classified: the gate reads it and fails, so "declined with no
 	// reason" can never be mistaken for "untriaged".
-	// No json tag: WriteJSON builds its own map and does not carry this, and a
-	// tag advertising a field the wire never has is the same lie one layer down.
+	// No json tag: the artefact does not carry this, and a tag advertising a
+	// field the wire never has is the same lie one layer down. CoverageFile is
+	// what the artefact is, and it names the fields it really has.
 	Unexplained []string `json:"-"`
 	Unknown     int      `json:"unknown"`
 	Entries     []Entry  `json:"entries"`
@@ -317,53 +317,9 @@ func (r Report) WriteList(w io.Writer) error {
 	return nil
 }
 
-// WriteJSON renders the machine-readable form consumed by the documentation
-// site. Entries are omitted: the site only needs the counts per product, and a
-// 1700-line array would bloat every page build.
-func (r Report) WriteJSON(w io.Writer) error {
-	type productView struct {
-		Product     string `json:"product"`
-		Total       int    `json:"total"`
-		Implemented int    `json:"implemented"`
-		Declined    int    `json:"declined"`
-		Unknown     int    `json:"unknown"`
-		// Versions breaks the product down per API version, absent when the
-		// SDK carries none. Additive: the docs site reads the fields above and
-		// ignores this one.
-		Versions []VersionCount `json:"versions,omitempty"`
-	}
-	products := r.ByProduct()
-	names := make([]string, 0, len(products))
-	for name := range products {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	views := make([]productView, 0, len(names))
-	for _, name := range names {
-		sub := products[name]
-		views = append(views, productView{
-			Product:     name,
-			Total:       sub.Total,
-			Implemented: sub.Implemented,
-			Declined:    sub.Declined,
-			Unknown:     sub.Unknown,
-			Versions:    sub.Versions(),
-		})
-	}
-
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	return enc.Encode(map[string]any{
-		"provider":    r.Provider,
-		"total":       r.Total,
-		"implemented": r.Implemented,
-		"declined":    r.Declined,
-		"unknown":     r.Unknown,
-		"orphans":     r.Orphans,
-		"products":    views,
-	})
-}
+// The artefact's own shape, and the reader that decodes it, live in
+// coverage_file.go: one type for both ends, because two hand-written ones
+// already disagreed here once.
 
 // declinedIs reports whether the pack declined this operation, whatever its
 // reason says. Separated from the reason lookup so that no future edit can make

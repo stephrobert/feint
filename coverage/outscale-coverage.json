@@ -1,6 +1,9 @@
 {
-  "declined": 146,
+  "provider": "outscale",
+  "total": 263,
   "implemented": 31,
+  "declined": 146,
+  "unknown": 86,
   "orphans": null,
   "products": [
     {
@@ -18,7 +21,1467 @@
       "unknown": 86
     }
   ],
-  "provider": "outscale",
-  "total": 263,
-  "unknown": 86
+  "entries": [
+    {
+      "operation": "oks/Client.CreateCluster",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.CreateProject",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.DeleteCluster",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.DeleteProject",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.GetCPSubregions",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.GetCluster",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.GetClusterTemplate",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.GetControlPlanePlans",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.GetKubeconfig",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.GetKubeconfigWithPubkeyNACL",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.GetKubernetesVersions",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.GetNetPeeringAcceptanceTemplate",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.GetNetPeeringRequestTemplate",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.GetNodepoolTemplate",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.GetProject",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.GetProjectNets",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.GetProjectPublicIps",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.GetProjectQuotas",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.GetProjectSnapshots",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.GetProjectTemplate",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.GetQuotas",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.ListAllClusters",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.ListClustersByProjectID",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.ListProjects",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.UpdateCluster",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.UpdateProject",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "oks/Client.UpgradeCluster",
+      "product": "oks",
+      "reason": "a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.AcceptNetPeering",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.AddUserToUserGroup",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.CheckAuthentication",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.CreateAccessKey",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.CreateAccount",
+      "product": "osc",
+      "reason": "the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.CreateApiAccessRule",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.CreateCa",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.CreateClientGateway",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.CreateDedicatedGroup",
+      "product": "osc",
+      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.CreateDhcpOptions",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.CreateDirectLink",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.CreateDirectLinkInterface",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.CreateFlexibleGpu",
+      "product": "osc",
+      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.CreateImage",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.CreateImageExportTask",
+      "product": "osc",
+      "reason": "Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.CreateInternetService",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.CreateKeypair",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.CreateListenerRule",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.CreateLoadBalancer",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.CreateLoadBalancerListeners",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.CreateLoadBalancerPolicy",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.CreateLoadBalancerTags",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.CreateNatService",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.CreateNet",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.CreateNetAccessPoint",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.CreateNetPeering",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.CreateNic",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.CreatePolicy",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.CreatePolicyVersion",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.CreateProductType",
+      "product": "osc",
+      "reason": "the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.CreatePublicIp",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.CreateRoute",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.CreateRouteTable",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.CreateSecurityGroup",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.CreateSecurityGroupRule",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.CreateServerCertificate",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.CreateSnapshot",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.CreateSnapshotExportTask",
+      "product": "osc",
+      "reason": "Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.CreateSubnet",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.CreateTags",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.CreateUser",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.CreateUserGroup",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.CreateVirtualGateway",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.CreateVmGroup",
+      "product": "osc",
+      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.CreateVmTemplate",
+      "product": "osc",
+      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.CreateVms",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.CreateVolume",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.CreateVpnConnection",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.CreateVpnConnectionRoute",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DeleteAccessKey",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DeleteApiAccessRule",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DeleteCa",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DeleteClientGateway",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DeleteDedicatedGroup",
+      "product": "osc",
+      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DeleteDhcpOptions",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.DeleteDirectLink",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DeleteDirectLinkInterface",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DeleteExportTask",
+      "product": "osc",
+      "reason": "Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DeleteFlexibleGpu",
+      "product": "osc",
+      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DeleteImage",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.DeleteInternetService",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.DeleteKeypair",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.DeleteListenerRule",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.DeleteLoadBalancer",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.DeleteLoadBalancerListeners",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.DeleteLoadBalancerPolicy",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.DeleteLoadBalancerTags",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.DeleteNatService",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.DeleteNet",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.DeleteNetAccessPoint",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.DeleteNetPeering",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.DeleteNic",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.DeletePolicy",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DeletePolicyVersion",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DeleteProductType",
+      "product": "osc",
+      "reason": "the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DeletePublicIp",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.DeleteRoute",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.DeleteRouteTable",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.DeleteSecurityGroup",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.DeleteSecurityGroupRule",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.DeleteServerCertificate",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.DeleteSnapshot",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.DeleteSubnet",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.DeleteTags",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.DeleteUser",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DeleteUserGroup",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DeleteUserGroupPolicy",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DeleteUserPolicy",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DeleteVirtualGateway",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DeleteVmGroup",
+      "product": "osc",
+      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DeleteVmTemplate",
+      "product": "osc",
+      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DeleteVms",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.DeleteVolume",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.DeleteVpnConnection",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DeleteVpnConnectionRoute",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DeregisterVmsInLoadBalancer",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.DisableOutscaleLogin",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DisableOutscaleLoginForUsers",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.DisableOutscaleLoginPerUsers",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.EnableOutscaleLogin",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.EnableOutscaleLoginForUsers",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.EnableOutscaleLoginPerUsers",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.LinkFlexibleGpu",
+      "product": "osc",
+      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.LinkInternetService",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.LinkLoadBalancerBackendMachines",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.LinkManagedPolicyToUserGroup",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.LinkNic",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.LinkPolicy",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.LinkPrivateIps",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.LinkPublicIp",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.LinkRouteTable",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.LinkVirtualGateway",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.LinkVolume",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.PutUserGroupPolicy",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.PutUserPolicy",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadAccessKeys",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadAccounts",
+      "product": "osc",
+      "reason": "the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadAdminPassword",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.ReadApiAccessPolicy",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadApiAccessRules",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadApiLogs",
+      "product": "osc",
+      "reason": "the trail records calls made against Outscale's platform, and nothing here made any of them",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadCO2EmissionAccount",
+      "product": "osc",
+      "reason": "the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadCas",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadCatalog",
+      "product": "osc",
+      "reason": "no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadCatalogs",
+      "product": "osc",
+      "reason": "no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadClientGateways",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadConsoleOutput",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.ReadConsumptionAccount",
+      "product": "osc",
+      "reason": "the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadDedicatedGroups",
+      "product": "osc",
+      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadDhcpOptions",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.ReadDirectLinkInterfaces",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadDirectLinks",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadEntitiesLinkedToPolicy",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadFlexibleGpuCatalog",
+      "product": "osc",
+      "reason": "no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadFlexibleGpus",
+      "product": "osc",
+      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadImageExportTasks",
+      "product": "osc",
+      "reason": "Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadImages",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.ReadInternetServices",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.ReadKeypairs",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.ReadLinkedPolicies",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadListenerRules",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.ReadLoadBalancerTags",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.ReadLoadBalancers",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.ReadLocations",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadManagedPoliciesLinkedToUserGroup",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadNatServices",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.ReadNetAccessPointServices",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.ReadNetAccessPoints",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.ReadNetPeerings",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.ReadNets",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.ReadNics",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.ReadPolicies",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadPolicy",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadPolicyVersion",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadPolicyVersions",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadProductTypes",
+      "product": "osc",
+      "reason": "the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadPublicCatalog",
+      "product": "osc",
+      "reason": "no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadPublicIpRanges",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.ReadPublicIps",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.ReadQuotas",
+      "product": "osc",
+      "reason": "the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadRegions",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.ReadRouteTables",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.ReadSecurityGroups",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.ReadServerCertificates",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.ReadSnapshotExportTasks",
+      "product": "osc",
+      "reason": "Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadSnapshots",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.ReadSubnets",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.ReadSubregions",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.ReadTags",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.ReadUnitPrice",
+      "product": "osc",
+      "reason": "the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadUserGroup",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadUserGroupPolicies",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadUserGroupPolicy",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadUserGroups",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadUserGroupsPerUser",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadUserPolicies",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadUserPolicy",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadUsers",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadVirtualGateways",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadVmGroups",
+      "product": "osc",
+      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadVmTemplates",
+      "product": "osc",
+      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ReadVmTypes",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.ReadVms",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.ReadVmsHealth",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.ReadVmsState",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.ReadVmsStopHistory",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.ReadVolumeUpdateTasks",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.ReadVolumes",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.ReadVpnConnections",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.RebootVms",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.RegisterVmsInLoadBalancer",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.RejectNetPeering",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.RemoveUserFromUserGroup",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ScaleDownVmGroup",
+      "product": "osc",
+      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.ScaleUpVmGroup",
+      "product": "osc",
+      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.SetDefaultPolicyVersion",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.StartVms",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.StopVms",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.UnlinkFlexibleGpu",
+      "product": "osc",
+      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.UnlinkInternetService",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.UnlinkLoadBalancerBackendMachines",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.UnlinkManagedPolicyFromUserGroup",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.UnlinkNic",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.UnlinkPolicy",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.UnlinkPrivateIps",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.UnlinkPublicIp",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.UnlinkRouteTable",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.UnlinkVirtualGateway",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.UnlinkVolume",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.UpdateAccessKey",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.UpdateAccount",
+      "product": "osc",
+      "reason": "the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.UpdateApiAccessPolicy",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.UpdateApiAccessRule",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.UpdateCa",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.UpdateDedicatedGroup",
+      "product": "osc",
+      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.UpdateDirectLinkInterface",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.UpdateFlexibleGpu",
+      "product": "osc",
+      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.UpdateImage",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.UpdateListenerRule",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.UpdateLoadBalancer",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.UpdateNet",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.UpdateNetAccessPoint",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.UpdateNic",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.UpdateRoute",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.UpdateRoutePropagation",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.UpdateRouteTableLink",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.UpdateServerCertificate",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.UpdateSnapshot",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.UpdateSubnet",
+      "product": "osc",
+      "status": "unknown"
+    },
+    {
+      "operation": "osc/Client.UpdateUser",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.UpdateUserGroup",
+      "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.UpdateVm",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.UpdateVmGroup",
+      "product": "osc",
+      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.UpdateVmTemplate",
+      "product": "osc",
+      "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "status": "declined"
+    },
+    {
+      "operation": "osc/Client.UpdateVolume",
+      "product": "osc",
+      "status": "implemented"
+    },
+    {
+      "operation": "osc/Client.UpdateVpnConnection",
+      "product": "osc",
+      "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "status": "declined"
+    }
+  ]
 }

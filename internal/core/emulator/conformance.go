@@ -215,6 +215,16 @@ type ConformanceView struct {
 	Probed int `json:"probed"`
 	// Calls counts requests per operation, for the ones that were called.
 	Calls map[string]int `json:"calls"`
+	// Probes counts synthetic requests per operation, the same way Calls counts
+	// real ones.
+	//
+	// Additive, and it exists because Probed alone is a scalar: a reader could
+	// say how many routes were probe-only and never which, so the one question
+	// worth asking of that number — which of these has nobody proven — had no
+	// answer but a file. Kept in a separate map rather than merged into Calls,
+	// for the reason the two counters have always been separate: adding them
+	// would make the score go up without anything being proven.
+	Probes map[string]int `json:"probes"`
 	// Untouched names the routes no real client has driven, which is the list
 	// worth acting on: each is an operation the emulator claims and nobody has
 	// proven. Computed from the real calls alone, so probing a route never
@@ -285,6 +295,7 @@ func (s *Server) handleConformance(w http.ResponseWriter, _ *http.Request) {
 		Exercised:           len(routes) - len(untouched),
 		Probed:              probedOnly,
 		Calls:               calls,
+		Probes:              probed,
 		Untouched:           untouched,
 		Contracts:           providers,
 		Violations:          violations,

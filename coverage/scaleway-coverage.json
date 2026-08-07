@@ -1,6 +1,9 @@
 {
-  "declined": 231,
+  "provider": "scaleway",
+  "total": 288,
   "implemented": 57,
+  "declined": 231,
+  "unknown": 0,
   "orphans": null,
   "products": [
     {
@@ -98,7 +101,1965 @@
       ]
     }
   ],
-  "provider": "scaleway",
-  "total": 288,
-  "unknown": 0
+  "entries": [
+    {
+      "operation": "iam/v1alpha1/API.AddGroupMember",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.AddGroupMembers",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.AddSamlCertificate",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.ClonePolicy",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.CreateAPIKey",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.CreateApplication",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.CreateGroup",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.CreateJWT",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.CreatePolicy",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.CreateSSHKey",
+      "product": "iam",
+      "version": "v1alpha1",
+      "status": "implemented"
+    },
+    {
+      "operation": "iam/v1alpha1/API.CreateScimToken",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.CreateUser",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.CreateUserMFAOTP",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.DeleteAPIKey",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.DeleteApplication",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.DeleteGroup",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.DeleteJWT",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.DeletePolicy",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.DeleteSSHKey",
+      "product": "iam",
+      "version": "v1alpha1",
+      "status": "implemented"
+    },
+    {
+      "operation": "iam/v1alpha1/API.DeleteSaml",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.DeleteSamlCertificate",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.DeleteScim",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.DeleteScimToken",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.DeleteUser",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.DeleteUserMFAOTP",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.DeleteWebAuthnAuthenticator",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.EnableOrganizationSaml",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.EnableOrganizationScim",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.FinishUserWebAuthnRegistration",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.GetAPIKey",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.GetApplication",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.GetGroup",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.GetJWT",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.GetLog",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.GetOrganization",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.GetOrganizationSaml",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.GetOrganizationScim",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.GetOrganizationSecuritySettings",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.GetPolicy",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.GetQuotum",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.GetSSHKey",
+      "product": "iam",
+      "version": "v1alpha1",
+      "status": "implemented"
+    },
+    {
+      "operation": "iam/v1alpha1/API.GetSamlCertificate",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.GetUser",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.GetUserConnections",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.InitiateUserConnection",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.JoinUserConnection",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.ListAPIKeys",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.ListApplications",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.ListGracePeriods",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.ListGroups",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.ListJWTs",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.ListLogs",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.ListPermissionSets",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.ListPolicies",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.ListQuota",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.ListRules",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.ListSSHKeys",
+      "product": "iam",
+      "version": "v1alpha1",
+      "status": "implemented"
+    },
+    {
+      "operation": "iam/v1alpha1/API.ListSamlCertificates",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.ListScimTokens",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.ListUserWebAuthnAuthenticators",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.ListUsers",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.LockUser",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.ParseSamlMetadata",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.RemoveGroupMember",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.RemoveUserConnection",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.SetGroupMembers",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.SetOrganizationAlias",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.SetRules",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.StartUserWebAuthnRegistration",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.UnlockUser",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.UpdateAPIKey",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.UpdateApplication",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.UpdateGroup",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.UpdateOrganizationLoginMethods",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.UpdateOrganizationSecuritySettings",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.UpdatePolicy",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.UpdateSSHKey",
+      "product": "iam",
+      "version": "v1alpha1",
+      "status": "implemented"
+    },
+    {
+      "operation": "iam/v1alpha1/API.UpdateSaml",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.UpdateUser",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.UpdateUserPassword",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.UpdateUserUsername",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.UpdateWebAuthnAuthenticator",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "iam/v1alpha1/API.ValidateUserMFAOTP",
+      "product": "iam",
+      "reason": "the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.ApplyBlockMigration",
+      "product": "instance",
+      "reason": "there is no legacy storage behind this emulator to migrate from, so a plan would describe a move between two things that are the same store",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.AttachServerFileSystem",
+      "product": "instance",
+      "reason": "it mounts Scaleway's File Storage product, and there is no filesystem service behind this emulator for a machine to mount",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.AttachServerVolume",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.AttachVolume",
+      "product": "instance",
+      "reason": "the SDK's hand-written helpers, deprecated upstream in favour of AttachServerVolume and DetachServerVolume, which this pack serves and which the CLI calls",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.CheckBlockMigrationOrganizationQuotas",
+      "product": "instance",
+      "reason": "capacity and quotas are the provider's fleet, and a local emulator that answered would be inventing headroom a client could plan against",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.CreateIP",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.CreateImage",
+      "product": "instance",
+      "reason": "the pack answers image lookups from the fixed catalogue the CLI resolves against, so creating or editing one would edit a table nothing can add to",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.CreatePlacementGroup",
+      "product": "instance",
+      "reason": "placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.CreatePrivateNIC",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.CreateSecurityGroup",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.CreateSecurityGroupRule",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.CreateServer",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.CreateSnapshot",
+      "product": "instance",
+      "reason": "a snapshot copies the bytes of a volume, and an emulated volume is a size and a name with nothing written behind it, so the object produced would restore nothing",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.CreateVolume",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.DeleteIP",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.DeleteImage",
+      "product": "instance",
+      "reason": "the pack answers image lookups from the fixed catalogue the CLI resolves against, so creating or editing one would edit a table nothing can add to",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.DeletePlacementGroup",
+      "product": "instance",
+      "reason": "placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.DeletePrivateNIC",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.DeleteSecurityGroup",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.DeleteSecurityGroupRule",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.DeleteServer",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.DeleteServerUserData",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.DeleteSnapshot",
+      "product": "instance",
+      "reason": "creating a snapshot is declined, so no snapshot can exist in this emulator for these calls to read, edit or delete",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.DeleteVolume",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.DetachServerFileSystem",
+      "product": "instance",
+      "reason": "it mounts Scaleway's File Storage product, and there is no filesystem service behind this emulator for a machine to mount",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.DetachServerVolume",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.DetachVolume",
+      "product": "instance",
+      "reason": "the SDK's hand-written helpers, deprecated upstream in favour of AttachServerVolume and DetachServerVolume, which this pack serves and which the CLI calls",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.ExportSnapshot",
+      "product": "instance",
+      "reason": "it writes into Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.GetDashboard",
+      "product": "instance",
+      "reason": "its thirteen counters span resources this pack does not serve, so every total would be short by the unemulated remainder with nothing saying which",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.GetIP",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.GetImage",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.GetPlacementGroup",
+      "product": "instance",
+      "reason": "placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.GetPlacementGroupServers",
+      "product": "instance",
+      "reason": "placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.GetPrivateNIC",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.GetSecurityGroup",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.GetSecurityGroupRule",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.GetServer",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.GetServerCompatibleTypes",
+      "product": "instance",
+      "reason": "capacity and quotas are the provider's fleet, and a local emulator that answered would be inventing headroom a client could plan against",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.GetServerTypesAvailability",
+      "product": "instance",
+      "reason": "capacity and quotas are the provider's fleet, and a local emulator that answered would be inventing headroom a client could plan against",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.GetServerUserData",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.GetSnapshot",
+      "product": "instance",
+      "reason": "creating a snapshot is declined, so no snapshot can exist in this emulator for these calls to read, edit or delete",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.GetVolume",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.ListDefaultSecurityGroupRules",
+      "product": "instance",
+      "reason": "the seeded rule set is a value the SDK does not carry, so an invented list would state which ports a real client believes are open, and docs/limits.md records that these rules do filter packets",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.ListIPs",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.ListImages",
+      "product": "instance",
+      "reason": "the catalogue exists so the CLI can resolve one image by id before a create, and listing it would publish six fixed entries as if they were an inventory a client could grow",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.ListPlacementGroups",
+      "product": "instance",
+      "reason": "placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.ListPrivateNICs",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.ListSecurityGroupRules",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.ListSecurityGroups",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.ListServerActions",
+      "product": "instance",
+      "reason": "the server already publishes allowed_actions, derived from its state, so a second listing would be a second place to keep in step with the first",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.ListServerUserData",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.ListServers",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.ListServersTypes",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.ListSnapshots",
+      "product": "instance",
+      "reason": "creating a snapshot is declined, so no snapshot can exist in this emulator for these calls to read, edit or delete",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.ListVolumes",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.ListVolumesTypes",
+      "product": "instance",
+      "reason": "the emulator serves one volume type, b_ssd, because that is what its catalogue attaches, so a type list would describe capabilities nothing here can create",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.PlanBlockMigration",
+      "product": "instance",
+      "reason": "there is no legacy storage behind this emulator to migrate from, so a plan would describe a move between two things that are the same store",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.ReleaseIPToIpam",
+      "product": "instance",
+      "reason": "addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.ServerAction",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.SetPlacementGroup",
+      "product": "instance",
+      "reason": "placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.SetPlacementGroupServers",
+      "product": "instance",
+      "reason": "placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.SetSecurityGroupRules",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.SetServerUserData",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.UpdateIP",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.UpdateImage",
+      "product": "instance",
+      "reason": "the pack answers image lookups from the fixed catalogue the CLI resolves against, so creating or editing one would edit a table nothing can add to",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.UpdatePlacementGroup",
+      "product": "instance",
+      "reason": "placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.UpdatePlacementGroupServers",
+      "product": "instance",
+      "reason": "placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.UpdatePrivateNIC",
+      "product": "instance",
+      "reason": "its request carries tags and nothing else, and the pack stores no tag on a private NIC, so it would answer success over a field nothing reads back",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.UpdateSecurityGroup",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.UpdateSecurityGroupRule",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.UpdateServer",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/API.UpdateSnapshot",
+      "product": "instance",
+      "reason": "creating a snapshot is declined, so no snapshot can exist in this emulator for these calls to read, edit or delete",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/API.UpdateVolume",
+      "product": "instance",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "instance/v1/MetadataAPI.DeleteUserData",
+      "product": "instance",
+      "reason": "the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/MetadataAPI.GetMetadata",
+      "product": "instance",
+      "reason": "the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/MetadataAPI.GetUserData",
+      "product": "instance",
+      "reason": "the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/MetadataAPI.ListUserData",
+      "product": "instance",
+      "reason": "the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v1/MetadataAPI.SetUserData",
+      "product": "instance",
+      "reason": "the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.AddSecurityGroupRules",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.AttachServerFileSystem",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.AttachServerIP",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.AttachServerPrivateNetworkInterface",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.AttachServerVolume",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.CheckTemplate",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.CreatePlacementGroup",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.CreatePrivateNetworkInterface",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.CreateSecurityGroup",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.CreateServer",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.CreateServerFromTemplate",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.CreateTemplate",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.DeletePlacementGroup",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.DeletePrivateNetworkInterface",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.DeleteSecurityGroup",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.DeleteSecurityGroupRules",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.DeleteServer",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.DeleteTemplate",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.DeleteTemplateUserData",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.DeleteUserData",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.DetachServerFileSystem",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.DetachServerIP",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.DetachServerPrivateNetworkInterface",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.DetachServerVolume",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.GetPlacementGroup",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.GetPrivateNetworkInterface",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.GetResourceCounts",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.GetSecurityGroup",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.GetServer",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.GetServerCloudInit",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.GetTemplate",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.GetTemplateCloudInit",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.GetTemplateUserData",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.GetUserData",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.ListPlacementGroups",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.ListPrivateNetworkInterfaces",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.ListSecurityGroups",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.ListServerTypes",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.ListServers",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.ListTemplateUserDataKeys",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.ListTemplates",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.ListUserDataKeys",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.PauseServer",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.RebootServer",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.SetSecurityGroupRules",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.SetServerCloudInit",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.SetServerDefaultIP",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.SetTemplateCloudInit",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.SetTemplateUserData",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.SetUserData",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.StartServer",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.StopAndDeleteServer",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.StopServer",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.UpdatePlacementGroup",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.UpdatePrivateNetworkInterface",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.UpdateSecurityGroup",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.UpdateSecurityGroupRule",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.UpdateServer",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/API.UpdateTemplate",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/VolumeAPI.CreateSnapshot",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/VolumeAPI.CreateVolume",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/VolumeAPI.DeleteSnapshot",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/VolumeAPI.DeleteVolume",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/VolumeAPI.ExportSnapshotToObjectStorage",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/VolumeAPI.GetSnapshot",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/VolumeAPI.GetVolume",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/VolumeAPI.ImportSnapshotFromObjectStorage",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/VolumeAPI.ListSnapshots",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/VolumeAPI.ListVolumeTypes",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/VolumeAPI.ListVolumes",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/VolumeAPI.UpdateSnapshot",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "instance/v2alpha1/VolumeAPI.UpdateVolume",
+      "product": "instance",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "version": "v2alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "ipam/v1/API.AttachIP",
+      "product": "ipam",
+      "reason": "addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "ipam/v1/API.BookIP",
+      "product": "ipam",
+      "reason": "addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "ipam/v1/API.DetachIP",
+      "product": "ipam",
+      "reason": "addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "ipam/v1/API.GetIP",
+      "product": "ipam",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "ipam/v1/API.ListIPs",
+      "product": "ipam",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "ipam/v1/API.MoveIP",
+      "product": "ipam",
+      "reason": "addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "ipam/v1/API.ReleaseIP",
+      "product": "ipam",
+      "reason": "addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "ipam/v1/API.ReleaseIPSet",
+      "product": "ipam",
+      "reason": "addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "ipam/v1/API.UpdateIP",
+      "product": "ipam",
+      "reason": "addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "ipam/v1alpha1/API.ListIPs",
+      "product": "ipam",
+      "reason": "ipam/v1alpha1 is the superseded draft of ipam/v1, which is served",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "marketplace/v2/API.GetCategory",
+      "product": "marketplace",
+      "reason": "the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "marketplace/v2/API.GetImage",
+      "product": "marketplace",
+      "reason": "the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "marketplace/v2/API.GetLocalImage",
+      "product": "marketplace",
+      "reason": "the CLI resolves its default image through ListLocalImages, which is served, so a per-id lookup would be a second door onto the same fixed table",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "marketplace/v2/API.GetVersion",
+      "product": "marketplace",
+      "reason": "the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "marketplace/v2/API.ListCategories",
+      "product": "marketplace",
+      "reason": "the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "marketplace/v2/API.ListImages",
+      "product": "marketplace",
+      "reason": "the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "marketplace/v2/API.ListLocalImages",
+      "product": "marketplace",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "marketplace/v2/API.ListVersions",
+      "product": "marketplace",
+      "reason": "the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.AddPrivateNetworkS3Endpoint",
+      "product": "vpc",
+      "reason": "they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.CreateIngressRule",
+      "product": "vpc",
+      "reason": "filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.CreatePrivateNetwork",
+      "product": "vpc",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpc/v2/API.CreateRoute",
+      "product": "vpc",
+      "reason": "routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.CreateVPC",
+      "product": "vpc",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpc/v2/API.CreateVPCConnector",
+      "product": "vpc",
+      "reason": "it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.DeleteIngressRule",
+      "product": "vpc",
+      "reason": "filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.DeletePrivateNetwork",
+      "product": "vpc",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpc/v2/API.DeletePrivateNetworkS3Endpoint",
+      "product": "vpc",
+      "reason": "they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.DeleteRoute",
+      "product": "vpc",
+      "reason": "routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.DeleteVPC",
+      "product": "vpc",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpc/v2/API.DeleteVPCConnector",
+      "product": "vpc",
+      "reason": "it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.DisableS3Endpoint",
+      "product": "vpc",
+      "reason": "they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.EnableCustomRoutesPropagation",
+      "product": "vpc",
+      "reason": "routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.EnableDHCP",
+      "product": "vpc",
+      "reason": "the runtime writes a fixed address on each interface at boot instead of leasing one, so there is no DHCP server behind these networks to enable",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.EnableRouting",
+      "product": "vpc",
+      "reason": "routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.EnableS3Endpoint",
+      "product": "vpc",
+      "reason": "they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.GetACL",
+      "product": "vpc",
+      "reason": "filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.GetIngressRule",
+      "product": "vpc",
+      "reason": "filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.GetPrivateNetwork",
+      "product": "vpc",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpc/v2/API.GetRoute",
+      "product": "vpc",
+      "reason": "routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.GetVPC",
+      "product": "vpc",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpc/v2/API.GetVPCConnector",
+      "product": "vpc",
+      "reason": "it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.ListIngressRules",
+      "product": "vpc",
+      "reason": "filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.ListPrivateNetworks",
+      "product": "vpc",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpc/v2/API.ListSubnetOverlaps",
+      "product": "vpc",
+      "reason": "it compares the subnets of a fleet of VPCs against each other, and no client in tools/conformance drives it",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.ListSubnets",
+      "product": "vpc",
+      "reason": "the pack publishes a private network's subnets on the network itself, which is where ListPrivateNetworks already returns them",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.ListVPCConnectors",
+      "product": "vpc",
+      "reason": "it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.ListVPCs",
+      "product": "vpc",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpc/v2/API.SetACL",
+      "product": "vpc",
+      "reason": "filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.SetPrivateNetworksS3Endpoint",
+      "product": "vpc",
+      "reason": "they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.UpdateIngressRule",
+      "product": "vpc",
+      "reason": "filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.UpdatePrivateNetwork",
+      "product": "vpc",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpc/v2/API.UpdateRoute",
+      "product": "vpc",
+      "reason": "routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.UpdateVPC",
+      "product": "vpc",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpc/v2/API.UpdateVPCConnector",
+      "product": "vpc",
+      "reason": "it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/RoutesWithNexthopAPI.ListRoutesWithNexthop",
+      "product": "vpc",
+      "reason": "routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take",
+      "version": "v2",
+      "status": "declined"
+    }
+  ]
 }

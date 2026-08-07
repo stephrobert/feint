@@ -36,7 +36,11 @@ func upstreamGap(dir string) func() emulator.UpstreamView {
 		// Refresh is left to the core, which owns the sentence the page prints.
 		// Written here too, it would be the same fact in two files, and the one
 		// that went stale would be the one nobody was reading.
-		view := emulator.UpstreamView{Source: dir, Products: []emulator.UpstreamProduct{}}
+		view := emulator.UpstreamView{
+			Source:     dir,
+			Products:   []emulator.UpstreamProduct{},
+			Operations: []emulator.UpstreamOperation{},
+		}
 		reports, err := loadCoverage(dir)
 		if err != nil || len(reports) == 0 {
 			return view
@@ -50,6 +54,21 @@ func upstreamGap(dir string) func() emulator.UpstreamView {
 					Declined:  p.Declined,
 					Untriaged: p.Unknown,
 					Total:     p.Total,
+				})
+			}
+			// Copied across, never recomputed: the verdict and its reason are
+			// what drift.Compare decided and what the artefact recorded. The
+			// provider is added because the artefact keeps it once at the top
+			// and the page needs it on every row to group without knowing a
+			// single provider name.
+			for _, e := range rep.Entries {
+				view.Operations = append(view.Operations, emulator.UpstreamOperation{
+					Operation: e.Operation,
+					Provider:  rep.Provider,
+					Product:   e.Product,
+					Version:   e.Version,
+					Status:    string(e.Status),
+					Reason:    e.Reason,
 				})
 			}
 		}

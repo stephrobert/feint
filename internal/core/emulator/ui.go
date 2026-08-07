@@ -109,6 +109,21 @@ type UpstreamView struct {
 	// Products is one row per upstream product, provider included, so the page
 	// can group them without knowing a single provider name.
 	Products []UpstreamProduct `json:"products"`
+	// Operations is the verdict on every upstream operation, with the reason a
+	// declined one is declined.
+	//
+	// This is what turns each count above into the decisions it is made of. One
+	// product declines 111 operations, and that number is not something a reader
+	// can act on; the sentence written beside each refusal is. The sentences
+	// already existed — Declined() has carried them since the packs were
+	// written, and TestUnexplainedDeclinesAreFound keeps them non-empty — but
+	// reading one meant running a scan against an SDK checkout, so nobody did.
+	//
+	// The join is never recomputed here. drift.Compare owns it, writes it into
+	// the versioned artefact, and this carries it across unchanged: a second
+	// implementation, in a browser, would be a second answer to the question the
+	// whole project measures itself on.
+	Operations []UpstreamOperation `json:"operations"`
 }
 
 // UpstreamProduct is one product of one provider's API surface.
@@ -119,6 +134,20 @@ type UpstreamProduct struct {
 	Declined  int    `json:"declined"`
 	Untriaged int    `json:"untriaged"`
 	Total     int    `json:"total"`
+}
+
+// UpstreamOperation is one operation of one upstream API, and what this
+// emulator decided about it.
+type UpstreamOperation struct {
+	Operation string `json:"operation"`
+	Provider  string `json:"provider"`
+	Product   string `json:"product"`
+	Version   string `json:"version,omitempty"`
+	// Status is the drift report's own word — implemented, declined, unknown —
+	// rather than a second vocabulary invented at the boundary.
+	Status string `json:"status"`
+	// Reason is why a declined operation is declined, empty otherwise.
+	Reason string `json:"reason,omitempty"`
 }
 
 // MountUI mounts the page and reports whether it did.
@@ -171,6 +200,9 @@ func (s *Server) MountUI(ui UI) bool {
 		}
 		if upstream.Products == nil {
 			upstream.Products = []UpstreamProduct{}
+		}
+		if upstream.Operations == nil {
+			upstream.Operations = []UpstreamOperation{}
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"version":  version,

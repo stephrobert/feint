@@ -95,7 +95,153 @@
     setText(byId("resources"), data.resources);
   }
 
+  /* ---- operation lists, the shape every drill-down uses ------------------ */
+
+  /* One row: a status chip, the operation's upstream name, where it is mounted,
+     and whatever explains it — a call count, a refusal's reason, the fields a
+     handler never read. Every one of those strings is data; none is a word this
+     file knows. */
+  function operationRow(item, sameReasonAsAbove) {
+    var li = document.createElement("li");
+    li.className = sameReasonAsAbove ? "op op-continued" : "op";
+
+    var chip = document.createElement("span");
+    chip.className = "op-status";
+    chip.setAttribute("data-status", item.status || "");
+    chip.textContent = item.status || "";
+
+    var name = document.createElement("span");
+    name.className = "op-name mono";
+    name.textContent = item.operation;
+
+    li.appendChild(chip);
+    li.appendChild(name);
+
+    if (item.route) {
+      var route = document.createElement("span");
+      route.className = "op-route mono";
+      route.textContent = item.route;
+      li.appendChild(route);
+    }
+    if (item.note) {
+      var note = document.createElement("span");
+      note.className = "op-note";
+      note.textContent = item.note;
+      li.appendChild(note);
+    }
+    if (item.reason && !sameReasonAsAbove) {
+      var reason = document.createElement("span");
+      reason.className = "op-reason";
+      reason.textContent = item.reason;
+      li.appendChild(reason);
+    }
+    return li;
+  }
+
+  /* Rebuilt from scratch, and that is deliberate: these lists only exist while a
+     reader is looking at one, they are hundreds of rows at most, and diffing
+     them would cost more code than it saves. The refresh loop leaves them alone
+     unless their source actually changed. */
+  function fillOperationList(list, items, emptyMessage) {
+    while (list.firstChild) { list.removeChild(list.firstChild); }
+    if (items.length === 0) {
+      var empty = document.createElement("li");
+      empty.className = "op-empty";
+      empty.textContent = emptyMessage;
+      list.appendChild(empty);
+      return;
+    }
+    /* A reason repeated on forty consecutive rows is forty times the height and
+       no extra information: one product declines its whole API for a single
+       argument. So a reason is printed when it changes, and the rows under it
+       inherit it visually — which is also how the pack wrote it, as one Because
+       over a list of operations. */
+    var previous = null;
+    items.forEach(function (item) {
+      var repeated = item.reason !== undefined && item.reason === previous;
+      previous = item.reason;
+      list.appendChild(operationRow(item, repeated));
+    });
+  }
+
+  function operationMatches(item, needle) {
+    if (!needle) { return true; }
+    return [item.operation, item.route, item.note, item.reason, item.status]
+      .join(" ").toLowerCase().indexOf(needle) >= 0;
+  }
+
   /* ---- served, driven, probed ------------------------------------------- */
+
+  /* The route table, kept from the last refresh so a drill-down can say where an
+     operation is mounted. It is the only join this page makes, and it joins on
+     the operation name — the same key the coverage report joins on. */
+  var routeByOperation = Object.create(null);
+  var lastConformance = null;
+  var openGroup = null;
+
+  function conformanceGroups(data) {
+    var calls = data.calls || {};
+    var probes = data.probes || {};
+    var untouched = data.untouched || [];
+    var driven = [];
+    Object.keys(calls).forEach(function (op) {
+      if (calls[op] > 0) {
+        driven.push({
+          operation: op, status: "driven", route: routeByOperation[op],
+          note: calls[op] + " " + plural(calls[op], "call", "calls")
+        });
+      }
+    });
+    driven.sort(function (a, b) { return a.operation < b.operation ? -1 : 1; });
+
+    var probed = [];
+    var unproven = [];
+    untouched.forEach(function (op) {
+      var row = { operation: op, route: routeByOperation[op] };
+      if (probes[op] > 0) {
+        row.status = "probed";
+        row.note = probes[op] + " synthetic " + plural(probes[op], "request", "requests") +
+          ", so the protocol holds and the behaviour is unproven";
+        probed.push(row);
+      } else {
+        row.status = "unproven";
+        unproven.push(row);
+      }
+    });
+
+    return { driven: driven, probed: probed, unproven: unproven };
+  }
+
+  var GROUP_TITLES = {
+    driven: "operations a real client has driven",
+    probed: "operations only a probe has reached — schema-valid, behaviour unproven",
+    unproven: "operations nobody has driven"
+  };
+
+  function renderProofDrill() {
+    var drill = byId("proof-drill");
+    if (!openGroup || !lastConformance) {
+      drill.hidden = true;
+      return;
+    }
+    var groups = conformanceGroups(lastConformance);
+    var items = groups[openGroup] || [];
+    var needle = byId("proof-drill-filter").value.trim().toLowerCase();
+    var shown = items.filter(function (item) { return operationMatches(item, needle); });
+
+    drill.hidden = false;
+    setText(byId("proof-drill-title"), GROUP_TITLES[openGroup] + " (" + shown.length + ")");
+    fillOperationList(byId("proof-drill-list"), shown,
+      needle ? "nothing here matches that filter" : "none");
+  }
+
+  function toggleGroup(group) {
+    openGroup = openGroup === group ? null : group;
+    ["driven", "probed", "unproven"].forEach(function (name) {
+      byId("open-" + name).setAttribute("aria-expanded", String(openGroup === name));
+    });
+    renderProofDrill();
+  }
 
   function renderConformance(data) {
     var served = data.served || 0;
@@ -133,24 +279,42 @@
        second one is the causal defect this project cares about most: a field the
        client sent and no handler read is an argument the API accepted and then
        ignored. */
-    var violations = Object.keys(data.violations || {}).length;
-    var unread = Object.keys(data.unread_request_fields || {}).length;
-    var problems = [];
-    if (violations > 0) {
-      problems.push(violations + " " + plural(violations, "operation", "operations") +
-        " answered something its API description does not define");
-    }
-    if (unread > 0) {
-      problems.push(unread + " " + plural(unread, "operation", "operations") +
-        " received a field no handler read");
-    }
+    /* Both of these were counts and nothing else, which made them the two most
+       frustrating numbers on the page: they name a defect and then refuse to say
+       which. They open now. */
+    var violations = data.violations || {};
+    var violationOps = Object.keys(violations).sort();
     var note = byId("violations-note");
-    if (problems.length === 0) {
-      note.hidden = true;
-    } else {
-      note.hidden = false;
-      setText(note, problems.join("; ") + ".");
+    note.hidden = violationOps.length === 0;
+    if (violationOps.length > 0) {
+      setText(byId("violations-summary"), violationOps.length + " " +
+        plural(violationOps.length, "operation", "operations") +
+        " answered something its API description does not define");
+      fillOperationList(byId("violations-list"), violationOps.map(function (op) {
+        return {
+          operation: op, status: "violation", route: routeByOperation[op],
+          reason: (violations[op] || []).join(" · ")
+        };
+      }), "none");
     }
+
+    var unread = data.unread_request_fields || {};
+    var unreadOps = Object.keys(unread).sort();
+    var unreadNote = byId("unread-note");
+    unreadNote.hidden = unreadOps.length === 0;
+    if (unreadOps.length > 0) {
+      setText(byId("unread-summary"), unreadOps.length + " " +
+        plural(unreadOps.length, "operation", "operations") + " received a field no handler read");
+      fillOperationList(byId("unread-list"), unreadOps.map(function (op) {
+        return {
+          operation: op, status: "unread", route: routeByOperation[op],
+          reason: "sent, never read: " + (unread[op] || []).join(" · ")
+        };
+      }), "none");
+    }
+
+    lastConformance = data;
+    renderProofDrill();
   }
 
   /* ---- rendering values nobody wrote a schema for ------------------------ */
@@ -486,8 +650,14 @@
     var row = upstreamNodes[key];
     if (row) { return row; }
 
-    var el = document.createElement("div");
-    el.className = "row";
+    /* The row is a disclosure, so the counts open onto the operations they are
+       made of. 111 declined is not something a reader can act on; the sentence
+       written beside each refusal is, and it has been in the pack all along. */
+    var el = document.createElement("details");
+    el.className = "row-details";
+
+    var summary = document.createElement("summary");
+    summary.className = "row";
 
     var name = document.createElement("span");
     name.className = "name";
@@ -521,15 +691,45 @@
     count.appendChild(rest);
     count.appendChild(untriagedN);
 
-    el.appendChild(name);
-    el.appendChild(track);
-    el.appendChild(count);
+    summary.appendChild(name);
+    summary.appendChild(track);
+    summary.appendChild(count);
+    el.appendChild(summary);
+
+    var body = document.createElement("div");
+    body.className = "row-body";
+    var filter = document.createElement("input");
+    filter.type = "search";
+    filter.className = "search";
+    filter.placeholder = "filter these operations";
+    filter.autocomplete = "off";
+    filter.spellcheck = false;
+    var list = document.createElement("ol");
+    list.className = "op-list";
+    body.appendChild(filter);
+    body.appendChild(list);
+    el.appendChild(body);
     upstreamRows.appendChild(el);
 
     row = {
       served: servedBar, declined: declinedBar, untriaged: untriagedBar,
-      servedN: servedN, rest: rest, untriagedN: untriagedN
+      servedN: servedN, rest: rest, untriagedN: untriagedN,
+      list: list, filter: filter, operations: [], rendered: ""
     };
+
+    var draw = function () {
+      var needle = filter.value.trim().toLowerCase();
+      var shown = row.operations.filter(function (op) { return operationMatches(op, needle); });
+      fillOperationList(list, shown, needle ? "nothing here matches that filter" : "none");
+    };
+    filter.addEventListener("input", draw);
+    /* Filled on first open rather than on every refresh: 923 operations across
+       eight products is a lot of nodes to build for panels nobody has opened. */
+    el.addEventListener("toggle", function () {
+      if (el.open) { draw(); }
+    });
+    row.draw = draw;
+
     upstreamNodes[key] = row;
     return row;
   }
@@ -548,8 +748,19 @@
       empty.hidden = true;
     }
 
+    /* Grouped by the product each operation belongs to, using the provider and
+       product the artefact recorded. No name is matched against anything this
+       file knows. */
+    var byProduct = Object.create(null);
+    (view.operations || []).forEach(function (op) {
+      var key = op.provider + "/" + op.product;
+      if (!byProduct[key]) { byProduct[key] = []; }
+      byProduct[key].push(op);
+    });
+
     products.forEach(function (item) {
-      var row = upstreamRow(item.provider + "/" + item.product, item);
+      var key = item.provider + "/" + item.product;
+      var row = upstreamRow(key, item);
       var total = item.total > 0 ? item.total : 1;
       setWidth(row.served, (item.served * 100) / total);
       setWidth(row.declined, (item.declined * 100) / total);
@@ -557,6 +768,29 @@
       setText(row.servedN, item.served);
       setText(row.rest, " served of " + item.total + ", " + item.declined + " declined");
       setText(row.untriagedN, item.untriaged > 0 ? ", " + item.untriaged + " untriaged" : "");
+
+      /* Served first, then untriaged, then declined: the first two are work and
+         the third is a decision already taken, and a reader scanning for
+         something to do should meet the work first. */
+      var rank = { implemented: 0, unknown: 1, declined: 2 };
+      var operations = (byProduct[key] || []).slice().sort(function (a, b) {
+        if (rank[a.status] !== rank[b.status]) { return rank[a.status] - rank[b.status]; }
+        return a.operation < b.operation ? -1 : 1;
+      });
+      var fingerprint = JSON.stringify(operations);
+      if (row.rendered !== fingerprint) {
+        row.rendered = fingerprint;
+        row.operations = operations.map(function (op) {
+          return {
+            operation: op.operation,
+            status: op.status === "implemented" ? "served" : op.status === "unknown" ? "untriaged" : op.status,
+            route: routeByOperation[op.operation],
+            reason: op.reason,
+            note: op.version
+          };
+        });
+        if (row.list.parentNode && row.list.parentNode.parentNode.open) { row.draw(); }
+      }
     });
 
     setText(byId("upstream-source"), view.source || "—");
@@ -584,9 +818,16 @@
     return Promise.all([
       getJSON("/_feint/health"),
       getJSON("/_feint/conformance"),
-      getJSON("/_feint/resources")
+      getJSON("/_feint/resources"),
+      getJSON("/_feint/routes")
     ])
       .then(function (answers) {
+        /* The route table first: every drill-down below wants to say where an
+           operation is mounted, and an empty map would silently drop that
+           column on the first render. */
+        answers[3].forEach(function (route) {
+          routeByOperation[route.operation] = route.method + " " + route.path;
+        });
         renderHealth(answers[0]);
         renderConformance(answers[1]);
         renderInventory(answers[2]);
@@ -620,6 +861,14 @@
        and the data is two seconds old at worst. */
     inventorySearch.addEventListener("input", function () {
       renderInventory({ resources: lastResources });
+    });
+
+    ["driven", "probed", "unproven"].forEach(function (group) {
+      byId("open-" + group).addEventListener("click", function () { toggleGroup(group); });
+    });
+    byId("proof-drill-filter").addEventListener("input", renderProofDrill);
+    byId("proof-drill-close").addEventListener("click", function () {
+      if (openGroup) { toggleGroup(openGroup); }
     });
 
     loadData();
