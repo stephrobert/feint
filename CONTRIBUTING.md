@@ -89,6 +89,30 @@ about what people need, a client that breaks is a fact. A route you need uses
 workflow opens and updates its own issue under the `drift` label; nobody opens
 that one by hand.
 
+**How a title reads.** Two forms, because issues here do two different things,
+and mixing them costs the ability to cite one.
+
+A **defect** is titled by the sentence that says what breaks, with no prefix:
+*A stopped Vm outside a Subnet loses its PrivateIp*, *DryRun: false makes the
+project's own conformance gate fail*. A symptom, not a diagnosis and not a
+proposed fix — the diagnosis is often wrong at the time the issue is opened, and
+the title outlives it.
+
+A **unit of delivery** is titled `<CODE>-<n>: ` then what the batch makes true.
+The codes are `SW`, `OSC`, `EXO` for a pack, `UI` for the interface, `X` for
+anything that crosses them: *OSC-2: ProductCodes, admin password, tags*. The
+code is not decoration. Commits close batches by naming it — `Closes #6
+(OSC-2)` — docs/roadmap.md orders by it, and the *Roadmap batch* template has a
+field for it. **An issue without a code is an issue no commit can name.**
+
+Six issues were opened in one afternoon without one, while that template field
+had existed all along. Anything a title is supposed to carry gets carried by
+whoever remembers, so read this section before opening rather than after.
+
+A question to be settled is neither of the two: it opens with `Reopen` or
+`Decide` and states the question, because a title that reads like a batch
+invites someone to implement what has not been decided.
+
 **What closes an issue.** The command in its "closed by" field, run and green —
 never an intention. Roadmap batches close on the four "When a batch is done"
 conditions of docs/roadmap.md, which every batch issue repeats verbatim rather
