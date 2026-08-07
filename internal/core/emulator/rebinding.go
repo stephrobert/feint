@@ -38,7 +38,7 @@ type rebindingGuard struct {
 // listen address; the bare Handler stays unguarded so tests and in-process users
 // are not made to care.
 func GuardRebinding(h http.Handler, addr string) http.Handler {
-	return rebindingGuard{next: h, guard: isLoopbackListen(addr)}
+	return rebindingGuard{next: h, guard: LoopbackListen(addr)}
 }
 
 func (g rebindingGuard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -74,9 +74,14 @@ func (g rebindingGuard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	g.next.ServeHTTP(w, r)
 }
 
-// isLoopbackListen reports whether a listen address keeps the emulator on the
+// LoopbackListen reports whether a listen address keeps the emulator on the
 // local machine. A bare port, or one bound to every interface, does not.
-func isLoopbackListen(addr string) bool {
+//
+// Exported because the refusal at start-up must ask exactly this question. Two
+// implementations of "is this local" would eventually disagree, and the one that
+// drifted would be the one nobody tested — which is how the browser guard came
+// to be silently disarmed by an address nothing validated.
+func LoopbackListen(addr string) bool {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
 		host = addr

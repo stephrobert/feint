@@ -360,6 +360,33 @@ func newServer(contracts map[string]*contract.Doc) (*emulator.Server, *emulator.
 	return srv, env, nil
 }
 
+// checkListenAddr refuses an address that would serve with the browser guard
+// disarmed, unless the operator asked for exactly that.
+//
+// Off loopback, the anti-rebinding guard stops refusing anything: measured, a
+// page on another origin gets 200 where it gets 403 on 127.0.0.1, and so does a
+// forged Host. With --vm on, what is then reachable from the network is a
+// container runtime — and store.Restore validates nothing, so a forged state is
+// one request away from naming a machine on the host. The old behaviour was to
+// print "feint dev listening on 0.0.0.0:4599" and say nothing else.
+//
+// It is a function rather than a branch inside serve because of what falsifying
+// it showed: the first test drove `serve` itself, and with the refusal removed,
+// serve did its job — it listened, and the test never returned. A test that
+// hangs when its fix is deleted proves nothing and blocks every test behind it.
+// The decision is therefore separated from the act, and only the decision is
+// tested.
+//
+// TestServeRefusesANonLoopbackAddress fails without this.
+func checkListenAddr(addr string, expose bool) error {
+	if emulator.LoopbackListen(addr) || expose {
+		return nil
+	}
+	return fmt.Errorf("refusing to listen on %s: off loopback the browser guard is disarmed, "+
+		"so any page the operator visits can drive this emulator — and with --vm, start containers. "+
+		"Pass --expose-to-network if that is what you want", addr)
+}
+
 func serve(args []string, stdout io.Writer) error {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	addr := fs.String("addr", DefaultAddr, "listen address")
@@ -368,7 +395,12 @@ func serve(args []string, stdout io.Writer) error {
 	cleanup := fs.Bool("cleanup", false, "remove the machines and networks this run created before exiting")
 	logLevel := fs.String("log-level", "info", "log verbosity: error, warn, info, debug")
 	contracts := fs.String("contracts", "", "directory of API contracts; every response is checked against them and /_feint/conformance reports what failed")
+	expose := fs.Bool("expose-to-network", false, "listen off loopback, which disarms the browser guard: read what it costs before setting it")
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	if err := checkListenAddr(*addr, *expose); err != nil {
 		return err
 	}
 
