@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/stephrobert/feint/internal/core/emulator"
 )
 
 // What is running, and how much of the real API it is standing in for.
@@ -48,11 +50,10 @@ type routeResponse struct {
 	Operation string `json:"operation"`
 }
 
-type conformanceResponse struct {
-	Proven    map[string][]string `json:"proven_by_a_client"`
-	Untouched map[string][]string `json:"untouched"`
-	Contracts []string            `json:"contracts"`
-}
+// The conformance view is the server's own type, imported rather than
+// redeclared. The copy that used to live here named a key the server never
+// emitted, so every decode failed and this command reported zero for the number
+// it exists to report.
 
 // statusReport is what status prints, and what --format json emits verbatim.
 type statusReport struct {
@@ -194,8 +195,8 @@ func fetchHealth(addr string) (healthResponse, error) {
 	return out, err
 }
 
-func fetchConformance(addr string) (conformanceResponse, error) {
-	var out conformanceResponse
+func fetchConformance(addr string) (emulator.ConformanceView, error) {
+	var out emulator.ConformanceView
 	err := getJSON(strings.Replace(healthURL(addr), "/health", "/conformance", 1), statusTimeout, &out)
 	return out, err
 }
@@ -210,7 +211,7 @@ func provenPerProvider(addr string, providers []string) []providerStatus {
 	}
 	conf, err := fetchConformance(addr)
 	if err != nil {
-		conf = conformanceResponse{}
+		conf = emulator.ConformanceView{}
 	}
 
 	counts := map[string]int{}
@@ -229,9 +230,15 @@ func provenPerProvider(addr string, providers []string) []providerStatus {
 			p.Routes += n
 		}
 	}
-	for provider, proven := range conf.Proven {
-		if p, ok := byProvider[provider]; ok {
-			p.Proven = len(proven)
+	// Counted from the calls a real client made, keyed by operation, which is
+	// what the server publishes. The old code read a per-provider map that never
+	// existed on the wire.
+	for operation, calls := range conf.Calls {
+		if calls == 0 {
+			continue
+		}
+		if p, ok := byProvider[providerOfProduct(productOf(operation), providers)]; ok {
+			p.Proven++
 		}
 	}
 

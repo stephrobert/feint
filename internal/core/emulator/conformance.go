@@ -189,8 +189,22 @@ func (r *recorder) Write(b []byte) (int, error) {
 	return r.ResponseWriter.Write(b)
 }
 
-// conformanceView is what /_feint/conformance answers.
-type conformanceView struct {
+// ConformanceView is what /_feint/conformance answers.
+// ConformanceView is the shape of /_feint/conformance, exported because more
+// than one thing reads it.
+//
+// It was unexported, so `internal/cli` declared its own copy — with a key
+// (`proven_by_a_client`) the server never emitted and `untouched` as an object
+// where this one carries an array. The decode failed, both callers fell back to
+// empty, and `feint status` printed 0 in the "driven by a client" column
+// whatever a client had driven. Nobody noticed, because a silent fallback looks
+// exactly like an emulator nobody has used yet.
+//
+// One shape, one owner. A reader that cannot import it is a reader that will
+// copy it.
+//
+// TestStatusCountsWhatAClientDrove in internal/cli fails without this.
+type ConformanceView struct {
 	// Served is how many routes are mounted.
 	Served int `json:"served"`
 	// Exercised is how many of them a real client drove at least once. The
@@ -266,7 +280,7 @@ func (s *Server) handleConformance(w http.ResponseWriter, _ *http.Request) {
 	}
 	sort.Strings(untouched)
 
-	writeJSON(w, http.StatusOK, conformanceView{
+	writeJSON(w, http.StatusOK, ConformanceView{
 		Served:              len(routes),
 		Exercised:           len(routes) - len(untouched),
 		Probed:              probedOnly,
