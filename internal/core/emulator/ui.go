@@ -153,6 +153,10 @@ func (s *Server) MountUI(ui UI) bool {
 	s.mountSelf("GET /_feint/ui", asset("text/html; charset=utf-8", uiPage))
 	s.mountSelf("GET /_feint/ui/app.css", asset("text/css; charset=utf-8", uiStyle))
 	s.mountSelf("GET /_feint/ui/app.js", asset("text/javascript; charset=utf-8", uiScript))
+	// The inventory rides with the page rather than with the general endpoints,
+	// because it is the one that publishes Runtime — see handleResources. Off
+	// loopback it is not mounted at all, like everything else here.
+	s.mountSelf("GET /_feint/resources", s.handleResources)
 	s.mountSelf("GET /_feint/ui/data", func(w http.ResponseWriter, _ *http.Request) {
 		version := ui.Version
 		if version == "" {

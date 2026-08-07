@@ -153,6 +153,328 @@
     }
   }
 
+  /* ---- rendering values nobody wrote a schema for ------------------------ */
+
+  var MAX_INLINE = 120;
+  var MAX_DEPTH = 8;
+
+  /* A resource's attributes are the provider's own body, and this page knows
+     none of its keys. Rendering a chosen subset would mean maintaining a list of
+     interesting fields, and the day it goes stale is the day it hides the field
+     somebody was looking for — so the whole map is rendered, structure included,
+     and folded so that whole is not the same as unreadable.
+
+     Disclosure is <details>, not a click handler: the browser already knows how
+     to open, close, focus and announce one, and an element that keeps its own
+     state survives a refresh without any bookkeeping here. */
+  function valueNode(value, depth) {
+    if (value === null || value === undefined) {
+      return leaf("null", "null");
+    }
+    var type = typeof value;
+    if (type === "boolean" || type === "number") {
+      return leaf(String(value), type);
+    }
+    if (type === "string") {
+      return stringNode(value);
+    }
+    if (depth >= MAX_DEPTH) {
+      return leaf("…", "null");
+    }
+    if (Array.isArray(value)) {
+      if (value.length === 0) { return leaf("[]", "null"); }
+      return branch("[" + value.length + "]", value.map(function (item, i) {
+        return entryNode(String(i), item, depth + 1);
+      }));
+    }
+    var keys = Object.keys(value);
+    if (keys.length === 0) { return leaf("{}", "null"); }
+    return branch("{" + keys.length + "}", keys.map(function (key) {
+      return entryNode(key, value[key], depth + 1);
+    }));
+  }
+
+  function leaf(text, kind) {
+    var el = document.createElement("span");
+    el.className = "val-" + kind;
+    el.textContent = text;
+    return el;
+  }
+
+  /* Long strings are cut and revealed on click rather than wrapped: a base64
+     cloud-init payload is one value among thirty, and letting it push the other
+     twenty-nine off the screen makes the panel useless exactly when it is
+     interesting. */
+  function stringNode(text) {
+    if (text.length <= MAX_INLINE) { return leaf(text, "string"); }
+    var el = document.createElement("button");
+    el.type = "button";
+    el.className = "val-string clipped";
+    el.title = "click to show the whole value";
+    el.textContent = text.slice(0, MAX_INLINE) + "…";
+    el.addEventListener("click", function () {
+      var open = el.classList.toggle("open");
+      el.textContent = open ? text : text.slice(0, MAX_INLINE) + "…";
+    });
+    return el;
+  }
+
+  function branch(label, children) {
+    var el = document.createElement("details");
+    el.className = "tree";
+    var head = document.createElement("summary");
+    head.textContent = label;
+    el.appendChild(head);
+    children.forEach(function (child) { el.appendChild(child); });
+    return el;
+  }
+
+  function entryNode(key, value, depth) {
+    var row = document.createElement("div");
+    row.className = "tree-row";
+    var name = document.createElement("span");
+    name.className = "tree-key";
+    name.textContent = key;
+    row.appendChild(name);
+    row.appendChild(valueNode(value, depth));
+    return row;
+  }
+
+  /* ---- time ------------------------------------------------------------- */
+
+  /* Relative on the line, absolute in the tooltip. "4 min ago" answers the
+     question being asked — did my command just do that — and the timestamp is
+     there for the one time it is not. */
+  function relative(iso) {
+    var then = new Date(iso).getTime();
+    if (isNaN(then)) { return ""; }
+    var seconds = Math.round((Date.now() - then) / 1000);
+    if (seconds < 5) { return "just now"; }
+    if (seconds < 90) { return seconds + "s ago"; }
+    var minutes = Math.round(seconds / 60);
+    if (minutes < 90) { return minutes + " min ago"; }
+    var hours = Math.round(minutes / 60);
+    if (hours < 36) { return hours + " h ago"; }
+    return Math.round(hours / 24) + " d ago";
+  }
+
+  /* ---- the inventory ----------------------------------------------------- */
+
+  var inventoryGroups = byId("inventory-groups");
+  var inventorySearch = byId("inventory-search");
+  var groupNodes = Object.create(null);
+  var resourceNodes = Object.create(null);
+  var lastResources = [];
+
+  function groupFor(provider, kind) {
+    var key = provider + " " + kind;
+    var group = groupNodes[key];
+    if (group) { return group; }
+
+    var el = document.createElement("details");
+    el.className = "group";
+    el.open = true;
+    var head = document.createElement("summary");
+
+    var providerName = document.createElement("span");
+    providerName.className = "group-provider";
+    providerName.textContent = provider || "unattributed";
+    var kindName = document.createElement("span");
+    kindName.className = "group-kind";
+    kindName.textContent = kind;
+    var count = document.createElement("span");
+    count.className = "group-count";
+
+    head.appendChild(providerName);
+    head.appendChild(kindName);
+    head.appendChild(count);
+    el.appendChild(head);
+
+    var body = document.createElement("div");
+    body.className = "group-body";
+    el.appendChild(body);
+    inventoryGroups.appendChild(el);
+
+    group = { el: el, body: body, count: count };
+    groupNodes[key] = group;
+    return group;
+  }
+
+  function resourceCard(item) {
+    var key = item.provider + " " + item.kind + " " + item.id;
+    var card = resourceNodes[key];
+    if (card) { return card; }
+
+    var el = document.createElement("details");
+    el.className = "resource";
+
+    var head = document.createElement("summary");
+    var state = document.createElement("span");
+    state.className = "state";
+    var id = document.createElement("span");
+    id.className = "res-id mono";
+    id.textContent = item.id;
+    var name = document.createElement("span");
+    name.className = "res-name";
+    var age = document.createElement("span");
+    age.className = "res-age";
+
+    head.appendChild(state);
+    head.appendChild(id);
+    head.appendChild(name);
+    head.appendChild(age);
+    el.appendChild(head);
+
+    var body = document.createElement("div");
+    body.className = "resource-body";
+
+    var actions = document.createElement("div");
+    actions.className = "resource-actions";
+    var copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "ghost";
+    copy.textContent = "copy id";
+    copy.addEventListener("click", function () {
+      copyText(item.id, copy);
+    });
+    actions.appendChild(copy);
+
+    var dates = document.createElement("span");
+    dates.className = "res-dates";
+    actions.appendChild(dates);
+
+    body.appendChild(actions);
+
+    var attrs = document.createElement("div");
+    attrs.className = "attrs";
+    body.appendChild(attrs);
+
+    el.appendChild(body);
+
+    card = { el: el, state: state, name: name, age: age, dates: dates, attrs: attrs, rendered: "" };
+    resourceNodes[key] = card;
+    return card;
+  }
+
+  function copyText(text, button) {
+    var restore = function () { setText(button, "copy id"); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        setText(button, "copied");
+        window.setTimeout(restore, 1200);
+      }, function () {
+        setText(button, "copy failed");
+        window.setTimeout(restore, 1200);
+      });
+      return;
+    }
+    setText(button, "copy failed");
+    window.setTimeout(restore, 1200);
+  }
+
+  /* The filter is one string against everything the page knows about a
+     resource: an id, a type, a state, a provider, a zone. Past the tenth
+     resource it is what makes the region usable, and a single box beats four
+     dropdowns nobody configures. */
+  function matchesFilter(item, needle) {
+    if (!needle) { return true; }
+    var hay = [item.id, item.kind, item.provider, item.state, item.zone, item.project]
+      .join(" ").toLowerCase();
+    if (hay.indexOf(needle) >= 0) { return true; }
+    // The attributes too, so searching for an address or a name a client chose
+    // finds the resource carrying it.
+    try {
+      return JSON.stringify(item.attrs || {}).toLowerCase().indexOf(needle) >= 0;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function renderInventory(data) {
+    lastResources = data.resources || [];
+    var needle = inventorySearch.value.trim().toLowerCase();
+    var shown = 0;
+    var seen = Object.create(null);
+    var perGroup = Object.create(null);
+
+    lastResources.forEach(function (item) {
+      if (!matchesFilter(item, needle)) { return; }
+      shown++;
+
+      var groupKey = item.provider + " " + item.kind;
+      perGroup[groupKey] = (perGroup[groupKey] || 0) + 1;
+      var group = groupFor(item.provider, item.kind);
+
+      var key = groupKey + " " + item.id;
+      seen[key] = true;
+      var card = resourceCard(item);
+      if (card.el.parentNode !== group.body) { group.body.appendChild(card.el); }
+
+      setText(card.state, item.state || "—");
+      card.state.setAttribute("data-state", (item.state || "").toLowerCase());
+      setText(card.name, readableName(item));
+      setText(card.age, relative(item.updated || item.created));
+      card.age.title = "created " + item.created + "\nupdated " + item.updated;
+      setText(card.dates, "created " + relative(item.created) + ", updated " + relative(item.updated));
+
+      /* The attribute tree is rebuilt only when the attributes changed. It is
+         the one part of this page that can be hundreds of nodes, and rebuilding
+         it every two seconds would close every branch the reader had opened. */
+      var fingerprint = JSON.stringify([item.state, item.updated, item.attrs, item.runtime]);
+      if (card.rendered !== fingerprint) {
+        card.rendered = fingerprint;
+        while (card.attrs.firstChild) { card.attrs.removeChild(card.attrs.firstChild); }
+        Object.keys(item.attrs || {}).sort().forEach(function (name) {
+          card.attrs.appendChild(entryNode(name, item.attrs[name], 0));
+        });
+        if (item.runtime) {
+          var runtime = document.createElement("div");
+          runtime.className = "runtime-block";
+          var label = document.createElement("div");
+          label.className = "runtime-label";
+          label.textContent = "runtime — what backs this here, never sent to a client";
+          runtime.appendChild(label);
+          Object.keys(item.runtime).sort().forEach(function (name) {
+            runtime.appendChild(entryNode(name, item.runtime[name], 0));
+          });
+          card.attrs.appendChild(runtime);
+        }
+      }
+    });
+
+    // Anything that went away goes away here too: a resource a client deleted
+    // must not linger on a page claiming to show what exists.
+    Object.keys(resourceNodes).forEach(function (key) {
+      if (seen[key]) { return; }
+      var card = resourceNodes[key];
+      if (card.el.parentNode) { card.el.parentNode.removeChild(card.el); }
+      delete resourceNodes[key];
+    });
+    Object.keys(groupNodes).forEach(function (key) {
+      var group = groupNodes[key];
+      var n = perGroup[key] || 0;
+      setText(group.count, n);
+      group.el.hidden = n === 0;
+    });
+
+    setText(byId("inventory-count"),
+      needle ? shown + " of " + lastResources.length + " shown" : lastResources.length + " " + plural(lastResources.length, "resource", "resources"));
+    byId("inventory-empty").hidden = lastResources.length > 0;
+  }
+
+  /* A name if the pack recorded one under a key it chose, and nothing if it did
+     not. The keys are tried in order and none of them is a provider's: they are
+     the words APIs use, and a pack that uses another simply shows no name. */
+  function readableName(item) {
+    var attrs = item.attrs || {};
+    var candidates = ["name", "Name", "hostname", "display_name", "label"];
+    for (var i = 0; i < candidates.length; i++) {
+      var value = attrs[candidates[i]];
+      if (typeof value === "string" && value !== "") { return value; }
+    }
+    return "";
+  }
+
   /* ---- the upstream gap ------------------------------------------------- */
 
   var upstreamRows = byId("upstream-rows");
@@ -259,10 +581,15 @@
   /* ---- the refresh loop -------------------------------------------------- */
 
   function refresh() {
-    return Promise.all([getJSON("/_feint/health"), getJSON("/_feint/conformance")])
+    return Promise.all([
+      getJSON("/_feint/health"),
+      getJSON("/_feint/conformance"),
+      getJSON("/_feint/resources")
+    ])
       .then(function (answers) {
         renderHealth(answers[0]);
         renderConformance(answers[1]);
+        renderInventory(answers[2]);
         setReachable(true);
       })
       .catch(function () {
@@ -287,6 +614,13 @@
   function start() {
     initTheme();
     setText(byId("endpoint"), window.location.host);
+
+    /* Filtering redraws from the answer already in hand rather than asking the
+       emulator again: typing must not put a request on the wire per keystroke,
+       and the data is two seconds old at worst. */
+    inventorySearch.addEventListener("input", function () {
+      renderInventory({ resources: lastResources });
+    });
 
     loadData();
     window.setInterval(loadData, DATA_REFRESH_MS);

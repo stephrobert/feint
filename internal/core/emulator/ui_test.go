@@ -52,7 +52,7 @@ func TestThePageIsServedOnLoopback(t *testing.T) {
 		if !mounted {
 			t.Fatalf("%s: the page was not mounted on a loopback address", addr)
 		}
-		for _, path := range []string{"/_feint/ui", "/_feint/ui/app.css", "/_feint/ui/app.js", "/_feint/ui/data"} {
+		for _, path := range []string{"/_feint/ui", "/_feint/ui/app.css", "/_feint/ui/app.js", "/_feint/ui/data", "/_feint/resources"} {
 			rec := uiGet(t, srv, path)
 			if rec.Code != http.StatusOK {
 				t.Errorf("%s: GET %s answered %d, want 200", addr, path, rec.Code)
@@ -81,7 +81,7 @@ func TestThePageIsNotServedOffLoopback(t *testing.T) {
 		if mounted {
 			t.Errorf("%s: the page was mounted off loopback", addr)
 		}
-		for _, path := range []string{"/_feint/ui", "/_feint/ui/app.css", "/_feint/ui/app.js", "/_feint/ui/data"} {
+		for _, path := range []string{"/_feint/ui", "/_feint/ui/app.css", "/_feint/ui/app.js", "/_feint/ui/data", "/_feint/resources"} {
 			rec := uiGet(t, srv, path)
 			if rec.Code != http.StatusNotFound {
 				t.Errorf("%s: GET %s answered %d, want 404", addr, path, rec.Code)
@@ -170,27 +170,37 @@ func TestThePageAddsOnlyGETRoutes(t *testing.T) {
 		t.Fatal("the page was not mounted")
 	}
 
-	added := 0
+	// What the page adds is measured, not listed: the difference between a
+	// server with the page and one without. A hand-kept list would stop covering
+	// the day somebody mounts a fourth endpoint and forgets to add it here,
+	// which is the day it would matter.
+	bare, err := emulator.NewServer(emulator.DefaultEnv())
+	if err != nil {
+		t.Fatalf("build emulator: %v", err)
+	}
+	before := map[string]bool{}
+	for _, pattern := range bare.SelfRoutes() {
+		before[pattern] = true
+	}
+
+	added := []string{}
 	for _, pattern := range srv.SelfRoutes() {
-		if !strings.Contains(pattern, "/_feint/ui") && !strings.Contains(pattern, "/_feint/events") {
+		if before[pattern] {
 			continue
 		}
-		added++
+		added = append(added, pattern)
 		if !strings.HasPrefix(pattern, http.MethodGet+" ") {
 			t.Errorf("the page adds %q, which is not a GET", pattern)
 		}
 	}
-	if added == 0 {
+	if len(added) == 0 {
 		t.Fatal("no route was attributed to the page, so this test measures nothing")
 	}
 
 	// And the mux itself refuses the verbs. Asserting the list alone would miss
 	// a handler registered outside mountSelf.
-	for _, pattern := range srv.SelfRoutes() {
+	for _, pattern := range added {
 		path := strings.TrimPrefix(pattern, http.MethodGet+" ")
-		if !strings.HasPrefix(path, "/_feint/ui") {
-			continue
-		}
 		for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodPatch} {
 			rec := httptest.NewRecorder()
 			srv.Handler().ServeHTTP(rec, httptest.NewRequest(method, path, nil))

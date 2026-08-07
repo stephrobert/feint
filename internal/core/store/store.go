@@ -155,6 +155,34 @@ func (s *Store) List(kind string, t resource.Tenant) []*resource.Resource {
 	return out
 }
 
+// All returns a clone of every resource, whatever its provider or kind, in the
+// same stable order List uses.
+//
+// List cannot answer this: it filters on one kind, and the kinds are each pack's
+// own vocabulary, which the core does not know and must not learn. An inventory
+// of the whole store is therefore the only provider-neutral way to see what a
+// session has created — which is what /_feint/resources serves, and why a fourth
+// pack appears there without a line changing.
+//
+// TestTheInventoryShowsAPackThePageHasNeverHeardOf in internal/core/emulator
+// fails without this.
+func (s *Store) All() []*resource.Resource {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	out := make([]*resource.Resource, 0, len(s.items))
+	for _, r := range s.items {
+		out = append(out, r.Clone())
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Created.Equal(out[j].Created) {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].Created.Before(out[j].Created)
+	})
+	return out
+}
+
 // Len reports how many resources are stored, all providers and kinds together.
 func (s *Store) Len() int {
 	s.mu.RLock()

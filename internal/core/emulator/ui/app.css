@@ -308,6 +308,158 @@ main {
 }
 .swatch.unproven { background: var(--unproven); }
 
+/* ---- the inventory ------------------------------------------------------ */
+
+.log-controls { display: flex; align-items: center; gap: 0.5rem; }
+
+.search {
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.2rem 0.5rem;
+  min-width: 16rem;
+}
+.search::placeholder { color: var(--faint); }
+.search:focus-visible { outline: 2px solid var(--info); outline-offset: 1px; }
+
+.groups { display: flex; flex-direction: column; gap: 0.5rem; }
+
+/* Disclosure is the browser's, not this page's: <details> already opens,
+   closes, takes focus and announces itself, and it keeps its own state across a
+   refresh without a line of bookkeeping. */
+.group > summary,
+.resource > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-sm);
+}
+.group > summary::-webkit-details-marker,
+.resource > summary::-webkit-details-marker { display: none; }
+.group > summary::before,
+.resource > summary::before {
+  content: "▸";
+  color: var(--faint);
+  font-size: 0.7rem;
+  transition: transform 120ms ease;
+  display: inline-block;
+}
+.group[open] > summary::before,
+.resource[open] > summary::before { transform: rotate(90deg); }
+.group > summary:hover, .resource > summary:hover { background: var(--surface-2); }
+
+.group > summary { background: var(--surface-2); border: 1px solid var(--border); }
+.group-provider { color: var(--faint); font-size: 0.82rem; }
+.group-kind { font-family: var(--mono); font-size: 0.85rem; font-weight: 600; }
+.group-count {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  color: var(--muted);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 0 0.4rem;
+}
+
+.group-body { padding: 0.25rem 0 0.25rem 0.75rem; }
+
+.resource { border-bottom: 1px solid var(--border); }
+.resource:last-child { border-bottom: 0; }
+.res-id { font-size: 0.8rem; }
+.res-name { font-size: 0.82rem; color: var(--muted); }
+.res-age { margin-left: auto; font-size: 0.76rem; color: var(--faint); white-space: nowrap; }
+
+.state {
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* States are the packs' own words, so nothing here matches a list of them: the
+   handful below are the ones every API in the world agrees on, and anything
+   else keeps the neutral chip rather than being forced into a colour. */
+.state[data-state="running"], .state[data-state="ready"], .state[data-state="available"], .state[data-state="active"] {
+  color: var(--proven);
+  border-color: color-mix(in srgb, var(--proven) 45%, var(--border));
+  background: var(--proven-soft);
+}
+.state[data-state="stopped"], .state[data-state="stopping"], .state[data-state="starting"], .state[data-state="pending"] {
+  color: var(--probed);
+  border-color: color-mix(in srgb, var(--probed) 45%, var(--border));
+  background: var(--probed-soft);
+}
+.state[data-state="error"], .state[data-state="failed"] {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  background: var(--danger-soft);
+}
+
+.resource-body { padding: 0.15rem 0 0.7rem 1.4rem; }
+.resource-actions { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.4rem; }
+.res-dates { font-size: 0.76rem; color: var(--faint); }
+
+.attrs {
+  border-left: 2px solid var(--border);
+  padding-left: 0.7rem;
+  max-height: 22rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.tree-row { display: flex; gap: 0.5rem; align-items: baseline; padding: 0.06rem 0; font-size: 0.8rem; }
+.tree-key { font-family: var(--mono); color: var(--muted); flex: 0 0 auto; }
+.tree { margin-left: 0; }
+.tree > summary {
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--faint);
+  list-style: none;
+}
+.tree > summary::-webkit-details-marker { display: none; }
+.tree > summary::before { content: "▸ "; }
+.tree[open] > summary::before { content: "▾ "; }
+.tree > .tree-row { margin-left: 0.9rem; }
+
+.val-string { font-family: var(--mono); word-break: break-all; }
+.val-number { font-family: var(--mono); color: var(--info); }
+.val-boolean { font-family: var(--mono); color: var(--probed); }
+.val-null { font-family: var(--mono); color: var(--faint); }
+
+button.clipped {
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-bottom: 1px dotted var(--border-strong);
+  color: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+button.clipped:hover { border-bottom-color: var(--muted); }
+button.clipped.open { white-space: pre-wrap; }
+
+.runtime-block {
+  margin-top: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.runtime-label { font-size: 0.72rem; color: var(--faint); margin-bottom: 0.2rem; }
+
 /* ---- upstream rows ------------------------------------------------------ */
 
 .rows { display: flex; flex-direction: column; gap: 0.55rem; }

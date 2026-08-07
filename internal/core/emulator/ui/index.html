@@ -58,6 +58,23 @@
     <p class="note warn" id="violations-note" hidden></p>
   </section>
 
+  <!-- Everything the session created, read from the store, grouped by whatever
+       the packs called themselves. -->
+  <section class="card span-2" id="inventory-card">
+    <div class="card-head">
+      <h2>resources</h2>
+      <div class="log-controls">
+        <span class="hint" id="inventory-count">&mdash;</span>
+        <input type="search" id="inventory-search" class="search" placeholder="filter by id, type, state, provider" autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+    <p class="note" id="inventory-empty" hidden>
+      Nothing has been created yet. Point a real client at this endpoint and it appears here:
+      <code class="mono">eval "$(feint env &lt;provider&gt;)"</code>, then run the client's own create.
+    </p>
+    <div id="inventory-groups" class="groups"></div>
+  </section>
+
   <!-- The versioned gap with the upstream surface, with the date and the command. -->
   <section class="card" id="upstream-card">
     <div class="card-head">
