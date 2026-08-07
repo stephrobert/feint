@@ -645,8 +645,133 @@ button.legend-open:focus-visible { outline: 2px solid var(--info); outline-offse
   color: var(--muted);
 }
 
+/* ---- the call log ------------------------------------------------------- */
+
+.log-card { padding-bottom: 0.6rem; }
+
+.live {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.live::before {
+  content: "";
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.live[data-state="on"] { color: var(--proven); }
+.live[data-state="paused"] { color: var(--probed); }
+
+.log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 26rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-size: 0.83rem;
+  scrollbar-width: thin;
+}
+
+.entry {
+  padding: 0.4rem 0.15rem 0.45rem;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 0.12rem;
+}
+.entry:last-child { border-bottom: 0; }
+.entry.filtered { display: none; }
+
+.entry .head { display: flex; align-items: baseline; gap: 0.55rem; flex-wrap: wrap; }
+.entry time { font-family: var(--mono); color: var(--faint); font-size: 0.78rem; }
+
+.method {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.03rem 0.35rem;
+  border-radius: 4px;
+  border: 1px solid var(--border-strong);
+  color: var(--muted);
+  min-width: 3.6rem;
+  text-align: center;
+}
+.method[data-verb="GET"] { color: var(--info); border-color: color-mix(in srgb, var(--info) 40%, var(--border)); }
+.method[data-verb="POST"] { color: var(--proven); border-color: color-mix(in srgb, var(--proven) 45%, var(--border)); }
+.method[data-verb="PUT"], .method[data-verb="PATCH"] { color: var(--probed); border-color: color-mix(in srgb, var(--probed) 45%, var(--border)); }
+.method[data-verb="DELETE"] { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
+
+.entry .path { font-family: var(--mono); word-break: break-all; }
+
+.entry .meta {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 0.79rem;
+  padding-left: 4.6rem;
+}
+.entry .meta .code { font-family: var(--mono); font-weight: 600; color: var(--proven); }
+.entry[data-class="client"] .meta .code { color: var(--probed); }
+.entry[data-class="server"] .meta .code,
+.entry[data-class="missing"] .meta .code { color: var(--danger); }
+.entry[data-class="missing"] .meta .op { color: var(--danger); }
+.entry .meta .dur { font-family: var(--mono); }
+.entry .meta .op { font-family: var(--mono); color: var(--muted); }
+
+/* The two lines that are the product: what the client sent and no handler read,
+   and what we answered that the provider's own schema does not define. Both are
+   causal defects, both were already computed, and neither was displayed
+   anywhere. */
+.verdict {
+  margin: 0.15rem 0 0 4.6rem;
+  font-size: 0.79rem;
+  border-radius: 0 4px 4px 0;
+  padding: 0.12rem 0.45rem;
+}
+.verdict .fields { font-family: var(--mono); }
+.verdict.unread {
+  color: var(--probed);
+  background: var(--probed-soft);
+  border-left: 2px solid var(--probed);
+}
+.verdict.violation {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-left: 2px solid var(--danger);
+}
+
+.entry.gap {
+  color: var(--faint);
+  font-size: 0.76rem;
+  text-align: center;
+  border-bottom: 1px dashed var(--border);
+  padding: 0.2rem 0;
+}
+
+.entry.runtime .action { color: var(--info); font-family: var(--mono); }
+.entry.runtime .target { font-family: var(--mono); color: var(--muted); font-size: 0.79rem; }
+
+.buffered { color: var(--probed); }
+
+/* A newly appended line settles in rather than appearing. 140ms, once, on the
+   new node only: the rest of the list must not move. */
+@keyframes settle {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: none; }
+}
+.entry { animation: settle 140ms ease-out; }
+
 @media (prefers-reduced-motion: reduce) {
   .seg, .row .track span { transition: none; }
+  .entry { animation: none; }
 }
 
 footer {

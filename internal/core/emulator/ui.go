@@ -186,6 +186,7 @@ func (s *Server) MountUI(ui UI) bool {
 	// because it is the one that publishes Runtime — see handleResources. Off
 	// loopback it is not mounted at all, like everything else here.
 	s.mountSelf("GET /_feint/resources", s.handleResources)
+	s.mountSelf("GET /_feint/events", s.handleEvents)
 	s.mountSelf("GET /_feint/ui/data", func(w http.ResponseWriter, _ *http.Request) {
 		version := ui.Version
 		if version == "" {

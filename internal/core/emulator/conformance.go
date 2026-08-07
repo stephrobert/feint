@@ -6,8 +6,10 @@ import (
 	"net/http"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/stephrobert/feint/internal/contract"
+	"github.com/stephrobert/feint/internal/trace"
 )
 
 // Two numbers about a route, not one.
@@ -57,10 +59,15 @@ type observer struct {
 	unread map[string]map[string]bool
 	// contracts maps a provider to its API description, when one was loaded.
 	contracts map[string]*contract.Doc
+	// stream is where each answered request is published, in order. The counters
+	// above say how many; the stream says what happened, once, with its time and
+	// its status.
+	stream *stream
 }
 
-func newObserver(contracts map[string]*contract.Doc) *observer {
+func newObserver(contracts map[string]*contract.Doc, events *stream) *observer {
 	return &observer{
+		stream:     events,
 		calls:      map[string]int{},
 		probed:     map[string]int{},
 		violations: map[string]contract.Violations{},
@@ -69,8 +76,8 @@ func newObserver(contracts map[string]*contract.Doc) *observer {
 	}
 }
 
-// wrap instruments one route: it counts the call, and validates the response
-// against the provider's contract when there is one.
+// wrap instruments one route: it counts the call, records it on the log, and
+// validates the response against the provider's contract when there is one.
 func (o *observer) wrap(provider string, r Route) http.HandlerFunc {
 	doc := o.contracts[provider]
 
@@ -83,26 +90,56 @@ func (o *observer) wrap(provider string, r Route) http.HandlerFunc {
 		rep := &requestReport{}
 		req = req.WithContext(contextWithReport(req, rep))
 
-		if doc == nil {
-			// No contract for this provider: buffering a response nobody will
-			// check would cost memory for nothing. Without a recorder there is
-			// no status to read, so every request counts.
-			r.Handler(w, req)
-			o.recordUnread(r.Operation, rep.fields())
-			return
+		// The recorder now wraps every request, contract or not, because the log
+		// needs a status for each line. It only buffers the body when a contract
+		// is loaded, which is what kept it opt-in: a check needs the whole
+		// response, a status line does not.
+		rec := &recorder{ResponseWriter: w, status: http.StatusOK}
+		if doc != nil {
+			rec.body = &bytes.Buffer{}
 		}
 
-		rec := &recorder{ResponseWriter: w, status: http.StatusOK}
+		started := time.Now()
 		r.Handler(rec, req)
+		elapsed := time.Since(started)
+
+		unread := rep.fields()
 		// Only a request the handler accepted. A field named in a 4xx was not
 		// ignored, it was refused — which is the opposite of the defect this
 		// report exists to find, and the answer told the client so. Counting it
 		// made a suite that deliberately probes a refusal fail the gate, and
 		// the fix for that must not be to stop probing refusals.
+		//
+		// Before the recorder wrapped every request there was no status to read
+		// without a contract, so this rule applied to half the runs. It applies
+		// to all of them now, which can only remove false positives.
 		if rec.status < 400 {
-			o.recordUnread(r.Operation, rep.fields())
+			o.recordUnread(r.Operation, unread)
 		}
-		o.check(doc, r.Operation, rec)
+		// The contract verdict is carried on the exchange, not only counted per
+		// operation. Unread is what the client sent and no handler read; this is
+		// what we answered and the provider's own schema does not define. Both
+		// are causal defects, both were already computed, and showing one
+		// without the other is an odd place to stop.
+		var violations []string
+		if doc != nil {
+			for _, v := range o.check(doc, r.Operation, rec) {
+				violations = append(violations, v.String())
+			}
+		}
+
+		o.stream.publishExchange(trace.Exchange{
+			Method:     req.Method,
+			Path:       req.URL.Path,
+			Query:      req.URL.RawQuery,
+			Status:     rec.status,
+			Ms:         float64(elapsed.Microseconds()) / 1000,
+			Operation:  r.Operation,
+			Provider:   provider,
+			Unread:     unread,
+			Violations: violations,
+			Mounted:    true,
+		})
 	}
 }
 
@@ -136,30 +173,39 @@ func (o *observer) record(operation string, synthetic bool) {
 	o.mu.Unlock()
 }
 
-// check validates a recorded response. Only successful ones: an error body is a
-// different schema, and the packs already answer the provider's error shape.
-func (o *observer) check(doc *contract.Doc, operation string, rec *recorder) {
-	if rec.status < 200 || rec.status >= 300 || rec.body.Len() == 0 {
-		return
+// check validates a recorded response and returns what it found.
+//
+// Only successful ones: an error body is a different schema, and the packs
+// already answer the provider's error shape. It both files the deduplicated
+// report — one bad field repeated across a hundred calls is one defect — and
+// hands the violations back, because the log needs the verdict on this exchange
+// rather than on the operation.
+func (o *observer) check(doc *contract.Doc, operation string, rec *recorder) contract.Violations {
+	if rec.body == nil || rec.status < 200 || rec.status >= 300 || rec.body.Len() == 0 {
+		return nil
 	}
 	_, name, known := doc.OperationFor(operation)
 	if !known {
-		o.report(operation, contract.Violations{{
+		vs := contract.Violations{{
 			Path: operation, Reason: "no such operation in the contract",
-		}})
-		return
+		}}
+		o.report(operation, vs)
+		return vs
 	}
 
 	var decoded any
 	if err := json.Unmarshal(rec.body.Bytes(), &decoded); err != nil {
-		o.report(operation, contract.Violations{{
+		vs := contract.Violations{{
 			Path: operation, Reason: "the response is not JSON: " + err.Error(),
-		}})
-		return
+		}}
+		o.report(operation, vs)
+		return vs
 	}
 	if vs := doc.ValidateResponse(name, decoded); len(vs) > 0 {
 		o.report(operation, vs)
+		return vs
 	}
+	return nil
 }
 
 func (o *observer) report(operation string, vs contract.Violations) {
@@ -171,12 +217,16 @@ func (o *observer) report(operation string, vs contract.Violations) {
 }
 
 // recorder captures a response so it can be checked, and passes it through
-// unchanged. The body is buffered because a contract check needs the whole of
-// it; this is why the check is opt-in and off by default.
+// unchanged.
+//
+// The body is buffered only when body is non-nil, which is when a contract is
+// loaded: a check needs the whole response, and the log needs the status line
+// alone. That is what keeps the memory cost opt-in while every request still
+// reaches the log with a real status.
 type recorder struct {
 	http.ResponseWriter
 	status int
-	body   bytes.Buffer
+	body   *bytes.Buffer
 }
 
 func (r *recorder) WriteHeader(status int) {
@@ -185,7 +235,9 @@ func (r *recorder) WriteHeader(status int) {
 }
 
 func (r *recorder) Write(b []byte) (int, error) {
-	r.body.Write(b)
+	if r.body != nil {
+		r.body.Write(b)
+	}
 	return r.ResponseWriter.Write(b)
 }
 

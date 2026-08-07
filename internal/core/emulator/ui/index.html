@@ -112,6 +112,23 @@
     </p>
   </section>
 
+  <!-- Three things and no more: what went through, what was not read, what does
+       not exist. -->
+  <section class="card span-2 log-card">
+    <div class="card-head">
+      <h2>call log</h2>
+      <div class="log-controls">
+        <span class="live" id="live" data-state="off">live</span>
+        <button type="button" id="filter-problems" class="ghost" aria-pressed="false">problems only</button>
+        <button type="button" id="pause" class="ghost" aria-pressed="false">pause</button>
+        <button type="button" id="clear" class="ghost">clear</button>
+      </div>
+    </div>
+    <p class="note" id="log-empty">Nothing yet. Drive the emulator with a real client and every call lands here, in order, with the fields no handler read and the answers its API description does not define.</p>
+    <ol id="log" class="log" role="log"></ol>
+    <p class="note buffered" id="buffered" hidden></p>
+  </section>
+
 </main>
 
 <footer>

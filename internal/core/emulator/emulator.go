@@ -20,6 +20,7 @@ import (
 	"github.com/stephrobert/feint/internal/contract"
 	"github.com/stephrobert/feint/internal/core/machine"
 	"github.com/stephrobert/feint/internal/core/store"
+	"github.com/stephrobert/feint/internal/trace"
 )
 
 // Env carries everything a pack needs from the core. Now and NewID are injected
@@ -157,6 +158,9 @@ type Server struct {
 	packs    []Pack
 	mux      *http.ServeMux
 	observer *observer
+	// stream is the bounded call log, and the one-way channel the page reads it
+	// through.
+	stream *stream
 	// self records the patterns of the endpoints the emulator serves about
 	// itself, so they can be enumerated rather than remembered.
 	self []string
@@ -165,11 +169,13 @@ type Server struct {
 // NewServer mounts the packs. It fails when two packs claim the same route,
 // which would otherwise panic inside net/http at a random point in startup.
 func NewServer(env *Env, packs ...Pack) (*Server, error) {
+	events := newStream()
 	s := &Server{
 		env:      env,
 		packs:    packs,
 		mux:      http.NewServeMux(),
-		observer: newObserver(env.Contracts),
+		stream:   events,
+		observer: newObserver(env.Contracts, events),
 	}
 
 	seen := make(map[string]string)
@@ -187,6 +193,11 @@ func NewServer(env *Env, packs ...Pack) (*Server, error) {
 	s.mountSelf("GET /_feint/health", s.handleHealth)
 	s.mountSelf("GET /_feint/routes", s.handleRoutes)
 	s.mountSelf("GET /_feint/conformance", s.handleConformance)
+	// Mounted here rather than with the page, and the difference is what it is
+	// for: the stream is the page's transport, while the trace is a mechanism a
+	// conformance script or a CI job reads after the fact. Tying it to the page
+	// would make it unavailable to exactly the callers it was asked for.
+	s.mountSelf("GET /_feint/trace", s.handleTrace)
 	s.mountSelf("GET /_feint/state", s.handleStateRead)
 	s.mountSelf("PUT /_feint/state", s.handleStateWrite)
 
@@ -242,11 +253,28 @@ func (s *Server) handleUnrouted(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	// Logged like any other request, and this is the line the log exists for:
+	// a client walking a plan meets one route nobody mounted, the whole apply
+	// dies, and no counter anywhere records which one it was. The emulator's own
+	// endpoints are left out — the page polls them, and a log of the page
+	// watching itself would drown the client traffic.
+	rec := &recorder{ResponseWriter: w, status: http.StatusOK}
+	started := time.Now()
 	if best == nil {
-		http.NotFound(w, r)
-		return
+		http.NotFound(rec, r)
+	} else {
+		best.NotFound(rec, r)
 	}
-	best.NotFound(w, r)
+	if !internalPath(r.URL.Path) {
+		s.stream.publishExchange(trace.Exchange{
+			Method:  r.Method,
+			Path:    r.URL.Path,
+			Query:   r.URL.RawQuery,
+			Status:  rec.status,
+			Ms:      float64(time.Since(started).Microseconds()) / 1000,
+			Mounted: false,
+		})
+	}
 }
 
 // Handler exposes the mux for http.Server or httptest.

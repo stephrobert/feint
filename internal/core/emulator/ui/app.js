@@ -812,6 +812,249 @@
     }
   }
 
+  /* ---- the call log ------------------------------------------------------ */
+
+  /* The stream is one-way by construction — text/event-stream carries nothing
+     back — so opening it can never become a way to drive the emulator. The
+     browser reconnects on its own, and the ring means a reconnection loses
+     nothing that is still in it. */
+
+  var LOG_MAX = 256;
+  var logList = byId("log");
+  var liveBadge = byId("live");
+  var paused = false;
+  var problemsOnly = false;
+  var pendingWhilePaused = [];
+  var lastSeq = 0;
+  var source = null;
+
+  function timeOf(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) { return ""; }
+    var pad = function (n, width) {
+      var s = String(n);
+      while (s.length < width) { s = "0" + s; }
+      return s;
+    };
+    return pad(d.getHours(), 2) + ":" + pad(d.getMinutes(), 2) + ":" +
+      pad(d.getSeconds(), 2) + "." + pad(d.getMilliseconds(), 3);
+  }
+
+  function durationOf(ms) {
+    if (ms >= 1000) { return (ms / 1000).toFixed(2) + " s"; }
+    if (ms >= 10) { return ms.toFixed(1) + " ms"; }
+    return ms.toFixed(2) + " ms";
+  }
+
+  /* A status class rather than a colour: 2xx is not "good" here, it is
+     "answered", and a 4xx from a refusal the emulator meant is not a failure. */
+  function statusClass(status, mounted) {
+    if (!mounted) { return "missing"; }
+    if (status >= 500) { return "server"; }
+    if (status >= 400) { return "client"; }
+    return "ok";
+  }
+
+  function hasProblem(x) {
+    return !x.mounted || x.status >= 400 ||
+      (x.unread && x.unread.length > 0) || (x.violations && x.violations.length > 0);
+  }
+
+  function callEntry(x) {
+    var li = document.createElement("li");
+    li.className = "entry";
+    li.setAttribute("data-class", statusClass(x.status, x.mounted));
+    if (!hasProblem(x)) { li.setAttribute("data-plain", "yes"); }
+
+    var head = document.createElement("div");
+    head.className = "head";
+    var when = document.createElement("time");
+    when.textContent = timeOf(x.t);
+    when.dateTime = x.t;
+    var method = document.createElement("span");
+    method.className = "method";
+    method.setAttribute("data-verb", x.method);
+    method.textContent = x.method;
+    var path = document.createElement("span");
+    path.className = "path";
+    path.textContent = x.query ? x.path + "?" + x.query : x.path;
+    head.appendChild(when);
+    head.appendChild(method);
+    head.appendChild(path);
+    li.appendChild(head);
+
+    var meta = document.createElement("div");
+    meta.className = "meta";
+    var code = document.createElement("span");
+    code.className = "code";
+    code.textContent = x.status;
+    var dur = document.createElement("span");
+    dur.className = "dur";
+    dur.textContent = durationOf(x.ms || 0);
+    meta.appendChild(code);
+    meta.appendChild(dur);
+
+    var what = document.createElement("span");
+    what.className = "op";
+    /* An operation nobody mounted is the line worth reading: it is how a plan
+       dies, and no counter anywhere else records which route it died on. */
+    what.textContent = x.operation || "no route mounted";
+    meta.appendChild(what);
+    li.appendChild(meta);
+
+    if (x.unread && x.unread.length > 0) {
+      li.appendChild(verdict("unread", "sent, never read: ", x.unread.join(" · ")));
+    }
+    if (x.violations && x.violations.length > 0) {
+      li.appendChild(verdict("violation", "the API description does not define: ", x.violations.join(" · ")));
+    }
+    return li;
+  }
+
+  function verdict(kind, label, detail) {
+    var line = document.createElement("div");
+    line.className = "verdict " + kind;
+    var name = document.createElement("span");
+    name.textContent = label;
+    var fields = document.createElement("span");
+    fields.className = "fields";
+    fields.textContent = detail;
+    line.appendChild(name);
+    line.appendChild(fields);
+    return line;
+  }
+
+  function runtimeEntry(e) {
+    var li = document.createElement("li");
+    li.className = "entry runtime";
+    var head = document.createElement("div");
+    head.className = "head";
+    var when = document.createElement("time");
+    when.textContent = timeOf(e.at);
+    var what = document.createElement("span");
+    what.className = "action";
+    what.textContent = e.action || e.kind || "runtime";
+    var target = document.createElement("span");
+    target.className = "target";
+    target.textContent = e.resource || "";
+    head.appendChild(when);
+    head.appendChild(what);
+    head.appendChild(target);
+    li.appendChild(head);
+    if (e.message) {
+      var meta = document.createElement("div");
+      meta.className = "meta";
+      var text = document.createElement("span");
+      text.textContent = e.message;
+      meta.appendChild(text);
+      li.appendChild(meta);
+    }
+    return li;
+  }
+
+  /* A gap is shown, never smoothed over. The ring drops the oldest entry when it
+     is full and a slow reader is skipped rather than waited for, so a jump in
+     the sequence is a fact the page has to state instead of a silence it can
+     let pass for completeness. */
+  function gapEntry(missed) {
+    var li = document.createElement("li");
+    li.className = "entry gap";
+    li.textContent = missed + " " + plural(missed, "call", "calls") + " not shown";
+    return li;
+  }
+
+  function append(node) {
+    /* Stuck to the bottom only when the reader already was: scrolling up to
+       read a line and being yanked back down by the next call is how a live log
+       becomes unusable. */
+    var atBottom = logList.scrollHeight - logList.scrollTop - logList.clientHeight < 24;
+    logList.appendChild(node);
+    while (logList.childElementCount > LOG_MAX) {
+      logList.removeChild(logList.firstChild);
+    }
+    byId("log-empty").hidden = true;
+    if (atBottom) { logList.scrollTop = logList.scrollHeight; }
+  }
+
+  function show(entry) {
+    if (entry.seq && lastSeq && entry.seq > lastSeq + 1) {
+      append(gapEntry(entry.seq - lastSeq - 1));
+    }
+    if (entry.seq) { lastSeq = entry.seq; }
+    if (entry.kind !== undefined || entry.action !== undefined) {
+      append(runtimeEntry(entry));
+      return;
+    }
+    append(callEntry(entry));
+  }
+
+  function record(entry) {
+    if (paused) {
+      pendingWhilePaused.push(entry);
+      if (pendingWhilePaused.length > LOG_MAX) { pendingWhilePaused.shift(); }
+      setText(byId("buffered"), pendingWhilePaused.length + " " +
+        plural(pendingWhilePaused.length, "call", "calls") + " while paused");
+      byId("buffered").hidden = false;
+      return;
+    }
+    show(entry);
+  }
+
+  function applyFilter() {
+    var entries = logList.children;
+    for (var i = 0; i < entries.length; i++) {
+      var plain = entries[i].getAttribute("data-plain") === "yes";
+      entries[i].classList.toggle("filtered", problemsOnly && plain);
+    }
+  }
+
+  function openStream() {
+    if (source) { source.close(); }
+    source = new EventSource("/_feint/events");
+    source.addEventListener("call", function (event) {
+      record(JSON.parse(event.data));
+      applyFilter();
+    });
+    source.addEventListener("runtime", function (event) {
+      record(JSON.parse(event.data));
+      applyFilter();
+    });
+    source.addEventListener("open", function () {
+      liveBadge.setAttribute("data-state", paused ? "paused" : "on");
+    });
+    source.addEventListener("error", function () {
+      /* EventSource reconnects on its own, so this is a state to show and not a
+         failure to handle. The ring means the reconnection replays what was
+         missed, as far back as it still holds. */
+      liveBadge.setAttribute("data-state", "off");
+    });
+  }
+
+  function initLog() {
+    byId("pause").addEventListener("click", function () {
+      paused = !paused;
+      this.setAttribute("aria-pressed", String(paused));
+      setText(this, paused ? "resume" : "pause");
+      liveBadge.setAttribute("data-state", paused ? "paused" : "on");
+      if (!paused) {
+        pendingWhilePaused.forEach(show);
+        pendingWhilePaused = [];
+        byId("buffered").hidden = true;
+        applyFilter();
+      }
+    });
+    byId("filter-problems").addEventListener("click", function () {
+      problemsOnly = !problemsOnly;
+      this.setAttribute("aria-pressed", String(problemsOnly));
+      applyFilter();
+    });
+    byId("clear").addEventListener("click", function () {
+      while (logList.firstChild) { logList.removeChild(logList.firstChild); }
+      byId("log-empty").hidden = false;
+    });
+    openStream();
+  }
+
   /* ---- the refresh loop -------------------------------------------------- */
 
   function refresh() {
@@ -870,6 +1113,8 @@
     byId("proof-drill-close").addEventListener("click", function () {
       if (openGroup) { toggleGroup(openGroup); }
     });
+
+    initLog();
 
     loadData();
     window.setInterval(loadData, DATA_REFRESH_MS);
