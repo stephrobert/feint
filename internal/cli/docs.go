@@ -79,8 +79,22 @@ func docs(args []string, stdout, stderr io.Writer) int {
 	workflow := fs.String("workflow", conformanceWorkflow, "the workflow the client versions are read from")
 	ansible := fs.String("client-pins", ansibleClientPins, "the Ansible defaults the workflow pins are compared against (empty to skip)")
 	check := fs.Bool("check", false, "do not write; exit 2 when the file is out of date")
+	screenshots := fs.String("screenshots", "docs/assets/ui/manifest.json", "the manifest of the page's screenshots (empty to skip)")
+	// Written by tools/ui/screenshots.sh once the browser has taken them. It is
+	// this binary's job because the digest recorded there is of the page this
+	// binary serves, and a second implementation of that in the harness would be
+	// one fact in two places.
+	writeManifest := fs.String("ui-manifest", "", "record the page's digest beside the screenshots at this path, and do nothing else")
 	if err := fs.Parse(args); err != nil {
 		return exitError
+	}
+
+	if *writeManifest != "" {
+		if err := writeScreenshotManifest(*writeManifest, stdout); err != nil {
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
+		return exitOK
 	}
 
 	routes, err := routesByProvider()
@@ -240,6 +254,15 @@ func docs(args []string, stdout, stderr io.Writer) int {
 		if installChanged || commandsChanged {
 			fmt.Fprintf(stderr, "feint: %s is out of date; run `mise run docs:coverage`\n", *installDoc)
 			return exitDrift
+		}
+		// The screenshots of the page, on the same gate as every other generated
+		// document. A picture of a screen goes stale exactly like a table of
+		// numbers, and the only difference is that nobody notices for longer.
+		if *screenshots != "" {
+			if state, why := checkScreenshots(*screenshots); state == screenshotsStale {
+				fmt.Fprintf(stderr, "feint: %s; run `mise run docs:ui`\n", why)
+				return exitDrift
+			}
 		}
 		fmt.Fprintf(stdout, "%s is up to date\n", *target)
 		return exitOK

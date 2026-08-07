@@ -148,7 +148,7 @@ repos:
         # are here because the install commands are: cutting a release moves the
         # CHANGELOG heading, and the version the pages tell a reader to download
         # has to move with it rather than a release later.
-        files: '^(README\.md|CHANGELOG\.md|docs/(routes|limits|install)\.md|coverage/.*\.json|contracts/.*\.json|internal/providers/.*\.go|internal/cli/(docs.*|doctor)\.go|go\.mod|\.github/workflows/(conformance|release)\.yml|tools/conformance/scaleway/terraform/main\.tf|tools/install/ansible/roles/feint_clients/defaults/main\.yml)$'
+        files: '^(README\.md|CHANGELOG\.md|docs/(routes|limits|install)\.md|docs/assets/ui/.*|coverage/.*\.json|contracts/.*\.json|internal/providers/.*\.go|internal/core/emulator/ui/.*|internal/cli/(docs.*|doctor)\.go|go\.mod|\.github/workflows/(conformance|release)\.yml|tools/conformance/scaleway/terraform/main\.tf|tools/install/ansible/roles/feint_clients/defaults/main\.yml)$'
         pass_filenames: false
 
       # And it must be an operation the provider's own API description defines,

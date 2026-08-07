@@ -52,3 +52,40 @@ func TestASlowSubscriberNeverBlocksAPublish(t *testing.T) {
 		t.Errorf("the ring holds %d entries after the run, want %d", held, ringSize)
 	}
 }
+
+// Every asset the binary serves moves the digest.
+//
+// The digest is what the screenshot gate compares, so a file it did not cover
+// would be a file somebody could change while the documentation kept showing
+// pictures of the previous page — the exact failure the gate exists to prevent,
+// with a green check on top.
+//
+// Internal, because the only way to prove the property is to change an asset and
+// watch the number move, and the assets are package variables. An external test
+// could compare the digest against one it computed itself, which would be the
+// algorithm written twice: the copy would agree with the original by
+// construction and prove nothing about coverage.
+func TestEveryAssetMovesTheDigest(t *testing.T) {
+	before := UIDigest()
+
+	for _, asset := range []struct {
+		name string
+		ptr  *[]byte
+	}{
+		{"index.html", &uiPage},
+		{"app.css", &uiStyle},
+		{"app.js", &uiScript},
+	} {
+		original := *asset.ptr
+		*asset.ptr = append(append([]byte{}, original...), '\n')
+		changed := UIDigest()
+		*asset.ptr = original
+
+		if changed == before {
+			t.Errorf("editing %s left the digest unchanged, so the gate cannot see it", asset.name)
+		}
+		if restored := UIDigest(); restored != before {
+			t.Fatalf("restoring %s did not restore the digest; every check after this one is meaningless", asset.name)
+		}
+	}
+}

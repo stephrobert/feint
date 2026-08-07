@@ -1,7 +1,9 @@
 package emulator
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 )
@@ -60,6 +62,38 @@ func mustAsset(name string) []byte {
 		panic(fmt.Sprintf("feint: embedded asset %s: %v", name, err))
 	}
 	return body
+}
+
+// UIDigest identifies the page this binary serves.
+//
+// It is computed from the embedded bytes, not from the files on disk, so it
+// answers "what does this binary put on the screen" rather than "what is in the
+// working tree" — the two differ for an installed binary, and the first is the
+// one a screenshot depicts.
+//
+// It exists because the screenshots in docs/ cannot be checked by comparing
+// pixels: the page renders wall-clock values by design, so two captures a second
+// apart differ, and a gate demanding byte equality would be red forever and then
+// disarmed. What can be checked is whether the page changed since the pictures
+// of it were taken, and this is the number that says so.
+//
+// The name and the length of each asset go into the stream before its bytes, so
+// two files whose contents were swapped are not the same page.
+// TestEveryAssetMovesTheDigest fails when an asset stops being covered.
+func UIDigest() string {
+	sum := sha256.New()
+	for _, asset := range []struct {
+		name string
+		body []byte
+	}{
+		{"index.html", uiPage},
+		{"app.css", uiStyle},
+		{"app.js", uiScript},
+	} {
+		fmt.Fprintf(sum, "%s %d\n", asset.name, len(asset.body))
+		sum.Write(asset.body)
+	}
+	return hex.EncodeToString(sum.Sum(nil))
 }
 
 // UI is what the page needs from the process that owns the listen address.

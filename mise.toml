@@ -167,6 +167,18 @@ vhs tools/demo/quickstart.tape
 ls -lh docs/assets/quickstart.gif
 """
 
+[tasks."docs:ui"]
+description = "Check the page in a real browser and re-photograph it for the documentation"
+depends = ["build"]
+# The assertions are the point; the images are what they leave behind. It needs a
+# browser (chromium, or the google-chrome a GitHub runner ships) and says so
+# rather than passing quietly when there is none: exit 3 means nothing was
+# measured, which is a different fact from success.
+#
+# `mise run docs:ui -- --check` asserts and writes nothing, which is what a pull
+# request runs.
+run = "tools/ui/screenshots.sh"
+
 [tasks."docs:check"]
 description = "Fail (exit 2) when README.md's generated section is out of date"
 depends = ["build"]

@@ -20,6 +20,43 @@ on:
 permissions: {}
 
 jobs:
+  # The page, driven by the one client that can say whether it renders: a
+  # headless browser. It is a job of its own rather than a leg of the matrix
+  # below, because it starts its own emulator on its own port and drives it with
+  # its own sequence of calls.
+  #
+  # It runs on every pull request, which is the point: four Go tests hold the
+  # asset as text and none of them executes a line of its JavaScript, so this is
+  # the only thing between a renamed node and a blank region shipped green.
+  # docs/limits.md says exactly what it covers and what it does not.
+  page:
+    name: page
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26'
+          cache: false
+
+      # No browser is installed here: the runner image ships Google Chrome, and
+      # the script finds it by name. If it ever stops shipping one the script
+      # exits 3 and this job fails, which is deliberate — a check that skips is a
+      # check that measures nothing, and this repository already shipped one of
+      # those in its network suite.
+      - name: Check the page in a browser
+        run: tools/ui/screenshots.sh --check
+
   clients:
     name: ${{ matrix.client }}
     runs-on: ubuntu-24.04

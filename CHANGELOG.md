@@ -41,6 +41,20 @@ what this project is judged on: **a response shape a client can observe**, and
   each declined operation was declined. 625 arguments that were previously
   reachable only by running a scan against an SDK checkout.
 
+- **The page is checked in a real browser, and photographed by the same run.**
+  `mise run docs:ui` loads it against a live emulator, waits for its data, and
+  asserts eighteen values against what the endpoints answered — the counts, a
+  created resource and its attributes, a refusal reason in full, a logged call
+  and the field no handler read — before writing the images the README shows. It
+  runs on every pull request. `docs/limits.md` says what it covers and what it
+  leaves out; the short version is that a renamed node now fails CI and an ugly
+  stylesheet still does not.
+- **The screenshots are on the existing freshness rail.** `feint docs --check`
+  compares a digest of the page with the one recorded beside the images, so a
+  change to the page without regenerating them fails the pre-commit hook, the
+  docs gate and the release preflight. It compares the page, never the pixels:
+  the page renders wall-clock values, so a byte comparison would be red forever.
+
 ### Changed
 
 - **`/_feint/health` answers `capabilities: null`** when the machine driver
