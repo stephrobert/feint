@@ -11,6 +11,70 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
+## [0.4.0]
+
+### Added
+
+- **Terraform drives Outscale.** `init`, `validate`, `plan`, `apply`, a second
+  empty plan and `destroy`, against the published provider `outscale/outscale`
+  v1.7.0. Until now everything this pack claimed was proven by `oapi-cli` alone,
+  and the provider walks paths no CLI does. Writing the fixture was enough to
+  find six defects, each listed below.
+- **Volumes.** Create, read, update, delete, link and unlink. A volume grows and
+  refuses to shrink — a filesystem does not survive its disk getting smaller —
+  and a linked volume refuses to go, which is what a client destroying in the
+  wrong order needs in order to retry. Snapshots stay declined: there are no
+  bytes behind an emulated volume, so restoring one would produce a disk holding
+  nothing.
+- **Tags on every resource that carries them**, sorted, because their order is a
+  permanent Terraform diff waiting to happen. And `ReadVmsState`, the
+  lightweight view a client polls.
+- **74 of 104 routes are proven by a real client**, up from 69 of 93. 23 more
+  are probed only: the protocol holds and the behaviour is unproven.
+
+### Fixed
+
+- **`terraform apply` died on the first machine.** The catalogue published no
+  `ProductCodes`, so the provider called `ReadAdminPassword` on every Vm it read
+  back, Linux included — it is a Windows call, and an absent list reads as
+  "unknown". That route did not exist. Images and Vms publish the Linux code
+  now, and the call answers an empty password, never a generated one: a made-up
+  credential is one a client could try to use.
+- **Every `terraform destroy` crashed the provider outright** — "Plugin did not
+  respond", reproduced with the published, signed provider v1.7.0. `DeleteVms`
+  removed the record, and the provider answers a delete by polling `ReadVms`
+  until the Vm reports `terminated`: an empty list is not a state its waiter
+  knows. A terminated Vm now stays readable, as it does upstream, and holds
+  nothing — it is skipped by the Subnet guard and by the address count.
+- **The destroy then failed on the keypair**, with "the keypair  does not exist"
+  and a gap where the id should be: the provider creates by name and destroys by
+  id, and the pack read only the name.
+- **Four fields the provider sends that the pack declared nowhere**, the worst
+  being `DeletionProtection` — accepted and dropped, which told a client its
+  machine was protected when nothing protected it. Also
+  `NestedVirtualization`, `ResultsPerPage` on three reads, and `ForceStop`.
+- **`feint status` reported 0 in the "driven by a client" column, always.**
+  `internal/cli` declared its own shape for `/_feint/conformance`, with a key the
+  server emits nowhere and `untouched` as an object where the wire carries an
+  array. The decode failed, both callers fell back to empty, and the header
+  comment of `status.go` promised exactly that number. Measured after two `scw`
+  calls: 0 before, 2 after. The copy is deleted rather than corrected — the view
+  is now one exported type both sides read.
+
+### Changed
+
+- **`feint serve` refuses a non-loopback address** unless
+  `--expose-to-network` says otherwise. Off loopback the anti-rebinding guard
+  stops refusing anything — correctly, since it can no longer tell what is local
+  — and the only output was `feint dev listening on 0.0.0.0:4599`. Measured: a
+  cross-origin page and a forged `Host` both get 200 where they get 403 on
+  127.0.0.1. With `--vm` on, what was then reachable from the network is a
+  container runtime.
+
+  This is a behaviour change a user can observe. Anyone who was deliberately
+  exposing the port adds one flag; anyone who was not was exposing more than
+  they knew.
+
 ## [0.3.3]
 
 ### Fixed
