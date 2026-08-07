@@ -11,6 +11,47 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
+## [Unreleased]
+
+### Added
+
+- **A page the binary serves about itself**, at `/_feint/ui`, opened by
+  `feint ui`. Served on the loopback interface only — off loopback it is not
+  mounted at all — read-only, with no authentication by design, and with no
+  dependency: three files embedded in the binary, no build step, no framework.
+  It shows served against driven against probed without ever adding them up, the
+  versioned gap with each provider's upstream API, everything the session
+  created, and a live log of the calls. Every aggregate opens onto what it is
+  made of.
+- **`GET /_feint/resources`**, an inventory read from the store rather than from
+  a provider API, so a pack nobody has written yet is listed with its own
+  vocabulary. Whole attributes, never a curated subset. It is the one endpoint
+  that publishes `Runtime` — the container backing a machine — and a test drives
+  every provider read route to prove none of them does.
+- **`GET /_feint/events` and `GET /_feint/trace`**, the call log: a bounded ring
+  of 256 exchanges, as a one-way event stream for the page and as a JSON array
+  for a script or a CI job that reads it after the fact. Each line carries the
+  time, the status, the duration, the operation, the fields a client sent that no
+  handler read, and the fields an answer carried that the provider's own API
+  description does not define. Both were already computed and displayed nowhere.
+- **The record's shape is `internal/trace.Exchange`**, published once so the
+  transcript `feint proxy` will write (X-2) and the replay that reads it (X-3)
+  share one format with the emulator's own ring.
+- **The coverage artefacts carry their per-operation verdicts**, with the reason
+  each declined operation was declined. 625 arguments that were previously
+  reachable only by running a scan against an SDK checkout.
+
+### Changed
+
+- **`/_feint/health` answers `capabilities: null`** when the machine driver
+  declares nothing, instead of an object of five `false`. Silence and refusal
+  were indistinguishable on the wire, so a reader printed "no" on behalf of a
+  driver that had never been asked. `feint status` now says
+  `isolation: not declared` in that case. A driver that declares — every one
+  that ships today, including the no-op — is unaffected.
+- **`/_feint/conformance` carries `probes`**, the per-operation probe counts,
+  alongside `calls`. The scalar `probed` could say how many routes only a probe
+  had reached, never which.
 ## [0.4.1]
 
 ### Fixed

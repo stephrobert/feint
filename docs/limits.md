@@ -452,6 +452,37 @@ the wrapper types (`google.protobuf.StringValue` and its family) carry no
 extractor unwraps them, which is why the policy reads declared without a count
 that would mean anything.
 
+## Nothing runs the page's JavaScript, so a DOM regression would pass CI
+
+The page under `/_feint/ui` is checked by four mechanical tests, and all four
+read the asset as text rather than running it:
+
+- `TestTheEmbeddedPageNamesNoProvider` greps the shipped files for the names the
+  packs declare, so a provider name written into the page fails the build.
+- `TestThePageNeverBuildsMarkupFromAString` refuses `innerHTML` and its family in
+  the script, which is the cloudinit lesson applied to HTML.
+- `TestEveryNodeTheScriptWritesToExists` ties every identifier the script looks
+  up to an element the document carries.
+- `TestThePageAddsOnlyGETRoutes` enumerates the mux, which is about the server
+  rather than the page, and is the only one of the four that could not be
+  defeated by a rewrite of the script.
+
+What none of them does is execute a line of JavaScript. **A change that leaves
+the page blank, renders a number in the wrong place, or stops updating on
+refresh would pass CI green.** The Go side is covered — every endpoint the page
+reads has a test that dies without it — and the rendering is not.
+
+That is a deliberate trade rather than an omission. Running the page would mean a
+headless browser: a dependency, a download in CI, and a class of flake this
+repository has none of today, in exchange for catching regressions in about four
+hundred lines of code that no client of this emulator depends on. The page is an
+inspector; when it breaks, the emulator is unaffected and the operator can see it
+is broken.
+
+The consequence to hold on to: a change to `internal/core/emulator/ui/*` is
+verified by opening the page, and by nothing else. Whoever edits it should say in
+the pull request what they looked at.
+
 ## The drift report only covers started products
 
 The CI gate watches the products the emulator has begun serving. Asking it to

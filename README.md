@@ -343,6 +343,61 @@ than not, and it is how a Vm that reported success while going nowhere was found
 
 ---
 
+## The page
+
+```bash
+feint ui             # opens a browser at http://127.0.0.1:4599/_feint/ui
+```
+
+One page, served by the binary itself. No second port, no second process, no
+build step, no dependency: three files embedded in the binary, and every value
+arrives by `fetch` and reaches the document through `textContent`.
+
+It shows the four things nothing else here shows together:
+
+- **served against driven against probed**, side by side and never added up. The
+  bar is one bar and the probed part is hatched rather than filled, because a
+  probe proves the protocol and nothing else — an emulator answering a
+  well-formed empty object would pass every one of them. Each of the three
+  numbers opens onto the operations behind it.
+- **the upstream gap**, per product, with the date of the artefact it was read
+  from and the command that refreshes it. Open a product and you get every
+  operation it declines *and the reason it was declined* — 625 of them across the
+  three packs, each an argument written in the pack rather than a number.
+- **everything the session created**, read from the store rather than from a
+  provider API, so a pack nobody has written yet appears with its own vocabulary.
+  Whole attributes, folded, with one search box over ids, types, states and the
+  attributes themselves.
+- **a live call log**: what went through, in order, with the time, the status,
+  the duration, the operation — plus the two lines that are the point, the fields
+  a client sent that no handler read and the fields an answer carried that the
+  provider's own API description does not define.
+
+It is read-only, and mechanically so: every route it adds is a `GET`, asserted by
+enumerating the mux, and the log arrives on a one-way event stream. There is no
+delete button, no create form, and no path from the page to a command.
+
+**It is served on loopback only, and there is no authentication, ever.** Off
+loopback the page is not hidden — it does not exist, and the one endpoint left
+answers 404 saying why. A login screen would protect the wrong boundary: the
+threat is a page in the operator's browser driving the emulator, and a secret
+held by that same browser is inherited by the hostile page, which is the
+definition of CSRF. What works is the `Origin` refusal, and it is measured. This
+service also accepts every credential by design, so a login on it would be a
+fourth fake credential — the only one not documented as fake.
+
+The same ring the page reads is available to a script:
+
+```bash
+curl -s localhost:4599/_feint/trace | jq -r '.exchanges[] | "\(.method) \(.path) \(.status) \(.operation // "no route mounted")"'
+```
+
+That is what makes it a mechanism rather than an interface feature: an event
+stream needs a listener before the interesting thing happens, and a conformance
+assertion runs after.
+
+---
+
 ## Real machines, on request
 
 By default the emulator is a control plane: it answers, and nothing runs. Give it
@@ -592,6 +647,7 @@ rather than assumed.
 | `feint wait` | poll until it answers — the CI verb |
 | `feint status` | what is running, what it mounts, what a client has driven |
 | `feint logs` | the detached run's log |
+| `feint ui` | open the emulator's own page — read-only, loopback only |
 | `feint env <provider>` | the environment a real client needs, for `eval` |
 | `feint doctor` | diagnose the host: the port, the machine runtime, the clients, the ssh trap |
 | `feint snapshot` | `save`, `load`, `list`, `rm` — name a running emulator's state and come back to it |
