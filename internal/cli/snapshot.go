@@ -96,7 +96,7 @@ func snapshotDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(home, "snapshots")
+	dir := filepath.Join(home, snapshotsDirName)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", fmt.Errorf("create %s: %w", dir, err)
 	}

@@ -22,6 +22,17 @@ import (
 // `feint stop` is somebody else's process killed by this tool, which is the
 // single worst thing a developer tool can do to a workstation.
 
+// snapshotsDirName is the one place this name is written.
+//
+// It has to be shared rather than repeated, because two directories answer to
+// it under different roots: snapshots follow persistentHome and instance state
+// follows stateHome, and those two resolve to the same path whenever
+// XDG_RUNTIME_DIR is unset or XDG_STATE_HOME points at it. When they coincide,
+// reapStaleInstances walks over the snapshot directory, and a name spelled twice
+// is a name that will one day be spelled once — which here means deleting work
+// an operator saved on purpose.
+const snapshotsDirName = "snapshots"
+
 // Instance is what one detached emulator recorded about itself.
 type Instance struct {
 	PID     int      `json:"pid"`
@@ -131,12 +142,95 @@ func (i *Instance) save() error {
 
 // remove deletes the instance file. A missing file is success: the caller wants
 // it gone, and it is.
+//
+// The directory and its log survive on purpose. `feint logs --addr` reads that
+// file, and the moment an operator wants it most is right after the emulator
+// stopped — a crash is read after the fact or not at all. Reaping is therefore
+// not stop's job; it is reapStaleInstances, called by `feint clean`, where the
+// operator has asked for a sweep rather than an exit.
 func (i *Instance) remove() error {
 	err := os.Remove(filepath.Join(i.Dir, "instance.json"))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
 	return err
+}
+
+// reapStaleInstances removes the state directories of emulators that are gone,
+// and returns how many went.
+//
+// Measured on a development station after one day: fourteen directories for two
+// live emulators. `stop` clears the record and leaves the directory holding the
+// log, which is right on its own (see remove) and wrong in aggregate — nothing
+// ever collected them, so `/run/user/1000/feint/` stopped being readable as an
+// answer to "what is running". Twelve of the fourteen described nothing at all.
+//
+// Stale means one of three things, and the third is the one that matters: no
+// instance file at all (a stopped emulator's leftovers), a recorded pid that
+// nothing holds any more, or a pid that now belongs to a stranger. That last
+// case is exactly what alive() calls Foreign, and reusing it here rather than
+// re-deriving it is the point: the rule for "is this still ours" is written
+// once, and a reaper that got it wrong would delete the directory of a running
+// emulator.
+//
+// A live instance is never touched, whatever its age. An emulator someone left
+// running overnight is not litter.
+//
+// TestCleanReapsOnlyDeadInstances fails without this.
+func reapStaleInstances() (int, error) {
+	home, err := stateHome()
+	if err != nil {
+		return 0, err
+	}
+	entries, err := os.ReadDir(home)
+	if errors.Is(err, os.ErrNotExist) {
+		// Nothing was ever started. That is not a failure.
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+
+	reaped := 0
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		dir := filepath.Join(home, entry.Name())
+
+		// Snapshots are not instance state and outlive every emulator by design;
+		// removing them would destroy work an operator named in order to come
+		// back to it.
+		if entry.Name() == snapshotsDirName {
+			continue
+		}
+
+		raw, readErr := os.ReadFile(filepath.Join(dir, "instance.json")) //nolint:gosec // a path this package builds
+		switch {
+		case errors.Is(readErr, os.ErrNotExist):
+			// No record: a stopped emulator's leftovers.
+		case readErr != nil:
+			// Unreadable rather than absent. Left alone and reported by the
+			// caller's error, because deleting what cannot be read is how a
+			// sweep destroys something it never identified.
+			return reaped, fmt.Errorf("%s: %w", dir, readErr)
+		default:
+			var inst Instance
+			if err := json.Unmarshal(raw, &inst); err != nil {
+				return reaped, fmt.Errorf("%s: the instance file is not readable: %w", dir, err)
+			}
+			inst.Dir = dir
+			if inst.alive() == Alive {
+				continue
+			}
+		}
+
+		if err := os.RemoveAll(dir); err != nil {
+			return reaped, err
+		}
+		reaped++
+	}
+	return reaped, nil
 }
 
 // Liveness is what a recorded instance turned out to be.
