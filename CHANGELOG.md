@@ -11,6 +11,33 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
+## [Unreleased]
+
+### Added
+
+- **`feint proxy`**, a reverse proxy that sits between a real official client and
+  a real cloud and writes down every exchange as JSON Lines of
+  `internal/trace.Exchange` — the same shape the emulator's own ring publishes.
+  Credentials never reach the file: redaction is a property of the recorded type,
+  not a step a call site can forget. It is how this project stops guessing what a
+  client sends and measures it instead, and the first real passage recorded a
+  genuine finding — `scw` calls `GET /block/v1alpha1/zones/{zone}/volumes/{id}`,
+  which no pack serves. Loopback only unless `--expose-to-network`, because every
+  request through it carries a live credential.
+- **`feint transcript`**, which turns a proxy recording into the three answers a
+  developer needs before serving one more operation, so the file is queried by a
+  verb instead of by knowing where in the JSON each fact sits:
+  - with no flag, **the operations a real client called that no pack serves**,
+    ranked by call count then response size — the work queue, derived from a
+    measurement instead of the roadmap's guess;
+  - `--shape <operation>`, **the field tree the real cloud actually returned**,
+    which is not what the SDK says it may return;
+  - `--shape <op> --against <emulator.jsonl>`, **the fields the real cloud returns
+    that the emulator omits or types differently** — a response-shape defect no
+    unit test can see, found before the handler is written rather than after.
+    Measured against Outscale, this reported that the emulator's `ReadVolumes`
+    omits `SnapshotId` and never populates `LinkedVolumes`.
+
 ## [0.5.0]
 
 ### Added

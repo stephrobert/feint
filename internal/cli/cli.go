@@ -106,6 +106,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return probeCommand(args[2:], stdout, stderr)
 	case "proxy":
 		return proxyCommand(args[2:], stdout, stderr)
+	case "transcript":
+		return transcriptCommand(args[2:], stdout, stderr)
 	case "docs":
 		return docs(args[2:], stdout, stderr)
 	case "start":
@@ -230,6 +232,13 @@ Usage:
                     upstream operation named. Credentials are redacted before
                     anything is written. Point the client at --addr and drive it
                     as usual.
+
+  feint transcript <recording.jsonl> [--shape OP [--against emu.jsonl]] [--format text|json]
+                    Read a proxy recording and answer what to serve next. With no
+                    flag, the operations a real client called that no pack serves,
+                    most-called first. With --shape, the response shape one
+                    operation actually returned. With --against, diff that shape
+                    against the emulator's own answer: the fields it omits.
 
   feint docs       [--file README.md] [--coverage <dir>] [--check]
                     Regenerate the coverage tables in a Markdown file.

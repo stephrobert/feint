@@ -666,6 +666,8 @@ rather than assumed.
 | `feint snapshot` | `save`, `load`, `list`, `rm` — name a running emulator's state and come back to it |
 | `feint serve` | serve the three emulated clouds on one port, in the foreground |
 | `feint coverage` | compare the upstream API surface with what the packs serve |
+| `feint proxy` | sit between a real client and a real cloud and record every exchange, credentials redacted |
+| `feint transcript` | read a recording: what to serve next, what a response must look like, what the emulator omits |
 | `feint probe` | drive every mounted route from its API description and check the answers |
 | `feint docs` | regenerate the coverage tables in this README |
 | `feint catalog` | print the emulated inventory a client reads before creating |
@@ -676,6 +678,12 @@ rather than assumed.
 them: **0** ok, **1** error, **2** drift detected. `status` is the one verb that
 always exits 0, because a stopped emulator is a fact rather than a failure — the
 verb that gates is `wait`.
+
+`feint proxy` and `feint transcript` are the record-then-read pair that turns a
+real client against a real cloud into the next operation to serve, the shape its
+response must have, and the fields the emulator omits today.
+**[docs/proxy.md](docs/proxy.md)** is the workflow, including the read-only
+discipline a billed account demands.
 
 ---
 
