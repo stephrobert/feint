@@ -178,16 +178,16 @@ func NewServer(env *Env, packs ...Pack) (*Server, error) {
 		observer: newObserver(env.Contracts, events),
 	}
 
-	seen := make(map[string]string)
-	for _, p := range packs {
-		for _, r := range p.Routes() {
-			pattern := r.Method + " " + r.Path
-			if owner, dup := seen[pattern]; dup {
-				return nil, fmt.Errorf("route %q claimed by both %q and %q", pattern, owner, p.Name())
-			}
-			seen[pattern] = p.Name()
-			s.mux.HandleFunc(pattern, s.observer.wrap(p.Name(), r))
-		}
+	// The table both indexes the routes and rejects a pattern two packs claim.
+	// It is consulted from outside this process too — `feint proxy` names an
+	// exchange with it — so it owns the mapping rather than each caller
+	// rebuilding one. See table.go.
+	table, err := NewTable(packs...)
+	if err != nil {
+		return nil, err
+	}
+	for pattern, m := range table.All() {
+		s.mux.HandleFunc(pattern, s.observer.wrap(m.Provider, m.Route))
 	}
 
 	s.mountSelf("GET /_feint/health", s.handleHealth)

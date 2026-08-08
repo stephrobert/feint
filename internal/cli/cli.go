@@ -104,6 +104,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return run(stderr, func() error { return clean(args[2:], stdout) })
 	case "probe":
 		return probeCommand(args[2:], stdout, stderr)
+	case "proxy":
+		return proxyCommand(args[2:], stdout, stderr)
 	case "docs":
 		return docs(args[2:], stdout, stderr)
 	case "start":
@@ -220,6 +222,14 @@ Usage:
   feint probe      [--endpoint http://127.0.0.1:4599] [--contracts <dir>] [--provider <name>]
                     Drive every mounted route from its API description and check
                     the answers. Proves the protocol, never the behaviour.
+
+  feint proxy      --upstream <url> --record <file.jsonl> [--addr 127.0.0.1:4600]
+                    [--provider <name>] [--max-body <bytes>] [--queue <n>]
+                    Sit between a real client and a real cloud and write down
+                    every exchange, as JSON Lines, one object per call, with the
+                    upstream operation named. Credentials are redacted before
+                    anything is written. Point the client at --addr and drive it
+                    as usual.
 
   feint docs       [--file README.md] [--coverage <dir>] [--check]
                     Regenerate the coverage tables in a Markdown file.
