@@ -72,6 +72,17 @@ func (p *Pack) placeInSubnet(subnetID string) (placement, error) {
 			_ = allocator.Reserve(taken)
 		}
 	}
+	// Secondary interfaces hold an address in the same Subnet, so they are
+	// reserved too: without this a created NIC and a Vm could be handed the
+	// same address, which on a runtime is two interfaces fighting for one IP.
+	for _, nic := range p.env.Store.List(kindNic, resource.Tenant{Provider: Name}) {
+		if nic.Attrs["SubnetId"] != subnetID {
+			continue
+		}
+		if taken, parseErr := netip.ParseAddr(stringOf(nic.Attrs["PrivateIp"])); parseErr == nil {
+			_ = allocator.Reserve(taken)
+		}
+	}
 
 	address, err := allocator.Allocate()
 	if err != nil {

@@ -669,6 +669,11 @@ func (p *Pack) deleteVms(w http.ResponseWriter, r *http.Request) {
 				// Deleted underneath: nothing left to mark.
 				return
 			}
+			// A secondary interface with DeleteOnVmDeletion false survives the
+			// machine but detaches from it, which is what the real API does and
+			// what stops a NIC from naming a terminated Vm for ever. The primary
+			// is derived and needs nothing.
+			p.detachNicsOf(res.ID)
 			deleted = append(deleted, map[string]any{
 				"VmId":          res.ID,
 				"CurrentState":  stateTerminated,

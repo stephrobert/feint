@@ -196,6 +196,10 @@ func (p *Pack) Routes() []emulator.Route {
 		p.route("UpdateRoute", p.updateRoute),
 		p.route("ReadDhcpOptions", p.readDhcpOptions),
 		p.route("ReadNics", p.readNics),
+		p.route("CreateNic", p.createNic),
+		p.route("DeleteNic", p.deleteNic),
+		p.route("LinkNic", p.linkNic),
+		p.route("UnlinkNic", p.unlinkNic),
 
 		// The gateway a Net attaches, and the egress a subnet buys with an
 		// address: the resource algebra Terraform's destroy order depends on.

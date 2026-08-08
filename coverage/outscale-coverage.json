@@ -1,9 +1,9 @@
 {
   "provider": "outscale",
   "total": 263,
-  "implemented": 62,
+  "implemented": 66,
   "declined": 176,
-  "unknown": 25,
+  "unknown": 21,
   "orphans": null,
   "products": [
     {
@@ -16,9 +16,9 @@
     {
       "product": "osc",
       "total": 236,
-      "implemented": 62,
+      "implemented": 66,
       "declined": 149,
-      "unknown": 25
+      "unknown": 21
     }
   ],
   "entries": [
@@ -333,7 +333,7 @@
     {
       "operation": "osc/Client.CreateNic",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.CreatePolicy",
@@ -584,7 +584,7 @@
     {
       "operation": "osc/Client.DeleteNic",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.DeletePolicy",
@@ -782,7 +782,7 @@
     {
       "operation": "osc/Client.LinkNic",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.LinkPolicy",
@@ -1325,7 +1325,7 @@
     {
       "operation": "osc/Client.UnlinkNic",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.UnlinkPolicy",

@@ -1,30 +1,38 @@
 package outscale
 
 import (
+	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/resource"
 )
 
-// NICs, read-only and derived: the primary interface of every Vm in a Net.
+// NICs: the primary interface of every Vm, derived; the secondary ones a client
+// creates, stored.
 //
-// Derived rather than stored, because the fact already exists — a Vm holds its
-// SubnetId and PrivateIp — and a second copy of it would drift (see the
-// one-shape-one-owner rule). What must NOT drift between two reads is the
-// identifiers, so each is a pure function of the VmId: i-1234abcd owns
-// eni-1234abcd and its link eni-attach-1234abcd. Terraform stores these; a
-// derived id that moved would be a permanent diff.
+// The primary is derived rather than stored, because the fact already exists — a
+// Vm holds its SubnetId and PrivateIp — and a second copy would drift (the
+// one-shape-one-owner rule). Its identifiers are a pure function of the VmId, so
+// they cannot move between reads: i-1234abcd owns eni-1234abcd, device 0, always
+// attached. Terraform stores these; a derived id that moved would be a
+// permanent diff.
 //
-// Shape measured (X-2 sweep, 2026-08-08): PrivateDnsName is
-// "ip-<a-b-c-d>.<region>.compute.internal", both on the NIC and on each entry of
-// PrivateIps; LinkPublicIp is omitted when there is none, and SecurityGroups
-// carries the groups of the Net — which for this pack is its default group,
-// since CreateVms still refuses explicit SecurityGroupIds.
+// A secondary interface is a resource of its own: CreateNic allocates it an
+// address in the Subnet the same way a Vm gets one, LinkNic attaches it at a
+// device number of 1 or more, and it is these that a client detaches and
+// deletes. The two kinds render through the same filters, matched on the view
+// rather than on where they came from.
 //
-// CreateNic, LinkNic and the secondary-interface calls are backlog: a machine
-// here has exactly one interface until the runtime grows a second one.
+// Shapes measured against a real account (read sweep and lifecycle sweep,
+// 2026-08-08): PrivateDnsName is "ip-<a-b-c-d>.<region>.compute.internal", on the
+// NIC and on each PrivateIps entry; a fresh CreateNic carries neither LinkNic
+// nor LinkPublicIp; an attached interface's LinkNic carries DeviceNumber from 1,
+// State "in-use", VmAccountId the account's own.
+
+const kindNic = "nic"
 
 var nicFilters = []string{"NicIds", "LinkNicVmIds", "SubnetIds", "NetIds"}
 
@@ -43,6 +51,8 @@ func (p *Pack) readNics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	out := make([]map[string]any, 0)
+	// The primary interface of every Vm in a Net, derived from the Vm — device
+	// 0, always attached, never a resource of its own.
 	for _, vm := range p.env.Store.List(kindVM, resource.Tenant{Provider: Name}) {
 		if vm.State == stateTerminated {
 			continue
@@ -59,18 +69,37 @@ func (p *Pack) readNics(w http.ResponseWriter, r *http.Request) {
 		}
 		netID := stringOf(subnet.Attrs["NetId"])
 		nicID := "eni-" + strings.TrimPrefix(vm.ID, "i-")
-		if !matchesStrings(req.Filters, "NicIds", nicID) ||
-			!matchesStrings(req.Filters, "LinkNicVmIds", vm.ID) ||
-			!matchesStrings(req.Filters, "SubnetIds", subnetID) ||
-			!matchesStrings(req.Filters, "NetIds", netID) {
-			continue
+		view := p.nicView(vm, nicID, subnetID, netID)
+		if p.nicMatches(view, req.Filters) {
+			out = append(out, view)
 		}
-		out = append(out, p.nicView(vm, nicID, subnetID, netID))
+	}
+	// The secondary interfaces a client created, which are resources of their
+	// own — device >= 1, attachable and detachable.
+	for _, nic := range p.env.Store.List(kindNic, resource.Tenant{Provider: Name}) {
+		view := p.storedNicView(nic)
+		if p.nicMatches(view, req.Filters) {
+			out = append(out, view)
+		}
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"Nics":            page(out, req.ResultsPerPage),
 		"ResponseContext": p.context(),
 	})
+}
+
+// nicMatches applies the four filters against a rendered NIC. A derived NIC and
+// a stored one filter the same way because both are matched on the view, not on
+// where they came from.
+func (p *Pack) nicMatches(view map[string]any, f filterSet) bool {
+	vmID := ""
+	if link, ok := view["LinkNic"].(map[string]any); ok {
+		vmID = stringOf(link["VmId"])
+	}
+	return matchesStrings(f, "NicIds", stringOf(view["NicId"])) &&
+		matchesStrings(f, "LinkNicVmIds", vmID) &&
+		matchesStrings(f, "SubnetIds", stringOf(view["SubnetId"])) &&
+		matchesStrings(f, "NetIds", stringOf(view["NetId"]))
 }
 
 func (p *Pack) nicView(vm *resource.Resource, nicID, subnetID, netID string) map[string]any {
@@ -110,6 +139,256 @@ func (p *Pack) nicView(vm *resource.Resource, nicID, subnetID, netID string) map
 		},
 		"SecurityGroups": groups,
 		"Tags":           []any{},
+	}
+}
+
+// ---- Lifecycle (secondary interfaces) ---------------------------------------
+
+// storedNicView renders a created secondary interface. LinkNic and LinkPublicIp
+// are emitted only when present — measured: a fresh CreateNic carries neither.
+func (p *Pack) storedNicView(nic *resource.Resource) map[string]any {
+	netID := stringOf(nic.Attrs["NetId"])
+	privateIP := stringOf(nic.Attrs["PrivateIp"])
+	dns := privateDNSName(privateIP)
+
+	groups := make([]any, 0, 1)
+	for _, id := range stringsOf(nic.Attrs["SecurityGroupIds"]) {
+		if sg, found := p.env.Store.Get(Name, kindSecurityGroup, id); found {
+			groups = append(groups, map[string]any{
+				"SecurityGroupId":   sg.ID,
+				"SecurityGroupName": stringOf(sg.Attrs["SecurityGroupName"]),
+			})
+		}
+	}
+	if len(groups) == 0 {
+		for _, sg := range p.securityGroupsOf(netID) {
+			if stringOf(sg.Attrs["SecurityGroupName"]) == "default" {
+				groups = append(groups, map[string]any{
+					"SecurityGroupId":   sg.ID,
+					"SecurityGroupName": "default",
+				})
+			}
+		}
+	}
+
+	out := map[string]any{
+		"NicId":               nic.ID,
+		"AccountId":           accountID,
+		"Description":         stringOf(nic.Attrs["Description"]),
+		"IsSourceDestChecked": true,
+		"MacAddress":          macOf(nic.ID),
+		"NetId":               netID,
+		"SubnetId":            stringOf(nic.Attrs["SubnetId"]),
+		"SubregionName":       subregionName,
+		"State":               stringOf(nic.Attrs["State"]),
+		"PrivateDnsName":      dns,
+		"PrivateIps": []any{map[string]any{
+			"IsPrimary":      true,
+			"PrivateDnsName": dns,
+			"PrivateIp":      privateIP,
+		}},
+		"SecurityGroups": groups,
+		"Tags":           []any{},
+	}
+	// The link appears only when attached, in the measured shape: DeviceNumber
+	// from 1 (0 is the derived primary), VmAccountId the account's own.
+	if vmID := stringOf(nic.Attrs["LinkVmId"]); vmID != "" {
+		out["LinkNic"] = map[string]any{
+			"DeleteOnVmDeletion": false,
+			"DeviceNumber":       numOf(nic.Attrs["DeviceNumber"]),
+			"LinkNicId":          stringOf(nic.Attrs["LinkNicId"]),
+			"State":              "in-use",
+			"VmAccountId":        accountID,
+			"VmId":               vmID,
+		}
+	}
+	return out
+}
+
+func (p *Pack) createNic(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		SubnetID         string   `json:"SubnetId"`
+		Description      string   `json:"Description"`
+		SecurityGroupIDs []string `json:"SecurityGroupIds"`
+		DryRun           *bool    `json:"DryRun"`
+	}
+	if err := emulator.DecodeJSON(r, &req); err != nil {
+		p.badRequest(w, err.Error())
+		return
+	}
+	if req.SubnetID == "" {
+		p.badRequest(w, "SubnetId is required")
+		return
+	}
+	if !p.checkVMSecurityGroups(w, req.SecurityGroupIDs) {
+		return
+	}
+
+	// Under the addressing lock, and the address reserved before release: a NIC
+	// takes an address in the Subnet exactly as a Vm does, and two creates must
+	// not pick the same one.
+	p.addresses.Lock()
+	place, err := p.placeInSubnet(req.SubnetID)
+	if err != nil {
+		p.addresses.Unlock()
+		if errors.Is(err, errUnknownSubnet) {
+			p.notFound(w, "Subnet", req.SubnetID)
+		} else {
+			p.badRequest(w, err.Error())
+		}
+		return
+	}
+	now := p.env.Now()
+	nic := &resource.Resource{
+		ID:      newID("eni", p.env.NewID()),
+		Kind:    kindNic,
+		Tenant:  resource.Tenant{Provider: Name},
+		State:   "available",
+		Created: now,
+		Updated: now,
+		Attrs: map[string]any{
+			"SubnetId":    place.SubnetID,
+			"NetId":       place.NetID,
+			"PrivateIp":   place.Address.String(),
+			"Description": req.Description,
+			"State":       "available",
+		},
+	}
+	if len(req.SecurityGroupIDs) > 0 {
+		nic.Attrs["SecurityGroupIds"] = req.SecurityGroupIDs
+	}
+	p.env.Store.Put(nic)
+	p.addresses.Unlock()
+
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{
+		"Nic":             p.storedNicView(nic),
+		"ResponseContext": p.context(),
+	})
+}
+
+func (p *Pack) deleteNic(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		NicID  string `json:"NicId"`
+		DryRun *bool  `json:"DryRun"`
+	}
+	if err := emulator.DecodeJSON(r, &req); err != nil {
+		p.badRequest(w, err.Error())
+		return
+	}
+	nic, found := p.env.Store.Get(Name, kindNic, req.NicID)
+	if !found {
+		p.notFound(w, "network interface", req.NicID)
+		return
+	}
+	// An attached interface does not go; the unlink comes first, which is the
+	// order a real destroy walks.
+	if vmID := stringOf(nic.Attrs["LinkVmId"]); vmID != "" {
+		p.conflict(w, "the network interface "+nic.ID+" is still attached to "+vmID)
+		return
+	}
+	p.env.Store.Delete(Name, kindNic, req.NicID)
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
+}
+
+func (p *Pack) linkNic(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		NicID        string `json:"NicId"`
+		VMID         string `json:"VmId"`
+		DeviceNumber *int   `json:"DeviceNumber"`
+		DryRun       *bool  `json:"DryRun"`
+	}
+	if err := emulator.DecodeJSON(r, &req); err != nil {
+		p.badRequest(w, err.Error())
+		return
+	}
+	// DeviceNumber 0 is the primary, which is the Vm's own derived interface and
+	// not a slot a secondary NIC may take.
+	if req.DeviceNumber == nil || *req.DeviceNumber < 1 {
+		p.badRequest(w, "DeviceNumber must be 1 or greater; 0 is the primary interface")
+		return
+	}
+	nic, found := p.env.Store.Get(Name, kindNic, req.NicID)
+	if !found {
+		p.notFound(w, "network interface", req.NicID)
+		return
+	}
+	vm, found := p.env.Store.Get(Name, kindVM, req.VMID)
+	if !found {
+		p.notFound(w, "Vm", req.VMID)
+		return
+	}
+	if holder := stringOf(nic.Attrs["LinkVmId"]); holder != "" {
+		p.conflict(w, "the network interface "+nic.ID+" is already attached to "+holder)
+		return
+	}
+	// A secondary interface joins the Vm's own Subnet, which the real API
+	// requires: an interface in another Subnet cannot attach.
+	if stringOf(vm.Attrs["SubnetId"]) != stringOf(nic.Attrs["SubnetId"]) {
+		p.badRequest(w, "the interface "+nic.ID+" is not in the Subnet of "+vm.ID)
+		return
+	}
+	// The device number is exclusive per Vm, primary included.
+	for _, other := range p.env.Store.List(kindNic, resource.Tenant{Provider: Name}) {
+		if stringOf(other.Attrs["LinkVmId"]) == req.VMID &&
+			int(numOf(other.Attrs["DeviceNumber"])) == *req.DeviceNumber {
+			p.conflict(w, "device number "+strconv.Itoa(*req.DeviceNumber)+" is already used on "+req.VMID)
+			return
+		}
+	}
+	linkID := "eni-attach-" + strings.TrimPrefix(nic.ID, "eni-")
+	nic.Attrs["LinkVmId"] = req.VMID
+	nic.Attrs["DeviceNumber"] = *req.DeviceNumber
+	nic.Attrs["LinkNicId"] = linkID
+	nic.Attrs["State"] = "in-use"
+	if !p.env.Store.Commit(nic, p.env.Now()) {
+		p.notFound(w, "network interface", req.NicID)
+		return
+	}
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{
+		"LinkNicId":       linkID,
+		"ResponseContext": p.context(),
+	})
+}
+
+func (p *Pack) unlinkNic(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		LinkNicID string `json:"LinkNicId"`
+		DryRun    *bool  `json:"DryRun"`
+	}
+	if err := emulator.DecodeJSON(r, &req); err != nil {
+		p.badRequest(w, err.Error())
+		return
+	}
+	for _, nic := range p.env.Store.List(kindNic, resource.Tenant{Provider: Name}) {
+		if stringOf(nic.Attrs["LinkNicId"]) != req.LinkNicID {
+			continue
+		}
+		delete(nic.Attrs, "LinkVmId")
+		delete(nic.Attrs, "DeviceNumber")
+		delete(nic.Attrs, "LinkNicId")
+		nic.Attrs["State"] = "available"
+		if !p.env.Store.Commit(nic, p.env.Now()) {
+			p.notFound(w, "network interface", nic.ID)
+			return
+		}
+		emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
+		return
+	}
+	p.notFound(w, "network interface attachment", req.LinkNicID)
+}
+
+// detachNicsOf releases every secondary interface attached to a Vm, leaving the
+// interface itself in place. Called from the Vm delete path.
+func (p *Pack) detachNicsOf(vmID string) {
+	for _, nic := range p.env.Store.List(kindNic, resource.Tenant{Provider: Name}) {
+		if stringOf(nic.Attrs["LinkVmId"]) != vmID {
+			continue
+		}
+		delete(nic.Attrs, "LinkVmId")
+		delete(nic.Attrs, "DeviceNumber")
+		delete(nic.Attrs, "LinkNicId")
+		nic.Attrs["State"] = "available"
+		p.env.Store.Commit(nic, p.env.Now())
 	}
 }
 
