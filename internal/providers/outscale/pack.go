@@ -182,6 +182,10 @@ func (p *Pack) Routes() []emulator.Route {
 		// account (X-2 sweep, 2026-08-08), and the lifecycle calls are the rest
 		// of OSC-3 (#10).
 		p.route("ReadSecurityGroups", p.readSecurityGroups),
+		p.route("CreateSecurityGroup", p.createSecurityGroup),
+		p.route("DeleteSecurityGroup", p.deleteSecurityGroup),
+		p.route("CreateSecurityGroupRule", p.createSecurityGroupRule),
+		p.route("DeleteSecurityGroupRule", p.deleteSecurityGroupRule),
 		p.route("ReadRouteTables", p.readRouteTables),
 		p.route("ReadDhcpOptions", p.readDhcpOptions),
 		p.route("ReadNics", p.readNics),

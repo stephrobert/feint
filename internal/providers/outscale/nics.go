@@ -77,15 +77,11 @@ func (p *Pack) nicView(vm *resource.Resource, nicID, subnetID, netID string) map
 	privateIP := stringOf(vm.Attrs["PrivateIp"])
 	dns := privateDNSName(privateIP)
 
-	// The groups on the interface are the Net's, which today is its default
-	// group alone. Listed from the store rather than hardcoded, so the day
-	// CreateSecurityGroup exists this view is already right.
-	groups := make([]any, 0, 1)
-	for _, sg := range p.securityGroupsOf(netID) {
-		groups = append(groups, map[string]any{
-			"SecurityGroupId":   sg.ID,
-			"SecurityGroupName": stringOf(sg.Attrs["SecurityGroupName"]),
-		})
+	// The groups on the interface are the machine's, resolved the same way the
+	// Vm view resolves them: what it asked for, or the Net's default group.
+	groups := p.effectiveSecurityGroups(vm)
+	if groups == nil {
+		groups = []any{}
 	}
 
 	return map[string]any{

@@ -218,13 +218,13 @@ func (p *Pack) createVms(w http.ResponseWriter, r *http.Request) {
 	// yields a running machine — which is what every client expects.
 	boot := req.BootOnCreation == nil || *req.BootOnCreation
 
-	// Security groups are refused rather than silently dropped. The pack
-	// declared the field and read nothing, which told the client its rules were
-	// applied when no rule existed anywhere — the one answer worse than a 400,
-	// because it is indistinguishable from success. They are on the roadmap;
-	// until they are served, saying so is the honest answer.
-	if len(req.SecurityGroupIDs) > 0 {
-		p.badRequest(w, "SecurityGroupIds is not emulated yet; see /_feint/routes for what is served")
+	// Security groups are validated and stored, not silently dropped: the old
+	// refusal predates the group family being served. What is stored is the
+	// ids; the view resolves them to {id, name} on every read, so a renamed or
+	// deleted group cannot leave a stale copy here — one shape, one owner.
+	// Enforcement in the runtime is a separate claim, and docs/limits.md
+	// carries it: control-plane groups do not filter packets on their own.
+	if !p.checkVMSecurityGroups(w, req.SecurityGroupIDs) {
 		return
 	}
 
@@ -335,6 +335,9 @@ func (p *Pack) allocateVms(req createVmsRequest, count int, now time.Time) ([]*r
 		if req.UserData != "" {
 			res.Attrs["UserData"] = req.UserData
 		}
+		if len(req.SecurityGroupIDs) > 0 {
+			res.Attrs["SecurityGroupIds"] = req.SecurityGroupIDs
+		}
 		p.env.Store.Put(res)
 		created = append(created, res)
 	}
@@ -437,8 +440,10 @@ func (p *Pack) updateVm(w http.ResponseWriter, r *http.Request) {
 		res.Attrs["VmType"] = req.VMType
 	}
 	if len(req.SecurityGroupIDs) > 0 {
-		p.badRequest(w, "SecurityGroupIds is not emulated yet; see /_feint/routes for what is served")
-		return
+		if !p.checkVMSecurityGroups(w, req.SecurityGroupIDs) {
+			return
+		}
+		res.Attrs["SecurityGroupIds"] = req.SecurityGroupIDs
 	}
 	if req.KeypairName != "" {
 		res.Attrs["KeypairName"] = req.KeypairName
@@ -684,7 +689,16 @@ func (p *Pack) deleteVms(w http.ResponseWriter, r *http.Request) {
 func (p *Pack) vmView(res *resource.Resource) map[string]any {
 	out := make(map[string]any, len(res.Attrs)+4)
 	for k, v := range res.Attrs {
+		// The stored id list stays off the wire: the Vm schema publishes
+		// SecurityGroups as {id, name} pairs, resolved below on every read so a
+		// deleted or renamed group cannot leave a stale copy here.
+		if k == "SecurityGroupIds" {
+			continue
+		}
 		out[k] = v
+	}
+	if groups := p.effectiveSecurityGroups(res); groups != nil {
+		out["SecurityGroups"] = groups
 	}
 	out["VmId"] = res.ID
 	out["State"] = res.State

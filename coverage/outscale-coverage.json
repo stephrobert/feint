@@ -1,9 +1,9 @@
 {
   "provider": "outscale",
   "total": 263,
-  "implemented": 51,
+  "implemented": 55,
   "declined": 176,
-  "unknown": 36,
+  "unknown": 32,
   "orphans": null,
   "products": [
     {
@@ -16,9 +16,9 @@
     {
       "product": "osc",
       "total": 236,
-      "implemented": 51,
+      "implemented": 55,
       "declined": 149,
-      "unknown": 36
+      "unknown": 32
     }
   ],
   "entries": [
@@ -371,12 +371,12 @@
     {
       "operation": "osc/Client.CreateSecurityGroup",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateSecurityGroupRule",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateServerCertificate",
@@ -622,12 +622,12 @@
     {
       "operation": "osc/Client.DeleteSecurityGroup",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteSecurityGroupRule",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteServerCertificate",
