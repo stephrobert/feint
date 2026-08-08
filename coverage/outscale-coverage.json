@@ -1,9 +1,9 @@
 {
   "provider": "outscale",
   "total": 263,
-  "implemented": 31,
-  "declined": 146,
-  "unknown": 86,
+  "implemented": 51,
+  "declined": 176,
+  "unknown": 36,
   "orphans": null,
   "products": [
     {
@@ -16,9 +16,9 @@
     {
       "product": "osc",
       "total": 236,
-      "implemented": 31,
-      "declined": 119,
-      "unknown": 86
+      "implemented": 51,
+      "declined": 149,
+      "unknown": 36
     }
   ],
   "entries": [
@@ -273,7 +273,7 @@
     {
       "operation": "osc/Client.CreateInternetService",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateKeypair",
@@ -283,32 +283,37 @@
     {
       "operation": "osc/Client.CreateListenerRule",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.CreateLoadBalancer",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.CreateLoadBalancerListeners",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.CreateLoadBalancerPolicy",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.CreateLoadBalancerTags",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.CreateNatService",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateNet",
@@ -351,7 +356,7 @@
     {
       "operation": "osc/Client.CreatePublicIp",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateRoute",
@@ -376,12 +381,13 @@
     {
       "operation": "osc/Client.CreateServerCertificate",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.CreateSnapshot",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateSnapshotExportTask",
@@ -518,7 +524,7 @@
     {
       "operation": "osc/Client.DeleteInternetService",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteKeypair",
@@ -528,32 +534,37 @@
     {
       "operation": "osc/Client.DeleteListenerRule",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteLoadBalancer",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteLoadBalancerListeners",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteLoadBalancerPolicy",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteLoadBalancerTags",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteNatService",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteNet",
@@ -596,7 +607,7 @@
     {
       "operation": "osc/Client.DeletePublicIp",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteRoute",
@@ -621,12 +632,13 @@
     {
       "operation": "osc/Client.DeleteServerCertificate",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteSnapshot",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteSubnet",
@@ -705,7 +717,8 @@
     {
       "operation": "osc/Client.DeregisterVmsInLoadBalancer",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.DisableOutscaleLogin",
@@ -752,12 +765,13 @@
     {
       "operation": "osc/Client.LinkInternetService",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.LinkLoadBalancerBackendMachines",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.LinkManagedPolicyToUserGroup",
@@ -784,7 +798,8 @@
     {
       "operation": "osc/Client.LinkPublicIp",
       "product": "osc",
-      "status": "unknown"
+      "reason": "publishing an address on a machine is the runtime's job, and a link stamping an address the interface does not carry would make ReadVms describe connectivity that does not exist",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.LinkRouteTable",
@@ -882,7 +897,8 @@
     {
       "operation": "osc/Client.ReadConsoleOutput",
       "product": "osc",
-      "status": "unknown"
+      "reason": "each answers a question about something that never happened here: a console nothing captured, a stop history nothing kept, migration tasks for updates applied immediately",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.ReadConsumptionAccount",
@@ -899,7 +915,7 @@
     {
       "operation": "osc/Client.ReadDhcpOptions",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadDirectLinkInterfaces",
@@ -945,7 +961,7 @@
     {
       "operation": "osc/Client.ReadInternetServices",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadKeypairs",
@@ -961,17 +977,20 @@
     {
       "operation": "osc/Client.ReadListenerRules",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.ReadLoadBalancerTags",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.ReadLoadBalancers",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.ReadLocations",
@@ -988,12 +1007,12 @@
     {
       "operation": "osc/Client.ReadNatServices",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadNetAccessPointServices",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadNetAccessPoints",
@@ -1013,7 +1032,7 @@
     {
       "operation": "osc/Client.ReadNics",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadPolicies",
@@ -1054,12 +1073,12 @@
     {
       "operation": "osc/Client.ReadPublicIpRanges",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadPublicIps",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadQuotas",
@@ -1075,17 +1094,18 @@
     {
       "operation": "osc/Client.ReadRouteTables",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadSecurityGroups",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadServerCertificates",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.ReadSnapshotExportTasks",
@@ -1096,7 +1116,7 @@
     {
       "operation": "osc/Client.ReadSnapshots",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadSubnets",
@@ -1198,7 +1218,8 @@
     {
       "operation": "osc/Client.ReadVmsHealth",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.ReadVmsState",
@@ -1208,12 +1229,14 @@
     {
       "operation": "osc/Client.ReadVmsStopHistory",
       "product": "osc",
-      "status": "unknown"
+      "reason": "each answers a question about something that never happened here: a console nothing captured, a stop history nothing kept, migration tasks for updates applied immediately",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.ReadVolumeUpdateTasks",
       "product": "osc",
-      "status": "unknown"
+      "reason": "each answers a question about something that never happened here: a console nothing captured, a stop history nothing kept, migration tasks for updates applied immediately",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.ReadVolumes",
@@ -1234,7 +1257,8 @@
     {
       "operation": "osc/Client.RegisterVmsInLoadBalancer",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.RejectNetPeering",
@@ -1284,12 +1308,13 @@
     {
       "operation": "osc/Client.UnlinkInternetService",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.UnlinkLoadBalancerBackendMachines",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.UnlinkManagedPolicyFromUserGroup",
@@ -1316,7 +1341,8 @@
     {
       "operation": "osc/Client.UnlinkPublicIp",
       "product": "osc",
-      "status": "unknown"
+      "reason": "publishing an address on a machine is the runtime's job, and a link stamping an address the interface does not carry would make ReadVms describe connectivity that does not exist",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.UnlinkRouteTable",
@@ -1390,12 +1416,14 @@
     {
       "operation": "osc/Client.UpdateListenerRule",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateLoadBalancer",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateNet",
@@ -1431,12 +1459,14 @@
     {
       "operation": "osc/Client.UpdateServerCertificate",
       "product": "osc",
-      "status": "unknown"
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateSnapshot",
       "product": "osc",
-      "status": "unknown"
+      "reason": "UpdateSnapshot manages cross-account permissions, and the emulator has one implicit account: there is nobody to grant to",
+      "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateSubnet",

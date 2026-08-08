@@ -114,3 +114,67 @@ func (p *Pack) readSubregions(w http.ResponseWriter, _ *http.Request) {
 		"ResponseContext": p.context(),
 	})
 }
+
+// netAccessPointServices is the catalogue of services a Net access point can
+// reach, fixed like the rest of this file. The seven names mirror the seven a
+// real region publishes (measured, X-2 sweep, 2026-08-08:
+// com.outscale.<region>.{api,fcu,lbu,eim,icu,oos,directlink}), templated on the
+// emulated region so a client that builds the name from its own region finds
+// it. The ids are stable so a client can hardcode one, and the ranges are
+// TEST-NET blocks (RFC 5737): a documented-fictional address for a fictional
+// facility, matching what ReadPublicIpRanges publishes.
+var netAccessPointServices = []map[string]any{
+	{"ServiceId": "pl-00000001", "ServiceName": "com.outscale." + regionName + ".api", "IpRanges": []any{"192.0.2.0/24"}},
+	{"ServiceId": "pl-00000002", "ServiceName": "com.outscale." + regionName + ".fcu", "IpRanges": []any{"192.0.2.0/24"}},
+	{"ServiceId": "pl-00000003", "ServiceName": "com.outscale." + regionName + ".lbu", "IpRanges": []any{"192.0.2.0/24"}},
+	{"ServiceId": "pl-00000004", "ServiceName": "com.outscale." + regionName + ".eim", "IpRanges": []any{"192.0.2.0/24"}},
+	{"ServiceId": "pl-00000005", "ServiceName": "com.outscale." + regionName + ".icu", "IpRanges": []any{"192.0.2.0/24"}},
+	{"ServiceId": "pl-00000006", "ServiceName": "com.outscale." + regionName + ".oos", "IpRanges": []any{"198.51.100.0/24"}},
+	{"ServiceId": "pl-00000007", "ServiceName": "com.outscale." + regionName + ".directlink", "IpRanges": []any{"198.51.100.0/24"}},
+}
+
+func (p *Pack) readNetAccessPointServices(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Filters        filterSet `json:"Filters"`
+		ResultsPerPage int       `json:"ResultsPerPage"`
+		DryRun         *bool     `json:"DryRun"`
+	}
+	if err := emulator.DecodeJSON(r, &req); err != nil {
+		p.badRequest(w, err.Error())
+		return
+	}
+	if p.refuseUnsupported(w, req.Filters, "ServiceIds", "ServiceNames") {
+		return
+	}
+	out := make([]map[string]any, 0, len(netAccessPointServices))
+	for _, service := range netAccessPointServices {
+		if !matchesStrings(req.Filters, "ServiceIds", service["ServiceId"].(string)) ||
+			!matchesStrings(req.Filters, "ServiceNames", service["ServiceName"].(string)) {
+			continue
+		}
+		out = append(out, service)
+	}
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{
+		"Services":        page(out, req.ResultsPerPage),
+		"ResponseContext": p.context(),
+	})
+}
+
+// readPublicIpRanges publishes the block createPublicIP allocates from, and
+// nothing else: the catalogue and the allocator answering from the same
+// constant is what keeps them from disagreeing. The response is a list of
+// strings, not objects — measured, and easy to get wrong from the field name.
+func (p *Pack) readPublicIPRanges(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ResultsPerPage int   `json:"ResultsPerPage"`
+		DryRun         *bool `json:"DryRun"`
+	}
+	if err := emulator.DecodeJSON(r, &req); err != nil {
+		p.badRequest(w, err.Error())
+		return
+	}
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{
+		"PublicIps":       []any{publicIPBase + "0/24"},
+		"ResponseContext": p.context(),
+	})
+}

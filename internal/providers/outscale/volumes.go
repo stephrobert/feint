@@ -50,12 +50,20 @@ func (p *Pack) createVolume(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, "SubregionName is required")
 		return
 	}
+	size := req.Size
 	if req.SnapshotID != "" {
-		// Snapshots are declined: there are no bytes behind an emulated volume,
-		// so restoring one would produce a disk holding nothing. Saying so beats
-		// answering a volume that silently lost its contents.
-		p.badRequest(w, "SnapshotId is not emulated; see /_feint/routes for what is served")
-		return
+		// A volume may come from a snapshot the emulator knows — a control-plane
+		// record, snapshots.go says what that means — and inherits its size when
+		// none is asked. An unknown SnapshotId is refused the way the real API
+		// refuses one; the old blanket refusal predates served snapshots.
+		snapshot, found := p.env.Store.Get(Name, kindSnapshot, req.SnapshotID)
+		if !found {
+			p.notFound(w, "snapshot", req.SnapshotID)
+			return
+		}
+		if size == 0 {
+			size, _ = snapshot.Attrs["VolumeSize"].(int)
+		}
 	}
 
 	now := p.env.Now()
@@ -68,12 +76,19 @@ func (p *Pack) createVolume(w http.ResponseWriter, r *http.Request) {
 		Updated: now,
 		Attrs: map[string]any{
 			"SubregionName": req.SubregionName,
-			"Size":          req.Size,
+			"Size":          size,
 			"VolumeType":    orDefault(req.VolumeType, defaultVolumeType),
 			"Iops":          req.Iops,
 			"ClientToken":   req.ClientToken,
 			"Tags":          []any{},
 		},
+	}
+	if req.SnapshotID != "" {
+		// Stored only when there is one: the view copies Attrs verbatim, and the
+		// real cloud omits the key on a volume that has no provenance — measured
+		// on a real account, where "" never appears. Absent and empty are not
+		// the same claim.
+		res.Attrs["SnapshotId"] = req.SnapshotID
 	}
 	p.env.Store.Put(res)
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{

@@ -169,6 +169,75 @@ func (p *Pack) Declined() []emulator.Decline {
 			"osc/Client.UpdateDirectLinkInterface",
 			"osc/Client.UpdateVpnConnection"),
 
+		// Load balancing, and the server certificates that exist to terminate
+		// TLS on it.
+		//
+		// A load balancer is a data plane: it accepts real connections, spreads
+		// them over backends and health-checks what answers. The emulator has no
+		// such plane, and a control plane alone would hand every client a DNS
+		// name that resolves nowhere and a backend health nobody measured —
+		// ReadVmsHealth answering "healthy" about traffic that cannot flow is
+		// the exact invented answer this project refuses. Measured against a
+		// real account (X-2 sweep, 2026-08-08): a fresh account answers these
+		// with empty lists, so declining them breaks no plan that did not
+		// already depend on a balancer existing.
+		emulator.Because("a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+			"osc/Client.CreateLoadBalancer",
+			"osc/Client.CreateLoadBalancerListeners",
+			"osc/Client.CreateLoadBalancerPolicy",
+			"osc/Client.CreateLoadBalancerTags",
+			"osc/Client.CreateListenerRule",
+			"osc/Client.DeleteLoadBalancer",
+			"osc/Client.DeleteLoadBalancerListeners",
+			"osc/Client.DeleteLoadBalancerPolicy",
+			"osc/Client.DeleteLoadBalancerTags",
+			"osc/Client.DeleteListenerRule",
+			"osc/Client.DeregisterVmsInLoadBalancer",
+			"osc/Client.LinkLoadBalancerBackendMachines",
+			"osc/Client.ReadListenerRules",
+			"osc/Client.ReadLoadBalancerTags",
+			"osc/Client.ReadLoadBalancers",
+			"osc/Client.ReadVmsHealth",
+			"osc/Client.RegisterVmsInLoadBalancer",
+			"osc/Client.UnlinkLoadBalancerBackendMachines",
+			"osc/Client.UpdateListenerRule",
+			"osc/Client.UpdateLoadBalancer",
+			"osc/Client.CreateServerCertificate",
+			"osc/Client.DeleteServerCertificate",
+			"osc/Client.ReadServerCertificates",
+			"osc/Client.UpdateServerCertificate"),
+
+		// Histories and by-products of a lifecycle the emulator does not keep.
+		//
+		// Each answers a question about something that never happened here: a
+		// boot console nothing captured (the runtime does not keep one; when it
+		// learns to, this comes off the list), a stop history nothing recorded —
+		// serving [] after a real StopVms would be a false answer, not an empty
+		// one — and cold-migration tasks for updates this pack applies
+		// immediately, so a task list would be empty by construction and prove
+		// nothing.
+		emulator.Because("each answers a question about something that never happened here: a console nothing captured, a stop history nothing kept, migration tasks for updates applied immediately",
+			"osc/Client.ReadConsoleOutput",
+			"osc/Client.ReadVmsStopHistory",
+			"osc/Client.ReadVolumeUpdateTasks"),
+
+		// Linking a public IP onto a machine or an interface.
+		//
+		// Publishing an address on a machine is the runtime's job — machines.go
+		// publishes what the driver reports — and a link that stamps an address
+		// the interface does not carry would make ReadVms describe connectivity
+		// that does not exist. The allocation half (Create/Read/DeletePublicIp)
+		// is served; the day the runtime can carry a routed address, these two
+		// come off this list.
+		emulator.Because("publishing an address on a machine is the runtime's job, and a link stamping an address the interface does not carry would make ReadVms describe connectivity that does not exist",
+			"osc/Client.LinkPublicIp",
+			"osc/Client.UnlinkPublicIp"),
+
+		// Cross-account permissions on a snapshot. One implicit account, so
+		// there is nobody to grant to: same reasoning as the IAM family above.
+		emulator.Because("UpdateSnapshot manages cross-account permissions, and the emulator has one implicit account: there is nobody to grant to",
+			"osc/Client.UpdateSnapshot"),
+
 		// Hardware, and Outscale's own orchestration on top of it: flexible GPUs,
 		// dedicated groups, VM templates and VM groups.
 		//

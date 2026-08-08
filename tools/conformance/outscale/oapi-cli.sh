@@ -11,6 +11,34 @@
 # /api/v1/<Call> itself. Passing http://host/api/v1 makes it request
 # /api/v1/api/v1/<Call>, which is a 404 that looks like a missing route.
 #
+# oapi-cli reads `region`, never `region_name` — an hour was paid to learn it.
+#
+# A ~/.osc/config.json profile written for osc-cli, the Python client, carries
+# region_name, host, https and method. oapi-cli ignores region_name, falls back
+# to its default region (eu-west-2), and presents the profile's credentials
+# there; against a real cloud the server answers InvalidParameterValue 4120 —
+# which its own error table files under authentication — and it reads exactly
+# like a broken client. Measured on a profile whose region_name was
+# cloudgouv-eu-west-1:
+#
+#   oapi-cli --profile=<p> ReadRegions                       -> 200, but the eu-west-2 list
+#   oapi-cli --profile=<p> ReadKeypairs                      -> 4120
+#   same profile with "region": "cloudgouv-eu-west-1"        -> 200, real data
+#
+# ReadRegions passes because it is public and signs nothing, so the wrong
+# region does not show. That partial success is what misleads the diagnosis:
+# the call that works hides the cause of the one that fails, and two calls
+# differing only by authentication are what settles it.
+#
+# Against the emulator none of this bites — any signature is accepted — but a
+# recording session against a real account must keep `region` matching the
+# account, or the 4120 comes back looking like an emulator defect.
+#
+# Roadmap note: Outscale has placed osc-cli and oapi-cli in maintenance mode
+# and names octl, written in Go, as its reference CLI; the osc-cli and
+# osc-sdk-c repositories are archived, the latter since July 2026. Whether this
+# suite migrates is an open decision, not this script's to make.
+#
 # Usage: tools/conformance/outscale/oapi-cli.sh [endpoint]   (default http://127.0.0.1:4599)
 set -euo pipefail
 
@@ -143,12 +171,92 @@ if osc DeleteNet --NetId "$net_id" >/dev/null 2>&1; then
 fi
 ok "mask, containment, overlap and the address count all hold"
 
+# What a Net is born with. The shapes were measured against a real account
+# through `feint proxy` (X-2, 2026-08-08), not read off the SDK: a pristine Net
+# carries a default security group, a main route table whose one route is the
+# local one over the Net's own block, and a reference to the account's default
+# DHCP options set.
+echo "- a Net is born with its defaults"
+printf '%s' "$net" | jq -e '.Net.DhcpOptionsSetId | startswith("dopt-")' >/dev/null \
+  || fail "the Net does not reference the default DHCP options set: $net"
+dhcp="$(osc ReadDhcpOptions)" || fail "ReadDhcpOptions rejected: $dhcp"
+printf '%s' "$dhcp" | jq -e '.DhcpOptionsSets[0].Default == true' >/dev/null \
+  || fail "no default DHCP options set: $dhcp"
+sgs="$(osc ReadSecurityGroups '--Filters.NetIds[]' "$net_id")" || fail "ReadSecurityGroups rejected: $sgs"
+printf '%s' "$sgs" | jq -e '.SecurityGroups | length == 1 and .[0].SecurityGroupName == "default"' >/dev/null \
+  || fail "the Net has no default security group: $sgs"
+# Measured conditionality: the pristine inbound rule has SecurityGroupsMembers
+# and no IpRanges key; the outbound rule the reverse. An emulator that emits
+# empty arrays where the real cloud omits the key fails this.
+printf '%s' "$sgs" | jq -e '.SecurityGroups[0].InboundRules[0] | has("IpRanges") | not' >/dev/null \
+  || fail "the pristine inbound rule carries an IpRanges key the real cloud omits: $sgs"
+rtbs="$(osc ReadRouteTables '--Filters.NetIds[]' "$net_id")" || fail "ReadRouteTables rejected: $rtbs"
+printf '%s' "$rtbs" | jq -e --arg r 10.190.0.0/16 \
+  '.RouteTables[0].Routes[0] | .GatewayId == "local" and .DestinationIpRange == $r' >/dev/null \
+  || fail "the main route table does not carry the local route: $rtbs"
+printf '%s' "$rtbs" | jq -e '.RouteTables[0].LinkRouteTables[0].Main == true' >/dev/null \
+  || fail "the main link does not say Main:true: $rtbs"
+ok "default security group, main route table, DHCP set"
+
+# The gateway-and-address algebra Terraform's destroy order depends on: what is
+# held refuses to go, what is deleted releases what it held.
+echo "- a public IP, a gateway and a NAT service hold and release each other"
+eip="$(osc CreatePublicIp)" || fail "CreatePublicIp rejected: $eip"
+eip_id="$(printf '%s' "$eip" | jq -r '.PublicIp.PublicIpId // empty')"
+[ -n "$eip_id" ] || fail "no PublicIpId in the create response: $eip"
+printf '%s' "$eip" | jq -e '.PublicIp | has("NatServiceId") | not' >/dev/null \
+  || fail "an unlinked address carries holder keys the real cloud omits: $eip"
+gw="$(osc CreateInternetService)" || fail "CreateInternetService rejected: $gw"
+gw_id="$(printf '%s' "$gw" | jq -r '.InternetService.InternetServiceId // empty')"
+osc LinkInternetService --InternetServiceId "$gw_id" --NetId "$net_id" >/dev/null \
+  || fail "LinkInternetService rejected"
+if osc DeleteNet --NetId "$net_id" >/dev/null 2>&1; then
+  fail "a Net with a linked gateway was deleted"
+fi
+nat="$(osc CreateNatService --SubnetId "$sub_id" --PublicIpId "$eip_id")" \
+  || fail "CreateNatService rejected: $nat"
+nat_id="$(printf '%s' "$nat" | jq -r '.NatService.NatServiceId // empty')"
+if osc DeletePublicIp --PublicIpId "$eip_id" >/dev/null 2>&1; then
+  fail "an address held by a NAT service was released"
+fi
+held="$(osc ReadPublicIps '--Filters.PublicIpIds[]' "$eip_id")" || fail "ReadPublicIps rejected: $held"
+printf '%s' "$held" | jq -e --arg n "$nat_id" '.PublicIps[0].NatServiceId == $n' >/dev/null \
+  || fail "the held address does not name its holder: $held"
+osc DeleteNatService --NatServiceId "$nat_id" >/dev/null || fail "DeleteNatService rejected"
+osc DeletePublicIp --PublicIpId "$eip_id" >/dev/null || fail "DeletePublicIp rejected once released"
+osc UnlinkInternetService --InternetServiceId "$gw_id" --NetId "$net_id" >/dev/null \
+  || fail "UnlinkInternetService rejected"
+osc DeleteInternetService --InternetServiceId "$gw_id" >/dev/null || fail "DeleteInternetService rejected"
+ok "held refuses, released goes, in the order destroy needs"
+
 osc DeleteSubnet --SubnetId "$sub_id" >/dev/null || fail "DeleteSubnet rejected"
 osc DeleteNet --NetId "$net_id" >/dev/null || fail "DeleteNet rejected once empty"
 nets="$(osc ReadNets)" || fail "ReadNets rejected: $nets"
 printf '%s' "$nets" | jq -e '.Nets | length == 0' >/dev/null \
   || fail "the Net survived its delete: $nets"
 ok "deleted in the order the dependency requires"
+
+# Snapshots as control-plane records, and the conditional key that was measured
+# on a real account: a volume with no provenance has NO SnapshotId key — the
+# real cloud never sends "".
+echo "- a snapshot is a record, and provenance is a conditional key"
+vol="$(osc CreateVolume --SubregionName eu-west-2a --Size 7)" || fail "CreateVolume rejected: $vol"
+vol_id="$(printf '%s' "$vol" | jq -r '.Volume.VolumeId // empty')"
+printf '%s' "$vol" | jq -e '.Volume | has("SnapshotId") | not' >/dev/null \
+  || fail "a plain volume carries a SnapshotId key the real cloud omits: $vol"
+snap="$(osc CreateSnapshot --VolumeId "$vol_id")" || fail "CreateSnapshot rejected: $snap"
+snap_id="$(printf '%s' "$snap" | jq -r '.Snapshot.SnapshotId // empty')"
+printf '%s' "$snap" | jq -e '.Snapshot.State == "completed" and .Snapshot.Progress == 100' >/dev/null \
+  || fail "a snapshot is not completed at once: $snap"
+restored="$(osc CreateVolume --SubregionName eu-west-2a --SnapshotId "$snap_id")" \
+  || fail "CreateVolume from a snapshot rejected: $restored"
+printf '%s' "$restored" | jq -e --arg s "$snap_id" '.Volume.SnapshotId == $s and .Volume.Size == 7' >/dev/null \
+  || fail "the restored volume does not carry its provenance and size: $restored"
+restored_id="$(printf '%s' "$restored" | jq -r '.Volume.VolumeId')"
+osc DeleteSnapshot --SnapshotId "$snap_id" >/dev/null || fail "DeleteSnapshot rejected"
+osc DeleteVolume --VolumeId "$restored_id" >/dev/null || fail "DeleteVolume rejected"
+osc DeleteVolume --VolumeId "$vol_id" >/dev/null || fail "DeleteVolume rejected"
+ok "record, restore, and the key only when it means something"
 
 echo "- a keypair, because a machine nobody can log into proves nothing"
 keys="$(osc ReadKeypairs)" || fail "ReadKeypairs rejected: $keys"
@@ -304,8 +412,13 @@ echo "- an unserved operation answers in the API's own dialect"
 # emulator what it mounts keeps the check true as the surface grows.
 mounted="$(curl -sf "$ENDPOINT/_feint/routes" | jq -r '.[].path')" \
   || fail "could not read the route table to pick an unserved operation"
+# The five 404 candidates this list used to hold — ReadNics, ReadVolumes,
+# ReadSecurityGroups, ReadPublicIps, ReadRouteTables — are all served now
+# (#10's read half and #13's snapshots), which is exactly the expiry the
+# comment above predicts. These replacements are declined operations, so they
+# stay unserved until a decision changes, not until a batch lands.
 unserved_action=""
-for candidate in ReadNics ReadVolumes ReadSecurityGroups ReadPublicIps ReadRouteTables; do
+for candidate in ReadLoadBalancers ReadClientGateways ReadFlexibleGpus ReadVmGroups ReadDirectLinks; do
   if ! printf '%s\n' "$mounted" | grep -qx "/api/v1/$candidate"; then
     unserved_action="$candidate"
     break

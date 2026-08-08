@@ -175,6 +175,43 @@ func (p *Pack) Routes() []emulator.Route {
 		p.route("CreateKeypair", p.createKeypair),
 		p.route("ReadKeypairs", p.readKeypairs),
 		p.route("DeleteKeypair", p.deleteKeypair),
+
+		// What a Net is born with — its default security group, its main route
+		// table, the account's DHCP options set — and the interfaces its
+		// machines carry. Read-only: the shapes are measured against a real
+		// account (X-2 sweep, 2026-08-08), and the lifecycle calls are the rest
+		// of OSC-3 (#10).
+		p.route("ReadSecurityGroups", p.readSecurityGroups),
+		p.route("ReadRouteTables", p.readRouteTables),
+		p.route("ReadDhcpOptions", p.readDhcpOptions),
+		p.route("ReadNics", p.readNics),
+
+		// The gateway a Net attaches, and the egress a subnet buys with an
+		// address: the resource algebra Terraform's destroy order depends on.
+		// Control plane only — internetservices.go says what does not flow.
+		p.route("CreateInternetService", p.createInternetService),
+		p.route("ReadInternetServices", p.readInternetServices),
+		p.route("LinkInternetService", p.linkInternetService),
+		p.route("UnlinkInternetService", p.unlinkInternetService),
+		p.route("DeleteInternetService", p.deleteInternetService),
+		p.route("CreatePublicIp", p.createPublicIP),
+		p.route("ReadPublicIps", p.readPublicIPs),
+		p.route("DeletePublicIp", p.deletePublicIP),
+		p.route("CreateNatService", p.createNatService),
+		p.route("ReadNatServices", p.readNatServices),
+		p.route("DeleteNatService", p.deleteNatService),
+
+		// Snapshots as control-plane records (OSC-4, #13); snapshots.go carries
+		// the no-bytes caveat.
+		p.route("CreateSnapshot", p.createSnapshot),
+		p.route("ReadSnapshots", p.readSnapshots),
+		p.route("DeleteSnapshot", p.deleteSnapshot),
+
+		// The region's fixed catalogues, same rule as ReadVmTypes: what a
+		// client reads on its way to creating something is served, small and
+		// fixed.
+		p.route("ReadNetAccessPointServices", p.readNetAccessPointServices),
+		p.route("ReadPublicIpRanges", p.readPublicIPRanges),
 	}
 }
 

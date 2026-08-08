@@ -136,10 +136,22 @@ func (p *Pack) createNet(w http.ResponseWriter, r *http.Request) {
 		Attrs: map[string]any{
 			"IpRange": prefix.String(),
 			"Tenancy": orDefault(req.Tenancy, "default"),
-			"Tags":    []any{},
+			// The account's default set, which every real Net references. Its
+			// absence from this view was found by `feint transcript --against`
+			// on a real account, not by reading the SDK: the schema declares
+			// the field, but no required list would ever have flagged it.
+			"DhcpOptionsSetId": p.defaultDhcpOptions().ID,
+			"Tags":             []any{},
 		},
 	}
 	p.env.Store.Put(res)
+
+	// A Net is born with its default security group and its main route table,
+	// whether anybody asked or not — measured on a real account, where every
+	// pristine Net carries both. Created while the addressing lock is held, so
+	// no read can see a Net without its defaults.
+	p.env.Store.Put(p.defaultSecurityGroup(res.ID))
+	p.env.Store.Put(p.mainRouteTable(res.ID, prefix.String()))
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"Net":             netView(res),
@@ -202,7 +214,24 @@ func (p *Pack) deleteNet(w http.ResponseWriter, r *http.Request) {
 		p.conflict(w, "the Net "+req.NetID+" still holds "+strconv.Itoa(len(subnets))+" subnet(s)")
 		return
 	}
+	// A Net with a gateway attached does not go either: the real API refuses,
+	// and Terraform's destroy order (unlink, delete gateway, delete Net) counts
+	// on the refusal to retry rather than to lose the gateway record.
+	if gw := p.linkedInternetServiceOf(req.NetID); gw != nil {
+		p.addresses.Unlock()
+		p.conflict(w, "the Net "+req.NetID+" still has "+gw.ID+" linked")
+		return
+	}
 	p.env.Store.Delete(Name, kindNet, req.NetID)
+	// The defaults the Net was born with go with it, silently, exactly as the
+	// real API removes them: nobody created them, nobody is asked to delete
+	// them.
+	for _, sg := range p.securityGroupsOf(req.NetID) {
+		p.env.Store.Delete(Name, kindSecurityGroup, sg.ID)
+	}
+	for _, rtb := range p.routeTablesOf(req.NetID) {
+		p.env.Store.Delete(Name, kindRouteTable, rtb.ID)
+	}
 	p.addresses.Unlock()
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
@@ -393,6 +422,13 @@ func (p *Pack) deleteSubnet(w http.ResponseWriter, r *http.Request) {
 			p.conflict(w, "the Subnet "+req.SubnetID+" still holds "+vm.ID)
 			return
 		}
+	}
+	// A NAT service placed in the subnet blocks it the same way a Vm does; the
+	// real API refuses, and the destroy order relies on the refusal.
+	if nats := p.natServicesOf(req.SubnetID); len(nats) > 0 {
+		p.addresses.Unlock()
+		p.conflict(w, "the Subnet "+req.SubnetID+" still holds "+nats[0].ID)
+		return
 	}
 	// Removed from the store under the lock, so a create that wakes up next
 	// fails to resolve it rather than placing a Vm in a Subnet being deleted.
