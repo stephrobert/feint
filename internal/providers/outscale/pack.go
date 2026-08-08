@@ -187,6 +187,13 @@ func (p *Pack) Routes() []emulator.Route {
 		p.route("CreateSecurityGroupRule", p.createSecurityGroupRule),
 		p.route("DeleteSecurityGroupRule", p.deleteSecurityGroupRule),
 		p.route("ReadRouteTables", p.readRouteTables),
+		p.route("CreateRouteTable", p.createRouteTable),
+		p.route("DeleteRouteTable", p.deleteRouteTable),
+		p.route("LinkRouteTable", p.linkRouteTable),
+		p.route("UnlinkRouteTable", p.unlinkRouteTable),
+		p.route("CreateRoute", p.createRoute),
+		p.route("DeleteRoute", p.deleteRoute),
+		p.route("UpdateRoute", p.updateRoute),
 		p.route("ReadDhcpOptions", p.readDhcpOptions),
 		p.route("ReadNics", p.readNics),
 

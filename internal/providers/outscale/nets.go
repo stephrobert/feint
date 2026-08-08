@@ -222,6 +222,23 @@ func (p *Pack) deleteNet(w http.ResponseWriter, r *http.Request) {
 		p.conflict(w, "the Net "+req.NetID+" still has "+gw.ID+" linked")
 		return
 	}
+	// What the client created inside the Net blocks the delete; what the Net
+	// was born with goes with it. The line between the two is exactly the
+	// main/default marker.
+	for _, rtb := range p.routeTablesOf(req.NetID) {
+		if !isMainTable(rtb) {
+			p.addresses.Unlock()
+			p.conflict(w, "the Net "+req.NetID+" still holds the route table "+rtb.ID)
+			return
+		}
+	}
+	for _, sg := range p.securityGroupsOf(req.NetID) {
+		if stringOf(sg.Attrs["SecurityGroupName"]) != "default" {
+			p.addresses.Unlock()
+			p.conflict(w, "the Net "+req.NetID+" still holds the security group "+sg.ID)
+			return
+		}
+	}
 	p.env.Store.Delete(Name, kindNet, req.NetID)
 	// The defaults the Net was born with go with it, silently, exactly as the
 	// real API removes them: nobody created them, nobody is asked to delete

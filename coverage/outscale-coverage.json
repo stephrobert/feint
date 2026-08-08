@@ -1,9 +1,9 @@
 {
   "provider": "outscale",
   "total": 263,
-  "implemented": 55,
+  "implemented": 62,
   "declined": 176,
-  "unknown": 32,
+  "unknown": 25,
   "orphans": null,
   "products": [
     {
@@ -16,9 +16,9 @@
     {
       "product": "osc",
       "total": 236,
-      "implemented": 55,
+      "implemented": 62,
       "declined": 149,
-      "unknown": 32
+      "unknown": 25
     }
   ],
   "entries": [
@@ -361,12 +361,12 @@
     {
       "operation": "osc/Client.CreateRoute",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateRouteTable",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateSecurityGroup",
@@ -612,12 +612,12 @@
     {
       "operation": "osc/Client.DeleteRoute",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteRouteTable",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteSecurityGroup",
@@ -804,7 +804,7 @@
     {
       "operation": "osc/Client.LinkRouteTable",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.LinkVirtualGateway",
@@ -1347,7 +1347,7 @@
     {
       "operation": "osc/Client.UnlinkRouteTable",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.UnlinkVirtualGateway",
@@ -1443,7 +1443,7 @@
     {
       "operation": "osc/Client.UpdateRoute",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.UpdateRoutePropagation",
