@@ -11,7 +11,7 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
-## [Unreleased]
+## [0.5.0]
 
 ### Added
 
@@ -66,6 +66,7 @@ what this project is judged on: **a response shape a client can observe**, and
 - **`/_feint/conformance` carries `probes`**, the per-operation probe counts,
   alongside `calls`. The scalar `probed` could say how many routes only a probe
   had reached, never which.
+
 ## [0.4.1]
 
 ### Fixed
