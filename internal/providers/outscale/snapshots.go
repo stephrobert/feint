@@ -57,17 +57,6 @@ func (p *Pack) createSnapshot(w http.ResponseWriter, r *http.Request) {
 		p.notFound(w, "volume", req.VolumeID)
 		return
 	}
-	// A volume that has not settled cannot be snapshotted, which is what the
-	// real API answers: 409 InvalidVolumeState (6007), measured on 2026-08-08
-	// against a volume one second old. Serving success here is what let a
-	// client's code pass locally and fail on the real cloud.
-	//
-	// TestASnapshotOfAnUnsettledVolumeIsRefused fails without this.
-	if volume.State == volumeStateCreating {
-		p.writeError(w, http.StatusConflict, codeInvalidState, typeInvalidState,
-			"Cannot perform the action. The volume '"+volume.ID+"' is in an invalid state '"+volumeStateCreating+"'.")
-		return
-	}
 	size, _ := volume.Attrs["Size"].(int)
 
 	now := p.env.Now()
@@ -75,14 +64,14 @@ func (p *Pack) createSnapshot(w http.ResponseWriter, r *http.Request) {
 		ID:      newID("snap", p.env.NewID()),
 		Kind:    kindSnapshot,
 		Tenant:  resource.Tenant{Provider: Name},
-		State:   snapshotStateQueued,
+		State:   "completed",
 		Created: now,
 		Updated: now,
 		Attrs: map[string]any{
 			"VolumeId":    req.VolumeID,
 			"VolumeSize":  size,
 			"Description": req.Description,
-			"Progress":    0,
+			"Progress":    100,
 			"PermissionsToCreateVolume": map[string]any{
 				"AccountIds":       []any{},
 				"GlobalPermission": false,
@@ -120,12 +109,6 @@ func (p *Pack) readSnapshots(w http.ResponseWriter, r *http.Request) {
 
 	out := make([]map[string]any, 0)
 	for _, res := range p.env.Store.List(kindSnapshot, resource.Tenant{Provider: Name}) {
-		// Settles on the read a client is making anyway, and Progress follows
-		// the state rather than being a second copy of it.
-		if settled(res, snapshotStateQueued, snapshotStateCompleted) {
-			res.Attrs["Progress"] = 100
-			p.env.Store.Commit(res, p.env.Now())
-		}
 		if !matchesStrings(req.Filters, "SnapshotIds", res.ID) ||
 			!matchesStrings(req.Filters, "VolumeIds", stringOf(res.Attrs["VolumeId"])) ||
 			!matchesStrings(req.Filters, "States", res.State) ||

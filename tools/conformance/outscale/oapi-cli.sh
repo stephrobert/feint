@@ -245,32 +245,19 @@ vol_id="$(printf '%s' "$vol" | jq -r '.Volume.VolumeId // empty')"
 printf '%s' "$vol" | jq -e '.Volume | has("SnapshotId") | not' >/dev/null \
   || fail "a plain volume carries a SnapshotId key the real cloud omits: $vol"
 
-# A fresh volume is "creating" and refuses to be snapshotted, which is what the
-# real cloud answers — measured on 2026-08-08, 409 InvalidVolumeState (6007) on
-# a volume one second old. The emulator used to answer 200 here, so a client's
-# code passed locally and failed in production on the one call it never tested.
-printf '%s' "$vol" | jq -e '.Volume.State == "creating"' >/dev/null \
-  || fail "a fresh volume is not creating: $vol"
-# stdout only: oapi-cli treats 409 as retryable and prints three WARN lines to
-# stderr before it gives up, so capturing both makes the JSON unparseable. The
-# retries also cost about thirteen seconds here — the same backoff behaviour the
-# pack's NotFound comment records for 501, and the reason it answers 404 there.
-if early="$(osc CreateSnapshot --VolumeId "$vol_id" 2>/dev/null)"; then
-  fail "a snapshot of a volume still creating was accepted: $early"
-fi
-printf '%s' "$early" | jq -e '.Errors[0].Code == "6007"' >/dev/null \
-  || fail "the refusal is not the measured InvalidVolumeState: $early"
-
-# The read is what settles it, and a polling client makes it anyway.
-osc ReadVolumes '--Filters.VolumeIds[]' "$vol_id" >/dev/null || fail "ReadVolumes rejected"
+# Transitions are immediate here, and that is a decision docs/limits.md carries:
+# a fresh volume is available and its snapshot completed at once. The real cloud
+# passes through "creating" and refuses a snapshot taken during that window with
+# 409 InvalidVolumeState (6007), measured on 2026-08-08 — deliberately not
+# reproduced, because making a client wait for information that does not exist
+# here is the regression that limit exists to prevent.
+printf '%s' "$vol" | jq -e '.Volume.State == "available"' >/dev/null \
+  || fail "a fresh volume is not available: $vol"
 
 snap="$(osc CreateSnapshot --VolumeId "$vol_id")" || fail "CreateSnapshot rejected: $snap"
 snap_id="$(printf '%s' "$snap" | jq -r '.Snapshot.SnapshotId // empty')"
-printf '%s' "$snap" | jq -e '.Snapshot.State == "in-queue" and .Snapshot.Progress == 0' >/dev/null \
-  || fail "a fresh snapshot is not in-queue with Progress 0: $snap"
-settled_snap="$(osc ReadSnapshots '--Filters.SnapshotIds[]' "$snap_id")" || fail "ReadSnapshots rejected"
-printf '%s' "$settled_snap" | jq -e '.Snapshots[0].State == "completed" and .Snapshots[0].Progress == 100' >/dev/null \
-  || fail "a snapshot read back is not completed: $settled_snap"
+printf '%s' "$snap" | jq -e '.Snapshot.State == "completed" and .Snapshot.Progress == 100' >/dev/null \
+  || fail "a snapshot is not completed at once: $snap"
 restored="$(osc CreateVolume --SubregionName eu-west-2a --SnapshotId "$snap_id")" \
   || fail "CreateVolume from a snapshot rejected: $restored"
 printf '%s' "$restored" | jq -e --arg s "$snap_id" '.Volume.SnapshotId == $s and .Volume.Size == 7' >/dev/null \

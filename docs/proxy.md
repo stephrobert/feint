@@ -98,6 +98,39 @@ finds, because the unit test was written against the same reading of the SDK the
 handler was. This is the project's "jamais de format inventé" rule, made
 checkable.
 
+### What it cannot record: a signed client pointed at a real cloud
+
+A reverse proxy cannot relay a SigV4-signed request to a real cloud when the
+client signs the proxy's own host, and that bounds what a transcript can cover.
+
+Measured against Outscale's `cloudgouv-eu-west-1`, same credential, same body:
+
+| what the client signs as `host` | result |
+|---|---|
+| `api.<region>.outscale.com` | **200** |
+| `127.0.0.1:4701` (what a configured client signs) | **401 AccessDenied** |
+
+The signature covers the `Host` header, the proxy forwards with the upstream's
+host, and the cloud validates against its own name. So a client that derives the
+signed host from the endpoint it was configured with — `oapi-cli`, the Terraform
+provider, any SDK — cannot be recorded against a **real** cloud through this
+proxy. Only a client that lets the signed host be set independently of the
+connection target can.
+
+Two things follow, and the first one matters most:
+
+- **The failure is a refusal, not a distortion.** The cloud answers 401 and
+  nothing is silently altered, so no measurement this tool has produced is in
+  doubt because of it.
+- **Recording against the emulator is unaffected**, because it verifies no
+  signature. Every "what does the provider actually call" question is answerable
+  today; only "what does the real cloud answer *to this client*" is not.
+
+Lifting it needs DNS and TLS interception so the client can be pointed at the
+real hostname and still land here, which is #76 and deliberately not this tool.
+Until then, a real-cloud recording is made with a client whose signed host can be
+set — which is how the transcripts behind this page's examples were produced.
+
 ### The one caveat of the diff
 
 The diff is only as sharp as the state parity between the two recordings. A field

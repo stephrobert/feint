@@ -69,6 +69,27 @@ for information that does not exist here.
 The states clients *check* are preserved: deleting a running server is refused
 with `transient_state`, because Terraform depends on that error.
 
+**What follows from this is that a refusal which only exists during a transient
+state cannot be reproduced**, and one has been measured. Against a real Outscale
+account on 2026-08-08: `CreateVolume` answers `State: "creating"`, and a
+`CreateSnapshot` issued before the volume settles is refused with
+`409 InvalidVolumeState` (code `6007`); a snapshot is born `in-queue` with
+`Progress: 0` and only later `completed`. Here a volume is `available` and a
+snapshot `completed` at once, so that refusal never fires and a script which
+snapshots a volume immediately succeeds locally and can fail on the real cloud.
+
+Serving it was tried and reverted, and the reason is worth keeping: reproducing
+the refusal requires the transient state to exist, and any guard written for a
+state this emulator cannot reach is a control that can never fire — the "a
+comment is not a control" defect, in code rather than in prose.
+
+The line, for whoever adds the next resource: **a state invariant is served when
+the state it names is reachable here.** `LinkVolume` on an already-linked volume,
+`DeleteVolume` on a linked one, retyping a running machine, deleting a Net that
+still holds a subnet — all reachable, all refused, all tested. A refusal that
+would need an artificial delay to become reachable is not served, and belongs in
+this list instead.
+
 ## Authentication is accepted, never verified
 
 No signature is checked, on any provider. Credentials must merely be well-formed,
@@ -554,3 +575,46 @@ The consequence, stated rather than hidden: a client asking for `ch-gva-2` gets
 `no such zone`, where the real cloud would serve it. That is a visible, honest
 difference. The alternative — one endpoint pretending to be eight zones — is a
 silent, wrong one.
+
+## Outscale's gateways and NAT move records, not packets
+
+`InternetService`, `LinkInternetService`, `NatService`, `LinkPublicIp` and the
+routes that name them are served, and none of them makes a packet flow.
+
+This one is structural rather than unbuilt, and the difference matters because
+everything around it was buildable and got built. The emulator has no data
+plane: it creates bridges and containers on one host through Incus, and a NAT
+service is a managed appliance in a facility this machine is not in. A public
+address allocated here comes from `203.0.113.0/24` — TEST-NET-3, reserved by
+RFC 5737 and routed nowhere on purpose, so an address that goes nowhere is
+visibly fictional rather than quietly broken.
+
+What *is* real is the resource algebra, and it is what a plan actually depends
+on: an address a NAT service holds refuses to be released, a gateway refuses to
+be deleted while linked, a Net refuses to go while a gateway is attached to it,
+a route through a gateway that is not linked to the Net is refused, and a
+subnet refuses to vanish under a NAT service placed in it. `terraform apply`
+of the provider's own `examples/net_vm`, its second plan and its `destroy` all
+pass against this, which is exactly what those refusals are for.
+
+So: a plan that builds a routable topology applies, reads back and destroys
+correctly. A machine inside it still cannot reach the internet. Use the emulator
+to test the shape of your infrastructure, never its connectivity.
+
+## Whether a security group filters is not measured
+
+The security-group family — `CreateSecurityGroup`, its rules, and the groups a
+machine and its interfaces wear — is served as a control plane. Whether those
+rules are *enforced* on traffic under `FEINT_VM=incus-ovn` has **not been
+measured**, and this section says so rather than claiming a limit.
+
+The distinction is the one the firewall section above makes for Scaleway, where
+enforcement is measured within stated bounds. Nothing equivalent has been run
+for Outscale groups. The open question named in the roadmap is a rule sourced by
+*group* rather than by CIDR, which needs an OVN selector; the emulator's own
+`machine.Capabilities` is where an answer would be declared, and it declares
+nothing here today.
+
+Until somebody runs it: assume the groups this pack serves describe a policy and
+apply none of it, and do not use the emulator to check that a rule blocks
+anything.
