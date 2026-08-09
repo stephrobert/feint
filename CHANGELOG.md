@@ -15,6 +15,34 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **Outscale's routing and storage families**, driven end to end by the real
+  Terraform provider: security groups and their rules, route tables, routes and
+  their links, network interfaces, internet services, NAT services, public IPs
+  and their links, snapshots, and images a client registers beside the fixed
+  catalogue. `tools/conformance/outscale/terraform.sh` now applies the provider's
+  own `examples/net_vm` plus the storage chain — seventeen resources — with an
+  empty second plan and a clean destroy. The conformance score went from 88 to
+  109 of 145 routes proven by a real client.
+- **Twenty fields on `ReadVms` that the real cloud returns and the emulator did
+  not**, including `Nics`, `Placement`, `Architecture`, `BootMode`,
+  `RootDeviceType` and `PrivateDnsName`; `LinkPublicIp` on an interface; and
+  `SnapshotId` on a volume cut from one. Found by recording a real account and
+  diffing it per operation against the emulator — a class of defect no contract
+  can see, because Outscale's schemas declare almost no required field (#88).
+
+### Changed
+
+- **Filters a real client sends are applied rather than refused**, on route
+  tables (`RouteDestinationIpRanges`, the link filters), public IPs
+  (`LinkPublicIpIds`), machines and interfaces (`SecurityGroupIds`) and volumes
+  (`LinkVolumeVmIds`, which is how the provider waits for an attach and a
+  detach). Each was a 400 that stopped a real apply or destroy partway.
+- **`ReadLoadBalancers` answers an empty list** instead of being declined. The
+  rest of the family stays declined: declining a read whose honest answer is
+  "none" costs a client the ability to ask and buys no honesty.
+
+### Added (tooling)
+
 - **`feint proxy`**, a reverse proxy that sits between a real official client and
   a real cloud and writes down every exchange as JSON Lines of
   `internal/trace.Exchange` — the same shape the emulator's own ring publishes.
