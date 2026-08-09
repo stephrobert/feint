@@ -157,16 +157,33 @@ func TestAVolumeRemembersItsSnapshotAndOnlyThen(t *testing.T) {
 	}
 	volumeID, _ := volume["VolumeId"].(string)
 
-	// Its snapshot: completed at once, Progress 100, the measured permissions
-	// object — transitions are immediate here by design.
+	// A volume that has not settled refuses to be snapshotted, exactly as the
+	// real cloud does: 409 InvalidVolumeState (6007), measured. This is the
+	// difference a client trips on, and the emulator used to hide it.
+	//
+	// TestASnapshotOfAnUnsettledVolumeIsRefused holds it on its own too.
+	if status, body := post(t, ts, "CreateSnapshot", `{"VolumeId":"`+volumeID+`"}`); status != http.StatusConflict {
+		t.Fatalf("a snapshot of a volume still creating was accepted: %d %v", status, body)
+	}
+	// The read is what settles it, and it is what a polling client does anyway.
+	call(t, ts, doc, "ReadVolumes", `{"Filters":{"VolumeIds":["`+volumeID+`"]}}`)
+
+	// Its snapshot: born in-queue with Progress 0, completed from the next read.
 	snapped := call(t, ts, doc, "CreateSnapshot", `{"VolumeId":"`+volumeID+`","Description":"before"}`)
 	snapshot, _ := snapped["Snapshot"].(map[string]any)
 	snapshotID, _ := snapshot["SnapshotId"].(string)
-	if snapshot["State"] != "completed" {
-		t.Fatalf("a snapshot is completed at once here: %v", snapshot)
+	if snapshot["State"] != "in-queue" {
+		t.Fatalf("a fresh snapshot is in-queue: %v", snapshot)
 	}
-	if progress, _ := snapshot["Progress"].(float64); progress != 100 {
-		t.Fatalf("Progress = %v, want 100", snapshot["Progress"])
+	if progress, _ := snapshot["Progress"].(float64); progress != 0 {
+		t.Fatalf("a fresh snapshot has Progress 0: %v", snapshot["Progress"])
+	}
+	settledSnap := firstOf(t, call(t, ts, doc, "ReadSnapshots", `{"Filters":{"SnapshotIds":["`+snapshotID+`"]}}`), "Snapshots")
+	if settledSnap["State"] != "completed" {
+		t.Fatalf("a snapshot read back is not completed: %v", settledSnap)
+	}
+	if progress, _ := settledSnap["Progress"].(float64); progress != 100 {
+		t.Fatalf("a completed snapshot has Progress 100: %v", settledSnap["Progress"])
 	}
 
 	// A volume restored from it carries the provenance and inherits the size.
@@ -215,4 +232,33 @@ func TestTheNetCataloguesAreFixedAndFilterable(t *testing.T) {
 	if one["ServiceId"] != "pl-00000001" {
 		t.Fatalf("the api service is not the fixed one: %v", one)
 	}
+}
+
+// The refusal on its own, so that removing the state check kills a test whose
+// name says what it holds. Measured against the real cloud on 2026-08-08: a
+// CreateSnapshot on a volume one second old answers 409 InvalidVolumeState with
+// code 6007, and the emulator answered 200.
+func TestASnapshotOfAnUnsettledVolumeIsRefused(t *testing.T) {
+	ts := newServer(t)
+	doc := contractDoc(t)
+
+	created := call(t, ts, doc, "CreateVolume", `{"SubregionName":"eu-west-2a","Size":1}`)
+	volume, _ := created["Volume"].(map[string]any)
+	volumeID, _ := volume["VolumeId"].(string)
+
+	status, body := post(t, ts, "CreateSnapshot", `{"VolumeId":"`+volumeID+`"}`)
+	if status != http.StatusConflict {
+		t.Fatalf("a snapshot of an unsettled volume answered %d: %v", status, body)
+	}
+	errs, _ := body["Errors"].([]any)
+	first, _ := errs[0].(map[string]any)
+	if first["Code"] != "6007" || first["Type"] != "InvalidVolumeState" {
+		t.Fatalf("the refusal is not the measured one: %v", first)
+	}
+
+	// The accepting half: once read, the volume settles and the snapshot is
+	// taken. A guard that refused both would pass the assertion above and break
+	// the product.
+	call(t, ts, doc, "ReadVolumes", `{"Filters":{"VolumeIds":["`+volumeID+`"]}}`)
+	call(t, ts, doc, "CreateSnapshot", `{"VolumeId":"`+volumeID+`"}`)
 }

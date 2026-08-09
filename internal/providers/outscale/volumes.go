@@ -20,10 +20,51 @@ import (
 // in docs/limits.md and is why snapshots stay declined.
 
 const (
+	// A volume is born creating and is available from the next read of it. That
+	// is measured, not decoration: on the real cloud a CreateVolume answers
+	// State "creating", and a CreateSnapshot issued before it settles is refused
+	// with 409 InvalidVolumeState (6007). An emulator that answered "available"
+	// at once let a client's code work locally and fail in production on the one
+	// call it never tested — the exact difference this project exists to remove.
+	//
+	// Settled on the next read rather than after a delay, because a delay makes
+	// every suite slower and flaky while measuring nothing: what a client does
+	// is poll, and a poller sees creating then available either way. What it
+	// preserves is the refusal above, which is the part a client can trip on.
+	volumeStateCreating  = "creating"
 	volumeStateAvailable = "available"
 	volumeStateInUse     = "in-use"
 	defaultVolumeType    = "standard"
+
+	// snapshotStateQueued is where a snapshot starts, with Progress 0, and
+	// completed from the next read. Measured on the same run.
+	snapshotStateQueued    = "in-queue"
+	snapshotStateCompleted = "completed"
 )
+
+// codeInvalidState is what the real API answers for an action on a resource
+// whose state forbids it: 6007 sits in the 6000-6999 band osc.IsConflict
+// reports true for, which is what a client's retry logic branches on.
+const (
+	codeInvalidState = "6007"
+	typeInvalidState = "InvalidVolumeState"
+)
+
+// settle moves a resource out of its transient birth state on the first read.
+//
+// Read-triggered rather than time-triggered: see volumeStateCreating. It returns
+// whether the caller should re-commit, so a read that changes nothing writes
+// nothing.
+func settled(res *resource.Resource, from, to string) bool {
+	if res.State != from {
+		return false
+	}
+	res.State = to
+	if _, ok := res.Attrs["State"]; ok {
+		res.Attrs["State"] = to
+	}
+	return true
+}
 
 type createVolumeRequest struct {
 	SubregionName string `json:"SubregionName"`
@@ -71,7 +112,7 @@ func (p *Pack) createVolume(w http.ResponseWriter, r *http.Request) {
 		ID:      newID("vol", p.env.NewID()),
 		Kind:    kindVolume,
 		Tenant:  resource.Tenant{Provider: Name},
-		State:   volumeStateAvailable,
+		State:   volumeStateCreating,
 		Created: now,
 		Updated: now,
 		Attrs: map[string]any{
@@ -118,6 +159,10 @@ func (p *Pack) readVolumes(w http.ResponseWriter, r *http.Request) {
 
 	out := make([]map[string]any, 0)
 	for _, res := range p.env.Store.List(kindVolume, resource.Tenant{Provider: Name}) {
+		// The birth state settles here, on the read a client is making anyway.
+		if settled(res, volumeStateCreating, volumeStateAvailable) {
+			p.env.Store.Commit(res, p.env.Now())
+		}
 		volumeType, _ := res.Attrs["VolumeType"].(string)
 		subregion, _ := res.Attrs["SubregionName"].(string)
 		if !matchesStrings(req.Filters, "VolumeIds", res.ID) ||

@@ -1310,8 +1310,18 @@ func TestAVolumeIsCreatedReadAndLinked(t *testing.T) {
 	if volumeID == "" {
 		t.Fatalf("no volume id: %v", out)
 	}
-	if state, _ := volume["State"].(string); state != "available" {
-		t.Errorf("a fresh volume is %q, want available", state)
+	// A fresh volume is "creating", as the real cloud answers, and settles on
+	// the next read. Asserting "available" here is what this test used to do,
+	// and it was asserting the defect: a client could snapshot a volume the
+	// real API would have refused.
+	if state, _ := volume["State"].(string); state != "creating" {
+		t.Errorf("a fresh volume is %q, want creating", state)
+	}
+	_, read := post(t, ts, "ReadVolumes", `{"Filters":{"VolumeIds":["`+volumeID+`"]}}`)
+	settled, _ := read["Volumes"].([]any)
+	first, _ := settled[0].(map[string]any)
+	if state, _ := first["State"].(string); state != "available" {
+		t.Errorf("a volume read back is %q, want available", state)
 	}
 
 	// The one field their schema marks required.
