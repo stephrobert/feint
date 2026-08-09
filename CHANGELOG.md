@@ -11,7 +11,7 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
-## [Unreleased]
+## [0.6.0]
 
 ### Added
 
