@@ -97,7 +97,12 @@ func (p *Pack) createSnapshot(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-var snapshotFilters = []string{"SnapshotIds", "VolumeIds", "States", "Descriptions"}
+// snapshotFilters: the same lesson as volumes — a client filters on what it
+// knows, and a filter refused is an apply that stops.
+var snapshotFilters = []string{
+	"SnapshotIds", "VolumeIds", "States", "Descriptions",
+	"AccountIds", "Progresses", "VolumeSizes",
+}
 
 func (p *Pack) readSnapshots(w http.ResponseWriter, r *http.Request) {
 	var req struct {

@@ -166,6 +166,40 @@ printf '%s' "$volumes" | jq -e '.Volumes | length == 1' >/dev/null \
   || fail "the volume Terraform created is not served: $volumes"
 ok "volume $volume_id"
 
+# The storage chain of OSC-4: the volume attached to the machine, the snapshot
+# taken from it, the image cut from the snapshot. The provider polls
+# ReadVolumes filtered on LinkVolumeVmIds to wait for the attach — a filter
+# this pack refused until the fixture asked for it, which failed the apply and
+# then the destroy.
+echo "- the storage chain is served, link included"
+snapshot_id="$("$TF" output -raw snapshot_id)"
+image_id="$("$TF" output -raw image_id)"
+
+linked="$(curl -sf -X POST "$ENDPOINT/api/v1/ReadVolumes" -H 'Content-Type: application/json' \
+           -d "{\"Filters\":{\"LinkVolumeVmIds\":[\"$vm_id\"]}}")" || fail "ReadVolumes rejected"
+printf '%s' "$linked" | jq -e --arg v "$vm_id" \
+  'any(.Volumes[]; any(.LinkedVolumes[]; .VmId == $v and .State == "attached"))' >/dev/null \
+  || fail "the volume link the provider made is not served: $linked"
+
+snapshots="$(curl -sf -X POST "$ENDPOINT/api/v1/ReadSnapshots" -H 'Content-Type: application/json' \
+              -d "{\"Filters\":{\"SnapshotIds\":[\"$snapshot_id\"]}}")" || fail "ReadSnapshots rejected"
+printf '%s' "$snapshots" | jq -e '.Snapshots[0].State == "completed" and .Snapshots[0].Progress == 100' >/dev/null \
+  || fail "the snapshot is not readable as completed: $snapshots"
+
+# The image must be listed beside the catalogue, or a client cannot read back
+# what it just registered — the shape of bug that plans a change for ever.
+image_list="$(curl -sf -X POST "$ENDPOINT/api/v1/ReadImages" -H 'Content-Type: application/json' \
+               -d "{\"Filters\":{\"ImageIds\":[\"$image_id\"]}}")" || fail "ReadImages rejected"
+printf '%s' "$image_list" | jq -e --arg s "$snapshot_id" \
+  '.Images | length == 1 and (.[0].BlockDeviceMappings[0].Bsu.SnapshotId == $s)' >/dev/null \
+  || fail "the registered image does not name the snapshot it was cut from: $image_list"
+# And the catalogue is still there beside it.
+all_images="$(curl -sf -X POST "$ENDPOINT/api/v1/ReadImages" -H 'Content-Type: application/json' -d '{}')" \
+  || fail "ReadImages rejected"
+printf '%s' "$all_images" | jq -e '[.Images[] | select(.ImageId == "ami-00000001")] | length == 1' >/dev/null \
+  || fail "the fixed catalogue vanished once an image was registered: $all_images"
+ok "volume linked, snapshot completed, image cut from it and listed"
+
 # Terraform plans an empty diff against a state it just wrote only if every
 # attribute the provider reads back matches what it sent. An invented field, a
 # dropped one, or a tag order that moves shows up here.

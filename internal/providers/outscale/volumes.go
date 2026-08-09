@@ -2,6 +2,7 @@ package outscale
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
@@ -144,8 +145,16 @@ type readVolumesRequest struct {
 	DryRun         *bool     `json:"DryRun"`
 }
 
-// volumeFilters are what a volume can answer from what is stored.
-var volumeFilters = []string{"VolumeIds", "VolumeStates", "VolumeTypes", "SubregionNames"}
+// volumeFilters are what a volume can answer from what is stored, the link
+// filters included: the Terraform provider polls ReadVolumes filtered on
+// LinkVolumeVmIds to wait for an attach and again for a detach, so refusing
+// them fails `outscale_volume_link` on the apply and again on the destroy.
+var volumeFilters = []string{
+	"VolumeIds", "VolumeStates", "VolumeTypes", "SubregionNames",
+	"SnapshotIds", "VolumeSizes", "ClientTokens",
+	"LinkVolumeVmIds", "LinkVolumeDeviceNames", "LinkVolumeLinkStates",
+	"LinkVolumeDeleteOnVmDeletion",
+}
 
 func (p *Pack) readVolumes(w http.ResponseWriter, r *http.Request) {
 	var req readVolumesRequest
@@ -163,12 +172,7 @@ func (p *Pack) readVolumes(w http.ResponseWriter, r *http.Request) {
 		if settled(res, volumeStateCreating, volumeStateAvailable) {
 			p.env.Store.Commit(res, p.env.Now())
 		}
-		volumeType, _ := res.Attrs["VolumeType"].(string)
-		subregion, _ := res.Attrs["SubregionName"].(string)
-		if !matchesStrings(req.Filters, "VolumeIds", res.ID) ||
-			!matchesStrings(req.Filters, "VolumeStates", res.State) ||
-			!matchesStrings(req.Filters, "VolumeTypes", volumeType) ||
-			!matchesStrings(req.Filters, "SubregionNames", subregion) {
+		if !volumeMatches(res, req.Filters) {
 			continue
 		}
 		out = append(out, p.volumeView(res))
@@ -298,12 +302,28 @@ func (p *Pack) linkVolume(w http.ResponseWriter, r *http.Request) {
 func (p *Pack) unlinkVolume(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		VolumeID string `json:"VolumeId"`
-		DryRun   *bool  `json:"DryRun"`
+		// ForceUnlink is sent by the Terraform provider on every detach, and the
+		// conformance gate caught it going unread — which is the one thing worse
+		// than refusing it, because the client is told its flag was honoured.
+		//
+		// It is declared AND marked read here rather than silently accepted,
+		// because declaring a field without reading it is exactly the blind spot
+		// the unread report cannot see (the same trap SecurityGroupIds fell into
+		// on CreateVms). What it does upstream is force a detach past a busy
+		// device — a filesystem still mounted, or the root volume of a running
+		// machine. Neither can arise here: the emulator holds no bytes and
+		// models no root volume, so every detach it can be asked for is already
+		// the unforced case. Honouring the flag would mean inventing a busy
+		// state to force past.
+		ForceUnlink *bool `json:"ForceUnlink"`
+		DryRun      *bool `json:"DryRun"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
 		return
 	}
+	emulator.MarkRead(r, "ForceUnlink")
+	_ = req.ForceUnlink
 	res, found := p.env.Store.Get(Name, kindVolume, req.VolumeID)
 	if !found {
 		p.notFound(w, "volume", req.VolumeID)
@@ -317,6 +337,35 @@ func (p *Pack) unlinkVolume(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
+}
+
+// volumeMatches applies every declared filter, the link ones against the link
+// the volume holds — which is where the Terraform provider waits for an attach
+// and a detach.
+func volumeMatches(res *resource.Resource, f filterSet) bool {
+	linkedVM := stringOf(res.Attrs["LinkedVmId"])
+	device := stringOf(res.Attrs["DeviceName"])
+	// The link state, in the same words volumeView publishes: one fact, one
+	// place, so a filter and a read cannot disagree about it.
+	linkState := ""
+	if linkedVM != "" {
+		linkState = "attached"
+	}
+	size := ""
+	if n, ok := res.Attrs["Size"].(int); ok {
+		size = strconv.Itoa(n)
+	}
+	return matchesStrings(f, "VolumeIds", res.ID) &&
+		matchesStrings(f, "VolumeStates", res.State) &&
+		matchesStrings(f, "VolumeTypes", stringOf(res.Attrs["VolumeType"])) &&
+		matchesStrings(f, "SubregionNames", stringOf(res.Attrs["SubregionName"])) &&
+		matchesStrings(f, "SnapshotIds", stringOf(res.Attrs["SnapshotId"])) &&
+		matchesStrings(f, "ClientTokens", stringOf(res.Attrs["ClientToken"])) &&
+		matchesStrings(f, "VolumeSizes", size) &&
+		matchesStrings(f, "LinkVolumeVmIds", linkedVM) &&
+		matchesStrings(f, "LinkVolumeDeviceNames", device) &&
+		matchesStrings(f, "LinkVolumeLinkStates", linkState) &&
+		matchesBool(f, "LinkVolumeDeleteOnVmDeletion", false)
 }
 
 // volumeView is the wire shape. LinkedVolumes is derived from the link stored on

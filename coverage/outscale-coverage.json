@@ -1,9 +1,9 @@
 {
   "provider": "outscale",
   "total": 263,
-  "implemented": 69,
+  "implemented": 72,
   "declined": 173,
-  "unknown": 21,
+  "unknown": 18,
   "orphans": null,
   "products": [
     {
@@ -16,9 +16,9 @@
     {
       "product": "osc",
       "total": 236,
-      "implemented": 69,
+      "implemented": 72,
       "declined": 146,
-      "unknown": 21
+      "unknown": 18
     }
   ],
   "entries": [
@@ -262,7 +262,7 @@
     {
       "operation": "osc/Client.CreateImage",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateImageExportTask",
@@ -519,7 +519,7 @@
     {
       "operation": "osc/Client.DeleteImage",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteInternetService",
@@ -1408,7 +1408,7 @@
     {
       "operation": "osc/Client.UpdateImage",
       "product": "osc",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.UpdateListenerRule",

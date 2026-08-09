@@ -222,6 +222,9 @@ func (p *Pack) Routes() []emulator.Route {
 		// the no-bytes caveat.
 		p.route("CreateSnapshot", p.createSnapshot),
 		p.route("ReadSnapshots", p.readSnapshots),
+		p.route("CreateImage", p.createImage),
+		p.route("UpdateImage", p.updateImage),
+		p.route("DeleteImage", p.deleteImage),
 		p.route("DeleteSnapshot", p.deleteSnapshot),
 
 		// The region's fixed catalogues, same rule as ReadVmTypes: what a

@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/core/resource"
 )
 
 // Every client reads the inventory before it creates anything, and an emulator
@@ -82,11 +83,55 @@ func (p *Pack) readVmTypes(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-func (p *Pack) readImages(w http.ResponseWriter, _ *http.Request) {
+// imageFilters are what an image can answer. ImageIds is the one a client
+// actually sends on the path to a create — it resolves the image it was given
+// before posting anything.
+var imageFilters = []string{"ImageIds", "ImageNames", "AccountIds", "States", "Architectures", "RootDeviceTypes"}
+
+// readImages serves the fixed catalogue and everything a client registered on
+// top of it. Both, always: an image a client made and could not then read back
+// is the shape of bug that makes a Terraform plan diff for ever.
+func (p *Pack) readImages(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Filters        filterSet `json:"Filters"`
+		ResultsPerPage int       `json:"ResultsPerPage"`
+		DryRun         *bool     `json:"DryRun"`
+	}
+	if err := emulator.DecodeJSON(r, &req); err != nil {
+		p.badRequest(w, err.Error())
+		return
+	}
+	if p.refuseUnsupported(w, req.Filters, imageFilters...) {
+		return
+	}
+
+	out := make([]map[string]any, 0, len(images))
+	for _, image := range images {
+		if imageMatches(image, req.Filters) {
+			out = append(out, image)
+		}
+	}
+	for _, res := range p.env.Store.List(kindImage, resource.Tenant{Provider: Name}) {
+		if view := imageView(res); imageMatches(view, req.Filters) {
+			out = append(out, view)
+		}
+	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Images":          images,
+		"Images":          page(out, req.ResultsPerPage),
 		"ResponseContext": p.context(),
 	})
+}
+
+// imageMatches filters a rendered image, so a catalogue entry and a registered
+// one are filtered by exactly the same rules.
+func imageMatches(image map[string]any, f filterSet) bool {
+	accountID, _ := image["AccountId"].(string)
+	return matchesStrings(f, "ImageIds", stringOf(image["ImageId"])) &&
+		matchesStrings(f, "ImageNames", stringOf(image["ImageName"])) &&
+		matchesStrings(f, "AccountIds", accountID) &&
+		matchesStrings(f, "States", stringOf(image["State"])) &&
+		matchesStrings(f, "Architectures", stringOf(image["Architecture"])) &&
+		matchesStrings(f, "RootDeviceTypes", stringOf(image["RootDeviceType"]))
 }
 
 func (p *Pack) readRegions(w http.ResponseWriter, r *http.Request) {
