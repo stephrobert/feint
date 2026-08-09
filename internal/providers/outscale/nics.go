@@ -34,7 +34,14 @@ import (
 
 const kindNic = "nic"
 
-var nicFilters = []string{"NicIds", "LinkNicVmIds", "SubnetIds", "NetIds"}
+// nicFilters are what an interface can answer. The group filters are here for
+// the same reason they are on a Vm: `terraform destroy` asks which interfaces
+// still wear a security group before it removes one, and a filter it sends and
+// this pack refuses fails the destroy after a successful apply.
+var nicFilters = []string{
+	"NicIds", "LinkNicVmIds", "SubnetIds", "NetIds",
+	"SecurityGroupIds", "SecurityGroupNames",
+}
 
 func (p *Pack) readNics(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -96,10 +103,18 @@ func (p *Pack) nicMatches(view map[string]any, f filterSet) bool {
 	if link, ok := view["LinkNic"].(map[string]any); ok {
 		vmID = stringOf(link["VmId"])
 	}
+	var groupIDs, groupNames []string
+	for _, raw := range listOf(view["SecurityGroups"]) {
+		group, _ := raw.(map[string]any)
+		groupIDs = append(groupIDs, stringOf(group["SecurityGroupId"]))
+		groupNames = append(groupNames, stringOf(group["SecurityGroupName"]))
+	}
 	return matchesStrings(f, "NicIds", stringOf(view["NicId"])) &&
 		matchesStrings(f, "LinkNicVmIds", vmID) &&
 		matchesStrings(f, "SubnetIds", stringOf(view["SubnetId"])) &&
-		matchesStrings(f, "NetIds", stringOf(view["NetId"]))
+		matchesStrings(f, "NetIds", stringOf(view["NetId"])) &&
+		matchesAny(f, "SecurityGroupIds", groupIDs...) &&
+		matchesAny(f, "SecurityGroupNames", groupNames...)
 }
 
 func (p *Pack) nicView(vm *resource.Resource, nicID, subnetID, netID string) map[string]any {
@@ -113,7 +128,7 @@ func (p *Pack) nicView(vm *resource.Resource, nicID, subnetID, netID string) map
 		groups = []any{}
 	}
 
-	return map[string]any{
+	out := map[string]any{
 		"NicId":               nicID,
 		"AccountId":           accountID,
 		"Description":         "",
@@ -140,6 +155,13 @@ func (p *Pack) nicView(vm *resource.Resource, nicID, subnetID, netID string) map
 		"SecurityGroups": groups,
 		"Tags":           []any{},
 	}
+	// The address the machine carries, which the real cloud publishes on the
+	// interface as well as on the address itself. Found missing by the
+	// real-against-emulated diff, not by any test here.
+	if linked := p.linkPublicIPView(vm.ID); linked != nil {
+		out["LinkPublicIp"] = linked
+	}
+	return out
 }
 
 // ---- Lifecycle (secondary interfaces) ---------------------------------------
@@ -200,6 +222,11 @@ func (p *Pack) storedNicView(nic *resource.Resource) map[string]any {
 			"State":              "in-use",
 			"VmAccountId":        accountID,
 			"VmId":               vmID,
+		}
+		// An address linked to the machine shows on its interface too, which is
+		// where the real cloud puts it and where the diff found it missing.
+		if linked := p.linkPublicIPView(vmID); linked != nil {
+			out["LinkPublicIp"] = linked
 		}
 	}
 	return out
@@ -390,6 +417,121 @@ func (p *Pack) detachNicsOf(vmID string) {
 		nic.Attrs["State"] = "available"
 		p.env.Store.Commit(nic, p.env.Now())
 	}
+}
+
+// publicDNSName renders the name the real cloud derives from a public address:
+// ows-203-0-113-1.<region>.compute.outscale.com, measured. Empty for no address,
+// because a name for an address that does not exist is an invention.
+func publicDNSName(ip string) string {
+	if ip == "" {
+		return ""
+	}
+	return "ows-" + strings.ReplaceAll(ip, ".", "-") + "." + regionName + ".compute.outscale.com"
+}
+
+// linkPublicIPView is the LinkPublicIp an interface carries when an address is
+// linked to it, in the full shape (the standalone Nic schema). Nil when there is
+// none: measured, an unlinked interface has no such key.
+func (p *Pack) linkPublicIPView(vmID string) map[string]any {
+	for _, res := range p.env.Store.List(kindPublicIP, resource.Tenant{Provider: Name}) {
+		if stringOf(res.Attrs["VmId"]) != vmID {
+			continue
+		}
+		address := stringOf(res.Attrs["PublicIp"])
+		return map[string]any{
+			"LinkPublicIpId":    stringOf(res.Attrs["LinkPublicIpId"]),
+			"PublicIpId":        res.ID,
+			"PublicIp":          address,
+			"PublicDnsName":     publicDNSName(address),
+			"PublicIpAccountId": accountID,
+		}
+	}
+	return nil
+}
+
+// nicLightView is the interface as a Vm embeds it: NicLight, which drops the
+// interface's own Tags and SubregionName and carries LinkNic in its Light shape
+// (no VmId — the machine is the object holding it). Its nested LinkPublicIp is
+// LinkPublicIpLightForVm, three fields rather than five.
+//
+// A separate rendering rather than a filtered copy of nicView, because the two
+// schemas genuinely differ and a filtered copy would drift the first time one of
+// them gains a field.
+func (p *Pack) nicLightView(full map[string]any, vmID string) map[string]any {
+	light := map[string]any{
+		"NicId":               full["NicId"],
+		"AccountId":           full["AccountId"],
+		"Description":         full["Description"],
+		"IsSourceDestChecked": full["IsSourceDestChecked"],
+		"MacAddress":          full["MacAddress"],
+		"NetId":               full["NetId"],
+		"SubnetId":            full["SubnetId"],
+		"State":               full["State"],
+		"PrivateDnsName":      full["PrivateDnsName"],
+		"SecurityGroups":      full["SecurityGroups"],
+	}
+	if link, ok := full["LinkNic"].(map[string]any); ok {
+		light["LinkNic"] = map[string]any{
+			"DeleteOnVmDeletion": link["DeleteOnVmDeletion"],
+			"DeviceNumber":       link["DeviceNumber"],
+			"LinkNicId":          link["LinkNicId"],
+			"State":              link["State"],
+		}
+	}
+	// The address, in the three-field shape this schema declares.
+	if linked := p.linkPublicIPView(vmID); linked != nil {
+		forVM := map[string]any{
+			"PublicIp":          linked["PublicIp"],
+			"PublicDnsName":     linked["PublicDnsName"],
+			"PublicIpAccountId": linked["PublicIpAccountId"],
+		}
+		light["LinkPublicIp"] = forVM
+		// And on the primary address inside it, which is where the real cloud
+		// repeats it.
+		if ips, ok := full["PrivateIps"].([]any); ok && len(ips) > 0 {
+			out := make([]any, 0, len(ips))
+			for _, raw := range ips {
+				ip, _ := raw.(map[string]any)
+				entry := map[string]any{
+					"IsPrimary":      ip["IsPrimary"],
+					"PrivateIp":      ip["PrivateIp"],
+					"PrivateDnsName": ip["PrivateDnsName"],
+				}
+				if primary, _ := ip["IsPrimary"].(bool); primary {
+					entry["LinkPublicIp"] = forVM
+				}
+				out = append(out, entry)
+			}
+			light["PrivateIps"] = out
+			return light
+		}
+	}
+	light["PrivateIps"] = full["PrivateIps"]
+	return light
+}
+
+// nicsOfVM is every interface a machine carries, in the Light shape the Vm
+// schema declares: the derived primary first, then any attached secondary.
+func (p *Pack) nicsOfVM(vm *resource.Resource) []any {
+	subnetID := stringOf(vm.Attrs["SubnetId"])
+	if subnetID == "" {
+		return nil
+	}
+	subnet, found := p.env.Store.Get(Name, kindSubnet, subnetID)
+	if !found {
+		return nil
+	}
+	netID := stringOf(subnet.Attrs["NetId"])
+	out := make([]any, 0, 2)
+	primary := p.nicView(vm, "eni-"+strings.TrimPrefix(vm.ID, "i-"), subnetID, netID)
+	out = append(out, p.nicLightView(primary, vm.ID))
+	for _, nic := range p.env.Store.List(kindNic, resource.Tenant{Provider: Name}) {
+		if stringOf(nic.Attrs["LinkVmId"]) != vm.ID {
+			continue
+		}
+		out = append(out, p.nicLightView(p.storedNicView(nic), vm.ID))
+	}
+	return out
 }
 
 // privateDNSName renders the name the real cloud derives from an address:

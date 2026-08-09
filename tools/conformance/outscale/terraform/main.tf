@@ -76,6 +76,12 @@ resource "outscale_vm" "conformance" {
   subnet_id    = outscale_subnet.conformance.subnet_id
   keypair_name = outscale_keypair.conformance.keypair_name
 
+  # The group from net_vm.tf, so the machine is created wearing an explicit
+  # group rather than inheriting its Net's default. CreateVms refused this
+  # argument outright until the group family was served; the apply is what
+  # proves it is now read rather than dropped.
+  security_group_ids = [outscale_security_group.net_vm.security_group_id]
+
   tags {
     key   = "name"
     value = "feint-conformance"

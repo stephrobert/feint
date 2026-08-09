@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/stephrobert/feint/internal/core/cloudinit"
@@ -52,6 +53,11 @@ type readVmsRequest struct {
 var vmFilters = []string{
 	"VmIds", "VmStates", "ImageIds", "VmTypes", "KeypairNames",
 	"SubnetIds", "NetIds", "PrivateIps",
+	// The group filters are what `terraform destroy` asks before removing a
+	// security group: which machines still wear it. Without them the destroy
+	// fails on the group, after the apply succeeded — so the whole fixture is
+	// left standing by a filter nobody had declared.
+	"SecurityGroupIds", "SecurityGroupNames",
 }
 
 // createVmsRequest is the subset of CreateVmsRequest this pack honours. The
@@ -162,6 +168,15 @@ func (p *Pack) vmMatches(res *resource.Resource, f filterSet) bool {
 		value, _ := res.Attrs[key].(string)
 		return value
 	}
+	// The groups a machine wears, resolved the way the view resolves them, so a
+	// filter and a read cannot disagree about what it carries.
+	var groupIDs, groupNames []string
+	for _, raw := range p.effectiveSecurityGroups(res) {
+		group, _ := raw.(map[string]any)
+		groupIDs = append(groupIDs, stringOf(group["SecurityGroupId"]))
+		groupNames = append(groupNames, stringOf(group["SecurityGroupName"]))
+	}
+
 	return matchesStrings(f, "VmIds", res.ID) &&
 		matchesStrings(f, "VmStates", res.State) &&
 		matchesStrings(f, "ImageIds", attr("ImageId")) &&
@@ -169,7 +184,9 @@ func (p *Pack) vmMatches(res *resource.Resource, f filterSet) bool {
 		matchesStrings(f, "KeypairNames", attr("KeypairName")) &&
 		matchesStrings(f, "SubnetIds", attr("SubnetId")) &&
 		matchesStrings(f, "NetIds", attr("NetId")) &&
-		matchesStrings(f, "PrivateIps", p.addressOf(res))
+		matchesStrings(f, "PrivateIps", p.addressOf(res)) &&
+		matchesAny(f, "SecurityGroupIds", groupIDs...) &&
+		matchesAny(f, "SecurityGroupNames", groupNames...)
 }
 
 func (p *Pack) createVms(w http.ResponseWriter, r *http.Request) {
@@ -718,5 +735,61 @@ func (p *Pack) vmView(res *resource.Resource) map[string]any {
 	if address := p.addressOf(res); address != "" {
 		out["PrivateIp"] = address
 	}
+	// A machine carrying a linked public address answers with it, which the
+	// Terraform provider reads back into public_ip. Derived from the address
+	// rather than stored on the machine: the link is one fact and it lives on
+	// the address, so the two cannot disagree. Omitted when there is none —
+	// absent is what "no public address" looks like.
+	if public := p.publicIPOf(res.ID); public != "" {
+		out["PublicIp"] = public
+		out["PublicDnsName"] = publicDNSName(public)
+	}
+
+	// What follows was found missing by comparing a real account's ReadVms to
+	// this one's, per operation, through `feint transcript --against` — twenty
+	// fields the real cloud returns on every machine and the emulator returned
+	// on none. No contract could see it: Outscale's Vm schema declares no
+	// required field, so an omission is never a violation. No unit test saw it
+	// either, because a test asserts what somebody thought to assert.
+	//
+	// The values are fixed and describe the platform being emulated rather than
+	// the local runtime — catalog.go makes the same trade for the same reason,
+	// and docs/limits.md records that a machine here is an Incus container
+	// whatever Hypervisor says. What matters to a client is that the field is
+	// there, well-formed, and stable between two reads.
+	out["Architecture"] = "x86_64"
+	out["BootMode"] = "uefi"
+	out["Hypervisor"] = "xen"
+	out["IsSourceDestChecked"] = true
+	out["LaunchNumber"] = 0
+	out["Performance"] = "high"
+	out["RootDeviceName"] = "/dev/sda1"
+	out["RootDeviceType"] = "ebs"
+	out["BsuOptimized"] = false
+	out["TpmEnabled"] = false
+	out["VmInitiatedShutdownBehavior"] = "stop"
+	out["StateReason"] = ""
+	out["ActionsOnNextBoot"] = map[string]any{"SecureBoot": "none"}
+	out["Placement"] = map[string]any{
+		"SubregionName": subregionName,
+		"Tenancy":       "default",
+	}
+	// Derived from the machine's own id so it cannot move between two reads:
+	// anything Terraform stores has to be stable or it plans a change for ever.
+	out["ReservationId"] = "r-" + hexOf(strings.TrimPrefix(res.ID, "i-")+res.ID, idLen)
+	if dns := privateDNSName(p.addressOf(res)); dns != "" {
+		out["PrivateDnsName"] = dns
+	}
+	// The interfaces, in the Light shape the Vm schema declares. The provider
+	// reads them, and this was the largest single gap the diff found.
+	if nics := p.nicsOfVM(res); len(nics) > 0 {
+		out["Nics"] = nics
+	}
+	// ShutdownBehaviorConfiguration is deliberately NOT emitted, and the reason
+	// is a finding rather than an omission: the real cloud returns it, and the
+	// API description this pack is checked against does not declare it. Serving
+	// it would fail the contract gate against Outscale's own document. It is
+	// upstream running ahead of its published description — recorded here so
+	// the next reader does not "fix" it.
 	return out
 }

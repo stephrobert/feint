@@ -181,7 +181,11 @@ func (p *Pack) Declined() []emulator.Decline {
 		// real account (X-2 sweep, 2026-08-08): a fresh account answers these
 		// with empty lists, so declining them breaks no plan that did not
 		// already depend on a balancer existing.
-		emulator.Because("a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+		// ReadLoadBalancers is NOT here: its true answer is an empty list, and
+		// declining a read whose honest answer is "none" costs a client the
+		// ability to ask while buying no honesty — measured, it broke a
+		// `terraform destroy`. See loadbalancers.go.
+		emulator.Because("a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
 			"osc/Client.CreateLoadBalancer",
 			"osc/Client.CreateLoadBalancerListeners",
 			"osc/Client.CreateLoadBalancerPolicy",
@@ -196,7 +200,6 @@ func (p *Pack) Declined() []emulator.Decline {
 			"osc/Client.LinkLoadBalancerBackendMachines",
 			"osc/Client.ReadListenerRules",
 			"osc/Client.ReadLoadBalancerTags",
-			"osc/Client.ReadLoadBalancers",
 			"osc/Client.ReadVmsHealth",
 			"osc/Client.RegisterVmsInLoadBalancer",
 			"osc/Client.UnlinkLoadBalancerBackendMachines",
@@ -220,18 +223,6 @@ func (p *Pack) Declined() []emulator.Decline {
 			"osc/Client.ReadConsoleOutput",
 			"osc/Client.ReadVmsStopHistory",
 			"osc/Client.ReadVolumeUpdateTasks"),
-
-		// Linking a public IP onto a machine or an interface.
-		//
-		// Publishing an address on a machine is the runtime's job — machines.go
-		// publishes what the driver reports — and a link that stamps an address
-		// the interface does not carry would make ReadVms describe connectivity
-		// that does not exist. The allocation half (Create/Read/DeletePublicIp)
-		// is served; the day the runtime can carry a routed address, these two
-		// come off this list.
-		emulator.Because("publishing an address on a machine is the runtime's job, and a link stamping an address the interface does not carry would make ReadVms describe connectivity that does not exist",
-			"osc/Client.LinkPublicIp",
-			"osc/Client.UnlinkPublicIp"),
 
 		// Cross-account permissions on a snapshot. One implicit account, so
 		// there is nobody to grant to: same reasoning as the IAM family above.

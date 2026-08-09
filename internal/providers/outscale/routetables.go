@@ -74,7 +74,15 @@ type readRouteTablesRequest struct {
 	DryRun         *bool     `json:"DryRun"`
 }
 
-var routeTableFilters = []string{"RouteTableIds", "NetIds"}
+// routeTableFilters are what a stored table can answer. The nested ones matter
+// as much as the top-level: the Terraform provider reads a route back by
+// filtering on its destination, and a table by the subnet its link names.
+var routeTableFilters = []string{
+	"RouteTableIds", "NetIds",
+	"LinkRouteTableIds", "LinkSubnetIds", "LinkRouteTableMain",
+	"RouteDestinationIpRanges", "RouteGatewayIds", "RouteNatServiceIds",
+	"RouteCreationMethods", "RouteStates",
+}
 
 func (p *Pack) readRouteTables(w http.ResponseWriter, r *http.Request) {
 	var req readRouteTablesRequest
@@ -88,9 +96,7 @@ func (p *Pack) readRouteTables(w http.ResponseWriter, r *http.Request) {
 
 	out := make([]map[string]any, 0)
 	for _, res := range p.env.Store.List(kindRouteTable, resource.Tenant{Provider: Name}) {
-		netID := stringOf(res.Attrs["NetId"])
-		if !matchesStrings(req.Filters, "RouteTableIds", res.ID) ||
-			!matchesStrings(req.Filters, "NetIds", netID) {
+		if !p.routeTableMatches(res, req.Filters) {
 			continue
 		}
 		out = append(out, routeTableView(res))
@@ -99,6 +105,50 @@ func (p *Pack) readRouteTables(w http.ResponseWriter, r *http.Request) {
 		"RouteTables":     page(out, req.ResultsPerPage),
 		"ResponseContext": p.context(),
 	})
+}
+
+// routeTableMatches applies every declared filter, the nested ones against the
+// whole of what the table holds: a filter matches when ANY route or link
+// carries the value asked for, which is the semantics the API describes and the
+// provider relies on.
+func (p *Pack) routeTableMatches(res *resource.Resource, f filterSet) bool {
+	if !matchesStrings(f, "RouteTableIds", res.ID) ||
+		!matchesStrings(f, "NetIds", stringOf(res.Attrs["NetId"])) {
+		return false
+	}
+
+	var linkIDs, linkSubnets []string
+	for _, raw := range listOf(res.Attrs["LinkRouteTables"]) {
+		link, _ := raw.(map[string]any)
+		linkIDs = append(linkIDs, stringOf(link["LinkRouteTableId"]))
+		if subnet := stringOf(link["SubnetId"]); subnet != "" {
+			linkSubnets = append(linkSubnets, subnet)
+		}
+	}
+	if !matchesAny(f, "LinkRouteTableIds", linkIDs...) ||
+		!matchesAny(f, "LinkSubnetIds", linkSubnets...) ||
+		!matchesBool(f, "LinkRouteTableMain", isMainTable(res)) {
+		return false
+	}
+
+	var destinations, gateways, nats, methods, states []string
+	for _, raw := range listOf(res.Attrs["Routes"]) {
+		route, _ := raw.(map[string]any)
+		destinations = append(destinations, stringOf(route["DestinationIpRange"]))
+		if gw := stringOf(route["GatewayId"]); gw != "" {
+			gateways = append(gateways, gw)
+		}
+		if nat := stringOf(route["NatServiceId"]); nat != "" {
+			nats = append(nats, nat)
+		}
+		methods = append(methods, stringOf(route["CreationMethod"]))
+		states = append(states, stringOf(route["State"]))
+	}
+	return matchesAny(f, "RouteDestinationIpRanges", destinations...) &&
+		matchesAny(f, "RouteGatewayIds", gateways...) &&
+		matchesAny(f, "RouteNatServiceIds", nats...) &&
+		matchesAny(f, "RouteCreationMethods", methods...) &&
+		matchesAny(f, "RouteStates", states...)
 }
 
 // routeTableView leaves State off the wire on purpose: the RouteTable schema

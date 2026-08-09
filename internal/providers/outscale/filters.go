@@ -89,14 +89,44 @@ func (p *Pack) refuseUnsupported(w http.ResponseWriter, f filterSet, supported .
 // passes everything, which is the only case where "no filter" and "match all"
 // are the same thing.
 func matchesStrings(f filterSet, name, value string) bool {
+	return matchesAny(f, name, value)
+}
+
+// matchesAny is matchesStrings for a resource that holds several values under
+// one filter name: a route table matches RouteDestinationIpRanges when ANY of
+// its routes carries the destination asked for.
+//
+// It exists because the Terraform provider reads a nested resource back by
+// filtering on the nested field, and the first version of these handlers
+// declared only the top-level filters. The provider created the route, then
+// asked for it by destination, and the pack answered 400 — an apply that dies at
+// resource eleven of thirteen with every earlier resource correct. No unit test
+// saw it; the fixture did, immediately.
+func matchesAny(f filterSet, name string, values ...string) bool {
 	wanted, present := f.strings(name)
 	if !present {
 		return true
 	}
 	for _, candidate := range wanted {
-		if candidate == value {
-			return true
+		for _, value := range values {
+			if candidate == value {
+				return true
+			}
 		}
 	}
 	return false
+}
+
+// matchesBool reports whether a boolean value passes a boolean filter, for the
+// handful Outscale declares that way (LinkRouteTableMain, Default).
+func matchesBool(f filterSet, name string, value bool) bool {
+	raw, ok := f[name]
+	if !ok {
+		return true
+	}
+	var wanted bool
+	if err := json.Unmarshal(raw, &wanted); err != nil {
+		return true
+	}
+	return wanted == value
 }

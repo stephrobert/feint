@@ -212,6 +212,8 @@ func (p *Pack) Routes() []emulator.Route {
 		p.route("CreatePublicIp", p.createPublicIP),
 		p.route("ReadPublicIps", p.readPublicIPs),
 		p.route("DeletePublicIp", p.deletePublicIP),
+		p.route("LinkPublicIp", p.linkPublicIP),
+		p.route("UnlinkPublicIp", p.unlinkPublicIP),
 		p.route("CreateNatService", p.createNatService),
 		p.route("ReadNatServices", p.readNatServices),
 		p.route("DeleteNatService", p.deleteNatService),
@@ -225,6 +227,10 @@ func (p *Pack) Routes() []emulator.Route {
 		// The region's fixed catalogues, same rule as ReadVmTypes: what a
 		// client reads on its way to creating something is served, small and
 		// fixed.
+		// The inventory of load balancers, which is none. The rest of the
+		// family stays declined; loadbalancers.go draws the line.
+		p.route("ReadLoadBalancers", p.readLoadBalancers),
+
 		p.route("ReadNetAccessPointServices", p.readNetAccessPointServices),
 		p.route("ReadPublicIpRanges", p.readPublicIPRanges),
 	}

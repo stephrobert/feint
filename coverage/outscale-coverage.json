@@ -1,8 +1,8 @@
 {
   "provider": "outscale",
   "total": 263,
-  "implemented": 66,
-  "declined": 176,
+  "implemented": 69,
+  "declined": 173,
   "unknown": 21,
   "orphans": null,
   "products": [
@@ -16,8 +16,8 @@
     {
       "product": "osc",
       "total": 236,
-      "implemented": 66,
-      "declined": 149,
+      "implemented": 69,
+      "declined": 146,
       "unknown": 21
     }
   ],
@@ -283,31 +283,31 @@
     {
       "operation": "osc/Client.CreateListenerRule",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateLoadBalancer",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateLoadBalancerListeners",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateLoadBalancerPolicy",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateLoadBalancerTags",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
@@ -381,7 +381,7 @@
     {
       "operation": "osc/Client.CreateServerCertificate",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
@@ -534,31 +534,31 @@
     {
       "operation": "osc/Client.DeleteListenerRule",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteLoadBalancer",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteLoadBalancerListeners",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteLoadBalancerPolicy",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteLoadBalancerTags",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
@@ -632,7 +632,7 @@
     {
       "operation": "osc/Client.DeleteServerCertificate",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
@@ -717,7 +717,7 @@
     {
       "operation": "osc/Client.DeregisterVmsInLoadBalancer",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
@@ -770,7 +770,7 @@
     {
       "operation": "osc/Client.LinkLoadBalancerBackendMachines",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
@@ -798,8 +798,7 @@
     {
       "operation": "osc/Client.LinkPublicIp",
       "product": "osc",
-      "reason": "publishing an address on a machine is the runtime's job, and a link stamping an address the interface does not carry would make ReadVms describe connectivity that does not exist",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.LinkRouteTable",
@@ -977,20 +976,19 @@
     {
       "operation": "osc/Client.ReadListenerRules",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadLoadBalancerTags",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadLoadBalancers",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadLocations",
@@ -1104,7 +1102,7 @@
     {
       "operation": "osc/Client.ReadServerCertificates",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
@@ -1218,7 +1216,7 @@
     {
       "operation": "osc/Client.ReadVmsHealth",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
@@ -1257,7 +1255,7 @@
     {
       "operation": "osc/Client.RegisterVmsInLoadBalancer",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
@@ -1313,7 +1311,7 @@
     {
       "operation": "osc/Client.UnlinkLoadBalancerBackendMachines",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
@@ -1341,8 +1339,7 @@
     {
       "operation": "osc/Client.UnlinkPublicIp",
       "product": "osc",
-      "reason": "publishing an address on a machine is the runtime's job, and a link stamping an address the interface does not carry would make ReadVms describe connectivity that does not exist",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.UnlinkRouteTable",
@@ -1416,13 +1413,13 @@
     {
       "operation": "osc/Client.UpdateListenerRule",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateLoadBalancer",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
@@ -1459,7 +1456,7 @@
     {
       "operation": "osc/Client.UpdateServerCertificate",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: a control plane alone would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "status": "declined"
     },
     {
