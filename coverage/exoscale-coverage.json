@@ -1,23 +1,23 @@
 {
   "provider": "exoscale",
-  "total": 372,
+  "total": 374,
   "implemented": 46,
-  "declined": 251,
+  "declined": 253,
   "unknown": 75,
   "orphans": null,
   "products": [
     {
       "product": "exoscale",
-      "total": 372,
+      "total": 374,
       "implemented": 46,
-      "declined": 251,
+      "declined": 253,
       "unknown": 75,
       "versions": [
         {
           "version": "2.0.0",
-          "total": 372,
+          "total": 374,
           "implemented": 46,
-          "declined": 251,
+          "declined": 253,
           "unknown": 75
         }
       ]
@@ -487,6 +487,13 @@
       "product": "exoscale",
       "version": "2.0.0",
       "status": "unknown"
+    },
+    {
+      "operation": "exoscale/v2.delete-dbaas-clickhouse-role",
+      "product": "exoscale",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "version": "2.0.0",
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.delete-dbaas-clickhouse-user",
@@ -1534,6 +1541,13 @@
       "product": "exoscale",
       "version": "2.0.0",
       "status": "unknown"
+    },
+    {
+      "operation": "exoscale/v2.list-dbaas-clickhouse-roles",
+      "product": "exoscale",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "version": "2.0.0",
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.list-dbaas-clickhouse-users",

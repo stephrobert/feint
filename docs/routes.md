@@ -660,7 +660,7 @@ missed one — and the reason is what separates a decision from a list.
 | `PUT` | `/v2/security-group/{id}:attach` | `exoscale/v2.attach-instance-to-security-group` |
 | `PUT` | `/v2/security-group/{id}:detach` | `exoscale/v2.detach-instance-from-security-group` |
 
-### Declined on purpose (251)
+### Declined on purpose (253)
 
 Operations this pack knowingly does not serve, and why. Declining is a
 decision the drift gate records, which is what separates it from having
@@ -710,6 +710,7 @@ missed one — and the reason is what separates a decision from a list.
 - `exoscale/v2.decrypt` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
 - `exoscale/v2.delete-ai-api-key` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
 - `exoscale/v2.delete-api-key` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
+- `exoscale/v2.delete-dbaas-clickhouse-role` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
 - `exoscale/v2.delete-dbaas-clickhouse-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
 - `exoscale/v2.delete-dbaas-external-endpoint-datadog` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
 - `exoscale/v2.delete-dbaas-external-endpoint-elasticsearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
@@ -821,6 +822,7 @@ missed one — and the reason is what separates a decision from a list.
 - `exoscale/v2.list-ai-api-keys` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
 - `exoscale/v2.list-ai-instance-types` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
 - `exoscale/v2.list-api-keys` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
+- `exoscale/v2.list-dbaas-clickhouse-roles` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
 - `exoscale/v2.list-dbaas-clickhouse-users` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
 - `exoscale/v2.list-dbaas-external-endpoint-types` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
 - `exoscale/v2.list-dbaas-external-endpoints` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing

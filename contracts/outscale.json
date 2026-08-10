@@ -1,7 +1,7 @@
 {
  "provider": "outscale",
  "source": "outscale/osc-sdk-go pkg/osc/api.yaml",
- "apiVersion": "1.41.0",
+ "apiVersion": "1.42.0",
  "pathPrefix": "/api/v1",
  "closedPolicy": "declared",
  "operations": {
@@ -1114,6 +1114,12 @@
    "method": "POST",
    "request": "ReadVmsStateRequest",
    "response": "ReadVmsStateResponse"
+  },
+  "ReadVmsStopHistory": {
+   "path": "/ReadVmsStopHistory",
+   "method": "POST",
+   "request": "ReadVmsStopHistoryRequest",
+   "response": "ReadVmsStopHistoryResponse"
   },
   "ReadVolumeUpdateTasks": {
    "path": "/ReadVolumeUpdateTasks",
@@ -3638,6 +3644,9 @@
      "items": {
       "type": "string"
      }
+    },
+    "ShutdownBehaviorConfiguration": {
+     "ref": "ShutdownBehaviorConfiguration"
     },
     "SubnetId": {
      "type": "string"
@@ -7607,6 +7616,29 @@
      }
     },
     "VmStates": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "FiltersVmsStopHistory": {
+   "closed": true,
+   "properties": {
+    "StateReasons": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "StopDateAfter": {
+     "type": "string"
+    },
+    "StopDateBefore": {
+     "type": "string"
+    },
+    "VmIds": {
      "type": "array",
      "items": {
       "type": "string"
@@ -11890,6 +11922,37 @@
     }
    }
   },
+  "ReadVmsStopHistoryRequest": {
+   "closed": true,
+   "properties": {
+    "Filters": {
+     "ref": "FiltersVmsStopHistory"
+    },
+    "NextPageToken": {
+     "type": "string"
+    },
+    "ResultsPerPage": {
+     "type": "integer"
+    }
+   }
+  },
+  "ReadVmsStopHistoryResponse": {
+   "closed": true,
+   "properties": {
+    "NextPageToken": {
+     "type": "string"
+    },
+    "ResponseContext": {
+     "ref": "ResponseContext"
+    },
+    "VmsStopHistory": {
+     "type": "array",
+     "items": {
+      "ref": "VmsStopHistory"
+     }
+    }
+   }
+  },
   "ReadVolumeUpdateTasksRequest": {
    "closed": true,
    "properties": {
@@ -12461,6 +12524,25 @@
    "properties": {
     "ResponseContext": {
      "ref": "ResponseContext"
+    }
+   }
+  },
+  "ShutdownBehaviorConfiguration": {
+   "closed": true,
+   "properties": {
+    "GuestAction": {
+     "type": "string",
+     "enum": [
+      "stop",
+      "terminate"
+     ]
+    },
+    "HostAction": {
+     "type": "string",
+     "enum": [
+      "restart",
+      "stop"
+     ]
     }
    }
   },
@@ -13885,6 +13967,9 @@
       "type": "string"
      }
     },
+    "ShutdownBehaviorConfiguration": {
+     "ref": "ShutdownBehaviorConfiguration"
+    },
     "UserData": {
      "type": "string"
     },
@@ -14209,6 +14294,9 @@
       "ref": "SecurityGroupLight"
      }
     },
+    "ShutdownBehaviorConfiguration": {
+     "ref": "ShutdownBehaviorConfiguration"
+    },
     "State": {
      "type": "string"
     },
@@ -14424,6 +14512,20 @@
     },
     "VolumeSize": {
      "type": "integer"
+    }
+   }
+  },
+  "VmsStopHistory": {
+   "closed": true,
+   "properties": {
+    "StateReason": {
+     "type": "string"
+    },
+    "StopDate": {
+     "type": "string"
+    },
+    "VmId": {
+     "type": "string"
     }
    }
   },

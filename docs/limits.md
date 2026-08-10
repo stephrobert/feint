@@ -478,8 +478,8 @@ proof.
 
 | Provider | API description | Schemas | Unknown fields |
 |---|---|--:|---|
-| Exoscale | `2.0.0` | 468 | *assumed* by this emulator |
-| Outscale | `1.41.0` | 650 | **declared** by the provider |
+| Exoscale | `2.0.0` | 472 | *assumed* by this emulator |
+| Outscale | `1.42.0` | 655 | **declared** by the provider |
 | Scaleway | `instance/v1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2` | 263 | **declared** by the provider |
 <!-- contracts:end -->
 

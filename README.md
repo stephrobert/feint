@@ -575,8 +575,8 @@ what this emulator serves, declines on purpose, or has not triaged yet.
 
 | Product | Served | Declined | Untriaged | Upstream |
 |---|--:|--:|--:|--:|
-| `exoscale` | 46 | 251 | 75 | 372 |
-| **Total** | **46** | **251** | **75** | **372** |
+| `exoscale` | 46 | 253 | 75 | 374 |
+| **Total** | **46** | **253** | **75** | **374** |
 
 **Declined** is a decision, not a gap: an operation nobody intends to emulate,
 with the reason in the pack's `Declined()`. **Untriaged** is the honest column —

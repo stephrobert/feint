@@ -417,6 +417,11 @@
    "method": "DELETE",
    "response": "operation"
   },
+  "delete-dbaas-clickhouse-role": {
+   "path": "/dbaas-clickhouse/{service-name}/role/{role-uuid}",
+   "method": "DELETE",
+   "response": "operation"
+  },
   "delete-dbaas-clickhouse-user": {
    "path": "/dbaas-clickhouse/{service-name}/user/{user-uuid}",
    "method": "DELETE",
@@ -1209,6 +1214,11 @@
    "path": "/block-storage",
    "method": "GET",
    "response": "list-block-storage-volumes.Response"
+  },
+  "list-dbaas-clickhouse-roles": {
+   "path": "/dbaas-clickhouse/{service-name}/role",
+   "method": "GET",
+   "response": "dbaas-clickhouse-roles"
   },
   "list-dbaas-clickhouse-users": {
    "path": "/dbaas-clickhouse/{service-name}/user",
@@ -3878,6 +3888,89 @@
      "type": "array",
      "items": {
       "ref": "dbaas-clickhouse-user-acl-config"
+     }
+    }
+   }
+  },
+  "dbaas-clickhouse-granted-role": {
+   "closed": true,
+   "required": [
+    "name"
+   ],
+   "properties": {
+    "is-default": {
+     "type": "boolean"
+    },
+    "name": {
+     "type": "string"
+    },
+    "uuid": {
+     "type": "string"
+    },
+    "with-admin-option": {
+     "type": "boolean"
+    }
+   }
+  },
+  "dbaas-clickhouse-role": {
+   "closed": true,
+   "required": [
+    "name"
+   ],
+   "properties": {
+    "granted-roles": {
+     "type": "array",
+     "items": {
+      "ref": "dbaas-clickhouse-granted-role"
+     }
+    },
+    "name": {
+     "ref": "dbaas-user-username"
+    },
+    "privileges": {
+     "type": "array",
+     "items": {
+      "ref": "dbaas-clickhouse-role-privilege"
+     }
+    },
+    "uuid": {
+     "type": "string"
+    }
+   }
+  },
+  "dbaas-clickhouse-role-privilege": {
+   "closed": true,
+   "required": [
+    "name"
+   ],
+   "properties": {
+    "column": {
+     "type": "string"
+    },
+    "database": {
+     "type": "string"
+    },
+    "grant-option": {
+     "type": "boolean"
+    },
+    "is-partial-revoke": {
+     "type": "boolean"
+    },
+    "name": {
+     "ref": "dbaas-user-username"
+    },
+    "table": {
+     "type": "string"
+    }
+   }
+  },
+  "dbaas-clickhouse-roles": {
+   "closed": true,
+   "properties": {
+    "roles": {
+     "type": "array",
+     "items": {
+      "ref": "dbaas-clickhouse-role"
      }
     }
    }
@@ -7652,7 +7745,8 @@
     "0.23.0",
     "0.24.0",
     "0.25.0",
-    "0.25.1"
+    "0.25.1",
+    "0.26.0"
    ]
   },
   "ingest-metering-request": {
@@ -8025,6 +8119,9 @@
    "properties": {
     "server_settings": {
      "type": "object"
+    },
+    "tiered_storage_move_factor": {
+     "type": "number"
     }
    }
   },

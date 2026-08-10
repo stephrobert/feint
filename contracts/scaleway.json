@@ -5423,7 +5423,8 @@
     "sedb_cluster",
     "msgq_cluster",
     "edge_vpc_endpoint",
-    "dviz_cluster"
+    "dviz_cluster",
+    "nats_cluster"
    ]
   },
   "ipam/v1.scaleway.ipam.v1.Reverse": {
