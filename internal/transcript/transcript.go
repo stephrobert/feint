@@ -291,6 +291,20 @@ func lastSegment(s string) string {
 // differ when one recording had elements and the other did not. Every element is
 // walked and its fields merged, so a field only some elements carry still
 // appears.
+// FieldsOf is the field tree of one decoded JSON body, as path-to-type pairs.
+//
+// Exported because internal/shape stores the same tree across recordings, and a
+// second walker written there would be a second answer to "what shape is this" —
+// the duplication that made `feint status` report zero for months. The rules
+// this walk encodes (an array and its element are separate paths, every element
+// merged, an empty list not a type change) have to hold identically for the
+// reader and for the store, which is only true when there is one of them.
+func FieldsOf(body any) []Field {
+	fields := map[string]string{}
+	walk("", body, fields)
+	return sortedFields(fields)
+}
+
 func walk(path string, v any, into map[string]string) {
 	switch val := v.(type) {
 	case map[string]any:

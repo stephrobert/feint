@@ -108,6 +108,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return proxyCommand(args[2:], stdout, stderr)
 	case "transcript":
 		return transcriptCommand(args[2:], stdout, stderr)
+	case "shapes":
+		return shapesCommand(args[2:], stdout, stderr)
 	case "docs":
 		return docs(args[2:], stdout, stderr)
 	case "start":

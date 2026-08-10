@@ -1,0 +1,343 @@
+{
+  "provider": "exoscale",
+  "operations": {
+    "GET /v2/anti-affinity-group": {
+      "method": "GET",
+      "path": "/v2/anti-affinity-group",
+      "fields": [
+        {
+          "path": "anti-affinity-groups",
+          "type": "array"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "GET /v2/block-storage-snapshot": {
+      "method": "GET",
+      "path": "/v2/block-storage-snapshot",
+      "fields": [
+        {
+          "path": "block-storage-snapshots",
+          "type": "array"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "GET /v2/block-storage-volume": {
+      "method": "GET",
+      "path": "/v2/block-storage-volume",
+      "fields": [],
+      "statuses": [
+        404
+      ]
+    },
+    "GET /v2/deploy-target": {
+      "method": "GET",
+      "path": "/v2/deploy-target",
+      "fields": [
+        {
+          "path": "deploy-targets",
+          "type": "array"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "GET /v2/elastic-ip": {
+      "method": "GET",
+      "path": "/v2/elastic-ip",
+      "fields": [
+        {
+          "path": "elastic-ips",
+          "type": "array"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "GET /v2/instance": {
+      "method": "GET",
+      "path": "/v2/instance",
+      "fields": [
+        {
+          "path": "instances",
+          "type": "array"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "GET /v2/instance-pool": {
+      "method": "GET",
+      "path": "/v2/instance-pool",
+      "fields": [
+        {
+          "path": "instance-pools",
+          "type": "array"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "GET /v2/instance-type": {
+      "method": "GET",
+      "path": "/v2/instance-type",
+      "fields": [
+        {
+          "path": "instance-types",
+          "type": "array"
+        },
+        {
+          "path": "instance-types[]",
+          "type": "object"
+        },
+        {
+          "path": "instance-types[].authorized",
+          "type": "bool"
+        },
+        {
+          "path": "instance-types[].cpus",
+          "type": "number"
+        },
+        {
+          "path": "instance-types[].family",
+          "type": "string"
+        },
+        {
+          "path": "instance-types[].gpus",
+          "type": "number"
+        },
+        {
+          "path": "instance-types[].id",
+          "type": "string"
+        },
+        {
+          "path": "instance-types[].memory",
+          "type": "number"
+        },
+        {
+          "path": "instance-types[].size",
+          "type": "string"
+        },
+        {
+          "path": "instance-types[].zones",
+          "type": "array"
+        },
+        {
+          "path": "instance-types[].zones[]",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "GET /v2/load-balancer": {
+      "method": "GET",
+      "path": "/v2/load-balancer",
+      "fields": [
+        {
+          "path": "load-balancers",
+          "type": "array"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "GET /v2/private-network": {
+      "method": "GET",
+      "path": "/v2/private-network",
+      "fields": [
+        {
+          "path": "private-networks",
+          "type": "array"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "GET /v2/security-group": {
+      "method": "GET",
+      "path": "/v2/security-group",
+      "fields": [
+        {
+          "path": "security-groups",
+          "type": "array"
+        },
+        {
+          "path": "security-groups[]",
+          "type": "object"
+        },
+        {
+          "path": "security-groups[].description",
+          "type": "string"
+        },
+        {
+          "path": "security-groups[].id",
+          "type": "string"
+        },
+        {
+          "path": "security-groups[].name",
+          "type": "string"
+        },
+        {
+          "path": "security-groups[].visibility",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "GET /v2/snapshot": {
+      "method": "GET",
+      "path": "/v2/snapshot",
+      "fields": [
+        {
+          "path": "snapshots",
+          "type": "array"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "GET /v2/ssh-key": {
+      "method": "GET",
+      "path": "/v2/ssh-key",
+      "fields": [
+        {
+          "path": "ssh-keys",
+          "type": "array"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "GET /v2/template": {
+      "method": "GET",
+      "path": "/v2/template",
+      "fields": [
+        {
+          "path": "templates",
+          "type": "array"
+        },
+        {
+          "path": "templates[]",
+          "type": "object"
+        },
+        {
+          "path": "templates[].application-consistent-snapshot-enabled",
+          "type": "bool"
+        },
+        {
+          "path": "templates[].boot-mode",
+          "type": "string"
+        },
+        {
+          "path": "templates[].build",
+          "type": "string"
+        },
+        {
+          "path": "templates[].checksum",
+          "type": "string"
+        },
+        {
+          "path": "templates[].created-at",
+          "type": "string"
+        },
+        {
+          "path": "templates[].default-user",
+          "type": "string"
+        },
+        {
+          "path": "templates[].description",
+          "type": "string"
+        },
+        {
+          "path": "templates[].family",
+          "type": "string"
+        },
+        {
+          "path": "templates[].id",
+          "type": "string"
+        },
+        {
+          "path": "templates[].maintainer",
+          "type": "string"
+        },
+        {
+          "path": "templates[].name",
+          "type": "string"
+        },
+        {
+          "path": "templates[].password-enabled",
+          "type": "bool"
+        },
+        {
+          "path": "templates[].size",
+          "type": "number"
+        },
+        {
+          "path": "templates[].ssh-key-enabled",
+          "type": "bool"
+        },
+        {
+          "path": "templates[].version",
+          "type": "string"
+        },
+        {
+          "path": "templates[].visibility",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "GET /v2/zone": {
+      "method": "GET",
+      "path": "/v2/zone",
+      "fields": [
+        {
+          "path": "zones",
+          "type": "array"
+        },
+        {
+          "path": "zones[]",
+          "type": "object"
+        },
+        {
+          "path": "zones[].api-endpoint",
+          "type": "string"
+        },
+        {
+          "path": "zones[].id",
+          "type": "string"
+        },
+        {
+          "path": "zones[].name",
+          "type": "string"
+        },
+        {
+          "path": "zones[].sos-endpoint",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    }
+  }
+}
