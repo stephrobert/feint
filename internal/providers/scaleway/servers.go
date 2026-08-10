@@ -160,10 +160,28 @@ const rootVolumeSize = 20_000_000_000
 // volumes endpoint, so the volume has to be a stored resource, not an inline
 // object.
 //
-// The type stays block (b_ssd), never local: the catalogue declares
-// volumes_constraint.min_size at 0 and the CLI sums local volumes against it, so
-// attaching a local volume here would make the CLI refuse the very creation it
-// just asked for.
+// The type stays b_ssd whatever is asked, and there are two reasons, not one.
+// The single reason this comment used to give covered only half the values it
+// refuses, which is how a reader came to lift the restriction for the other
+// half — reported by @vde-dis on #8, with the measurement below.
+//
+// Against a *local* type (l_ssd, scratch): the catalogue declares
+// volumes_constraint.min_size at 0 and the CLI sums local volumes against it,
+// so attaching one here would make the CLI refuse the very creation it just
+// asked for.
+//
+// Against sbs_volume, which is block and sums to nothing there: honouring it
+// sends the Terraform provider to GET /block/v1/zones/{zone}/volumes/{id} to
+// read the volume back, no pack serves block/v1, and the apply dies on
+// "waiting for Volume failed: http error 404 Not Found". A permanent diff is
+// bad; an apply that cannot finish is worse. It becomes honourable with #8
+// (SW-3) and not before — the two belong in one batch.
+//
+// So today there is no writable value: the provider refuses b_ssd outright from
+// 2.79 on ("b_ssd volumes are not supported anymore"), and sbs_volume plans for
+// ever. Omitting the root_volume block is the way through, which is what the
+// conformance fixture happens to do — which is also why nothing here shows it.
+// docs/limits.md carries that as a stated limit rather than a surprise.
 func (p *Pack) rootVolume(server *resource.Resource, name, project, organization string, wanted volumeTemplate) *resource.Resource {
 	// The size the client asked for, when it asked. Ignoring it gave every
 	// server the catalogue's disk whatever the request said.
@@ -175,10 +193,11 @@ func (p *Pack) rootVolume(server *resource.Resource, name, project, organization
 	if wanted.Name != "" {
 		volumeName = wanted.Name
 	}
-	// The type stays block whatever is asked: the catalogue declares
-	// volumes_constraint.min_size at 0, and the CLI sums local volumes against
-	// it, so honouring a local type here would make it refuse the very creation
-	// it just asked for. Stated rather than silently overridden.
+	// Overridden rather than honoured, for the two reasons above. Not repeated
+	// here: this comment used to state one of them a second time, and the two
+	// copies had already drifted apart — one carried a clause the other did
+	// not. A fact written twice is a fact that will one day be written
+	// differently, and it was already halfway there.
 	vol := p.newVolume(server.Tenant.Zone, project, organization, volumeName, "b_ssd", size)
 	// A volume this call just built: it can belong to nobody else, so the only
 	// error attachVolume returns cannot happen here.
