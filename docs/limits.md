@@ -60,6 +60,30 @@ turns out to be the wrong one, the place to change it is `resolveImage` in
 `internal/providers/scaleway/images.go`, and the change must come with a way to
 keep hardcoded production ids working.
 
+## A Scaleway server's root volume type cannot be written
+
+`scaleway_instance_server` has no usable `root_volume { volume_type }` here
+today, whichever value is given. Omitting the block is the way through, and it
+is what `tools/conformance/scaleway/terraform/` does — which is why the suite is
+green and shows none of this.
+
+Measured by @vde-dis on #8, with OpenTofu 1.12.5 and `scaleway/scaleway` 2.80.0:
+
+- **`b_ssd` will not plan.** From provider 2.79 on it is refused outright:
+  *"b_ssd volumes are not supported anymore. Remove explicit b_ssd volume_type,
+  migrate to sbs or downgrade terraform."*
+- **`sbs_volume` plans for ever.** The emulator overrides the type to `b_ssd`,
+  so the value read back never matches the value sent.
+
+Honouring `sbs_volume` is not the fix, and that was measured too: the provider
+then reads the volume back through `GET /block/v1/zones/{zone}/volumes/{id}`,
+no pack serves `block/v1`, and the apply dies on *"waiting for Volume failed:
+http error 404 Not Found"*. A permanent diff is bad; an apply that cannot
+finish is worse.
+
+The two belong in one batch, which is what **#8 (SW-3)** is. This limit ends
+with it.
+
 ## Lifecycle transitions are immediate
 
 A server goes from `stopped` to `running` within the action call. Real hardware
