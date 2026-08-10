@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/stephrobert/feint/internal/trace"
 )
 
 // The name-pattern rule, both halves.
@@ -179,5 +181,71 @@ func BenchmarkCaptureAndRedact(b *testing.B) {
 			resHeader: resHeader,
 			resBody:   resBody,
 		})
+	}
+}
+
+// A header nobody vouched for has its value dropped.
+//
+// The rule used to be a denylist of eight name substrings, and it was measured
+// to fail on 2026-08-10: sent through this proxy, X-Auth-Token became REDACTED
+// and X-Consumer carrying the same value was written in full. The three
+// dialects served here pass the denylist only because their bearers happen to
+// be called Authorization and X-Auth-Token — a coincidence, not a rule.
+//
+// That is the "bien formé n'est pas autorisé" family: matching a name answers
+// "does this look like a credential", never "is this not one". A fourth
+// provider arrives in exactly that shape — OVHcloud's own bearer is
+// X-Ovh-Consumer, which matches none of the eight substrings.
+func TestAnUnknownHeaderIsRedacted(t *testing.T) {
+	const marker = "value-that-must-not-be-written"
+	msg := &trace.Message{Headers: map[string]string{
+		// Names no rule anticipated. Each was invented for this test, and that
+		// is the point: the rule must not depend on having anticipated them.
+		"X-Consumer":     marker,
+		"X-Ovh-Consumer": marker,
+		"X-Session":      marker,
+		"Grumpf":         marker,
+	}}
+	redactMessage(msg)
+
+	for name, value := range msg.Headers {
+		if value != Placeholder {
+			t.Errorf("%s was written as %q", name, value)
+		}
+	}
+
+	// The names survive. A transcript exists to say which headers a client
+	// sent; a record whose keys were erased along with its values answers none
+	// of the questions it is read for.
+	for _, name := range []string{"X-Consumer", "X-Ovh-Consumer", "X-Session", "Grumpf"} {
+		if _, present := msg.Headers[name]; !present {
+			t.Errorf("%s vanished; the name has to stay", name)
+		}
+	}
+}
+
+// The headers that carry no credential keep their value.
+//
+// Without this half the rule would be "redact everything", which passes every
+// leak test and makes a transcript useless: Content-Type is how a reader knows
+// what a body was, and User-Agent is how they know which client made the call.
+func TestAVouchedHeaderKeepsItsValue(t *testing.T) {
+	msg := &trace.Message{Headers: map[string]string{
+		"Content-Type": "application/json",
+		"User-Agent":   "scw-cli/2.56.3",
+		"Accept":       "*/*",
+		"Host":         "api.scaleway.com",
+	}}
+	redactMessage(msg)
+
+	for name, want := range map[string]string{
+		"Content-Type": "application/json",
+		"User-Agent":   "scw-cli/2.56.3",
+		"Accept":       "*/*",
+		"Host":         "api.scaleway.com",
+	} {
+		if got := msg.Headers[name]; got != want {
+			t.Errorf("%s was redacted to %q; a transcript needs it", name, got)
+		}
 	}
 }

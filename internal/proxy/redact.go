@@ -53,6 +53,57 @@ var carriers = []string{
 	"credential",
 }
 
+// harmlessHeaders are the header names whose value is written down.
+//
+// Headers are an allowlist where bodies are a denylist, and the asymmetry is
+// the whole point. A body is the measurement — the shape a cloud answered is
+// what a transcript exists to carry — so redacting it wholesale would destroy
+// the tool. A header is not: what matters about it is *which* headers a client
+// sent, and that is preserved because the name always stays.
+//
+// The denylist was measured to fail. `carriers` matches eight substrings, and
+// the three dialects served here pass only because their bearers happen to be
+// called Authorization and X-Auth-Token. Reproduced on 2026-08-10 against this
+// proxy: X-Auth-Token became REDACTED and a header named X-Consumer carrying
+// the same value was written in full. That is the "bien formé n'est pas
+// autorisé" family — a name check answers "does this look like a credential",
+// never "is this not one" — and it is exactly the shape a fourth provider
+// arrives in: OVHcloud's own bearer is X-Ovh-Consumer, which matches none of
+// the eight.
+//
+// So the question is inverted. A name nobody has vouched for has its value
+// dropped, and adding a dialect means adding to this list rather than hoping
+// its bearer resembles the last one. The cost is a transcript slightly less
+// readable; the cost of the other order is a credential on disk.
+//
+// The model is not new here: internal/upstream records no request header at
+// all, which is stronger still. This is the same reasoning applied where the
+// names have to survive.
+//
+// TestAnUnknownHeaderIsRedacted fails without this.
+var harmlessHeaders = map[string]bool{
+	"accept":            true,
+	"accept-encoding":   true,
+	"accept-language":   true,
+	"cache-control":     true,
+	"connection":        true,
+	"content-length":    true,
+	"content-type":      true,
+	"date":              true,
+	"expect":            true,
+	"host":              true,
+	"if-match":          true,
+	"if-none-match":     true,
+	"user-agent":        true,
+	"x-forwarded-for":   true,
+	"x-forwarded-proto": true,
+	"x-request-id":      true,
+	"x-feint-probe":     true,
+}
+
+// harmless reports whether a header's value may be written down.
+func harmless(name string) bool { return harmlessHeaders[strings.ToLower(name)] }
+
 // sensitive reports whether a header, query parameter or JSON key names
 // something whose value must not be written down.
 func sensitive(name string) bool {
@@ -83,7 +134,7 @@ func redactMessage(m *trace.Message) {
 		return
 	}
 	for name := range m.Headers {
-		if sensitive(name) {
+		if !harmless(name) {
 			// The whole value, scheme included. Keeping "EXO2-HMAC-SHA256" and
 			// dropping the rest would be more readable and would mean splitting a
 			// credential and writing part of it down, which is how the interesting
