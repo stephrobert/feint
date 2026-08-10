@@ -89,7 +89,13 @@ func (c *Catalogue) Merge(exs []trace.Exchange) Changes {
 		key := keyFor(x)
 		op, known := c.Operations[key]
 		if !known {
-			op = &Operation{Method: x.Method, Path: x.Path}
+			// Fields starts as an empty slice rather than nil so the file
+			// always carries `[]`. A null there would make "answered and
+			// carried nothing" and "refused, shape unobserved" look alike,
+			// and the difference between those two is the whole reason
+			// Statuses is recorded. Measured on a real Exoscale reading where
+			// one 404 wrote a null and the distinction vanished.
+			op = &Operation{Method: x.Method, Path: x.Path, Fields: []transcript.Field{}}
 			c.Operations[key] = op
 			ch.Added = append(ch.Added, key)
 		}

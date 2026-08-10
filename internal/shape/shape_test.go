@@ -2,6 +2,7 @@ package shape
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/stephrobert/feint/internal/trace"
@@ -144,6 +145,12 @@ func TestAnErrorBodyIsNotTheOperationsShape(t *testing.T) {
 	}
 	if !containsInt(op.Statuses, 400) {
 		t.Error("the refusal status was not recorded, so nothing says the shape is unobserved")
+	}
+	// And the file says `[]`, never null: a null would make "answered and
+	// carried nothing" indistinguishable from "refused", which is precisely
+	// what Statuses exists to tell apart.
+	if strings.Contains(render(t, c), `"fields": null`) {
+		t.Error("a refused operation wrote a null field list")
 	}
 
 	// And the accepting half: a 200 for the same operation is folded in, so

@@ -272,6 +272,18 @@
           "type": "array"
         },
         {
+          "path": "Images[].Tags[]",
+          "type": "object"
+        },
+        {
+          "path": "Images[].Tags[].Key",
+          "type": "string"
+        },
+        {
+          "path": "Images[].Tags[].Value",
+          "type": "string"
+        },
+        {
           "path": "Images[].TpmMandatory",
           "type": "bool"
         },
@@ -315,18 +327,6 @@
         {
           "path": "InternetServices[].Tags",
           "type": "array"
-        },
-        {
-          "path": "InternetServices[].Tags[]",
-          "type": "object"
-        },
-        {
-          "path": "InternetServices[].Tags[].Key",
-          "type": "string"
-        },
-        {
-          "path": "InternetServices[].Tags[].Value",
-          "type": "string"
         },
         {
           "path": "ResponseContext",
@@ -416,6 +416,174 @@
           "type": "array"
         },
         {
+          "path": "LoadBalancers[]",
+          "type": "object"
+        },
+        {
+          "path": "LoadBalancers[].AccessLog",
+          "type": "object"
+        },
+        {
+          "path": "LoadBalancers[].AccessLog.IsEnabled",
+          "type": "bool"
+        },
+        {
+          "path": "LoadBalancers[].AccessLog.PublicationInterval",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancers[].ApplicationStickyCookiePolicies",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancers[].BackendIps",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancers[].BackendVmIds",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancers[].BackendVmIds[]",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancers[].DnsName",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancers[].HealthCheck",
+          "type": "object"
+        },
+        {
+          "path": "LoadBalancers[].HealthCheck.CheckInterval",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancers[].HealthCheck.HealthyThreshold",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancers[].HealthCheck.Port",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancers[].HealthCheck.Protocol",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancers[].HealthCheck.Timeout",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancers[].HealthCheck.UnhealthyThreshold",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancers[].Listeners",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancers[].Listeners[]",
+          "type": "object"
+        },
+        {
+          "path": "LoadBalancers[].Listeners[].BackendPort",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancers[].Listeners[].BackendProtocol",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancers[].Listeners[].LoadBalancerPort",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancers[].Listeners[].LoadBalancerProtocol",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancers[].LoadBalancerName",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancers[].LoadBalancerStickyCookiePolicies",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancers[].LoadBalancerType",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancers[].NetId",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancers[].PrivateIp",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancers[].SecuredCookies",
+          "type": "bool"
+        },
+        {
+          "path": "LoadBalancers[].SecurityGroups",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancers[].SecurityGroups[]",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancers[].SourceSecurityGroup",
+          "type": "object"
+        },
+        {
+          "path": "LoadBalancers[].SourceSecurityGroup.SecurityGroupAccountId",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancers[].SourceSecurityGroup.SecurityGroupName",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancers[].State",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancers[].Subnets",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancers[].Subnets[]",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancers[].SubregionNames",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancers[].SubregionNames[]",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancers[].Tags",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancers[].Tags[]",
+          "type": "object"
+        },
+        {
+          "path": "LoadBalancers[].Tags[].Key",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancers[].Tags[].Value",
+          "type": "string"
+        },
+        {
           "path": "ResponseContext",
           "type": "object"
         },
@@ -435,58 +603,6 @@
         {
           "path": "NatServices",
           "type": "array"
-        },
-        {
-          "path": "NatServices[]",
-          "type": "object"
-        },
-        {
-          "path": "NatServices[].NatServiceId",
-          "type": "string"
-        },
-        {
-          "path": "NatServices[].NetId",
-          "type": "string"
-        },
-        {
-          "path": "NatServices[].PublicIps",
-          "type": "array"
-        },
-        {
-          "path": "NatServices[].PublicIps[]",
-          "type": "object"
-        },
-        {
-          "path": "NatServices[].PublicIps[].PublicIp",
-          "type": "string"
-        },
-        {
-          "path": "NatServices[].PublicIps[].PublicIpId",
-          "type": "string"
-        },
-        {
-          "path": "NatServices[].State",
-          "type": "string"
-        },
-        {
-          "path": "NatServices[].SubnetId",
-          "type": "string"
-        },
-        {
-          "path": "NatServices[].Tags",
-          "type": "array"
-        },
-        {
-          "path": "NatServices[].Tags[]",
-          "type": "object"
-        },
-        {
-          "path": "NatServices[].Tags[].Key",
-          "type": "string"
-        },
-        {
-          "path": "NatServices[].Tags[].Value",
-          "type": "string"
         },
         {
           "path": "ResponseContext",
@@ -860,58 +976,6 @@
           "type": "array"
         },
         {
-          "path": "PublicIps[]",
-          "type": "object"
-        },
-        {
-          "path": "PublicIps[].LinkPublicIpId",
-          "type": "string"
-        },
-        {
-          "path": "PublicIps[].NatServiceId",
-          "type": "string"
-        },
-        {
-          "path": "PublicIps[].NicAccountId",
-          "type": "string"
-        },
-        {
-          "path": "PublicIps[].NicId",
-          "type": "string"
-        },
-        {
-          "path": "PublicIps[].PrivateIp",
-          "type": "string"
-        },
-        {
-          "path": "PublicIps[].PublicIp",
-          "type": "string"
-        },
-        {
-          "path": "PublicIps[].PublicIpId",
-          "type": "string"
-        },
-        {
-          "path": "PublicIps[].Tags",
-          "type": "array"
-        },
-        {
-          "path": "PublicIps[].Tags[]",
-          "type": "object"
-        },
-        {
-          "path": "PublicIps[].Tags[].Key",
-          "type": "string"
-        },
-        {
-          "path": "PublicIps[].Tags[].Value",
-          "type": "string"
-        },
-        {
-          "path": "PublicIps[].VmId",
-          "type": "string"
-        },
-        {
           "path": "ResponseContext",
           "type": "object"
         },
@@ -1103,10 +1167,6 @@
           "type": "string"
         },
         {
-          "path": "RouteTables[].Routes[].NatServiceId",
-          "type": "string"
-        },
-        {
           "path": "RouteTables[].Routes[].State",
           "type": "string"
         },
@@ -1201,10 +1261,6 @@
         },
         {
           "path": "SecurityGroups[].InboundRules[].SecurityGroupsMembers[].SecurityGroupId",
-          "type": "string"
-        },
-        {
-          "path": "SecurityGroups[].InboundRules[].SecurityGroupsMembers[].SecurityGroupName",
           "type": "string"
         },
         {
@@ -1344,6 +1400,18 @@
         {
           "path": "Snapshots[].Tags",
           "type": "array"
+        },
+        {
+          "path": "Snapshots[].Tags[]",
+          "type": "object"
+        },
+        {
+          "path": "Snapshots[].Tags[].Key",
+          "type": "string"
+        },
+        {
+          "path": "Snapshots[].Tags[].Value",
+          "type": "string"
         },
         {
           "path": "Snapshots[].VolumeId",
@@ -1946,7 +2014,7 @@
     "osc/Client.ReadVmsHealth": {
       "method": "POST",
       "path": "/api/v1/ReadVmsHealth",
-      "fields": null,
+      "fields": [],
       "statuses": [
         400
       ]
