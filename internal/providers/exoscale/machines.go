@@ -45,18 +45,36 @@ const catalogueDate = "2025-01-01T00:00:00Z"
 // templates is the emulated catalogue, in the shape Exoscale's own template
 // schema declares — including default-user, which is where the login of a
 // machine comes from here rather than from a constant.
+//
+// The seven fields added for #94 are present on every template the real API
+// returns and were absent here, measured in shapes/exoscale.json rather than
+// read from the schema. size and checksum are the two that matter: a client
+// sizing a root disk from the template, or verifying what it is about to boot,
+// reads exactly there and found nothing.
+//
+// size is a real byte count for a small cloud image rather than zero, because
+// zero is a value a client can act on wrongly — a root disk sized from it would
+// be empty. checksum is empty rather than invented: this emulator has no image
+// to hash, and a plausible-looking digest is a promise it cannot keep. The two
+// are different kinds of unknown and are written differently on purpose.
 var templates = []map[string]any{
 	{
 		"id": "11111111-1111-4111-8111-111111111111", "name": "Linux Ubuntu 24.04 LTS 64-bit",
 		"family": "ubuntu", "default-user": "ubuntu", "visibility": "public",
 		"boot-mode": "uefi", "ssh-key-enabled": true, "password-enabled": false,
 		"created-at": catalogueDate, "zones": allZones(),
+		"description": "Linux Ubuntu 24.04 LTS 64-bit", "version": "24.04",
+		"build": "2025-01-01-abcdef", "maintainer": "feint", "checksum": "",
+		"size": 10737418240, "application-consistent-snapshot-enabled": false,
 	},
 	{
 		"id": "22222222-2222-4222-8222-222222222222", "name": "Linux Debian 12 64-bit",
 		"family": "debian", "default-user": "debian", "visibility": "public",
 		"boot-mode": "uefi", "ssh-key-enabled": true, "password-enabled": false,
 		"created-at": catalogueDate, "zones": allZones(),
+		"description": "Linux Debian 12 64-bit", "version": "12",
+		"build": "2025-01-01-abcdef", "maintainer": "feint", "checksum": "",
+		"size": 10737418240, "application-consistent-snapshot-enabled": false,
 	},
 }
 

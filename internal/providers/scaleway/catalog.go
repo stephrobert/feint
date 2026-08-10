@@ -38,7 +38,36 @@ type serverType struct {
 	Capabilities struct {
 		BlockStorage bool     `json:"block_storage"`
 		BootTypes    []string `json:"boot_types"`
+		// The four below were absent until #93, and every type the real cloud
+		// publishes carries them — measured in shapes/scaleway.json, not read
+		// from the SDK. PlacementGroups and PrivateNetwork are the two a client
+		// reads before it acts: one decides whether a placement group can be
+		// asked for at all, the other how many private networks a type takes.
+		HotSnapshotsLocalVolume bool   `json:"hot_snapshots_local_volume"`
+		MaxFileSystems          uint64 `json:"max_file_systems"`
+		PlacementGroups         bool   `json:"placement_groups"`
+		PrivateNetwork          uint64 `json:"private_network"`
 	} `json:"capabilities"`
+	// PerVolumeConstraint is the sibling of VolumesConstraint, and it was
+	// missing while its twin carried the trap this pack documents: the CLI sums
+	// local volumes against volumes_constraint. A client reading the per-volume
+	// limits found nothing.
+	//
+	// Serialised as an empty object rather than a populated one: this emulator
+	// attaches no local volume, so it has no per-volume limit to state, and
+	// inventing one would put a bound in a client's arithmetic that nothing
+	// enforces.
+	PerVolumeConstraint map[string]any `json:"per_volume_constraint"`
+	// BlockBandwidth, EndOfService and the scratch fields complete what the
+	// real answer carries. GpuInfo and MigProfile are null there too — a type
+	// with no GPU has neither — so null is the honest value rather than an
+	// empty object pretending there is something to read.
+	BlockBandwidth                uint64 `json:"block_bandwidth"`
+	EndOfService                  bool   `json:"end_of_service"`
+	GpuInfo                       any    `json:"gpu_info"`
+	MigProfile                    any    `json:"mig_profile"`
+	ScratchStorageMaxSize         uint64 `json:"scratch_storage_max_size"`
+	ScratchStorageMaxVolumesCount uint64 `json:"scratch_storage_max_volumes_count"`
 }
 
 func newServerType(cpus uint32, ramGiB uint64, hourly float32) *serverType {
@@ -63,6 +92,20 @@ func newServerType(cpus uint32, ramGiB uint64, hourly float32) *serverType {
 	st.VolumesConstraint.MaxSize = 200_000_000_000
 	st.Capabilities.BlockStorage = true
 	st.Capabilities.BootTypes = []string{"local", "rescue"}
+	// Placement groups are served by this pack, so the capability says so; a
+	// client that checks it before asking would otherwise never ask.
+	st.Capabilities.PlacementGroups = true
+	st.Capabilities.PrivateNetwork = 8
+	st.Capabilities.MaxFileSystems = 0
+	st.Capabilities.HotSnapshotsLocalVolume = false
+	// Empty rather than populated: no local volume is attached here, so there
+	// is no per-volume bound to state. The key exists because the real answer
+	// has it and a client reads it; its emptiness is the honest content.
+	st.PerVolumeConstraint = map[string]any{}
+	st.BlockBandwidth = 209_715_200
+	st.EndOfService = false
+	st.ScratchStorageMaxSize = 0
+	st.ScratchStorageMaxVolumesCount = 0
 	return st
 }
 

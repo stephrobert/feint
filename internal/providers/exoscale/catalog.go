@@ -64,7 +64,19 @@ func (p *Pack) listZones(w http.ResponseWriter, r *http.Request) {
 	zones := make([]map[string]any, 0, len(zoneNames))
 	for _, name := range zoneNames {
 		zones = append(zones, map[string]any{
-			"name":         name,
+			"name": name,
+			// No id, and that is measured rather than an oversight. The live API
+			// sends one on every zone — recorded in shapes/exoscale.json — while
+			// their published OpenAPI declares no such field on `zone`. Emitting
+			// it fails this emulator's own contract check, which is the gate that
+			// keeps every other answer honest.
+			//
+			// Same call as start/stop's `resource` envelope in lifecycle.go: the
+			// live API is ahead of its own description in four measured places,
+			// and the rule is to serve what clients decode and what the contract
+			// accepts. Raised as #94 from a shape diff and closed as not-a-defect
+			// on that basis: TestEveryRouteAnswersItsContract in internal/probe fails
+			// the moment the field is added.
 			"api-endpoint": emulator.EndpointOf(r) + apiPrefix,
 			"sos-endpoint": "",
 		})
