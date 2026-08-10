@@ -125,12 +125,91 @@ state="$(printf '%s' "$instances" | jq -r '.[] | select(.name == "conformance") 
   || fail "the instance is $state, not running: with no runtime the control plane must still say running"
 ok "instance $id, $state"
 
+echo "- the lifecycle: stop, start, reboot (EXO-2's own evidence)"
+# `exo compute instance stop` failed against the emulator for as long as the
+# lifecycle was untriaged; this is the line issue #5 names as its evidence.
+exoc compute instance stop "$id" --force >/dev/null || fail "instance stop rejected"
+state="$(exoc -O json compute instance show "$id" | jq -r '.state')"
+[ "$state" = "stopped" ] || fail "the instance is $state after stop, not stopped"
+exoc compute instance start "$id" --force >/dev/null || fail "instance start rejected"
+state="$(exoc -O json compute instance show "$id" | jq -r '.state')"
+[ "$state" = "running" ] || fail "the instance is $state after start, not running"
+exoc compute instance reboot "$id" --force >/dev/null || fail "instance reboot rejected"
+ok "stopped, started, rebooted, and the state followed"
+
+echo "- scale and resize-disk, on a stopped instance as upstream requires"
+exoc compute instance stop "$id" --force >/dev/null || fail "second stop rejected"
+exoc compute instance scale "$id" standard.small --force >/dev/null || fail "instance scale rejected"
+exoc compute instance resize-disk "$id" 11 --force >/dev/null || fail "resize-disk rejected"
+# The CLI renames and formats on output: the API's disk-size 11 prints as
+# disk_size "11 GiB". The suite reads what the client prints, because that is
+# what a user would copy.
+shown="$(exoc -O json compute instance show "$id")" || fail "instance show rejected: $shown"
+printf '%s' "$shown" | jq -e '.disk_size == "11 GiB"' >/dev/null \
+  || fail "the disk did not grow: $shown"
+exoc compute instance start "$id" --force >/dev/null || fail "start after scale rejected"
+ok "scaled to standard.small, disk at 11 GiB"
+
+echo "- protection: a protected instance refuses its delete"
+exoc compute instance update "$id" --protection >/dev/null || fail "protection update rejected"
+if exoc -Q compute instance delete "$id" --force >/dev/null 2>&1; then
+  fail "a protected instance accepted its delete"
+fi
+exoc compute instance update "$id" --protection=false >/dev/null || fail "protection removal rejected"
+ok "delete refused while protected, protection removable"
+
+echo "- security groups: the default one exists, rules round-trip"
+sgs="$(exoc -O json compute security-group list)" || fail "security-group list rejected: $sgs"
+printf '%s' "$sgs" | jq -e 'any(.[]; .name == "default")' >/dev/null \
+  || fail "no default security group: a fresh real account holds one, measured"
+exoc compute security-group create conformance-sg --description 'conformance' >/dev/null \
+  || fail "security-group create rejected"
+exoc compute security-group rule add conformance-sg --flow ingress --protocol tcp --port 22 \
+  --network 203.0.113.0/24 >/dev/null || fail "rule add rejected"
+# The CLI splits the API's flow-direction into ingress_rules and egress_rules
+# on output; the assertion reads what the client prints.
+rules="$(exoc -O json compute security-group show conformance-sg | jq '.ingress_rules')" \
+  || fail "security-group show rejected"
+printf '%s' "$rules" | jq -e 'length == 1 and .[0].network == "203.0.113.0/24"' >/dev/null \
+  || fail "the rule did not come back: $rules"
+exoc compute instance security-group add "$id" conformance-sg >/dev/null || fail "sg attach rejected"
+exoc compute instance security-group remove "$id" conformance-sg >/dev/null || fail "sg detach rejected"
+ok "default present, rule round-trips, attach and detach pass"
+
+echo "- anti-affinity groups: membership is computed"
+exoc compute anti-affinity-group create conformance-aag --description 'conformance' >/dev/null \
+  || fail "anti-affinity-group create rejected"
+aag="$(exoc -O json compute anti-affinity-group show conformance-aag)" \
+  || fail "anti-affinity-group show rejected"
+printf '%s' "$aag" | jq -e '.name == "conformance-aag"' >/dev/null || fail "wrong group: $aag"
+ok "created and readable"
+
+echo "- elastic IPs: create, attach, the instance publishes it, detach, delete"
+exoc -O json compute elastic-ip create --description 'conformance' >/dev/null \
+  || fail "elastic-ip create rejected"
+eip_ip="$(exoc -O json compute elastic-ip list | jq -r '.[0].ip_address // .[0].ip // empty')"
+[ -n "$eip_ip" ] || fail "no address on the created elastic IP"
+exoc compute instance elastic-ip attach "$id" "$eip_ip" >/dev/null || fail "eip attach rejected"
+shown="$(exoc -O json compute instance show "$id")" || fail "show after attach rejected"
+printf '%s' "$shown" | jq -e --arg ip "$eip_ip" '(.elastic_ips // [])[0] // "" | contains($ip)' >/dev/null \
+  || fail "the instance does not publish its elastic IP: $shown"
+exoc compute instance elastic-ip detach "$id" "$eip_ip" >/dev/null || fail "eip detach rejected"
+exoc -Q compute elastic-ip delete "$eip_ip" --force >/dev/null || fail "eip delete rejected"
+ok "$eip_ip attached, published, detached, deleted"
+
 echo "- delete, and it is gone"
 exoc -Q compute instance delete "$id" --force >/dev/null || fail "instance delete rejected"
 after="$(exoc -O json compute instance list)" || fail "instance list rejected: $after"
 printf '%s' "$after" | jq -e --arg id "$id" 'all(.[]; .id != $id)' >/dev/null \
   || fail "the instance survived its delete: $after"
 ok "deleted, and gone"
+
+echo "- the groups go too"
+exoc -Q compute security-group delete conformance-sg --force >/dev/null \
+  || fail "security-group delete rejected"
+exoc -Q compute anti-affinity-group delete conformance-aag --force >/dev/null \
+  || fail "anti-affinity-group delete rejected"
+ok "security group and anti-affinity group deleted"
 
 # Every answer above was also checked against Exoscale's own API description,
 # because the emulator validates itself when --contracts is set. A field they do

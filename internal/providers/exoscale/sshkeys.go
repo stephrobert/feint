@@ -94,7 +94,9 @@ func (p *Pack) registerSSHKey(w http.ResponseWriter, r *http.Request) {
 	}
 	p.env.Store.Put(res)
 
-	emulator.WriteJSON(w, http.StatusOK, p.operationFor(res.ID, "register-ssh-key"))
+	// The bare envelope, measured: an ssh-key mutation answers {id, state} with
+	// no reference at all, unlike every other mutation of this API.
+	p.writeOperation(w, p.operationBare())
 }
 
 func (p *Pack) listSSHKeys(w http.ResponseWriter, _ *http.Request) {
@@ -122,7 +124,7 @@ func (p *Pack) deleteSSHKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p.env.Store.Delete(Name, kindSSHKey, name)
-	emulator.WriteJSON(w, http.StatusOK, p.operationFor(name, "delete-ssh-key"))
+	p.writeOperation(w, p.operationBare())
 }
 
 // sshKeyView is the whole of what the API publishes: a name and a fingerprint.

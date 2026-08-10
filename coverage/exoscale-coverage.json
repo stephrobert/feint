@@ -1,24 +1,24 @@
 {
   "provider": "exoscale",
   "total": 372,
-  "implemented": 16,
-  "declined": 248,
-  "unknown": 108,
+  "implemented": 46,
+  "declined": 251,
+  "unknown": 75,
   "orphans": null,
   "products": [
     {
       "product": "exoscale",
       "total": 372,
-      "implemented": 16,
-      "declined": 248,
-      "unknown": 108,
+      "implemented": 46,
+      "declined": 251,
+      "unknown": 75,
       "versions": [
         {
           "version": "2.0.0",
           "total": 372,
-          "implemented": 16,
-          "declined": 248,
-          "unknown": 108
+          "implemented": 46,
+          "declined": 251,
+          "unknown": 75
         }
       ]
     }
@@ -34,13 +34,13 @@
       "operation": "exoscale/v2.add-instance-protection",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.add-rule-to-security-group",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.add-service-to-load-balancer",
@@ -72,7 +72,7 @@
       "operation": "exoscale/v2.attach-instance-to-elastic-ip",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.attach-instance-to-private-network",
@@ -84,7 +84,7 @@
       "operation": "exoscale/v2.attach-instance-to-security-group",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.attach-instance-to-subnet",
@@ -116,7 +116,7 @@
       "operation": "exoscale/v2.create-anti-affinity-group",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.create-api-key",
@@ -351,7 +351,7 @@
       "operation": "exoscale/v2.create-elastic-ip",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.create-iam-role",
@@ -408,7 +408,7 @@
       "operation": "exoscale/v2.create-security-group",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.create-sks-cluster",
@@ -467,7 +467,7 @@
       "operation": "exoscale/v2.delete-anti-affinity-group",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.delete-api-key",
@@ -695,7 +695,7 @@
       "operation": "exoscale/v2.delete-elastic-ip",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.delete-iam-role",
@@ -765,13 +765,13 @@
       "operation": "exoscale/v2.delete-rule-from-security-group",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.delete-security-group",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.delete-sks-cluster",
@@ -841,7 +841,7 @@
       "operation": "exoscale/v2.detach-instance-from-elastic-ip",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.detach-instance-from-private-network",
@@ -853,7 +853,7 @@
       "operation": "exoscale/v2.detach-instance-from-security-group",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.detach-instance-from-subnet",
@@ -974,7 +974,7 @@
       "operation": "exoscale/v2.get-anti-affinity-group",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.get-api-key",
@@ -998,8 +998,9 @@
     {
       "operation": "exoscale/v2.get-console-proxy-url",
       "product": "exoscale",
+      "reason": "there is no console to proxy and no password to reveal: machines here are opened by the registered SSH key, and a URL or a password the emulator invented would claim an access nothing answers",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.get-dbaas-ca-certificate",
@@ -1236,7 +1237,7 @@
       "operation": "exoscale/v2.get-deploy-target",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.get-deployment",
@@ -1277,7 +1278,7 @@
       "operation": "exoscale/v2.get-elastic-ip",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.get-env-impact",
@@ -1414,7 +1415,7 @@
       "operation": "exoscale/v2.get-security-group",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.get-sks-cluster",
@@ -1513,7 +1514,7 @@
       "operation": "exoscale/v2.list-anti-affinity-groups",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.list-api-keys",
@@ -1601,7 +1602,7 @@
       "operation": "exoscale/v2.list-deploy-targets",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.list-deployments",
@@ -1628,7 +1629,7 @@
       "operation": "exoscale/v2.list-elastic-ips",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.list-events",
@@ -1710,7 +1711,7 @@
       "operation": "exoscale/v2.list-security-groups",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.list-sks-cluster-deprecated-resources",
@@ -1806,7 +1807,7 @@
       "operation": "exoscale/v2.reboot-instance",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.register-ssh-key",
@@ -1830,7 +1831,7 @@
       "operation": "exoscale/v2.remove-instance-protection",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.replicate-kms-key",
@@ -1905,7 +1906,7 @@
       "operation": "exoscale/v2.reset-instance",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.reset-instance-field",
@@ -1916,8 +1917,9 @@
     {
       "operation": "exoscale/v2.reset-instance-password",
       "product": "exoscale",
+      "reason": "there is no console to proxy and no password to reveal: machines here are opened by the registered SSH key, and a URL or a password the emulator invented would claim an access nothing answers",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.reset-instance-pool-field",
@@ -1953,7 +1955,7 @@
       "operation": "exoscale/v2.resize-instance-disk",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.reveal-ai-api-key",
@@ -2035,8 +2037,9 @@
     {
       "operation": "exoscale/v2.reveal-instance-password",
       "product": "exoscale",
+      "reason": "there is no console to proxy and no password to reveal: machines here are opened by the registered SSH key, and a URL or a password the emulator invented would claim an access nothing answers",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.revert-instance-to-snapshot",
@@ -2097,7 +2100,7 @@
       "operation": "exoscale/v2.scale-instance",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.scale-instance-pool",
@@ -2179,7 +2182,7 @@
       "operation": "exoscale/v2.start-instance",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.stop-dbaas-mysql-migration",
@@ -2206,7 +2209,7 @@
       "operation": "exoscale/v2.stop-instance",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.update-ai-api-key",
@@ -2378,7 +2381,7 @@
       "operation": "exoscale/v2.update-elastic-ip",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.update-iam-organization-policy",
@@ -2405,7 +2408,7 @@
       "operation": "exoscale/v2.update-instance",
       "product": "exoscale",
       "version": "2.0.0",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.update-instance-pool",

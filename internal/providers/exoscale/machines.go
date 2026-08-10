@@ -45,18 +45,32 @@ const catalogueDate = "2025-01-01T00:00:00Z"
 // templates is the emulated catalogue, in the shape Exoscale's own template
 // schema declares — including default-user, which is where the login of a
 // machine comes from here rather than from a constant.
+// The seven fields after created-at were measured missing by the shape diff of
+// 2026-08-10: the real template carries a build, a checksum, a description, a
+// maintainer, a size in bytes and a version, and answers
+// application-consistent-snapshot-enabled. The values are the emulator's own
+// claims, like the rest of this catalogue; the size matches the 10 GiB disk
+// floor a create is checked against.
 var templates = []map[string]any{
 	{
 		"id": "11111111-1111-4111-8111-111111111111", "name": "Linux Ubuntu 24.04 LTS 64-bit",
 		"family": "ubuntu", "default-user": "ubuntu", "visibility": "public",
 		"boot-mode": "uefi", "ssh-key-enabled": true, "password-enabled": false,
 		"created-at": catalogueDate, "zones": allZones(),
+		"description": "Linux Ubuntu 24.04 LTS 64-bit", "version": "24.04",
+		"build": "feint", "checksum": "00000000000000000000000000000001",
+		"maintainer": "feint", "size": 10737418240,
+		"application-consistent-snapshot-enabled": false,
 	},
 	{
 		"id": "22222222-2222-4222-8222-222222222222", "name": "Linux Debian 12 64-bit",
 		"family": "debian", "default-user": "debian", "visibility": "public",
 		"boot-mode": "uefi", "ssh-key-enabled": true, "password-enabled": false,
 		"created-at": catalogueDate, "zones": allZones(),
+		"description": "Linux Debian 12 64-bit", "version": "12",
+		"build": "feint", "checksum": "00000000000000000000000000000002",
+		"maintainer": "feint", "size": 10737418240,
+		"application-consistent-snapshot-enabled": false,
 	},
 }
 

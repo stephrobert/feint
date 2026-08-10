@@ -194,15 +194,19 @@ func TestCreateGivesBackWhatTheClientAttached(t *testing.T) {
 		t.Fatalf("public-ip-assignment is %v, want inet4", instance["public-ip-assignment"])
 	}
 
-	// instance-type and template are full objects upstream, not bare ids. A
-	// client reading instance-type.size off a {"id": ...} finds nothing.
+	// instance-type and template are bare {id} references. The opposite was
+	// asserted here once — "full objects upstream" — from reading the schema
+	// rather than the wire; the recording of 2026-08-10 shows the real API
+	// answering {"id": …} alone, and the CLI resolving the type itself with a
+	// second call. The schema says what the API may return, the transcript what
+	// it does, and the second is what a client decodes.
 	instanceType, _ := instance["instance-type"].(map[string]any)
-	if instanceType["size"] == nil {
-		t.Fatalf("instance-type came back as a bare reference: %v", instanceType)
+	if len(instanceType) != 1 || instanceType["id"] == nil {
+		t.Fatalf("instance-type is not the bare reference the real API answers: %v", instanceType)
 	}
 	template, _ := instance["template"].(map[string]any)
-	if template["default-user"] == nil {
-		t.Fatalf("template came back as a bare reference: %v", template)
+	if len(template) != 1 || template["id"] == nil {
+		t.Fatalf("template is not the bare reference the real API answers: %v", template)
 	}
 }
 

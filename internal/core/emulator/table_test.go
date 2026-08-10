@@ -90,6 +90,78 @@ func TestTheTableNamesTheOperationAServeMuxWouldRoute(t *testing.T) {
 	}
 }
 
+// A trailing "{id}:action" segment routes by its suffix, both in the table and
+// on the mounted server.
+//
+// net/http cannot express the pattern — a wildcard spans the whole segment — so
+// without the table's own resolution every ":action" call lands on the plain
+// "{id}" route: a stop would be named (and served) as an update, and the
+// operation the coverage joins on would be wrong for every lifecycle call of a
+// dialect that writes verbs this way.
+func TestActionSuffixRoutesAreNamedAndServed(t *testing.T) {
+	served := map[string]string{}
+	handler := func(op string) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			served[op] = r.PathValue("id")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{}`))
+		}
+	}
+	pack := stubPack{name: "stub", routes: []emulator.Route{
+		{Method: http.MethodPut, Path: "/v9/thing/{id}", Operation: "stub/v9.update-thing", Handler: handler("update")},
+		{Method: http.MethodPut, Path: "/v9/thing/{id}:stop", Operation: "stub/v9.stop-thing", Handler: handler("stop")},
+		{Method: http.MethodGet, Path: "/v9/thing/{id}", Operation: "stub/v9.get-thing", Handler: handler("get")},
+	}}
+
+	table, err := emulator.NewTable(pack)
+	if err != nil {
+		t.Fatalf("build the table: %v", err)
+	}
+	for path, want := range map[string]string{
+		"/v9/thing/abc":      "stub/v9.update-thing",
+		"/v9/thing/abc:stop": "stub/v9.stop-thing",
+	} {
+		m, ok := table.Lookup(httptest.NewRequest(http.MethodPut, path, nil))
+		if !ok {
+			t.Fatalf("PUT %s: the table names no operation", path)
+		}
+		if m.Route.Operation != want {
+			t.Errorf("PUT %s: named %q, want %q", path, m.Route.Operation, want)
+		}
+	}
+	// An action nobody serves is unknown, not the plain route: reporting it as
+	// update-thing would hide exactly the unserved-operation finding the
+	// transcript exists to surface.
+	if m, ok := table.Lookup(httptest.NewRequest(http.MethodPut, "/v9/thing/abc:reboot", nil)); ok {
+		t.Errorf("PUT /v9/thing/abc:reboot: named %q for an action nobody serves", m.Route.Operation)
+	}
+
+	// The served half: the dispatcher strips the suffix, so the handler's
+	// PathValue is the identifier alone.
+	srv, err := emulator.NewServer(emulator.DefaultEnv(), pack)
+	if err != nil {
+		t.Fatalf("build the server: %v", err)
+	}
+	for path, op := range map[string]string{
+		"/v9/thing/abc":      "update",
+		"/v9/thing/abc:stop": "stop",
+	} {
+		rec := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodPut, path, nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("PUT %s answered %d", path, rec.Code)
+		}
+		if served[op] != "abc" {
+			t.Errorf("PUT %s: the %s handler saw id %q, want \"abc\"", path, op, served[op])
+		}
+	}
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodPut, "/v9/thing/abc:reboot", nil))
+	if rec.Code == http.StatusOK {
+		t.Error("PUT /v9/thing/abc:reboot: an action nobody serves was served anyway")
+	}
+}
+
 // The table refuses a route two packs claim, which is what keeps net/http from
 // panicking mid-mount with a message naming neither pack.
 func TestTheTableRefusesARouteTwoPacksClaim(t *testing.T) {

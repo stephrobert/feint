@@ -31,6 +31,20 @@ const Name = "exoscale"
 const (
 	kindInstance  = "compute-instance"
 	kindOperation = "operation"
+
+	// nounInstance is the resource segment operations refer to; the kind above
+	// is the store's key and predates it, kept so a snapshot taken before the
+	// lifecycle work still restores.
+	nounInstance = "instance"
+
+	runningState = "running"
+	stoppedState = "stopped"
+
+	// Internal attributes, never emitted by a view.
+	attrProtected            = "feint-protected"
+	attrSecurityGroupIDs     = "feint-security-group-ids"
+	attrAntiAffinityGroupIDs = "feint-anti-affinity-group-ids"
+	attrElasticIPIDs         = "feint-elastic-ip-ids"
 )
 
 // Pack implements emulator.Pack for Exoscale.
@@ -63,6 +77,49 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "GET", Path: "/v2/instance/{id}", Operation: operation("get-instance"), Handler: p.getInstance},
 		{Method: "DELETE", Path: "/v2/instance/{id}", Operation: operation("delete-instance"), Handler: p.deleteInstance},
 		{Method: "GET", Path: "/v2/operation/{id}", Operation: operation("get-operation"), Handler: p.getOperation},
+
+		// The lifecycle, batch 2 of docs/roadmap-exoscale-iaas.md. The verbs live
+		// in the same path segment as the identifier — PUT /instance/{id}:stop —
+		// which is the action-suffix form the route table resolves itself.
+		{Method: "PUT", Path: "/v2/instance/{id}", Operation: operation("update-instance"), Handler: p.updateInstance},
+		{Method: "PUT", Path: "/v2/instance/{id}:start", Operation: operation("start-instance"), Handler: p.startInstance},
+		{Method: "PUT", Path: "/v2/instance/{id}:stop", Operation: operation("stop-instance"), Handler: p.stopInstance},
+		{Method: "PUT", Path: "/v2/instance/{id}:reboot", Operation: operation("reboot-instance"), Handler: p.rebootInstance},
+		{Method: "PUT", Path: "/v2/instance/{id}:reset", Operation: operation("reset-instance"), Handler: p.resetInstance},
+		{Method: "PUT", Path: "/v2/instance/{id}:scale", Operation: operation("scale-instance"), Handler: p.scaleInstance},
+		{Method: "PUT", Path: "/v2/instance/{id}:resize-disk", Operation: operation("resize-instance-disk"), Handler: p.resizeInstanceDisk},
+		{Method: "PUT", Path: "/v2/instance/{id}:add-protection", Operation: operation("add-instance-protection"), Handler: p.addInstanceProtection},
+		{Method: "PUT", Path: "/v2/instance/{id}:remove-protection", Operation: operation("remove-instance-protection"), Handler: p.removeInstanceProtection},
+
+		// Security groups and their rules.
+		{Method: "POST", Path: "/v2/security-group", Operation: operation("create-security-group"), Handler: p.createSecurityGroup},
+		{Method: "GET", Path: "/v2/security-group", Operation: operation("list-security-groups"), Handler: p.listSecurityGroups},
+		{Method: "GET", Path: "/v2/security-group/{id}", Operation: operation("get-security-group"), Handler: p.getSecurityGroup},
+		{Method: "DELETE", Path: "/v2/security-group/{id}", Operation: operation("delete-security-group"), Handler: p.deleteSecurityGroup},
+		{Method: "POST", Path: "/v2/security-group/{id}/rules", Operation: operation("add-rule-to-security-group"), Handler: p.addRuleToSecurityGroup},
+		{Method: "DELETE", Path: "/v2/security-group/{id}/rules/{rule}", Operation: operation("delete-rule-from-security-group"), Handler: p.deleteRuleFromSecurityGroup},
+		{Method: "PUT", Path: "/v2/security-group/{id}:attach", Operation: operation("attach-instance-to-security-group"), Handler: p.attachInstanceToSecurityGroup},
+		{Method: "PUT", Path: "/v2/security-group/{id}:detach", Operation: operation("detach-instance-from-security-group"), Handler: p.detachInstanceFromSecurityGroup},
+
+		// Anti-affinity groups.
+		{Method: "POST", Path: "/v2/anti-affinity-group", Operation: operation("create-anti-affinity-group"), Handler: p.createAntiAffinityGroup},
+		{Method: "GET", Path: "/v2/anti-affinity-group", Operation: operation("list-anti-affinity-groups"), Handler: p.listAntiAffinityGroups},
+		{Method: "GET", Path: "/v2/anti-affinity-group/{id}", Operation: operation("get-anti-affinity-group"), Handler: p.getAntiAffinityGroup},
+		{Method: "DELETE", Path: "/v2/anti-affinity-group/{id}", Operation: operation("delete-anti-affinity-group"), Handler: p.deleteAntiAffinityGroup},
+
+		// Elastic IPs, attachment included.
+		{Method: "POST", Path: "/v2/elastic-ip", Operation: operation("create-elastic-ip"), Handler: p.createElasticIP},
+		{Method: "GET", Path: "/v2/elastic-ip", Operation: operation("list-elastic-ips"), Handler: p.listElasticIPs},
+		{Method: "GET", Path: "/v2/elastic-ip/{id}", Operation: operation("get-elastic-ip"), Handler: p.getElasticIP},
+		{Method: "PUT", Path: "/v2/elastic-ip/{id}", Operation: operation("update-elastic-ip"), Handler: p.updateElasticIP},
+		{Method: "DELETE", Path: "/v2/elastic-ip/{id}", Operation: operation("delete-elastic-ip"), Handler: p.deleteElasticIP},
+		{Method: "PUT", Path: "/v2/elastic-ip/{id}:attach", Operation: operation("attach-instance-to-elastic-ip"), Handler: p.attachInstanceToElasticIP},
+		{Method: "PUT", Path: "/v2/elastic-ip/{id}:detach", Operation: operation("detach-instance-from-elastic-ip"), Handler: p.detachInstanceFromElasticIP},
+
+		// Deploy targets: a read the CLI makes while resolving a create. An
+		// emulated account has none, and an empty list is the honest inventory.
+		{Method: "GET", Path: "/v2/deploy-target", Operation: operation("list-deploy-targets"), Handler: p.listDeployTargets},
+		{Method: "GET", Path: "/v2/deploy-target/{id}", Operation: operation("get-deploy-target"), Handler: p.getDeployTarget},
 
 		// The first call the official CLI makes, and the address every call
 		// after it uses. Measured, not assumed: see catalog.go.
@@ -383,6 +440,21 @@ func (p *Pack) Declined() []emulator.Decline {
 			"exoscale/v2.get-sos-presigned-url",
 			"exoscale/v2.list-sos-buckets-usage"),
 
+		// The instance console and its passwords.
+		//
+		// The console proxy URL the real API answers carries a token onto
+		// console-proxy-<zone>.exoscale.com, a host that streams the VNC of a
+		// machine Exoscale runs; nothing here answers on such a host, so a URL
+		// would be a promise the emulator cannot keep. The passwords are the
+		// same shape one layer down: machines here are opened by the SSH key
+		// the client registered, no password exists, and inventing one would
+		// claim an access nothing grants — the exact lie this project exists
+		// to avoid.
+		emulator.Because("there is no console to proxy and no password to reveal: machines here are opened by the registered SSH key, and a URL or a password the emulator invented would claim an access nothing answers",
+			"exoscale/v2.get-console-proxy-url",
+			"exoscale/v2.reveal-instance-password",
+			"exoscale/v2.reset-instance-password"),
+
 		// The organisation's own consumption: balance, usage, environmental
 		// impact.
 		//
@@ -503,6 +575,17 @@ type createInstanceRequest struct {
 	PublicIPAssignment string `json:"public-ip-assignment"`
 	SecurebootEnabled  *bool  `json:"secureboot-enabled"`
 	TPMEnabled         *bool  `json:"tpm-enabled"`
+	// Measured on 2026-08-10: `exo compute instance create` sends the groups as
+	// whole objects and the labels as a map, and a field left undeclared here is
+	// accepted and dropped in silence — the exact defect the fields above were
+	// added for.
+	Labels             map[string]string `json:"labels"`
+	AntiAffinityGroups []struct {
+		ID string `json:"id"`
+	} `json:"anti-affinity-groups"`
+	SecurityGroups []struct {
+		ID string `json:"id"`
+	} `json:"security-groups"`
 }
 
 // keyNames gathers both forms the API accepts, in the order the client sent
@@ -581,11 +664,12 @@ func (p *Pack) createInstance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := p.env.Now()
+	id := p.env.NewID()
 	res := &resource.Resource{
-		ID:      p.env.NewID(),
+		ID:      id,
 		Kind:    kindInstance,
 		Tenant:  resource.Tenant{Provider: Name},
-		State:   "stopped",
+		State:   stoppedState,
 		Created: now,
 		Updated: now,
 		Attrs: map[string]any{
@@ -600,10 +684,27 @@ func (p *Pack) createInstance(w http.ResponseWriter, r *http.Request) {
 			"public-ip-assignment": orDefault(req.PublicIPAssignment, "inet4"),
 			"secureboot-enabled":   boolOr(req.SecurebootEnabled, false),
 			"tpm-enabled":          boolOr(req.TPMEnabled, false),
+			// Present even when empty — {} was measured on an instance created
+			// with no label, and an absent key is a different claim.
+			"labels": labelsToAttr(req.Labels),
+			// A stable address derived from the identifier: the real API
+			// publishes one per instance, and two runs must answer the same.
+			"mac-address": macAddressOf(id),
 		},
 	}
 	if req.UserData != "" {
 		res.Attrs["user-data"] = req.UserData
+	}
+	if ids := refIDs(req.AntiAffinityGroups); len(ids) > 0 {
+		res.Attrs[attrAntiAffinityGroupIDs] = ids
+	}
+	// An instance created without naming a group wears the default one, which
+	// is what the recording shows a fresh account doing.
+	p.ensureDefaultSecurityGroup()
+	if ids := refIDs(req.SecurityGroups); len(ids) > 0 {
+		res.Attrs[attrSecurityGroupIDs] = ids
+	} else {
+		res.Attrs[attrSecurityGroupIDs] = []any{defaultSecurityGroupID}
 	}
 	// The address comes from the machine that starts, not from a constant. It
 	// used to be a fixed 203.0.113.10 on every instance: two of them reported
@@ -611,7 +712,37 @@ func (p *Pack) createInstance(w http.ResponseWriter, r *http.Request) {
 	p.start(r.Context(), res)
 	p.env.Store.Put(res)
 
-	emulator.WriteJSON(w, http.StatusOK, p.operationFor(res.ID, "create-instance"))
+	p.writeOperation(w, p.operationReferring(nounInstance, res.ID))
+}
+
+// refIDs keeps the identifiers of the group objects a create names, in the
+// []any form attrs store.
+func refIDs(refs []struct {
+	ID string `json:"id"`
+}) []any {
+	out := make([]any, 0, len(refs))
+	for _, ref := range refs {
+		if ref.ID != "" {
+			out = append(out, ref.ID)
+		}
+	}
+	return out
+}
+
+// macAddressOf derives a locally-administered MAC from the instance identifier,
+// so it is stable across reads without storing entropy: 06 is the measured
+// first octet of what the real API hands out.
+func macAddressOf(id string) string {
+	hex := strings.Map(func(r rune) rune {
+		if r == '-' {
+			return -1
+		}
+		return r
+	}, id)
+	if len(hex) < 10 {
+		hex = hex + "0000000000"
+	}
+	return "06:" + hex[0:2] + ":" + hex[2:4] + ":" + hex[4:6] + ":" + hex[6:8] + ":" + hex[8:10]
 }
 
 func (p *Pack) getInstance(w http.ResponseWriter, r *http.Request) {
@@ -643,11 +774,18 @@ func (p *Pack) deleteInstance(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "resource not found")
 		return
 	}
+	// Refused before anything is destroyed. The flag is the one
+	// add-instance-protection set; the view never carries it, so this is the
+	// only reader. TestAProtectedInstanceRefusesItsDelete fails without this.
+	if protected, _ := res.Attrs[attrProtected].(bool); protected {
+		writeError(w, http.StatusBadRequest, "the instance is protected against deletion; remove the protection first")
+		return
+	}
 	// The machine goes with the instance: a leftover container would outlive
 	// the resource that justified it and hold the name the next one wants.
 	p.destroy(r.Context(), res)
 	p.env.Store.Delete(Name, kindInstance, id)
-	emulator.WriteJSON(w, http.StatusOK, p.operationFor(id, "delete-instance"))
+	p.writeOperation(w, p.operationReferring(nounInstance, id))
 }
 
 // getOperation answers the poll that follows every mutation. Operations are
@@ -662,12 +800,25 @@ func (p *Pack) getOperation(w http.ResponseWriter, r *http.Request) {
 	emulator.WriteJSON(w, http.StatusOK, res.Attrs)
 }
 
-// operationFor records and returns an already-successful operation.
+// The Operation envelopes, all three measured against the real API through
+// `feint proxy` on 2026-08-10. They differ per mutation family, and the
+// difference is not decoration — the Terraform provider blocks on client.Wait
+// and reads the reference to learn what finished:
 //
-// The command is passed in rather than built from a kind. It used to be
-// hardcoded as "create-"+kind, so the operation a DELETE returned described
-// itself as a creation — a client that reads the reference to decide what
-// finished was told the opposite of what happened.
+//   - most mutations answer {id, state, reference: {command, id, link}}, where
+//     command names the *read* that follows ("get-instance", never
+//     "create-instance": an earlier version of this pack put the mutation
+//     there, which no recorded exchange ever showed);
+//   - ssh-key register and delete answer a bare {id, state};
+//   - start and stop answer {id, state, resource: {id, type}} on the live API,
+//     a field their published schema does not declare and egoscale cannot
+//     decode — see startInstance for why this emulator answers the reference
+//     envelope there instead.
+//
+// The real API answers state "pending" and flips to "success" on the poll;
+// this emulator applies changes synchronously and answers "success" at once,
+// which every polling client accepts as the terminal state it waits for.
+//
 // maxOperations bounds what a long session accumulates.
 //
 // Every mutation stores an Operation and nothing ever removed one, so a session
@@ -677,16 +828,31 @@ func (p *Pack) getOperation(w http.ResponseWriter, r *http.Request) {
 // just started always finds it.
 const maxOperations = 512
 
-func (p *Pack) operationFor(referenceID, command string) map[string]any {
-	now := p.env.Now()
-	op := map[string]any{
+// operationReferring is the common envelope: the reference names the read that
+// follows the mutation, and the link is its address.
+func (p *Pack) operationReferring(noun, id string) map[string]any {
+	return p.storeOperation(map[string]any{
 		"id":    p.env.NewID(),
 		"state": "success",
 		"reference": map[string]any{
-			"id":      referenceID,
-			"command": command,
+			"command": "get-" + noun,
+			"id":      id,
+			"link":    apiPrefix + "/" + noun + "/" + id,
 		},
-	}
+	})
+}
+
+// operationBare is what the ssh-key mutations answer: an identifier and a
+// state, nothing else.
+func (p *Pack) operationBare() map[string]any {
+	return p.storeOperation(map[string]any{
+		"id":    p.env.NewID(),
+		"state": "success",
+	})
+}
+
+func (p *Pack) storeOperation(op map[string]any) map[string]any {
+	now := p.env.Now()
 	p.env.Store.Put(&resource.Resource{
 		ID:      op["id"].(string),
 		Kind:    kindOperation,
@@ -698,6 +864,11 @@ func (p *Pack) operationFor(referenceID, command string) map[string]any {
 	})
 	p.trimOperations()
 	return op
+}
+
+// writeOperation is the one line every mutation ends on.
+func (p *Pack) writeOperation(w http.ResponseWriter, op map[string]any) {
+	emulator.WriteJSON(w, http.StatusOK, op)
 }
 
 // trimOperations drops the oldest operations past the bound. Oldest first,
@@ -713,24 +884,108 @@ func (p *Pack) trimOperations() {
 	}
 }
 
+// view renders an instance exactly as the real API was measured rendering one
+// on 2026-08-10, omission rules included.
+//
+// Two of its earlier habits were wrong in opposite directions, and only the
+// recording could say so. It expanded instance-type and template into whole
+// catalogue entries "so a client reading instance-type.size finds it" — the
+// real answer is a bare {id}, and the CLI resolves the type itself with a
+// second call. And it copied every stored attribute onto the wire, where the
+// real answer emits empty arrays for its relations (a key that is absent tells
+// a client the emulator does not model it) but keeps internal state off it.
 func (p *Pack) view(res *resource.Resource) map[string]any {
-	out := make(map[string]any, len(res.Attrs)+4)
-	for k, v := range res.Attrs {
-		out[k] = v
+	typeRef, _ := res.Attrs["instance-type"].(map[string]any)
+	templateRef, _ := res.Attrs["template"].(map[string]any)
+	labels, _ := res.Attrs["labels"].(map[string]any)
+	if labels == nil {
+		labels = map[string]any{}
 	}
-	out["id"] = res.ID
-	out["state"] = res.State
-	// instance-type and template are full objects upstream, not bare
-	// identifiers: their schema declares a ref, and a client reading
-	// instance-type.size off what the emulator returned found nothing there.
-	// Resolved from the catalogue so the two cannot disagree.
-	out["instance-type"] = expand(instanceTypes, res.Attrs["instance-type"])
-	out["template"] = expand(templates, res.Attrs["template"])
-	out["created-at"] = res.Created.Format(time.RFC3339)
+	out := map[string]any{
+		"id":            res.ID,
+		"state":         res.State,
+		"name":          res.Attrs["name"],
+		"created-at":    res.Created.Format(time.RFC3339),
+		"instance-type": map[string]any{"id": typeRef["id"]},
+		"template":      map[string]any{"id": templateRef["id"]},
+		"disk-size":     res.Attrs["disk-size"],
+		"labels":        labels,
+		"mac-address":   res.Attrs["mac-address"],
+		// The emulated volume carries no encryption, but the claim here is
+		// Exoscale's own: every measured instance answered true, theirs being
+		// encrypted at rest by default.
+		"disk-encrypted":                          true,
+		"public-ip-assignment":                    res.Attrs["public-ip-assignment"],
+		"secureboot-enabled":                      res.Attrs["secureboot-enabled"],
+		"tpm-enabled":                             res.Attrs["tpm-enabled"],
+		"application-consistent-snapshot-enabled": false,
+		// Present and empty rather than absent: the products behind them are
+		// batches 3 and 4, and this is what the real API answers for an
+		// instance that has none. block-storage-volumes was measured beside
+		// them and stays off: their published schema does not declare it on
+		// instance, and the contract check enforces that schema as closed.
+		"private-networks":     []any{},
+		"snapshots":            []any{},
+		"anti-affinity-groups": p.antiAffinityGroupRefs(res),
+		"security-groups":      securityGroupRefs(res),
+		"elastic-ips":          p.elasticIPRefs(res),
+	}
+	if keys, _ := res.Attrs["ssh-keys"].([]any); len(keys) > 0 {
+		out["ssh-keys"] = keys
+		out["ssh-key"] = keys[0]
+	}
+	if userData, _ := res.Attrs["user-data"].(string); userData != "" {
+		out["user-data"] = userData
+	}
 	// Exoscale's instance schema declares public-ip, so the address the machine
 	// answers on is published there rather than invented.
 	if address := p.addressOf(res); address != "" {
 		out["public-ip"] = address
+	}
+	return out
+}
+
+// antiAffinityGroupRefs resolves the groups an instance wears to the measured
+// member shape, {description, id, name}. A group that no longer exists is
+// dropped: the relation is computed, never stored, so it cannot go stale.
+func (p *Pack) antiAffinityGroupRefs(res *resource.Resource) []any {
+	out := make([]any, 0)
+	for _, id := range stringList(res.Attrs[attrAntiAffinityGroupIDs]) {
+		group, ok := p.env.Store.Get(Name, kindAntiAffinityGroup, id)
+		if !ok {
+			continue
+		}
+		ref := map[string]any{"id": group.ID, "name": group.Attrs["name"]}
+		if description, _ := group.Attrs["description"].(string); description != "" {
+			ref["description"] = description
+		}
+		out = append(out, ref)
+	}
+	return out
+}
+
+// securityGroupRefs is the measured member shape: bare {id}, name resolved by
+// the client itself.
+func securityGroupRefs(res *resource.Resource) []any {
+	out := make([]any, 0)
+	for _, id := range stringList(res.Attrs[attrSecurityGroupIDs]) {
+		out = append(out, map[string]any{"id": id})
+	}
+	return out
+}
+
+// elasticIPRefs emits bare {id} members. The live API answers {id, ip} —
+// measured — but their elastic-ip-ref schema declares id alone, and the
+// contract check enforces it as closed: the same live-ahead-of-spec gap as the
+// operation's resource field, resolved the same way. The CLI reads the ip with
+// its own get-elastic-ip call.
+func (p *Pack) elasticIPRefs(res *resource.Resource) []any {
+	out := make([]any, 0)
+	for _, id := range stringList(res.Attrs[attrElasticIPIDs]) {
+		if _, ok := p.env.Store.Get(Name, kindElasticIP, id); !ok {
+			continue
+		}
+		out = append(out, map[string]any{"id": id})
 	}
 	return out
 }
@@ -764,23 +1019,6 @@ func boolOr(v *bool, fallback bool) bool {
 		return fallback
 	}
 	return *v
-}
-
-// expand resolves a stored {"id": ...} against a catalogue and returns the whole
-// entry. An identifier the catalogue does not hold keeps its bare form rather
-// than disappearing: a client that asked for something unknown must see what it
-// asked for, not silence.
-func expand(catalogue []map[string]any, stored any) any {
-	ref, ok := stored.(map[string]any)
-	if !ok {
-		return stored
-	}
-	for _, entry := range catalogue {
-		if entry["id"] == ref["id"] {
-			return entry
-		}
-	}
-	return ref
 }
 
 // writeError emits the Exoscale error envelope: a bare message field.

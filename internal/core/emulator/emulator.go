@@ -186,8 +186,37 @@ func NewServer(env *Env, packs ...Pack) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	for pattern, m := range table.All() {
-		s.mux.HandleFunc(pattern, s.observer.wrap(m.Provider, m.Route))
+	// Mounting follows the table's own grouping: one ServeMux pattern per base
+	// path. A base with no ":action" route mounts its handler directly; a base
+	// with any mounts a dispatcher, because net/http cannot tell /x/{id} from
+	// /x/{id}:stop — the wildcard spans the whole segment. See Table.
+	for pattern, g := range table.groups {
+		if len(g.routes) == 1 {
+			if m, plainOnly := g.routes[""]; plainOnly {
+				s.mux.HandleFunc(pattern, s.observer.wrap(m.Provider, m.Route))
+				continue
+			}
+		}
+		wrapped := make(map[string]http.HandlerFunc, len(g.routes))
+		for action, m := range g.routes {
+			wrapped[action] = s.observer.wrap(m.Provider, m.Route)
+		}
+		wildcard := g.wildcard
+		s.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
+			segment := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
+			value, action, _ := strings.Cut(segment, ":")
+			h, ok := wrapped[action]
+			if !ok {
+				// An action nobody serves is an unserved operation, and it must
+				// answer in the pack's own dialect rather than net/http's.
+				s.handleUnrouted(w, r)
+				return
+			}
+			// The wildcard matched "id:action"; the handler's PathValue must see
+			// the identifier alone.
+			r.SetPathValue(wildcard, value)
+			h(w, r)
+		})
 	}
 
 	s.mountSelf("GET /_feint/health", s.handleHealth)
