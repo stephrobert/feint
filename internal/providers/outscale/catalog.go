@@ -33,11 +33,16 @@ const (
 // VolumeCount stays at zero on purpose. It is the count of local disks a type
 // attaches, and the emulator attaches none; a non-zero value would have a client
 // wait for a disk that never appears, which is the shape of the bug that cost
-// this project a day on Scaleway's volumes_constraint.
+// this project a day on Scaleway's volumes_constraint. VolumeSize, its sibling,
+// is zero for the same reason and was simply absent until #95.
+//
+// Gpu and EphemeralsType are present and empty: the real cloud sends both on
+// every type, and a client choosing a type reads them. Zero GPUs and no
+// ephemeral storage is what this emulator honestly offers.
 var vmTypes = []map[string]any{
-	{"VmTypeName": "tinav6.c1r1p2", "VcoreCount": 1, "MemorySize": 1.0, "VolumeCount": 0, "MaxPrivateIps": 4, "Eth": 1, "BsuOptimized": false},
-	{"VmTypeName": "tinav6.c2r2p2", "VcoreCount": 2, "MemorySize": 2.0, "VolumeCount": 0, "MaxPrivateIps": 8, "Eth": 1, "BsuOptimized": false},
-	{"VmTypeName": "tinav6.c4r8p2", "VcoreCount": 4, "MemorySize": 8.0, "VolumeCount": 0, "MaxPrivateIps": 16, "Eth": 2, "BsuOptimized": true},
+	{"VmTypeName": "tinav6.c1r1p2", "VcoreCount": 1, "MemorySize": 1.0, "VolumeCount": 0, "VolumeSize": 0, "MaxPrivateIps": 4, "Eth": 1, "BsuOptimized": false, "Gpu": 0, "EphemeralsType": ""},
+	{"VmTypeName": "tinav6.c2r2p2", "VcoreCount": 2, "MemorySize": 2.0, "VolumeCount": 0, "VolumeSize": 0, "MaxPrivateIps": 8, "Eth": 1, "BsuOptimized": false, "Gpu": 0, "EphemeralsType": ""},
+	{"VmTypeName": "tinav6.c4r8p2", "VcoreCount": 4, "MemorySize": 8.0, "VolumeCount": 0, "VolumeSize": 0, "MaxPrivateIps": 16, "Eth": 2, "BsuOptimized": true, "Gpu": 0, "EphemeralsType": ""},
 }
 
 // images is the emulated OMI catalogue. The identifiers are stable across runs
@@ -52,11 +57,86 @@ var vmTypes = []map[string]any{
 // as "unknown". The Vm view publishes the same value for the same reason.
 const linuxProductCode = "0001"
 
-var images = []map[string]any{
-	{"ImageId": "ami-00000001", "ImageName": "Ubuntu-24.04-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID, "ProductCodes": []any{linuxProductCode}},
-	{"ImageId": "ami-00000002", "ImageName": "Debian-12-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID, "ProductCodes": []any{linuxProductCode}},
-	{"ImageId": "ami-00000003", "ImageName": "Alpine-3.21-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID, "ProductCodes": []any{linuxProductCode}},
+// imageStructure is the three fields the Terraform provider dereferences
+// without a nil guard, published so it does not segfault.
+//
+// Reported by @vde-dis on #86, from the provider's own sources: at v1.7.0,
+// data_source_outscale_images.go reads `*image.BlockDeviceMappings` (:289),
+// `image.StateComment.StateCode` (:291) and `*image.PermissionsToLaunch
+// .AccountIds` (:292) in one loop where every neighbouring field goes through
+// ptr.From and survives a nil. The catalogue published none of the three, so
+// each was a nil pointer and the plugin died — "Plugin did not respond", with
+// nothing naming a field or a call.
+//
+// It is also a missing check on their side: none of the three is `required` in
+// their own api.yaml, which is why `--contracts` passes the answer. But the
+// emulator is the side that can fix it without waiting for anybody, and a real
+// OMI carries all three — confirmed against the real cloud rather than assumed,
+// in shapes/outscale.json: Images[].BlockDeviceMappings[].Bsu.{VolumeSize,
+// VolumeType,SnapshotId,Iops,DeleteOnVmDeletion}, Images[].PermissionsToLaunch
+// .{AccountIds,GlobalPermission}, Images[].StateComment.
+//
+// Empty is enough and is what is served: the reporter injected an empty
+// BlockDeviceMappings through a proxy, watched the crash move to StateComment,
+// then to PermissionsToLaunch, then stop. Inventing a device mapping would put
+// a disk in a catalogue that has none, which is the invented format rule 4
+// refuses.
+//
+// TestTheImageCatalogueCarriesWhatTheProviderDereferences fails without this.
+func imageStructure(name string) map[string]any {
+	return map[string]any{
+		// The three of #86, without which the provider dereferences nil.
+		"BlockDeviceMappings": []any{},
+		"StateComment":        map[string]any{},
+		"PermissionsToLaunch": map[string]any{
+			"AccountIds":       []any{},
+			"GlobalPermission": false,
+		},
+		// The nine of #95: present on every image the real cloud returns, and
+		// absent here — measured, not guessed, in shapes/outscale.json. None of
+		// them has crashed anything yet, which is the only difference between
+		// them and the three above.
+		//
+		// Tags is the one to watch: this pack serves tags on other resources,
+		// so a client filtering images by tag had nothing to filter on.
+		// BootModes and TpmMandatory decide whether a client offers UEFI or
+		// secure boot at all.
+		"AccountAlias":   "feint",
+		"BootModes":      []any{"legacy", "uefi"},
+		"CreationDate":   catalogueDate,
+		"Description":    name,
+		"FileLocation":   "",
+		"ImageType":      "machine",
+		"RootDeviceName": "/dev/sda1",
+		"Tags":           []any{},
+		"TpmMandatory":   false,
+	}
 }
+
+// catalogueDate is when the fixed catalogue's entries claim to have been made.
+//
+// Fixed rather than "now": the catalogue is committed fiction, and a date that
+// moved every run would put a value in a client's plan that changes for no
+// reason — the same reason coverage/ carries no scan date.
+const catalogueDate = "2025-01-01T00:00:00.000Z"
+
+var images = func() []map[string]any {
+	out := []map[string]any{
+		{"ImageId": "ami-00000001", "ImageName": "Ubuntu-24.04-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID, "ProductCodes": []any{linuxProductCode}},
+		{"ImageId": "ami-00000002", "ImageName": "Debian-12-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID, "ProductCodes": []any{linuxProductCode}},
+		{"ImageId": "ami-00000003", "ImageName": "Alpine-3.21-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID, "ProductCodes": []any{linuxProductCode}},
+	}
+	// Added here rather than written into each literal: three copies of the
+	// same structure is three places for it to drift, and a fourth image would
+	// be added without them.
+	for _, image := range out {
+		name, _ := image["ImageName"].(string)
+		for key, value := range imageStructure(name) {
+			image[key] = value
+		}
+	}
+	return out
+}()
 
 // runtimeImages maps an emulated OMI onto what the machine driver boots. Kept
 // apart from the catalogue on purpose: it is not API surface, and holding it in
