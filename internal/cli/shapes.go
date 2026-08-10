@@ -35,6 +35,7 @@ func shapesCommand(args []string, stdout, stderr io.Writer) int {
 	dir := fs.String("dir", "shapes", "directory holding the versioned catalogues")
 	dryRun := fs.Bool("dry-run", false, "report what would be learned without writing")
 	record := fs.Bool("record", false, "read the real cloud directly instead of a recording file")
+	check := fs.Bool("check", false, "compare this emulator with the recorded shapes; exit 2 on a field it omits")
 	profile := fs.String("profile", "", "credential profile to use with --record (default: the provider's own default)")
 	fs.Usage = func() {
 		fmt.Fprint(stderr, "usage: feint shapes <recording.jsonl> --provider <name> [--dir shapes] [--dry-run]\n")
@@ -51,6 +52,13 @@ func shapesCommand(args []string, stdout, stderr io.Writer) int {
 	}
 	if err := fs.Parse(rest); err != nil {
 		return exitError
+	}
+	if *check {
+		var wanted []string
+		if *provider != "" {
+			wanted = []string{*provider}
+		}
+		return checkShapes(*dir, wanted, stdout, stderr)
 	}
 	if file == "" && !*record {
 		fmt.Fprintln(stderr, "feint: shapes needs a recording file first, or --record to read the cloud itself (see --help)")
