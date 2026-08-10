@@ -11,6 +11,70 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
+## [0.7.0]
+
+### Added
+
+- **`feint shapes` records what a real cloud returns and checks the emulator
+  against it.** The field tree only — paths and JSON types, no values and no
+  identifiers — which is what makes it committable where a transcript is not: a
+  transcript describes somebody's account, a shape describes an API. Recording
+  needs a real account and stays a human's job; `feint shapes --check` compares
+  offline, with no credential, and reports how much it compared so a green
+  cannot be read as "nothing is wrong" when it means "nothing was checked".
+- **`internal/upstream`, one place that knows how to talk to a real cloud** —
+  signing, pacing and retrying for the three providers, answering with the same
+  `trace.Exchange` the proxy writes. Seven copies of the Outscale signature had
+  accumulated in throwaway scripts, and the difference between two of them cost
+  an hour: one signed the request path, one signed `/`, and only the cloud could
+  tell them apart. Each signature now comes from its provider's own source.
+- **Exoscale serves a lifecycle**: instance start, stop, reboot, scale, resize
+  and delete, security groups and their rules, anti-affinity groups, elastic IPs
+  and their attachment — 16 to 46 operations served, 108 to 75 untriaged. Every
+  lifecycle path goes through `Binding.Serialise`, with a concurrency test under
+  `-race`.
+- **131 of 175 routes are proven by a real client**, up from 109 of 145.
+
+### Fixed
+
+- **`data.outscale_images` segfaulted the Terraform provider.** Reported by
+  Vincent Dislaire, who traced it to the provider's own sources: three fields
+  read without a nil guard in a loop where every neighbour survives one, and the
+  catalogue published none of them. He measured the fix rather than guessing it,
+  injecting an empty `BlockDeviceMappings` through a proxy and watching the crash
+  move to the next field, then the next, then stop.
+- **Fields the real clouds return and these did not**, found by comparing each
+  pack's answer with a recording rather than by a client breaking: eleven on
+  every Scaleway server product — including `capabilities.placement_groups`,
+  which this pack serves and a client checking the capability first would have
+  read as unsupported — twelve on Outscale's `ReadImages`, three on
+  `ReadVmTypes`, seven on Exoscale's `template`.
+- **Sixteen Exoscale routes that were already served were answering the wrong
+  shape**: `instance-type` and `template` inside an instance are bare references
+  `{id}`, not expanded catalogue entries, and a unit test was locking that
+  mistake in because it asserted the schema rather than the wire.
+- **A header nobody vouched for is no longer written down.** Redaction matched
+  eight name substrings, and the three dialects served here passed only because
+  their bearers are called `Authorization` and `X-Auth-Token` — a coincidence,
+  not a rule. Reproduced: `X-Auth-Token` redacted and `X-Consumer` carrying the
+  same value written in full. Request and response headers are now an allowlist;
+  bodies stay a denylist, because a body **is** the measurement and a header is
+  not.
+
+### Changed
+
+- **The Scaleway root volume type has two reasons, and one was missing.** The
+  comment beside `rootVolume` justified forcing `b_ssd` with an argument that
+  covers local volumes only, so it said nothing about `sbs_volume` — and a
+  reader lifted the restriction on that basis. `docs/limits.md` now states the
+  consequence plainly: no `root_volume` type is writable today, `b_ssd` will not
+  plan from provider 2.79 on, `sbs_volume` plans for ever, and omitting the
+  block is the way through. It ends with #8. Reported by Vincent Dislaire.
+- **`docs/fourth-pack.md`** measures what a fourth provider pack would touch:
+  about 45 additive lines across 13 shared files, and no code in `internal/core`
+  naming a provider. The neutral-core rule holds under measurement rather than
+  by assertion.
+
 ## [0.6.0]
 
 ### Added
