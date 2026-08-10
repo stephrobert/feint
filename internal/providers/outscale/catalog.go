@@ -52,11 +52,59 @@ var vmTypes = []map[string]any{
 // as "unknown". The Vm view publishes the same value for the same reason.
 const linuxProductCode = "0001"
 
-var images = []map[string]any{
-	{"ImageId": "ami-00000001", "ImageName": "Ubuntu-24.04-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID, "ProductCodes": []any{linuxProductCode}},
-	{"ImageId": "ami-00000002", "ImageName": "Debian-12-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID, "ProductCodes": []any{linuxProductCode}},
-	{"ImageId": "ami-00000003", "ImageName": "Alpine-3.21-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID, "ProductCodes": []any{linuxProductCode}},
+// imageStructure is the three fields the Terraform provider dereferences
+// without a nil guard, published so it does not segfault.
+//
+// Reported by @vde-dis on #86, from the provider's own sources: at v1.7.0,
+// data_source_outscale_images.go reads `*image.BlockDeviceMappings` (:289),
+// `image.StateComment.StateCode` (:291) and `*image.PermissionsToLaunch
+// .AccountIds` (:292) in one loop where every neighbouring field goes through
+// ptr.From and survives a nil. The catalogue published none of the three, so
+// each was a nil pointer and the plugin died — "Plugin did not respond", with
+// nothing naming a field or a call.
+//
+// It is also a missing check on their side: none of the three is `required` in
+// their own api.yaml, which is why `--contracts` passes the answer. But the
+// emulator is the side that can fix it without waiting for anybody, and a real
+// OMI carries all three — confirmed against the real cloud rather than assumed,
+// in shapes/outscale.json: Images[].BlockDeviceMappings[].Bsu.{VolumeSize,
+// VolumeType,SnapshotId,Iops,DeleteOnVmDeletion}, Images[].PermissionsToLaunch
+// .{AccountIds,GlobalPermission}, Images[].StateComment.
+//
+// Empty is enough and is what is served: the reporter injected an empty
+// BlockDeviceMappings through a proxy, watched the crash move to StateComment,
+// then to PermissionsToLaunch, then stop. Inventing a device mapping would put
+// a disk in a catalogue that has none, which is the invented format rule 4
+// refuses.
+//
+// TestTheImageCatalogueCarriesWhatTheProviderDereferences fails without this.
+func imageStructure() map[string]any {
+	return map[string]any{
+		"BlockDeviceMappings": []any{},
+		"StateComment":        map[string]any{},
+		"PermissionsToLaunch": map[string]any{
+			"AccountIds":       []any{},
+			"GlobalPermission": false,
+		},
+	}
 }
+
+var images = func() []map[string]any {
+	out := []map[string]any{
+		{"ImageId": "ami-00000001", "ImageName": "Ubuntu-24.04-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID, "ProductCodes": []any{linuxProductCode}},
+		{"ImageId": "ami-00000002", "ImageName": "Debian-12-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID, "ProductCodes": []any{linuxProductCode}},
+		{"ImageId": "ami-00000003", "ImageName": "Alpine-3.21-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID, "ProductCodes": []any{linuxProductCode}},
+	}
+	// Added here rather than written into each literal: three copies of the
+	// same structure is three places for it to drift, and a fourth image would
+	// be added without them.
+	for _, image := range out {
+		for key, value := range imageStructure() {
+			image[key] = value
+		}
+	}
+	return out
+}()
 
 // runtimeImages maps an emulated OMI onto what the machine driver boots. Kept
 // apart from the catalogue on purpose: it is not API surface, and holding it in
