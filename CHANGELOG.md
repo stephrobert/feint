@@ -1,5 +1,7 @@
 # Changelog
 
+**Read this in another language:** [Français](./CHANGELOG.fr.md)
+
 Notable changes, in the format of [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 versioned according to [Semantic Versioning](https://semver.org/).
 

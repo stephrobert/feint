@@ -1,5 +1,7 @@
 # Releasing
 
+**Read this in another language:** [Français](./RELEASING.fr.md)
+
 A release is a tag. There is no version to bump in any file: `release.yml`
 stamps the tag into the binary with `-ldflags`, and a binary built any other way
 falls back to the module version the Go toolchain records in it. Nothing can

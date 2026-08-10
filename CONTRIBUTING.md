@@ -1,5 +1,7 @@
 # Contributing to Feint
 
+**Read this in another language:** [Français](./CONTRIBUTING.fr.md)
+
 ## The one rule
 
 **A change to emulated surface is not done until a real client exercised it.**

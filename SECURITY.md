@@ -1,5 +1,7 @@
 # Security policy
 
+**Read this in another language:** [Français](./SECURITY.fr.md)
+
 ## What Feint is, and what that means for you
 
 Feint emulates cloud APIs so you can run tests without an account. It is a
