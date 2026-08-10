@@ -3,19 +3,24 @@
   <img src="docs/assets/brand/feint-lockup-light.svg" alt="Feint" width="230">
 </picture>
 
-# Every European cloud needs an emulator
 
-[![Go](https://github.com/stephrobert/feint/actions/workflows/go.yml/badge.svg)](https://github.com/stephrobert/feint/actions/workflows/go.yml)
+# Feint
+
+*A local emulator for the European clouds — Scaleway, Outscale, Exoscale.*
+
+**One binary. One port. No account, no bill.**
+
 [![Conformance](https://github.com/stephrobert/feint/actions/workflows/conformance.yml/badge.svg)](https://github.com/stephrobert/feint/actions/workflows/conformance.yml)
 [![Drift](https://github.com/stephrobert/feint/actions/workflows/drift.yml/badge.svg)](https://github.com/stephrobert/feint/actions/workflows/drift.yml)
 [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/stephrobert/feint?label=OpenSSF%20Scorecard)](https://securityscorecards.dev/viewer/?uri=github.com/stephrobert/feint)
-[![Plumber compliance](https://score.getplumber.io/github.com/stephrobert/feint.svg)](https://score.getplumber.io/github.com/stephrobert/feint)
-[![SLSA build provenance](https://img.shields.io/badge/SLSA-build%20provenance-blue)](https://slsa.dev/spec/v1.0/levels)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
-[![Go Report Card](https://goreportcard.com/badge/github.com/stephrobert/feint)](https://goreportcard.com/report/github.com/stephrobert/feint)
 [![Zero dependencies](https://img.shields.io/badge/dependencies-0-success)](./go.mod)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 
-**One binary. One port. No account, no bill.**
+**Read this in another language:** [Français](./README.fr.md)
+
+[Install](#install) • [Use it](#use-it) • [What is proven](#status) •
+[Commands](#commands) • [What it does not do](docs/limits.md) •
+[Contributing](CONTRIBUTING.md)
 
 > [!WARNING]
 > **Under active development, version 0.x, and not free of bugs.** Two
@@ -28,23 +33,7 @@
 > passing command as a guarantee: report what breaks, that is what moves the
 > numbers.
 
-AWS has LocalStack. Azure has Azurite. European clouds have had nothing, and
-their users test against a paying account or not at all.
-
-Feint emulates their APIs so that SDKs, CLIs and Terraform run against your
-laptop. **Scaleway, Outscale and Exoscale are the first three** — the
-architecture exists so a fourth changes nothing outside its own pack, and the
-scan that keeps them honest reads whatever SDK or API description that provider
-publishes.
-
-The name is the fencing move: *feinte*, from Old French *feindre* — a movement
-made to look like the real one, so the opponent commits. That is the whole test
-here. The official client commits, and cannot tell.
-
-The mark draws the same argument: a solid line for the surface actually served, a
-dashed one leaving the same corner at the same angle for what the provider
-announced and nobody has driven yet. [docs/brand.md](docs/brand.md) has the files
-and what may be done with them.
+## Quick start
 
 <!-- banner:start -->
 ```bash
@@ -80,7 +69,24 @@ It needs Incus with OVN; `mise run demo:network` records it.
 
 ---
 
-## Prerequisites
+## Contents
+
+- [Quick start](#quick-start)
+- [Install](#install)
+- [Use it](#use-it)
+- [The page](#the-page)
+- [Real machines, on request](#real-machines-on-request)
+- [Status](#status)
+- [Commands](#commands)
+- [Background](#background)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
+## Install
+
+### Prerequisites
 
 **None, for what most people came for.** Feint is one static binary with no
 external dependencies: it emulates the three control planes, holds its state in
@@ -108,7 +114,6 @@ the same 6.0.4, and says what to install, which is the point of having it.
 
 ---
 
-## Install
 
 ### A released binary
 
@@ -492,57 +497,6 @@ those. Nothing else on your host is touched.
 
 ---
 
-## Why not a mock server
-
-A mock returns what you told it to return. It cannot tell you that the field you
-invented does not exist, that the CLI reads three other endpoints before it
-creates anything, or that the API renamed an operation last month.
-
-Two failures make the difference concrete, both found here:
-
-- `CreateVms` read a `VmCount` the Outscale API does not have — it says
-  `MinVmsCount` and `MaxVmsCount` — so every request created one machine whatever
-  it asked for. A mock configured with the same wrong field would have agreed.
-- The Scaleway pack once served an invented `private_ip` that its own test suite
-  read back, proving the emulator against itself.
-
-## Why not hand-written emulation
-
-Because the surface moves faster than anybody can follow by hand. Scaleway added
-363 operations and removed 25 in the twelve months to 2026-07-28 — measured by
-running this repository's own surface scan on two dated checkouts of their SDK
-(`de749e3`, 2025-07-25, and `06ce682`, 2026-07-28) and diffing the operation
-lists. Writing 200 000 lines by hand,
-as the alternative approach does for AWS, means being wrong within a quarter and
-not knowing which quarter.
-
-**So the surface is measured, not followed.** Three mechanisms, and they take
-precedence over any other design consideration:
-
-1. **The surface scan** (`internal/drift`) parses the provider's official Go SDK,
-   which is generated from their own IDL and therefore exact. No network call, no
-   assumption.
-2. **The baseline** is committed. An operation that appears upstream and that
-   nobody has triaged fails CI. Not "not yet supported" — *undecided*, which is a
-   different and more useful thing to know.
-3. **The conformance suites** replay the real clients: `scw`, `oapi-cli`, `exo`,
-   Terraform and OpenTofu, in CI, on every pull request.
-
-On top of that, every response is validated against the provider's own OpenAPI
-document when the emulator runs with `--contracts`. That is not tidiness: 643 of
-Outscale's 650 schemas declare `additionalProperties: false`, so a field they do
-not define is a violation *they* wrote down.
-
-```bash
-mise run drift:check     # exit 2 if the upstream surface moved
-mise run drift:update    # after triaging: implement, or decline with a reason
-```
-
-A weekly job runs the scan and **opens a pull request** the moment upstream moves.
-The human work is triage.
-
----
-
 ## Status
 
 | Provider | Protocol | Proven by | Maturity |
@@ -687,36 +641,110 @@ discipline a billed account demands.
 
 ---
 
-## Develop
+## Background
+
+AWS has LocalStack. Azure has Azurite. European clouds have had nothing, and
+their users test against a paying account or not at all.
+
+Feint emulates their APIs so that SDKs, CLIs and Terraform run against your
+laptop. **Scaleway, Outscale and Exoscale are the first three** — the
+architecture exists so a fourth changes nothing outside its own pack, and the
+scan that keeps them honest reads whatever SDK or API description that provider
+publishes.
+
+The name is the fencing move: *feinte*, from Old French *feindre* — a movement
+made to look like the real one, so the opponent commits. That is the whole test
+here. The official client commits, and cannot tell.
+
+The mark draws the same argument: a solid line for the surface actually served, a
+dashed one leaving the same corner at the same angle for what the provider
+announced and nobody has driven yet. [docs/brand.md](docs/brand.md) has the files
+and what may be done with them.
+
+### Why not a mock server
+
+A mock returns what you told it to return. It cannot tell you that the field you
+invented does not exist, that the CLI reads three other endpoints before it
+creates anything, or that the API renamed an operation last month.
+
+Two failures make the difference concrete, both found here:
+
+- `CreateVms` read a `VmCount` the Outscale API does not have — it says
+  `MinVmsCount` and `MaxVmsCount` — so every request created one machine whatever
+  it asked for. A mock configured with the same wrong field would have agreed.
+- The Scaleway pack once served an invented `private_ip` that its own test suite
+  read back, proving the emulator against itself.
+
+
+### Why not hand-written emulation
+
+Because the surface moves faster than anybody can follow by hand. Scaleway added
+363 operations and removed 25 in the twelve months to 2026-07-28 — measured by
+running this repository's own surface scan on two dated checkouts of their SDK
+(`de749e3`, 2025-07-25, and `06ce682`, 2026-07-28) and diffing the operation
+lists. Writing 200 000 lines by hand,
+as the alternative approach does for AWS, means being wrong within a quarter and
+not knowing which quarter.
+
+**So the surface is measured, not followed.** Three mechanisms, and they take
+precedence over any other design consideration:
+
+1. **The surface scan** (`internal/drift`) parses the provider's official Go SDK,
+   which is generated from their own IDL and therefore exact. No network call, no
+   assumption.
+2. **The baseline** is committed. An operation that appears upstream and that
+   nobody has triaged fails CI. Not "not yet supported" — *undecided*, which is a
+   different and more useful thing to know.
+3. **The conformance suites** replay the real clients: `scw`, `oapi-cli`, `exo`,
+   Terraform and OpenTofu, in CI, on every pull request.
+
+On top of that, every response is validated against the provider's own OpenAPI
+document when the emulator runs with `--contracts`. That is not tidiness: 643 of
+Outscale's 650 schemas declare `additionalProperties: false`, so a field they do
+not define is a violation *they* wrote down.
 
 ```bash
+mise run drift:check     # exit 2 if the upstream surface moved
+mise run drift:update    # after triaging: implement, or decline with a reason
+```
+
+A weekly job runs the scan and **opens a pull request** the moment upstream moves.
+The human work is triage.
+
+---
+
+## Contributing
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) first. It carries the one rule of this
+repository — **a change to emulated surface is not done until a real client
+exercised it**, because a unit test asserts what we believe an API does and only
+the official client asserts what it is — plus the commit format the version is
+derived from, and how an issue title is written.
+
+Then [docs/architecture.md](docs/architecture.md): what the neutral core is,
+where a provider's knowledge is allowed to live, and what a request does from the
+mux to the response shape.
+
+```bash
+mise install           # pinned Go, Python, uv and the linters
+pre-commit install     # the local gates; not optional, see CONTRIBUTING.md
 mise run check         # gofmt, vet, golangci-lint, go test -race
-mise run serve         # the emulator
 mise run conformance   # every real client against it
 mise run drift:check   # did the upstream API move?
 mise run fuzz          # fuzz the request decoders
 ```
 
-Start with [docs/architecture.md](docs/architecture.md): what the neutral core
-is, where a provider's knowledge is allowed to live, and what a request does from
-the mux to the response shape.
-
-Then [CONTRIBUTING.md](CONTRIBUTING.md) before changing a pack: what a reviewable
-change looks like here, the traps already paid for in time, and the shortest rule
-of the project — **a unit test alone never proves a response shape**, only the
-official client can.
-
-- Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) — including the
-  [AI-assisted contributions](CONTRIBUTING.md#ai-assisted-contributions) policy:
-  welcome, disclosed with `Assisted-by:`, and judged by whether the real client
-  drives the change rather than by what wrote it
-- Conformance suites and what each proves: [tools/conformance/](tools/conformance/)
+- **AI-assisted contributions** are welcome, disclosed with `Assisted-by:`, and
+  judged by whether the real client drives the change rather than by what wrote
+  it: [the policy](CONTRIBUTING.md#ai-assisted-contributions)
+- What each conformance suite proves: [tools/conformance/](tools/conformance/)
 - Installing the machine runtime: [docs/install.md](docs/install.md)
-- What is intentionally not emulated: [docs/limits.md](docs/limits.md)
-- Where this is going: [docs/roadmap.md](docs/roadmap.md)
-- Covering each provider's IaaS layer end to end, batch by batch:
-  [Scaleway](docs/roadmap-scaleway-iaas.md), [Outscale](docs/roadmap-outscale-iaas.md),
+- What is intentionally not emulated, and why: [docs/limits.md](docs/limits.md)
+- Where this is going: [docs/roadmap.md](docs/roadmap.md), and per provider —
+  [Scaleway](docs/roadmap-scaleway-iaas.md),
+  [Outscale](docs/roadmap-outscale-iaas.md),
   [Exoscale](docs/roadmap-exoscale-iaas.md)
+- What a fourth provider pack would cost: [docs/fourth-pack.md](docs/fourth-pack.md)
 - Reporting a vulnerability: [SECURITY.md](SECURITY.md)
 
 ---
