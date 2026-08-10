@@ -1,0 +1,72 @@
+{
+  "provider": "exoscale",
+  "operations": {
+    "GET /v2/anti-affinity-group": {
+      "method": "GET",
+      "path": "/v2/anti-affinity-group",
+      "fields": [
+        {
+          "path": "anti-affinity-groups",
+          "type": "array"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "GET /v2/dns-domain": {
+      "method": "GET",
+      "path": "/v2/dns-domain",
+      "fields": null,
+      "statuses": [
+        403
+      ]
+    },
+    "exoscale/v2.list-ssh-keys": {
+      "method": "GET",
+      "path": "/v2/ssh-key",
+      "fields": [
+        {
+          "path": "ssh-keys",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.list-zones": {
+      "method": "GET",
+      "path": "/v2/zone",
+      "fields": [
+        {
+          "path": "zones",
+          "type": "array"
+        },
+        {
+          "path": "zones[]",
+          "type": "object"
+        },
+        {
+          "path": "zones[].api-endpoint",
+          "type": "string"
+        },
+        {
+          "path": "zones[].id",
+          "type": "string"
+        },
+        {
+          "path": "zones[].name",
+          "type": "string"
+        },
+        {
+          "path": "zones[].sos-endpoint",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    }
+  }
+}
