@@ -635,19 +635,32 @@ func TestTheTranscriptIsOnDiskBeforeTheRunEnds(t *testing.T) {
 
 	// The write is asynchronous by design, so this waits for it rather than
 	// assuming it has happened; what it must never need is a Close.
+	//
+	// Two facts are waited for, not one: the line on disk, and the writer
+	// counting it. They never become true atomically — run() writes, then locks
+	// and increments — so a poll landing between the syscall and the count sees
+	// the line with written still 0. Asserted instantaneously, that window
+	// failed this test about one run in five on a loaded station ("the file
+	// holds a line the writer does not count: 0"); a 20 ms pause inserted at
+	// that exact point, standing in for a scheduler preemption, reproduced it
+	// on every run. Waiting for both keeps what the test pins — nothing here
+	// ever calls Close before returning — without asserting an ordering the
+	// writer does not promise.
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("read the transcript: %v", err)
 		}
-		if bytes.HasSuffix(raw, []byte("\n")) && len(raw) > 0 {
-			if written, _ := writer.Stats(); written != 1 {
-				t.Errorf("the file holds a line the writer does not count: %d", written)
-			}
+		onDisk := bytes.HasSuffix(raw, []byte("\n"))
+		written, _ := writer.Stats()
+		if onDisk && written == 1 {
 			return
 		}
 		if time.Now().After(deadline) {
+			if onDisk {
+				t.Fatalf("the file holds a line the writer never counted: %d", written)
+			}
 			t.Fatal("nothing reached the transcript while the proxy was still running")
 		}
 		time.Sleep(5 * time.Millisecond)
