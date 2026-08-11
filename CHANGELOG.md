@@ -13,7 +13,16 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
-## [Unreleased]
+## [0.7.2]
+
+### Added
+
+- **140 of 175 routes are proven by a real client**, up from 132. The eight are
+  the ones OSC-3 and OSC-4 named among their deliverables and no client had ever
+  driven: the four NIC operations, `ReadNatServices`, and the three updates
+  Terraform never walks because it replaces rather than updates — `UpdateRoute`,
+  `UpdateVolume`, `UpdateImage`. Both batches (#10, #13) close on that, rather
+  than on operations being served.
 
 ### Fixed
 - **An attached network interface reported a link state the Terraform provider

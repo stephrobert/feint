@@ -15,7 +15,16 @@ parce que c'est là-dessus que ce projet est jugé : **une forme de réponse qu'
 client peut observer**, et **une limite qui a bougé**. Une refactorisation qui ne
 change ni l'un ni l'autre a sa place dans `git log`.
 
-## [Non publié]
+## [0.7.2]
+
+### Ajouté
+
+- **140 routes sur 175 sont prouvées par un vrai client**, contre 132. Les huit
+  sont celles qu'OSC-3 et OSC-4 nommaient parmi leurs livrables et qu'aucun
+  client n'avait jamais pilotées : les quatre opérations NIC, `ReadNatServices`,
+  et les trois mises à jour que Terraform ne parcourt pas parce qu'il remplace au
+  lieu de mettre à jour — `UpdateRoute`, `UpdateVolume`, `UpdateImage`. Les deux
+  lots (#10, #13) se ferment là-dessus, et non sur des opérations servies.
 
 ### Corrigé
 - **Une interface réseau attachée rapportait un état de lien que le provider
