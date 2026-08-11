@@ -51,6 +51,7 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from typing import IO
 
 # The browsers this looks for, in order. A GitHub runner ships google-chrome; a
 # Debian or Ubuntu workstation ships chromium or chromium-browser. Naming them
@@ -255,8 +256,42 @@ def find_browser() -> str | None:
 
 
 def start_browser(binary: str, profile: str) -> tuple[subprocess.Popen, str]:
-    """Start the browser and return it with the URL of its page target."""
+    """Start the browser and return it with the URL of its page target.
+
+    Tried twice, on a fresh port each time. The port is chosen by binding zero
+    and closing, so between that close and the browser's own bind the number is
+    anybody's — on a busy runner it is a race this cannot win, only retry.
+    """
+    failures = []
+    for attempt in range(2):
+        try:
+            # A subdirectory rather than a sibling: main() removes `profile`
+            # and only that, so a sibling would survive every run as a leak.
+            # A fresh one per attempt, because a first launch that died holding
+            # the profile lock makes the second fail for the wrong reason.
+            return start_browser_once(binary, os.path.join(profile, str(attempt)))
+        except Failure as why:
+            failures.append(f"attempt {attempt + 1}: {why}")
+    raise Failure("the browser never opened a page target.\n" + "\n".join(failures))
+
+
+def start_browser_once(binary: str, profile: str) -> tuple[subprocess.Popen, str]:
+    """One start: spawn the browser and wait for its debugging port."""
     port = free_port()
+    # The browser's own account of why it failed. It used to go to DEVNULL,
+    # which is how four consecutive CI failures produced one sentence between
+    # them — "the browser never opened a page target" — and no way to tell a
+    # taken port from a slow cold start from a missing shared library. A
+    # harness that cannot say why it failed gets re-run instead of read.
+    #
+    # Closed on the way out of this function, which the browser does not mind:
+    # the descriptor it writes to is its own, duplicated at spawn.
+    with tempfile.TemporaryFile() as diagnosis:
+        return spawn_and_wait(binary, profile, port, diagnosis)
+
+
+def spawn_and_wait(binary: str, profile: str, port: int, diagnosis: IO[bytes]):
+    """Spawn the browser, and wait for a page target or a reason there is none."""
     process = subprocess.Popen(  # noqa: S603 - a fixed binary, list arguments, no shell
         [
             binary,
@@ -280,12 +315,31 @@ def start_browser(binary: str, profile: str) -> tuple[subprocess.Popen, str]:
             "about:blank",
         ],
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=diagnosis,
     )
-    deadline = time.monotonic() + 20
+
+    def why() -> str:
+        """What the browser said, for a message that can be acted on."""
+        try:
+            diagnosis.seek(0)
+            said = diagnosis.read().decode("utf-8", "replace").strip()
+        except OSError:
+            return "and said nothing readable"
+        if not said:
+            return "and said nothing"
+        return "and said: " + " / ".join(said.splitlines()[-4:])
+
+    # 60 seconds rather than 20. The old budget covered a cold start on an idle
+    # machine and nothing else: this job runs after a Go build and an emulator
+    # start, on a shared runner, and headless Chrome's first launch is the part
+    # that gets slow when the runner is busy.
+    deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
         if process.poll() is not None:
-            raise Failure(f"{binary} exited before it opened its debugging port")
+            raise Failure(
+                f"{binary} exited with {process.returncode} before it opened "
+                f"its debugging port on {port}, {why()}"
+            )
         try:
             # The scheme and host are literals here: the browser this script
             # just started, on the loopback interface.
@@ -297,7 +351,12 @@ def start_browser(binary: str, profile: str) -> tuple[subprocess.Popen, str]:
                     return process, target["webSocketDebuggerUrl"]
         except (urllib.error.URLError, OSError, json.JSONDecodeError):
             time.sleep(0.2)
-    raise Failure("the browser never opened a page target")
+
+    process.kill()
+    process.wait(timeout=10)
+    raise Failure(
+        f"{binary} was still running after 60s without a page target on port {port}, {why()}"
+    )
 
 
 def free_port() -> int:
