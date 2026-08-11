@@ -11,6 +11,8 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"sort"
+	"strings"
 	"syscall"
 	"time"
 
@@ -142,6 +144,18 @@ func proxyCommand(args []string, _ io.Writer, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%d of them walked a route no pack claims: grep '\"operation\":\"\"' or filter on .mounted == false\n",
 			unnamed)
 	}
+	if handed, hosts := p.HandedElsewhere(); handed > 0 {
+		// The other half of the product, and the one that would otherwise be
+		// invisible: an answer that gave the client a different address. If the
+		// client followed it, everything after this point left no trace here,
+		// and a transcript that stops early is indistinguishable from a session
+		// that ended early. Measured on Exoscale: a session worth about ninety
+		// exchanges recorded eight, and nothing said so.
+		fmt.Fprintf(stderr,
+			"%d response(s) handed the client an address that is not this proxy: %s\n"+
+				"  anything the client sent there is absent from this transcript. See docs/proxy.md.\n",
+			handed, strings.Join(sortedHosts(hosts), ", "))
+	}
 	if dropped > 0 {
 		fmt.Fprintf(stderr, "%d exchange(s) were dropped because the transcript could not keep up; "+
 			"the gaps in \"seq\" are where. Raise --queue.\n", dropped)
@@ -220,4 +234,20 @@ func transcriptFile(path string) (io.Writer, func() error, error) {
 		return nil, nil, fmt.Errorf("open the transcript %s: %w", path, err)
 	}
 	return f, f.Close, nil
+}
+
+// sortedHosts names the hosts a run was handed, most seen first, then
+// alphabetically so two identical runs print identically.
+func sortedHosts(hosts map[string]int64) []string {
+	out := make([]string, 0, len(hosts))
+	for host := range hosts {
+		out = append(out, host)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if hosts[out[i]] != hosts[out[j]] {
+			return hosts[out[i]] > hosts[out[j]]
+		}
+		return out[i] < out[j]
+	})
+	return out
 }

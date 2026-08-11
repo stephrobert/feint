@@ -98,6 +98,71 @@ finds, because the unit test was written against the same reading of the SDK the
 handler was. This is the project's "jamais de format inventé" rule, made
 checkable.
 
+## What a recording can promise
+
+A transcript covers **what the client kept sending to the proxy**, and that is
+narrower than "the session". Two of the three providers served here can take a
+client out of the recording, for unrelated reasons, and the two fail
+differently — which matters more than either mechanism, because one is loud and
+the other was not.
+
+| provider | mechanism | how it fails |
+|---|---|---|
+| Scaleway | none | records whole |
+| Outscale | the signature covers `Host` | **refuses**: the cloud answers 401, nothing is distorted |
+| Exoscale | the server returns an address in the body | **truncates**: recording stops, and used to say nothing |
+
+Scaleway is the one that works, and that is why the trap went unnoticed for so
+long: the provider this tool was built against signs nothing and never
+republishes its own address, so it is the only one immune to both.
+
+### The recorder says when it has handed the client away
+
+The Exoscale case is the dangerous one, because a transcript that stops early
+looks exactly like a session that ended early. Measured: a full Exoscale
+session, seven resources created and swept on a real account, recorded **8
+exchanges**; the same session with the endpoints rewritten recorded about
+**ninety**. Nothing in the file said the other eighty-two existed.
+
+So the proxy now counts responses that named a host other than the one the
+client is addressing, and says so when the run ends:
+
+```text
+3 response(s) handed the client an address that is not this proxy: api-ch-dk-2.exoscale.com
+  anything the client sent there is absent from this transcript. See docs/proxy.md.
+```
+
+It is detected by shape, not by field name: an absolute URL in a response body
+whose host is not the client's. Naming `api-endpoint` would put one provider's
+vocabulary in a tool that carries none, and the fourth API to do this would be
+silent all over again.
+
+Two properties matter as much as the detection, and each has its own test:
+
+- **An answer naming the proxy itself is not a handoff.** The emulator's own
+  `/v2/zone` publishes an endpoint pointing back at itself — `catalog.go` says
+  that is the whole reason the route exists — so counting it would raise the
+  alarm on every correct recording, and an alarm that fires on the normal case
+  gets ignored.
+- **A gzipped body is decompressed before the scan.** `scw` and `exo` both send
+  `Accept-Encoding`, so on a real session nearly every body arrives compressed;
+  a scan over the raw bytes would find nothing in any of them and report
+  nothing found, which reads exactly like nothing being there.
+
+### What this deliberately does not do
+
+**It does not rewrite the address.** A recorder that edits the answer it is
+recording is not a recorder, and the scratchpad rewriter used to capture the
+Exoscale shapes was honest about shapes and lying about one field. If following
+the endpoint is ever wanted, it belongs behind an explicit flag that records the
+answer **as received** and marks that it rewrote what the client saw — which is
+the open half of #92, deliberately not decided by this change.
+
+**The other route is already there and needs no proxy.** `internal/upstream`
+signs the real host and talks to it directly, so it has neither problem: it is
+how `feint shapes --record` captures a real cloud's field tree. When a recording
+would be truncated, that is the tool to reach for.
+
 ### What it cannot record: a signed client pointed at a real cloud
 
 A reverse proxy cannot relay a SigV4-signed request to a real cloud when the

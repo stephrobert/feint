@@ -15,6 +15,36 @@ parce que c'est là-dessus que ce projet est jugé : **une forme de réponse qu'
 client peut observer**, et **une limite qui a bougé**. Une refactorisation qui ne
 change ni l'un ni l'autre a sa place dans `git log`.
 
+## [Non publié]
+
+### Corrigé
+
+- **Un enregistrement pouvait s'arrêter tôt sans rien dire.** Certaines API
+  remettent une adresse au client dans un corps de réponse — Exoscale publie un
+  `api-endpoint` par zone — et un client qui la suit quitte le proxy pour tout
+  ce qui vient après. Mesuré sur un vrai compte : une session valant environ
+  quatre-vingt-dix échanges en a enregistré **huit**, et la transcription avait
+  l'air complète. `feint proxy` compte désormais les réponses qui nomment un
+  hôte autre que celui auquel le client s'adresse, nomme ces hôtes à la fin du
+  run, et dit franchement que ce qui est parti là-bas est absent du fichier.
+
+  Détecté par la forme plutôt que par le nom du champ — une URL absolue dont
+  l'hôte n'est pas celui du client — parce que nommer `api-endpoint` mettrait le
+  vocabulaire d'un provider dans un outil qui n'en porte aucun, et la prochaine
+  API à faire cela serait de nouveau silencieuse. Deux propriétés portent leur
+  propre test : une réponse qui nomme le proxy lui-même n'est **pas** un renvoi,
+  parce que la liste de zones de l'émulateur pointe sur elle-même et qu'une
+  alarme qui sonne sur le cas normal finit ignorée ; et un corps gzippé est
+  décompressé avant le scan, parce que `scw` et `exo` envoient tous deux
+  `Accept-Encoding` et qu'un scan sur des octets compressés ne trouve rien d'une
+  façon qui se lit « il n'y a rien ».
+
+  Il ne réécrit pas l'adresse, délibérément : un enregistreur qui modifie ce
+  qu'il enregistre n'en est pas un. `docs/proxy.md` énonce désormais ce qu'un
+  enregistrement peut promettre pour les trois providers plutôt que pour le seul
+  Outscale — l'un refuse bruyamment, l'un tronquait en silence, l'un enregistre
+  entièrement (#92).
+
 ## [0.7.1]
 
 ### Corrigé

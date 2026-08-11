@@ -81,6 +81,10 @@ type Proxy struct {
 	// exactly the list #74 ranks and the gap tools/conformance/README.md
 	// describes finding three times by hand.
 	unnamed atomic.Int64
+	// handed counts responses that gave the client an address other than this
+	// proxy. See handoff.go: it is the difference between a recording that
+	// stops and a recording that stops and says so.
+	handed handoff
 }
 
 // New validates the options and builds the proxy.
@@ -175,6 +179,11 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.rp.ServeHTTP(tap, r)
 	elapsed := time.Since(started)
 
+	// Read from the recorded copy, not from the wire: the client already has the
+	// bytes and nothing here alters them. r.Host is the authority the client
+	// addressed, which is what "elsewhere" is measured against.
+	p.handed.note(r.Host, tap.body.plain(w.Header()))
+
 	p.writer.Record(capture(seen{
 		at:        p.now(),
 		elapsed:   elapsed,
@@ -198,6 +207,16 @@ func (p *Proxy) Unnamed() int64 {
 	}
 	return p.unnamed.Load()
 }
+
+// HandedElsewhere is how many responses gave the client an address that is not
+// this proxy, and which hosts they named.
+//
+// It is not an error and not always a problem — an API may name a bucket
+// endpoint in a body nobody follows. It matters because the client *may* follow
+// it, and if it does, everything after leaves no trace here. A transcript that
+// stops early looks exactly like a session that ended early, and only this
+// number tells them apart.
+func (p *Proxy) HandedElsewhere() (int64, map[string]int64) { return p.handed.seen() }
 
 // responseTap copies what is written to the client, and passes it through.
 //

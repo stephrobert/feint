@@ -149,6 +149,33 @@ func (b *body) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// plain copies out what was captured, decompressed if it was gzipped, for a
+// reader that wants the text rather than the decoded value.
+//
+// The gzip step is not optional here: `scw` and `exo` both send
+// Accept-Encoding, so without it every response of a real session is a blob and
+// a scan over it finds nothing — a detector that is quietly blind on the common
+// case, which is the failure mode this package exists to avoid.
+//
+// A copy rather than the buffer's own slice: the caller reads outside the lock
+// and the buffer can still be written to.
+func (b *body) plain(header http.Header) []byte {
+	b.mu.Lock()
+	data := append([]byte(nil), b.buf.Bytes()...)
+	b.mu.Unlock()
+
+	if strings.EqualFold(header.Get("Content-Encoding"), "gzip") {
+		if unpacked, err := gunzip(data); err == nil {
+			return unpacked
+		}
+		// A body that will not decompress is one nothing can be read out of.
+		// Answering the compressed bytes would scan gibberish and report
+		// nothing found, which reads like "nothing there".
+		return nil
+	}
+	return data
+}
+
 // decoded turns what was captured into the value the transcript carries.
 func (b *body) decoded(header http.Header) any {
 	b.mu.Lock()

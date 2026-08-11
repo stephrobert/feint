@@ -13,6 +13,34 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
+## [Unreleased]
+
+### Fixed
+
+- **A recording could stop early and say nothing.** Some APIs hand the client an
+  address in a response body — Exoscale publishes an `api-endpoint` per zone —
+  and a client that follows it walks away from the proxy for everything after.
+  Measured on a real account: a session worth about ninety exchanges recorded
+  **eight**, and the transcript looked complete. `feint proxy` now counts
+  responses that named a host other than the one the client is addressing, names
+  those hosts when the run ends, and says plainly that whatever went there is
+  absent from the file.
+
+  Detected by shape rather than by field name — an absolute URL whose host is
+  not the client's — because naming `api-endpoint` would put one provider's
+  vocabulary into a tool that carries none, and the next API to do this would be
+  silent all over again. Two properties carry their own tests: an answer naming
+  the proxy itself is **not** a handoff, because the emulator's own zone list
+  points back at itself and an alarm that fires on the normal case gets ignored;
+  and a gzipped body is decompressed before the scan, because `scw` and `exo`
+  both send `Accept-Encoding` and a scan over compressed bytes finds nothing in
+  a way that reads like nothing being there.
+
+  It does not rewrite the address, deliberately: a recorder that edits what it
+  records is not one. `docs/proxy.md` now states what a recording can promise
+  for all three providers rather than for Outscale alone — one refuses loudly,
+  one used to truncate quietly, one records whole (#92).
+
 ## [0.7.1]
 
 ### Fixed
