@@ -420,13 +420,25 @@ The fix is four lines per site, so it is also carried on a fork, pinned:
 - [`stephrobert/terraform-provider-exoscale@fix/v2-client-honours-api-endpoint`][fork],
   commit `2e78b42`, branched from `de9d60c2` (0.70.0 plus six commits).
 
+**This recipe is a snapshot, and nothing re-checks it.** It was last verified on
+2026-08-11: the branch tip was still `2e78b42` and the build below succeeded.
+No gate clones a third-party repository — deliberately, that would put someone
+else's availability in this project's CI — so past that date the honest claim
+is "it worked then", not "it works". The recipe checks out the measured commit
+rather than the branch tip for the same reason: a tip can move under a reader,
+a commit cannot. If the build breaks or the fork disappears, check
+[exoscale/terraform-provider-exoscale#573][exo-573] first — upstream landing an
+endpoint option is the outcome that makes this whole section obsolete, and the
+released provider is then the thing to use.
+
 It passes `ClientOptWithAPIEndpoint` at the three sites, and nothing else.
 Terraform resolves it without a registry, through `dev_overrides`:
 
 ```bash
 git clone -b fix/v2-client-honours-api-endpoint \
   https://github.com/stephrobert/terraform-provider-exoscale
-cd terraform-provider-exoscale && go build -o /tmp/tfp/terraform-provider-exoscale .
+cd terraform-provider-exoscale && git checkout 2e78b42
+go build -o /tmp/tfp/terraform-provider-exoscale .
 
 cat > /tmp/dev.tfrc <<'RC'
 provider_installation {
