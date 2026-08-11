@@ -22,6 +22,14 @@ cd "$ROOT"
 CHECK=""
 [ "${1:-}" = "--check" ] && CHECK="--check"
 
+# The harness proves itself before it proves the page. Its failure diagnosis
+# (the browser's stderr quoted, a retry on a fresh port) was fixed once without
+# anything holding it, which is this repository's named defect: a comment where
+# a control should be. Needs no browser and no emulator, so it runs first and
+# costs nothing when everything else is about to.
+echo "page: checking the harness itself"
+python3 tools/ui/check-page.py --self-check
+
 ADDR="${FEINT_UI_ADDR:-127.0.0.1:4622}"
 ENDPOINT="http://$ADDR"
 OUT="docs/assets/ui"

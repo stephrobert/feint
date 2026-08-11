@@ -653,12 +653,73 @@ def capture(page: Page, out: str) -> list[str]:
     return written
 
 
+def self_check() -> int:
+    """Prove the harness can say why a browser failed, with no browser at all.
+
+    This holds the fix for four consecutive CI failures that produced one
+    sentence between them — "the browser never opened a page target" — by
+    driving start_browser() against a stub that dies the way a runner's browser
+    dies: noisily on stderr, silently to the harness. Two behaviours are
+    asserted, because both rotted once: the stderr is quoted in the failure,
+    and a failed launch is attempted a second time on a fresh port.
+
+    Why here and not a pytest suite: this repository's Python is tooling, like
+    `scw` or `terraform`, and its harnesses prove themselves the way
+    tools/conformance/ does — by running against the real seam. A test
+    framework for one script would be more machinery than subject; this
+    function is the recorded conclusion of that trade-off, and
+    tools/ui/screenshots.sh runs it before every real check so it cannot rot
+    unnoticed. What it deliberately does not hold: the 60-second launch
+    deadline, which only means something on a loaded runner and would cost a
+    minute per run to prove.
+    """
+    workdir = tempfile.mkdtemp(prefix="feint-ui-selfcheck-")
+    problems: list[str] = []
+    try:
+        stub = os.path.join(workdir, "stub-browser")
+        with open(stub, "w") as handle:
+            handle.write(
+                "#!/bin/sh\n"
+                "echo 'error while loading shared libraries: libstub.so.9' >&2\n"
+                "exit 127\n"
+            )
+        # Owner-only: the stub is spawned by this process and nobody else.
+        os.chmod(stub, 0o700)
+        try:
+            start_browser(stub, os.path.join(workdir, "profile"))
+            problems.append("a browser that exits 127 was reported as started")
+        except Failure as why:
+            said = str(why)
+            if "libstub.so.9" not in said:
+                problems.append(f"the browser's stderr is not quoted in the failure: {said!r}")
+            if "attempt 2" not in said:
+                problems.append(f"a failed launch is not retried on a fresh port: {said!r}")
+            if "exited with 127" not in said:
+                problems.append(f"the exit code is not named: {said!r}")
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+    for problem in problems:
+        print(f"SELF-CHECK FAIL: {problem}", file=sys.stderr)
+    if not problems:
+        print("  self-check: the harness can name a browser failure, twice, with its stderr")
+    return 1 if problems else 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--endpoint", default="http://127.0.0.1:4599")
     parser.add_argument("--out", default="docs/assets/ui")
     parser.add_argument("--check", action="store_true", help="assert only, write no image")
+    parser.add_argument(
+        "--self-check",
+        action="store_true",
+        help="prove the harness's own failure diagnosis works, then exit",
+    )
     args = parser.parse_args()
+
+    if args.self_check:
+        return self_check()
 
     binary = find_browser()
     if binary is None:
