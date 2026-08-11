@@ -36,6 +36,22 @@ what this project is judged on: **a response shape a client can observe**, and
   Falsified: with the list back to five, the new test fails and that one still
   passes, which is the blind spot demonstrated rather than argued.
 
+- **An unknown image identifier no longer boots a substitute** (#83). With a
+  runtime configured, all three packs silently replaced an image no catalogue
+  held — ask for Alpine, boot Ubuntu — while the API kept reporting the
+  identifier the client sent; Scaleway's resolution matched labels by
+  substring, so `centos`, `rocky` and `ubuntu_focal` all became Ubuntu 22.04.
+  The create still succeeds, as `docs/limits.md` promises for hardcoded
+  production identifiers, but the boot now refuses: the machine reaches the
+  provider's own failed state and the log names the identifier. Image and
+  login now resolve together — root on Scaleway, `outscale` on Outscale, the
+  template's `default-user` on Exoscale — and the Scaleway marketplace answers
+  one fixed UUID per label, so a label resolved through it by Terraform still
+  names the distribution it chose. An image the client registered through
+  Outscale's `CreateImage` refuses the same way — the emulator serves its
+  record and holds no disk contents — and the log says which of the two cases
+  it is.
+
 ## [0.7.2]
 
 ### Added

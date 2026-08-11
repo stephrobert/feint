@@ -72,7 +72,7 @@ func TestConcurrentCreatesDoNotShareAnAddress(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			_, out := post(t, ts, "CreateVms",
-				`{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+				`{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
 			vms, _ := out["Vms"].([]any)
 			if len(vms) == 0 {
 				return
@@ -109,7 +109,7 @@ func TestASubnetDoesNotDeleteUnderAVm(t *testing.T) {
 	ts := newServer(t)
 	_, subnetID := netAndSubnet(t, ts, "10.43.0.0/16", "10.43.1.0/24")
 
-	post(t, ts, "CreateVms", `{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+	post(t, ts, "CreateVms", `{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
 
 	status, out := post(t, ts, "DeleteSubnet", `{"SubnetId":"`+subnetID+`"}`)
 	if status == http.StatusOK {
@@ -134,7 +134,7 @@ func TestAFailedCreateLeavesNothingBehind(t *testing.T) {
 	_, subnetID := netAndSubnet(t, ts, "10.44.0.0/16", "10.44.1.0/28")
 
 	status, _ := post(t, ts, "CreateVms",
-		`{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","MaxVmsCount":14,"BootOnCreation":false}`)
+		`{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","MaxVmsCount":14,"BootOnCreation":false}`)
 	if status == http.StatusOK {
 		t.Skip("the subnet was large enough; nothing to unwind")
 	}
@@ -191,7 +191,7 @@ func TestAvailableIpsCountFollowsTheMachines(t *testing.T) {
 	empty, _ := first["AvailableIpsCount"].(float64)
 
 	for range 3 {
-		post(t, ts, "CreateVms", `{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+		post(t, ts, "CreateVms", `{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
 	}
 
 	_, out = post(t, ts, "ReadSubnets", `{}`)
@@ -257,7 +257,7 @@ func TestDryRunReachesNoHandler(t *testing.T) {
 	ts := newServer(t)
 	_, subnetID := netAndSubnet(t, ts, "10.47.0.0/16", "10.47.1.0/24")
 
-	_, out := post(t, ts, "CreateVms", `{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+	_, out := post(t, ts, "CreateVms", `{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
 	vms, _ := out["Vms"].([]any)
 	vm, _ := vms[0].(map[string]any)
 	vmID, _ := vm["VmId"].(string)
@@ -272,7 +272,7 @@ func TestDryRunReachesNoHandler(t *testing.T) {
 	}
 
 	// And the creating one.
-	if status, _ := post(t, ts, "CreateVms", `{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","DryRun":true}`); status != http.StatusOK {
+	if status, _ := post(t, ts, "CreateVms", `{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","DryRun":true}`); status != http.StatusOK {
 		t.Fatalf("dry run create: status %d", status)
 	}
 	_, out = post(t, ts, "ReadVms", `{}`)
@@ -313,7 +313,7 @@ func TestASubnetDoesNotDeleteUnderARace(t *testing.T) {
 			// placement and its Put. Still not wide enough to catch the missing
 			// lock, which is why the comment above says so.
 			post(t, ts, "CreateVms",
-				`{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","MaxVmsCount":8,"BootOnCreation":false}`)
+				`{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","MaxVmsCount":8,"BootOnCreation":false}`)
 		}()
 		go func() {
 			defer wg.Done()
@@ -354,6 +354,12 @@ func TestASubnetDoesNotDeleteUnderARace(t *testing.T) {
 //
 // A machine the control plane does not describe is a machine nobody thinks to
 // stop, which is the worst outcome this layer can produce.
+//
+// The fixture names a catalogue OMI on purpose. It used to say ami-12345678 as
+// a placeholder, and the fallback booted the default image for it; since #83 an
+// unknown identifier never reaches the runtime at all, so this test — whose
+// subject is the vanished resource, not the resolution — must ask for an image
+// that boots.
 func TestACreateWhoseResourceVanishesLeavesNoMachineBehind(t *testing.T) {
 	runtime := newBlockingRuntime()
 	ts := newRuntimeServer(t, runtime)
@@ -362,7 +368,7 @@ func TestACreateWhoseResourceVanishesLeavesNoMachineBehind(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		post(t, ts, "CreateVms", `{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`"}`)
+		post(t, ts, "CreateVms", `{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`"}`)
 	}()
 
 	// The machine is starting; empty the store under it.
@@ -487,7 +493,7 @@ func TestTwoConcurrentStartsReachTheRuntimeOnce(t *testing.T) {
 	_, subnetID := netAndSubnet(t, ts, "10.52.0.0/16", "10.52.1.0/24")
 
 	_, out := post(t, ts, "CreateVms",
-		`{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+		`{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
 	vms, _ := out["Vms"].([]any)
 	vm, _ := vms[0].(map[string]any)
 	vmID, _ := vm["VmId"].(string)
@@ -533,7 +539,7 @@ func TestUpdateVmValidatesWhatCreateValidates(t *testing.T) {
 	ts := newServer(t)
 	_, subnetID := netAndSubnet(t, ts, "10.53.0.0/16", "10.53.1.0/24")
 	_, out := post(t, ts, "CreateVms",
-		`{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+		`{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
 	vms, _ := out["Vms"].([]any)
 	vm, _ := vms[0].(map[string]any)
 	vmID, _ := vm["VmId"].(string)
@@ -745,7 +751,7 @@ func TestUpdateVmAndStartVmsDoNotOverwriteEachOther(t *testing.T) {
 	_, subnetID := netAndSubnet(t, ts, "10.57.0.0/16", "10.57.1.0/24")
 
 	_, out := post(t, ts, "CreateVms",
-		`{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+		`{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
 	vms, _ := out["Vms"].([]any)
 	vm, _ := vms[0].(map[string]any)
 	vmID, _ := vm["VmId"].(string)
@@ -796,7 +802,7 @@ func TestABodyTheServerAcceptsReachesTheHandler(t *testing.T) {
 	ts := newServer(t)
 	_, subnetID := netAndSubnet(t, ts, "10.58.0.0/16", "10.58.1.0/24")
 	_, out := post(t, ts, "CreateVms",
-		`{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+		`{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
 	vms, _ := out["Vms"].([]any)
 	vm, _ := vms[0].(map[string]any)
 	vmID, _ := vm["VmId"].(string)
@@ -836,7 +842,7 @@ func TestABodyTheServerAcceptsReachesTheHandler(t *testing.T) {
 func TestAnUnsupportedFilterIsRefused(t *testing.T) {
 	ts := newServer(t)
 	_, subnetID := netAndSubnet(t, ts, "10.60.0.0/16", "10.60.1.0/24")
-	post(t, ts, "CreateVms", `{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+	post(t, ts, "CreateVms", `{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
 
 	for _, probe := range []struct{ action, body string }{
 		{"ReadVms", `{"Filters":{"Architectures":["x86_64"]}}`},
@@ -1022,7 +1028,7 @@ func TestAStoppedVmKeepsItsPrivateAddress(t *testing.T) {
 	ts := newRuntimeServer(t, runtime)
 
 	// No Subnet: this is the case that had the address only in the binding.
-	_, out := post(t, ts, "CreateVms", `{"ImageId":"ami-12345678"}`)
+	_, out := post(t, ts, "CreateVms", `{"ImageId":"ami-00000001"}`)
 	vms, _ := out["Vms"].([]any)
 	vm, _ := vms[0].(map[string]any)
 	vmID, _ := vm["VmId"].(string)
@@ -1062,7 +1068,7 @@ func TestReadAdminPasswordAnswersEmpty(t *testing.T) {
 	ts := newServer(t)
 	_, subnetID := netAndSubnet(t, ts, "10.62.0.0/16", "10.62.1.0/24")
 	_, out := post(t, ts, "CreateVms",
-		`{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+		`{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
 	vms, _ := out["Vms"].([]any)
 	vm, _ := vms[0].(map[string]any)
 	vmID, _ := vm["VmId"].(string)
@@ -1162,13 +1168,13 @@ func TestDeletionProtectionRefusesTheDelete(t *testing.T) {
 	_, subnetID := netAndSubnet(t, ts, "10.64.0.0/16", "10.64.1.0/24")
 
 	_, out := post(t, ts, "CreateVms",
-		`{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+		`{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
 	vms, _ := out["Vms"].([]any)
 	plain, _ := vms[0].(map[string]any)
 	plainID, _ := plain["VmId"].(string)
 
 	_, out = post(t, ts, "CreateVms",
-		`{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false,"DeletionProtection":true}`)
+		`{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false,"DeletionProtection":true}`)
 	vms, _ = out["Vms"].([]any)
 	guarded, _ := vms[0].(map[string]any)
 	guardedID, _ := guarded["VmId"].(string)
@@ -1202,7 +1208,7 @@ func TestResultsPerPageIsHonoured(t *testing.T) {
 	_, subnetID := netAndSubnet(t, ts, "10.65.0.0/16", "10.65.1.0/24")
 	for range 3 {
 		post(t, ts, "CreateVms",
-			`{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+			`{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
 	}
 
 	count := func(body string) int {
@@ -1232,7 +1238,7 @@ func TestATerminatedVmStaysReadable(t *testing.T) {
 	ts := newServer(t)
 	_, subnetID := netAndSubnet(t, ts, "10.66.0.0/16", "10.66.1.0/24")
 	_, out := post(t, ts, "CreateVms",
-		`{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+		`{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
 	vms, _ := out["Vms"].([]any)
 	vm, _ := vms[0].(map[string]any)
 	vmID, _ := vm["VmId"].(string)
@@ -1326,7 +1332,7 @@ func TestAVolumeIsCreatedReadAndLinked(t *testing.T) {
 	}
 
 	_, out = post(t, ts, "CreateVms",
-		`{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+		`{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
 	vms, _ := out["Vms"].([]any)
 	vm, _ := vms[0].(map[string]any)
 	vmID, _ := vm["VmId"].(string)
@@ -1393,7 +1399,7 @@ func TestAVolumeDoesNotShrink(t *testing.T) {
 func TestReadVmsStateAnswersRunningByDefault(t *testing.T) {
 	ts := newServer(t)
 	_, subnetID := netAndSubnet(t, ts, "10.68.0.0/16", "10.68.1.0/24")
-	_, out := post(t, ts, "CreateVms", `{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`"}`)
+	_, out := post(t, ts, "CreateVms", `{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`"}`)
 	vms, _ := out["Vms"].([]any)
 	vm, _ := vms[0].(map[string]any)
 	vmID, _ := vm["VmId"].(string)

@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/core/machine"
 )
 
 // A local emulator has no inventory of its own, but it cannot decline the
@@ -125,6 +126,49 @@ var catalogue = map[string]*serverType{
 // defaultImageLabel is the image the CLI asks for when none is given.
 const defaultImageLabel = "ubuntu_jammy"
 
+// marketplaceImages is the emulated marketplace: which label answers which
+// stable UUID, and what the machine driver boots for it — login included,
+// because an image resolved without its login is a machine nobody can enter.
+// Scaleway provisions root on every image (`scw instance server ssh` documents
+// username=root), so every row carries the same login; that is this cloud's own
+// shape, where Exoscale's login varies per template.
+//
+// The table is fiction, like the rest of this catalogue (docs/limits.md), and
+// exact on purpose: image labels used to be matched by substring with a
+// fallback, which turned ubuntu_focal, centos, rocky — every label the table
+// does not list — into a silent Ubuntu 22.04 (#83). An identifier outside this
+// table now resolves to nothing and the shared binding refuses the boot.
+//
+// One UUID per label, so a client that resolves a label through the
+// marketplace and sends the UUID back still names the distribution it chose;
+// a single shared UUID is how `image = "debian_bookworm"` used to boot an
+// Ubuntu under Terraform. The UUIDs are fixed because Terraform keeps them in
+// state, and ubuntu_jammy keeps the UUID this emulator has always answered.
+var marketplaceImages = map[string]struct {
+	ID   string
+	Boot machine.Image
+}{
+	"ubuntu_noble":    {"55555555-5555-4555-8555-555555555555", machine.Image{Ref: "ubuntu:24.04", User: DefaultUser}},
+	"ubuntu_jammy":    {"22222222-2222-4222-8222-222222222222", machine.Image{Ref: "ubuntu:22.04", User: DefaultUser}},
+	"debian_bookworm": {"66666666-6666-4666-8666-666666666666", machine.Image{Ref: "debian:12", User: DefaultUser}},
+	"debian_trixie":   {"77777777-7777-4777-8777-777777777777", machine.Image{Ref: "debian:13", User: DefaultUser}},
+	// Not a label the real marketplace lists today; kept because this emulator
+	// has always booted an Alpine for it — previously by accident of substring
+	// matching, now by decision — and the question that raised #83 was
+	// precisely "does it boot the OS I asked for", asked about Alpine.
+	"alpine": {"88888888-8888-4888-8888-888888888888", machine.Image{Ref: "alpine:3.21", User: DefaultUser}},
+}
+
+// labelByID is the reverse of marketplaceImages, for the UUID a client sends
+// after resolving a label through the marketplace.
+var labelByID = func() map[string]string {
+	out := make(map[string]string, len(marketplaceImages))
+	for label, entry := range marketplaceImages {
+		out[entry.ID] = label
+	}
+	return out
+}()
+
 func (p *Pack) listServerTypes(w http.ResponseWriter, r *http.Request) {
 	if _, ok := zoneOf(w, r); !ok {
 		return
@@ -136,9 +180,10 @@ func (p *Pack) listServerTypes(w http.ResponseWriter, r *http.Request) {
 }
 
 // listLocalImages answers the marketplace lookup the CLI performs to resolve an
-// image label into an ID. Any label is accepted and mapped onto one stable
-// image, because refusing an unknown label would only block a workflow the
-// emulator has no opinion about.
+// image label into an ID. Any label is accepted and answers 200, because
+// refusing an unknown one would block a workflow the emulator has no opinion
+// about (docs/limits.md) — but an unknown label maps onto unknownImageID, which
+// no boot resolves, rather than onto an image the client never named (#83).
 func (p *Pack) listLocalImages(w http.ResponseWriter, r *http.Request) {
 	label := r.URL.Query().Get("image_label")
 	if label == "" {
@@ -154,9 +199,12 @@ func (p *Pack) listLocalImages(w http.ResponseWriter, r *http.Request) {
 		compatible = append(compatible, name)
 	}
 
-	// A fixed UUID: Terraform stores the image ID in state, and a value that
-	// changed between two runs would show up as a permanent diff.
-	const imageID = "22222222-2222-4222-8222-222222222222"
+	// Fixed UUIDs, one per label: Terraform stores the image ID in state, and a
+	// value that changed between two runs would show up as a permanent diff.
+	imageID := unknownImageID
+	if entry, known := marketplaceImages[label]; known {
+		imageID = entry.ID
+	}
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"local_images": []map[string]any{{

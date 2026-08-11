@@ -51,15 +51,37 @@ func (p *Pack) logger() *slog.Logger {
 	return slog.Default()
 }
 
-// imageFor maps an emulated OMI onto the base image the runtime boots. An
-// unknown identifier falls back rather than failing: the catalogue is small and
-// fixed, and refusing to boot over an image name would block a workflow the
-// control plane already accepted.
-func imageFor(imageID string) string {
-	if image, known := runtimeImages[imageID]; known {
-		return image
+// imageFor resolves an emulated OMI onto what the machine driver boots, login
+// included — one resolution, because the right distribution with the wrong
+// login is still a machine nobody can enter.
+//
+// An unknown identifier resolves to nothing rather than falling back: the
+// control plane has accepted it — docs/limits.md declares identifiers
+// unchecked, deliberately — and the shared binding refuses the boot out loud
+// instead of starting an OS the client never named (#83).
+//
+// TestOutscaleImageResolutionIsExact fails against the fallback version.
+func imageFor(imageID string) (machine.Image, bool) {
+	image, known := runtimeImages[imageID]
+	return image, known
+}
+
+// bootRefusalReason distinguishes, for the refusal log, the two ways an OMI
+// resolves to nothing. An identifier nobody ever created is a typo the control
+// plane accepted. An image the client registered through CreateImage is the
+// more embarrassing case: ReadImages serves it, yet this emulator keeps
+// records, not disk contents, so there are no bytes to boot — and booting the
+// source's base image instead would silently drop whatever the client baked
+// into it, which is the golden-image scenario, the exact place the difference
+// matters. Both end in the same refusal; the log must not describe them the
+// same way.
+//
+// TestARegisteredImageRefusesToBootAndSaysWhy fails without the distinction.
+func (p *Pack) bootRefusalReason(imageID string) string {
+	if _, registered := p.env.Store.Get(Name, kindImage, imageID); registered {
+		return "registered by CreateImage, but this emulator keeps records, not disk contents (docs/limits.md)"
 	}
-	return runtimeImages[defaultImageID]
+	return "the identifier is in no catalogue"
 }
 
 // powerOn starts the backing machine and moves the resource to running.
@@ -74,9 +96,17 @@ func (p *Pack) powerOn(ctx context.Context, res *resource.Resource) {
 	imageID, _ := res.Attrs["ImageId"].(string)
 	keypair, _ := res.Attrs["KeypairName"].(string)
 	userData, _ := res.Attrs["UserData"].(string)
+	img, known := imageFor(imageID)
+	reason := ""
+	if !known {
+		reason = p.bootRefusalReason(imageID)
+	}
 
 	p.binding().PowerOn(ctx, res, machine.Boot{
-		Image:          imageFor(imageID),
+		Image:          img.Ref,
+		User:           img.User,
+		Requested:      imageID,
+		Reason:         reason,
 		Hostname:       res.ID,
 		AuthorizedKeys: p.authorizedKeys(keypair),
 		// The Subnet the client asked for, carried onto the machine. Without

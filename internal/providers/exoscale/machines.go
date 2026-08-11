@@ -93,24 +93,31 @@ var runtimeTemplates = map[string]string{
 	"22222222-2222-4222-8222-222222222222": "debian:12",
 }
 
-const defaultTemplateID = "11111111-1111-4111-8111-111111111111"
-
-// templateFor returns what to boot and the login that template declares. An
-// unknown identifier falls back rather than failing: the catalogue is small and
-// fixed, and refusing to boot over a template name would block a workflow the
-// control plane already accepted.
-func templateFor(id string) (image, user string) {
-	image, known := runtimeTemplates[id]
+// templateFor resolves a template onto what to boot and the login that
+// template declares — one resolution, because Exoscale's login is a property
+// of the template rather than of the cloud, and the right distribution with
+// the wrong login is still a machine nobody can enter.
+//
+// An unknown identifier resolves to nothing rather than falling back: the
+// control plane has accepted it — docs/limits.md declares identifiers
+// unchecked, deliberately — and the shared binding refuses the boot out loud
+// instead of starting the default template under the client's template id
+// (#83).
+//
+// TestExoscaleTemplateResolutionIsExact fails against the fallback version.
+func templateFor(id string) (machine.Image, bool) {
+	ref, known := runtimeTemplates[id]
 	if !known {
-		id, image = defaultTemplateID, runtimeTemplates[defaultTemplateID]
+		return machine.Image{}, false
 	}
+	img := machine.Image{Ref: ref}
 	for _, t := range templates {
 		if t["id"] == id {
-			user, _ = t["default-user"].(string)
+			img.User, _ = t["default-user"].(string)
 			break
 		}
 	}
-	return image, user
+	return img, true
 }
 
 // start powers an instance on. The state is set whether or not a machine
@@ -121,14 +128,15 @@ func (p *Pack) start(ctx context.Context, res *resource.Resource) {
 	if t, ok := res.Attrs["template"].(map[string]any); ok {
 		templateID, _ = t["id"].(string)
 	}
-	image, user := templateFor(templateID)
+	img, _ := templateFor(templateID)
 	name, _ := res.Attrs["name"].(string)
 	userData, _ := res.Attrs["user-data"].(string)
 
 	p.binding().PowerOn(ctx, res, machine.Boot{
-		Image:    image,
-		Hostname: name,
-		User:     user,
+		Image:     img.Ref,
+		Requested: templateID,
+		Hostname:  name,
+		User:      img.User,
 		// The key the client registered, so the machine it is attached to can
 		// actually be opened. Nothing was passed here: the instance booted with
 		// empty cloud-init — no user provisioned, no sshd on a minimal image —

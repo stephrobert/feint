@@ -3,7 +3,6 @@ package scaleway
 import (
 	"context"
 	"log/slog"
-	"strings"
 
 	"github.com/stephrobert/feint/internal/core/machine"
 	"github.com/stephrobert/feint/internal/core/resource"
@@ -34,9 +33,6 @@ const runtimeMachineKey = "machine"
 // ssh` documents username=root).
 const DefaultUser = "root"
 
-// defaultImage stands in for the default Scaleway image.
-const defaultImage = "ubuntu:22.04"
-
 // binding is this pack's half of the shared machine lifecycle.
 func (p *Pack) binding() machine.Binding {
 	return machine.Binding{
@@ -57,28 +53,46 @@ func (p *Pack) binding() machine.Binding {
 	}
 }
 
-// imageFor maps a Scaleway image label onto the base image that stands in for
-// it, the same way local AWS emulators map an AMI onto a runtime image. The
-// value is runtime-agnostic ("ubuntu:22.04"): the driver translates it, which is
-// what lets a pack name an operating system without knowing what runs it.
+// imageFor resolves a Scaleway image label onto what stands in for it — image
+// and login in one value, because the right distribution with the wrong login
+// is still a machine nobody can enter.
 //
-// An unknown label falls back to the default rather than failing: the emulator
-// has no image catalogue and refusing would only block a workflow.
-func imageFor(label string) string {
-	switch {
-	case strings.Contains(label, "noble"), strings.Contains(label, "24_04"), strings.Contains(label, "2404"):
-		return "ubuntu:24.04"
-	case strings.Contains(label, "jammy"), strings.Contains(label, "22_04"), strings.Contains(label, "2204"):
-		return "ubuntu:22.04"
-	case strings.Contains(label, "bookworm"), strings.Contains(label, "debian12"):
-		return "debian:12"
-	case strings.Contains(label, "trixie"), strings.Contains(label, "debian13"):
-		return "debian:13"
-	case strings.Contains(label, "alpine"):
-		return "alpine:3.21"
-	default:
-		return defaultImage
+// Exact lookup, deliberately. This used to match by substring with a fallback,
+// which booted a silent Ubuntu 22.04 for ubuntu_focal, centos, rocky — every
+// label the table does not list — while the API kept reporting the label the
+// client sent (#83). An unknown label now resolves to nothing, and the shared
+// binding refuses the boot instead of substituting.
+//
+// TestScalewayImageResolutionIsExact fails against the substring version.
+func imageFor(label string) (machine.Image, bool) {
+	entry, known := marketplaceImages[label]
+	if !known {
+		return machine.Image{}, false
 	}
+	return entry.Boot, true
+}
+
+// requestedImageOf names, for the refusal log, what the client asked to boot:
+// the catalogue label when there is one, otherwise what the create stored. A
+// foreign UUID is named as itself; behind unknownImageID the stored name is
+// the client's own label when the create carried one, and the display default
+// — which the client never said — is never reported as if it had.
+func requestedImageOf(res *resource.Resource, label string) string {
+	if label != "" {
+		return label
+	}
+	image, _ := res.Attrs["image"].(map[string]any)
+	if image == nil {
+		return ""
+	}
+	id, _ := image["id"].(string)
+	if id != "" && id != unknownImageID {
+		return id
+	}
+	if name, _ := image["name"].(string); name != "" && name != defaultImageLabel {
+		return name
+	}
+	return id
 }
 
 // startMachine powers the server on. It returns the address to publish, empty
@@ -86,13 +100,16 @@ func imageFor(label string) string {
 func (p *Pack) startMachine(ctx context.Context, res *resource.Resource) {
 	label, _ := res.Attrs["image_label"].(string)
 	hostname, _ := res.Attrs["hostname"].(string)
+	img, _ := imageFor(label)
 
 	// A client that stored its own cloud-init gets it verbatim, the way Scaleway
 	// hands the "cloud-init" user data key to cloud-init at boot. The
 	// consequence is stated in docs/limits.md: with a custom cloud-init, the
 	// project's SSH keys are only installed if the script installs them.
 	p.binding().PowerOn(ctx, res, machine.Boot{
-		Image:          imageFor(label),
+		Image:          img.Ref,
+		User:           img.User,
+		Requested:      requestedImageOf(res, label),
 		Hostname:       hostname,
 		AuthorizedKeys: p.authorizedKeys(res.Tenant.Project),
 		CloudInit:      userDataOf(res, CloudInitKey),

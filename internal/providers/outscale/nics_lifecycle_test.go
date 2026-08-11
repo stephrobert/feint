@@ -147,7 +147,7 @@ func TestAnAttachedNicReportsTheLinkStateTheProviderWaitsFor(t *testing.T) {
 	_, subnetID := netAndSubnet(t, ts, "10.81.0.0/16", "10.81.1.0/24")
 
 	_, out := post(t, ts, "CreateVms",
-		`{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+		`{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
 	vms, _ := out["Vms"].([]any)
 	vm, _ := vms[0].(map[string]any)
 	vmID, _ := vm["VmId"].(string)

@@ -6,24 +6,32 @@ import (
 	"github.com/stephrobert/feint/internal/core/emulator"
 )
 
-// imageID is the single image the emulator knows about, matching the one the
-// marketplace lookup returns. Fixed on purpose: Terraform keeps the image ID in
-// state, and a value that changed between runs would show as a permanent diff.
-const imageID = "22222222-2222-4222-8222-222222222222"
+// unknownImageID is the UUID answered for an image label no catalogue holds.
+// The lookup still succeeds — docs/limits.md declares identifiers unchecked,
+// deliberately — but this UUID maps back onto no bootable image, so a runtime
+// refuses to boot it instead of substituting a distribution the client never
+// named (#83). Fixed, like every catalogue UUID, because Terraform keeps it in
+// state.
+const unknownImageID = "99999999-9999-4999-8999-999999999999"
 
-// getImage answers the lookup the CLI performs after resolving a label. Any ID
-// is served as the same image: the emulator has no image catalogue and refusing
-// unknown IDs would only break scripts that hardcode a real one.
+// getImage answers the lookup the CLI performs after resolving a label. An
+// unknown ID is still served — refusing would break scripts that hardcode a
+// real one (docs/limits.md) — under the default label, which is display
+// fiction like the rest of the catalogue; a known ID answers its own label.
 func (p *Pack) getImage(w http.ResponseWriter, r *http.Request) {
 	zone, ok := zoneOf(w, r)
 	if !ok {
 		return
 	}
 	id := r.PathValue("id")
-	if id == "" {
-		id = imageID
+	label := defaultImageLabel
+	switch l, known := labelByID[id]; {
+	case id == "":
+		id = marketplaceImages[defaultImageLabel].ID
+	case known:
+		label = l
 	}
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{"image": p.imageView(zone, id, defaultImageLabel)})
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{"image": p.imageView(zone, id, label)})
 }
 
 // imageView is the shape the SDK decodes into instance.Image, shared by the
@@ -66,22 +74,35 @@ func (p *Pack) imageView(zone, id, label string) map[string]any {
 	}
 }
 
-// resolveImage maps what a create request put in `image` onto the pair the
-// emulator needs: the ID to publish, and the label the machine driver turns into
-// a base image.
+// resolveImage maps what a create request put in `image` onto what the
+// emulator needs: the ID to publish, the name to display, and the catalogue
+// label the machine driver turns into a base image.
 //
 // Clients send either form. The Terraform provider resolves the label through
 // the marketplace first and sends a UUID; the CLI can send the label itself.
 // Telling them apart is what lets `image = "debian_bookworm"` boot a Debian
 // rather than the default.
-func resolveImage(requested string) (id, label string) {
+//
+// label is empty when the identifier is in no catalogue. The create still
+// succeeds — deliberate, and documented in docs/limits.md — but a boot refuses
+// an empty label rather than substituting a distribution the client never
+// named (#83). display keeps the response behaviour of before: the requested
+// label verbatim, or the default label for a foreign UUID, because an image
+// name in a response is catalogue fiction either way.
+func resolveImage(requested string) (id, display, label string) {
 	switch {
 	case requested == "":
-		return imageID, defaultImageLabel
+		return marketplaceImages[defaultImageLabel].ID, defaultImageLabel, defaultImageLabel
 	case looksLikeUUID(requested):
-		return requested, defaultImageLabel
+		if l, known := labelByID[requested]; known {
+			return requested, l, l
+		}
+		return requested, defaultImageLabel, ""
 	default:
-		return imageID, requested
+		if entry, known := marketplaceImages[requested]; known {
+			return entry.ID, requested, requested
+		}
+		return unknownImageID, requested, ""
 	}
 }
 

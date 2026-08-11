@@ -39,6 +39,23 @@ change ni l'un ni l'autre a sa place dans `git log`.
   texte brut ». Falsifié : la liste ramenée à cinq, le nouveau test échoue et
   celui-là passe toujours, ce qui démontre l'angle mort au lieu de l'affirmer.
 
+- **Un identifiant d'image inconnu ne démarre plus un substitut** (#83). Avec
+  un runtime configuré, les trois packs remplaçaient en silence une image
+  qu'aucun catalogue ne connaît : demander Alpine, obtenir Ubuntu, pendant que
+  l'API continuait d'afficher l'identifiant envoyé par le client ; la
+  résolution Scaleway comparait les labels par sous-chaîne, si bien que
+  `centos`, `rocky` et `ubuntu_focal` devenaient tous Ubuntu 22.04. La création
+  réussit toujours, comme `docs/limits.md` le promet aux identifiants de
+  production codés en dur, mais le démarrage refuse désormais : la machine
+  atteint l'état d'échec propre au provider et le journal nomme l'identifiant.
+  L'image et le login se résolvent maintenant ensemble (root chez Scaleway,
+  `outscale` chez Outscale, le `default-user` du template chez Exoscale) et la
+  marketplace Scaleway répond un UUID fixe par label, de sorte qu'un label
+  résolu par Terraform nomme toujours la distribution choisie. Une image
+  enregistrée par le client via `CreateImage` (Outscale) refuse de la même
+  façon, l'émulateur n'ayant derrière elle qu'un enregistrement et aucun
+  contenu de disque, et le journal dit lequel des deux cas s'applique.
+
 ## [0.7.2]
 
 ### Ajouté

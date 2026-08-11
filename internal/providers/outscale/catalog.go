@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/core/machine"
 	"github.com/stephrobert/feint/internal/core/resource"
 )
 
@@ -138,23 +139,23 @@ var images = func() []map[string]any {
 	return out
 }()
 
-// runtimeImages maps an emulated OMI onto what the machine driver boots. Kept
+// runtimeImages maps an emulated OMI onto what the machine driver boots and
+// the login Outscale provisions on it — one value, because the right
+// distribution with the wrong login is still a machine nobody can enter. Kept
 // apart from the catalogue on purpose: it is not API surface, and holding it in
 // the same map is how it ended up in a response.
-var runtimeImages = map[string]string{
-	"ami-00000001": "ubuntu:24.04",
-	"ami-00000002": "debian:12",
-	"ami-00000003": "alpine:3.21",
+//
+// An identifier outside this map resolves to nothing, and the shared binding
+// refuses the boot rather than substituting an OS the client never named (#83).
+var runtimeImages = map[string]machine.Image{
+	"ami-00000001": {Ref: "ubuntu:24.04", User: DefaultUser},
+	"ami-00000002": {Ref: "debian:12", User: DefaultUser},
+	"ami-00000003": {Ref: "alpine:3.21", User: DefaultUser},
 }
 
 // accountID is the one account this emulator has. Outscale account IDs are
 // twelve digits, like AWS's.
 const accountID = "000000000001"
-
-// defaultImageID is what the machine driver falls back to. It is not a default
-// the API applies: CreateVms requires an ImageId, and the emulator refuses
-// without one exactly as Outscale does.
-const defaultImageID = "ami-00000001"
 
 func (p *Pack) readVmTypes(w http.ResponseWriter, _ *http.Request) {
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{

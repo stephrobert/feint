@@ -89,14 +89,45 @@ func (b Binding) Name(id string) string {
 	return b.Prefix + strings.ReplaceAll(id, "/", "-")
 }
 
+// Image is what a pack's catalogue resolves an image identifier to: the image
+// the runtime boots and the login that image provisions. One value on purpose,
+// never two lookups — an identifier resolved to the right distribution with
+// the wrong login still hands the user a machine nobody can enter, which is
+// the same half-success in a different place.
+//
+// The zero value means the identifier resolved to nothing, and Start refuses
+// to boot it rather than substituting: see the guard there.
+type Image struct {
+	// Ref is runtime-agnostic ("ubuntu:24.04"): the driver translates it,
+	// which is what lets a pack name an operating system without knowing what
+	// runs it.
+	Ref string
+	// User is the login the image provisions. Empty keeps the binding's
+	// provider-wide login, for the clouds where the login belongs to the cloud
+	// rather than to the image.
+	User string
+}
+
 // Boot is what a pack asks for when it powers a server on.
 type Boot struct {
 	// ID is the emulated resource, used for the machine name and the labels.
 	ID string
 	// Image is runtime-agnostic ("ubuntu:24.04"): the driver translates it,
 	// which is what lets a pack name an operating system without knowing what
-	// runs it.
+	// runs it. Empty means the identifier the client sent resolved to nothing,
+	// and a real runtime refuses to boot it rather than substituting.
 	Image string
+	// Requested is the identifier the client sent, verbatim, so the refusal
+	// log can name it. Image is what that identifier resolved to; this is what
+	// to say when it resolved to nothing.
+	Requested string
+	// Reason, when Image is empty, is the pack's diagnosis of why the
+	// identifier resolved to nothing. The two known cases end in the same
+	// refusal and must not read the same in the log: an identifier nobody ever
+	// created is a typo the control plane accepted, while an image the
+	// emulator itself registered and serves is a record with no disk contents
+	// behind it. Empty falls back to the generic wording.
+	Reason string
 	// Hostname the guest takes. Empty falls back to the resource id.
 	Hostname string
 	// User overrides the binding's login for this boot, empty to keep it.
@@ -147,6 +178,25 @@ type Started struct {
 func (b Binding) Start(ctx context.Context, boot Boot) Started {
 	name := b.Name(boot.ID)
 	if b.Driver == nil {
+		return Started{}
+	}
+	// An identifier no catalogue holds resolves to no image at all, and a real
+	// runtime must not paper over it: ask for Alpine, boot Ubuntu, and every
+	// signal says success — the exact defect this project exists to avoid
+	// (#83). The refusal lives here, in the shared layer, so no pack can
+	// substitute silently and a fourth one could not either. Noop is exempt on
+	// purpose: it boots nothing, so there is nothing to substitute, and the
+	// control plane must stay usable without a runtime — hardcoded production
+	// identifiers included, as docs/limits.md promises.
+	//
+	// TestAnUnknownImageFailsTheBootInsteadOfSubstituting fails without this.
+	if _, metadataOnly := b.Driver.(Noop); boot.Image == "" && !metadataOnly {
+		reason := boot.Reason
+		if reason == "" {
+			reason = "the identifier is in no catalogue"
+		}
+		b.logger().Error("refusing to boot: the image identifier resolves to nothing this emulator can run",
+			"provider", b.Provider, "resource", boot.ID, "image", boot.Requested, "reason", reason)
 		return Started{}
 	}
 	user := b.User

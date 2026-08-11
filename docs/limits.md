@@ -60,6 +60,56 @@ turns out to be the wrong one, the place to change it is `resolveImage` in
 `internal/providers/scaleway/images.go`, and the change must come with a way to
 keep hardcoded production ids working.
 
+**What an unknown identifier can no longer do is boot a substitute.** Measured
+in #83, on all three packs: with a runtime configured (`--vm incus`, `incus-vm`,
+`incus-ovn`), an image identifier no catalogue held was silently replaced at
+boot — ask for Alpine, boot Ubuntu — while the API kept reporting the identifier
+the client sent. Scaleway's resolution matched labels by substring, so `centos`,
+`rocky` and `ubuntu_focal` all became Ubuntu 22.04 without a word.
+
+Since then the create still succeeds and the boot refuses: the machine reaches
+the provider's own failed state (`stopped` on Scaleway and Outscale, which
+declare no error state for a machine; `error` on Exoscale) and the emulator's
+log names the identifier. The state published is the one the effect produced,
+not the one the intention aimed at. With `--vm off`, the default, nothing boots
+and nothing changes — the control plane keeps accepting, exactly as this
+section promises.
+
+Two alternatives lost, and why:
+
+- **Refusing at the create**, as the real clouds do, would turn the emulated
+  catalogue into a whitelist and break the paragraph above: a configuration
+  hardcoding a production image UUID must keep applying, because that is the
+  first thing a team points at the emulator.
+- **Substituting out loud** — a warning in the log, a mark on the resource —
+  keeps a machine whose `/etc/os-release` contradicts the API for as long as it
+  runs. A cloud-init that installs an Alpine package, or a playbook that
+  branches on the OS family, still gets the wrong operating system with every
+  signal saying success. A boot that fails with a stated reason is the only
+  answer that cannot be misread.
+
+An identifier resolves to nothing in **two** ways, and they end in the same
+refusal without being the same case. An identifier nobody ever created is a
+typo the control plane accepted, as above. An image the client **registered** —
+Outscale serves `CreateImage`, and Scaleway snapshots and images are planned to
+follow it (#7) — is the more embarrassing one: `ReadImages` lists it, yet this
+emulator keeps records, not disk contents, so there are no bytes to boot.
+Booting the source's base image instead would silently drop whatever the client
+baked into the image — and the golden-image workflow is precisely the one where
+that difference is the point — so it is refused like the first case, and the
+log says which of the two it was. If the emulator ever captures disk contents
+(the runtime could: `incus publish` exists), that refusal is the line to
+replace.
+
+Two details follow from the same decision. The Scaleway marketplace answers one
+fixed UUID **per label**, so Terraform — which resolves a label into a UUID and
+sends the UUID back — still names the distribution it chose; a single shared
+UUID is how `image = "debian_bookworm"` used to boot an Ubuntu. And image and
+login resolve **together**: whatever a pack resolves an identifier to carries
+the login that image provisions — root on Scaleway, `outscale` on Outscale, the
+template's own `default-user` on Exoscale — because the right distribution with
+the wrong login is still a machine nobody can enter.
+
 ## A Scaleway server's root volume type cannot be written
 
 `scaleway_instance_server` has no usable `root_volume { volume_type }` here

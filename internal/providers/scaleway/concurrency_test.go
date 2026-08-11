@@ -25,6 +25,9 @@ import (
 type fakeRuntime struct {
 	mu       sync.Mutex
 	machines map[string]bool
+	// specs keeps what each start was asked to boot, so a test can assert on
+	// the image and the login rather than on a state name (#83).
+	specs []machine.Spec
 
 	starts atomic.Int32
 	// entered is signalled on the way into Start, before it blocks, so a test
@@ -70,6 +73,7 @@ func (f *fakeRuntime) Start(_ context.Context, spec machine.Spec) (machine.Machi
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.specs = append(f.specs, spec)
 	if _, taken := f.machines[spec.Name]; taken {
 		return machine.Machine{}, errors.New(`Failed creating instance record: Add instance info to the database: This "instances" entry already exists`)
 	}

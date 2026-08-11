@@ -282,7 +282,7 @@ func (p *Pack) createServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resolvedImageID, imageLabel := resolveImage(req.Image)
+	resolvedImageID, imageDisplay, imageLabel := resolveImage(req.Image)
 
 	res := &resource.Resource{
 		ID:      p.env.NewID(),
@@ -301,7 +301,7 @@ func (p *Pack) createServer(w http.ResponseWriter, r *http.Request) {
 		"organization":    organization,
 		"hostname":        req.Name,
 		"tags":            orEmpty(req.Tags),
-		"image":           p.imageView(zone, resolvedImageID, imageLabel),
+		"image":           p.imageView(zone, resolvedImageID, imageDisplay),
 		"volumes":         p.attachTemplateVolumes(req.Volumes, rootVol, res, zone, req.Name),
 		// Deprecated upstream, and "always null when routed_ip_enabled is True",
 		// which is this emulator's default. The address of a server on a private
@@ -317,9 +317,11 @@ func (p *Pack) createServer(w http.ResponseWriter, r *http.Request) {
 		"security_group":      securityGroup,
 		"allowed_actions":     []any{"poweron", "backup"},
 		"maintenances":        []any{},
-		// Kept so the machine driver knows which OCI image stands in for the
-		// requested cloud image. Harmless in the response: the real API exposes
-		// the image too, just as an object.
+		// Kept so the machine driver knows which catalogue image stands in for
+		// the requested cloud image. Empty when the identifier resolved to
+		// nothing, which a boot refuses rather than substituting (#83).
+		// Harmless in the response: the real API exposes the image too, just
+		// as an object.
 		"image_label": imageLabel,
 	}
 	// Every flexible IP the caller named is resolved before anything is stored.
