@@ -80,6 +80,16 @@ var schemes = []string{"https://", "http://"}
 // form, may be truncated at the recording cap mid-document, and a walk that
 // needs to parse would go blind on all three. What is being looked for is a
 // string with a scheme in it, which survives all of them.
+//
+// What running it on every response costs, measured rather than guessed
+// (BenchmarkHostsElsewhere, i7-12650H, 2026-08-11): a clean body scans at
+// ~7 GB/s — 0.5 µs for the few kilobytes one API answer weighs, 161 µs at the
+// 1 MiB DefaultMaxBody cap that bounds the input. A body whose every element
+// names another host pays url.Parse per hit and drops to ~700 MB/s, 1.4 ms at
+// the cap. All of it runs after the response has been streamed to the client
+// (see ServeHTTP), so nothing here sits on the wait path of the answer being
+// scanned; a change that puts the scan on that path, or one that slows the
+// clean case, is what the benchmark exists to catch.
 func hostsElsewhere(self string, body []byte) []string {
 	if self == "" || len(body) == 0 {
 		return nil
