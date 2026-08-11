@@ -674,6 +674,36 @@ The consequence, stated rather than hidden: a client asking for `ch-gva-2` gets
 difference. The alternative — one endpoint pretending to be eight zones — is a
 silent, wrong one.
 
+## ReadTags does not list an internet service, because upstream names no type for one
+
+Outscale's `Tag` carries a `ResourceType`, and their OpenAPI declares it as a
+bare string. The values come from the SDK instead, where they are a deliberate
+patch: `TagResourceType` in `osc-sdk-go/pkg/osc/client.gen.go`, twenty of them,
+listed in the `enum` block of `patch.yaml`.
+
+An internet service is not among the twenty — and their `InternetService` schema
+declares `Tags`, which the Terraform provider sets. Both are true at once, and
+they cannot both be honoured in the flat view.
+
+So the emulator splits the two questions rather than picking one:
+
+- **`CreateTags` and `DeleteTags` accept it.** This is what
+  [#99](https://github.com/stephrobert/feint/issues/99) was: the pack answered
+  `the resource igw-… does not exist` about a resource it was serving, and an
+  `outscale_internet_service` with a `tags` block failed its apply.
+- **`ReadTags` leaves it out.** Every row of that view carries a
+  `ResourceType`, and there is no value upstream declares for this one.
+  Inventing `internet-gateway` because AWS spells it that way is the invented
+  format rule 4 forbids, and it would be indistinguishable from a measured
+  value to anyone reading the answer.
+
+The tag is not lost: `ReadInternetServices` returns it on the resource, which is
+where the provider reads it back. `TestReadTagsOmitsAKindUpstreamDoesNotName`
+pins both halves.
+
+This is one row of `taggable` in `internal/providers/outscale/tags.go`, the only
+one with an empty type. If Outscale adds a value, that field is where it goes.
+
 ## Outscale's gateways and NAT move records, not packets
 
 `InternetService`, `LinkInternetService`, `NatService`, `LinkPublicIp` and the

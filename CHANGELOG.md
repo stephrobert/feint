@@ -15,6 +15,32 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+### Fixed
+
+- **`CreateTags` answered that a resource the emulator had just created did not
+  exist.** Reported by Vincent Dislaire against an `outscale_internet_service`
+  with a `tags` block: the apply failed on `the resource igw-… does not exist`,
+  about a resource `ReadInternetServices` was serving. The prefix table in
+  `tags.go` held four entries, written when the pack served four kinds, and
+  0.6.0 added ten resources without touching it. Three prefixes were reported;
+  reading which schemas declare `Tags` found **ten** — volumes, snapshots,
+  images, security groups, route tables, public IPs, NICs, DHCP options, NAT
+  services and internet services.
+- **Two of the four `ResourceType` values `ReadTags` published were invented**:
+  `net` where Outscale's own SDK says `vpc`, `vm` where it says `instance`. A
+  client filtering on `instance` matched nothing. No contract could see it —
+  their OpenAPI declares `ResourceType` as a bare string — and a unit test had
+  been asserting `net` for three releases, which is how an emulator's mistake
+  becomes the thing its own suite protects.
+
+  The values now come from `TagResourceType` in `osc-sdk-go`, and a test pins
+  every row of the table to that enum.
+- **The table that caused it can no longer fall behind in silence.** Every
+  identifier prefix the pack mints is read from the source and has to be
+  triaged: taggable with its upstream type, or refused with a reason, the same
+  discipline `Declined()` applies to operations. Adding the ten missing rows
+  fixes today; the eleventh resource would have done it again.
+
 ### Changed
 
 - **Exoscale is *starter*, not *preview*.** The label was taken deliberately,

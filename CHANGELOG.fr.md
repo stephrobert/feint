@@ -17,6 +17,34 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Non publié]
 
+### Corrigé
+
+- **`CreateTags` affirmait qu'une ressource que l'émulateur venait de créer
+  n'existait pas.** Signalé par Vincent Dislaire sur un
+  `outscale_internet_service` portant un bloc `tags` : l'apply échouait sur
+  `the resource igw-… does not exist`, à propos d'une ressource que
+  `ReadInternetServices` servait. La table de préfixes de `tags.go` avait quatre
+  entrées, écrites quand le pack servait quatre familles, et 0.6.0 en a ajouté
+  dix sans y toucher. Trois préfixes étaient signalés ; lire quels schémas
+  déclarent `Tags` en a trouvé **dix** — volumes, snapshots, images, groupes de
+  sécurité, tables de routage, IP publiques, NIC, options DHCP, services NAT et
+  services internet.
+- **Deux des quatre valeurs `ResourceType` que publiait `ReadTags` étaient
+  inventées** : `net` là où le SDK d'Outscale dit `vpc`, `vm` là où il dit
+  `instance`. Un client qui filtrait sur `instance` ne trouvait rien. Aucun
+  contrat ne pouvait le voir — leur OpenAPI déclare `ResourceType` comme une
+  simple chaîne — et un test unitaire affirmait `net` depuis trois versions, ce
+  qui est la façon dont l'erreur d'un émulateur devient ce que sa propre suite
+  protège.
+
+  Les valeurs viennent désormais de `TagResourceType` dans `osc-sdk-go`, et un
+  test épingle chaque ligne de la table à cette énumération.
+- **La table qui a causé tout cela ne peut plus prendre du retard en silence.**
+  Chaque préfixe d'identifiant que le pack émet est lu depuis le source et doit
+  être trié : étiquetable avec son type upstream, ou refusé avec une raison — la
+  discipline que `Declined()` applique aux opérations. Ajouter les dix lignes
+  manquantes corrige aujourd'hui ; la onzième ressource aurait recommencé.
+
 ### Modifié
 
 - **Exoscale est *starter*, plus *preview*.** Le label avait été pris

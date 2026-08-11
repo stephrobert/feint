@@ -157,6 +157,34 @@ printf '%s' "$addresses" | jq -e --arg v "$vm_id" \
   || fail "the public IP is not linked to the Vm: $addresses"
 ok "route, link, rule, group and address all served as built"
 
+# The tags the provider set on the internet service and the route table, which
+# it applies through CreateTags with the identifier it has just been handed. The
+# apply above already fails without this working — that is issue #99, where the
+# emulator answered "the resource igw-… does not exist" about a resource it was
+# serving — so this reads them back to prove the tag was stored rather than
+# merely accepted.
+echo "- the tags the provider set on families beyond the first four"
+igw_id="$("$TF" output -raw internet_service_id)"
+services="$(curl -sf -X POST "$ENDPOINT/api/v1/ReadInternetServices" -H 'Content-Type: application/json' \
+             -d "{\"Filters\":{\"InternetServiceIds\":[\"$igw_id\"]}}")" \
+  || fail "ReadInternetServices rejected"
+printf '%s' "$services" | jq -e \
+  'any(.InternetServices[0].Tags[]; .Key == "Name" and .Value == "conformance-igw")' >/dev/null \
+  || fail "the tag the provider set on the internet service is not served: $services"
+
+printf '%s' "$routes" | jq -e \
+  'any(.RouteTables[0].Tags[]; .Key == "Name" and .Value == "conformance-rtb")' >/dev/null \
+  || fail "the tag the provider set on the route table is not served: $routes"
+
+# And the flat view names them with the types Outscale's own SDK declares, not
+# with names of our own: "vpc" rather than "net", "instance" rather than "vm".
+tags="$(curl -sf -X POST "$ENDPOINT/api/v1/ReadTags" -H 'Content-Type: application/json' \
+         -d '{"Filters":{"ResourceTypes":["route-table"]}}')" || fail "ReadTags rejected"
+printf '%s' "$tags" | jq -e --arg r "$rtb_id" \
+  'any(.Tags[]; .ResourceId == $r and .ResourceType == "route-table")' >/dev/null \
+  || fail "ReadTags does not name the route table with the SDK's own type: $tags"
+ok "tags set, stored, and named with the types the SDK declares"
+
 echo "- the volume the provider created is served"
 volume_id="$("$TF" output -raw volume_id)"
 [ -n "$volume_id" ] || fail "no volume id in the outputs"

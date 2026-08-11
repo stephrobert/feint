@@ -1135,7 +1135,13 @@ func TestTagsAreStoredOnTheResourceTheyName(t *testing.T) {
 		t.Fatalf("ReadTags answered %d tag(s), want 2: %v", len(tags), out)
 	}
 	first, _ := tags[0].(map[string]any)
-	if first["ResourceId"] != netID || first["ResourceType"] != "net" {
+	// "vpc", not "net": this assertion asked for "net" for three releases and
+	// so held the invented value in place, the way a test that asserts the
+	// emulator rather than the cloud always does. The name comes from the SDK's
+	// TagResourceType enum (osc-sdk-go/pkg/osc/client.gen.go).
+	// TestEveryTaggableResourceTypeIsOneTheSDKDeclares now checks the whole
+	// table rather than this one row.
+	if first["ResourceId"] != netID || first["ResourceType"] != "vpc" {
 		t.Errorf("a tag does not name what it is on: %v", first)
 	}
 

@@ -28,15 +28,34 @@
 # behaviour the emulator does not have, and the explicit
 # `outscale_public_ip_link` below is what the pack actually serves.
 
-resource "outscale_internet_service" "net_vm" {}
+# The tags block is the whole of issue #99, and it is here rather than in a unit
+# test because only the provider walks this path: it creates the resource, then
+# calls CreateTags with the identifier it just received. The emulator answered
+# "the resource igw-… does not exist" about a resource it was serving, because
+# the prefix table in tags.go had never grown past the four kinds the pack had
+# when it was written. An apply of this file fails without the fix.
+resource "outscale_internet_service" "net_vm" {
+  tags {
+    key   = "Name"
+    value = "conformance-igw"
+  }
+}
 
 resource "outscale_internet_service_link" "net_vm" {
   internet_service_id = outscale_internet_service.net_vm.internet_service_id
   net_id              = outscale_net.conformance.net_id
 }
 
+# Tagged for the same reason, and on purpose on a second family: rtb- and sg-
+# were reported failing beside igw-, and the defect was a missing row per
+# prefix rather than one wrong line.
 resource "outscale_route_table" "net_vm" {
   net_id = outscale_net.conformance.net_id
+
+  tags {
+    key   = "Name"
+    value = "conformance-rtb"
+  }
 }
 
 resource "outscale_route_table_link" "net_vm" {

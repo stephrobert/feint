@@ -17,21 +17,66 @@ import (
 // mistake this repository has already paid for with volume ownership.
 //
 // ResourceType is derived from the identifier's prefix, which is where Outscale
-// puts it: vpc-, subnet-, i-, key- are the pack's own shapes, declared once in
-// ids.go. Deriving beats storing it: a stored type can disagree with the id it
+// puts it. Deriving beats storing it: a stored type can disagree with the id it
 // sits beside, and nothing would notice.
+//
+// The values are the `TagResourceType` enum of the official SDK
+// (`osc-sdk-go/pkg/osc/client.gen.go`, and its source in `patch.yaml`), not
+// names of our own. Two of the four this table first carried were invented —
+// `net` where Outscale says `vpc`, `vm` where it says `instance` — so a client
+// filtering ReadTags on `instance` matched nothing. Their OpenAPI declares
+// ResourceType as a bare string, which is why no contract check could see it.
+//
+// The table itself is the defect #99 reported: it held four prefixes, written
+// when the pack served four kinds, and 0.6.0 added ten more without touching
+// it. CreateTags therefore answered "the resource igw-… does not exist" about a
+// resource the emulator had just created and was serving.
+// TestEveryIdentifierPrefixIsTriagedForTagging fails when a prefix is added and
+// this table is not, which is the only thing that stops it happening an
+// eleventh time.
 
 // taggable maps an identifier prefix to the kind that holds it, and to the
 // ResourceType the API publishes.
+//
+// An empty resourceType means the resource carries Tags upstream while the SDK
+// enum declares no value naming it: tags are stored and returned on the
+// resource, and ReadTags leaves it out rather than invent a name. See
+// notTaggable below for what carries no tags at all.
 var taggable = []struct {
 	prefix       string
 	kind         string
 	resourceType string
 }{
-	{"vpc-", kindNet, "net"},
+	{"vpc-", kindNet, "vpc"},
 	{"subnet-", kindSubnet, "subnet"},
-	{"i-", kindVM, "vm"},
+	{"i-", kindVM, "instance"},
 	{"key-", kindKeypair, "keypair"},
+	{"vol-", kindVolume, "volume"},
+	{"snap-", kindSnapshot, "snapshot"},
+	{"ami-", kindImage, "image"},
+	{"sg-", kindSecurityGroup, "security-group"},
+	{"rtb-", kindRouteTable, "route-table"},
+	{"eipalloc-", kindPublicIP, "public-ip"},
+	{"eni-", kindNic, "network-interface"},
+	{"dopt-", kindDhcpOptions, "dhcpoptions"},
+	{"nat-", kindNatService, "natgateway"},
+
+	// An internet service carries Tags in their own schema — the Terraform
+	// provider sets them, which is how #99 was found — but the SDK's enum lists
+	// twenty values and none of them names one. So it is taggable, and ReadTags
+	// cannot say what type it is without inventing a name. docs/limits.md
+	// records the gap.
+	{"igw-", kindInternetService, ""},
+}
+
+// notTaggable is the other half of the same triage, and it exists for the same
+// reason Declined() does: "carries no tags" and "nobody has looked" must not be
+// indistinguishable. Every identifier prefix the pack mints is in one table or
+// the other, and a test proves it.
+var notTaggable = map[string]string{
+	"eipassoc-": "the link between a public IP and its target, not a resource: their schema declares no Tags",
+	"rtbassoc-": "the link between a route table and a subnet, not a resource: their schema declares no Tags",
+	"sgr-":      "a rule inside a security group: SecurityGroupRule declares no Tags, the group it belongs to does",
 }
 
 // resourceOf finds what an identifier names, whatever kind it is.
@@ -145,6 +190,13 @@ func (p *Pack) readTags(w http.ResponseWriter, r *http.Request) {
 
 	out := make([]map[string]any, 0)
 	for _, t := range taggable {
+		// A kind the SDK enum does not name is tagged and readable on the
+		// resource itself, and left out of this flat view: every row here
+		// carries a ResourceType, and there is no honest value to put in it.
+		// TestReadTagsOmitsAKindUpstreamDoesNotName fails without this.
+		if t.resourceType == "" {
+			continue
+		}
 		for _, res := range p.env.Store.List(t.kind, resource.Tenant{Provider: Name}) {
 			for key, value := range tagsOf(res) {
 				if !matchesStrings(req.Filters, "ResourceIds", res.ID) ||
