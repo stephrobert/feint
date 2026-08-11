@@ -205,17 +205,36 @@ class Page:
             awaitPromise=True,
         )
         if result.get("exceptionDetails"):
-            thrown = result["exceptionDetails"].get("text")
-            raise Failure(f"the page threw evaluating {expression!r}: {thrown}")
+            raise Failure(f"the page threw evaluating {expression!r}: {thrownIn(result)}")
         return result.get("result", {}).get("value")
 
     def wait_for(self, expression: str, what: str, timeout: float = READY_TIMEOUT) -> None:
+        """Poll until the expression is true, treating a throw as "not yet".
+
+        A readiness probe reaches into the DOM — `querySelector('#served')
+        .textContent` — and that throws a TypeError while the node is still
+        absent, which is the very state being waited for. Letting the first
+        throw out of here turned "the page has not rendered yet" into a fatal
+        error, and it only ever showed on a loaded runner: locally the first
+        poll already finds the page built, so the throw never happens.
+
+        The exception is kept rather than swallowed. A probe that never comes
+        true because the page is genuinely broken must say what broke, and the
+        difference between that and a slow render is exactly what the last
+        throw carries.
+        """
         deadline = time.monotonic() + timeout
+        last = ""
         while time.monotonic() < deadline:
-            if self.evaluate(expression) is True:
-                return
+            try:
+                if self.evaluate(expression) is True:
+                    return
+            except Failure as why:
+                last = str(why)
             time.sleep(0.1)
-        raise Failure(f"timed out after {timeout:.0f}s waiting for {what}")
+
+        detail = f"; the last attempt {last}" if last else ""
+        raise Failure(f"timed out after {timeout:.0f}s waiting for {what}{detail}")
 
     def screenshot(self, path: str, selector: str | None = None) -> None:
         # captureBeyondViewport, because every region worth photographing but the
@@ -245,6 +264,24 @@ class Page:
         data = self.call("Page.captureScreenshot", **params)["data"]
         with open(path, "wb") as handle:
             handle.write(base64.b64decode(data))
+
+
+def thrownIn(result: dict) -> str:  # noqa: N802 - reads as prose at the call site
+    """What the page actually threw, rather than the word "Uncaught".
+
+    `exceptionDetails["text"]` is a label — literally "Uncaught" for anything a
+    page throws — and that is what a CI failure carried the first time this
+    fired: an expression, a colon, and no reason. The message lives one level
+    down, in `exception.description`, which holds the class, the text and a
+    stack.
+
+    First line only: a stack trace inside a one-line failure buries the
+    sentence that matters.
+    """
+    details = result.get("exceptionDetails") or {}
+    described = (details.get("exception") or {}).get("description")
+    text = described or details.get("text") or "nothing readable"
+    return text.strip().splitlines()[0]
 
 
 def find_browser() -> str | None:
