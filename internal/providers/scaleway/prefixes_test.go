@@ -2,6 +2,7 @@ package scaleway_test
 
 import (
 	"net/http"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -48,24 +49,30 @@ func TestEveryRouteFallsUnderADeclaredPrefix(t *testing.T) {
 // deleted.
 //
 // What over-claiming actually means is reaching into another pack's space, and
-// that is what this checks. Outscale owns `/api/v1/` and Exoscale `/v2/`; the
-// server resolves by longest prefix, so a Scaleway prefix that is a prefix of
-// either — or that either is a prefix of — would decide who answers by an
-// accident of string length.
-func TestNoDeclaredPrefixReachesIntoAnotherPacksSpace(t *testing.T) {
+// that is not checked here. It was, for an hour, against a hand-written list of
+// the other two roots — which is the same defect one level up: a list a fourth
+// pack would be absent from, green while measuring nothing of it.
+//
+// It lives in the core instead, where the resolution happens and where whatever
+// is mounted gets checked by existing: `NewServer` refuses two packs whose
+// spaces overlap, the way `NewTable` already refuses two packs claiming one
+// route. See TestTwoPacksMayNotClaimOverlappingSpaces in
+// internal/core/emulator.
+//
+// What is left for this pack to assert is the half only it can know: that its
+// declared space really is Scaleway's.
+func TestEveryDeclaredPrefixLooksLikeAScalewayProduct(t *testing.T) {
 	pack := scaleway.New(emulator.DefaultEnv())
 	unrouted, _ := any(pack).(emulator.Unrouted)
 
-	// The other two packs' roots, written here rather than imported: this test
-	// is about a collision between spaces, and naming them is the assertion.
-	others := []string{"/api/v1/", "/v2/", "/_feint/"}
+	// `/<product>/v<N>[alpha|beta]<M>/`, which is how Scaleway mounts every
+	// product. A prefix shaped otherwise is either a typo or somebody else's
+	// space, and both answer requests in this pack's dialect.
+	shape := regexp.MustCompile(`^/[a-z0-9-]+/v[0-9]+(alpha[0-9]*|beta[0-9]*)?/$`)
 
 	for _, prefix := range unrouted.Prefixes() {
-		for _, other := range others {
-			if strings.HasPrefix(prefix, other) || strings.HasPrefix(other, prefix) {
-				t.Errorf("prefix %q overlaps %q, which belongs to another pack: "+
-					"whoever answers is then decided by string length", prefix, other)
-			}
+		if !shape.MatchString(prefix) {
+			t.Errorf("prefix %q is not shaped like a Scaleway product root", prefix)
 		}
 	}
 }

@@ -130,3 +130,48 @@ func TestEachPackAnswersItsOwnSpace(t *testing.T) {
 		}
 	}
 }
+
+// overlappingPack claims a space that swallows another pack's.
+type overlappingPack struct{ unroutedPack }
+
+func (overlappingPack) Name() string       { return "greedy" }
+func (overlappingPack) Prefixes() []string { return []string{"/stub/"} }
+func (overlappingPack) Routes() []emulator.Route {
+	return []emulator.Route{{
+		Method: "GET", Path: "/greedy/v1/things", Operation: "greedy/v1.ListThings",
+		Handler: func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) },
+	}}
+}
+
+// TestTwoPacksMayNotClaimOverlappingSpaces holds the refusal NewServer makes for
+// two packs whose unrouted spaces overlap.
+//
+// It is the same refusal NewTable makes for two packs claiming one route, one
+// level up, and it is needed for the same reason with an extra twist: an
+// overlap does not conflict loudly. handleUnrouted resolves by longest prefix,
+// so one pack simply wins, decided by the length of a string, and a client
+// meets the wrong provider's error dialect for every operation neither serves.
+//
+// Checked at start-up rather than in a test listing the known spaces, because
+// such a list is one a fourth pack is absent from — green while measuring
+// nothing of it.
+func TestTwoPacksMayNotClaimOverlappingSpaces(t *testing.T) {
+	_, err := emulator.NewServer(emulator.DefaultEnv(), unroutedPack{}, overlappingPack{})
+	if err == nil {
+		t.Fatal("two packs claimed overlapping URL space and the server started anyway")
+	}
+	for _, want := range []string{"stub", "greedy", "/stub/v1/", "/stub/"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the refusal does not name %q: %v", want, err)
+		}
+	}
+}
+
+// And the packs that actually ship must keep starting: a check that refuses
+// everything passes every attack test and breaks the product.
+func TestTheMountedPacksClaimDisjointSpaces(t *testing.T) {
+	env := emulator.DefaultEnv()
+	if _, err := emulator.NewServer(env, scaleway.New(env), outscale.New(env)); err != nil {
+		t.Fatalf("the shipped packs no longer mount together: %v", err)
+	}
+}

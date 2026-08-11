@@ -188,6 +188,9 @@ func NewServer(env *Env, packs ...Pack) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := checkSpaces(packs); err != nil {
+		return nil, err
+	}
 	// Mounting follows the table's own grouping: one ServeMux pattern per base
 	// path. A base with no ":action" route mounts its handler directly; a base
 	// with any mounts a dispatcher, because net/http cannot tell /x/{id} from
@@ -263,6 +266,51 @@ func (s *Server) SelfRoutes() []string {
 	out := make([]string, len(s.self))
 	copy(out, s.self)
 	return out
+}
+
+// checkSpaces refuses two packs whose unrouted URL spaces overlap.
+//
+// The same refusal NewTable makes for two packs claiming one route, one level
+// up. handleUnrouted resolves by longest prefix, so two packs whose spaces
+// overlap do not conflict loudly: one of them simply wins, decided by the
+// length of a string, and a client gets the wrong provider's error dialect for
+// every operation neither serves.
+//
+// At start-up rather than in a test, and the difference matters here. A test
+// listing the spaces it knows about is a test a fourth pack is absent from,
+// green while measuring nothing of it — which is the defect this repository has
+// now paid for twice, in Declined() and in the Outscale tag table. This reads
+// whatever is mounted, so a pack added tomorrow is checked by existing.
+//
+// Overlap within one pack is left alone: the same NotFound answers either way,
+// so there is nothing to resolve.
+// TestTwoPacksMayNotClaimOverlappingSpaces fails without this.
+func checkSpaces(packs []Pack) error {
+	type claim struct{ provider, prefix string }
+	var claims []claim
+	for _, p := range packs {
+		unrouted, ok := p.(Unrouted)
+		if !ok {
+			continue
+		}
+		for _, prefix := range unrouted.Prefixes() {
+			claims = append(claims, claim{p.Name(), prefix})
+		}
+	}
+	for i, a := range claims {
+		for _, b := range claims[i+1:] {
+			if a.provider == b.provider {
+				continue
+			}
+			if strings.HasPrefix(a.prefix, b.prefix) || strings.HasPrefix(b.prefix, a.prefix) {
+				return fmt.Errorf(
+					"packs %q and %q both claim overlapping URL space (%q and %q): "+
+						"an unserved request there would be answered by whichever prefix is longer",
+					a.provider, b.provider, a.prefix, b.prefix)
+			}
+		}
+	}
+	return nil
 }
 
 // handleUnrouted answers a request no route claimed, in the dialect of whichever
