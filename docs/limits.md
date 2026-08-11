@@ -381,6 +381,14 @@ lists five provider attributes — `key`, `secret`, `timeout`, `environment`,
 is Object Storage only; `environment` composes a `%s-%s.exoscale.com` domain.
 Neither points anywhere local.
 
+Nor is there one deeper in the client. `egoscale/v2` reads no environment
+variable of its own, and the `.exoscale.com` suffix is compiled into
+`v2/api/request.go`. The option that would do it, `ClientOptWithAPIEndpoint`,
+**exists in `egoscale/v2` and is never called by the provider** — a grep over
+`exoscale/` and `pkg/` returns nothing. Three sites build a v2 client without
+it: `CreateClient`, `getClient`, and the plugin-framework provider's
+`Configure`.
+
 **So the emulator refuses that client**, by the user agent it sets itself
 (`Exoscale-Terraform-Provider/…`), with a message saying what is happening. Half
 serving it is the worst of the three outcomes: a half-success is
@@ -400,8 +408,74 @@ The `exo` CLI is unaffected and is driven by the conformance suite: it reads
 `EXOSCALE_API_ENDPOINT` for everything.
 
 Closing this properly needs an endpoint option on the provider's v2 client,
-which is upstream work. Until then, `feint env exoscale` prints the warning on
-stderr, where `eval` cannot swallow it.
+which is upstream work. It is filed as
+[exoscale/terraform-provider-exoscale#573][exo-573], with the mechanism, the
+three construction sites and a reproduction. Until it lands, `feint env
+exoscale` prints the warning on stderr, where `eval` cannot swallow it.
+
+### The patched provider, while upstream decides
+
+The fix is four lines per site, so it is also carried on a fork, pinned:
+
+- [`stephrobert/terraform-provider-exoscale@fix/v2-client-honours-api-endpoint`][fork],
+  commit `2e78b42`, branched from `de9d60c2` (0.70.0 plus six commits).
+
+It passes `ClientOptWithAPIEndpoint` at the three sites, and nothing else.
+Terraform resolves it without a registry, through `dev_overrides`:
+
+```bash
+git clone -b fix/v2-client-honours-api-endpoint \
+  https://github.com/stephrobert/terraform-provider-exoscale
+cd terraform-provider-exoscale && go build -o /tmp/tfp/terraform-provider-exoscale .
+
+cat > /tmp/dev.tfrc <<'RC'
+provider_installation {
+  dev_overrides { "exoscale/exoscale" = "/tmp/tfp" }
+  direct {}
+}
+RC
+
+eval "$(feint env exoscale)"
+export TF_CLI_CONFIG_FILE=/tmp/dev.tfrc
+terraform apply          # no `init` for an overridden provider
+```
+
+Measured against this emulator, with a security group (v3 client) and an SSH key
+(v2 client) in one configuration:
+
+```text
+exoscale_security_group.v3_side: Creation complete after 0s
+exoscale_ssh_key.v2_side:        Creation complete after 0s
+Apply complete! Resources: 2 added, 0 changed, 0 destroyed.
+```
+
+Both calls arrived — `POST /v2/security-group` and `POST /v2/ssh-key`, 200 each
+on `/_feint/trace` — the second plan was empty, and `destroy` removed both. The
+same configuration on the published 0.70.0 creates the security group here and
+sends the SSH key to `api-ch-gva-2.exoscale.com`.
+
+`FEINT_EXOSCALE_ALLOW_TERRAFORM=1` is still required: the emulator refuses by
+user agent, and the fork does not change the user agent it sets.
+
+**One limit the fork does not lift.** `setEndpointFromContext` in `egoscale/v2`
+rewrites the request host from the zone context *unless the configured host is
+an IP literal*. The fork is therefore honoured end to end for
+`http://127.0.0.1:4599/v2` — which is what `feint env exoscale` prints — and a
+**hostname** endpoint such as `http://gateway.internal:8080` would still be
+rewritten back to `*.exoscale.com`. Closing that half is a change in `egoscale`,
+not in the provider.
+
+**It does not count towards conformance, and must not.** The north star of this
+project is that *the official client cannot tell the difference*; a client this
+project patched is no longer the official client. What the fork proves is real
+and worth having — that the rest of the emulated Exoscale surface holds under
+Terraform, and that #573 is the only thing in the way — but it is a weaker claim
+than a route driven by a published client, and adding the two together would
+repeat the error `probed` exists to avoid. Exoscale loses its *preview* label on
+what `exo` proves.
+
+[exo-573]: https://github.com/exoscale/terraform-provider-exoscale/issues/573
+[fork]: https://github.com/stephrobert/terraform-provider-exoscale/tree/fix/v2-client-honours-api-endpoint
 
 ## A terminated Vm stays terminated, and stays
 

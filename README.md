@@ -502,14 +502,20 @@ those. Nothing else on your host is touched.
 | Provider | Protocol | Proven by | Maturity |
 |---|---|---|---|
 | Scaleway | REST JSON, `X-Auth-Token` | `scw`, Terraform, OpenTofu | usable |
-| Outscale | `POST /api/v1/<Action>`, AWS Signature v4 | `oapi-cli` | starter |
+| Outscale | `POST /api/v1/<Action>`, AWS Signature v4 | `oapi-cli`, Terraform | starter |
 | Exoscale | REST `/v2/<resource>`, asynchronous operations | `exo` | **preview** |
 
 *Usable* means a realistic configuration applies and destroys. *Starter* and
 *preview* mean the protocol is right and the surface is thin: see the coverage
 tables below, and [docs/limits.md](docs/limits.md) for what that costs you.
-Exoscale loses its preview label the day `terraform apply` passes against it in
-conformance, which is the condition [docs/roadmap.md](docs/roadmap.md) sets.
+Exoscale loses its preview label on what the `exo` CLI proves. Terraform is not
+that condition, and cannot be: the provider honours `EXOSCALE_API_ENDPOINT` for
+one of the two clients it builds and reaches the real cloud with the other, so
+an apply splits between this emulator and a paying account. Filed upstream as
+[#573](https://github.com/exoscale/terraform-provider-exoscale/issues/573); a
+patched build that closes the split is documented in
+[docs/limits.md](docs/limits.md#the-patched-provider-while-upstream-decides),
+and it deliberately counts for nothing here.
 
 Every command in the [Use it](#use-it) section above is executed against the
 emulator before it is written here.
