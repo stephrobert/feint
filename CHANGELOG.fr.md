@@ -15,7 +15,7 @@ parce que c'est là-dessus que ce projet est jugé : **une forme de réponse qu'
 client peut observer**, et **une limite qui a bougé**. Une refactorisation qui ne
 change ni l'un ni l'autre a sa place dans `git log`.
 
-## [Non publié]
+## [0.7.1]
 
 ### Corrigé
 
