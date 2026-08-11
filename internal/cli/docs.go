@@ -14,9 +14,6 @@ import (
 	"strings"
 
 	"github.com/stephrobert/feint/internal/drift"
-	"github.com/stephrobert/feint/internal/providers/exoscale"
-	"github.com/stephrobert/feint/internal/providers/outscale"
-	"github.com/stephrobert/feint/internal/providers/scaleway"
 )
 
 // The coverage tables in the README are generated, and this is why.
@@ -97,7 +94,7 @@ func docs(args []string, stdout, stderr io.Writer) int {
 		return exitOK
 	}
 
-	routes, err := routesByProvider()
+	order, routes, err := routesByProvider()
 	if err != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", err)
 		return exitError
@@ -129,7 +126,7 @@ func docs(args []string, stdout, stderr io.Writer) int {
 	// legitimate target, and failing it over a marker it never claimed to have
 	// would make --coverage on another document useless.
 	if strings.Contains(updated, bannerStartMarker) {
-		updated, err = spliceSection(updated, bannerStartMarker, bannerEndMarker, renderBanner(routes))
+		updated, err = spliceSection(updated, bannerStartMarker, bannerEndMarker, renderBanner(order, routes))
 		if err != nil {
 			fmt.Fprintf(stderr, "feint: %v\n", err)
 			return exitError
@@ -352,20 +349,24 @@ func staleCoverage(reports []drift.CoverageFile, routes map[string]map[string]in
 // mounted against a surface nobody scans — six of them, on the day this was
 // written. A table reporting 55 routes next to 49 served operations and saying
 // nothing about the gap invites the reader to assume a rounding error.
-func routesByProvider() (map[string]map[string]int, error) {
+// The order returned beside the counts is the mount order, because the banner
+// must print providers in the order the server does and a map has none.
+func routesByProvider() ([]string, map[string]map[string]int, error) {
 	srv, _, err := newServer(nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	var order []string
 	counts := make(map[string]map[string]int)
 	for _, p := range srv.Packs() {
 		byProduct := make(map[string]int)
 		for _, r := range p.Routes() {
 			byProduct[productOf(r.Operation)]++
 		}
+		order = append(order, p.Name())
 		counts[p.Name()] = byProduct
 	}
-	return counts, nil
+	return order, counts, nil
 }
 
 // productOf takes the product an operation belongs to, which every provider
@@ -498,7 +499,11 @@ func renderCoverage(reports []drift.CoverageFile, routes map[string]map[string]i
 //
 // The provider order is the one the server mounts packs in, not an alphabetical
 // one, because the point is to match what a reader will see in their terminal.
-func renderBanner(routes map[string]map[string]int) string {
+// It arrives from routesByProvider rather than being written here: a hardcoded
+// list held this banner at three providers, so mounting a fourth pack turned
+// `feint docs --check` red until somebody found this line — the treasure hunt
+// docs/fourth-pack.md recorded.
+func renderBanner(order []string, routes map[string]map[string]int) string {
 	var b strings.Builder
 	// The line the binary actually prints, format string and all. It carried
 	// neither the version nor the real default address, which meant a reader
@@ -511,7 +516,7 @@ func renderBanner(routes map[string]map[string]int) string {
 	// would flip on who ran it. "dev" is what anybody building from a checkout
 	// sees, which is who reads a README; a released binary prints its tag there.
 	fmt.Fprintf(&b, "```bash\nfeint serve\n#  feint dev listening on %s\n", DefaultAddr)
-	for _, provider := range []string{scaleway.Name, outscale.Name, exoscale.Name} {
+	for _, provider := range order {
 		fmt.Fprintf(&b, "#    %-9s %2d routes\n", provider, routeTotal(routes[provider]))
 	}
 	b.WriteString("#    machines  none\n```\n")

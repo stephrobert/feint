@@ -42,14 +42,21 @@ import (
 // files needs a real account and is a human's job (`feint shapes --record`);
 // checking against them is not.
 func checkShapes(dir string, providers []string, stdout, stderr io.Writer) int {
-	if len(providers) == 0 {
-		providers = []string{"scaleway", "outscale", "exoscale"}
-	}
-
-	srv, err := emulator.NewServer(emulator.DefaultEnv(), packsFor(emulator.DefaultEnv())...)
+	env := emulator.DefaultEnv()
+	srv, err := emulator.NewServer(env, packsFor(env)...)
 	if err != nil {
 		fmt.Fprintf(stderr, "feint: build the emulator: %v\n", err)
 		return exitError
+	}
+	// Derived from the mounted packs rather than written here. A hardcoded list
+	// made a fourth pack invisible to this gate instead of reported: the honest
+	// degradation below — "no catalogue; nothing to check" — was unreachable for
+	// a pack the list omitted, and nothing failed to say so.
+	// TestShapesCheckCoversEveryMountedPack fails without this.
+	if len(providers) == 0 {
+		for _, p := range srv.Packs() {
+			providers = append(providers, p.Name())
+		}
 	}
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()

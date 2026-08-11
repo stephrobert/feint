@@ -16,6 +16,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -595,7 +596,14 @@ func coverage(args []string, stdout, stderr io.Writer) int {
 	}
 	// One scanner per provider, because their SDKs share no shape: Scaleway
 	// generates a package per product and version from its own IDL, Outscale
-	// generates one client per service from OpenAPI.
+	// generates one client per service from OpenAPI. A map rather than a switch,
+	// so the refusal below lists what is registered instead of repeating it: the
+	// old message named two providers in its own words, which is the kind of
+	// sentence that stays true until the third scanner lands and then lies.
+	scanners := map[string]func(string) ([]drift.Operation, error){
+		scaleway.Name: drift.ScanScalewaySDK,
+		outscale.Name: drift.ScanOutscaleSDK,
+	}
 	var (
 		upstream []drift.Operation
 		err      error
@@ -609,14 +617,19 @@ func coverage(args []string, stdout, stderr io.Writer) int {
 		if doc, err = contract.Load(*contractPath); err == nil {
 			upstream, err = drift.ScanContract(doc)
 		}
-	case *provider == scaleway.Name:
-		upstream, err = drift.ScanScalewaySDK(*sdk)
-	case *provider == outscale.Name:
-		upstream, err = drift.ScanOutscaleSDK(*sdk)
 	default:
-		fmt.Fprintf(stderr, "feint: no SDK scanner for provider %q yet; %q and %q are supported\n",
-			*provider, scaleway.Name, outscale.Name)
-		return exitError
+		scan, known := scanners[*provider]
+		if !known {
+			names := make([]string, 0, len(scanners))
+			for name := range scanners {
+				names = append(names, name)
+			}
+			sort.Strings(names)
+			fmt.Fprintf(stderr, "feint: no SDK scanner for provider %q yet; supported: %s\n",
+				*provider, strings.Join(names, ", "))
+			return exitError
+		}
+		upstream, err = scan(*sdk)
 	}
 	if err != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", err)

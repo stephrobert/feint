@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/transcript"
 )
 
@@ -78,3 +80,39 @@ func TestADictionarysKeysAreNotMissingFields(t *testing.T) {
 		t.Errorf("a field missing from a published key was not reported: %v", gaps)
 	}
 }
+
+// The gate must cover whatever the server mounts, not a list written beside it.
+//
+// The provider names used to be hardcoded in checkShapes, which made a fourth
+// pack invisible to the gate rather than reported: the honest "no catalogue;
+// nothing to check" degradation existed in the code and was unreachable for a
+// pack the list omitted. packsFor is the same seam
+// TestCoverageRefusesAPackWithUnusableRefusals uses, and for the same reason —
+// proving the call site rather than a helper.
+func TestShapesCheckCoversEveryMountedPack(t *testing.T) {
+	original := packsFor
+	t.Cleanup(func() { packsFor = original })
+	packsFor = func(env *emulator.Env) []emulator.Pack {
+		return append(original(env), stubPack{name: "fourthcloud"})
+	}
+
+	var out, errOut strings.Builder
+	if rc := checkShapes(t.TempDir(), nil, &out, &errOut); rc != exitOK {
+		t.Fatalf("checkShapes exited %d with no catalogue recorded, want %d\n%s",
+			rc, exitOK, errOut.String())
+	}
+	for _, name := range []string{"scaleway", "outscale", "exoscale", "fourthcloud"} {
+		if !strings.Contains(out.String(), name+": no catalogue") {
+			t.Errorf("the gate never accounted for the mounted pack %q:\n%s", name, out.String())
+		}
+	}
+}
+
+// stubPack is a mounted pack the shapes gate has no catalogue for. It serves
+// nothing: what is being proven is that the gate accounts for it anyway.
+type stubPack struct{ name string }
+
+func (p stubPack) Name() string                    { return p.name }
+func (p stubPack) Routes() []emulator.Route        { return nil }
+func (p stubPack) Declined() []emulator.Decline    { return nil }
+func (p stubPack) Env(string) emulator.Environment { return emulator.Environment{} }

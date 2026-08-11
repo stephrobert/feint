@@ -89,7 +89,9 @@ type Route struct {
 
 // Pack is one provider implementation.
 type Pack interface {
-	// Name is the provider key: "scaleway", "outscale", "exoscale".
+	// Name is the provider key: one lowercase word, unique among the mounted
+	// packs (e.g. "scaleway"). The core never holds a list of them — anything
+	// keyed by provider derives its names from the packs the server mounts.
 	Name() string
 	// Routes lists everything the pack serves.
 	Routes() []Route

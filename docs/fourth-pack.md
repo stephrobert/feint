@@ -79,9 +79,17 @@ comment ("could this line be written identically for another provider?").
 
 ### Category 2: shared code the fourth pack must edit
 
-Thirteen files, roughly 45 additive lines, none of which changes the behaviour
+Eleven files, roughly 43 additive lines, none of which changes the behaviour
 of the three existing packs. Each entry says what would make it data, or why it
 should stay code.
+
+Two entries this audit originally counted — hardcoded provider lists in
+`internal/cli/shapes_check.go` and `internal/cli/docs.go` — were fixed on
+2026-08-11: both now derive the list from the mounted packs, so a fourth pack
+is covered by the shapes gate and printed by the banner by construction.
+`TestShapesCheckCoversEveryMountedPack` holds the first; the second is held by
+`feint docs --check` itself, which regenerates the banner from whatever
+`packsFor` mounts.
 
 | File | Edit | Remedy |
 |---|---|---|
@@ -89,8 +97,6 @@ should stay code.
 | `internal/upstream/upstream.go` | +3: `Provider` const, one `case` in `New` | Keep for now. The three dialect conditionals (`if c.Provider == Outscale`) are doctrine-compliant while exactly one provider deviates; the day a second POST-action provider arrives they become fields of a dialect struct, not before. |
 | `internal/upstream/credentials.go` | +2 dispatch, then a reader (category 3 content) | Keep. Reading a CLI's config file is provider knowledge; the one-file-per-provider seam already exists (`sign_*.go` pattern). |
 | `internal/upstream/reads.go` | +10 to 15 lines of curated data | Keep. The file says why it is curated, and the entries are data already. |
-| `internal/cli/shapes_check.go:46` | +1 to a hardcoded `[]string` | **Fix.** Derive from `srv.Packs()` as `env.go` does. Today a fourth pack is *invisible* to the shapes gate rather than reported as "no catalogue": the honest degradation already written at line 66 is unreachable for a pack the list omits. |
-| `internal/cli/docs.go:514` | +1 to the same hardcoded list | **Fix, same remedy.** `feint docs --check` goes red after mounting a pack until this line is found; deriving from packs deletes the treasure hunt. |
 | `internal/cli/status.go:289` (`productsOfProvider`) | +1 data row | Acceptable. Display-only and it degrades honestly (its comment says so). Could become a `Pack` method the day a second consumer appears. |
 | `internal/cli/doctor.go` (clients table) | +1 row | Data row, keep. |
 | `internal/cli/docs_clients.go` | +1 to 2 rows | Data row, keep. |
@@ -125,7 +131,7 @@ Measured against the Exoscale history (the honest baseline: bootstrap at
 **Largely industrial.** A fourth pack serving ten operations and proving them
 costs, measured rather than guessed:
 
-- **~45 additive lines across 13 shared files**, none of which can regress the
+- **~43 additive lines across 11 shared files**, none of which can regress the
   three existing packs (every edit is a new case, row, or task);
 - **~1 500 lines in its own directory** (pack, tests, conformance script);
 - **~100 to 350 lines of adapters** (signer, credentials, possibly a contract
@@ -164,12 +170,11 @@ What is **not** industrial today is three things, none structural:
    `shapes/*.json` is regenerated, which is exactly where a human decision must
    not live. Estimated ~100 lines including the test. This unblocks wiring the
    gate into every pull request, which is the point of having built it.
-3. **Derive provider lists from mounted packs** in `shapes_check.go:46` and
-   `docs.go:514`. Two real hardcoded callers, and the correct pattern already
-   exists in `env.go`: this is applying an existing seam, not building an
-   abstraction. It makes both gates cover a fourth pack by construction, and
-   turns "invisible to the gate" into the honest "no catalogue; nothing to
-   check".
+3. **Derive provider lists from mounted packs** in `shapes_check.go` and
+   `docs.go`. Done, 2026-08-11: both gates read `srv.Packs()`, the pattern
+   `env.go` already used. "Invisible to the gate" became the honest "no
+   catalogue; nothing to check", and `TestShapesCheckCoversEveryMountedPack`
+   fails if the list is ever written by hand again.
 4. **Deduplicate the Outscale call identity** between `upstream` and
    `shapes_check` (one exported function, two existing callers).
 5. **Watch, do not build:** the day a second provider deviates from the
