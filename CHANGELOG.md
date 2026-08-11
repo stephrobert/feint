@@ -16,6 +16,16 @@ what this project is judged on: **a response shape a client can observe**, and
 ## [Unreleased]
 
 ### Fixed
+- **An attached network interface reported a link state the Terraform provider
+  refuses.** `LinkNic.State` published `in-use`, which is the state of the
+  *interface*; the state of the *link* is `attached`, and the provider polls
+  `ReadNics` until it reads that. It gave up with `unexpected state 'in-use',
+  wanted target 'attached, detached, failed'`, leaving an apply half done and a
+  destroy unable to finish. The same file rendered `attached` for the primary
+  NIC inside a Vm four dozen lines away — one field, two spellings — and the
+  unit test asserting `in-use` was holding the wrong one in place under a name
+  claiming it matched a recording, when `feint shapes` records field trees and
+  never values.
 
 - **A recording could stop early and say nothing.** Some APIs hand the client an
   address in a response body — Exoscale publishes an `api-endpoint` per zone —

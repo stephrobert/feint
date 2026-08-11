@@ -18,6 +18,16 @@ change ni l'un ni l'autre a sa place dans `git log`.
 ## [Non publié]
 
 ### Corrigé
+- **Une interface réseau attachée rapportait un état de lien que le provider
+  Terraform refuse.** `LinkNic.State` publiait `in-use`, qui est l'état de
+  l'*interface* ; l'état du *lien* est `attached`, et le provider interroge
+  `ReadNics` jusqu'à le lire. Il abandonnait sur `unexpected state 'in-use',
+  wanted target 'attached, detached, failed'`, laissant un apply à moitié fait
+  et un destroy incapable d'aboutir. Le même fichier rendait `attached` pour la
+  NIC primaire d'une Vm quarante lignes plus haut — un champ, deux orthographes
+  — et le test unitaire qui affirmait `in-use` verrouillait la mauvaise, sous un
+  nom prétendant correspondre à un enregistrement, alors que `feint shapes`
+  enregistre des arbres de champs et jamais des valeurs.
 
 - **Un enregistrement pouvait s'arrêter tôt sans rien dire.** Certaines API
   remettent une adresse au client dans un corps de réponse — Exoscale publie un

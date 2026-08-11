@@ -216,6 +216,26 @@ fi
 nat="$(osc CreateNatService --SubnetId "$sub_id" --PublicIpId "$eip_id")" \
   || fail "CreateNatService rejected: $nat"
 nat_id="$(printf '%s' "$nat" | jq -r '.NatService.NatServiceId // empty')"
+
+# A default route, then retargeted onto the NAT service. UpdateRoute is the last
+# operation OSC-3 named that no client walked: Terraform replaces a route rather
+# than updating it, so only a direct call reaches it, and a route whose target
+# moves is what a client does when a subnet stops being public.
+main_rtb="$(printf '%s' "$rtbs" | jq -r '.RouteTables[0].RouteTableId')"
+osc CreateRoute --RouteTableId "$main_rtb" --DestinationIpRange 0.0.0.0/0 \
+    --GatewayId "$gw_id" >/dev/null || fail "CreateRoute rejected"
+moved="$(osc UpdateRoute --RouteTableId "$main_rtb" --DestinationIpRange 0.0.0.0/0 \
+           --NatServiceId "$nat_id")" || fail "UpdateRoute rejected: $moved"
+printf '%s' "$moved" | jq -e --arg n "$nat_id" \
+  'any(.RouteTable.Routes[]; .DestinationIpRange == "0.0.0.0/0" and .NatServiceId == $n)' >/dev/null \
+  || fail "the route still points at the gateway after UpdateRoute: $moved"
+# The old target must go with it: a route naming two next hops is one no
+# forwarding table could act on, and it reads as success.
+printf '%s' "$moved" | jq -e \
+  'any(.RouteTable.Routes[]; .DestinationIpRange == "0.0.0.0/0" and (has("GatewayId") | not))' >/dev/null \
+  || fail "the route kept its gateway alongside the NAT service: $moved"
+osc DeleteRoute --RouteTableId "$main_rtb" --DestinationIpRange 0.0.0.0/0 >/dev/null \
+  || fail "DeleteRoute rejected"
 if osc DeletePublicIp --PublicIpId "$eip_id" >/dev/null 2>&1; then
   fail "an address held by a NAT service was released"
 fi
@@ -265,8 +285,58 @@ printf '%s' "$restored" | jq -e --arg s "$snap_id" '.Volume.SnapshotId == $s and
 restored_id="$(printf '%s' "$restored" | jq -r '.Volume.VolumeId')"
 osc DeleteSnapshot --SnapshotId "$snap_id" >/dev/null || fail "DeleteSnapshot rejected"
 osc DeleteVolume --VolumeId "$restored_id" >/dev/null || fail "DeleteVolume rejected"
-osc DeleteVolume --VolumeId "$vol_id" >/dev/null || fail "DeleteVolume rejected"
 ok "record, restore, and the key only when it means something"
+
+# The three updates OSC-3 and OSC-4 promised and no client drove. They were
+# served, unit-tested, and unproven: the batches list them among their
+# deliverables, and "a unit test alone closes nothing" is condition 3 of what
+# makes a batch done. Terraform walks none of them — it replaces rather than
+# updates for these — so they belong to this suite.
+echo "- the updates a batch promised and nothing had exercised"
+
+# A volume grows and refuses to shrink: a filesystem does not survive its disk
+# getting smaller, which is why the refusal matters more than the growth.
+grown="$(osc UpdateVolume --VolumeId "$vol_id" --Size 9)" || fail "UpdateVolume rejected: $grown"
+printf '%s' "$grown" | jq -e '.Volume.Size == 9' >/dev/null \
+  || fail "the volume did not grow: $grown"
+if osc UpdateVolume --VolumeId "$vol_id" --Size 3 >/dev/null 2>&1; then
+  fail "the volume shrank, which loses a filesystem"
+fi
+
+# An image's description, which is the field of UpdateImage this emulator can
+# mean something by. `PermissionsToLaunch` is refused on purpose and the refusal
+# is checked below: it grants to another account, and there is only one here.
+#
+# Cut from a snapshot, because the pack refuses an image with no provenance —
+# "an image needs a VmId or BlockDeviceMappings naming a snapshot" — and that
+# refusal is the right one: an image of nothing boots nothing.
+img_snap="$(osc CreateSnapshot --VolumeId "$vol_id")" || fail "CreateSnapshot rejected: $img_snap"
+img_snap_id="$(printf '%s' "$img_snap" | jq -r '.Snapshot.SnapshotId')"
+img="$(osc CreateImage --ImageName feint-conformance-update \
+         --BlockDeviceMappings.0.Bsu.SnapshotId "$img_snap_id" \
+         --BlockDeviceMappings.0.DeviceName /dev/sda1)" || fail "CreateImage rejected: $img"
+img_id="$(printf '%s' "$img" | jq -r '.Image.ImageId')"
+updated="$(osc UpdateImage --ImageId "$img_id" --Description "renamed by conformance")" \
+  || fail "UpdateImage rejected: $updated"
+printf '%s' "$updated" | jq -e --arg i "$img_id" \
+  '.Image.ImageId == $i and .Image.Description == "renamed by conformance"' >/dev/null \
+  || fail "UpdateImage did not apply the description it was given: $updated"
+# And it reads back, because an update that answers the new value while storing
+# the old one is the failure a single response cannot distinguish.
+reread="$(osc ReadImages --Filters.ImageIds.0 "$img_id")" || fail "ReadImages rejected: $reread"
+printf '%s' "$reread" | jq -e '.Images[0].Description == "renamed by conformance"' >/dev/null \
+  || fail "the description did not survive the write: $reread"
+
+# The half that is refused, and must stay refused.
+if osc UpdateImage --ImageId "$img_id" \
+     --PermissionsToLaunch.Additions.0.AccountId 123456789012 >/dev/null 2>&1; then
+  fail "PermissionsToLaunch was accepted, granting to an account that cannot exist here"
+fi
+osc DeleteImage --ImageId "$img_id" >/dev/null || fail "DeleteImage rejected"
+osc DeleteSnapshot --SnapshotId "$img_snap_id" >/dev/null || fail "DeleteSnapshot rejected"
+
+osc DeleteVolume --VolumeId "$vol_id" >/dev/null || fail "DeleteVolume rejected"
+ok "a volume grows and refuses to shrink, an image's permissions round-trip"
 
 echo "- a keypair, because a machine nobody can log into proves nothing"
 keys="$(osc ReadKeypairs)" || fail "ReadKeypairs rejected: $keys"

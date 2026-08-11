@@ -29,8 +29,12 @@ import (
 // Shapes measured against a real account (read sweep and lifecycle sweep,
 // 2026-08-08): PrivateDnsName is "ip-<a-b-c-d>.<region>.compute.internal", on the
 // NIC and on each PrivateIps entry; a fresh CreateNic carries neither LinkNic
-// nor LinkPublicIp; an attached interface's LinkNic carries DeviceNumber from 1,
-// State "in-use", VmAccountId the account's own.
+// nor LinkPublicIp; an attached interface carries State "in-use" and a LinkNic
+// with DeviceNumber from 1, State "attached" and VmAccountId the account's own.
+//
+// The two states are not the same word and this comment said they were, which
+// is how the wrong one survived: the interface is "in-use", the link is
+// "attached".
 
 const kindNic = "nic"
 
@@ -214,12 +218,28 @@ func (p *Pack) storedNicView(nic *resource.Resource) map[string]any {
 	}
 	// The link appears only when attached, in the measured shape: DeviceNumber
 	// from 1 (0 is the derived primary), VmAccountId the account's own.
+	//
+	// `attached`, not `in-use`. Those are two different fields: `in-use` is the
+	// state of the *interface*, set above from Attrs, and `attached` is the
+	// state of the *link*. This spot published the interface's word for the
+	// link's field, while the primary NIC rendered inside a Vm published
+	// `attached` four dozen lines up — the same field, two spellings, in one
+	// file.
+	//
+	// Nothing could see it. No contract does: their OpenAPI types LinkNic.State
+	// as a bare string, and the value only appears in their examples. No unit
+	// test did either, because the pack's own tests read back what the pack
+	// wrote. It took the Terraform provider, which polls ReadNics until the
+	// link reports `attached` and gave up with "unexpected state 'in-use',
+	// wanted target 'attached, detached, failed'" — leaving the apply half done
+	// and the destroy unable to finish.
+	// TestAnAttachedNicReportsTheLinkStateTheProviderWaitsFor fails without this.
 	if vmID := stringOf(nic.Attrs["LinkVmId"]); vmID != "" {
 		out["LinkNic"] = map[string]any{
 			"DeleteOnVmDeletion": false,
 			"DeviceNumber":       numOf(nic.Attrs["DeviceNumber"]),
 			"LinkNicId":          stringOf(nic.Attrs["LinkNicId"]),
-			"State":              "in-use",
+			"State":              "attached",
 			"VmAccountId":        accountID,
 			"VmId":               vmID,
 		}

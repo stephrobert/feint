@@ -102,8 +102,47 @@ resource "outscale_public_ip_link" "net_vm" {
   public_ip = outscale_public_ip.net_vm.public_ip
 }
 
+# Beyond the upstream example, and for a stated reason: OSC-3 promises "Nic and
+# its links" and "NatService", the pack serves all of them, and no client drove
+# a single one — six routes whose behaviour was held by unit tests alone. The
+# batch's own closing condition says a unit test closes nothing.
+#
+# A NIC is also the one resource here that carries an address of its own, so a
+# client attaching one is the only thing that exercises the second-interface
+# path of the addressing plane.
+resource "outscale_nic" "net_vm" {
+  subnet_id          = outscale_subnet.conformance.subnet_id
+  security_group_ids = [outscale_security_group.net_vm.security_group_id]
+}
+
+resource "outscale_nic_link" "net_vm" {
+  device_number = "1"
+  vm_id         = outscale_vm.conformance.vm_id
+  nic_id        = outscale_nic.net_vm.nic_id
+}
+
+# Its own address, not the machine's: a NAT service and a linked public IP
+# cannot share one, and the pack refuses it — which is the behaviour a second
+# address proves rather than assumes.
+resource "outscale_public_ip" "nat" {}
+
+resource "outscale_nat_service" "net_vm" {
+  subnet_id    = outscale_subnet.conformance.subnet_id
+  public_ip_id = outscale_public_ip.nat.public_ip_id
+
+  depends_on = [outscale_route_table_link.net_vm]
+}
+
 output "internet_service_id" {
   value = outscale_internet_service.net_vm.internet_service_id
+}
+
+output "nic_id" {
+  value = outscale_nic.net_vm.nic_id
+}
+
+output "nat_service_id" {
+  value = outscale_nat_service.net_vm.nat_service_id
 }
 
 output "route_table_id" {

@@ -60,8 +60,21 @@ func TestANicLifecycleMatchesTheRecordedShapes(t *testing.T) {
 	if dn, _ := linkNic["DeviceNumber"].(float64); dn != 1 {
 		t.Fatalf("DeviceNumber = %v, want 1", linkNic["DeviceNumber"])
 	}
-	if linkNic["State"] != "in-use" {
-		t.Fatalf("the attach state is not in-use: %v", linkNic)
+	// "attached", not "in-use". This assertion asked for "in-use" and so held a
+	// defect in place until a real client walked the path: the Terraform
+	// provider polls ReadNics until the link reports attached and gave up with
+	// "unexpected state 'in-use', wanted target 'attached, detached, failed'".
+	//
+	// The value did not come from a recording despite this test's name —
+	// `feint shapes` records field trees, never values, so nothing here was ever
+	// measured. Outscale's own API document shows `State: attached` in its
+	// LinkNic examples, and the interface's own State, checked separately below,
+	// is the field that reads "in-use".
+	if linkNic["State"] != "attached" {
+		t.Fatalf("the link state is not attached: %v", linkNic)
+	}
+	if attached["State"] != "in-use" {
+		t.Fatalf("the interface state is not in-use: %v", attached["State"])
 	}
 
 	// It can be found by the machine it is attached to.
@@ -115,4 +128,57 @@ func TestDeletingAVmDetachesItsSecondaryNics(t *testing.T) {
 		t.Fatalf("the detached interface is not available again: %v", nic)
 	}
 	call(t, ts, doc, "DeleteNic", `{"NicId":"`+nicID+`"}`)
+}
+
+// TestAnAttachedNicReportsTheLinkStateTheProviderWaitsFor holds the two states
+// apart. The interface is "in-use"; its link is "attached". The pack published
+// the interface's word in the link's field, and the Terraform provider — which
+// polls ReadNics until the link reports attached — gave up with "unexpected
+// state 'in-use', wanted target 'attached, detached, failed'", leaving an apply
+// half done and a destroy unable to finish.
+//
+// Nothing else could have caught it: their OpenAPI types LinkNic.State as a
+// bare string, so no contract applies, and a unit test that reads back what the
+// pack wrote agrees with whatever the pack chose. The same file rendered
+// "attached" for the primary NIC inside a Vm, so the two spellings sat four
+// dozen lines apart.
+func TestAnAttachedNicReportsTheLinkStateTheProviderWaitsFor(t *testing.T) {
+	ts := newServer(t)
+	_, subnetID := netAndSubnet(t, ts, "10.81.0.0/16", "10.81.1.0/24")
+
+	_, out := post(t, ts, "CreateVms",
+		`{"ImageId":"ami-12345678","SubnetId":"`+subnetID+`","BootOnCreation":false}`)
+	vms, _ := out["Vms"].([]any)
+	vm, _ := vms[0].(map[string]any)
+	vmID, _ := vm["VmId"].(string)
+
+	_, out = post(t, ts, "CreateNic", `{"SubnetId":"`+subnetID+`"}`)
+	nic, _ := out["Nic"].(map[string]any)
+	nicID, _ := nic["NicId"].(string)
+
+	if status, out := post(t, ts, "LinkNic",
+		`{"NicId":"`+nicID+`","VmId":"`+vmID+`","DeviceNumber":1}`); status != 200 {
+		t.Fatalf("LinkNic answered %d: %v", status, out["Errors"])
+	}
+
+	_, out = post(t, ts, "ReadNics", `{"Filters":{"NicIds":["`+nicID+`"]}}`)
+	nics, _ := out["Nics"].([]any)
+	if len(nics) != 1 {
+		t.Fatalf("ReadNics answered %d interfaces", len(nics))
+	}
+	read, _ := nics[0].(map[string]any)
+
+	// The interface's own state.
+	if got := read["State"]; got != "in-use" {
+		t.Errorf("the interface reports State %q, want \"in-use\"", got)
+	}
+	// The link's state, which is the one the provider polls.
+	link, _ := read["LinkNic"].(map[string]any)
+	if link == nil {
+		t.Fatalf("an attached interface carries no LinkNic: %v", read)
+	}
+	if got := link["State"]; got != "attached" {
+		t.Errorf("LinkNic reports State %q; the provider waits for \"attached\" "+
+			"and gives up on anything else", got)
+	}
 }
