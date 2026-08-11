@@ -13,6 +13,29 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
+## [Unreleased]
+
+### Fixed
+
+- **A whole Scaleway product answered `404 page not found` in plain text.**
+  Reported by @vde-dis on #74, measured under a real OpenTofu apply:
+  `/lb/v1/…` and `/vpc-gw/v2/…` fell through to net/http's default mux, and the
+  Scaleway SDK reads the content type first and drops a body that is not JSON,
+  so the caller got `404 Not Found` and nothing else. Every other refusal
+  measured answers in the provider's own dialect.
+
+  The prefix list declared only the five products this pack serves, while
+  Scaleway's URL space has sixty-two. It now declares the space rather than the
+  served part, extracted from the SDK's generated request paths — not its
+  directory names, which differ: the SDK says `vpcgw`, the URL says `/vpc-gw/`.
+
+  The guard that was supposed to prevent this could not see it.
+  `TestEveryRouteFallsUnderADeclaredPrefix` walks the routes the pack mounts, so
+  a product with **no** routes is invisible to it by construction, and its
+  comment claimed it stopped "a whole product answering net/http's plain text".
+  Falsified: with the list back to five, the new test fails and that one still
+  passes, which is the blind spot demonstrated rather than argued.
+
 ## [0.7.2]
 
 ### Added

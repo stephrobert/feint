@@ -151,20 +151,100 @@ func (p *Pack) Routes() []emulator.Route {
 	}
 }
 
-// productPrefixes is Scaleway's URL space as this pack serves it: one prefix per
-// product and version, since Scaleway mounts each product under its own root.
+// productPrefixes is Scaleway's URL space, which is wider than the part this
+// pack serves.
 //
-// Kept beside the routes rather than derived from them, because deriving would
-// mean guessing how many leading segments make a product. It cannot drift
-// silently: TestEveryRouteFallsUnderADeclaredPrefix fails on a route that
-// escapes the list, which is what would otherwise leave a whole product
-// answering net/http's plain text.
+// It decides one thing: which requests get a Scaleway error envelope instead of
+// net/http's `404 page not found` in text/plain. The SDK reads the content type
+// first and drops a body that is not JSON, so a client meeting an unserved
+// product used to get "404 Not Found" and nothing else — reported by @vde-dis
+// on #74, measured on `/lb/v1/zones/fr-par-1/ips` and `/vpc-gw/v2/zones/...`.
+//
+// It listed only the five served products before, and its own comment claimed
+// TestEveryRouteFallsUnderADeclaredPrefix stopped "a whole product answering
+// net/http's plain text". That test cannot: it walks the routes this pack
+// mounts, and a product with no routes at all is invisible to it by
+// construction. A guard that can only see the served half was standing for the
+// unserved half.
+//
+// The list is extracted from the SDK's own generated request paths rather than
+// from its directory names, which differ — the SDK says `vpcgw`, the URL says
+// `/vpc-gw/`. Snapshot of the SDK on 2026-08-11, refreshed with:
+//
+//	grep -rhoE 'Path: +"/[a-z0-9-]+/v[0-9a-z]+/' .upstream/scaleway-sdk-go/api |
+//	  sed -E 's/.*"//' | sort -u
+//
+// Nothing regenerates it, and that is a smaller risk than it looks: a product
+// Scaleway adds later and this list misses answers exactly as it does today,
+// in plain text. Falling behind costs the improvement, never a regression.
 var productPrefixes = []string{
+	// Served here.
 	"/instance/v1/",
 	"/vpc/v2/",
 	"/ipam/v1/",
 	"/iam/v1alpha1/",
 	"/marketplace/v2/",
+
+	// Published by Scaleway and not served here. They are declared so that a
+	// client reaching one gets a Scaleway error envelope rather than net/http's
+	// plain text, which is all this list decides.
+	"/account/v3/",
+	"/annotations/v1/",
+	"/apple-silicon/v1alpha1/",
+	"/audit-trail/v1alpha1/",
+	"/autoscaling/v1alpha1/",
+	"/autoscaling/v1alpha2/",
+	"/baremetal/v1/",
+	"/baremetal/v3/",
+	"/billing/v2/",
+	"/billing/v2beta1/",
+	"/block/v1/",
+	"/block/v1alpha1/",
+	"/cockpit/v1/",
+	"/containers/v1/",
+	"/containers/v1beta1/",
+	"/datalab/v1beta1/",
+	"/datawarehouse/v1beta1/",
+	"/dedibox/v1/",
+	"/document-db/v1beta1/",
+	"/domain/v2beta1/",
+	"/edge-services/v1beta1/",
+	"/environmental-footprint/v1alpha1/",
+	"/file/v1alpha1/",
+	"/flexible-ip/v1alpha1/",
+	"/functions/v1beta1/",
+	"/inference/v1/",
+	"/instance/v2alpha1/",
+	"/interlink/v1beta1/",
+	"/iot/v1/",
+	"/ipam/v1alpha1/",
+	"/k8s/v1/",
+	"/kafka/v1alpha1/",
+	"/key-manager/v1alpha1/",
+	"/lb/v1/",
+	"/mailbox/v1alpha1/",
+	"/messageq/v1alpha1/",
+	"/mnq/v1beta1/",
+	"/mongodb/v1/",
+	"/mongodb/v1alpha1/",
+	"/partner/v1/",
+	"/product-catalog/v2alpha1/",
+	"/qaas/v1alpha1/",
+	"/rdb/v1/",
+	"/redis/v1/",
+	"/registry/v1/",
+	"/s2s-vpn/v1alpha1/",
+	"/search/v1alpha1/",
+	"/searchdb/v1alpha1/",
+	"/secret-manager/v1beta1/",
+	"/serverless-jobs/v1alpha1/",
+	"/serverless-jobs/v1alpha2/",
+	"/serverless-sqldb/v1alpha1/",
+	"/test/v1/",
+	"/transactional-email/v1alpha1/",
+	"/vpc-gw/v1/",
+	"/vpc-gw/v2/",
+	"/webhosting/v1/",
 }
 
 // Prefixes implements emulator.Unrouted.

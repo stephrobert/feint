@@ -15,6 +15,30 @@ parce que c'est là-dessus que ce projet est jugé : **une forme de réponse qu'
 client peut observer**, et **une limite qui a bougé**. Une refactorisation qui ne
 change ni l'un ni l'autre a sa place dans `git log`.
 
+## [Non publié]
+
+### Corrigé
+
+- **Un produit Scaleway entier répondait `404 page not found` en texte brut.**
+  Signalé par @vde-dis sur #74, mesuré sous un vrai apply OpenTofu :
+  `/lb/v1/…` et `/vpc-gw/v2/…` tombaient dans le mux par défaut de net/http, et
+  le SDK Scaleway lit d'abord le type de contenu puis jette un corps qui n'est
+  pas du JSON. L'appelant recevait donc `404 Not Found` et rien d'autre, alors
+  que tous les autres refus répondent dans le dialecte du provider.
+
+  La liste de préfixes ne déclarait que les cinq produits servis par ce pack,
+  quand l'espace d'URL de Scaleway en compte soixante-deux. Elle déclare
+  désormais l'espace plutôt que la part servie, extraite des chemins de requête
+  générés du SDK et non de ses noms de répertoires, qui diffèrent : le SDK dit
+  `vpcgw`, l'URL dit `/vpc-gw/`.
+
+  Le garde censé l'empêcher ne pouvait pas le voir.
+  `TestEveryRouteFallsUnderADeclaredPrefix` parcourt les routes que le pack
+  monte : un produit sans **aucune** route lui est invisible par construction,
+  alors que son commentaire affirmait empêcher « qu'un produit entier réponde en
+  texte brut ». Falsifié : la liste ramenée à cinq, le nouveau test échoue et
+  celui-là passe toujours, ce qui démontre l'angle mort au lieu de l'affirmer.
+
 ## [0.7.2]
 
 ### Ajouté
