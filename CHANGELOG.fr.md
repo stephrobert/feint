@@ -15,6 +15,33 @@ parce que c'est là-dessus que ce projet est jugé : **une forme de réponse qu'
 client peut observer**, et **une limite qui a bougé**. Une refactorisation qui ne
 change ni l'un ni l'autre a sa place dans `git log`.
 
+## [Non publié]
+
+### Modifié
+
+- **Exoscale est *starter*, plus *preview*.** Le label avait été pris
+  délibérément, avec une condition de sortie écrite — *tant que le provider
+  Terraform n'est pas prouvé contre lui* — et cette condition reposait sur une
+  hypothèse que la mesure a réfutée : le provider honore
+  `EXOSCALE_API_ENDPOINT` pour son client egoscale v3 et en construit un v2 sans
+  aucune option d'endpoint, si bien qu'un apply se scinde entre cet émulateur et
+  un compte payant. `ClientOptWithAPIEndpoint` existe dans egoscale et n'est
+  jamais appelée ; trois sites construisent un client v2 sans elle. Remontée en
+  amont sous
+  [exoscale/terraform-provider-exoscale#573](https://github.com/exoscale/terraform-provider-exoscale/issues/573).
+
+  Une condition que personne ici ne peut atteindre n'est pas une condition,
+  c'est un otage — et ce contre quoi le label mettait en garde a de toute façon
+  été corrigé par EXO-2 : `exo` pilote stop, start, reboot, scale, resize, une
+  suppression refusée sur une instance protégée, un aller-retour de règle de
+  groupe de sécurité, un groupe d'anti-affinité, et une IP élastique attachée,
+  publiée puis retirée. Ce qui sépare encore Exoscale d'*usable* reste dans les
+  tableaux de couverture générés, où cela ne peut pas flatter : 75 opérations
+  non triées, contre 18 pour Outscale et 0 pour Scaleway.
+
+- **La ligne Outscale crédite Terraform**, qui pilote dix-sept ressources de
+  bout en bout depuis 0.6.0 et n'était toujours créditée qu'à `oapi-cli`.
+
 ## [0.7.0]
 
 ### Ajouté

@@ -14,14 +14,11 @@ Batch 2 of `docs/roadmap-exoscale-iaas.md`; wave 2 of `docs/roadmap.md`.
 `scale-instance`, `resize-instance-disk`, instance protection add/remove
 (`get-console-proxy-url` served or declined with a reason — there is no console
 to proxy); security groups and their rules; anti-affinity groups; elastic IPs
-with instance attachment. Plus the missing fixture:
-`tools/conformance/exoscale/terraform/main.tf`, `terraform.sh`, and a
-`conformance:terraform:exoscale` task. Every mutation mints an Operation with
-the correct `reference.command` — the provider calls `client.Wait` 89 times and
-reads it.
+with instance attachment. Every mutation mints an Operation with the correct
+`reference.command` — the provider calls `client.Wait` 89 times and reads it.
 
 **Where the work lands.** `internal/providers/exoscale/machines.go` and new
-files; new `tools/conformance/exoscale/terraform/`; `mise.toml`.
+files; `tools/conformance/exoscale/exo-cli.sh`.
 
 **Depends on.** EXO-1, for legibility only. Every new lifecycle path takes
 `machine.Binding.Serialise` and proves it with a concurrency test.
@@ -30,13 +27,27 @@ files; new `tools/conformance/exoscale/terraform/`; `mise.toml`.
 
 ```bash
 mise run conformance
-# exo compute instance stop, then start; terraform apply of exoscale_ssh_key,
-# exoscale_security_group(+rule), exoscale_anti_affinity_group,
-# exoscale_elastic_ip and exoscale_compute_instance; empty second plan; destroy
+# exo: stop, start, reboot; scale and resize-disk; a delete refused while the
+# instance is protected; a security group rule round-tripped; an anti-affinity
+# group; an elastic IP attached, published on the instance, detached, deleted
 ```
 
+**The Terraform fixture is not part of this batch and cannot be.** It was
+specified as `tools/conformance/exoscale/terraform/` plus a
+`conformance:terraform:exoscale` task, on the assumption that the Exoscale
+Terraform provider could be pointed at an emulator. It cannot: it honours
+`EXOSCALE_API_ENDPOINT` for its egoscale v3 client and builds a v2 one with no
+endpoint option, so an apply splits between the emulator and a paying account,
+and the emulator refuses that client rather than serve half of it. Filed as
+[exoscale/terraform-provider-exoscale#573](https://github.com/exoscale/terraform-provider-exoscale/issues/573);
+the measurement and a patched build are in
+`docs/limits.md`. `exo` proves the same behaviour, and it is the official
+client.
+
 **This is the batch that removes the README's *preview* label**, in the same
-commit, on the condition `docs/roadmap.md` sets.
+commit, on what `exo` proves. Exoscale becomes *starter*, alongside Outscale.
+What still separates it from *usable* stays in the generated coverage tables,
+which cannot flatter.
 
 **Done means all four** — the "When a batch is done" conditions of `docs/roadmap.md`:
 

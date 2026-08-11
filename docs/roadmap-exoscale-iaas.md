@@ -177,12 +177,21 @@ as its routes.
   and elastic IPs with their instance attachment.
 - Write `tools/conformance/exoscale/terraform/main.tf` and `terraform.sh`, plus
   a `conformance:terraform:exoscale` task.
-- Evidence: `exo compute instance stop` then `start`; a `terraform apply` of
-  `exoscale_ssh_key`, `exoscale_security_group`, `exoscale_security_group_rule`,
-  `exoscale_anti_affinity_group`, `exoscale_elastic_ip` and
-  `exoscale_compute_instance`, empty second plan, destroy. **This is the batch
-  that removes the "preview" label** the README carries, on the condition
-  [roadmap.md](roadmap.md) already sets.
+- Evidence: `exo compute instance stop` then `start`, then reboot, scale,
+  resize-disk, a delete refused while the instance is protected, a security
+  group rule round-tripped, an anti-affinity group, and an elastic IP attached,
+  published on the instance, detached and deleted. **This is the batch that
+  removed the "preview" label** the README carried.
+
+  The evidence was to have been a `terraform apply` of `exoscale_ssh_key`,
+  `exoscale_security_group`, `exoscale_anti_affinity_group`,
+  `exoscale_elastic_ip` and `exoscale_compute_instance`. That fixture does not
+  exist and will not until upstream moves: the provider honours
+  `EXOSCALE_API_ENDPOINT` for its v3 client only, so an apply splits between
+  this emulator and a paying account. Filed as
+  [exoscale/terraform-provider-exoscale#573](https://github.com/exoscale/terraform-provider-exoscale/issues/573);
+  the measurement is in [limits.md](limits.md#the-exoscale-terraform-provider-is-refused-and-why).
+  `exo` proves the same behaviour, and it is the official client.
 - Dependencies: batch 1 only for legibility. Risk: the provider's waiters. Every
   mutation must mint its Operation with the correct command.
 

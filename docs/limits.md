@@ -471,8 +471,8 @@ project patched is no longer the official client. What the fork proves is real
 and worth having — that the rest of the emulated Exoscale surface holds under
 Terraform, and that #573 is the only thing in the way — but it is a weaker claim
 than a route driven by a published client, and adding the two together would
-repeat the error `probed` exists to avoid. Exoscale loses its *preview* label on
-what `exo` proves.
+repeat the error `probed` exists to avoid. Exoscale's *preview* label came off
+on what `exo` proves, at EXO-2, and not on this.
 
 [exo-573]: https://github.com/exoscale/terraform-provider-exoscale/issues/573
 [fork]: https://github.com/stephrobert/terraform-provider-exoscale/tree/fix/v2-client-honours-api-endpoint

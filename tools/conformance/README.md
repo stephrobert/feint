@@ -86,9 +86,11 @@ environment variable, only the `endpoint` key of the CLI's own configuration
 file, and that value must carry the `/v2` suffix. The suite writes that file
 itself.
 
-The pack ships marked *preview*: it loses the label the day `terraform apply`
-passes against it here, which is the condition [docs/roadmap.md](../../docs/roadmap.md)
-sets.
+This suite is the whole of the pack's evidence, and it is enough: Exoscale is
+*starter* since EXO-2. There is no Terraform suite here and there will not be
+one until upstream moves — the provider reaches the real cloud with half its
+calls, so this emulator refuses it. See
+[docs/limits.md](../../docs/limits.md#the-exoscale-terraform-provider-is-refused-and-why).
 
 Credentials are fake, well-formed and deliberately public: the SDKs validate
 their shape even though the emulator ignores their value.

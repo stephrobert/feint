@@ -69,21 +69,44 @@ operation lists, the measured client behaviour behind them, and the
 architecture decisions the work depends on. The batch documents are the
 detail; this page only says why this scenario outranks the others.
 
-### Exoscale is labelled preview, and the label has a mechanical exit
+### Exoscale was labelled preview, and the label came off at EXO-2
 
-The official `exo` CLI drives the pack end to end and a conformance suite proves
-it, but a user cannot run a realistic workload against it yet, and the generated
-tables say so. The in-between state, served but not honestly usable, is the one
-that damages credibility, which is this project's capital. So the decision is
-taken rather than allowed to slide: the pack ships marked **preview**, in the
-README status table and in the release notes, until the Terraform provider is
-proven against it.
+**Settled.** Exoscale is *starter*, alongside Outscale, since EXO-2.
 
-**Evidence:** the word *preview* appears next to Exoscale in the README status
-table at release, and the commit that removes it is the commit in which
-`terraform apply` and `destroy` with the Exoscale provider pass in conformance
-with no drift on re-read. The batch that earns that commit is batch 2 of
-[roadmap-exoscale-iaas.md](roadmap-exoscale-iaas.md).
+The label was taken deliberately rather than allowed to slide: the pack shipped
+marked **preview** because the official `exo` CLI drove it end to end while a
+user still could not run a realistic workload against it. The in-between state,
+served but not honestly usable, is the one that damages credibility, which is
+this project's capital.
+
+That premise is no longer true. EXO-2 serves the instance lifecycle, security
+groups and their rules, anti-affinity groups, elastic IPs and their attachment,
+and the `exo` suite drives every one of them — stop, start, reboot, scale,
+resize, a delete refused while protected, an address published on an instance
+and withdrawn.
+
+**The exit condition itself was wrong, and it is worth recording why.** It read
+*until the Terraform provider is proven against it*, which assumed the Exoscale
+Terraform provider could be pointed at an emulator at all. Measurement refuted
+that: the provider honours `EXOSCALE_API_ENDPOINT` for its egoscale v3 client
+and builds a v2 one with no endpoint option, so an apply splits between the
+emulator and a paying account. `ClientOptWithAPIEndpoint` exists in egoscale and
+is never called; three sites build a v2 client without it. Filed upstream as
+[exoscale/terraform-provider-exoscale#573][exo-573], with the mechanism and a
+reproduction; the reasoning and a patched build are in
+[limits.md](limits.md#the-exoscale-terraform-provider-is-refused-and-why).
+
+A condition nobody here can reach is not a condition, it is a hostage. Keeping
+it would have made this project's own published maturity depend on someone
+else's tracker, for a duration nobody controls — while the thing the label was
+warning about had already been fixed.
+
+**What still separates Exoscale from *usable* is stated in the coverage tables
+rather than in a word:** 75 operations remain untriaged, against 18 for Outscale
+and 0 for Scaleway. That column is the honest one, and it is generated, so it
+cannot flatter.
+
+[exo-573]: https://github.com/exoscale/terraform-provider-exoscale/issues/573
 
 ---
 
@@ -163,14 +186,16 @@ this page. Batch numbers refer to the per-provider documents.
    **Evidence:** `tools/drift/gate.sh check` returns 0 against the three new
    baselines, and the README's generated tables show untriaged columns that
    are work lists, not walls.
-2. **First Terraform proof for Outscale and Exoscale** — Outscale batch 2,
-   Exoscale batch 2. The cheapest work with the largest status change: both
-   packs already pass their CLI suites, and each needs a handful of
-   operations (a catalogue field and tags on one side, the machine lifecycle
-   on the other) plus the missing fixture. This is the wave that removes
-   Exoscale's *preview* label, on the condition already stated above.
-   **Evidence:** `terraform apply`, empty second plan, clean destroy, in
-   conformance, for both providers.
+2. **First Terraform proof for Outscale, and the machine lifecycle for
+   Exoscale** — Outscale batch 2, Exoscale batch 2. The cheapest work with the
+   largest status change: both packs already pass their CLI suites, and each
+   needs a handful of operations — a catalogue field and tags on one side, the
+   machine lifecycle on the other.
+   **Evidence:** for Outscale, `terraform apply`, empty second plan, clean
+   destroy, in conformance. For Exoscale, the same proof through `exo`, because
+   its Terraform provider cannot be pointed here at all — see the settled
+   question above, and [#573][exo-573]. This is the wave that removed
+   Exoscale's *preview* label.
 3. **The Scaleway golden-image scenario** — Scaleway batches 2 and 3, the
    "Now" item above. It stays third rather than first only because Scaleway
    already serves a usable core while the other two waves each take a
@@ -215,7 +240,7 @@ scan the day upstream moves.
 | **OSC-1** | 1 | the non-IaaS half declined by name | `internal/providers/outscale/declined.go` | same gate, untriaged column is a work list | X-1 |
 | **EXO-1** | 1 | the managed-service surface declined by name | `internal/providers/exoscale/pack.go` (`Declined()` today returns `nil`) | same gate | X-1 |
 | **OSC-2** | 2 | `ProductCodes`, admin password, tags, root volume | `catalog.go`, `vms.go`, new `volumes.go`; new `tools/conformance/outscale/terraform/` | `terraform apply` + empty plan + destroy, in conformance | OSC-1 |
-| **EXO-2** | 2 | instance lifecycle, security groups, elastic IPs | `machines.go`, new files; new `tools/conformance/exoscale/terraform/` | same, and the *preview* label comes off | EXO-1 |
+| **EXO-2** | 2 | instance lifecycle, security groups, elastic IPs | `machines.go`, new files; `tools/conformance/exoscale/exo-cli.sh` | `exo` drives the lifecycle end to end, and the *preview* label comes off | EXO-1 |
 | **SW-2** | 3 | snapshots, images, placement groups, volume attach | new files beside `volumes.go`; `tools/conformance/scaleway/terraform/main.tf` | the golden-image module applies and destroys | SW-1 |
 | **SW-3** | 3 | `block/v1` and the `sbs_volume` root volume | new `block.go`, `catalog.go`, `tools/contract/scaleway-products.txt` | `terraform apply` with `scaleway_block_volume` | SW-2 |
 | **OSC-3** | 4 | routable networking: security groups, public IPs, NICs, route tables | new files in `internal/providers/outscale/`; fix `tools/conformance/outscale/oapi-cli.sh:268` | the provider's own `examples/net_vm` applies | OSC-2 |
@@ -594,7 +619,10 @@ names both versions; whichever it is, [limits.md](limits.md) says so.
 The architecture was built so that adding one changes nothing in
 `internal/core`. That claim is untested: three packs is not enough to know
 whether the seams are in the right place. The fourth is chosen by demand, not by
-intuition, and not before Exoscale has lost its preview label (see Not planned).
+intuition. The gate it waited on — Exoscale losing its *preview* label — is
+open since EXO-2, and `docs/fourth-pack.md` has since measured what such a pack
+would touch: about 45 additive lines across 13 shared files, and no code in
+`internal/core` naming a provider.
 
 **Evidence:** a new pack is added without a single line changing under
 `internal/core`.
