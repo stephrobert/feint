@@ -123,3 +123,93 @@ func TestRenderSkipsThePackageInstallWhenNotNeeded(t *testing.T) {
 		t.Fatalf("cloud images already carry sshd, no package should be installed:\n%s", out)
 	}
 }
+
+// directives drops the comment lines of a cloud-config, keeping what the
+// machine acts on.
+//
+// Needed because the first version of the Alpine test asserted against the
+// whole document and failed on its own template's prose: the comment explaining
+// that apk names the package openssh rather than openssh-server contains the
+// string openssh-server. A test that reads comments measures the text, not the
+// behaviour.
+func directives(config string) string {
+	var kept []string
+	for _, line := range strings.Split(config, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "#") {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(kept, "\n")
+}
+
+// TestAlpineGetsItsOwnConventions holds the four things Alpine does differently.
+//
+// It fell through to the Debian template, which asked it for bash it does not
+// ship, a sudo group it calls wheel, an openssh-server package apk names
+// openssh, and systemctl where it runs OpenRC. The container booted and the API
+// reported it running; nothing answered on port 22, and an operator reading
+// either signal had no reason to doubt it.
+//
+// Four assertions rather than one, because any single one of them silently
+// undoes the login: a missing package means no daemon, an unstarted service
+// means no listener, a wrong group means no sudo, and a shell that does not
+// exist closes the session after the key was accepted — which reads like a
+// refused key.
+func TestAlpineGetsItsOwnConventions(t *testing.T) {
+	out, err := cloudinit.Render(cloudinit.Spec{
+		Distribution:   "alpine",
+		User:           "cloud",
+		AuthorizedKeys: []string{"ssh-ed25519 AAAA demo"},
+		InstallSSHD:    true,
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	acted := directives(out)
+
+	for _, want := range []string{
+		"groups: [wheel]", // not sudo: that group does not exist on Alpine
+		"shell: /bin/sh",  // busybox ash; /bin/bash is not installed
+		"\n  - openssh\n", // the apk package, exactly, not openssh-server
+		"rc-update add sshd default",
+		"rc-service sshd start",
+		"\n  - sudo\n", // the NOPASSWD rule above is read by nobody without it
+	} {
+		if !strings.Contains(acted, want) {
+			t.Errorf("the Alpine cloud-config is missing %q:\n%s", want, acted)
+		}
+	}
+
+	// And none of the conventions that belong to the other families. Checked
+	// against the directives alone, because the template's own comments name
+	// these on purpose, to say why Alpine cannot use them.
+	for _, unwanted := range []string{"openssh-server", "systemctl", "/bin/bash", "[sudo]"} {
+		if strings.Contains(acted, unwanted) {
+			t.Errorf("the Alpine cloud-config still carries %q, which it cannot honour:\n%s",
+				unwanted, acted)
+		}
+	}
+}
+
+// Root needs neither sudo nor a shell line, and asking apk for a sudo package
+// it will not use is a slower boot for nothing.
+func TestAlpineAsRootInstallsOnlyWhatItNeeds(t *testing.T) {
+	out, err := cloudinit.Render(cloudinit.Spec{
+		Distribution:   "alpine",
+		User:           "root",
+		AuthorizedKeys: []string{"ssh-ed25519 AAAA demo"},
+		InstallSSHD:    true,
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	acted := directives(out)
+
+	if !strings.Contains(acted, "\n  - openssh\n") {
+		t.Errorf("root still needs the daemon:\n%s", acted)
+	}
+	if strings.Contains(acted, "\n  - sudo\n") {
+		t.Errorf("root does not need sudo:\n%s", acted)
+	}
+}

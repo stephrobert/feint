@@ -107,6 +107,14 @@ func templateFor(distribution string) string {
 	switch {
 	case strings.Contains(d, "ubuntu"):
 		return "ubuntu.yaml.tmpl"
+	// Alpine before the default, because falling through to Debian asked it for
+	// four things it cannot do: bash it does not ship, a sudo group it calls
+	// wheel, an openssh-server package apk names openssh, and systemctl where
+	// it runs OpenRC. The machine booted, the API said running, and nothing
+	// answered on port 22.
+	// TestAlpineGetsItsOwnConventions fails without this.
+	case strings.Contains(d, "alpine"):
+		return "alpine.yaml.tmpl"
 	case strings.Contains(d, "alma"), strings.Contains(d, "rocky"),
 		strings.Contains(d, "fedora"), strings.Contains(d, "centos"), strings.Contains(d, "rhel"):
 		return "almalinux.yaml.tmpl"

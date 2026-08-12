@@ -1,0 +1,58 @@
+#cloud-config
+# Cloud-init Alpine pour les machines émulées par feint.
+#
+# Alpine tombait jusqu'ici dans le gabarit Debian par défaut, et lui demandait
+# quatre choses qu'il ne sait pas faire : un shell bash qu'il n'a pas, un groupe
+# sudo qui s'appelle wheel chez lui, un paquet openssh-server dont le nom apk
+# est openssh, et un systemctl là où il utilise OpenRC. La machine démarrait,
+# l'API la disait running, et rien n'écoutait sur le port 22.
+
+hostname: {{ .Hostname }}
+fqdn: {{ .Hostname }}.local
+manage_etc_hosts: true
+preserve_hostname: false
+
+users:
+  - name: {{ .User }}
+{{- if ne .User "root" }}
+    # wheel, pas sudo : c'est le groupe d'administration d'Alpine, et sudo n'y
+    # est pas installé par défaut. Le paquet est ajouté plus bas, sans quoi la
+    # règle NOPASSWD ne serait lue par personne.
+    groups: [wheel]
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    # /bin/sh, qui est busybox ash : l'image de base n'embarque pas bash, et un
+    # shell inexistant fait échouer la connexion après une authentification
+    # pourtant réussie, ce qui se lit comme un refus de clé.
+    shell: /bin/sh
+{{- end }}
+    # Même raison que sur Debian : sshd 9+ refuse un compte « locked », et
+    # cloud-init verrouille par défaut.
+    lock_passwd: false
+    passwd: "*"
+    ssh_authorized_keys:
+{{- range .AuthorizedKeys }}
+      - {{ . }}
+{{- end }}
+
+disable_root: {{ if eq .User "root" }}false{{ else }}true{{ end }}
+ssh_pwauth: false
+{{ if .InstallSSHD }}
+packages:
+  - openssh
+{{- if ne .User "root" }}
+  - sudo
+{{- end }}
+
+runcmd:
+  # ssh-keygen -A d'abord, et ce n'est pas une précaution : le paquet openssh
+  # d'Alpine n'installe aucune clé d'hôte, et sshd démarré sans clé répond
+  # « Starting sshd ... [ ok ] » puis n'écoute sur rien. Mesuré : 0 clé après
+  # l'installation, 6 après cette ligne, et le port 22 ouvert seulement ensuite.
+  # Debian et Ubuntu n'en ont pas besoin, leur paquet les génère à la
+  # post-installation.
+  #
+  # Puis OpenRC, pas systemd : `rc-update add` inscrit le service au boot et
+  # `rc-service start` le démarre maintenant, ce que `systemctl enable --now`
+  # fait en une fois ailleurs.
+  - [sh, -c, "ssh-keygen -A && rc-update add sshd default && rc-service sshd start"]
+{{- end }}
