@@ -37,6 +37,13 @@ ok() { echo "  ok: $*"; }
 
 echo "conformance: ssh round-trip against $ENDPOINT"
 
+# Asked up front, because it decides the verdict at the end. With no runtime the
+# control plane still publishes the flexible address — the documented degraded
+# mode — so the login step can only be skipped. With a runtime, a login that
+# fails is a failure: this suite used to skip there too, which made it unable to
+# say the one thing it exists to say (#116 shipped under a green run).
+MACHINES="$(curl -sf "$ENDPOINT/_feint/health" | jq -r '.machines')"
+
 echo "- generate a throwaway key pair"
 ssh-keygen -q -t ed25519 -N '' -C feint-conformance -f "$WORK/id" </dev/null
 ok "$(cut -d' ' -f1,3 <"$WORK/id.pub")"
@@ -95,8 +102,10 @@ if [ "$logged_in" = true ]; then
   remote="$(ssh -F /dev/null -i "$WORK/id" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
               -o BatchMode=yes "root@$ip" 'hostname; id -un; grep -c feint-conformance ~/.ssh/authorized_keys')"
   ok "logged in: $(echo "$remote" | tr '\n' ' ')"
-else
+elif [ "$MACHINES" = "none" ]; then
   echo "  SKIP: no ssh daemon answered on $ip (expected with --vm off; use --vm incus)" >&2
+else
+  fail "no ssh daemon answered on $ip although the $MACHINES runtime is on: the published address is a promise nobody keeps"
 fi
 
 echo "- clean up"

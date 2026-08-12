@@ -386,11 +386,17 @@ func (p *Pack) getServer(w http.ResponseWriter, r *http.Request) {
 	}
 	// A virtual machine gets its address after it boots, so a read is where it
 	// becomes visible.
-	if p.refreshMachine(r.Context(), res) && !p.env.Store.Commit(res, p.env.Now()) {
-		// Deleted while its address was being discovered. Answering the copy we
-		// hold would hand the client a server the next read denies.
-		writeNotFound(w, "server", id)
-		return
+	if p.refreshMachine(r.Context(), res) {
+		if !p.env.Store.Commit(res, p.env.Now()) {
+			// Deleted while its address was being discovered. Answering the copy
+			// we hold would hand the client a server the next read denies.
+			writeNotFound(w, "server", id)
+			return
+		}
+		// The machine just proved reachable, so the guest half of its public
+		// addresses can finally land — a virtual machine's agent answers long
+		// after poweron returned. Idempotent for a machine already served.
+		p.routeServerAddresses(r.Context(), res)
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"server": p.view(res)})
 }
@@ -478,6 +484,9 @@ func (p *Pack) deleteServer(w http.ResponseWriter, r *http.Request) {
 		writeTransientState(w, "server", id, res.State)
 		return
 	}
+	// A stopped server should hold no dynamic address; a restored snapshot may
+	// claim otherwise, and the OVN uplink route would outlive the machine.
+	p.releaseDynamicAddress(r.Context(), res)
 	p.removeMachine(r.Context(), res)
 	p.env.Store.Delete(Name, kindServer, id)
 	p.releaseServerResources(r.Context(), id, zone)
@@ -553,6 +562,10 @@ func (p *Pack) serverAction(w http.ResponseWriter, r *http.Request) {
 		// that is not up. reboot is deliberately not covered: acting on a
 		// running machine is its whole purpose.
 		if req.Action == "reboot" || res.State != "running" {
+			// The ephemeral address dynamic_ip_required asks for, allocated
+			// before the boot so it rides the launch like an attached flexible
+			// IP does.
+			p.ensureDynamicAddress(res)
 			// The state is the binding's to set, not this switch's. With no
 			// runtime the server reaches running, which is the documented
 			// degraded mode; with a runtime that failed to start the machine it
@@ -564,6 +577,11 @@ func (p *Pack) serverAction(w http.ResponseWriter, r *http.Request) {
 			// edited still gets the current rules, because every group mutation
 			// replays onto the machines carrying it.
 			p.applyServerFirewall(r.Context(), res)
+			// The launch installed the host half of every public route; this
+			// hands the guest its addresses, and repairs a machine that already
+			// existed. Without it, an address attached at create was published
+			// and never routed (#116).
+			p.routeServerAddresses(r.Context(), res)
 		}
 		res.Attrs["allowed_actions"] = allowedActions(res.State)
 	case "poweroff", "stop_in_place":
@@ -582,9 +600,13 @@ func (p *Pack) serverAction(w http.ResponseWriter, r *http.Request) {
 		}
 		res.Attrs["allowed_actions"] = allowedActions(res.State)
 		// Stopping withdraws the address: one the API publishes and nothing
-		// answers on is the defect this project exists to avoid.
+		// answers on is the defect this project exists to avoid. The dynamic
+		// address goes entirely — upstream releases it on stop, and that is
+		// the whole difference between dynamic and flexible.
+		p.releaseDynamicAddress(r.Context(), res)
 		p.stopMachine(r.Context(), res)
 	case "terminate":
+		p.releaseDynamicAddress(r.Context(), res)
 		p.removeMachine(r.Context(), res)
 		p.env.Store.Delete(Name, kindServer, id)
 		// One function for both doors, because writing the release twice is how
@@ -678,35 +700,51 @@ func (p *Pack) view(res *resource.Resource) map[string]any {
 	out["state"] = res.State
 	out["creation_date"] = res.Created.Format(time.RFC3339)
 	out["modification_date"] = res.Updated.Format(time.RFC3339)
-	out["public_ips"] = p.publicIPsOf(res)
+	publicIPs := p.publicIPsOf(res)
+	out["public_ips"] = publicIPs
+	// Server.public_ip is the SDK's own field for the first address, and the
+	// one `scw instance server list` renders. Null when the server has none,
+	// which is what the real API answers.
+	out["public_ip"] = nil
+	if len(publicIPs) > 0 {
+		out["public_ip"] = publicIPs[0]
+	}
 	return out
 }
 
-// publicIPsOf lists the flexible IPs attached to a server, in the ServerIP shape
-// the SDK declares on Server.PublicIPs — which is not the shape of an IP: it
-// carries the address and its provisioning, not the project or the tags.
+// publicIPsOf lists a server's public addresses in the ServerIP shape the SDK
+// declares on Server.PublicIPs — which is not the shape of an IP: it carries
+// the address and its provisioning, not the project or the tags.
+//
+// Two kinds of entry: the attached flexible IPs, and the ephemeral address
+// dynamic_ip_required allocated, marked dynamic the way upstream marks it. The
+// dynamic one lives on the server itself because upstream never lists it in
+// /ips, so a store record would leak it there.
 func (p *Pack) publicIPsOf(server *resource.Resource) []any {
 	out := make([]any, 0, 1)
-	for _, ip := range p.env.Store.List(kindIP, resource.Tenant{Provider: Name, Zone: server.Tenant.Zone}) {
-		attached, _ := ip.Attrs["server"].(map[string]any)
-		if attached == nil || attached["id"] != server.ID {
-			continue
-		}
+	for _, ip := range p.attachedIPsOf(server.ID, server.Tenant.Zone) {
 		address, _ := ip.Attrs["address"].(string)
-		out = append(out, map[string]any{
-			"id":      ip.ID,
-			"address": address,
-			"gateway": nil,
-			"netmask": "32",
-			"family":  "inet",
-			// A flexible IP is not the dynamic one a server gets by default, and
-			// routed_ip_enabled is this emulator's default, so the machine
-			// carries the address itself rather than being NATed to it.
-			"dynamic":           false,
-			"provisioning_mode": "dhcp",
-		})
+		out = append(out, serverIPView(ip.ID, address, false))
+	}
+	if address := server.Runtime[runtimeDynamicIPKey]; address != "" {
+		out = append(out, serverIPView(server.Runtime[runtimeDynamicIPIDKey], address, true))
 	}
 	return out
+}
+
+// serverIPView is one ServerIP entry. routed_ip_enabled is this emulator's
+// default, so the machine carries the address itself rather than being NATed
+// to it, flexible and dynamic alike.
+func serverIPView(id, address string, dynamic bool) map[string]any {
+	return map[string]any{
+		"id":                id,
+		"address":           address,
+		"gateway":           nil,
+		"netmask":           "32",
+		"family":            "inet",
+		"dynamic":           dynamic,
+		"provisioning_mode": "dhcp",
+	}
 }
 
 // setServerVolumes makes the server's attached volumes be exactly what the

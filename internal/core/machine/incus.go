@@ -74,6 +74,10 @@ type Incus struct {
 	// without the lock pick the same name, and the loser's attachment silently
 	// becomes the winner's.
 	attachMu sync.Mutex
+	// defaultNetMu serialises the creation of the default machine network: two
+	// concurrent first boots would otherwise both see it absent and the loser's
+	// `network create` would fail the launch it was only preparing.
+	defaultNetMu sync.Mutex
 	// uplinkMu serialises edits of the uplink's ipv4.routes, one value shared
 	// by every routed public address.
 	uplinkMu sync.Mutex
@@ -150,7 +154,58 @@ func (d *Incus) imageRef(image string) string {
 	return fmt.Sprintf("%s:%s/%s/cloud", remote, name, version)
 }
 
+// DefaultMachineNetwork is the network a machine with no attachments boots on.
+//
+// It exists because "no attachment" used to mean the operator's default profile
+// bridge, and that broke the addressing plane twice over. A route the driver
+// writes is refused outside its own networks (mustOwn), so a public address on
+// such a machine had nowhere lawful to live. And the firewall had to *override*
+// the profile's NIC to cover it, which re-plugs the device after boot and costs
+// the guest its DHCP lease with nothing left to renew it — measured on Incus
+// 7.2: `incus list` showed RUNNING and no IPv4 at all (#116).
+//
+// The name satisfies ownedNetwork and fits MaxNetworkNameLen; the label makes
+// mustOwn accept it and the sweep remove it.
+const DefaultMachineNetwork = NetworkPrefix + "-default"
+
+// DefaultMachineCIDR is the block that network carries. Deliberately obscure,
+// next to the OVN uplink's block and for the same reason: a collision with a
+// block already routed on the operator's host makes the create fail, and
+// failing is better than capturing someone's traffic.
+const DefaultMachineCIDR = "10.209.84.0/24"
+
+// ensureDefaultNetwork creates the default machine network once, in whichever
+// mode the driver runs: a managed bridge, or an OVN network behind the uplink.
+// NAT is on because the machines on it expect outbound access — the rendered
+// cloud-init installs an ssh daemon at first boot.
+func (d *Incus) ensureDefaultNetwork(ctx context.Context) error {
+	d.defaultNetMu.Lock()
+	defer d.defaultNetMu.Unlock()
+	return d.EnsureNetwork(ctx, NetworkSpec{
+		Name:   DefaultMachineNetwork,
+		CIDR:   DefaultMachineCIDR,
+		NAT:    true,
+		Labels: map[string]string{LabelKey: "feint"},
+	})
+}
+
+// publicRouteKey is the device key that routes a public address to a NIC:
+// nic_bridged applies ipv4.routes host-side, an OVN NIC carries the same
+// intent as ipv4.routes.external (l2proxy answers ARP on the uplink).
+func (d *Incus) publicRouteKey() string {
+	if d.OVN {
+		return "ipv4.routes.external"
+	}
+	return "ipv4.routes"
+}
+
 // Start implements Driver.
+//
+// The instance is initialised cold, its devices configured, then started —
+// rather than launched in one step — because every device key must be in place
+// before the first boot. Editing a route key on a live OVN NIC re-plugs the
+// device and the guest loses its DHCP lease with nothing left to renew it; a
+// cold `config device set` costs nothing on either NIC kind.
 func (d *Incus) Start(ctx context.Context, spec Spec) (Machine, error) {
 	if !safeName.MatchString(spec.Name) {
 		return Machine{}, fmt.Errorf("invalid machine name %q", spec.Name)
@@ -166,24 +221,29 @@ func (d *Incus) Start(ctx context.Context, spec Spec) (Machine, error) {
 		return d.inspectOrFail(ctx, spec.Name)
 	}
 
-	args := []string{"launch", d.imageRef(spec.Image), spec.Name}
+	// Every machine sits on a network of the emulator's. With no attachment it
+	// gets the default machine network, never the operator's default profile:
+	// see DefaultMachineNetwork for the two measured reasons.
+	attachments := spec.Attachments
+	if len(attachments) == 0 {
+		if err := d.ensureDefaultNetwork(ctx); err != nil {
+			return Machine{}, err
+		}
+		attachments = []Attachment{{Network: DefaultMachineNetwork}}
+	}
+	primary := attachments[0]
+	if !safeName.MatchString(primary.Network) {
+		return Machine{}, fmt.Errorf("invalid network name %q", primary.Network)
+	}
+
+	args := []string{"init", d.imageRef(spec.Image), spec.Name}
 	if d.VM {
 		args = append(args, "--vm")
 	}
-	// The primary interface is set at launch: --network creates eth0 on the
-	// managed bridge, --device pins its address. Incus takes the address as a
-	// device key, not as a launch flag, and the two have to be given together
-	// or the NIC comes up on DHCP and the published address becomes a lie.
-	if len(spec.Attachments) > 0 {
-		primary := spec.Attachments[0]
-		if !safeName.MatchString(primary.Network) {
-			return Machine{}, fmt.Errorf("invalid network name %q", primary.Network)
-		}
-		args = append(args, "--network", primary.Network)
-		if primary.Address != "" {
-			args = append(args, "--device", "eth0,ipv4.address="+primary.Address)
-		}
-	}
+	// --network creates eth0 on the named network, as the instance's own
+	// device, which is what lets the firewall `set` its keys later instead of
+	// overriding a profile device — the override is a re-plug too.
+	args = append(args, "--network", primary.Network)
 	// Labels become user.* config keys, the Incus equivalent of container labels.
 	for k, v := range spec.Labels {
 		args = append(args, "--config", "user."+k+"="+v)
@@ -197,9 +257,33 @@ func (d *Incus) Start(ctx context.Context, spec Spec) (Machine, error) {
 	for _, e := range spec.Env {
 		args = append(args, "--config", "environment."+e)
 	}
-
 	if _, err := d.run(ctx, args...); err != nil {
-		return Machine{}, fmt.Errorf("launch instance %s from %s: %w", spec.Name, d.imageRef(spec.Image), err)
+		return Machine{}, fmt.Errorf("create instance %s from %s: %w", spec.Name, d.imageRef(spec.Image), err)
+	}
+
+	// Device keys, while the instance is cold. The address pin and the public
+	// routes must both precede the first boot, or the NIC comes up on DHCP and
+	// the published address becomes a lie.
+	if primary.Address != "" {
+		if _, err := d.run(ctx, "config", "device", "set", spec.Name, "eth0",
+			"ipv4.address="+primary.Address); err != nil {
+			return Machine{}, fmt.Errorf("pin %s on %s: %w", primary.Address, spec.Name, err)
+		}
+	}
+	if len(spec.PublicAddresses) > 0 {
+		routes := make([]string, 0, len(spec.PublicAddresses))
+		for _, address := range spec.PublicAddresses {
+			routes = append(routes, address+"/32")
+		}
+		if _, err := d.run(ctx, "config", "device", "set", spec.Name, "eth0",
+			d.publicRouteKey()+"="+strings.Join(routes, ",")); err != nil {
+			return Machine{}, fmt.Errorf("route %s to %s: %w",
+				strings.Join(spec.PublicAddresses, ", "), spec.Name, err)
+		}
+	}
+
+	if _, err := d.run(ctx, "start", spec.Name); err != nil {
+		return Machine{}, fmt.Errorf("start instance %s: %w", spec.Name, err)
 	}
 	if err := d.attachExtra(ctx, spec); err != nil {
 		return Machine{}, err

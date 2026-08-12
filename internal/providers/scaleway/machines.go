@@ -102,6 +102,11 @@ func (p *Pack) startMachine(ctx context.Context, res *resource.Resource) {
 		// bridge alone while the API published an address on a private network
 		// it had never joined.
 		Attachments: p.attachmentsOf(res),
+		// So do the public addresses it was promised — flexible IPs attached
+		// before the boot, and the dynamic one when the flag asked for it. On
+		// the launch, not routed afterwards: editing a live OVN NIC re-plugs it
+		// and the guest loses its DHCP lease (#116).
+		PublicAddresses: p.publicAddressesOf(res),
 		Labels: map[string]string{
 			"feint.server": res.ID,
 			"feint.zone":   res.Tenant.Zone,

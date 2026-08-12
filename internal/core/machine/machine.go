@@ -78,9 +78,21 @@ type Spec struct {
 	// verbatim; the others fall back to User and AuthorizedKeys.
 	CloudInit string
 	// Attachments place the machine on emulated networks. The first one is the
-	// primary interface. Empty leaves the machine on the runtime default,
-	// which is the metadata-only behaviour.
+	// primary interface. Empty puts the machine on the driver's own default
+	// network, never on the operator's: a machine on a network the emulator did
+	// not create cannot lawfully carry a routed public address, because every
+	// route the driver writes is refused outside its own networks (mustOwn).
 	Attachments []Attachment
+	// PublicAddresses are the emulated public addresses this machine must
+	// answer on from its first boot, each routed to its primary interface.
+	//
+	// They ride the launch rather than a later edit because editing route keys
+	// on a live OVN NIC re-plugs the device, and the re-plug costs the guest its
+	// DHCP lease with nothing left to renew it — measured on Incus 7.2: the
+	// machine then holds no address at all, which is worse than an address
+	// nothing routes. An address attached after boot still goes through
+	// Router.RouteAddress, and pays the bounce documented in docs/limits.md.
+	PublicAddresses []string
 }
 
 // Machine is a running (or stopped) backing machine.

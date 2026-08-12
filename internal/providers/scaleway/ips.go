@@ -138,7 +138,74 @@ func (p *Pack) allocateFlexibleAddress() (netip.Addr, error) {
 			}
 		}
 	}
+	// Dynamic addresses draw from the same block, and live on the server rather
+	// than as IP resources — upstream, a dynamic address is not a flexible IP
+	// and never appears in /ips. Skipping them here would hand a flexible IP an
+	// address a running server already answers on.
+	for _, srv := range p.env.Store.List(kindServer, resource.Tenant{Provider: Name}) {
+		if taken := srv.Runtime[runtimeDynamicIPKey]; taken != "" {
+			if addr, err := netip.ParseAddr(taken); err == nil {
+				_ = alloc.Reserve(addr)
+			}
+		}
+	}
 	return alloc.Allocate()
+}
+
+// emulatedAddress reports whether an address is one this pack can have handed
+// out: inside flexibleBlock.
+//
+// It is the gate every address must pass on its way to the driver, and it
+// exists because the values it filters come from the store: a flexible IP's
+// address and a server's dynamic address are restored verbatim by
+// PUT /_feint/state and `feint snapshot load`. Routing an arbitrary address to
+// a machine would make the host send its traffic for that address — an
+// operator's LAN peer, a real service — into a container. Well-formed is not
+// authorised; this is the authorisation half.
+//
+// TestAPoisonedStoredAddressIsNeverRouted fails without it.
+func emulatedAddress(address string) bool {
+	prefix, err := netip.ParsePrefix(flexibleBlock)
+	if err != nil {
+		return false
+	}
+	addr, err := netip.ParseAddr(address)
+	if err != nil {
+		return false
+	}
+	return prefix.Contains(addr)
+}
+
+// attachedIPsOf lists the flexible IPs attached to a server. One walk for the
+// view, the release path, the boot and the replay — four callers, one loop,
+// because the copies had already started to disagree once (an audit found the
+// create path and updateIP setting different halves of the same link).
+func (p *Pack) attachedIPsOf(serverID, zone string) []*resource.Resource {
+	out := make([]*resource.Resource, 0, 1)
+	for _, ip := range p.env.Store.List(kindIP, resource.Tenant{Provider: Name, Zone: zone}) {
+		attached, _ := ip.Attrs["server"].(map[string]any)
+		if attached != nil && attached["id"] == serverID {
+			out = append(out, ip)
+		}
+	}
+	return out
+}
+
+// publicAddressesOf is every public address the server has been promised: its
+// attached flexible IPs, and the dynamic address when it holds one. This is
+// what rides the launch, so the machine answers on them from its first boot.
+func (p *Pack) publicAddressesOf(server *resource.Resource) []string {
+	ips := p.attachedIPsOf(server.ID, server.Tenant.Zone)
+	out := make([]string, 0, len(ips)+1)
+	for _, ip := range ips {
+		if address, _ := ip.Attrs["address"].(string); emulatedAddress(address) {
+			out = append(out, address)
+		}
+	}
+	if address := server.Runtime[runtimeDynamicIPKey]; emulatedAddress(address) {
+		out = append(out, address)
+	}
+	return out
 }
 
 func (p *Pack) listIPs(w http.ResponseWriter, r *http.Request) {
@@ -260,13 +327,28 @@ func (p *Pack) updateIP(w http.ResponseWriter, r *http.Request) {
 // Degrades quietly, like every other runtime call in this pack: the control
 // plane keeps describing the attachment, and the log says why nothing answers.
 func (p *Pack) attachAddress(ctx context.Context, ip, server *resource.Resource) {
+	address, _ := ip.Attrs["address"].(string)
+	p.routeAddress(ctx, address, server)
+}
+
+// routeAddress routes one public address — flexible or dynamic — to the
+// server's machine. Idempotent by the Router contract, which is what lets the
+// poweron replay call it on addresses the launch already installed.
+func (p *Pack) routeAddress(ctx context.Context, address string, server *resource.Resource) {
 	router, ok := p.env.Machines.(machine.Router)
 	if !ok {
 		return
 	}
 	name := server.Runtime[runtimeMachineKey]
-	address, _ := ip.Attrs["address"].(string)
 	if name == "" || address == "" {
+		return
+	}
+	// A stored address is untrusted input: a restored snapshot carries it
+	// verbatim, and routing an arbitrary value would send the host's traffic
+	// for that address into a container. See emulatedAddress.
+	if !emulatedAddress(address) {
+		p.logger().Warn("refusing to route an address outside the emulated public block",
+			"address", address, "server", server.ID)
 		return
 	}
 	// On the network the server lives on, when it has one: a public address on
@@ -277,8 +359,28 @@ func (p *Pack) attachAddress(ctx context.Context, ip, server *resource.Resource)
 		Address: address,
 		Network: p.privateNetworkNameOf(server),
 	}); err != nil {
-		p.logger().Error("could not route the flexible IP to the machine",
-			"ip", ip.ID, "address", address, "server", server.ID, "error", err)
+		p.logger().Error("could not route the public address to the machine",
+			"address", address, "server", server.ID, "error", err)
+	}
+}
+
+// routeServerAddresses (re)routes every public address a server holds.
+//
+// Called after the machine exists: at poweron, and on the read that discovers
+// a late address. The boot itself installs the host half (the route keys ride
+// the launch); this replay is what hands the guest its addresses, and what
+// repairs a machine that already existed with different attachments.
+//
+// It is the missing half of #116: an address attached at create was recorded
+// and never routed, because attachAddress ran while the server had no machine
+// and nothing replayed it once one existed.
+// TestPowerOnRoutesAnAddressAttachedBeforeBoot fails without it.
+func (p *Pack) routeServerAddresses(ctx context.Context, res *resource.Resource) {
+	for _, ip := range p.attachedIPsOf(res.ID, res.Tenant.Zone) {
+		p.attachAddress(ctx, ip, res)
+	}
+	if address := res.Runtime[runtimeDynamicIPKey]; address != "" {
+		p.routeAddress(ctx, address, res)
 	}
 }
 
@@ -355,14 +457,87 @@ func ipView(res *resource.Resource) map[string]any {
 //
 // TestDeletingAServerReleasesItsAddresses fails without this.
 func (p *Pack) releaseAddressesOf(ctx context.Context, serverID, zone string) {
-	for _, ip := range p.env.Store.List(kindIP, resource.Tenant{Provider: Name, Zone: zone}) {
-		attached, _ := ip.Attrs["server"].(map[string]any)
-		if attached == nil || attached["id"] != serverID {
-			continue
-		}
+	for _, ip := range p.attachedIPsOf(serverID, zone) {
 		p.detachAddress(ctx, ip)
 		ip.Attrs["server"] = nil
 		ip.State = "detached"
 		p.env.Store.Commit(ip, p.env.Now())
+	}
+}
+
+// ---- Dynamic addresses ------------------------------------------------------
+//
+// `dynamic_ip_required` upstream gives the server an ephemeral public address
+// at poweron and takes it back when the server stops; the address is not a
+// flexible IP and never appears in /ips. The pack used to decode the flag,
+// echo it back, and allocate nothing — which no report could see, because the
+// field *was* read (#117).
+
+// runtimeDynamicIPKey is where a server's dynamic address is kept, and
+// runtimeDynamicIPIDKey the identifier public_ips publishes for it. Runtime,
+// not Attrs: the address is surfaced through the ServerIP view only, the way
+// the machine name and the runtime address already are.
+const (
+	runtimeDynamicIPKey   = "dynamic-ip"
+	runtimeDynamicIPIDKey = "dynamic-ip-id"
+)
+
+// ensureDynamicAddress allocates the ephemeral address a poweron owes a server
+// whose dynamic_ip_required is set, when no flexible IP already covers it —
+// upstream's own precedence: a reserved address suppresses the dynamic one.
+//
+// The allocation is committed to the store at once, not left for the caller's
+// final write-back: the allocator is rebuilt from the store, and a machine
+// takes seconds to boot, so an uncommitted reservation is an address a
+// concurrent POST /ips hands out a second time.
+func (p *Pack) ensureDynamicAddress(res *resource.Resource) {
+	if want, _ := res.Attrs["dynamic_ip_required"].(bool); !want {
+		return
+	}
+	if res.Runtime[runtimeDynamicIPKey] != "" {
+		return
+	}
+	if len(p.attachedIPsOf(res.ID, res.Tenant.Zone)) > 0 {
+		return
+	}
+
+	p.addresses.Lock()
+	defer p.addresses.Unlock()
+	address, err := p.allocateFlexibleAddress()
+	if err != nil {
+		p.logger().Error("could not allocate a dynamic address",
+			"server", res.ID, "error", err)
+		return
+	}
+	if res.Runtime == nil {
+		res.Runtime = map[string]string{}
+	}
+	res.Runtime[runtimeDynamicIPKey] = address.String()
+	res.Runtime[runtimeDynamicIPIDKey] = p.env.NewID()
+	p.env.Store.Commit(res, p.env.Now())
+}
+
+// releaseDynamicAddress takes the ephemeral address back: on poweroff, standby,
+// terminate and delete alike. Upstream releases it on stop — it is the whole
+// difference between dynamic and flexible — and holding it here would publish
+// an address a stopped machine no longer answers on.
+//
+// The store write stays with the caller, which either commits the resource or
+// deletes it; what must not wait is the unroute, because on OVN the uplink
+// route outlives the machine.
+func (p *Pack) releaseDynamicAddress(ctx context.Context, res *resource.Resource) {
+	address := res.Runtime[runtimeDynamicIPKey]
+	if address == "" {
+		return
+	}
+	delete(res.Runtime, runtimeDynamicIPKey)
+	delete(res.Runtime, runtimeDynamicIPIDKey)
+	router, ok := p.env.Machines.(machine.Router)
+	if !ok || !emulatedAddress(address) {
+		return
+	}
+	if err := router.UnrouteAddress(ctx, res.Runtime[runtimeMachineKey], address); err != nil {
+		p.logger().Error("could not stop routing the dynamic address",
+			"address", address, "server", res.ID, "error", err)
 	}
 }

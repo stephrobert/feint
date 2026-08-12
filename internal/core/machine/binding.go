@@ -122,6 +122,12 @@ type Boot struct {
 	// default bridge alone while the API publishes an address on a network it
 	// never joined.
 	Attachments []Attachment
+	// PublicAddresses are the emulated public addresses the pack has already
+	// promised for this machine — a flexible IP attached before the boot, an
+	// ephemeral address the flag asked for. Carried here so the driver can
+	// install the routes before the first boot instead of editing a live NIC:
+	// the edit is what cost a guest its DHCP lease (see Spec.PublicAddresses).
+	PublicAddresses []string
 	// Labels are added to the ones the binding sets itself.
 	Labels map[string]string
 }
@@ -178,13 +184,14 @@ func (b Binding) Start(ctx context.Context, boot Boot) Started {
 	}
 
 	m, err := b.Driver.Start(ctx, Spec{
-		Name:           name,
-		Image:          boot.Image,
-		Labels:         labels,
-		User:           user,
-		AuthorizedKeys: boot.AuthorizedKeys,
-		CloudInit:      userData,
-		Attachments:    boot.Attachments,
+		Name:            name,
+		Image:           boot.Image,
+		Labels:          labels,
+		User:            user,
+		AuthorizedKeys:  boot.AuthorizedKeys,
+		CloudInit:       userData,
+		Attachments:     boot.Attachments,
+		PublicAddresses: boot.PublicAddresses,
 	})
 	if err != nil {
 		// Deliberately not fatal, and never swallowed: this log is the only way
