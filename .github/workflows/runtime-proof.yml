@@ -165,6 +165,27 @@ jobs:
             sudo incus config set network.ovn.northbound_connection unix:/run/ovn/ovnnb_db.sock
           fi
 
+      # The runner image ships Docker, and Docker sets the host's iptables
+      # FORWARD policy to DROP while enabling br_netfilter — so every packet
+      # bridged or routed through the host between or for Incus containers
+      # dies on a policy feint never wrote. Measured twice on run 31716252496,
+      # once per leg. Leg `incus`: two machines of the same VPC could not
+      # reach each other ("FAIL: 10.184.0.2 is unreachable within one VPC;
+      # isolation is separating too much"), and a foreign VPC read as isolated
+      # when a bridge cannot isolate. Leg `incus-ovn`: both network suites
+      # passed — OVN's east-west traffic is geneve-encapsulated and never
+      # crosses FORWARD — but the ssh suite died on "no ssh daemon answered",
+      # because cloud-init installs openssh at boot and the machines' outbound
+      # traffic is routed and NATed through the host, which does cross it.
+      #
+      # Opening the policy does not soften any assertion: the firewall checks
+      # are enforced by Incus ACLs in Incus's own chains (they passed in that
+      # same run, policy DROP and all), and the isolation verdict must come
+      # from the runtime under test, not from a host policy that drops
+      # everything for everyone.
+      - name: Keep the runner's Docker firewall out of the verdict
+        run: sudo iptables -P FORWARD ACCEPT
+
       # The diagnosis before the verdict: doctor names the missing piece when
       # the wiring above went wrong, which is cheaper to read than a suite
       # timing out forty minutes later.
