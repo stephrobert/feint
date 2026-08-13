@@ -1,5 +1,7 @@
 # Roadmap
 
+**Read this in another language:** [Français](./roadmap.fr.md)
+
 What this project intends to do next, why, and how each item will be known to be
 done. It is ordered by what unblocks a user, not by what is interesting to build.
 
@@ -18,7 +20,10 @@ Percentages of the upstream surface appear in the README and are generated from
 the committed coverage artefacts. They are deliberately absent here, because a
 roadmap that tracks a percentage optimises for the percentage. The same goes for
 counts: where an item below depends on a number, the evidence points at the
-generated tables instead of freezing a figure that will rot.
+generated tables instead of freezing a figure that will rot. This page has paid
+for that rule once already — its per-provider companions froze their counts on
+2026-07-30 and every one of them was wrong within a fortnight (#127); they are
+archives now, under [history/](history/).
 
 ---
 
@@ -46,28 +51,31 @@ none of the comparable emulators can do, and leading with Docker would erase it.
 CI job runs the Scaleway conformance suite from the host against the emulator
 running inside that image.
 
-### The golden-image workflow on Scaleway: snapshots, images, volume attachment
+### The golden-image workflow on Scaleway: half landed, half in progress
 
-The most expensive gap in the served surface is not a percentage, it is a
-scenario. Anyone who builds machine images with Packer or a `scw` script needs
-`CreateSnapshot` and `CreateImage`; any ordinary Terraform module attaches a
-`scaleway_instance_volume` to a server and needs `AttachServerVolume` and
-`DetachServerVolume`. All of these sit in the untriaged column of the generated
-coverage tables today, which means a user hits them on their first realistic
-configuration. The work is to implement that family end to end and to decline
-the rest of the untriaged `instance` operations with a reason, so the column
-empties by decision rather than by accretion.
+The most expensive gap in the served surface was never a percentage, it was a
+scenario: build an image with Packer or a `scw` script, attach a volume with an
+ordinary Terraform module.
 
-**Evidence:** a Terraform module declaring a server, an attached volume, a
-snapshot of that volume and an image built from the snapshot applies and
-destroys in the conformance suite, with no diff on re-plan; and the `instance`
-untriaged column in the README's generated tables reads zero.
+**The first half landed with SW-2 (#7, merged as #131).** Snapshots and images
+are control-plane records: a client snapshots a volume, cuts an image from the
+snapshot, lists it beside the fixed catalogue, and the deletion order is
+enforced. Volume attachment is served. What an image cut here cannot do is
+boot — this emulator keeps records, not disk contents — and it says so at the
+boot instead of substituting a distribution ([limits.md](limits.md) carries the
+refusal, #115 the decision). The `instance` untriaged column in the generated
+tables reads zero, by decision: what was not served (placement groups among
+them) is declined with its reason in the pack.
 
-This item is batches 2 and 3 of
-[roadmap-scaleway-iaas.md](roadmap-scaleway-iaas.md), which carries the
-operation lists, the measured client behaviour behind them, and the
-architecture decisions the work depends on. The batch documents are the
-detail; this page only says why this scenario outranks the others.
+**The second half is SW-3 (#8), in progress.** `block/v1` and the `sbs_volume`
+root volume — the measured trap in [limits.md](limits.md) where the provider
+reads a volume back through an API no pack serves, and the apply dies on a 404.
+This item ends when that limit's section ends.
+
+**Evidence:** `terraform apply` with a `scaleway_block_volume` and an
+`sbs_volume` root volume, empty second plan, clean destroy, in conformance —
+and the `b_ssd`/`sbs_volume` section of [limits.md](limits.md) deleted rather
+than updated.
 
 ### Exoscale was labelled preview, and the label came off at EXO-2
 
@@ -101,10 +109,11 @@ it would have made this project's own published maturity depend on someone
 else's tracker, for a duration nobody controls — while the thing the label was
 warning about had already been fixed.
 
-**What still separates Exoscale from *usable* is stated in the coverage tables
-rather than in a word:** 75 operations remain untriaged, against 18 for Outscale
-and 0 for Scaleway. That column is the honest one, and it is generated, so it
-cannot flatter.
+**What still separates Exoscale from *usable* is stated in the coverage
+tables rather than in a word:** its untriaged column is the largest of the
+three, it is generated, and it cannot flatter. This paragraph used to copy the
+three numbers; they rotted slower than the archived documents' only because
+they were younger.
 
 [exo-573]: https://github.com/exoscale/terraform-provider-exoscale/issues/573
 
@@ -112,13 +121,16 @@ cannot flatter.
 
 ## The three IaaS layers, one sequence
 
-Each provider now has a measured roadmap for its IaaS layer —
-[Scaleway](roadmap-scaleway-iaas.md), [Outscale](roadmap-outscale-iaas.md),
-[Exoscale](roadmap-exoscale-iaas.md). Each states what "IaaS" means for that
-provider, which official-client command breaks on each missing product today,
-and the batches that close it. This section does not repeat any of that — a
-figure copied into two files diverges — it orders the batches of all three into
-one sequence and names the work that cuts across them.
+Each provider's IaaS layer was measured and cut into batches in a snapshot
+dated 2026-07-30 — [Scaleway](history/roadmap-2026-07-30-scaleway-iaas.md),
+[Outscale](history/roadmap-2026-07-30-outscale-iaas.md),
+[Exoscale](history/roadmap-2026-07-30-exoscale-iaas.md). Those documents are
+**archives** now: the reasoning that ordered the batches is the record, the
+figures are that day's, and each carries a banner saying so (#127). What is
+current lives where it regenerates — the README's tables, [routes.md](routes.md)
+— and what remains open lives in the wave milestones and their issues. This
+section orders the batches of all three into one sequence and names the work
+that cuts across them.
 
 ### What "acceptable coverage" means, and does not
 
@@ -134,8 +146,8 @@ are true, each checkable by a machine:
 2. **A realistic Terraform configuration applies, re-plans empty, and destroys
    cleanly**, with contracts on. "Realistic" is not chosen here: for Outscale
    it is the provider's own `examples/net_vm`; for Scaleway the golden-image
-   module above; for Exoscale the ordinary instance stack (key, security
-   group, anti-affinity, elastic IP, instance).
+   module above; for Exoscale the ordinary instance stack — proven through
+   `exo`, since its Terraform provider cannot be pointed here ([#573][exo-573]).
 3. **The untriaged column reads zero for the products that provider's roadmap
    declares in scope** — zero by decision, served or declined with a reason,
    never by a widened denominator.
@@ -146,28 +158,34 @@ moves.
 
 ### The work that cuts across all three packs
 
-Named here because each item looks local in any single roadmap and is not:
+Named here because each item looks local in any single batch and is not. Two
+have landed and are kept because they now name the mechanism to imitate; three
+are standing rules.
 
-- **`Declined()` grows a reason**: the interface becomes `(operation, reason)`
-  so the report can say *why* an operation is refused. One change, three
-  packs, and it must land before the Exoscale triage writes ~250 refusals
-  against the old signature. Proposed in the Scaleway roadmap (batch 1),
-  justified by the Exoscale one (batch 1).
-- **Two Terraform fixtures do not exist yet.** Scaleway has
-  `tools/conformance/scaleway/terraform/`; Outscale and Exoscale have no
-  Terraform evidence at all, which is the single biggest gap between "the CLI
-  passes" and "usable". Each fixture arrives with its `terraform.sh` and mise
-  task, on the Scaleway model.
+- **`Declined()` carries a reason** — landed with X-1, and the doctrine has
+  since reached one level deeper: #122 gives a pack `DeclinedFields()`, a
+  field of an observed response it knowingly does not serve, with the same
+  no-placeholder guard on the reason. "Not served" and "not triaged" are
+  different answers at every granularity.
+- **The Terraform evidence question is settled per provider, not globally** —
+  Scaleway and Outscale each have a fixture in `tools/conformance/`, and
+  Outscale's drives the provider's own `examples/net_vm` plus its storage
+  chain. Exoscale's is *impossible rather than missing*, measured and filed
+  upstream ([#573][exo-573]); its evidence is the official CLI, and
+  [limits.md](limits.md) explains why the patched-provider proof deliberately
+  does not count.
 - **The contract is extended with every product, never after it.** New
-  products enter `tools/contract/` extraction (for Scaleway,
-  `scaleway-products.txt`) in the same change as their routes. Outscale and
-  Exoscale make this order mandatory: their `additionalProperties: false`
-  contracts refuse an unextracted product's responses outright.
+  products enter `tools/contract/` extraction in the same change as their
+  routes. Outscale and Exoscale make this order mandatory: their
+  `additionalProperties: false` contracts refuse an unextracted product's
+  responses outright.
 - **Every new lifecycle path takes the per-target lock** —
   `machine.Binding.Serialise`, which exists and is taken by all three packs —
   and proves it with a concurrency test, the way
   `TestConcurrentPowerOnStartsTheMachineOnce` does. Nothing will remind anyone
-  of this; only the test does.
+  of this; only the test does. (#134 proposes the scenario-level complement:
+  invariants held under a deliberate barrage, not only each lock under its
+  own race.)
 - **Runtime backing arrives only as a declared capability.** Block storage,
   load balancers and gateways ship as control plane first; a driver that gains
   real backing declares it (`machine.Capabilities`), and an undeclared
@@ -176,49 +194,36 @@ Named here because each item looks local in any single roadmap and is not:
 ### The sequence
 
 Ordered by what unblocks a user, which is the same criterion as the rest of
-this page. Batch numbers refer to the per-provider documents.
+this page. Batch identifiers are the ones the issues and milestones carry;
+the archived documents explain how each batch was cut.
 
-1. **The triage wave** — Scaleway batch 1, Outscale batch 1, Exoscale batch 1,
-   carrying the `(operation, reason)` change. No new route, and it is first
-   anyway: it turns three unreadable untriaged columns into work lists, puts
-   iam and marketplace under the gate they currently escape, and makes every
-   later batch's "the column reads zero" evidence possible.
-   **Evidence:** `tools/drift/gate.sh check` returns 0 against the three new
-   baselines, and the README's generated tables show untriaged columns that
-   are work lists, not walls.
+1. **The triage wave** — **done.** Scaleway, Outscale and Exoscale batch 1,
+   carrying the `(operation, reason)` change (X-1). It turned three unreadable
+   untriaged columns into work lists and put iam and marketplace under the
+   gate they used to escape. Its evidence stands as stated: the gate returns 0
+   on the baselines, and the untriaged columns of the generated tables are
+   work lists, not walls.
 2. **First Terraform proof for Outscale, and the machine lifecycle for
-   Exoscale** — Outscale batch 2, Exoscale batch 2. The cheapest work with the
-   largest status change: both packs already pass their CLI suites, and each
-   needs a handful of operations — a catalogue field and tags on one side, the
-   machine lifecycle on the other.
-   **Evidence:** for Outscale, `terraform apply`, empty second plan, clean
-   destroy, in conformance. For Exoscale, the same proof through `exo`, because
-   its Terraform provider cannot be pointed here at all — see the settled
-   question above, and [#573][exo-573]. This is the wave that removed
-   Exoscale's *preview* label.
-3. **The Scaleway golden-image scenario** — Scaleway batches 2 and 3, the
-   "Now" item above. It stays third rather than first only because Scaleway
-   already serves a usable core while the other two waves each take a
-   provider from "demo" to "provable"; it remains the most expensive known
-   gap for the provider with the most users.
-   **Evidence:** as stated in the "Now" item.
-4. **Networks that route** — Outscale batch 3 (`examples/net_vm` applies),
-   Scaleway batch 4 (IPAM lifecycle and vpc completed), Exoscale batch 3
-   (private networks). Grouped because they share the network-evidence rule:
-   under OVN the claim is asserted, elsewhere it is skipped, and no document
-   says "isolated" without naming the mode.
-   **Evidence:** each batch's own conformance run, per its document.
-5. **Storage on the two starters** — Outscale batch 4, Exoscale batch 4,
-   aligned with the volume relations Scaleway batch 3 already settled: every
-   relation stored on one side, computed on the other, deletion rules tested
-   by the fixture's destroy.
-   **Evidence:** the storage applies named in each document.
-6. **Load balancing and gateways** — Scaleway batches 5 and 6, Outscale
-   batch 5, Exoscale batches 5 and 6. Last because nothing else depends on
-   them and everything they depend on (IPAM, networks, the waiter discipline)
-   is above; each is control plane first, capability-gated backing later.
-   **Evidence:** the applies named in each document, waiters converging
-   without timeouts.
+   Exoscale** — **done.** OSC-2 brought `terraform apply`, an empty second
+   plan and a clean destroy into conformance; EXO-2 brought the lifecycle
+   under `exo` and took the *preview* label off, as recorded above.
+3. **The Scaleway golden-image scenario** — **half done.** SW-2 (#7) is
+   merged; SW-3 (#8) is in progress. See the "Now" item, which is this wave.
+4. **Networks that route** — **Outscale done, two open.** OSC-3 is merged: the
+   provider's own `examples/net_vm` applies, re-plans empty and destroys.
+   SW-4 (#11, IPAM lifecycle and the rest of vpc) and EXO-3 (#9, private
+   networks) remain, grouped under the network-evidence rule: under OVN the
+   claim is asserted, elsewhere it is skipped, and no document says "isolated"
+   without naming the mode.
+5. **Storage on the two starters** — **Outscale done, Exoscale open.** OSC-4
+   is merged (volumes, snapshots, images, the storage chain in the Terraform
+   fixture). EXO-4 (#12, block storage) remains, aligned with the relation
+   rules Scaleway settled: stored on one side, computed on the other, deletion
+   rules tested by the fixture's destroy.
+6. **Load balancing and gateways** — **open.** SW-5 (#17), SW-6 (#18), OSC-5
+   (#16), EXO-5 (#14), EXO-6 (#15). Last because nothing else depends on them
+   and everything they depend on (IPAM, networks, the waiter discipline) is
+   above; each is control plane first, capability-gated backing later.
 
 The waves are an order, not a schedule: a wave can start before the previous
 one is fully green when its dependencies are, and an issue where an official
@@ -226,38 +231,34 @@ client breaks outranks the whole list, as the last section says.
 
 ### The operational view
 
-The waves above say why. This table says what to open. One line per batch, with
-the identifier used from here on, what it delivers, where the work lands, and
-the one command that ends it. Each line is an issue, and the issues are steered
-from the [project board](project.md). Operation lists and the measurements behind them
-stay in the per-provider documents: a count copied here would diverge from the
-scan the day upstream moves.
+One line per batch. Each line is an issue, steered from the
+[project board](project.md); a closed issue is the proof the line is done, so
+the table carries the state as an issue reference rather than a claim.
 
-| ID | Wave | Delivers | Where the work lands | Ends when | After |
-|---|--:|---|---|---|---|
-| **X-1** | 1 | `Declined()` carries a reason per operation | `internal/core/emulator/emulator.go:98`, the three packs, `internal/drift/report.go` | `mise run check` passes and the report prints a reason | — |
-| **SW-1** | 1 | iam and marketplace under the gate; instance/vpc/ipam triaged | `tools/drift/gate.sh:31`, `internal/providers/scaleway/pack.go` | `tools/drift/gate.sh check` → 0 on the new baseline | X-1 |
-| **OSC-1** | 1 | the non-IaaS half declined by name | `internal/providers/outscale/declined.go` | same gate, untriaged column is a work list | X-1 |
-| **EXO-1** | 1 | the managed-service surface declined by name | `internal/providers/exoscale/pack.go` (`Declined()` today returns `nil`) | same gate | X-1 |
-| **OSC-2** | 2 | `ProductCodes`, admin password, tags, root volume | `catalog.go`, `vms.go`, new `volumes.go`; new `tools/conformance/outscale/terraform/` | `terraform apply` + empty plan + destroy, in conformance | OSC-1 |
-| **EXO-2** | 2 | instance lifecycle, security groups, elastic IPs | `machines.go`, new files; `tools/conformance/exoscale/exo-cli.sh` | `exo` drives the lifecycle end to end, and the *preview* label comes off | EXO-1 |
-| **SW-2** | 3 | snapshots, images, placement groups, volume attach | new files beside `volumes.go`; `tools/conformance/scaleway/terraform/main.tf` | the golden-image module applies and destroys | SW-1 |
-| **SW-3** | 3 | `block/v1` and the `sbs_volume` root volume | new `block.go`, `catalog.go`, `tools/contract/scaleway-products.txt` | `terraform apply` with `scaleway_block_volume` | SW-2 |
-| **OSC-3** | 4 | routable networking: security groups, public IPs, NICs, route tables | new files in `internal/providers/outscale/`; fix `tools/conformance/outscale/oapi-cli.sh:268` | the provider's own `examples/net_vm` applies | OSC-2 |
-| **SW-4** | 4 | IPAM lifecycle and the rest of vpc | `ipam.go`, `vpc.go`, `internal/core/machine/incus_ovn.go` | `scaleway_ipam_ip` applies; under OVN the ACL filters | SW-1 |
-| **EXO-3** | 4 | private networks and instance attachment | new files; a `network.sh` for Exoscale | apply, plus the OVN assertion when the mode declares it | EXO-2 |
-| **OSC-4** | 5 | volumes, snapshots, images | `internal/providers/outscale/` | the storage apply named in its document | OSC-2 |
-| **EXO-4** | 5 | block storage | new `block.go` | volume + snapshot + attachment apply | EXO-2 |
-| **SW-5** | 6 | `lb/v1` ZonedAPI | new `lb.go`, contract extraction | the full LB stack applies, waiters converge | SW-4 |
-| **SW-6** | 6 | `vpcgw/v2` | new `vpcgw.go` | gateway + gateway network + PAT rule apply | SW-4 |
-| **OSC-5** | 6 | load balancing | new `lb.go` | the LB apply named in its document | OSC-3 |
-| **EXO-5** | 6 | NLB | new `nlb.go` | `exoscale_nlb` + service apply | EXO-3 |
-| **EXO-6** | 6 | VPC and routes | new `vpc.go` | the VPC apply, backing declared or declared degraded | EXO-3 |
+| ID | Wave | Delivers | State |
+|---|--:|---|---|
+| **X-1** | 1 | `Declined()` carries a reason per operation | done |
+| **SW-1** | 1 | iam and marketplace under the gate; instance/vpc/ipam triaged | done (#4) |
+| **OSC-1** | 1 | the non-IaaS half declined by name | done (#3) |
+| **EXO-1** | 1 | the managed-service surface declined by name | done |
+| **OSC-2** | 2 | `ProductCodes`, admin password, tags, root volume — the first Outscale `terraform apply` | done (#6) |
+| **EXO-2** | 2 | instance lifecycle, security groups, elastic IPs — the *preview* label comes off | done (#5) |
+| **SW-2** | 3 | snapshots, images, volume attach | done (#7) |
+| **SW-3** | 3 | `block/v1` and the `sbs_volume` root volume | in progress (#8) |
+| **OSC-3** | 4 | routable networking — `examples/net_vm` applies | done (#10) |
+| **SW-4** | 4 | IPAM lifecycle and the rest of vpc | open (#11) |
+| **EXO-3** | 4 | private networks and instance attachment | open (#9) |
+| **OSC-4** | 5 | volumes, snapshots, images | done (#13) |
+| **EXO-4** | 5 | block storage | open (#12) |
+| **SW-5** | 6 | `lb/v1` ZonedAPI | open (#17) |
+| **SW-6** | 6 | `vpcgw/v2` | open (#18) |
+| **OSC-5** | 6 | load balancing | open (#16) |
+| **EXO-5** | 6 | NLB | open (#14) |
+| **EXO-6** | 6 | VPC and routes | open (#15) |
 
-Sizes are in the per-provider documents, where they can be argued against the
-operation lists that justify them. The only ones worth knowing here: SW-5 is the
-largest single batch, and X-1 is the smallest with the widest blast radius,
-which is why it is first.
+Sizes and operation lists stay with the issues and the archived documents,
+where they can be argued against the measurements that justified them. The one
+thing worth knowing here: SW-5 is the largest single batch remaining.
 
 ### Start here
 
@@ -269,10 +270,11 @@ mise run drift:check                   # 0: the baselines are current; 2: triage
 feint coverage --sdk .upstream/scaleway-sdk-go --products instance,vpc,ipam --format triage
 ```
 
-The third one prints the work list SW-1 empties. Its Outscale and Exoscale
-equivalents are in the appendices of their documents. If `drift:check` exits 2,
-that triage comes before anything on this page: a baseline nobody has ruled on
-makes every "the column reads zero" claim below meaningless.
+The third one prints the untriaged work list for the products named — which
+wave 1 emptied, so for these it reads zero today, and a new upstream operation
+is exactly what makes it stop reading zero. If `drift:check` exits 2, that
+triage comes before anything on this page: a baseline nobody has ruled on
+makes every "the column reads zero" claim meaningless.
 
 ### When a batch is done
 
@@ -299,7 +301,7 @@ included, was read against this project. Most of that grid is not transposable,
 and the reason is measured rather than felt — its differentiating features
 (chaos injection, an IAM policy stream, a traffic inspector) were built on top
 of near-complete coverage, where the generated tables in the README still show a
-minority of the surface served and two untriaged columns that are not yet zero.
+minority of the surface served and untriaged columns that are not yet all zero.
 Copying the grid now would be a second storey on foundations still being poured,
 and every feature added is one more surface to hold against an upstream that
 moves by hundreds of operations a year.
@@ -311,34 +313,34 @@ which is what an issue is for.
 
 So the useful question is not *which LocalStack features are missing here*. It
 is **which of them lower the cost of coverage**, since coverage is what the
-sequence above spends its time on. Three answer yes, and they are the only three
-that outrank a batch.
+sequence above spends its time on. Three answered yes, and the first has since
+landed.
 
-### 1. Record what a real client and a real cloud say to each other — #72, #73, #74
+### 1. Record what a real client and a real cloud say to each other — #72 done; #73, #74 remain
 
-Head of the queue. Everything this repository knows about how an official client
-addresses an endpoint was found with a throwaway logging proxy:
-`tools/conformance/README.md` says so three times, and the sharpest of the three
-is that `exo compute instance create` issues four reads before it posts
-anything, *every one of which was declined here until a proxy showed them going
-past — a unit test would never have found them*. The tool that produced the most
-valuable measurements in this repository is the only one that was never built.
+The recording half **landed**: `feint proxy` records a redacted transcript of a
+real client against a real cloud, `feint transcript --shape` reduces it to a
+committable field tree — no values, no identifiers — and since #122 the shapes
+gate compares the emulator's answers against those observed shapes **on every
+pull request**, with `DeclinedFields()` carrying the reasoned refusals. The
+sentence this section used to end on — *"the tool that produced the most
+valuable measurements in this repository is the only one that was never
+built"* — is settled, and the tool earned its keep on its first day wired: the
+gate went red on a real divergence (`images[].default_bootscript`) in the same
+branch that made the route comparable (#131).
 
-Three deliverables, each usable without the next: `feint proxy` records a
-redacted transcript (#72); `feint replay` compares the emulator's answer with the
-one the real cloud gave (#73); `feint coverage --observed` orders the untriaged
-column by what a client was actually seen calling (#74).
+What remains of the family, each usable without the other: **`feint replay`**
+(#73) compares the emulator's answer with the one the real cloud gave, exchange
+by exchange; **`feint coverage --observed`** (#74) orders the untriaged column
+by what a client was actually seen calling — which is what turns every wave
+above from a bet into a count. And one measured trap governs both: a client
+that follows in-band endpoints walks away from the proxy mid-session (#92), so
+a recording is only as complete as the dialect allows.
 
-The last one is why this heads the list. Every wave above is a bet about which
-operation a user hits first, and the bet is currently unmeasurable — which is an
-odd position for a project whose argument is that one measures the surface
-rather than following it. A transcript replaces the bet with a count.
-
-**Evidence:** as each issue states. The one that governs the family: a
-transcript recorded through the proxy contains neither a credential nor a secret
-from the body, proven by a test that fails when the redaction call is removed.
-Recording happens on a human's own station, against their own account, never in
-CI.
+**Evidence:** as each issue states. The rule that governs the family held and
+keeps holding: a transcript contains neither a credential nor a secret from the
+body, proven by a test that fails when the redaction call is removed; recording
+happens on a human's own station, against their own account, never in CI.
 
 ### 2. The emulator as an importable package — #75
 
@@ -346,7 +348,7 @@ CI.
 under `internal/`, so nothing outside this module can. Two items on this page
 pay for that today: the testcontainers module must start a published image to
 reach a handler that could be a function call, and *"a fourth provider changes
-nothing in `internal/core`"* is admitted above to be untested — as it must
+nothing in `internal/core`"* is admitted below to be untested — as it must
 remain, since three packs in one tree can share a mistake for a year without
 noticing.
 
@@ -426,10 +428,11 @@ Named rather than left floating, which is the same discipline as `Declined()`:
   not disturb the decision never to check signatures), and the observer already
   holds most of the data. It waits because it is differentiation, and
   differentiation built on a surface this thin is a demo.
-- **Deterministic control of transition times** — how long an emulated
-  asynchronous operation takes, so a waiter's timeout becomes testable. A cousin
-  of fault injection, but not the same seam: the delay lives in the pack's
-  lifecycle rather than in front of the handler. Noted on #26.
+- **Deterministic control of transition times** — no longer a note on #26: it
+  is **#124**, an observation-driven scheduler that makes a transient state
+  reachable without a wall clock, so the refusals that live there can fire.
+  Filed from the external review; the measured Outscale case
+  (`409 InvalidVolumeState`) is its anchor.
 - **An inspection TUI.** Superseded for now by the read-only page the binary
   serves about itself (#67, #68, #69), which shows the same data. Revisit only if
   that page proves to be the wrong surface.
@@ -442,6 +445,44 @@ Named rather than left floating, which is the same discipline as `Declined()`:
   the `project_id` the client sends. What is genuinely fixed is
   `organization_id`, and servers are not project-scoped. So this is a smaller
   and better-defined piece of work than it looks, and it still waits.
+
+---
+
+## The proof track: what two external reviews changed
+
+Two passes of an external review (2026-08-13) were triaged into issues the way
+a drift report is: verified against the tree first, enriched or refused with a
+reason, never copied. The verdict that survived verification is one this page
+already leans towards: **the route count now demonstrates the architecture;
+what it does not yet demonstrate is how much a green run proves.** Spending the
+next versions on proofs rather than surface is the proposal.
+
+The issues, each carrying its own evidence:
+
+- **#123** — what is proven about an operation becomes a set of named proof
+  axes (driven, contract, behaviour, dataplane…), computed from artefacts,
+  published without ever being summed into a score.
+- **#125** — the runtime-backed proof runs on a machine nobody here owns; it
+  promotes the "Later" item below and carries its promotion rule.
+- **#130** — one page answers what a user can validate here, per runtime mode,
+  every row carrying its proof or its limit.
+- **#132**, **#133** — this project's own contract surfaces (CLI, exit codes,
+  `/_feint/*`, snapshots) frozen by tests; a snapshot is understood or
+  refused, never silently half-read.
+- **#134**, **#135** — concurrency invariants under a deliberate barrage;
+  crash and restart behaviour stated once and proven by a kill.
+- **#124**, **#126**, **#128**, **#129** — deterministic transient states, the
+  opt-in strict catalogue, `feint exec`, the release-workflow-pinned
+  signature. Fidelity and hardening, explicitly behind the proofs above.
+
+**The arbitration they propose is #136**, and it is a proposal, not a
+decision: version 0.8 buys *trust* (runtime CI, concurrency, crash
+determinism, proof axes), 0.9 buys *contract* (frozen surfaces, snapshot v1,
+machine-readable divergences, the OCI image), 1.0 buys *adoption* (the
+confidence page, a reference CI example, `setup-feint`, the SemVer
+commitment) — and no version buys a route count. The decision is the
+author's; this page records that the question is now posed, and that the
+waves above keep running either way.
 
 ---
 
@@ -463,25 +504,22 @@ evidence.
 own error schema and a violation fails `mise run conformance`; and the list-route
 probes vary the page size and assert the page they got.
 
-### IAM under the drift gate
+### IAM under the drift gate — settled
 
-IAM routes are mounted against a surface the coverage gate does not scan, which
-is the least defensible state a route can be in: served, and unmeasured. The
-README admits it in the generated tables; admitting it is not fixing it. The
-practical pull is real too: API keys are an ordinary Terraform target, if only
-to bootstrap a CI runner against the emulator.
-
-**Evidence:** `iam` appears as a scanned product in the generated coverage
-tables, and an upstream IAM operation nobody has triaged makes `drift:check`
-exit 2 like any other product's would.
+**Done, with SW-1.** `iam` is a scanned product: it appears in the generated
+coverage tables with a baseline of its own, and an upstream IAM operation
+nobody has triaged makes `drift:check` exit 2 like any other product's would —
+which was this item's stated evidence. It stays on this page for one release
+because the state it fixed (served and unmeasured, the least defensible state
+a route can be in) is worth remembering by name.
 
 ### A `setup-feint` GitHub Action and a GitLab CI template
 
 The lifecycle verbs were designed for CI (`start`, `wait`, `env`, stable exit
 codes), so the action is a thin composite, not a project. It is listed after the
 image because the GitLab `services:` path consumes the image, and because an
-action that exists before the scenario above works would install a tool that
-fails on the first realistic module.
+action that exists before the golden-image scenario works would install a tool
+that fails on the first realistic module.
 
 **Evidence:** an example repository's CI, on GitHub and on GitLab, goes from
 checkout to a passing `terraform apply` against the emulator using only the
@@ -511,7 +549,7 @@ surface cannot keep growing if the suite that proves it becomes the bottleneck.
 
 ## Later, decided, not scheduled
 
-### `--vm` gets proven by CI, on a runner nobody owns
+### `--vm` gets proven by CI, on a runner nobody owns — tracked by #125
 
 Today **no workflow in this repository starts a machine runtime**: zero
 `FEINT_VM`, zero `incus`, and the `network.sh` suites are never invoked in CI.
@@ -519,11 +557,13 @@ The mode that carries the product's argument — real machines, real addresses,
 two VPCs that cannot reach each other — is proven only by the eight virtual
 machines in [install.md](install.md) and on the author's station. That is a
 measurement nobody else can reproduce by opening a pull request, which is the
-definition of evidence this project refuses everywhere else.
+definition of evidence this project refuses everywhere else. The external
+review ranks this first of everything (#125), and the cadence proposal (#136)
+puts it in the first trust-buying version.
 
-It stays *later* rather than *now* because the whole thing rests on one unproven
-combination, and the two halves under it are measured (2026-07-30, on the
-upstream projects' own CI):
+It sits in *later* only in the scheduling sense; the groundwork is measured
+(2026-07-30, on the upstream projects' own CI), and the whole thing rests on
+one unproven combination:
 
 - **Incus runs on a GitHub-hosted `ubuntu-24.04`.** `lxc/incus` drives its own
   `test/main.sh` there with real containers on zfs, btrfs, lvm and ceph.
@@ -546,9 +586,11 @@ upstream project exercises it on a hosted runner, so a green run there would be
 this repository's first arm64 evidence of any kind, not merely of `--vm`.
 
 The order is measure, then gate. The job lands behind `workflow_dispatch`, is
-run by hand, and moves onto `pull_request` only once it is green. A gate that is
-red on the day it appears is a gate everyone learns to ignore, and this
-repository already carries the note about what that costs.
+run by hand, and moves onto `pull_request` only once its nightly failure rate
+over a stated number of nights is at a stated threshold — a number the Actions
+history proves, not an opinion (#125 records the rule). A gate that is red on
+the day it appears is a gate everyone learns to ignore, and this repository
+already carries the note about what that costs.
 
 **Evidence:** a CI job installs Incus from Zabbly plus OVN on a hosted runner,
 wires the northbound connection, and `FEINT_VM=incus-ovn` runs the network suite
@@ -557,26 +599,27 @@ published answering, and the isolation assertion passing rather than skipping.
 Until then the install page says `--vm` is proven by the release table and never
 by CI, and that sentence is generated, so it cannot quietly stop being true.
 
-### Outscale reaches parity with Scaleway on the IaaS core
+### Outscale reaches parity with Scaleway on the IaaS core — largely landed
 
 Nobody else emulates Outscale, and its buyers (public sector, SecNumCloud) read
-proofs rather than marketing, which this repository is full of. The addressing
-plane already landed: Net, Subnet, mask bounds, containment, overlap, a real
-bridge on the host, a Vm carrying the address the API published. Today
-`SecurityGroupIds` on a create is refused with a 400 rather than silently
-dropped, which is the honest placeholder.
+proofs rather than marketing. Most of what this item used to promise has since
+been merged: the addressing plane (Net, Subnet, mask bounds, containment,
+overlap, a real bridge, a Vm carrying the address the API published), routable
+networking with the provider's own `examples/net_vm` applying, re-planning
+empty and destroying (OSC-3), and the storage chain (OSC-4). The parity bar
+this item named — that `net_vm` apply — is met, and [limits.md](limits.md)
+records what the served topology does and does not move.
 
-The batches that close the gap — networking, storage, load balancing, each with
-its conformance evidence — are in
-[roadmap-outscale-iaas.md](roadmap-outscale-iaas.md), sequenced with the other
-two providers in the section above. One warning belongs here because it is an
-architecture decision rather than pack work: a rule sourced by *group* rather
-than by CIDR needs an OVN selector, not a static rule set, and that network-model
-question must be answered before the security-group batch promises enforcement.
+What remains is load balancing (OSC-5, #16) and one warning that belongs here
+because it is an architecture decision rather than pack work: a security-group
+rule sourced by *group* rather than by CIDR needs an OVN selector, not a
+static rule set, and that network-model question must be answered before any
+batch promises Outscale group **enforcement** — which
+[limits.md](limits.md) states is served as a control plane and not measured on
+traffic today.
 
-**Evidence:** the provider's own `examples/net_vm` configuration applies,
-re-plans empty and destroys against the emulator, which is the parity bar that
-document sets.
+**Evidence:** for what landed, the conformance suite as it runs now; for the
+remainder, the LB apply named in OSC-5.
 
 ### Object storage stays out, and the workaround gets a page
 
@@ -600,19 +643,23 @@ needs S3 this month.
 **Evidence:** the page's commands are executed in CI the way the README's are:
 `scw` pointed at MinIO through `SCW_S3_ENDPOINT` puts and gets an object.
 
-### Snapshot compatibility across versions
+### Snapshot compatibility across versions — filed as #133, with the current behaviour measured
 
-`feint snapshot` shipped, so the question is no longer hypothetical: must a
-snapshot taken by one version load into the next? The answer has to be chosen
-before somebody depends on it by accident. Either answer is acceptable; an
-undocumented one is not. The adjacent case is already known and stated nowhere
-useful: loading a snapshot while a machine runtime runs replaces the store
-without reconciling the real machines, and the decision here must say what
-happens then.
+`feint snapshot` shipped, so the question stopped being hypothetical, and the
+external review forced the measurement this item was waiting for: today the
+snapshot carries **no version field**, and `store.Restore` decodes with plain
+`encoding/json`, so **a field this version does not know is silently dropped
+and the restore succeeds** — the exact best-effort this project refuses
+everywhere else. #133 carries the rule (*understood or refused*), the format
+(`{"format": "feint-snapshot", "version": 1, ...}`), and the behaviour table
+for every case including a legacy bare-array snapshot. The adjacent case this
+item always named — loading a snapshot while a machine runtime runs, which
+replaces the store without reconciling the real machines — is #135's, where
+crash and restart determinism live.
 
-**Evidence:** CI loads a snapshot written by the previous release into the
-current binary and the store answers, or the load is refused with an error that
-names both versions; whichever it is, [limits.md](limits.md) says so.
+**Evidence:** as #133 states — a fixture snapshot per version restores
+round-trip complete; one carrying an unknown envelope field is refused naming
+the field; a future version is refused naming both versions.
 
 ### A fourth provider
 
@@ -620,9 +667,11 @@ The architecture was built so that adding one changes nothing in
 `internal/core`. That claim is untested: three packs is not enough to know
 whether the seams are in the right place. The fourth is chosen by demand, not by
 intuition. The gate it waited on — Exoscale losing its *preview* label — is
-open since EXO-2, and `docs/fourth-pack.md` has since measured what such a pack
-would touch: about 45 additive lines across 13 shared files, and no code in
-`internal/core` naming a provider.
+open since EXO-2, and [fourth-pack.md](fourth-pack.md) has since measured what
+such a pack would touch, file by file, with the remedies ranked; the counts
+live there, where they were measured, not here. #75 carries the stronger form
+of the test: an out-of-tree pack that cannot compile against a misplaced seam,
+with the deliberately hostile shape the review specified.
 
 **Evidence:** a new pack is added without a single line changing under
 `internal/core`.
@@ -665,14 +714,17 @@ here.
   where Feint beats all three comparable emulators at once; a JVM or CPython
   process cannot daemonise cleanly, a static Go binary can. The image exists so
   the emulator can enter other people's tooling, not to replace the binary.
-- **Checking that an identifier exists.** A create naming an image the emulator
-  never heard of succeeds, on all three packs, where the real clouds refuse. This
-  is the limitation most likely to bite and it is deliberate, argued in
-  [limits.md](limits.md): the emulator has no inventory, and a team pointing an
-  existing Terraform configuration at it must not fail on a hardcoded production
-  image UUID, the one thing that has nothing to do with what they are testing.
-  The revisit condition and the file to change are named there; any change must
-  keep hardcoded production ids working.
+- **Checking that an identifier exists, by default.** A create naming an image
+  the emulator never heard of succeeds, on all three packs, where the real
+  clouds refuse. This is the limitation most likely to bite and it is
+  deliberate, argued in [limits.md](limits.md): the emulator has no inventory,
+  and a team pointing an existing Terraform configuration at it must not fail
+  on a hardcoded production image UUID. What has changed since this was
+  written: an unknown image can no longer *boot a substitute* — the boot fails
+  and says why — and an **opt-in** validation mode, where an operator declares
+  their own catalogue and gets their typos refused, is proposed as #126. The
+  default never changes; any change must keep hardcoded production ids
+  working.
 - **Emulating a provider's console or web UI.** The audience drives APIs.
 - **Billing, quotas or capacity.** An emulator has no capacity to report. Where
   a number is required by a schema it is plausible and fixed, and

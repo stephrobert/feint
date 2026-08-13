@@ -402,7 +402,7 @@ mise run conformance   # tous les vrais clients contre lui
 
 - Architecture : [docs/architecture.md](docs/architecture.md)
 - Ce qui n'est volontairement pas émulé : [docs/limits.md](docs/limits.md)
-- Où cela va : [docs/roadmap.md](docs/roadmap.md)
+- Où cela va : [docs/roadmap.fr.md](docs/roadmap.fr.md)
 - Signaler une vulnérabilité : [SECURITY.md](SECURITY.md)
 
 ---

@@ -595,17 +595,12 @@ until somebody decides, which is the whole point of measuring the surface
 instead of following it by hand.
 <!-- coverage:end -->
 
-**Emptying the untriaged column is planned, not hoped for.** One roadmap per
-provider states what its IaaS layer means here, which official-client command
-breaks on each missing product today, and the batches that close it — each with
-the real conformance run that ends it:
-
-- [docs/roadmap-scaleway-iaas.md](docs/roadmap-scaleway-iaas.md) — six batches,
-  and the three architecture decisions the other two inherit
-- [docs/roadmap-outscale-iaas.md](docs/roadmap-outscale-iaas.md) — five batches;
-  half the untriaged column is refusals to write, not code
-- [docs/roadmap-exoscale-iaas.md](docs/roadmap-exoscale-iaas.md) — six batches,
-  starting with the 250 operations this pack declines nothing about yet
+**Emptying the untriaged column is planned, not hoped for.** Each provider's
+IaaS layer was measured and cut into batches, each batch ending on a real
+conformance run. The sequence and the state of every batch live in
+[docs/roadmap.md](docs/roadmap.md) and the wave milestones; the dated
+measurements that cut them (2026-07-30) are archived under
+[docs/history/](docs/history/), where a snapshot cannot read as the present.
 
 **Object storage is out of scope for now.** The Scaleway Terraform provider
 hardcodes `https://s3.<region>.scw.cloud`, so it needs DNS interception and TLS
@@ -750,10 +745,9 @@ mise run fuzz          # fuzz the request decoders
 - What each conformance suite proves: [tools/conformance/](tools/conformance/)
 - Installing the machine runtime: [docs/install.md](docs/install.md)
 - What is intentionally not emulated, and why: [docs/limits.md](docs/limits.md)
-- Where this is going: [docs/roadmap.md](docs/roadmap.md), and per provider —
-  [Scaleway](docs/roadmap-scaleway-iaas.md),
-  [Outscale](docs/roadmap-outscale-iaas.md),
-  [Exoscale](docs/roadmap-exoscale-iaas.md)
+- Where this is going: [docs/roadmap.md](docs/roadmap.md)
+  ([français](docs/roadmap.fr.md)); the archived per-provider measurements
+  are under [docs/history/](docs/history/)
 - What a fourth provider pack would cost: [docs/fourth-pack.md](docs/fourth-pack.md)
 - Reporting a vulnerability: [SECURITY.md](SECURITY.md)
 
