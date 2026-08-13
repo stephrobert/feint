@@ -34,7 +34,20 @@ const runtimePrivateNetworkKey = "private_network"
 type createPrivateNICRequest struct {
 	PrivateNetworkID string   `json:"private_network_id"`
 	Tags             []string `json:"tags"`
-	IPIDs            []string `json:"ip_ids"`
+	// Two spellings of one field: ip_ids is the SDK's deprecated name,
+	// ipam_ip_ids the one the Terraform provider sends today. Both carry IPAM
+	// ids of addresses booked beforehand.
+	IPIDs     []string `json:"ip_ids"`
+	IpamIPIDs []string `json:"ipam_ip_ids"`
+}
+
+// bookedIPIDs returns the booked addresses a create names, under the SDK's two
+// spellings, the current one winning.
+func (req createPrivateNICRequest) bookedIPIDs() []string {
+	if len(req.IpamIPIDs) > 0 {
+		return req.IpamIPIDs
+	}
+	return req.IPIDs
 }
 
 func (p *Pack) listPrivateNICs(w http.ResponseWriter, r *http.Request) {
@@ -98,26 +111,52 @@ func (p *Pack) createPrivateNIC(w http.ResponseWriter, r *http.Request) {
 
 	// Held across rebuild, allocate and persist: releasing it earlier would let
 	// a concurrent request rebuild from a store that does not yet know about
-	// this address, and hand out the same one.
+	// this address, and hand out the same one. The booked path holds it too:
+	// checking an address is unattached and attaching it is the same
+	// read-modify-write.
 	p.addresses.Lock()
 	defer p.addresses.Unlock()
 
-	alloc, err := p.allocatorFor(pn)
-	if err != nil {
-		writeInvalidArguments(w, ArgumentError{
-			ArgumentName: "private_network_id",
-			Reason:       "constraint",
-			HelpMessage:  err.Error(),
-		})
+	// The client either names addresses it booked through ipam/v1, or receives
+	// one from the network's own block. Same pool both ways: the allocator is
+	// rebuilt from every IPAM address of the network, booked included.
+	booked, ok := p.bookedIPsOf(w, req.bookedIPIDs(), pn, server)
+	if !ok {
 		return
 	}
-	address, err := alloc.Allocate()
-	if err != nil {
-		// An exhausted block is a real answer, not an internal error: the client
-		// asked for one more address than the subnet holds.
-		writePrecondition(w, "private_network", pn.ID,
-			"no address left in "+alloc.Prefix().String())
-		return
+
+	var address netip.Addr
+	if len(booked) > 0 {
+		// Comma-ok on purpose: an address attr comes back verbatim from a
+		// restored snapshot, and a bare assertion would let a crafted one panic
+		// the process.
+		raw, _ := booked[0].Attrs["address"].(string)
+		prefix, err := netip.ParsePrefix(raw)
+		if err != nil {
+			writeInvalidArguments(w, ArgumentError{
+				ArgumentName: "ipam_ip_ids", Reason: "constraint", HelpMessage: err.Error(),
+			})
+			return
+		}
+		address = prefix.Addr()
+	} else {
+		alloc, err := p.allocatorFor(pn)
+		if err != nil {
+			writeInvalidArguments(w, ArgumentError{
+				ArgumentName: "private_network_id",
+				Reason:       "constraint",
+				HelpMessage:  err.Error(),
+			})
+			return
+		}
+		address, err = alloc.Allocate()
+		if err != nil {
+			// An exhausted block is a real answer, not an internal error: the client
+			// asked for one more address than the subnet holds.
+			writePrecondition(w, "private_network", pn.ID,
+				"no address left in "+alloc.Prefix().String())
+			return
+		}
 	}
 
 	now := p.env.Now()
@@ -140,10 +179,34 @@ func (p *Pack) createPrivateNIC(w http.ResponseWriter, r *http.Request) {
 	}
 	p.env.Store.Put(res)
 
-	// The address becomes an IPAM resource, because that is where the API keeps
-	// it: the NIC only names it through ipam_ip_ids.
-	p.env.Store.Put(p.newIPAMIP(regionOfZone(server.Tenant.Zone), server.Tenant.Project,
-		netip.PrefixFrom(address, alloc.Prefix().Bits()), res, pn))
+	if len(booked) > 0 {
+		// The booked addresses become this NIC's: same linkage as an allocated
+		// one, so the view, the machine driver and a later delete read one model.
+		for _, ip := range booked {
+			if ip.Runtime == nil {
+				ip.Runtime = map[string]string{}
+			}
+			ip.Runtime[runtimeNICKey] = res.ID
+			ip.Attrs["mac_address"] = res.Attrs["mac_address"]
+			ip.Attrs["zone"] = server.Tenant.Zone
+			ip.Updated = now
+			p.env.Store.Put(ip)
+		}
+	} else {
+		// The address becomes an IPAM resource, because that is where the API
+		// keeps it: the NIC only names it through ipam_ip_ids. The mask is the
+		// network's own; allocatorFor just parsed the same block, so this
+		// cannot fail here.
+		prefix, err := prefixOf(pn)
+		if err != nil {
+			writeInvalidArguments(w, ArgumentError{
+				ArgumentName: "private_network_id", Reason: "constraint", HelpMessage: err.Error(),
+			})
+			return
+		}
+		p.env.Store.Put(p.newIPAMIP(regionOfZone(server.Tenant.Zone), server.Tenant.Project,
+			netip.PrefixFrom(address, prefix.Bits()), res, pn))
+	}
 
 	// server.private_ip is deliberately not set: the SDK marks it deprecated and
 	// "always null when routed_ip_enabled is True", which every server here is.
@@ -178,14 +241,57 @@ func (p *Pack) createPrivateNIC(w http.ResponseWriter, r *http.Request) {
 	emulator.WriteJSON(w, http.StatusCreated, map[string]any{"private_nic": p.privateNICView(res)})
 }
 
+// bookedIPsOf resolves the IPAM addresses a NIC create names, and refuses the
+// ones a create cannot take: an address of another network, another region, or
+// one something already holds. Resolved under p.addresses, which the caller
+// holds — the unattached check and the attachment must be one critical section.
+func (p *Pack) bookedIPsOf(w http.ResponseWriter, ids []string, pn, server *resource.Resource) ([]*resource.Resource, bool) {
+	booked := make([]*resource.Resource, 0, len(ids))
+	for _, id := range ids {
+		ip, found := p.env.Store.Get(Name, kindIPAMIP, id)
+		if !found || ip.Tenant.Zone != regionOfZone(server.Tenant.Zone) {
+			writeNotFound(w, "ip", id)
+			return nil, false
+		}
+		if ip.Attrs["private_network_id"] != pn.ID {
+			writeInvalidArguments(w, ArgumentError{
+				ArgumentName: "ipam_ip_ids",
+				Reason:       "constraint",
+				HelpMessage:  "IP " + id + " does not belong to private network " + pn.ID,
+			})
+			return nil, false
+		}
+		if ipamAttached(ip) {
+			writePrecondition(w, "ip", id, "IP is already attached to a resource")
+			return nil, false
+		}
+		booked = append(booked, ip)
+	}
+	return booked, true
+}
+
 func (p *Pack) deletePrivateNIC(w http.ResponseWriter, r *http.Request) {
 	res, ok := p.privateNICOf(w, r)
 	if !ok {
 		return
 	}
-	// The address goes back to the pool by disappearing from the store: the
-	// allocator is rebuilt from what IPAM holds, so nothing to release here.
+	// An allocated address goes back to the pool by disappearing from the
+	// store: the allocator is rebuilt from what IPAM holds, so nothing to
+	// release here. A booked one is the client's — it was reserved through
+	// BookIP and is released through ReleaseIP — so it is detached and kept,
+	// which is what the Terraform destroy order depends on: the NIC goes first,
+	// the scaleway_ipam_ip after it. TestABookedAddressSurvivesItsNIC fails
+	// without this.
+	now := p.env.Now()
 	for _, ip := range p.ipamIPsOf(res.ID) {
+		if isBooked, _ := ip.Attrs[attrBooked].(bool); isBooked {
+			delete(ip.Runtime, runtimeNICKey)
+			delete(ip.Attrs, "mac_address")
+			delete(ip.Attrs, "zone")
+			ip.Updated = now
+			p.env.Store.Put(ip)
+			continue
+		}
 		p.env.Store.Delete(Name, kindIPAMIP, ip.ID)
 	}
 	p.env.Store.Delete(Name, kindPrivateNIC, res.ID)

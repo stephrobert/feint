@@ -58,6 +58,11 @@ type createVPCRequest struct {
 	ProjectID     string   `json:"project_id"`
 	Tags          []string `json:"tags"`
 	EnableRouting bool     `json:"enable_routing"`
+	// Sent by the Terraform provider on every CreateVPC since it grew the
+	// enable_transitivity attribute. The unread-field gate caught it on the
+	// first conformance run of SW-4: honoured as the stored flag the SDK's
+	// VPC.TransitivityEnabled reads back.
+	EnableTransitivity bool `json:"enable_transitivity"`
 }
 
 type updateVPCRequest struct {
@@ -123,6 +128,7 @@ func (p *Pack) createVPC(w http.ResponseWriter, r *http.Request) {
 	res := p.newVPC(region, project, req.Name, false)
 	res.Attrs["tags"] = orEmpty(req.Tags)
 	res.Attrs["routing_enabled"] = req.EnableRouting
+	res.Attrs["transitivity_enabled"] = req.EnableTransitivity
 	p.env.Store.Put(res)
 
 	emulator.WriteJSON(w, http.StatusCreated, p.vpcView(res))
@@ -174,6 +180,11 @@ func (p *Pack) deleteVPC(w http.ResponseWriter, r *http.Request) {
 	if used := p.privateNetworksOf(res.ID); len(used) > 0 {
 		writePrecondition(w, "vpc", res.ID,
 			fmt.Sprintf("VPC still holds %d private network(s) and cannot be deleted", len(used)))
+		return
+	}
+	if routes := p.routesOfVPC(res.ID); len(routes) > 0 {
+		writePrecondition(w, "vpc", res.ID,
+			fmt.Sprintf("VPC still holds %d route(s) and cannot be deleted", len(routes)))
 		return
 	}
 	p.env.Store.Delete(Name, kindVPC, res.ID)
@@ -356,6 +367,24 @@ func (p *Pack) deletePrivateNetwork(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("private network still has %d attached NIC(s)", len(nics)))
 		return
 	}
+	// A booked address or a custom route naming this network would dangle if
+	// the network vanished under it. Terraform destroys in reverse dependency
+	// order, so a correct plan never sees these; a wrong one gets a refusal it
+	// can retry rather than a corrupted read later.
+	for _, ip := range p.ipamIPsOnNetwork(res.ID) {
+		if isBooked, _ := ip.Attrs[attrBooked].(bool); isBooked {
+			writePrecondition(w, "private_network", res.ID,
+				"an IP is still booked in this private network; release it first")
+			return
+		}
+	}
+	for _, route := range p.env.Store.List(kindVPCRoute, resource.Tenant{Provider: Name}) {
+		if route.Attrs["nexthop_private_network_id"] == res.ID {
+			writePrecondition(w, "private_network", res.ID,
+				"a route still uses this private network as its nexthop; delete it first")
+			return
+		}
+	}
 	if name := res.Runtime[runtimeNetworkKey]; name != "" && p.env.Machines != nil {
 		if err := p.env.Machines.RemoveNetwork(r.Context(), name); err != nil {
 			p.logger().Error("could not remove the backing network",
@@ -365,6 +394,98 @@ func (p *Pack) deletePrivateNetwork(w http.ResponseWriter, r *http.Request) {
 	p.env.Store.Delete(Name, kindPrivateNetwork, res.ID)
 	p.isolateNetworks(r.Context())
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// ---- Subnets ----------------------------------------------------------------
+
+// listSubnets answers the region's subnets as first-class objects. They are the
+// same records ListPrivateNetworks already carries on each network — one block
+// per network here — served flat because the SDK offers this second door and
+// the Terraform provider matches a booked address's subnet_id against it.
+func (p *Pack) listSubnets(w http.ResponseWriter, r *http.Request) {
+	region, ok := regionOf(w, r)
+	if !ok {
+		return
+	}
+
+	networks := p.env.Store.List(kindPrivateNetwork, p.regionScopeOf(r, region))
+	q := r.URL.Query()
+	if vpcID := q.Get("vpc_id"); vpcID != "" {
+		networks = filterResources(networks, func(res *resource.Resource) bool {
+			return res.Attrs["vpc_id"] == vpcID
+		})
+	}
+	if ids := q["subnet_ids"]; len(ids) > 0 {
+		wanted := make(map[string]bool, len(ids))
+		for _, id := range ids {
+			wanted[id] = true
+		}
+		networks = filterResources(networks, func(res *resource.Resource) bool {
+			return wanted[subnetIDOf(res.ID)]
+		})
+	}
+
+	page := parsePage(r)
+	start, end := page.slice(len(networks))
+	subnets := make([]map[string]any, 0, end-start)
+	for _, pn := range networks[start:end] {
+		subnets = append(subnets, subnetView(pn))
+	}
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{
+		"subnets":     subnets,
+		"total_count": len(networks),
+	})
+}
+
+// subnetView is the wire shape of a Private Network's one subnet, and the same
+// object privateNetworkView embeds: two doors, one record.
+func subnetView(pn *resource.Resource) map[string]any {
+	subnet, _ := pn.Attrs["subnet"].(string)
+	return map[string]any{
+		"id":                 subnetIDOf(pn.ID),
+		"subnet":             subnet,
+		"project_id":         pn.Attrs["project_id"],
+		"private_network_id": pn.ID,
+		"vpc_id":             pn.Attrs["vpc_id"],
+		"region":             pn.Tenant.Zone,
+		"created_at":         pn.Created.Format(time.RFC3339),
+		"updated_at":         pn.Updated.Format(time.RFC3339),
+	}
+}
+
+// ---- The enable family ------------------------------------------------------
+
+// enableRouting turns on routing between the VPC's Private Networks, and it is
+// not a stored flag: reachableFrom reads it, so the isolation the machine
+// driver enforces is reconciled the moment it flips. One-way upstream — there
+// is no disable — and one-way here.
+func (p *Pack) enableRouting(w http.ResponseWriter, r *http.Request) {
+	res, ok := p.resourceOf(w, r, kindVPC, "vpc_id", "vpc")
+	if !ok {
+		return
+	}
+	res.Attrs["routing_enabled"] = true
+	res.Updated = p.env.Now()
+	p.env.Store.Put(res)
+	// What was isolated may now be reachable: the rule sets carried by the
+	// backing networks must say what the control plane just said.
+	p.isolateNetworks(r.Context())
+	emulator.WriteJSON(w, http.StatusOK, p.vpcView(res))
+}
+
+// enableDHCP exists for Private Networks created before DHCP was the default.
+// Every network created here has dhcp_enabled from the start, so this can only
+// confirm; it is served because a client that calls it expects the network
+// back, not a 501.
+func (p *Pack) enableDHCP(w http.ResponseWriter, r *http.Request) {
+	res, ok := p.resourceOf(w, r, kindPrivateNetwork, "pnID", "private_network")
+	if !ok {
+		return
+	}
+	res.Attrs["dhcp_enabled"] = true
+	res.Updated = p.env.Now()
+	p.env.Store.Put(res)
+	emulator.WriteJSON(w, http.StatusOK, privateNetworkView(res))
 }
 
 // ---- Default inventory ------------------------------------------------------
@@ -403,6 +524,12 @@ func (p *Pack) newVPC(region, project, name string, isDefault bool) *resource.Re
 			"tags":            []string{},
 			"is_default":      isDefault,
 			"routing_enabled": true,
+			// Present from the start so the fields serialize on every read.
+			// Propagation would be flipped by EnableCustomRoutesPropagation,
+			// which stays declined until the portal document describes it;
+			// transitivity is what the client asked at create, read back.
+			"custom_routes_propagation_enabled": false,
+			"transitivity_enabled":              false,
 		},
 	}
 }
@@ -587,10 +714,17 @@ func (p *Pack) allocatorFor(res *resource.Resource) (*network.Allocator, error) 
 		return nil, err
 	}
 	// Rebuilt from IPAM, which is where the addresses live: the NIC itself
-	// carries none, exactly as upstream.
-	for _, nic := range p.nicsOnNetwork(res.ID) {
-		if addr, err := netip.ParseAddr(p.addressOfNIC(nic.ID)); err == nil {
-			_ = alloc.Reserve(addr)
+	// carries none, exactly as upstream. From every IPAM address of the
+	// network, not from the NICs: an address booked through BookIP has no NIC
+	// yet, and a rebuild that could not see it would hand it out again.
+	// TestABookedAddressIsNotHandedToTheNextNIC fails without this.
+	for _, ip := range p.ipamIPsOnNetwork(res.ID) {
+		if raw, _ := ip.Attrs["address"].(string); raw != "" {
+			// netip.ParsePrefix, not network.ParseCIDR: this is a host address
+			// carrying its mask, and ParseCIDR refuses host bits by design.
+			if taken, err := netip.ParsePrefix(raw); err == nil {
+				_ = alloc.Reserve(taken.Addr())
+			}
 		}
 	}
 	return alloc, nil
@@ -750,18 +884,9 @@ func privateNetworkView(res *resource.Resource) map[string]any {
 		out[k] = v
 	}
 	// The wire shape carries a list of subnet objects, not the bare block the
-	// store keeps: a client decodes them into vpc.Subnet.
-	subnet, _ := res.Attrs["subnet"].(string)
-	out["subnets"] = []any{map[string]any{
-		"id":                 subnetIDOf(res.ID),
-		"subnet":             subnet,
-		"project_id":         res.Attrs["project_id"],
-		"private_network_id": res.ID,
-		"vpc_id":             res.Attrs["vpc_id"],
-		"region":             res.Tenant.Zone,
-		"created_at":         res.Created.Format(time.RFC3339),
-		"updated_at":         res.Updated.Format(time.RFC3339),
-	}}
+	// store keeps: a client decodes them into vpc.Subnet. The same object
+	// ListSubnets serves flat — one builder, so the two doors cannot disagree.
+	out["subnets"] = []any{subnetView(res)}
 	return out
 }
 
@@ -772,7 +897,13 @@ func privateNetworkView(res *resource.Resource) map[string]any {
 // would otherwise hold one UUID for two things, and could not tell which it was
 // looking at.
 func subnetIDOf(privateNetworkID string) string {
-	sum := sha256.Sum256([]byte("subnet:" + privateNetworkID))
+	return derivedID("subnet:" + privateNetworkID)
+}
+
+// derivedID builds a UUID-shaped identifier from a seed, deterministically.
+// Shared by the subnet and the computed route ids: same reasons, same shape.
+func derivedID(seed string) string {
+	sum := sha256.Sum256([]byte(seed))
 	hexed := hex.EncodeToString(sum[:])
 	return hexed[0:8] + "-" + hexed[8:12] + "-4" + hexed[13:16] + "-8" + hexed[17:20] + "-" + hexed[20:32]
 }

@@ -186,8 +186,15 @@ func docs(args []string, stdout, stderr io.Writer) int {
 	}
 
 	// A third, on the same terms again: the route reference, written by the
-	// process that mounts the routes it lists.
-	routesChanged, routesErr := spliceRoutes(*routesDoc)
+	// process that mounts the routes it lists — each route with the proofs the
+	// recorded conformance run earned it (#123), read from the versioned
+	// artefact so the page can never carry a level whose evidence is gone.
+	evidenceArt, evErr := loadEvidenceArtefact(filepath.Join(*dir, "evidence.json"))
+	if evErr != nil {
+		fmt.Fprintf(stderr, "feint: %v\n", evErr)
+		return exitError
+	}
+	routesChanged, routesErr := spliceRoutes(*routesDoc, evidenceArt)
 	if routesErr != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", routesErr)
 		return exitError
@@ -272,7 +279,7 @@ func docs(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "%s updated\n", *limits)
 	}
 	if routesChanged {
-		if err := writeSplicedRoutes(*routesDoc); err != nil {
+		if err := writeSplicedRoutes(*routesDoc, evidenceArt); err != nil {
 			fmt.Fprintf(stderr, "feint: %v\n", err)
 			return exitError
 		}

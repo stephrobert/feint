@@ -156,8 +156,14 @@ func renderInstall(workflow, goMod, changelog string) (string, error) {
 	b.WriteString("curl -fsSLO \"$base/checksums.txt.cosign.bundle\"\n\n")
 	b.WriteString("# Who produced the list, before trusting a single hash inside it. One\n")
 	b.WriteString("# signature covers every artefact, because every hash is in this file.\n")
+	b.WriteString("#\n")
+	b.WriteString("# The identity names the release workflow and the tag ref, not the\n")
+	b.WriteString("# repository: 'github.com/<slug>/.*' would accept any workflow here that\n")
+	b.WriteString("# ever gets id-token: write, which is a claim about who owns the\n")
+	b.WriteString("# repository rather than about what built this file. Anchored at both\n")
+	b.WriteString("# ends, because an unanchored pattern matches anywhere in the string.\n")
 	b.WriteString("cosign verify-blob --bundle checksums.txt.cosign.bundle \\\n")
-	fmt.Fprintf(&b, "  --certificate-identity-regexp 'https://github.com/%s/.*' \\\n", slug)
+	fmt.Fprintf(&b, "  --certificate-identity-regexp '^https://github\\.com/%s/\\.github/workflows/release\\.yml@refs/tags/v' \\\n", regexpSlug(slug))
 	b.WriteString("  --certificate-oidc-issuer https://token.actions.githubusercontent.com \\\n")
 	b.WriteString("  checksums.txt\n\n")
 	b.WriteString("# Then the bytes against the list. Without --ignore-missing this fails on\n")
@@ -173,10 +179,13 @@ func renderInstall(workflow, goMod, changelog string) (string, error) {
 
 	b.WriteString("With `gh`, which checks the build provenance instead: it proves which\n")
 	b.WriteString("workflow and which commit produced the binary, where the signature above\n")
-	b.WriteString("proves who published the list.\n\n")
+	b.WriteString("proves who published the list. `--signer-workflow` is what makes the\n")
+	b.WriteString("difference between an identity and a provenance: without it the check\n")
+	b.WriteString("accepts anything this repository attested, whichever workflow did it.\n\n")
 	b.WriteString("```bash\n")
 	fmt.Fprintf(&b, "gh release download v%s --repo %s --pattern '%s'\n", version, slug, primary)
-	fmt.Fprintf(&b, "gh attestation verify %s --repo %s\n", primary, slug)
+	fmt.Fprintf(&b, "gh attestation verify %s --repo %s \\\n", primary, slug)
+	fmt.Fprintf(&b, "  --signer-workflow %s/.github/workflows/release.yml\n", slug)
 	b.WriteString("```\n\n")
 
 	b.WriteString(renderPlatformTable(names))
@@ -191,6 +200,14 @@ func renderInstall(workflow, goMod, changelog string) (string, error) {
 // shape and merging them is what produced "the published platforms are …", a
 // line a reader hears as "and they all work". The control-plane column is
 // computed from the runners; the --vm column is a property of Incus.
+// regexpSlug escapes the dots of an owner/repo so the identity pattern matches
+// that repository and not one whose name differs by a character the regexp reads
+// as "any". A slug is user input to this generator, and a dot is the cheapest
+// way a pattern silently widens.
+func regexpSlug(slug string) string {
+	return strings.ReplaceAll(slug, ".", `\\.`)
+}
+
 func renderPlatformTable(names []string) string {
 	exercised := make(map[string]bool)
 	for _, platform := range exercisedPlatforms(goWorkflow, conformanceWorkflow) {

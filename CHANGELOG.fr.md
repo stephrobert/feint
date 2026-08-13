@@ -19,6 +19,24 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Modifié
 
+- **La recette de vérification nomme le workflow de release, pas le dépôt**
+  (#129). `docs/install.md` publiait `--certificate-identity-regexp
+  'https://github.com/stephrobert/feint/.*'`, qui accepte **n'importe quel**
+  workflow de ce dépôt recevant un jour `id-token: write` — une affirmation sur
+  qui possède le dépôt, non sur ce qui a construit le fichier. Elle est
+  désormais ancrée sur `.github/workflows/release.yml@refs/tags/v`, et la
+  recette `gh` gagne `--signer-workflow`.
+
+  Les deux moitiés ont été exécutées contre la 0.7.3 publiée : la nouvelle
+  identité la vérifie, et pointée sur un autre workflow du même dépôt elle
+  refuse, en nommant ce qu'elle attendait et ce qu'elle a trouvé. L'ancienne
+  acceptait cet autre workflow — c'est la largeur qu'on ferme.
+
+  `tools/release/preflight.sh` extrait maintenant l'identité **depuis la page**
+  et l'exécute contre la release précédente, puis vérifie qu'elle sait encore
+  refuser. La recette qu'un lecteur copie et ce que le workflow signe ne peuvent
+  plus diverger en silence, ce qui est précisément ce qui s'était produit.
+
 - **Un barrage de trafic concurrent, et un balayage d'invariants sur le store**
   (#134). Chaque pack pilote désormais ses propres routes servies depuis dix
   travailleurs simultanés — le parallélisme par défaut de Terraform — puis le

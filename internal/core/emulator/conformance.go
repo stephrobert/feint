@@ -53,6 +53,12 @@ type observer struct {
 	// violations collects contract failures, first occurrence per operation:
 	// one bad field repeated across a hundred calls is one defect.
 	violations map[string]contract.Violations
+	// checked counts the responses actually validated against a contract, per
+	// operation. It exists because its absence was a half-truth: without it,
+	// "no violation" could not tell "checked and conformant" from "never
+	// checked", and the evidence record below would have promoted silence to
+	// proof (#123).
+	checked map[string]int
 	// unread collects the fields clients sent that no handler declared, per
 	// operation. Deduplicated, because a client repeating a call repeats the
 	// field and one defect must read as one.
@@ -71,6 +77,7 @@ func newObserver(contracts map[string]*contract.Doc, events *stream) *observer {
 		calls:      map[string]int{},
 		probed:     map[string]int{},
 		violations: map[string]contract.Violations{},
+		checked:    map[string]int{},
 		unread:     map[string]map[string]bool{},
 		contracts:  contracts,
 	}
@@ -184,6 +191,10 @@ func (o *observer) check(doc *contract.Doc, operation string, rec *recorder) con
 	if rec.body == nil || rec.status < 200 || rec.status >= 300 || rec.body.Len() == 0 {
 		return nil
 	}
+	// Counted before the verdict, because both verdicts are checks: a
+	// validation that failed still looked. What must never count is the early
+	// return above, where nothing was compared with anything.
+	o.markChecked(operation)
 	_, name, known := doc.OperationFor(operation)
 	if !known {
 		vs := contract.Violations{{
@@ -206,6 +217,12 @@ func (o *observer) check(doc *contract.Doc, operation string, rec *recorder) con
 		return vs
 	}
 	return nil
+}
+
+func (o *observer) markChecked(operation string) {
+	o.mu.Lock()
+	o.checked[operation]++
+	o.mu.Unlock()
 }
 
 func (o *observer) report(operation string, vs contract.Violations) {
@@ -290,6 +307,81 @@ type ConformanceView struct {
 	// the handler does not declare. Each one is an argument the API accepted and
 	// then ignored, which is the failure nothing else here can see.
 	UnreadRequestFields map[string][]string `json:"unread_request_fields"`
+	// Machines names the runtime behind this run ("none" when machines are
+	// metadata-only). Copied here because the dataplane axis below is defined
+	// by it, and a record that depends on a fact must carry the fact.
+	Machines string `json:"machines"`
+	// Evidence is the per-operation record of independent proofs (#123).
+	//
+	// Axes, never rungs. Each axis answers its own question and none implies
+	// another: a route can be driven by a real client without ever being
+	// contract-checked, probed without being driven, dataplane-backed on a
+	// path whose contract nobody loaded. The record is a set of named answers
+	// rather than an ordered enum precisely so that nothing in this codebase
+	// can ever compute "level 4 of 7" by accident — the axes must be listed
+	// side by side and never added into one number, the same doctrine the
+	// page's bar applies to served, exercised and probed.
+	Evidence map[string]Evidence `json:"evidence"`
+}
+
+// Evidence names the independent proofs one operation carries.
+//
+// Two axes this record deliberately does not have, because they have no
+// machine-checkable source: `behaviour` (a conformance assertion names this
+// operation inside a lifecycle sequence) and `negative` (an error case was
+// reproduced on purpose). The suites prove both today and emit no signal at
+// the assertion level, so any value here would be hand-declared — the exact
+// kind of comment-that-is-not-a-control this record exists to replace. They
+// appear when the suites can name what each assertion proved, not before.
+type Evidence struct {
+	// Driven: a real client reached this operation at least once this run.
+	// It asserts what the suite asserted, nothing more — #116 and #83 were
+	// both driven the whole time they were wrong.
+	Driven bool `json:"driven"`
+	// Probed: the contract-driven probe reached it. Protocol only; a
+	// well-shaped empty object would pass.
+	Probed bool `json:"probed"`
+	// Contract: "clean" when at least one response was validated against the
+	// provider's own description and none violated it, "violating" when one
+	// did, "unchecked" when no response of this operation was ever validated
+	// — because "no violation" alone cannot tell conformance from silence.
+	Contract string `json:"contract"`
+	// Dataplane says exactly this and no more: the operation was driven at
+	// least once while a machine runtime was configured (Machines above, from
+	// the driver's own declaration, never a mode-name comparison). It does
+	// not say a machine-level assertion named this operation; that would be
+	// the behaviour axis, which does not exist yet.
+	Dataplane bool `json:"dataplane"`
+	// Shape: "observed" when a real cloud's recorded answer covers this
+	// operation and the shapes gate holds the emulator to it, "unobserved"
+	// when the catalogue does not cover it, "unknown" when this server was
+	// given no catalogue to look in.
+	Shape string `json:"shape"`
+}
+
+// Contract verdicts and shape states, named once.
+const (
+	ContractClean     = "clean"
+	ContractViolating = "violating"
+	ContractUnchecked = "unchecked"
+
+	ShapeObserved   = "observed"
+	ShapeUnobserved = "unobserved"
+	ShapeUnknown    = "unknown"
+)
+
+// SetShapeCovered hands the server the operations an observed real-cloud
+// shape covers. The set is computed by the caller from the shapes catalogue —
+// this package stays ignorant of providers and of where recordings live, so
+// the mapping from a catalogue entry to a mounted operation is not its
+// business. Never called, the shape axis honestly answers "unknown" rather
+// than demoting every operation to "unobserved".
+func (s *Server) SetShapeCovered(operations []string) {
+	covered := make(map[string]bool, len(operations))
+	for _, op := range operations {
+		covered[op] = true
+	}
+	s.shapeCovered = covered
 }
 
 func (s *Server) handleConformance(w http.ResponseWriter, _ *http.Request) {
@@ -297,6 +389,10 @@ func (s *Server) handleConformance(w http.ResponseWriter, _ *http.Request) {
 	calls := make(map[string]int, len(s.observer.calls))
 	for op, n := range s.observer.calls {
 		calls[op] = n
+	}
+	checked := make(map[string]int, len(s.observer.checked))
+	for op, n := range s.observer.checked {
+		checked[op] = n
 	}
 	probed := make(map[string]int, len(s.observer.probed))
 	for op, n := range s.observer.probed {
@@ -342,6 +438,39 @@ func (s *Server) handleConformance(w http.ResponseWriter, _ *http.Request) {
 	}
 	sort.Strings(untouched)
 
+	// The dataplane axis reads the driver's own declaration, never a mode
+	// name: Noop names itself "none", and that is the whole comparison.
+	machines := "none"
+	if s.env.Machines != nil {
+		machines = s.env.Machines.Name()
+	}
+	runtimeOn := machines != "none"
+
+	evidence := make(map[string]Evidence, len(routes))
+	for _, r := range routes {
+		verdict := ContractUnchecked
+		switch {
+		case len(violations[r.Operation]) > 0:
+			verdict = ContractViolating
+		case checked[r.Operation] > 0:
+			verdict = ContractClean
+		}
+		shapeState := ShapeUnknown
+		if s.shapeCovered != nil {
+			shapeState = ShapeUnobserved
+			if s.shapeCovered[r.Operation] {
+				shapeState = ShapeObserved
+			}
+		}
+		evidence[r.Operation] = Evidence{
+			Driven:    calls[r.Operation] > 0,
+			Probed:    probed[r.Operation] > 0,
+			Contract:  verdict,
+			Dataplane: calls[r.Operation] > 0 && runtimeOn,
+			Shape:     shapeState,
+		}
+	}
+
 	writeJSON(w, http.StatusOK, ConformanceView{
 		Served:              len(routes),
 		Exercised:           len(routes) - len(untouched),
@@ -352,5 +481,7 @@ func (s *Server) handleConformance(w http.ResponseWriter, _ *http.Request) {
 		Contracts:           providers,
 		Violations:          violations,
 		UnreadRequestFields: unread,
+		Machines:            machines,
+		Evidence:            evidence,
 	})
 }

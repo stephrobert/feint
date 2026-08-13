@@ -153,6 +153,59 @@ else
   ko "coverage/ or contracts/ has uncommitted changes" "commit them, or regenerate and commit"
 fi
 
+# --- the verification recipe the install page prints -------------------------
+
+# Run against the PREVIOUS release, with the exact identity docs/install.md
+# publishes, extracted from the page rather than retyped.
+#
+# The point is not to check cosign works. It is that the recipe a reader copies
+# is the one that matches what the release workflow actually signs: the two
+# drifted silently before #129, where the published identity accepted any
+# workflow of this repository — a claim about who owns the repo, not about what
+# built the file. A recipe nobody has run against a real artefact is a comment.
+#
+# The previous release, because this one does not exist yet. If it verifies, the
+# identity is right for the workflow that will sign the next one too, since the
+# same workflow signs both.
+recipe_identity="$(grep -o "\-\-certificate-identity-regexp '[^']*'" docs/install.md | head -1 | sed "s/.*'\(.*\)'/\1/")"
+if [ -z "$recipe_identity" ]; then
+  ko "docs/install.md publishes no cosign identity" "the generated install block changed shape; check internal/cli/docs_release.go"
+elif ! command -v cosign >/dev/null 2>&1; then
+  ok "cosign absent, verification recipe not exercised (CI runs it)"
+else
+  # The slug comes from the remote rather than a constant: a fork running this
+  # verifies its own releases, and a constant would send it to somebody else's.
+  slug="$(git remote get-url origin 2>/dev/null | sed -E 's#(git@|https://)github\.com[:/]##; s#\.git$##')"
+  previous="$(git tag --list 'v*' --sort=-v:refname | grep -v "^${VERSION}$" | head -1)"
+  workdir="$(mktemp -d)"
+  if [ -n "$previous" ] && gh release download "$previous" --repo "$slug" \
+       --pattern 'checksums.txt*' --dir "$workdir" >/dev/null 2>&1; then
+    if (cd "$workdir" && cosign verify-blob --bundle checksums.txt.cosign.bundle \
+          --certificate-identity-regexp "$recipe_identity" \
+          --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+          checksums.txt) >/dev/null 2>&1; then
+      # And it has to be able to fail: an identity that accepts everything
+      # verifies everything, which is the width #129 closed.
+      wrong="${recipe_identity/release/drift}"
+      if (cd "$workdir" && cosign verify-blob --bundle checksums.txt.cosign.bundle \
+            --certificate-identity-regexp "$wrong" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            checksums.txt) >/dev/null 2>&1; then
+        ko "the published identity accepts another workflow of this repository" \
+           "anchor it on .github/workflows/release.yml@refs/tags/v (#129)"
+      else
+        ok "the published verification recipe verifies $previous, and refuses another workflow"
+      fi
+    else
+      ko "the recipe in docs/install.md does not verify $previous" \
+         "the page and the release workflow disagree about who signs"
+    fi
+  else
+    ok "no previous release to verify the recipe against"
+  fi
+  rm -rf "$workdir"
+fi
+
 # --- the conformance claim --------------------------------------------------
 
 # Not run here: it needs the four clients installed, and a release cut from a

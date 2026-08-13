@@ -62,16 +62,47 @@ resource "scaleway_instance_security_group" "conformance" {
   }
 }
 
+# An explicit VPC, because the routes below need one the fixture owns: the API refuses to delete a
+# default VPC, so a destroy could never take one down.
+resource "scaleway_vpc" "conformance" {
+  name           = "conformance-tf"
+  region         = "fr-par"
+  enable_routing = true
+}
+
 # A private network with an explicit block. The emulator validates it rather than storing it: the
 # block is checked against its siblings for overlap, and it becomes a real bridge carrying that
 # range, so the address the provider reads back below belongs to it.
 resource "scaleway_vpc_private_network" "conformance" {
   name   = "conformance-tf"
   region = "fr-par"
+  vpc_id = scaleway_vpc.conformance.id
 
   ipv4_subnet {
     subnet = "10.182.0.0/24"
   }
+}
+
+# An address booked before anything carries it: the scaleway_ipam_ip lifecycle
+# (BookIP, GetIP, UpdateIP, ReleaseIP) failed on its first call before SW-4.
+# The provider reads it back by matching source.subnet_id against the network's
+# own subnets, so this line also proves the two doors publish the same subnet.
+resource "scaleway_ipam_ip" "conformance" {
+  address = "10.182.0.10"
+  source {
+    private_network_id = scaleway_vpc_private_network.conformance.id
+  }
+  tags = ["feint", "conformance"]
+}
+
+# A route through the VPC, managed by the client: create, read back, destroy.
+# The emulator stores it as a record and says so in docs/limits.md; what the
+# fixture proves is that the provider's CRUD round-trips without a diff.
+resource "scaleway_vpc_route" "conformance" {
+  vpc_id                     = scaleway_vpc.conformance.id
+  description                = "feint conformance route"
+  destination                = "192.168.42.0/24"
+  nexthop_private_network_id = scaleway_vpc_private_network.conformance.id
 }
 
 # The volume the server carries besides its root. This resource is here because
@@ -122,11 +153,15 @@ resource "scaleway_instance_server" "conformance" {
   }
 }
 
-# The attachment, which is where the addressing plan meets the machine: the address comes from the
-# private network's own block, and the provider reads it back on the NIC.
+# The attachment, which is where the addressing plan meets the machine: the address is the one
+# booked above, carried into the NIC as ipam_ip_ids, and the provider reads it back through IPAM.
+# On destroy the order matters and the emulator enforces it: the NIC detaches the booked address
+# (it survives), then ReleaseIP frees it — a booked address deleted with its NIC would make this
+# destroy fail on the scaleway_ipam_ip.
 resource "scaleway_instance_private_nic" "conformance" {
   server_id          = scaleway_instance_server.conformance.id
   private_network_id = scaleway_vpc_private_network.conformance.id
+  ipam_ip_ids        = [scaleway_ipam_ip.conformance.id]
   zone               = "fr-par-1"
 }
 
@@ -144,4 +179,12 @@ output "security_group_id" {
 
 output "volume_id" {
   value = scaleway_instance_volume.conformance.id
+}
+
+output "ipam_ip_id" {
+  value = scaleway_ipam_ip.conformance.id
+}
+
+output "route_id" {
+  value = scaleway_vpc_route.conformance.id
 }

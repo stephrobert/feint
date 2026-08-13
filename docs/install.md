@@ -32,8 +32,14 @@ curl -fsSLO "$base/checksums.txt.cosign.bundle"
 
 # Who produced the list, before trusting a single hash inside it. One
 # signature covers every artefact, because every hash is in this file.
+#
+# The identity names the release workflow and the tag ref, not the
+# repository: 'github.com/<slug>/.*' would accept any workflow here that
+# ever gets id-token: write, which is a claim about who owns the
+# repository rather than about what built this file. Anchored at both
+# ends, because an unanchored pattern matches anywhere in the string.
 cosign verify-blob --bundle checksums.txt.cosign.bundle \
-  --certificate-identity-regexp 'https://github.com/stephrobert/feint/.*' \
+  --certificate-identity-regexp '^https://github\.com/stephrobert/feint/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   checksums.txt
 
@@ -46,11 +52,14 @@ install -m 0755 "$asset" ~/.local/bin/feint
 
 With `gh`, which checks the build provenance instead: it proves which
 workflow and which commit produced the binary, where the signature above
-proves who published the list.
+proves who published the list. `--signer-workflow` is what makes the
+difference between an identity and a provenance: without it the check
+accepts anything this repository attested, whichever workflow did it.
 
 ```bash
 gh release download v0.7.3 --repo stephrobert/feint --pattern 'feint-linux-amd64'
-gh attestation verify feint-linux-amd64 --repo stephrobert/feint
+gh attestation verify feint-linux-amd64 --repo stephrobert/feint \
+  --signer-workflow stephrobert/feint/.github/workflows/release.yml
 ```
 
 | Binary | Control plane | `--vm`: real machines |

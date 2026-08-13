@@ -166,6 +166,10 @@ type Server struct {
 	// self records the patterns of the endpoints the emulator serves about
 	// itself, so they can be enumerated rather than remembered.
 	self []string
+	// shapeCovered is the set of operations an observed real-cloud shape
+	// covers, handed in by SetShapeCovered. nil means no catalogue was given,
+	// which the evidence record reports as "unknown" rather than "unobserved".
+	shapeCovered map[string]bool
 }
 
 // NewServer mounts the packs. It fails when two packs claim the same route,

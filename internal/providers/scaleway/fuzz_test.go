@@ -48,3 +48,43 @@ func FuzzCreateServer(f *testing.F) {
 		}
 	})
 }
+
+// FuzzBookIP does the same for the IPAM book decoder, the request body SW-4
+// introduced: nested source and resource objects, an optional address, and a
+// path that allocates. Whatever arrives, a well-formed JSON answer, no panic.
+func FuzzBookIP(f *testing.F) {
+	f.Add(`{"source":{"private_network_id":"x"}}`)
+	f.Add(`{"source":{"subnet_id":""},"address":"10.0.0.300"}`)
+	f.Add(`{"source":null,"is_ipv6":true}`)
+	f.Add(`{"resource":{"mac_address":"zz","name":"\n"},"tags":[""]}`)
+	f.Add(`{"address":42}`)
+	f.Add(`{`)
+	f.Add(``)
+	f.Add(`null`)
+	f.Add(`[]`)
+
+	ts := newTestServer(f)
+
+	f.Fuzz(func(t *testing.T, body string) {
+		req, err := http.NewRequest(http.MethodPost, ts.URL+"/ipam/v1/regions/fr-par/ips", strings.NewReader(body))
+		if err != nil {
+			t.Fatalf("build request: %v", err)
+		}
+		resp, err := ts.Client().Do(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		switch resp.StatusCode {
+		case http.StatusCreated, http.StatusBadRequest, http.StatusNotFound:
+		default:
+			t.Fatalf("unexpected status %d for body %q", resp.StatusCode, body)
+		}
+
+		var out map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+			t.Fatalf("response is not valid JSON for body %q: %v", body, err)
+		}
+	})
+}
