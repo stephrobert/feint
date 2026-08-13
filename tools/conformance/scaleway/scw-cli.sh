@@ -310,4 +310,51 @@ scw block volume-type list zone="$ZONE" -o json | jq -e 'length > 0' >/dev/null 
   || fail "the block volume-type catalogue answered nothing"
 ok "created, snapshotted, restored, refused, deleted in order"
 
+# The IPAM lifecycle, served since SW-4. The CLI's own help states the real
+# API's constraint — "Currently IPs can only be reserved from a Private
+# Network" — which is exactly the source the emulator books from.
+echo "- an address is booked in a private network, read back, and released"
+ipam_pn="$(scw vpc private-network create name=conformance-ipam subnets.0=10.183.0.0/24 \
+             region=fr-par -o json)" || fail "private network create rejected: $ipam_pn"
+ipam_pn_id="$(printf '%s' "$ipam_pn" | jq -r '.id')"
+[ -n "$ipam_pn_id" ] && [ "$ipam_pn_id" != null ] || fail "no id in the private network response: $ipam_pn"
+
+booked="$(scw ipam ip create source.private-network-id="$ipam_pn_id" region=fr-par -o json)" \
+  || fail "ipam ip create rejected: $booked"
+booked_id="$(printf '%s' "$booked" | jq -r '.id')"
+[ -n "$booked_id" ] && [ "$booked_id" != null ] || fail "no id in the book response: $booked"
+# The address belongs to the block the network declared, mask included: the SDK
+# decodes an scw.IPNet and the CLI prints it in CIDR form.
+printf '%s' "$booked" | jq -e '.address | startswith("10.183.0.")' >/dev/null \
+  || fail "the booked address does not come from the network's block: $booked"
+
+# A specific address, the one input only the Private Network source accepts.
+pinned="$(scw ipam ip create source.private-network-id="$ipam_pn_id" address=10.183.0.42 \
+            region=fr-par -o json)" || fail "booking a chosen address rejected: $pinned"
+printf '%s' "$pinned" | jq -e '.address == "10.183.0.42/24"' >/dev/null \
+  || fail "the chosen address did not come back: $pinned"
+pinned_id="$(printf '%s' "$pinned" | jq -r '.id')"
+# Booked is booked: the same address a second time must fail.
+if scw ipam ip create source.private-network-id="$ipam_pn_id" address=10.183.0.42 \
+     region=fr-par -o json >/dev/null 2>&1; then
+  fail "the same address was booked twice"
+fi
+
+scw ipam ip list region=fr-par -o json \
+  | jq -e --arg i "$booked_id" 'any(.[]; .id == $i)' >/dev/null \
+  || fail "the booked address is missing from the list"
+scw ipam ip get "$booked_id" region=fr-par -o json \
+  | jq -e --arg i "$booked_id" '.id == $i' >/dev/null || fail "get did not read the booked address back"
+scw ipam ip update "$booked_id" tags.0=conformance region=fr-par -o json \
+  | jq -e '.tags == ["conformance"]' >/dev/null || fail "update did not carry the tag back"
+
+scw ipam ip delete "$booked_id" region=fr-par >/dev/null || fail "release rejected"
+scw ipam ip delete "$pinned_id" region=fr-par >/dev/null || fail "release of the pinned address rejected"
+if scw ipam ip get "$booked_id" region=fr-par -o json >/dev/null 2>&1; then
+  fail "a released address still answers"
+fi
+scw vpc private-network delete "$ipam_pn_id" region=fr-par >/dev/null \
+  || fail "cleanup: private network delete rejected"
+ok "booked, pinned, refused twice, listed, updated, released"
+
 echo "conformance: scw CLI passed"

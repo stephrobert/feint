@@ -1,8 +1,8 @@
 {
   "provider": "scaleway",
   "total": 315,
-  "implemented": 88,
-  "declined": 227,
+  "implemented": 102,
+  "declined": 213,
   "unknown": 0,
   "orphans": null,
   "products": [
@@ -71,15 +71,15 @@
     {
       "product": "ipam",
       "total": 10,
-      "implemented": 2,
-      "declined": 8,
+      "implemented": 9,
+      "declined": 1,
       "unknown": 0,
       "versions": [
         {
           "version": "v1",
           "total": 9,
-          "implemented": 2,
-          "declined": 7,
+          "implemented": 9,
+          "declined": 0,
           "unknown": 0
         },
         {
@@ -110,15 +110,15 @@
     {
       "product": "vpc",
       "total": 37,
-      "implemented": 10,
-      "declined": 27,
+      "implemented": 17,
+      "declined": 20,
       "unknown": 0,
       "versions": [
         {
           "version": "v2",
           "total": 37,
-          "implemented": 10,
-          "declined": 27,
+          "implemented": 17,
+          "declined": 20,
           "unknown": 0
         }
       ]
@@ -1232,7 +1232,7 @@
     {
       "operation": "instance/v1/API.ReleaseIPToIpam",
       "product": "instance",
-      "reason": "addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures",
+      "reason": "it hands an instance flexible IP over to IPAM's pool, and the public addresses of this emulator live and die with the instance product: IPAM here holds private-network addresses only",
       "version": "v1",
       "status": "declined"
     },
@@ -1873,23 +1873,20 @@
     {
       "operation": "ipam/v1/API.AttachIP",
       "product": "ipam",
-      "reason": "addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "ipam/v1/API.BookIP",
       "product": "ipam",
-      "reason": "addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "ipam/v1/API.DetachIP",
       "product": "ipam",
-      "reason": "addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "ipam/v1/API.GetIP",
@@ -1906,30 +1903,26 @@
     {
       "operation": "ipam/v1/API.MoveIP",
       "product": "ipam",
-      "reason": "addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "ipam/v1/API.ReleaseIP",
       "product": "ipam",
-      "reason": "addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "ipam/v1/API.ReleaseIPSet",
       "product": "ipam",
-      "reason": "addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "ipam/v1/API.UpdateIP",
       "product": "ipam",
-      "reason": "addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "ipam/v1alpha1/API.ListIPs",
@@ -2003,7 +1996,7 @@
     {
       "operation": "vpc/v2/API.CreateIngressRule",
       "product": "vpc",
-      "reason": "filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced",
+      "reason": "no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN",
       "version": "v2",
       "status": "declined"
     },
@@ -2016,9 +2009,8 @@
     {
       "operation": "vpc/v2/API.CreateRoute",
       "product": "vpc",
-      "reason": "routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take",
       "version": "v2",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "vpc/v2/API.CreateVPC",
@@ -2036,7 +2028,7 @@
     {
       "operation": "vpc/v2/API.DeleteIngressRule",
       "product": "vpc",
-      "reason": "filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced",
+      "reason": "no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN",
       "version": "v2",
       "status": "declined"
     },
@@ -2056,9 +2048,8 @@
     {
       "operation": "vpc/v2/API.DeleteRoute",
       "product": "vpc",
-      "reason": "routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take",
       "version": "v2",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "vpc/v2/API.DeleteVPC",
@@ -2083,23 +2074,21 @@
     {
       "operation": "vpc/v2/API.EnableCustomRoutesPropagation",
       "product": "vpc",
-      "reason": "routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take",
+      "reason": "the portal's API document does not describe it yet, and every route mounted here is checked against that document, so it cannot be served until the document catches up with the SDK",
       "version": "v2",
       "status": "declined"
     },
     {
       "operation": "vpc/v2/API.EnableDHCP",
       "product": "vpc",
-      "reason": "the runtime writes a fixed address on each interface at boot instead of leasing one, so there is no DHCP server behind these networks to enable",
       "version": "v2",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "vpc/v2/API.EnableRouting",
       "product": "vpc",
-      "reason": "routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take",
       "version": "v2",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "vpc/v2/API.EnableS3Endpoint",
@@ -2111,14 +2100,14 @@
     {
       "operation": "vpc/v2/API.GetACL",
       "product": "vpc",
-      "reason": "filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced",
+      "reason": "no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN",
       "version": "v2",
       "status": "declined"
     },
     {
       "operation": "vpc/v2/API.GetIngressRule",
       "product": "vpc",
-      "reason": "filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced",
+      "reason": "no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN",
       "version": "v2",
       "status": "declined"
     },
@@ -2131,9 +2120,8 @@
     {
       "operation": "vpc/v2/API.GetRoute",
       "product": "vpc",
-      "reason": "routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take",
       "version": "v2",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "vpc/v2/API.GetVPC",
@@ -2151,7 +2139,7 @@
     {
       "operation": "vpc/v2/API.ListIngressRules",
       "product": "vpc",
-      "reason": "filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced",
+      "reason": "no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN",
       "version": "v2",
       "status": "declined"
     },
@@ -2164,16 +2152,15 @@
     {
       "operation": "vpc/v2/API.ListSubnetOverlaps",
       "product": "vpc",
-      "reason": "it compares the subnets of a fleet of VPCs against each other, and no client in tools/conformance drives it",
+      "reason": "its request names a VPC connector and nothing else — it compares the subnets across a peering — and the connectors are declined below until OVN mode has measured peering",
       "version": "v2",
       "status": "declined"
     },
     {
       "operation": "vpc/v2/API.ListSubnets",
       "product": "vpc",
-      "reason": "the pack publishes a private network's subnets on the network itself, which is where ListPrivateNetworks already returns them",
       "version": "v2",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "vpc/v2/API.ListVPCConnectors",
@@ -2191,7 +2178,7 @@
     {
       "operation": "vpc/v2/API.SetACL",
       "product": "vpc",
-      "reason": "filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced",
+      "reason": "no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN",
       "version": "v2",
       "status": "declined"
     },
@@ -2205,7 +2192,7 @@
     {
       "operation": "vpc/v2/API.UpdateIngressRule",
       "product": "vpc",
-      "reason": "filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced",
+      "reason": "no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN",
       "version": "v2",
       "status": "declined"
     },
@@ -2218,9 +2205,8 @@
     {
       "operation": "vpc/v2/API.UpdateRoute",
       "product": "vpc",
-      "reason": "routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take",
       "version": "v2",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "vpc/v2/API.UpdateVPC",
@@ -2238,7 +2224,7 @@
     {
       "operation": "vpc/v2/RoutesWithNexthopAPI.ListRoutesWithNexthop",
       "product": "vpc",
-      "reason": "routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take",
+      "reason": "the portal's API document does not describe it yet, and every route mounted here is checked against that document, so it cannot be served until the document catches up with the SDK",
       "version": "v2",
       "status": "declined"
     }

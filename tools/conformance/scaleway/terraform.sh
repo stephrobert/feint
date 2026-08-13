@@ -87,6 +87,26 @@ code="$(curl -s -o /dev/null -w '%{http_code}' "$ENDPOINT/instance/v1/zones/$ZON
 [ "$code" = "200" ] || fail "the server Terraform created answers $code, not 200"
 ok "served at /instance/v1/zones/$ZONE/servers/$server_uuid"
 
+# The address the fixture booked answers through IPAM and names the NIC that
+# carries it. This is the SW-4 chain: BookIP, then CreatePrivateNIC with
+# ipam_ip_ids, then the provider reading the address back through ListIPs. The
+# assertion asks the emulator, not the state file.
+echo "- the booked address is attached to the NIC, and says so"
+ipam_id="$("$TF" output -raw ipam_ip_id)"
+ipam_uuid="${ipam_id##*/}"
+ipam_body="$(curl -s "$ENDPOINT/ipam/v1/regions/fr-par/ips/$ipam_uuid")"
+printf '%s' "$ipam_body" | jq -e '.address == "10.182.0.10/24"' >/dev/null \
+  || fail "the booked address did not survive the apply: $ipam_body"
+printf '%s' "$ipam_body" | jq -e '.resource.type == "instance_private_nic" and (.resource.id | length) > 0' >/dev/null \
+  || fail "the booked address does not name the NIC carrying it: $ipam_body"
+ok "10.182.0.10 booked and carried by a NIC"
+
+route_id="$("$TF" output -raw route_id)"
+route_uuid="${route_id##*/}"
+code="$(curl -s -o /dev/null -w '%{http_code}' "$ENDPOINT/vpc/v2/regions/fr-par/routes/$route_uuid")"
+[ "$code" = "200" ] || fail "the route Terraform created answers $code, not 200"
+ok "route served at /vpc/v2/regions/fr-par/routes/$route_uuid"
+
 # Terraform plans an empty diff against a state it just wrote only if every attribute the provider
 # reads back matches what it sent. This is where an invented field or a dropped one shows up, and
 # it is cheaper to catch here than as a permanent diff in somebody's real configuration.
@@ -120,6 +140,14 @@ code="$(curl -s -o /dev/null -w '%{http_code}' "$ENDPOINT/instance/v1/zones/$ZON
 # fixture here carried a volume to show it.
 code="$(curl -s -o /dev/null -w '%{http_code}' "$ENDPOINT/instance/v1/zones/$ZONE/volumes/$volume_uuid")"
 [ "$code" = "404" ] || fail "the destroyed volume still answers $code"
+# The booked address and the route go with their resources. The destroy order
+# is the part worth proving: the NIC detaches the booked address first, then
+# ReleaseIP frees it — an emulator that deleted it with the NIC would have made
+# the destroy fail right here.
+code="$(curl -s -o /dev/null -w '%{http_code}' "$ENDPOINT/ipam/v1/regions/fr-par/ips/$ipam_uuid")"
+[ "$code" = "404" ] || fail "the released address still answers $code"
+code="$(curl -s -o /dev/null -w '%{http_code}' "$ENDPOINT/vpc/v2/regions/fr-par/routes/$route_uuid")"
+[ "$code" = "404" ] || fail "the destroyed route still answers $code"
 ok "destroyed, and gone from the API"
 
 echo "conformance: $TF apply/destroy passed"

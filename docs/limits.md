@@ -928,6 +928,29 @@ So: a plan that builds a routable topology applies, reads back and destroys
 correctly. A machine inside it still cannot reach the internet. Use the emulator
 to test the shape of your infrastructure, never its connectivity.
 
+## A Scaleway VPC route is a record, and the reachability is the peering's
+
+Scaleway's custom routes (`scaleway_vpc_route`, `vpc/v2/API.CreateRoute` and
+its family) are served since SW-4, and they are records: create, read, update
+and delete round-trip for the Terraform provider, the nexthop is validated to
+exist, and no runtime mode programs it. A route sending `192.168.42.0/24`
+through an instance NIC is a row the client reads back, not a path packets
+follow.
+
+What *is* real is what a routing-enabled VPC delivers between its own Private
+Networks, and it does not come from these records: `EnableRouting` reconciles
+the machine driver's isolation the moment it flips — under OVN the VPC's
+networks are peered, in bridge mode their mutual reject rules are lifted — so
+two networks of a routing VPC reach each other and two networks of two VPCs
+still do not, mode permitting (see "Subnet isolation depends on the runtime
+mode"). `TestEnableRoutingReconcilesThePeering` in
+`internal/providers/scaleway` pins that link to the driver.
+
+Same rule as Outscale's gateways, one paragraph up: use the routes to test the
+shape of a plan, never to test where traffic goes. The day a nexthop is worth
+programming for real, it will arrive as a declared driver capability, measured
+under OVN, not as a silent upgrade of these records.
+
 ## Whether a security group filters is not measured
 
 The security-group family — `CreateSecurityGroup`, its rules, and the groups a

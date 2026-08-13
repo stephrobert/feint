@@ -102,8 +102,21 @@ func (p *Pack) Routes() []emulator.Route {
 		// IPAM. Not a convenience: instance/v1.PrivateNIC carries no address, only
 		// ipam_ip_ids, so this is the only way a client learns the address of a
 		// NIC. Serving the NIC without it is serving half a product.
+		//
+		// The write half is SW-4: `terraform apply` with a scaleway_ipam_ip
+		// failed on the first call before it, because the provider walks BookIP,
+		// GetIP, UpdateIP, MoveIP, DetachIP, ReleaseIP (measured in its
+		// services/ipam/ip.go), and the address it books is then carried into
+		// CreatePrivateNIC as ipam_ip_ids.
 		{Method: "GET", Path: ipamRegions + "/ips", Operation: "ipam/v1/API.ListIPs", Handler: p.listIPAMIPs},
 		{Method: "GET", Path: ipamRegions + "/ips/{ipID}", Operation: "ipam/v1/API.GetIP", Handler: p.getIPAMIP},
+		{Method: "POST", Path: ipamRegions + "/ips", Operation: "ipam/v1/API.BookIP", Handler: p.bookIP},
+		{Method: "DELETE", Path: ipamRegions + "/ips/{ipID}", Operation: "ipam/v1/API.ReleaseIP", Handler: p.releaseIPAMIP},
+		{Method: "POST", Path: ipamRegions + "/ip-sets/release", Operation: "ipam/v1/API.ReleaseIPSet", Handler: p.releaseIPAMIPSet},
+		{Method: "PATCH", Path: ipamRegions + "/ips/{ipID}", Operation: "ipam/v1/API.UpdateIP", Handler: p.updateIPAMIP},
+		{Method: "POST", Path: ipamRegions + "/ips/{ipID}/attach", Operation: "ipam/v1/API.AttachIP", Handler: p.attachIPAMIP},
+		{Method: "POST", Path: ipamRegions + "/ips/{ipID}/detach", Operation: "ipam/v1/API.DetachIP", Handler: p.detachIPAMIP},
+		{Method: "POST", Path: ipamRegions + "/ips/{ipID}/move", Operation: "ipam/v1/API.MoveIP", Handler: p.moveIPAMIP},
 
 		// User data: how a boot script reaches a server. The value is a raw body
 		// both ways, never a JSON envelope, and "cloud-init" is the key the
@@ -188,6 +201,21 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "GET", Path: regions + "/private-networks/{pnID}", Operation: "vpc/v2/API.GetPrivateNetwork", Handler: p.getPrivateNetwork},
 		{Method: "PATCH", Path: regions + "/private-networks/{pnID}", Operation: "vpc/v2/API.UpdatePrivateNetwork", Handler: p.updatePrivateNetwork},
 		{Method: "DELETE", Path: regions + "/private-networks/{pnID}", Operation: "vpc/v2/API.DeletePrivateNetwork", Handler: p.deletePrivateNetwork},
+
+		// The rest of the VPC surface, SW-4. The subnets flat (the provider
+		// matches a booked address's subnet_id against them), the enable family
+		// (EnableRouting is real behaviour here: the isolation the machine
+		// driver enforces reconciles when it flips), and the routes the client
+		// manages — records docs/limits.md owns. Two operations of this family
+		// stay declined below because the portal's API document does not
+		// describe them yet and every route mounted here is checked against it.
+		{Method: "GET", Path: regions + "/subnets", Operation: "vpc/v2/API.ListSubnets", Handler: p.listSubnets},
+		{Method: "POST", Path: regions + "/vpcs/{vpc_id}/enable-routing", Operation: "vpc/v2/API.EnableRouting", Handler: p.enableRouting},
+		{Method: "POST", Path: regions + "/private-networks/{pnID}/enable-dhcp", Operation: "vpc/v2/API.EnableDHCP", Handler: p.enableDHCP},
+		{Method: "POST", Path: regions + "/routes", Operation: "vpc/v2/API.CreateRoute", Handler: p.createRoute},
+		{Method: "GET", Path: regions + "/routes/{routeID}", Operation: "vpc/v2/API.GetRoute", Handler: p.getRoute},
+		{Method: "PATCH", Path: regions + "/routes/{routeID}", Operation: "vpc/v2/API.UpdateRoute", Handler: p.updateRoute},
+		{Method: "DELETE", Path: regions + "/routes/{routeID}", Operation: "vpc/v2/API.DeleteRoute", Handler: p.deleteRoute},
 
 		// Snapshots and images the client makes. The golden-image sequence —
 		// snapshot a volume, cut an image from it, boot a server from it — is a
@@ -406,32 +434,24 @@ func (p *Pack) Declined() []emulator.Decline {
 		emulator.Because("its request carries tags and nothing else, and the pack stores no tag on a private NIC, so it would answer success over a field nothing reads back",
 			"instance/v1/API.UpdatePrivateNIC"),
 
-		// The IPAM half, and the reason it is read-only here.
-		emulator.Because("addresses come from the subnet plan a server or a private NIC is placed in rather than from a client reservation, so booking or moving one would hand out an address no runtime configures",
-			"instance/v1/API.ReleaseIPToIpam",
-			"ipam/v1/API.AttachIP",
-			"ipam/v1/API.BookIP",
-			"ipam/v1/API.DetachIP",
-			"ipam/v1/API.MoveIP",
-			"ipam/v1/API.ReleaseIP",
-			"ipam/v1/API.ReleaseIPSet",
-			"ipam/v1/API.UpdateIP"),
-
-		// Routing, and the honest half of the mode difference: only OVN has a
-		// router to program, and a route the bridge mode cannot apply is a
-		// topology the packets do not follow.
-		emulator.Because("routing between private networks belongs to the runtime, and only the OVN mode has a router to program, so a route recorded in bridge mode would describe a path the packets do not take",
-			"vpc/v2/API.CreateRoute",
-			"vpc/v2/API.DeleteRoute",
-			"vpc/v2/API.GetRoute",
-			"vpc/v2/API.UpdateRoute",
-			"vpc/v2/API.EnableRouting",
-			"vpc/v2/API.EnableCustomRoutesPropagation",
-			"vpc/v2/RoutesWithNexthopAPI.ListRoutesWithNexthop"),
+		// The one member of the IPAM family still declined. The lifecycle
+		// itself — BookIP, ReleaseIP, ReleaseIPSet, UpdateIP, AttachIP,
+		// DetachIP, MoveIP — is served since SW-4: the old reason here said a
+		// booked address would be one "no runtime configures", which stopped
+		// being true the day a booked address could be carried into
+		// CreatePrivateNIC and become the NIC's own.
+		emulator.Because("it hands an instance flexible IP over to IPAM's pool, and the public addresses of this emulator live and die with the instance product: IPAM here holds private-network addresses only",
+			"instance/v1/API.ReleaseIPToIpam"),
 
 		// A rule recorded and never enforced is worse than a refusal: it is
-		// indistinguishable from protection.
-		emulator.Because("filtering at the VPC edge has no edge here, since nothing routes between the host and these networks, so a rule would be recorded and never enforced",
+		// indistinguishable from protection. That argument was measured against
+		// this emulator's own security groups (docs/limits.md), which are
+		// served precisely because a runtime mode does enforce them. No mode
+		// enforces a VPC ACL or an ingress rule today — the machine layer has
+		// no edge to hang them on in bridge mode and nothing programs the OVN
+		// logical network yet — so serving them is the remaining half of SW-4
+		// (#11), gated on that enforcement, not on the CRUD.
+		emulator.Because("no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN",
 			"vpc/v2/API.CreateIngressRule",
 			"vpc/v2/API.DeleteIngressRule",
 			"vpc/v2/API.GetIngressRule",
@@ -448,14 +468,25 @@ func (p *Pack) Declined() []emulator.Decline {
 			"vpc/v2/API.ListVPCConnectors",
 			"vpc/v2/API.UpdateVPCConnector"),
 
-		emulator.Because("the runtime writes a fixed address on each interface at boot instead of leasing one, so there is no DHCP server behind these networks to enable",
-			"vpc/v2/API.EnableDHCP"),
+		// EnableDHCP, ListSubnets and the routes were declined here until SW-4
+		// and are served now; their old reasons ("no DHCP server to enable",
+		// "the subnets are on the network itself") described real facts but
+		// blocked real clients, which is the wrong trade.
 
-		emulator.Because("the pack publishes a private network's subnets on the network itself, which is where ListPrivateNetworks already returns them",
-			"vpc/v2/API.ListSubnets"),
-
-		emulator.Because("it compares the subnets of a fleet of VPCs against each other, and no client in tools/conformance drives it",
+		emulator.Because("its request names a VPC connector and nothing else — it compares the subnets across a peering — and the connectors are declined below until OVN mode has measured peering",
 			"vpc/v2/API.ListSubnetOverlaps"),
+
+		// Two operations the Go SDK carries and the portal's own API document
+		// does not (verified against a fresh download of vpc/v2/schema.yml,
+		// 2026-08-13: 35 operationIds, neither among them). Every route mounted
+		// here is checked against that document — TestEveryRouteMatchesItsContract
+		// in internal/core/emulator and the probe both read
+		// contracts/scaleway.json — so serving them would mean mounting
+		// operations no contract can check. The drift scan keeps them visible;
+		// they are served the day the document catches up.
+		emulator.Because("the portal's API document does not describe it yet, and every route mounted here is checked against that document, so it cannot be served until the document catches up with the SDK",
+			"vpc/v2/API.EnableCustomRoutesPropagation",
+			"vpc/v2/RoutesWithNexthopAPI.ListRoutesWithNexthop"),
 
 		emulator.Because("the CLI resolves its default image through ListLocalImages, which is served, so a per-id lookup would be a second door onto the same fixed table",
 			"marketplace/v2/API.GetLocalImage"),
