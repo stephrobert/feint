@@ -258,9 +258,46 @@ if [ "${FEINT_VM:-off}" = "off" ]; then ./feint probe --endpoint "http://$FEINT_
 # Skips itself when no machine runtime is configured, so CI stays runtime-free.
 tools/conformance/scaleway/network.sh "http://$FEINT_ADDR"
 tools/conformance/outscale/network.sh "http://$FEINT_ADDR"
+# The evidence artefact (#123), written only when a caller asks for it: a
+# partial or ad-hoc run must not overwrite the recorded proofs by accident.
+# `mise run evidence:update` is the caller, and sets the two variables.
+if [ -n "${FEINT_EVIDENCE_OUT:-}" ]; then
+  if [ -n "${FEINT_EVIDENCE_JOIN:-}" ]; then
+    ./feint evidence --endpoint "http://$FEINT_ADDR" --out "$FEINT_EVIDENCE_OUT" --join "$FEINT_EVIDENCE_JOIN"
+  else
+    ./feint evidence --endpoint "http://$FEINT_ADDR" --out "$FEINT_EVIDENCE_OUT"
+  fi
+fi
 # Two numbers rather than one: how much is mounted, and how much of it a real
 # client has actually driven. The gap is the part nobody has proven.
 tools/conformance/score.sh "http://$FEINT_ADDR"
+"""
+
+[tasks."evidence:update"]
+description = "Regenerate coverage/evidence.json from two fresh conformance runs, then refresh the docs that print it"
+depends = ["build"]
+# Two legs because one run cannot earn every axis: the probe only runs with
+# machines off (a synthetic walk of every Create* would boot a container per
+# route), and the dataplane axis only exists with machines on. Both legs are
+# fresh, and that is the property #123 forbids losing: merging a fresh run
+# with a stale artefact would let a proof survive the removal of its evidence.
+# Removing an assertion from a suite and re-running this task must demote the
+# operations it proved — that is the falsification the record lives under.
+run = """
+set -e
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+echo "== leg 1/2: machines off, probe on"
+FEINT_VM=off FEINT_EVIDENCE_OUT="$tmp/off.json" mise run conformance
+if command -v incus >/dev/null 2>&1; then
+  echo "== leg 2/2: machines on"
+  FEINT_VM="${FEINT_EVIDENCE_VM:-incus}" FEINT_EVIDENCE_OUT="$PWD/coverage/evidence.json" \
+    FEINT_EVIDENCE_JOIN="$tmp/off.json" mise run conformance
+else
+  echo "== no incus on this host: the runtime leg is skipped, the artefact says machines: none"
+  cp "$tmp/off.json" coverage/evidence.json
+fi
+./feint docs
 """
 
 [tasks."demo:network"]

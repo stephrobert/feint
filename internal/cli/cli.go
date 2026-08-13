@@ -111,6 +111,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return transcriptCommand(args[2:], stdout, stderr)
 	case "shapes":
 		return shapesCommand(args[2:], stdout, stderr)
+	case "evidence":
+		return evidence(args[2:], stdout, stderr)
 	case "docs":
 		return docs(args[2:], stdout, stderr)
 	case "start":
@@ -251,6 +253,13 @@ Usage:
                     --record reads a real account directly, and reads only.
                     --check compares this emulator with what was recorded and
                     exits 2 on a field the cloud returns and it omits.
+
+  feint evidence   [--endpoint http://127.0.0.1:4599] [--shapes shapes]
+                   [--out coverage/evidence.json] [--join <other.json>]
+                    Write the per-operation evidence record from a running
+                    emulator's /_feint/conformance: which independent proofs
+                    each operation has earned, side by side, never summed.
+                    --join merges the other leg of the same regeneration.
 
   feint docs       [--file README.md] [--coverage <dir>] [--check]
                     Regenerate the coverage tables in a Markdown file.
@@ -433,6 +442,7 @@ func serve(args []string, stdout io.Writer) error {
 	cleanup := fs.Bool("cleanup", false, "remove the machines and networks this run created before exiting")
 	logLevel := fs.String("log-level", "info", "log verbosity: error, warn, info, debug")
 	contracts := fs.String("contracts", "", "directory of API contracts; every response is checked against them and /_feint/conformance reports what failed")
+	shapesDir := fs.String("shapes", "shapes", "directory of observed real-cloud shapes; the evidence record's shape axis reads it (empty to disable)")
 	coverageDir := fs.String("coverage", "coverage", "directory holding the versioned coverage artefacts the page reads")
 	expose := fs.Bool("expose-to-network", false, "listen off loopback, which disarms the browser guard: read what it costs before setting it")
 	if err := fs.Parse(args); err != nil {
@@ -459,6 +469,20 @@ func serve(args []string, stdout io.Writer) error {
 	srv, env, err := newServer(docs)
 	if err != nil {
 		return err
+	}
+
+	// The shape axis of the evidence record, resolved from the observed
+	// catalogues when they are in reach. An installed binary has no shapes/
+	// directory and the record then answers "unknown" — which is a different
+	// fact from "unobserved", and the difference is the point.
+	if *shapesDir != "" {
+		covered, err := shapeCoveredOperations(*shapesDir)
+		if err != nil {
+			return err
+		}
+		if covered != nil {
+			srv.SetShapeCovered(sortedKeys(covered))
+		}
 	}
 
 	driver, err := machineDriver(*vm, stdout)

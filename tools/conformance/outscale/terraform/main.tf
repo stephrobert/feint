@@ -71,7 +71,14 @@ resource "outscale_volume" "conformance" {
 }
 
 resource "outscale_vm" "conformance" {
-  image_id     = "ami-12345678"
+  # A catalogue OMI, and it matters beyond realism: ami-00000003 is one of the
+  # three identifiers the emulator can actually boot (catalog.go maps it to a
+  # machine image). The previous ami-12345678 resolved to nothing, which a
+  # --vm off run never notices — and under a runtime the boot is then refused
+  # (#83, no substitution), the Vm honestly never reaches "running", and the
+  # empty-plan assertion fails. Measured on the first full client run under
+  # FEINT_VM=incus, which #123's evidence regeneration was the first to do.
+  image_id     = "ami-00000003"
   vm_type      = "tinav6.c1r1p2"
   subnet_id    = outscale_subnet.conformance.subnet_id
   keypair_name = outscale_keypair.conformance.keypair_name
