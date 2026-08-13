@@ -17,6 +17,24 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Changed
 
+- **The verify recipe names the release workflow, not the repository** (#129).
+  `docs/install.md` published `--certificate-identity-regexp
+  'https://github.com/stephrobert/feint/.*'`, which accepts **any** workflow of
+  this repository that ever gets `id-token: write` — a claim about who owns the
+  repository rather than about what built the file. It is now anchored on
+  `.github/workflows/release.yml@refs/tags/v`, and the `gh` recipe gains
+  `--signer-workflow`.
+
+  Both halves were run against the published 0.7.3: the new identity verifies it,
+  and pointed at another workflow of the same repository it refuses, naming what
+  it expected and what it got. The old one accepted that other workflow — the
+  width being closed.
+
+  `tools/release/preflight.sh` now extracts the identity **from the page** and
+  runs it against the previous release, then checks it can still refuse. The
+  recipe a reader copies and what the workflow signs cannot drift apart in
+  silence, which is what happened here.
+
 - **A barrage of concurrent traffic, and one invariant sweep over the store**
   (#134). Each pack now drives its own served routes from ten workers at once —
   Terraform's default parallelism — and the store is then swept by a
