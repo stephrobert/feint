@@ -133,6 +133,12 @@ func (p *Pack) createElasticIP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "this emulator allocates inet4 elastic IPs only")
 		return
 	}
+	// Held across the read and the write, which is the whole point: the address
+	// is chosen from what the store holds and only becomes taken when the
+	// resource lands in it.
+	p.addresses.Lock()
+	defer p.addresses.Unlock()
+
 	ip, ok := p.freeElasticAddress()
 	if !ok {
 		writeError(w, http.StatusBadRequest, "no elastic IP left in the emulated pool")

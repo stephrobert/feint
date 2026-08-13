@@ -17,6 +17,59 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Non publié]
 
+### Modifié
+
+- **Un barrage de trafic concurrent, et un balayage d'invariants sur le store**
+  (#134). Chaque pack pilote désormais ses propres routes servies depuis dix
+  travailleurs simultanés — le parallélisme par défaut de Terraform — puis le
+  store est balayé par un contrôle neutre vis-à-vis des providers dans
+  `internal/core/store/storetest` : aucun identifiant émis deux fois, aucune
+  adresse détenue par deux ressources d'un même genre, aucun objet runtime
+  revendiqué par deux ressources. Un restore de snapshot en pleine circulation a
+  son propre test.
+
+  **Il a trouvé un vrai défaut dès sa première exécution contre Exoscale** :
+  l'allocation d'IP élastique était un lire-modifier-écrire sans verrou, si bien
+  que trois adresses sur seize créations sont allées à deux ressources chacune.
+  Le pack Scaleway avait corrigé cette forme pour ses propres pools depuis
+  longtemps et celui-ci ne l'a jamais reçue — écrit deux fois, corrigé une fois,
+  vivant dans l'autre copie.
+
+  Le balayage vit dans le noyau et ne connaît aucun provider : un quatrième pack
+  en hérite en appelant une fonction. Il reconnaît les adresses à leur forme et
+  non au nom de l'attribut, parce qu'un balayage indexé sur l'orthographe de
+  chaque pack est un balayage auquel un pack nouveau échappe.
+
+- **Un snapshot est compris ou refusé, et dit de quelle version il est** (#133).
+  `feint snapshot save`, `GET /_feint/state` et `--state` écrivent désormais
+  `{"format": "feint-snapshot", "version": 1, "resources": [...]}` au lieu d'un
+  tableau nu, et `Restore` refuse tout ce dont il ne peut pas rendre compte :
+  une version qu'il ne lit pas, un format qui n'est pas le nôtre, un champ
+  inconnu sur une ressource.
+
+  **C'est un changement cassant des formats d'état et de snapshot.** Un fichier
+  écrit par une 0.7.x est refusé, avec le message qui dit comment le convertir,
+  et un `PUT /_feint/state` portant un tableau nu l'est aussi. Reprendre un
+  snapshot depuis l'instance qui détient l'état est la voie de sortie.
+
+  Pourquoi cela valait de casser : l'ancien format perdait des données en
+  silence. Un snapshot portant un champ que ce binaire ne déclare pas se
+  restaurait *avec succès*, `encoding/json` jetait le champ, et la sauvegarde
+  suivante réécrivait le fichier sans lui. Le store était cohérent, faux, et
+  vert — mesuré avant le changement, pas redouté. `snapshot.go` documente ce
+  format comme fait pour survivre à son instance et être chargé dans une autre,
+  ce qui est précisément le moment où cela mord.
+
+  `Attrs` reste ouvert, parce que ses clés sont des données qu'un pack a
+  choisies et non un schéma : un attribut nouveau n'est pas un changement de
+  format, et le refuser rendrait cassant tout ajout dans un pack.
+
+  Deux documents se contredisaient sur la nature de cette promesse —
+  `store.go` qualifiait le format de détail d'implémentation sans engagement de
+  compatibilité, `RELEASING.md` le classait parmi les surfaces dont le
+  changement est cassant. Ils disent maintenant la même chose, et c'est le plus
+  strict qui l'emporte.
+
 ### Ajouté
 
 - **Scaleway sert le Block Storage, et le volume racine d'un serveur devient

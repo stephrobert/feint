@@ -15,6 +15,53 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+### Changed
+
+- **A barrage of concurrent traffic, and one invariant sweep over the store**
+  (#134). Each pack now drives its own served routes from ten workers at once —
+  Terraform's default parallelism — and the store is then swept by a
+  provider-neutral check in `internal/core/store/storetest`: no identifier issued
+  twice, no address held by two resources of one kind, no runtime object claimed
+  by two resources. A snapshot restore racing live traffic has its own test.
+
+  **It found a real defect on its first run against Exoscale**: elastic IP
+  allocation was a read-modify-write with no lock, so three addresses out of
+  sixteen creates went to two resources each. The Scaleway pack fixed that shape
+  for its own pools long ago and this one never received it — written twice,
+  fixed once, alive in the other copy.
+
+  The sweep lives in the core and knows no provider, so a fourth pack inherits it
+  by calling one function; it finds addresses by shape rather than by attribute
+  name, because a sweep keyed on each pack's spelling is a sweep a new pack
+  escapes.
+
+- **A snapshot is understood or refused, and says which version it is** (#133).
+  `feint snapshot save`, `GET /_feint/state` and `--state` now write
+  `{"format": "feint-snapshot", "version": 1, "resources": [...]}` instead of a
+  bare array, and `Restore` refuses anything it cannot account for: a version it
+  does not read, a format that is not ours, an unknown field on a resource.
+
+  **This is a breaking change to the snapshot and state formats.** A file written
+  by 0.7.x is refused with a message saying how to convert it, and a `PUT
+  /_feint/state` carrying a bare array is refused too. Taking a fresh snapshot
+  from the instance that holds the state is the way through.
+
+  The reason it is worth breaking: the old format lost data in silence. A
+  snapshot carrying a field this build does not declare restored *successfully*,
+  `encoding/json` dropped the field, and the next save wrote the file back
+  without it. The store was coherent, wrong, and green — measured before the
+  change, not feared. `snapshot.go` documents the format as made to outlive its
+  instance and be loaded into another one, which is exactly when this bites.
+
+  `Attrs` stays open, because its keys are data a pack chose rather than schema:
+  a new attribute is not a format change, and refusing one would make every pack
+  addition breaking.
+
+  Two documents disagreed about whether any of this was a promise —
+  `store.go` called the format an implementation detail with no compatibility
+  promise, `RELEASING.md` listed it among the surfaces whose change is breaking.
+  They now say the same thing, and the stricter one won.
+
 ### Added
 
 - **Scaleway serves Block Storage, and a server's root volume can finally be
