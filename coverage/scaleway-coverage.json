@@ -1,8 +1,8 @@
 {
   "provider": "scaleway",
   "total": 288,
-  "implemented": 57,
-  "declined": 231,
+  "implemented": 66,
+  "declined": 222,
   "unknown": 0,
   "orphans": null,
   "products": [
@@ -25,15 +25,15 @@
     {
       "product": "instance",
       "total": 150,
-      "implemented": 39,
-      "declined": 111,
+      "implemented": 48,
+      "declined": 102,
       "unknown": 0,
       "versions": [
         {
           "version": "v1",
           "total": 78,
-          "implemented": 39,
-          "declined": 39,
+          "implemented": 48,
+          "declined": 30,
           "unknown": 0
         },
         {
@@ -721,9 +721,8 @@
     {
       "operation": "instance/v1/API.CreateImage",
       "product": "instance",
-      "reason": "the pack answers image lookups from the fixed catalogue the CLI resolves against, so creating or editing one would edit a table nothing can add to",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "instance/v1/API.CreatePlacementGroup",
@@ -759,9 +758,8 @@
     {
       "operation": "instance/v1/API.CreateSnapshot",
       "product": "instance",
-      "reason": "a snapshot copies the bytes of a volume, and an emulated volume is a size and a name with nothing written behind it, so the object produced would restore nothing",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "instance/v1/API.CreateVolume",
@@ -778,9 +776,8 @@
     {
       "operation": "instance/v1/API.DeleteImage",
       "product": "instance",
-      "reason": "the pack answers image lookups from the fixed catalogue the CLI resolves against, so creating or editing one would edit a table nothing can add to",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "instance/v1/API.DeletePlacementGroup",
@@ -822,9 +819,8 @@
     {
       "operation": "instance/v1/API.DeleteSnapshot",
       "product": "instance",
-      "reason": "creating a snapshot is declined, so no snapshot can exist in this emulator for these calls to read, edit or delete",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "instance/v1/API.DeleteVolume",
@@ -939,9 +935,8 @@
     {
       "operation": "instance/v1/API.GetSnapshot",
       "product": "instance",
-      "reason": "creating a snapshot is declined, so no snapshot can exist in this emulator for these calls to read, edit or delete",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "instance/v1/API.GetVolume",
@@ -965,9 +960,8 @@
     {
       "operation": "instance/v1/API.ListImages",
       "product": "instance",
-      "reason": "the catalogue exists so the CLI can resolve one image by id before a create, and listing it would publish six fixed entries as if they were an inventory a client could grow",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "instance/v1/API.ListPlacementGroups",
@@ -1022,9 +1016,8 @@
     {
       "operation": "instance/v1/API.ListSnapshots",
       "product": "instance",
-      "reason": "creating a snapshot is declined, so no snapshot can exist in this emulator for these calls to read, edit or delete",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "instance/v1/API.ListVolumes",
@@ -1094,9 +1087,8 @@
     {
       "operation": "instance/v1/API.UpdateImage",
       "product": "instance",
-      "reason": "the pack answers image lookups from the fixed catalogue the CLI resolves against, so creating or editing one would edit a table nothing can add to",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "instance/v1/API.UpdatePlacementGroup",
@@ -1140,9 +1132,8 @@
     {
       "operation": "instance/v1/API.UpdateSnapshot",
       "product": "instance",
-      "reason": "creating a snapshot is declined, so no snapshot can exist in this emulator for these calls to read, edit or delete",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "instance/v1/API.UpdateVolume",

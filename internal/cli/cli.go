@@ -243,6 +243,15 @@ Usage:
                     operation actually returned. With --against, diff that shape
                     against the emulator's own answer: the fields it omits.
 
+  feint shapes     <recording.jsonl> --provider <name> [--dir shapes] [--dry-run]
+                   [--record [--profile <name>]] [--check]
+                    The field trees a real cloud returns, versioned. Paths and
+                    JSON types only, never a value or an identifier, which is
+                    what makes them committable where a transcript is not.
+                    --record reads a real account directly, and reads only.
+                    --check compares this emulator with what was recorded and
+                    exits 2 on a field the cloud returns and it omits.
+
   feint docs       [--file README.md] [--coverage <dir>] [--check]
                     Regenerate the coverage tables in a Markdown file.
 

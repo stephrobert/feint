@@ -13,6 +13,47 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
+## [Unreleased]
+
+### Added
+
+- **Scaleway serves snapshots and images the client creates** (#7). The
+  golden-image sequence — snapshot a volume, cut an image from that snapshot,
+  list and delete both in the order the API imposes — is a control-plane path
+  answerable at every step, and Outscale has answered it since 0.6.0 while this
+  pack declined it. Nine operations move from `Declined()` to served:
+  `Create/Get/List/Update/DeleteSnapshot`, `Create/Update/DeleteImage` and
+  `ListImages`, which now carries the client's images beside the fixed
+  catalogue.
+
+  The refusals they replace read "a snapshot copies the bytes of a volume" and
+  "the catalogue is a table nothing can add to". Both sentences were true and
+  neither was a reason: the bytes are the one part an emulator cannot provide,
+  and that limit is named where it bites rather than at the door — an image cut
+  here boots nothing and says so (#115), instead of substituting a distribution
+  nobody asked for. `ExportSnapshot` stays declined, since it writes those bytes
+  into Object Storage.
+
+  Two refusals a client can observe: a snapshot of a volume that does not exist
+  is a 404 rather than a record of nothing, and a snapshot an image is cut from
+  refuses to delete until the image is gone — the order Terraform walks when one
+  plan removes both. `GET /images/{id}` reads the client's image before the
+  catalogue, without which a create and its following read described different
+  objects.
+
+  `scw instance snapshot create`, `image create`, `image list` and the deletion
+  order are driven end to end by the conformance suite: 146 of 184 routes are
+  now proven by a real client, up from 140.
+
+### Fixed
+
+- **`feint --help` names every command it dispatches** (reported by @vde-dis).
+  `shapes` answered, was documented in the guide, and was missing from the help,
+  so anyone exploring the CLI the way people do could not find it. The line is
+  added, and a test now reads the dispatch from the source and requires each
+  verb to appear: adding the missing entry fixes today, comparing the two lists
+  is what stops the twenty-first verb from shipping invisible.
+
 ## [0.7.3]
 
 ### Fixed

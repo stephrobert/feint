@@ -15,6 +15,49 @@ parce que c'est là-dessus que ce projet est jugé : **une forme de réponse qu'
 client peut observer**, et **une limite qui a bougé**. Une refactorisation qui ne
 change ni l'un ni l'autre a sa place dans `git log`.
 
+## [Non publié]
+
+### Ajouté
+
+- **Scaleway sert les snapshots et les images que le client crée** (#7). La
+  séquence de l'image dorée — snapshoter un volume, y tailler une image, lister
+  puis supprimer les deux dans l'ordre que l'API impose — est un parcours de
+  plan de contrôle auquel on peut répondre à chaque étape, et Outscale y répond
+  depuis la 0.6.0 pendant que ce pack le refusait. Neuf opérations passent de
+  `Declined()` à servies : `Create/Get/List/Update/DeleteSnapshot`,
+  `Create/Update/DeleteImage` et `ListImages`, qui porte désormais les images du
+  client à côté du catalogue fixe.
+
+  Les refus qu'elles remplacent disaient « un snapshot copie les octets d'un
+  volume » et « le catalogue est une table que rien ne peut agrandir ». Les deux
+  phrases étaient vraies et aucune n'était une raison : les octets sont la seule
+  part qu'un émulateur ne peut pas fournir, et cette limite est nommée là où
+  elle mord plutôt qu'à l'entrée — une image taillée ici ne démarre rien et le
+  dit (#115), au lieu de substituer une distribution que personne n'a demandée.
+  `ExportSnapshot` reste refusée, puisqu'elle écrit ces octets dans Object
+  Storage.
+
+  Deux refus qu'un client peut observer : le snapshot d'un volume qui n'existe
+  pas rend un 404 plutôt que l'enregistrement de rien, et un snapshot dont une
+  image est tirée refuse de disparaître tant que l'image est là — l'ordre que
+  Terraform parcourt quand un même plan retire les deux. `GET /images/{id}` lit
+  l'image du client avant le catalogue, sans quoi une création et la lecture qui
+  la suit décrivaient deux objets différents.
+
+  `scw instance snapshot create`, `image create`, `image list` et l'ordre de
+  suppression sont pilotés de bout en bout par la suite de conformance : 146
+  routes sur 184 sont maintenant prouvées par un vrai client, contre 140.
+
+### Corrigé
+
+- **`feint --help` nomme toutes les commandes qu'il dispatche** (signalé par
+  @vde-dis). `shapes` répondait, était documentée dans le guide, et manquait à
+  l'aide : qui explorait le CLI comme on le fait ne pouvait pas la trouver. La
+  ligne est ajoutée, et un test lit désormais le dispatch depuis la source et
+  exige que chaque verbe y figure : ajouter l'entrée manquante corrige
+  aujourd'hui, comparer les deux listes est ce qui empêche le vingt-et-unième
+  verbe de partir invisible.
+
 ## [0.7.3]
 
 ### Corrigé

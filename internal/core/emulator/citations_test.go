@@ -49,7 +49,14 @@ func TestEveryCitedTestExists(t *testing.T) {
 		}
 		if entry.IsDir() {
 			// The vendored SDKs are read by the drift scan, not written here.
-			if name := entry.Name(); name == ".git" || name == ".upstream" || name == "node_modules" {
+			//
+			// Worktrees are skipped for a different reason, learned the hard way:
+			// a checkout under .claude/worktrees is another branch's source, and
+			// walking it made this tree fail on a citation an agent had written
+			// minutes earlier in a branch nobody had merged. A test that reports
+			// on code outside its own checkout measures the wrong tree.
+			switch entry.Name() {
+			case ".git", ".upstream", "node_modules", "worktrees":
 				return filepath.SkipDir
 			}
 			return nil

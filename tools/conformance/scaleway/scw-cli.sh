@@ -207,4 +207,53 @@ if scw instance ip get "$byaddr_id" zone="$ZONE" -o json >/dev/null 2>&1; then
 fi
 ok "resolved and deleted by address"
 
+# The golden-image path, walked by the CLI: snapshot a volume, cut an image from
+# the snapshot, list both, delete in the order the API imposes. Served since
+# SW-2; declined before it, which made `scw instance snapshot create` fail with a
+# 501 on the first call.
+echo "- a volume is snapshotted, an image is cut from it, and both read back"
+img_server="$(scw instance server create name=conformance-golden type=DEV1-S zone="$ZONE" -o json)" \
+  || fail "create for the image test rejected: $img_server"
+img_server_id="$(printf '%s' "$img_server" | jq -r '(.server // .).id')"
+img_root="$(printf '%s' "$img_server" | jq -r '(.server // .).volumes["0"].id')"
+[ -n "$img_root" ] && [ "$img_root" != null ] || fail "the server carries no root volume: $img_server"
+
+snap="$(scw instance snapshot create name=conformance-snap volume-id="$img_root" zone="$ZONE" -o json)" \
+  || fail "snapshot create rejected: $snap"
+snap_id="$(printf '%s' "$snap" | jq -r '(.snapshot // .).id')"
+[ -n "$snap_id" ] && [ "$snap_id" != null ] || fail "no id in the snapshot create response: $snap"
+# Immediately usable: the CLI reads state before it lets anything be cut from it.
+printf '%s' "$snap" | jq -e '(.snapshot // .).state == "available"' >/dev/null \
+  || fail "the snapshot is not available on creation: $snap"
+scw instance snapshot get "$snap_id" zone="$ZONE" -o json \
+  | jq -e --arg v "$img_root" '(.snapshot // .).base_volume.id == $v' >/dev/null \
+  || fail "the snapshot does not name the volume it was taken of"
+
+# arch is required by the CLI, not by the API: `scw instance image create`
+# refuses without it before it sends anything. The kind of thing only the real
+# client tells you.
+img="$(scw instance image create name=conformance-img snapshot-id="$snap_id" arch=x86_64 zone="$ZONE" -o json)" \
+  || fail "image create rejected: $img"
+img_id="$(printf '%s' "$img" | jq -r '(.image // .).id')"
+[ -n "$img_id" ] && [ "$img_id" != null ] || fail "no id in the image create response: $img"
+# What the create answered, the read answers: a disagreement here is what
+# Terraform reports as "Provider produced inconsistent result after apply".
+scw instance image get "$img_id" zone="$ZONE" -o json \
+  | jq -e '(.image // .).name == "conformance-img" and (.image // .).public == false' >/dev/null \
+  || fail "the image does not read back as it was created"
+scw instance image list zone="$ZONE" -o json \
+  | jq -e --arg i "$img_id" 'any(.[]; .id == $i)' >/dev/null \
+  || fail "the image the client cut is missing from the listing"
+
+# The order the API imposes, and the refusal that makes it retryable.
+if scw instance snapshot delete "$snap_id" zone="$ZONE" >/dev/null 2>&1; then
+  fail "the snapshot deleted while an image was cut from it"
+fi
+scw instance image delete "$img_id" zone="$ZONE" >/dev/null || fail "image delete rejected"
+scw instance snapshot delete "$snap_id" zone="$ZONE" >/dev/null \
+  || fail "snapshot delete rejected once its image was gone"
+scw instance server stop "$img_server_id" zone="$ZONE" >/dev/null || fail "cleanup: poweroff rejected"
+scw instance server delete "$img_server_id" zone="$ZONE" >/dev/null || fail "cleanup: delete rejected"
+ok "snapshotted, cut, listed, deleted in order"
+
 echo "conformance: scw CLI passed"

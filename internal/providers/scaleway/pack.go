@@ -134,9 +134,25 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "PATCH", Path: regions + "/private-networks/{pnID}", Operation: "vpc/v2/API.UpdatePrivateNetwork", Handler: p.updatePrivateNetwork},
 		{Method: "DELETE", Path: regions + "/private-networks/{pnID}", Operation: "vpc/v2/API.DeletePrivateNetwork", Handler: p.deletePrivateNetwork},
 
+		// Snapshots and images the client makes. The golden-image sequence —
+		// snapshot a volume, cut an image from it, boot a server from it — is a
+		// control-plane path answerable at every step, and Outscale has answered
+		// it since 0.6.0 while this pack declined it (SW-2).
+		{Method: "GET", Path: zones + "/snapshots", Operation: "instance/v1/API.ListSnapshots", Handler: p.listSnapshots},
+		{Method: "POST", Path: zones + "/snapshots", Operation: "instance/v1/API.CreateSnapshot", Handler: p.createSnapshot},
+		{Method: "GET", Path: zones + "/snapshots/{id}", Operation: "instance/v1/API.GetSnapshot", Handler: p.getSnapshot},
+		{Method: "PATCH", Path: zones + "/snapshots/{id}", Operation: "instance/v1/API.UpdateSnapshot", Handler: p.updateSnapshot},
+		{Method: "DELETE", Path: zones + "/snapshots/{id}", Operation: "instance/v1/API.DeleteSnapshot", Handler: p.deleteSnapshot},
+		{Method: "POST", Path: zones + "/images", Operation: "instance/v1/API.CreateImage", Handler: p.createImage},
+		{Method: "PATCH", Path: zones + "/images/{id}", Operation: "instance/v1/API.UpdateImage", Handler: p.updateImage},
+		{Method: "DELETE", Path: zones + "/images/{id}", Operation: "instance/v1/API.DeleteImage", Handler: p.deleteImage},
+
 		// The catalogue: not inventory the emulator owns, but the CLI reads it
-		// before it creates anything and gives up on a 404.
+		// before it creates anything and gives up on a 404. ListImages answers
+		// the client's images beside it, which is why it sits with the reads
+		// rather than with the block above.
 		{Method: "GET", Path: zones + "/products/servers", Operation: "instance/v1/API.ListServersTypes", Handler: p.listServerTypes},
+		{Method: "GET", Path: zones + "/images", Operation: "instance/v1/API.ListImages", Handler: p.listImages},
 		{Method: "GET", Path: zones + "/images/{id}", Operation: "instance/v1/API.GetImage", Handler: p.getImage},
 		{Method: "GET", Path: "/marketplace/v2/local-images", Operation: "marketplace/v2/API.ListLocalImages", Handler: p.listLocalImages},
 
@@ -269,36 +285,18 @@ func (p *Pack) Declined() []emulator.Decline {
 		// have in order to answer, which is what makes a refusal revisitable —
 		// "not triaged yet" and "out of scope" are different answers.
 
-		// A snapshot is bytes. An emulated volume is a size and a name in a
-		// store, with nothing written behind it.
-		emulator.Because("a snapshot copies the bytes of a volume, and an emulated volume is a size and a name with nothing written behind it, so the object produced would restore nothing",
-			"instance/v1/API.CreateSnapshot"),
-
-		// The four reads are separated for the reason ListImages already
-		// established below: the sentence above is about producing an object,
-		// which is true of the create and false of everything that only reads
-		// one. An audit found the family reason applied to members it does not
-		// describe — the defect this repository keeps meeting, and the reason
-		// Declined() carries prose at all.
-		emulator.Because("creating a snapshot is declined, so no snapshot can exist in this emulator for these calls to read, edit or delete",
-			"instance/v1/API.DeleteSnapshot",
-			"instance/v1/API.GetSnapshot",
-			"instance/v1/API.ListSnapshots",
-			"instance/v1/API.UpdateSnapshot"),
-
-		// The catalogue is a fixed table, for the reason CLAUDE.md records: the
-		// CLI resolves a default image before it creates anything, so the table
-		// exists to be read, not to be written.
-		emulator.Because("the pack answers image lookups from the fixed catalogue the CLI resolves against, so creating or editing one would edit a table nothing can add to",
-			"instance/v1/API.CreateImage",
-			"instance/v1/API.DeleteImage",
-			"instance/v1/API.UpdateImage"),
-
-		// ListImages only reads, so the reason above is false of it. Its own is
-		// that GetImage answers from the catalogue by id, which is what the CLI
-		// resolves against; listing would publish the table as an inventory.
-		emulator.Because("the catalogue exists so the CLI can resolve one image by id before a create, and listing it would publish six fixed entries as if they were an inventory a client could grow",
-			"instance/v1/API.ListImages"),
+		// Snapshots and images used to be declined here, on the argument that a
+		// snapshot copies bytes an emulated volume does not have, and that the
+		// image catalogue is a fixed table nothing can grow. Both sentences were
+		// true and neither was a reason: what a client does with them is a
+		// control-plane sequence, and Outscale served exactly that from 0.6.0
+		// while this pack refused it. Served since SW-2, with the bytes named as
+		// the limit they are — an image cut here boots nothing, and says so,
+		// rather than substituting a distribution nobody asked for (#115).
+		//
+		// One member of the family stays declined and keeps its own entry below:
+		// ExportSnapshot writes bytes into Object Storage, which is the part
+		// this emulator really cannot answer.
 
 		emulator.Because("placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked",
 			"instance/v1/API.CreatePlacementGroup",
