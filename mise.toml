@@ -52,8 +52,19 @@ golangci-lint run ./...
 
 [tasks.check]
 description = "Everything CI runs on a pull request"
-depends = ["lint", "test"]
+depends = ["lint", "test", "shapes:check"]
 run = "echo 'local check passed'"
+
+[tasks."shapes:check"]
+description = "Fail if the emulator omits a field the recorded shapes prove the real cloud returns"
+depends = ["build"]
+# Offline, no credential: shapes/*.json is the committed record of what the real
+# clouds were observed to answer. Exit 2 means the emulator and the record
+# disagree on a field no pack has declined — either serve it, or decline it with
+# a reason in the pack's DeclinedFields(). go test covers the same gate
+# (TestTheRepositorysShapesAreServedOrDeclined); this task is the legible form,
+# with the field list and the exit-code contract (0 ok, 1 error, 2 drift).
+run = "./feint shapes --check"
 
 # ---- Upstream tracking (the anti-drift loop) --------------------------------------------------
 [tasks."upstream:sync"]

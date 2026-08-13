@@ -86,6 +86,18 @@ jobs:
       - name: go test (race)
         run: go test -race ./...
 
+      # The emulator must answer the shapes a real cloud was observed to return
+      # (shapes/*.json) — the drift the SDK scan cannot see, because it measures
+      # what a provider offers, never what it returns. Offline, no credential,
+      # so it runs on every pull request, forks included. Exit 2 means a field
+      # the record proves and no pack declines: serve it, or decline it with a
+      # reason in the pack's DeclinedFields(). Exit 1 means the declines
+      # themselves are unusable (no reason, or stale).
+      - name: The emulator answers the recorded shapes
+        run: |
+          go build -o feint ./cmd/feint
+          ./feint shapes --check
+
       # Fuzz the one input feint does not control: the JSON body a client posts. A panic in a
       # handler takes down every provider sharing the process, so a crasher must surface in CI
       # rather than in someone's terminal. Crashers land in testdata/fuzz/ and become permanent

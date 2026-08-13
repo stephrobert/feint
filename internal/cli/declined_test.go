@@ -42,6 +42,32 @@ func TestEveryDeclinedOperationSaysWhy(t *testing.T) {
 	t.Logf("%d refusals, each with a reason", total)
 }
 
+// Every field-level refusal in every pack states its reason, exactly as the
+// operation-level test above asserts one level up, and for the same reason: the
+// FieldDecliner interface alone would accept Reason: "" and move the problem
+// instead of solving it. It lives here rather than in each pack because a check
+// copied into three packs is a check the fourth pack will not have.
+func TestEveryDeclinedFieldSaysWhy(t *testing.T) {
+	env := &emulator.Env{Store: store.New()}
+	packs := []emulator.Pack{scaleway.New(env), outscale.New(env), exoscale.New(env)}
+
+	total := 0
+	for _, p := range packs {
+		fields := emulator.FieldDeclinesOf(p)
+		total += len(fields)
+		for _, f := range emulator.UnexplainedFieldDeclines(fields) {
+			t.Errorf("%s declines the field %s with no usable reason", p.Name(), f)
+		}
+		for _, f := range emulator.DuplicateFieldDeclines(fields) {
+			t.Errorf("%s declines the field %s more than once", p.Name(), f)
+		}
+	}
+	if total == 0 {
+		t.Fatal("no pack declines a field: this test would pass on an empty repository")
+	}
+	t.Logf("%d field refusal(s), each with a reason", total)
+}
+
 // One operation declined twice is not a style problem. `feint coverage` builds a
 // map and keeps the last reason; docs/routes.md walks the slice and prints the
 // operation twice with both reasons, so the two documents disagree and the count

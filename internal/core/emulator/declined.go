@@ -109,34 +109,45 @@ const minReasonWords = 5
 func UnexplainedDeclines(declined []Decline) []string {
 	var out []string
 	for _, d := range declined {
-		reason := strings.ToLower(strings.TrimSpace(strings.Trim(d.Reason, ".:;— -")))
-		words := strings.Fields(reason)
-		// Token level, not whole string: "TODO TODO TODO TODO TODO" passed the
-		// exact-match list and the word count at once, which an audit found in
-		// one try. A reason built out of placeholder tokens is a placeholder
-		// however many times it repeats.
-		stems := 0
-		for _, w := range words {
-			if placeholderStems[strings.Trim(w, ".,;:!?")] {
-				stems++
-			}
-		}
-		switch {
-		// A waiting word in a short reason is a note to self; the same word in a
-		// developed sentence can be honest prose ("nobody has decided what a
-		// later version should answer"). So the length is what separates them,
-		// and the ratio catches the shorter repetitions. Neither closes the case
-		// entirely: an audit passed six stems drowned in seven other words, and
-		// no string check ever will. What actually reviews these sentences is a
-		// reader, which is why they are printed into docs/routes.md.
-		case reason == "", placeholders[reason],
-			len(words) < minReasonWords,
-			stems > 0 && len(words) < shortReasonWords,
-			stems*2 >= len(words):
+		if carriesNoDecision(d.Reason) {
 			out = append(out, d.Operation)
 		}
 	}
 	return out
+}
+
+// carriesNoDecision is the shared judgement on one reason string, so a decline
+// of a field faces exactly the same guard as a decline of an operation. Two
+// copies of this switch would be two guards one audit hardens and the other
+// keeps accepting "TODO".
+func carriesNoDecision(raw string) bool {
+	reason := strings.ToLower(strings.TrimSpace(strings.Trim(raw, ".:;— -")))
+	words := strings.Fields(reason)
+	// Token level, not whole string: "TODO TODO TODO TODO TODO" passed the
+	// exact-match list and the word count at once, which an audit found in
+	// one try. A reason built out of placeholder tokens is a placeholder
+	// however many times it repeats.
+	stems := 0
+	for _, w := range words {
+		if placeholderStems[strings.Trim(w, ".,;:!?")] {
+			stems++
+		}
+	}
+	switch {
+	// A waiting word in a short reason is a note to self; the same word in a
+	// developed sentence can be honest prose ("nobody has decided what a
+	// later version should answer"). So the length is what separates them,
+	// and the ratio catches the shorter repetitions. Neither closes the case
+	// entirely: an audit passed six stems drowned in seven other words, and
+	// no string check ever will. What actually reviews these sentences is a
+	// reader, which is why they are printed into docs/routes.md.
+	case reason == "", placeholders[reason],
+		len(words) < minReasonWords,
+		stems > 0 && len(words) < shortReasonWords,
+		stems*2 >= len(words):
+		return true
+	}
+	return false
 }
 
 // DuplicateDeclines reports operations declined more than once.

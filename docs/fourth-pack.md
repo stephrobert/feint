@@ -153,23 +153,26 @@ What is **not** industrial today is three things, none structural:
 1. **Make proxy redaction hold for dialects nobody has read** (security,
    above). Allowlist request headers; prove it with a recorded exchange whose
    credential carrier matches no pattern.
-2. **Give the shapes gate a way to record a decision.** Today `feint shapes
-   --check` exits 2 on six fields that are decisions, not omissions:
+2. **Give the shapes gate a way to record a decision.** Done, 2026-08-13
+   (#91): `emulator.FieldDecline` is the transposition of `Declined()` to
+   fields — declared in the pack via the optional `FieldDecliner` interface,
+   `{operation key, field path, reason}`, subtracted by `feint shapes --check`,
+   and counted in its output so a growing declined list stays visible.
+   Pack-side code rather than a sidecar JSON, for the same reason `Declined()`
+   is code: a decision needs a review path and a reason next to it, and
+   `shapes/*.json` is regenerated, which is exactly where a human decision must
+   not live. The six fields that kept the gate red are now declared: Scaleway's
    `per_volume_constraint.l_ssd` (a constraint for local volumes the emulator
    never attaches, and `docs/limits.md` already documents why `min_size` stays
    0), and Exoscale's `zones[].id` and `security-groups[].visibility` (live on
    the wire, absent from the published OpenAPI this emulator enforces as
-   closed; the 98f8df6 commit message records the decision in prose, which is
-   the one place a gate cannot read). A permanently red gate is a gate that
-   never gets wired into CI, or gets disarmed, and this one is not wired yet.
-   The transposition of `Declined()` to fields is the right shape: declared in
-   the pack, `{operation key, field path, reason}`, subtracted by the check,
-   **and counted in its output** so a growing declined list stays visible.
-   Pack-side code rather than a sidecar JSON, for the same reason `Declined()`
-   is code: a decision needs a review path and a reason next to it, and
-   `shapes/*.json` is regenerated, which is exactly where a human decision must
-   not live. Estimated ~100 lines including the test. This unblocks wiring the
-   gate into every pull request, which is the point of having built it.
+   closed; the 98f8df6 commit message recorded the decision in prose, which is
+   the one place a gate cannot read). A reason faces the same guard as an
+   operation's (`TestEveryDeclinedFieldSaysWhy`), and a decline that excuses
+   nothing fails the gate as stale (`TestAStaleFieldDeclineFailsTheGate`), so
+   the list cannot rot. The gate is wired into every pull request — a go.yml
+   step and `TestTheRepositorysShapesAreServedOrDeclined` inside `go test` —
+   which was the point of building it.
 3. **Derive provider lists from mounted packs** in `shapes_check.go` and
    `docs.go`. Done, 2026-08-11: both gates read `srv.Packs()`, the pattern
    `env.go` already used. "Invisible to the gate" became the honest "no

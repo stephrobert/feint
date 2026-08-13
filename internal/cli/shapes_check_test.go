@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/providers/scaleway"
+	"github.com/stephrobert/feint/internal/shape"
 	"github.com/stephrobert/feint/internal/transcript"
 )
 
@@ -116,3 +119,157 @@ func (p stubPack) Name() string                    { return p.name }
 func (p stubPack) Routes() []emulator.Route        { return nil }
 func (p stubPack) Declined() []emulator.Decline    { return nil }
 func (p stubPack) Env(string) emulator.Environment { return emulator.Environment{} }
+
+// fieldDecliningPack grafts an injected field-decline list onto a real pack, so
+// these tests do not depend on what the pack actually declines today: the
+// mechanism is what is under test, the repository's own declines are covered by
+// TestEveryDeclinedFieldSaysWhy and by the gate run in CI.
+type fieldDecliningPack struct {
+	emulator.Pack
+	fields []emulator.FieldDecline
+}
+
+func (p fieldDecliningPack) DeclinedFields() []emulator.FieldDecline { return p.fields }
+
+// aReason passes the shared reason guard; what these tests exercise is the
+// matching, not the guard, which has its own tests in internal/core/emulator.
+const aReason = "a bound for volumes this emulator never attaches, stated here only to exercise the gate"
+
+// declineScaleway mounts the real Scaleway pack alone, wearing the injected
+// declines, and restores packsFor on cleanup.
+func declineScaleway(t *testing.T, fields ...emulator.FieldDecline) {
+	t.Helper()
+	original := packsFor
+	t.Cleanup(func() { packsFor = original })
+	packsFor = func(env *emulator.Env) []emulator.Pack {
+		return []emulator.Pack{fieldDecliningPack{Pack: scaleway.New(env), fields: fields}}
+	}
+}
+
+// productsServersOp is the one real operation these tests compare: the Scaleway
+// catalogue, whose per_volume_constraint the emulator serves empty on purpose.
+const productsServersOp = "GET /instance/v1/zones/fr-par-1/products/servers"
+
+// writeShapeFile commits a hand-built catalogue for the gate to read.
+func writeShapeFile(t *testing.T, dir string, fields ...transcript.Field) {
+	t.Helper()
+	cat := shape.New("scaleway")
+	cat.Operations[productsServersOp] = &shape.Operation{
+		Method:   "GET",
+		Path:     "/instance/v1/zones/fr-par-1/products/servers",
+		Fields:   fields,
+		Statuses: []int{200},
+	}
+	if err := writeCatalogue(filepath.Join(dir, "scaleway.json"), cat); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A gap the pack declines is excused, printed with its reason, and does not
+// redden the gate; a gap it does not decline still does. This is the pair the
+// mechanism exists for — without the decline the first half exits 2 (proven by
+// the second half, same catalogue plus one undeclared field), and without the
+// matching in matchingDecline the first half fails.
+func TestADeclinedFieldIsExcusedAndAnUndeclaredOneIsNot(t *testing.T) {
+	declineScaleway(t, emulator.FieldDecline{
+		Operation: productsServersOp,
+		Path:      "servers.*.per_volume_constraint.l_ssd",
+		Reason:    aReason,
+	})
+	observed := []transcript.Field{
+		{Path: "servers", Type: "object"},
+		{Path: "servers.DEV1-S", Type: "object"},
+		{Path: "servers.DEV1-S.per_volume_constraint", Type: "object"},
+		{Path: "servers.DEV1-S.per_volume_constraint.l_ssd", Type: "object"},
+		{Path: "servers.DEV1-S.per_volume_constraint.l_ssd.min_size", Type: "number"},
+	}
+
+	dir := t.TempDir()
+	writeShapeFile(t, dir, observed...)
+	var out, errOut strings.Builder
+	if rc := checkShapes(dir, nil, &out, &errOut); rc != exitOK {
+		t.Fatalf("a declined gap exited %d, want %d\n%s%s", rc, exitOK, out.String(), errOut.String())
+	}
+	if !strings.Contains(out.String(), "declined servers.DEV1-S.per_volume_constraint.l_ssd: "+aReason) {
+		t.Errorf("the excused field and its reason were not printed:\n%s", out.String())
+	}
+
+	// The refusing half: one more observed field, not declined, and the gate
+	// answers the drift code again. Without it the decline mechanism could
+	// excuse everything and this suite would stay green.
+	dir2 := t.TempDir()
+	writeShapeFile(t, dir2, append(observed,
+		transcript.Field{Path: "servers.DEV1-S.invented_by_this_test", Type: "string"})...)
+	out.Reset()
+	errOut.Reset()
+	if rc := checkShapes(dir2, nil, &out, &errOut); rc != exitDrift {
+		t.Fatalf("an undeclared gap exited %d, want %d\n%s", rc, exitDrift, out.String())
+	}
+	if !strings.Contains(out.String(), "missing  servers.DEV1-S.invented_by_this_test") {
+		t.Errorf("the undeclared gap was not named:\n%s", out.String())
+	}
+}
+
+// A decline that excuses nothing is stale, and stale is a failure: the field is
+// served now, or was never observed missing, and either way the entry describes
+// a decision that no longer exists. Letting it rest would let the declined list
+// rot into fiction — the exact analogue of an orphan Route.Operation.
+func TestAStaleFieldDeclineFailsTheGate(t *testing.T) {
+	declineScaleway(t, emulator.FieldDecline{
+		Operation: productsServersOp,
+		Path:      "servers.*.per_volume_constraint.l_ssd",
+		Reason:    aReason,
+	})
+	// The catalogue observes only fields the emulator serves: no gap, so the
+	// decline has nothing to excuse.
+	dir := t.TempDir()
+	writeShapeFile(t, dir,
+		transcript.Field{Path: "servers", Type: "object"},
+		transcript.Field{Path: "servers.DEV1-S", Type: "object"},
+		transcript.Field{Path: "servers.DEV1-S.ncpus", Type: "number"},
+	)
+
+	var out, errOut strings.Builder
+	if rc := checkShapes(dir, nil, &out, &errOut); rc != exitError {
+		t.Fatalf("a stale decline exited %d, want %d\n%s%s", rc, exitError, out.String(), errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "stale") ||
+		!strings.Contains(errOut.String(), "servers.*.per_volume_constraint.l_ssd") {
+		t.Errorf("the stale decline was not named:\n%s", errOut.String())
+	}
+}
+
+// A field decline with a reason that carries no decision is refused before
+// anything is compared, under the same guard Declined() faces. Without this
+// call site the guard would exist and gate nothing — the defect
+// TestCoverageRefusesAPackWithUnusableRefusals exists for, one level down.
+func TestAnUnusableFieldDeclineReasonFailsTheGate(t *testing.T) {
+	declineScaleway(t, emulator.FieldDecline{
+		Operation: productsServersOp,
+		Path:      "servers.*.per_volume_constraint.l_ssd",
+		Reason:    "TODO",
+	})
+	var out, errOut strings.Builder
+	if rc := checkShapes(t.TempDir(), nil, &out, &errOut); rc != exitError {
+		t.Fatalf("an unusable reason exited %d, want %d\n%s", rc, exitError, errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "no usable reason") {
+		t.Errorf("the unusable reason was not named:\n%s", errOut.String())
+	}
+}
+
+// The repository's own state passes its own gate: every field the recorded
+// shapes prove the clouds return is either served or declined with a reason.
+// This is what puts `feint shapes --check` inside `mise run check` — go test
+// runs it with no network and no credential — and it proves the instrument ran
+// by refusing a zero comparison count, because a gate that compared nothing
+// reports success indistinguishably from one that worked.
+func TestTheRepositorysShapesAreServedOrDeclined(t *testing.T) {
+	var out, errOut strings.Builder
+	if rc := checkShapes(filepath.Join("..", "..", "shapes"), nil, &out, &errOut); rc != exitOK {
+		t.Fatalf("the committed shapes exited %d, want %d\n%s%s", rc, exitOK, out.String(), errOut.String())
+	}
+	if strings.Contains(out.String(), "\n0 operation(s) compared") {
+		t.Fatalf("the gate compared nothing, which proves nothing:\n%s", out.String())
+	}
+}

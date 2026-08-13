@@ -41,11 +41,42 @@ import (
 // belongs on every pull request and in the release preflight. Refreshing those
 // files needs a real account and is a human's job (`feint shapes --record`);
 // checking against them is not.
+//
+// A gap a pack has declined at field level (emulator.FieldDecliner) is excused
+// rather than counted: it is printed with its reason, because what the gate
+// subtracts must stay visible, and it does not redden the build. What does:
+//   - an undeclared gap — exit 2, the drift code, because either the emulator
+//     or the cloud moved;
+//   - a decline whose reason carries no decision — exit 1, the same guard
+//     Declined() faces;
+//   - a decline that excuses nothing — exit 1, because a decline that outlives
+//     its gap reads as a decision about a field the emulator now serves, or
+//     never omitted, and keeping it would let the list rot into fiction.
 func checkShapes(dir string, providers []string, stdout, stderr io.Writer) int {
 	env := emulator.DefaultEnv()
 	srv, err := emulator.NewServer(env, packsFor(env)...)
 	if err != nil {
 		fmt.Fprintf(stderr, "feint: build the emulator: %v\n", err)
+		return exitError
+	}
+	// The same gate the operation-level refusals face in coverage(): a decline
+	// with an unusable reason, or written twice, is refused before anything is
+	// compared. TestAnUnusableFieldDeclineReasonFailsTheGate fails without it.
+	declines := map[string][]emulator.FieldDecline{}
+	unusable := 0
+	for _, p := range srv.Packs() {
+		fd := emulator.FieldDeclinesOf(p)
+		for _, f := range emulator.UnexplainedFieldDeclines(fd) {
+			fmt.Fprintf(stderr, "feint: %s declines the field %s with no usable reason\n", p.Name(), f)
+			unusable++
+		}
+		for _, f := range emulator.DuplicateFieldDeclines(fd) {
+			fmt.Fprintf(stderr, "feint: %s declines the field %s more than once\n", p.Name(), f)
+			unusable++
+		}
+		declines[p.Name()] = fd
+	}
+	if unusable > 0 {
 		return exitError
 	}
 	// Derived from the mounted packs rather than written here. A hardcoded list
@@ -61,7 +92,7 @@ func checkShapes(dir string, providers []string, stdout, stderr io.Writer) int {
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
-	total, missing := 0, 0
+	total, missing, excused, stale := 0, 0, 0, 0
 	for _, name := range providers {
 		p := upstream.Provider(name)
 		cat, err := readCatalogue(filepath.Join(dir, name+".json"), name)
@@ -70,13 +101,26 @@ func checkShapes(dir string, providers []string, stdout, stderr io.Writer) int {
 			return exitError
 		}
 		if cat == nil {
+			// No catalogue means nothing observed, so nothing to compare — and
+			// nothing to hold this provider's declines against either: their
+			// staleness is only measurable where a comparison ran.
 			fmt.Fprintf(stdout, "%s: no catalogue in %s; nothing to check\n", name, dir)
 			continue
 		}
 
-		checked, gaps := checkProvider(p, cat, ts, stdout)
+		checked, gaps, excusedHere, unused := checkProvider(p, cat, declines[name], ts, stdout)
 		total += checked
 		missing += gaps
+		excused += excusedHere
+		// A decline that excused no gap is stale: the field is served now, or
+		// was never observed missing. Failing on it is what keeps the declined
+		// list a set of live decisions instead of an archive — the analogue of
+		// the orphan-route check on Route.Operation.
+		// TestAStaleFieldDeclineFailsTheGate fails without this.
+		for _, d := range unused {
+			fmt.Fprintf(stderr, "feint: %s declines %s %s, and the emulator does not omit it: the decline is stale, remove it\n", name, d.Operation, d.Path)
+			stale++
+		}
 	}
 
 	// Coverage is printed whatever the verdict. A gate that says "ok" without
@@ -84,6 +128,14 @@ func checkShapes(dir string, providers []string, stdout, stderr io.Writer) int {
 	// "nothing was checked" — the same reason `feint status` prints how many
 	// routes no client has driven.
 	fmt.Fprintf(stdout, "\n%d operation(s) compared, %d field(s) the real cloud returns and this emulator does not\n", total, missing)
+	if excused > 0 {
+		// Counted out loud so a growing declined list stays visible instead of
+		// silently hollowing the gate.
+		fmt.Fprintf(stdout, "%d field(s) knowingly not served, each printed above with its reason\n", excused)
+	}
+	if stale > 0 {
+		return exitError
+	}
 	if missing > 0 {
 		fmt.Fprintln(stderr, "feint: run `feint shapes --record --provider <name>` on a station with an account if the cloud is what changed")
 		return exitDrift
@@ -92,7 +144,12 @@ func checkShapes(dir string, providers []string, stdout, stderr io.Writer) int {
 }
 
 // checkProvider drives one provider's read list against the emulator.
-func checkProvider(p upstream.Provider, cat *shape.Catalogue, ts *httptest.Server, stdout io.Writer) (checked, missing int) {
+//
+// Besides the counts, it returns the declines that excused nothing, for the
+// caller to refuse: whether a decline is stale is only known once every
+// operation of its provider has been compared.
+func checkProvider(p upstream.Provider, cat *shape.Catalogue, declines []emulator.FieldDecline, ts *httptest.Server, stdout io.Writer) (checked, missing, excused int, unused []emulator.FieldDecline) {
+	used := make([]bool, len(declines))
 	for _, call := range upstream.Reads[p] {
 		key, method, path := callIdentity(p, call)
 		want, known := cat.Operations[key]
@@ -107,20 +164,45 @@ func checkProvider(p upstream.Provider, cat *shape.Catalogue, ts *httptest.Serve
 		if !ok {
 			continue
 		}
-
-		gaps := absentFrom(want.Fields, got)
-		if len(gaps) == 0 {
-			checked++
-			continue
-		}
 		checked++
-		missing += len(gaps)
-		fmt.Fprintf(stdout, "\n%s %s\n", p, key)
-		for _, g := range gaps {
-			fmt.Fprintf(stdout, "  missing  %s: %s\n", g.Path, g.Type)
+
+		var lines []string
+		for _, g := range absentFrom(want.Fields, got) {
+			if i := matchingDecline(declines, key, g.Path); i >= 0 {
+				used[i] = true
+				excused++
+				lines = append(lines, fmt.Sprintf("  declined %s: %s", g.Path, declines[i].Reason))
+				continue
+			}
+			missing++
+			lines = append(lines, fmt.Sprintf("  missing  %s: %s", g.Path, g.Type))
+		}
+		if len(lines) > 0 {
+			fmt.Fprintf(stdout, "\n%s %s\n", p, key)
+			for _, l := range lines {
+				fmt.Fprintln(stdout, l)
+			}
 		}
 	}
-	return checked, missing
+	for i, ok := range used {
+		if !ok {
+			unused = append(unused, declines[i])
+		}
+	}
+	return checked, missing, excused, unused
+}
+
+// matchingDecline is the first decline covering this field, or -1. First match
+// wins; two declines that could both cover one field are caught upstream — an
+// exact duplicate by DuplicateFieldDeclines, an overlapping pair because the
+// shadowed one excuses nothing and fails the gate as stale.
+func matchingDecline(declines []emulator.FieldDecline, operation, path string) int {
+	for i, d := range declines {
+		if d.Matches(operation, path) {
+			return i
+		}
+	}
+	return -1
 }
 
 // absentFrom returns the observed fields the emulator did not produce.
