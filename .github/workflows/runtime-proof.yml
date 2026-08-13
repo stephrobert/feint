@@ -1,0 +1,301 @@
+# The runtime-backed proof, on a machine nobody here owns (#125).
+#
+# Every network, firewall and ssh measurement in docs/limits.md was taken on the
+# author's station. This workflow takes the same measurements on a GitHub-hosted
+# runner: Incus from the Zabbly stable channel (Ubuntu 24.04 ships 6.0.0, which
+# rejects security.acls on a bridged NIC — the distro package would prove less
+# than it appears to), OVN from the Ubuntu archive, and the emulator's own
+# conformance suites driven by the official clients.
+#
+# Two legs, because the modes are not equivalent and the code must say so:
+#   incus      bridged containers — machines, addresses and firewalls, no
+#              isolation between VPCs (two managed bridges on one host route
+#              to each other; docs/limits.md measures it)
+#   incus-ovn  the same plus OVN — subnets isolated by construction, and the
+#              cross-VPC assertion hard-fails instead of skipping
+# The verdict keys on `capabilities.isolation` from /_feint/health, never on a
+# mode name: a suite that compares mode strings has to be edited every time a
+# driver gains a capability, and it lies the day a mode stops delivering one.
+#
+# Not on pull_request, and that is a rule this repository has already paid for:
+# a harness fails more often than what it measures (five false verdicts in one
+# day are on record), and a mandatory network suite that reds on runner weather
+# gets disarmed, which is worse than not running. So: nightly plus dispatch.
+# Promotion to pull_request is earned by measurement, not decided — it happens
+# when 14 consecutive scheduled runs of this workflow are green, a number the
+# Actions history proves. Until that streak exists, this workflow stays advisory
+# and #125 stays open.
+#
+# What this does not repeat: the client matrix of conformance.yml. The control
+# plane is proven there on every pull request, with --vm off. This job proves
+# the layer conformance.yml deliberately leaves out — the machine behind the
+# answer — so it runs the network and ssh suites, which are exactly the scripts
+# that skip themselves when no runtime is configured.
+name: Runtime proof
+
+on:
+  schedule:
+    # Nightly, offset from conformance.yml's 03:43 so the two never compete
+    # for the same third-party release servers at the same minute.
+    - cron: '31 2 * * *'
+  workflow_dispatch:
+  # Measurement scaffolding for #125: lets the branch run this workflow before
+  # it exists on main (workflow_dispatch only reaches workflows the default
+  # branch carries). Removed before merge.
+  push:
+    branches: [ci/125-runtime-proof]
+
+permissions: {}
+
+jobs:
+  runtime:
+    name: ${{ matrix.mode }}
+    runs-on: ubuntu-24.04
+    # Machine launches cost tens of seconds each and the ssh suites boot one
+    # per provider. Generous, because a timeout that fires on a slow image
+    # download is a red that measures the mirror, not the emulator.
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [incus, incus-ovn]
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26'
+          # No go.sum to key a cache on: the zero-dependency rule keeps this
+          # module dependency-free.
+          cache: false
+
+      # The Zabbly stable channel, not the distro package, and the reason is in
+      # docs/install.md: Ubuntu 24.04 ships Incus 6.0.0, below the 6.0.4 floor
+      # where NIC ACLs start being accepted — a security group then attaches
+      # and enforces nothing, which looks exactly like a bug in feint.
+      #
+      # The key is verified against a pinned fingerprint before apt trusts it.
+      # docs/install.md shows the fingerprint to a human; a workflow has no
+      # human, so the check is the comparison itself.
+      - name: Install Incus (Zabbly stable, key fingerprint pinned)
+        env:
+          ZABBLY_FPR: '4EFC590696CB15B87C73A3AD82CC8797C838DCFD'
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          curl --retry 3 --retry-connrefused -fsSL https://pkgs.zabbly.com/key.asc -o "${workdir}/zabbly.asc"
+          fpr="$(gpg --show-keys --with-colons "${workdir}/zabbly.asc" | awk -F: '/^fpr/ {print $10; exit}')"
+          if [ "${fpr}" != "${ZABBLY_FPR}" ]; then
+            echo "unexpected Zabbly key fingerprint: ${fpr}" >&2
+            exit 1
+          fi
+          sudo install -D -m 0644 "${workdir}/zabbly.asc" /etc/apt/keyrings/zabbly.asc
+          # shellcheck disable=SC1091
+          codename="$(. /etc/os-release && echo "${VERSION_CODENAME}")"
+          arch="$(dpkg --print-architecture)"
+          sudo tee /etc/apt/sources.list.d/zabbly-incus.sources >/dev/null <<EOF
+          Enabled: yes
+          Types: deb
+          URIs: https://pkgs.zabbly.com/incus/stable
+          Suites: ${codename}
+          Components: main
+          Architectures: ${arch}
+          Signed-By: /etc/apt/keyrings/zabbly.asc
+          EOF
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends incus incus-client netcat-openbsd
+          sudo incus --version
+
+      # OVN and Open vSwitch from the Ubuntu archive — docs/install.md measures
+      # that pairing (Zabbly Incus + distribution OVN) on four releases. The
+      # kernel module is the part hosted runners are known to need help with:
+      # ovn-org's own CI installs linux-modules-extra-$(uname -r) before its
+      # system tests, so the fallback here is theirs.
+      #
+      # AppArmor is deliberately left alone. The ovn-org CI's aa-teardown is a
+      # workaround for binaries built from source outside any packaged profile,
+      # not a prerequisite; docs/install.md measures a packaged install running
+      # the network suite with AppArmor enforcing 180 profiles.
+      - name: Install and wire OVN
+        if: matrix.mode == 'incus-ovn'
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y --no-install-recommends ovn-central ovn-host openvswitch-switch
+          if ! sudo modprobe openvswitch; then
+            sudo apt-get install -y --no-install-recommends "linux-modules-extra-$(uname -r)"
+            sudo modprobe openvswitch
+          fi
+          sudo systemctl enable --now openvswitch-switch ovn-central ovn-host
+          # The units return before the databases listen (docs/install.md).
+          for _ in $(seq 1 30); do
+            [ -S /run/ovn/ovnnb_db.sock ] && break
+            sleep 1
+          done
+          if [ ! -S /run/ovn/ovnnb_db.sock ]; then
+            echo 'ovnnb_db.sock never appeared' >&2
+            sudo journalctl -u ovn-central --no-pager | tail -n 50 >&2
+            exit 1
+          fi
+          sudo ovs-vsctl set open_vswitch . \
+            external_ids:ovn-remote=unix:/run/ovn/ovnsb_db.sock \
+            external_ids:ovn-encap-type=geneve \
+            external_ids:ovn-encap-ip=127.0.0.1
+
+      # feint creates its own uplink (feint-uplink, labelled, never a bridge it
+      # did not make), so the only wiring Incus needs is where the northbound
+      # database is.
+      - name: Initialise Incus
+        env:
+          MODE: ${{ matrix.mode }}
+        run: |
+          set -euo pipefail
+          sudo incus admin init --minimal
+          if [ "${MODE}" = "incus-ovn" ]; then
+            sudo incus config set network.ovn.northbound_connection unix:/run/ovn/ovnnb_db.sock
+          fi
+
+      # The diagnosis before the verdict: doctor names the missing piece when
+      # the wiring above went wrong, which is cheaper to read than a suite
+      # timing out forty minutes later.
+      - name: Build feint and diagnose the runtime
+        env:
+          MODE: ${{ matrix.mode }}
+        run: |
+          set -euo pipefail
+          go build -o feint ./cmd/feint
+          sudo ./feint doctor --vm "${MODE}"
+
+      # The same verified installs as conformance.yml, because the ssh and
+      # network suites drive the official clients, not curl.
+      - name: Install the Scaleway CLI
+        env:
+          SCW_VERSION: '2.56.3'
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          base="https://github.com/scaleway/scaleway-cli/releases/download/v${SCW_VERSION}"
+          asset="scaleway-cli_${SCW_VERSION}_linux_amd64"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/${asset}" "${base}/${asset}"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/sums" "${base}/SHA256SUMS"
+          (cd "${workdir}" && grep " ${asset}$" sums | sha256sum -c -)
+          sudo install -m 0755 "${workdir}/${asset}" /usr/local/bin/scw
+          scw version
+
+      - name: Install the Outscale CLI
+        env:
+          OAPI_VERSION: 'v0.15.0'
+          OAPI_SHA256: '798b9af7db9da9539303732ba55be71ff0bec58aa9ef51751de41b2eeee8138a'
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/oapi-cli.AppImage" \
+            "https://github.com/outscale/oapi-cli/releases/download/${OAPI_VERSION}/oapi-cli-x86_64.AppImage"
+          echo "${OAPI_SHA256}  ${workdir}/oapi-cli.AppImage" | sha256sum -c -
+          chmod +x "${workdir}/oapi-cli.AppImage"
+          (cd "${workdir}" && ./oapi-cli.AppImage --appimage-extract >/dev/null)
+          sudo tee /usr/local/bin/oapi-cli >/dev/null <<WRAPPER
+          #!/usr/bin/env bash
+          export APPDIR="${workdir}/squashfs-root"
+          exec "\${APPDIR}/AppRun" "\$@"
+          WRAPPER
+          sudo chmod 0755 /usr/local/bin/oapi-cli
+          oapi-cli --version
+
+      - name: Install the Exoscale CLI
+        env:
+          EXO_VERSION: 'v1.95.6'
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          version="${EXO_VERSION#v}"
+          base="https://github.com/exoscale/cli/releases/download/${EXO_VERSION}"
+          asset="exoscale-cli_${version}_linux_amd64.tar.gz"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/${asset}" "${base}/${asset}"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/sums" "${base}/exoscale-cli_${version}_checksums.txt"
+          (cd "${workdir}" && grep " ${asset}$" sums | sha256sum -c -)
+          tar -xzf "${workdir}/${asset}" -C "${workdir}" exo
+          sudo install -m 0755 "${workdir}/exo" /usr/local/bin/exo
+          exo version
+
+      # Root, because the Incus socket belongs to root:incus-admin and a group
+      # granted mid-job does not reach the runner agent's already-running
+      # session. The suites shell out to `incus` themselves to verify what the
+      # machines really carry, so they run under the same identity.
+      - name: Start the emulator with real machines
+        env:
+          MODE: ${{ matrix.mode }}
+        run: sudo ./feint start --addr 127.0.0.1:4599 --vm "${MODE}" --contracts contracts --timeout 120s
+
+      # The declaration the verdict keys on. In the OVN leg, isolation must be
+      # declared: without this assertion, a silently degraded runtime would let
+      # the cross-VPC check skip, and a proof that skips proves nothing — that
+      # is how #116 shipped under a green run.
+      - name: The runtime the health endpoint declares
+        env:
+          MODE: ${{ matrix.mode }}
+        run: |
+          set -euo pipefail
+          health="$(curl -sf http://127.0.0.1:4599/_feint/health)"
+          printf '%s\n' "${health}" | jq .
+          machines="$(printf '%s' "${health}" | jq -r '.machines')"
+          if [ "${machines}" = "none" ] || [ "${machines}" = "null" ]; then
+            echo "no machine runtime behind --vm ${MODE}" >&2
+            exit 1
+          fi
+          if [ "${MODE}" = "incus-ovn" ]; then
+            isolation="$(printf '%s' "${health}" | jq -r '.capabilities.isolation')"
+            if [ "${isolation}" != "true" ]; then
+              echo 'OVN mode without declared isolation: the cross-VPC assertion would skip instead of proving' >&2
+              exit 1
+            fi
+          fi
+
+      # The measurements themselves: the block a client asks for is the block
+      # it gets, the address the API publishes is the address the machine
+      # carries, the firewall filters for real, and — under OVN — another
+      # VPC's machine is unreachable, hard-failing if it is not.
+      - name: Scaleway network suite
+        run: sudo tools/conformance/scaleway/network.sh http://127.0.0.1:4599
+
+      - name: Outscale network suite
+        run: sudo tools/conformance/outscale/network.sh http://127.0.0.1:4599
+
+      # The end of the chain the emulator exists for: a key registered through
+      # the API, a server booted by the official client, a real shell on the
+      # provider's own default login — three providers, three logins.
+      - name: Scaleway ssh suite
+        run: sudo tools/conformance/scaleway/ssh.sh http://127.0.0.1:4599
+
+      - name: Outscale ssh suite
+        run: sudo tools/conformance/outscale/ssh.sh http://127.0.0.1:4599
+
+      - name: Exoscale ssh suite
+        run: sudo tools/conformance/exoscale/ssh.sh http://127.0.0.1:4599
+
+      - name: Report what was exercised
+        if: always()
+        run: sudo tools/conformance/score.sh http://127.0.0.1:4599
+
+      # On failure only: what the emulator saw, and what the runtime holds —
+      # the two views whose disagreement is usually the diagnosis.
+      - name: The emulator's log and the runtime's state
+        if: failure()
+        run: |
+          sudo ./feint logs --addr 127.0.0.1:4599 -n 200 || true
+          sudo incus list || true
+          sudo incus network list || true
+
+      - name: Stop the emulator
+        if: always()
+        run: sudo ./feint stop --addr 127.0.0.1:4599 || true
