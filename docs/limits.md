@@ -20,11 +20,142 @@ endpoint := "https://s3." + region + ".scw.cloud"
 
 and addresses buckets virtual-host style, `https://<bucket>.s3.<region>.scw.cloud`.
 Redirecting that needs DNS interception plus a TLS certificate the provider will
-accept, which is a project of its own.
+accept. For a long time this document called that *"a project of its own"* — an
+estimate nobody had made, which is the wrong shape for a refusal here. #76 asked
+for the number; the section below is that number, measured. The short version:
+the certificate half is cheap and safe, the DNS half is neither, and the whole
+blocker reduces to this one product on this one client.
 
 The SDK and the CLI are better off: they honour `SCW_S3_ENDPOINT`. So an S3
 workflow driven by `scw` or by an SDK can already point at MinIO today; only the
 Terraform path is blocked.
+
+## The cost of DNS/TLS interception, measured (#76)
+
+The refusal above rested on an unmeasured cost. Measured against the real
+clients on a hardened Ubuntu workstation, without a byte leaving the machine (a
+loopback HTTPS server standing in for the cloud), it breaks into four numbers
+and one surprise: **the halves are inverted**. #76 wrote the cost as *"DNS
+interception plus a certificate the provider will accept"*, as if both were the
+hard part. The certificate is the easy, safe half; the DNS redirect is the hard,
+dangerous one.
+
+### 1. How many endpoints are actually hardcoded: one product, one client
+
+The blocker is *"an endpoint built in code that no setting overrides"*. Swept
+across three providers' Terraform providers, CLIs and Go SDKs, that set is
+**one**:
+
+| product | client | reachable by a setting? |
+|---|---|---|
+| Scaleway Object Storage | Terraform provider | **no** — `newS3Client` hardcodes `https://s3.<region>.scw.cloud`, virtual-host, no env var, no attribute |
+| Scaleway Object Storage | SDK, `scw` CLI | yes — `SCW_S3_ENDPOINT` |
+| Exoscale SOS (object storage) | `exo` CLI, Terraform provider | yes — `sos_endpoint` / `--sos-endpoint`, honoured by both |
+| Outscale (all served) | oapi-cli, Terraform provider | yes — `endpoints.api` / `OSC_ENDPOINT_API` |
+| every compute/network API, 3 providers | all clients | yes — `SCW_API_URL`, `EXOSCALE_API_ENDPOINT`, Outscale `endpoint` |
+
+So the coverage cap #76 worried about is real but narrow: it is **Object Storage
+through Terraform, on Scaleway**, and nothing else. Not a dozen scattered
+endpoints — one product, one client. MinIO plus `SCW_S3_ENDPOINT` already covers
+the SDK and CLI S3 paths; only this one corner needs DNS/TLS.
+
+(The Exoscale Terraform provider's v2-client split is a *different* defect — a
+missing `ClientOptWithAPIEndpoint` call, not a hardcoded host — and it is
+DNS-independent: an endpoint option fixes it, filed upstream as
+[#573][exo-573]. It does not belong on this list.)
+
+### 2. What each client needs to accept a locally minted certificate — proven
+
+A local CA was minted with the standard library and an HTTPS listener stood up
+on loopback. Then each official client was pointed at it. The results, from the
+server's own handshake log:
+
+| client | knob that works | proven by |
+|---|---|---|
+| `scw` (Go) | `SSL_CERT_FILE` | `scw instance server create` completed end to end over local TLS |
+| `exo` (Go) | `SSL_CERT_FILE` | `GET /v2/zone` handshake accepted; refused as `x509: unknown authority` without it |
+| **terraform-provider-scaleway** (Go plugin) | `SSL_CERT_FILE`, **inherited from `terraform`'s env** | `terraform apply` created 5 resources over local TLS; the plugin is a separate process and it saw the parent's `SSL_CERT_FILE` |
+| `curl` | `SSL_CERT_FILE`, `--cacert`, `CURL_CA_BUNDLE` | 200 with, refused without |
+| `oapi-cli` (static binary, own trust store) | **none of the CA env vars**; only `--insecure` | ignored `SSL_CERT_FILE` and `CURL_CA_BUNDLE`; irrelevant here, Outscale has no hardcoded endpoint |
+
+Two things settle the certificate question:
+
+- **The Terraform plugin inherits the environment.** This was the open doubt in
+  #76 — a provider plugin is a child process go-plugin spawns — and it is
+  answered: `SSL_CERT_FILE` set before `terraform apply` reached the Scaleway
+  provider and it trusted the CA. So the durable, disqualifying option — a CA
+  installed into the operator's *system* trust store — is **not needed** for any
+  Go client. One process-scoped environment variable does it.
+- **`SSL_CERT_FILE` is scoped to the one command.** It dies with the process,
+  touches nothing else, and leaves no trace — exactly the property this tool's
+  pitch (*no account, no bill, no trace*) requires.
+
+### 3. Whether a DNS server is needed — and the real blocker
+
+No. A DNS *server* is the expensive answer and the measured case does not need
+it. What it needs is to make one hardcoded name resolve to loopback, and that is
+where the cost actually lives, because on a modern hardened Linux there is **no
+per-process, disposable, unprivileged** way to do it for the exact client that
+matters:
+
+| mechanism | scope | verdict for the Scaleway S3 case (AWS SDK Go v2, static, pure-Go resolver) |
+|---|---|---|
+| `curl --resolve` / `--connect-to` | one command | works — proven landing `s3.fr-par.scw.cloud` and `<bucket>.s3.fr-par.scw.cloud` locally with a wildcard cert — but **curl only**; the SDK has no equivalent |
+| `HOSTALIASES` (glibc) | one process | only the cgo resolver, and only single-label names — **useless for a dotted FQDN** |
+| `LD_PRELOAD` getaddrinfo shim | one process | only cgo-resolver binaries. Measured: `scw` is dynamically linked with cgo getaddrinfo (interceptable); `exo` is static pure-Go (not). Terraform providers build `CGO_ENABLED=0` — **not interceptable** |
+| network namespace + bind-mounted `/etc/hosts` | disposable | needs unprivileged user namespaces, which this station **blocks** (`apparmor_restrict_unprivileged_userns=1`; `unshare -r` → `EPERM`) — increasingly the default |
+| edit `/etc/hosts` | whole machine, persistent | works for every client, but it is a **durable change to the operator's machine** — the thing the pitch forbids |
+
+So for the one blocked client — the pure-Go, statically linked AWS SDK inside the
+Scaleway Terraform provider, which offers no `--resolve` — the only mechanisms
+that reach it are the two that touch the machine durably (`/etc/hosts`) or need a
+privilege this station denies (a network namespace). The cheap, scoped
+mechanisms (`curl --resolve`, `HOSTALIASES`, an `LD_PRELOAD` shim) all miss it,
+each for a different reason.
+
+### 4. What the standard library gives for free
+
+The certificate half is as cheap as #76 guessed. A CA, a leaf covering
+`s3.<region>.scw.cloud` **and** `*.s3.<region>.scw.cloud`, and an HTTPS listener
+are under 100 lines of pure `crypto/x509` and `crypto/tls`, **no dependency**.
+One caveat the wildcard exposes: `*.s3.<region>.scw.cloud` is single-level, so a
+bucket name containing a dot (`my.bucket.s3.<region>.scw.cloud`) is not covered —
+measured, `curl` refuses it. There is no DNS server in the standard library, but
+per number 3 the measured case does not need one.
+
+### 5. What is dangerous when it is on — and it is not the certificate
+
+A process that trusts a feint-minted CA **and** resolves a real cloud hostname to
+loopback is exactly how a real `terraform apply` silently hits a local emulator.
+The measurement moves the danger: the certificate is safe because `SSL_CERT_FILE`
+is process-scoped, but **the name redirect is the hazard**, and it is the half
+that resists being scoped. `/etc/hosts` is machine-wide and persistent; an entry
+left behind sends the operator's next *real* apply to a dead local port (loud) or
+a stale emulator (silent, and the exact failure this project exists to avoid).
+Whatever is ever retained here must scope the redirect as narrowly as the cert —
+a devcontainer with its own hosts file, an explicit and temporary entry the
+operator makes and removes — and must never install a CA into the system store or
+edit `/etc/hosts` on the operator's behalf.
+
+### The verdict
+
+**Refused, now with numbers behind it — and the refusal changes shape.** Object
+Storage through Terraform stays out, not because the certificate is a project of
+its own (it is under 100 lines of standard library, and every Go client including
+the Terraform plugin accepts it through one process-scoped environment variable),
+but because reaching the single hardcoded endpoint needs a name redirect that, on
+a hardened Linux, no client-scoped mechanism delivers for a static pure-Go plugin
+— leaving only machine-touching options that the *no trace* pitch forbids.
+
+The blocker is one product on one client, so the MinIO + `SCW_S3_ENDPOINT` page
+remains the right answer for the S3 workflow, and the refusal caps coverage by
+exactly one corner rather than quietly bounding the whole project. If
+Object-Storage-through-Terraform is ever wanted, it is a roadmap item with a
+named owner and a shape already measured: `SSL_CERT_FILE` (safe) plus an
+explicit, disposable name redirect the operator opts into (a devcontainer or a
+temporary hosts entry) — never a system trust-store install, never a hosts file
+this binary edits itself. Whether that corner is worth the operator ceremony is a
+product call; it is no longer an unmeasured one.
 
 ## The catalogue is fiction
 

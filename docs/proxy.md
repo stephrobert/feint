@@ -193,8 +193,13 @@ Two things follow, and the first one matters most:
 
 Lifting it needs DNS and TLS interception so the client can be pointed at the
 real hostname and still land here, which is #76 and deliberately not this tool.
-Until then, a real-cloud recording is made with a client whose signed host can be
-set — which is how the transcripts behind this page's examples were produced.
+That cost is now measured — [limits.md](limits.md), *The cost of DNS/TLS
+interception* — and the finding transfers: the TLS half is cheap and every Go
+client accepts a locally minted CA through `SSL_CERT_FILE`, but redirecting the
+name to loopback has no client-scoped, unprivileged mechanism for a static
+pure-Go client, which is what makes this more than a flag. Until then, a
+real-cloud recording is made with a client whose signed host can be set — which
+is how the transcripts behind this page's examples were produced.
 
 ### The one caveat of the diff
 

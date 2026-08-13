@@ -398,21 +398,39 @@ generic: **every client whose endpoint is built in code rather than read from a
 setting** is unreachable for the same reason, and this project does not know how
 many of those exist. That number could settle the question in either direction.
 
-**This page does not decide it.** What #76 asks for is four measurements, before
-anyone writes a resolver: how many hardcoded endpoints exist across the three
-providers' Terraform providers, CLIs and SDKs, and which operations each one
-costs; what each client needs to accept a locally minted certificate, with the
-sharp line between an environment variable scoped to one command and an
-installation into the operator's system trust store; whether a DNS server is
-needed at all, or whether a hosts entry or a resolver flag covers the measured
-cases; and what the standard library gives for free, since a local CA is cheap
-in `crypto/x509` and a DNS server has no standard-library answer at all.
+**Measured, and refused with the numbers behind it.** The four measurements #76
+asked for are done and written up in [limits.md](limits.md) under *The cost of
+DNS/TLS interception, measured*. They invert the premise: the certificate was
+the feared half and is the cheap, safe one, while the DNS redirect — the half
+#76 named almost in passing — is the blocker.
 
-**Evidence:** [limits.md](limits.md) replaces *"a project of its own"* with those
-numbers and a verdict. Refused, and it moves into "Not planned" with prose of
-`Declined()` quality. Retained, and it becomes an item here with an official
-client named in advance. Either answer closes it; the present state, a refusal
-resting on an unmeasured cost, is the only one that does not.
+- **How many hardcoded endpoints:** one. Swept across three Terraform providers,
+  three CLIs and three SDKs, exactly one endpoint is built in code with no
+  setting to override it — Scaleway Object Storage in the Terraform provider.
+  Everything else, including Exoscale SOS and all of Outscale, is reachable
+  through an endpoint setting. The coverage cap is one product on one client, not
+  the dozen the reopening feared.
+- **What accepts a locally minted certificate:** every Go client through one
+  process-scoped `SSL_CERT_FILE` — proven by `scw` creating a server and, the
+  open doubt, by the **Terraform provider plugin inheriting it** and applying
+  five resources over local TLS. No system trust-store install is needed.
+- **Whether a DNS server is needed:** no, but that is cold comfort. On a hardened
+  Linux there is no per-process, disposable, unprivileged way to redirect the one
+  hardcoded name for a static pure-Go plugin: `curl --resolve` is curl-only,
+  `HOSTALIASES` misses dotted names, an `LD_PRELOAD` shim misses `CGO_ENABLED=0`
+  binaries, and a network namespace needs a user namespace this station blocks.
+  What is left — editing `/etc/hosts` — is a durable change to the operator's
+  machine, which the *no trace* pitch forbids.
+- **Standard-library cost:** under 100 lines of `crypto/x509` and `crypto/tls`,
+  no dependency, for the CA half.
+
+So object storage stays declined, and now the reason is `Declined()`-grade: not
+*"a project of its own"* but *"the certificate is cheap and safe, the name
+redirect is neither, and it buys one product on one client"*. If it is ever
+retained, it is an item with a named owner and a measured shape —
+`SSL_CERT_FILE` plus an operator-scoped, disposable name redirect (a
+devcontainer, a temporary hosts entry), never a system trust-store install and
+never a hosts file the binary edits itself.
 
 ### Considered in the same pass, and not queued
 
@@ -628,11 +646,12 @@ Terraform provider hardcodes `https://s3.<region>.scw.cloud`, so supporting it
 needs DNS interception and TLS termination rather than an endpoint setting.
 Emulating S3 is not the hard part and never was; reaching the emulator is.
 
-**What that "no" rests on is now itself in question** — see the arbitration
-reopened above and #76. The measurement (the endpoint is built in code) stands;
-the estimate that followed it ("a project of its own") has never been made, and
-the blocker turns out to be generic rather than specific to object storage. So
-this item is no longer a settled refusal, it is a refusal waiting on a cost.
+**What that "no" rested on is now measured** — see the arbitration above and #76.
+The estimate that once followed the measurement (*"a project of its own"*) has
+been made: the blocker is one product on one client, not the generic drift the
+reopening feared, and the cost lives in the DNS redirect, not the certificate.
+So this item is a settled refusal again — this time with the numbers behind it,
+in [limits.md](limits.md) — rather than one waiting on a cost.
 
 What does not wait is the "here is how": the SDK and CLI paths honour
 `SCW_S3_ENDPOINT`, so a documented feint-plus-MinIO page covers the S3 workflow
