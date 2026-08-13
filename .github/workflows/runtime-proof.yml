@@ -39,11 +39,6 @@ on:
     # for the same third-party release servers at the same minute.
     - cron: '31 2 * * *'
   workflow_dispatch:
-  # Measurement scaffolding for #125: lets the branch run this workflow before
-  # it exists on main (workflow_dispatch only reaches workflows the default
-  # branch carries). Removed before merge.
-  push:
-    branches: [ci/125-runtime-proof]
 
 permissions: {}
 
