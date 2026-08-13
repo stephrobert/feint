@@ -853,6 +853,27 @@
       "dataplane": false,
       "shape": "unobserved"
     },
+    "ipam/v1/API.AttachIP": {
+      "driven": false,
+      "probed": true,
+      "contract": "unchecked",
+      "dataplane": false,
+      "shape": "unobserved"
+    },
+    "ipam/v1/API.BookIP": {
+      "driven": true,
+      "probed": true,
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved"
+    },
+    "ipam/v1/API.DetachIP": {
+      "driven": false,
+      "probed": true,
+      "contract": "unchecked",
+      "dataplane": false,
+      "shape": "unobserved"
+    },
     "ipam/v1/API.GetIP": {
       "driven": true,
       "probed": true,
@@ -866,6 +887,34 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "observed"
+    },
+    "ipam/v1/API.MoveIP": {
+      "driven": false,
+      "probed": true,
+      "contract": "unchecked",
+      "dataplane": false,
+      "shape": "unobserved"
+    },
+    "ipam/v1/API.ReleaseIP": {
+      "driven": true,
+      "probed": false,
+      "contract": "unchecked",
+      "dataplane": true,
+      "shape": "unobserved"
+    },
+    "ipam/v1/API.ReleaseIPSet": {
+      "driven": false,
+      "probed": false,
+      "contract": "unchecked",
+      "dataplane": false,
+      "shape": "unobserved"
+    },
+    "ipam/v1/API.UpdateIP": {
+      "driven": true,
+      "probed": true,
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved"
     },
     "marketplace/v2/API.ListLocalImages": {
       "driven": true,
@@ -1385,6 +1434,13 @@
       "dataplane": true,
       "shape": "unobserved"
     },
+    "vpc/v2/API.CreateRoute": {
+      "driven": true,
+      "probed": true,
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved"
+    },
     "vpc/v2/API.CreateVPC": {
       "driven": true,
       "probed": true,
@@ -1399,10 +1455,31 @@
       "dataplane": true,
       "shape": "unobserved"
     },
-    "vpc/v2/API.DeleteVPC": {
-      "driven": false,
+    "vpc/v2/API.DeleteRoute": {
+      "driven": true,
       "probed": false,
       "contract": "unchecked",
+      "dataplane": true,
+      "shape": "unobserved"
+    },
+    "vpc/v2/API.DeleteVPC": {
+      "driven": true,
+      "probed": false,
+      "contract": "unchecked",
+      "dataplane": true,
+      "shape": "unobserved"
+    },
+    "vpc/v2/API.EnableDHCP": {
+      "driven": false,
+      "probed": true,
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved"
+    },
+    "vpc/v2/API.EnableRouting": {
+      "driven": false,
+      "probed": true,
+      "contract": "clean",
       "dataplane": false,
       "shape": "unobserved"
     },
@@ -1413,11 +1490,18 @@
       "dataplane": true,
       "shape": "unobserved"
     },
-    "vpc/v2/API.GetVPC": {
-      "driven": false,
+    "vpc/v2/API.GetRoute": {
+      "driven": true,
       "probed": true,
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
+      "shape": "unobserved"
+    },
+    "vpc/v2/API.GetVPC": {
+      "driven": true,
+      "probed": true,
+      "contract": "clean",
+      "dataplane": true,
       "shape": "unobserved"
     },
     "vpc/v2/API.ListPrivateNetworks": {
@@ -1426,6 +1510,13 @@
       "contract": "clean",
       "dataplane": false,
       "shape": "observed"
+    },
+    "vpc/v2/API.ListSubnets": {
+      "driven": false,
+      "probed": true,
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved"
     },
     "vpc/v2/API.ListVPCs": {
       "driven": false,
@@ -1438,6 +1529,13 @@
       "driven": false,
       "probed": true,
       "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved"
+    },
+    "vpc/v2/API.UpdateRoute": {
+      "driven": false,
+      "probed": true,
+      "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved"
     },

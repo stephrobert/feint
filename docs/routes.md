@@ -153,15 +153,15 @@ disappears from the suite.
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `DELETE` | `/ipam/v1/regions/{region}/ips/{ipID}` | `ipam/v1/API.ReleaseIP` | — |
+| `DELETE` | `/ipam/v1/regions/{region}/ips/{ipID}` | `ipam/v1/API.ReleaseIP` | `client` `runtime` |
 | `GET` | `/ipam/v1/regions/{region}/ips/{ipID}` | `ipam/v1/API.GetIP` | `client` `contract` `runtime` `probe` |
 | `GET` | `/ipam/v1/regions/{region}/ips` | `ipam/v1/API.ListIPs` | `client` `contract` `shape` `runtime` `probe` |
-| `PATCH` | `/ipam/v1/regions/{region}/ips/{ipID}` | `ipam/v1/API.UpdateIP` | — |
+| `PATCH` | `/ipam/v1/regions/{region}/ips/{ipID}` | `ipam/v1/API.UpdateIP` | `client` `contract` `runtime` `probe` |
 | `POST` | `/ipam/v1/regions/{region}/ip-sets/release` | `ipam/v1/API.ReleaseIPSet` | — |
-| `POST` | `/ipam/v1/regions/{region}/ips/{ipID}/attach` | `ipam/v1/API.AttachIP` | — |
-| `POST` | `/ipam/v1/regions/{region}/ips/{ipID}/detach` | `ipam/v1/API.DetachIP` | — |
-| `POST` | `/ipam/v1/regions/{region}/ips/{ipID}/move` | `ipam/v1/API.MoveIP` | — |
-| `POST` | `/ipam/v1/regions/{region}/ips` | `ipam/v1/API.BookIP` | — |
+| `POST` | `/ipam/v1/regions/{region}/ips/{ipID}/attach` | `ipam/v1/API.AttachIP` | `probe` |
+| `POST` | `/ipam/v1/regions/{region}/ips/{ipID}/detach` | `ipam/v1/API.DetachIP` | `probe` |
+| `POST` | `/ipam/v1/regions/{region}/ips/{ipID}/move` | `ipam/v1/API.MoveIP` | `probe` |
+| `POST` | `/ipam/v1/regions/{region}/ips` | `ipam/v1/API.BookIP` | `client` `contract` `runtime` `probe` |
 
 ### `marketplace`
 
@@ -174,21 +174,21 @@ disappears from the suite.
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
 | `DELETE` | `/vpc/v2/regions/{region}/private-networks/{pnID}` | `vpc/v2/API.DeletePrivateNetwork` | `client` `runtime` |
-| `DELETE` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.DeleteRoute` | — |
-| `DELETE` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}` | `vpc/v2/API.DeleteVPC` | — |
+| `DELETE` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.DeleteRoute` | `client` `runtime` |
+| `DELETE` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}` | `vpc/v2/API.DeleteVPC` | `client` `runtime` |
 | `GET` | `/vpc/v2/regions/{region}/private-networks/{pnID}` | `vpc/v2/API.GetPrivateNetwork` | `client` `contract` `runtime` `probe` |
 | `GET` | `/vpc/v2/regions/{region}/private-networks` | `vpc/v2/API.ListPrivateNetworks` | `contract` `shape` `probe` |
-| `GET` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.GetRoute` | — |
-| `GET` | `/vpc/v2/regions/{region}/subnets` | `vpc/v2/API.ListSubnets` | — |
-| `GET` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}` | `vpc/v2/API.GetVPC` | `contract` `probe` |
+| `GET` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.GetRoute` | `client` `contract` `runtime` `probe` |
+| `GET` | `/vpc/v2/regions/{region}/subnets` | `vpc/v2/API.ListSubnets` | `contract` `probe` |
+| `GET` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}` | `vpc/v2/API.GetVPC` | `client` `contract` `runtime` `probe` |
 | `GET` | `/vpc/v2/regions/{region}/vpcs` | `vpc/v2/API.ListVPCs` | `contract` `shape` `probe` |
 | `PATCH` | `/vpc/v2/regions/{region}/private-networks/{pnID}` | `vpc/v2/API.UpdatePrivateNetwork` | `contract` `probe` |
-| `PATCH` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.UpdateRoute` | — |
+| `PATCH` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.UpdateRoute` | `probe` |
 | `PATCH` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}` | `vpc/v2/API.UpdateVPC` | `contract` `probe` |
-| `POST` | `/vpc/v2/regions/{region}/private-networks/{pnID}/enable-dhcp` | `vpc/v2/API.EnableDHCP` | — |
+| `POST` | `/vpc/v2/regions/{region}/private-networks/{pnID}/enable-dhcp` | `vpc/v2/API.EnableDHCP` | `contract` `probe` |
 | `POST` | `/vpc/v2/regions/{region}/private-networks` | `vpc/v2/API.CreatePrivateNetwork` | `client` `contract` `runtime` `probe` |
-| `POST` | `/vpc/v2/regions/{region}/routes` | `vpc/v2/API.CreateRoute` | — |
-| `POST` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}/enable-routing` | `vpc/v2/API.EnableRouting` | — |
+| `POST` | `/vpc/v2/regions/{region}/routes` | `vpc/v2/API.CreateRoute` | `client` `contract` `runtime` `probe` |
+| `POST` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}/enable-routing` | `vpc/v2/API.EnableRouting` | `contract` `probe` |
 | `POST` | `/vpc/v2/regions/{region}/vpcs` | `vpc/v2/API.CreateVPC` | `client` `contract` `runtime` `probe` |
 
 ### Declined on purpose (213)

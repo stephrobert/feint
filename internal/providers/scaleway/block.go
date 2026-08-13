@@ -126,6 +126,25 @@ func (p *Pack) createBlockVolume(w http.ResponseWriter, r *http.Request) {
 		// SDK says the optional size on this branch is for.
 		size, _ = snapshot.Attrs["size"].(uint64)
 		if req.FromSnapshot.Size != nil && *req.FromSnapshot.Size > 0 {
+			// Larger only. A restore into something smaller than the snapshot is
+			// a volume the data cannot fit in, and answering 201 to it is the
+			// half-success this project exists to avoid.
+			//
+			// The refusal existed on updateBlockVolume and only there, while its
+			// comment read "a volume grows and does not shrink" — a property of
+			// the volume, stated once and held on one path. An audit created a
+			// 1 GB volume from a 10 GB snapshot and got 201. The guard is on both
+			// paths now, and the comment says which.
+			// TestABlockVolumeRestoredSmallerThanItsSnapshotIsRefused fails
+			// without this.
+			if *req.FromSnapshot.Size < size {
+				writeInvalidArguments(w, ArgumentError{
+					ArgumentName: "from_snapshot.size",
+					Reason:       "constraint",
+					HelpMessage:  "a volume restored from a snapshot may grow, not shrink below it",
+				})
+				return
+			}
 			size = *req.FromSnapshot.Size
 		}
 	}

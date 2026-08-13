@@ -537,9 +537,19 @@ if [ "$MACHINES" != "none" ]; then
   # the last thing to run and owns it.
   left="$("$SCRIPT_DIR/../../../feint" clean --vm "${FEINT_VM:-incus}" 2>&1)" \
     || fail "the runtime sweep failed: $left"
-  case "$left" in
-    "removed 0 machine(s)"*) ok "the delete took the machine with it" ;;
-    *) fail "the delete left a machine behind: $left" ;;
+  # The machine count is read from the line that reports it, not from the start
+  # of the whole output.
+  #
+  # A prefix match stood here and produced a false verdict the day `clean` gained
+  # a second line: it now prints "removed N stale instance record(s)" before its
+  # tally when the runtime holds orphaned records, so the tally was no longer
+  # first and the suite announced "the delete left a machine behind" while the
+  # tally said zero. The subject was clean; the harness was not.
+  machines="$(printf '%s\n' "$left" | grep -o 'removed [0-9]* machine(s)' | grep -o '[0-9]*' | head -1)"
+  case "$machines" in
+    "") fail "the sweep printed no machine tally, so this check cannot decide: $left" ;;
+    0) ok "the delete took the machine with it" ;;
+    *) fail "the delete left $machines machine(s) behind: $left" ;;
   esac
 fi
 osc DeleteKeypair --KeypairName conformance >/dev/null || fail "DeleteKeypair rejected"

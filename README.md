@@ -181,15 +181,20 @@ gh attestation verify feint-linux-amd64 --repo stephrobert/feint \
 |---|---|---|
 | `feint-darwin-amd64` | **exercised**: tests and race detector, skipped on private forks | **impossible**: Incus publishes no macOS server |
 | `feint-darwin-arm64` | **exercised**: tests and race detector, skipped on private forks | **impossible**: Incus publishes no macOS server |
-| `feint-linux-amd64` | **exercised**: tests, race detector, and it answers | possible; proven by the release table below, never in CI |
-| `feint-linux-arm64` | **exercised**: tests and race detector, skipped on private forks | Incus is packaged for it; nothing here has proven it |
+| `feint-linux-amd64` | **exercised**: tests, race detector, and it answers | possible; a nightly CI job proves it, and no pull-request gate does |
+| `feint-linux-arm64` | **exercised**: tests and race detector, skipped on private forks | Incus is packaged for it; the nightly runtime job runs amd64 only |
 
-**`--vm` is off by default, and no workflow turns it on.** Starting machines is
-a side effect on whoever's host runs it, so it is asked for rather than assumed,
-and the conformance suite has to stay runnable where no runtime exists — which
-is CI. The network suites skip themselves there and say so. What proves that
-mode is `FEINT_VM=incus-ovn mise run conformance` on a host with Incus, and the
-eight virtual machines in the table below.
+**`--vm` is off by default, and no pull-request gate turns it on.** Starting
+machines is a side effect on whoever's host runs it, so it is asked for rather
+than assumed, and the conformance suite has to stay runnable where no runtime
+exists — which is every pull request. The network suites skip themselves there
+and say so.
+
+A nightly job does run it: `.github/workflows/runtime-proof.yml` installs Incus
+and OVN on a GitHub-hosted runner and drives the network, ssh and crash suites
+in both modes. It is advisory until its promotion criterion is met, which is
+why no pull request depends on it. Locally, `FEINT_VM=incus-ovn mise run
+conformance` on a host with Incus proves the same thing.
 
 The non-amd64 runners are free here and billed on a private repository, so the
 job skips on a private fork rather than spending somebody's minutes without

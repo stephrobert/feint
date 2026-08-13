@@ -15,6 +15,44 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+### Fixed
+
+- **Six defects an audit of the 0.8 train found, and the false verdict that
+  found a seventh.** The delivery was audited twice before tagging; everything
+  below was reproduced before being fixed.
+
+  - **A block volume restored smaller than its snapshot answered 201.** The guard
+    lived on `updateBlockVolume` while its comment stated a property of the
+    volume — "a volume grows and does not shrink" — held on one of two paths. A
+    10 GB snapshot restored into a 1 GB volume, `available`. Neither the barrage
+    nor the invariant sweep could see it: one drives no block route, the other
+    asks about identity, not about whether a size makes sense.
+  - **Releasing an IPAM address took no lock**, while booking one held the
+    allocator from rebuild to store. `allocatorFor` rebuilds occupancy from the
+    IPAM resources alone, so deleting one is exactly what frees an address. Both
+    release paths now hold it and re-read under it, and the writes go through
+    `Commit` rather than `Put`, which re-inserts a resource the client released.
+  - **A falsification claim was false.** "Neutralise any of the three locks and
+    the barrage goes red on the first attempt" — thirty green runs with the
+    private-NIC lock removed. Every worker takes its own subnet, so no contention
+    defect can surface there whatever it drives. The claim now says which two it
+    holds and names the test that holds the third.
+  - **The evidence artefact was fourteen operations behind** at a release
+    candidate, and nothing was red: `docs/routes.md` printed "—" for them, which
+    reads exactly like an operation nothing has proven. A test now requires every
+    mounted operation to have a row.
+  - **A conformance assertion produced a false verdict.** `feint clean` gained a
+    line reporting stale runtime records, printed before its tally; the Outscale
+    suite prefix-matched the whole output and announced "the delete left a machine
+    behind" while the tally said zero. It reads the count now, and refuses to
+    decide when there is no count to read.
+  - **The documentation claimed no workflow starts a machine runtime**, in five
+    places across two languages, contradicted by the nightly job shipped in the
+    same release train. It was frozen in the generator, so `feint docs --check`
+    reconducted it at every release: the gate compares the page with its
+    generator and proves the form, never the claim. The true distinction — no
+    pull-request gate starts one — is what they say now.
+
 ### Changed
 
 - **The verify recipe names the release workflow, not the repository** (#129).

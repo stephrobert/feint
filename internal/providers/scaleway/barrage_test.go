@@ -170,6 +170,10 @@ func doRaw(ts *httptest.Server, method, path, body string) (int, map[string]any)
 // the smallest that make an interleaving likely rather than the largest a laptop
 // survives: a scenario nobody runs is a scenario nobody fixes.
 
+// IPAM is regional, and it is the product that hands out the addresses this
+// barrage contends for.
+const ipamURL = "/ipam/v1/regions/fr-par"
+
 const (
 	barrageWorkers = 10
 	barrageRounds  = 4
@@ -250,11 +254,19 @@ func barrageCycle(ts *httptest.Server, tag string, problems chan<- string) {
 	root, _ := volumes["0"].(map[string]any)
 	rootID, _ := root["id"].(string)
 
-	// A private network and a NIC on it. This is the second address pool, and
-	// the reason it is here rather than left out: the flexible allocator and the
-	// subnet allocator are locked separately, and a barrage that never touches
-	// the second one cannot see it come unlocked — falsification said so before
-	// this block existed, by staying green with the NIC lock removed.
+	// A private network and a NIC on it: the second address pool.
+	//
+	// Correction, because the claim that stood here was false. It said this
+	// block made the NIC allocator's lock falsifiable. An audit re-ran the
+	// mutation and got thirty green runs, and found the structural reason: every
+	// worker-round takes its own /24 through subnetOctet, so two requests never
+	// dispute one pool and no contention defect can show here, whatever the
+	// block drives.
+	//
+	// What holds that lock is TestConcurrentAttachmentsGetDistinctAddresses,
+	// which does fail under the same mutation. This block still earns its place —
+	// it exercises the route under load and feeds the sweep — but it proves
+	// coverage, not exclusion.
 	status, pn := doRaw(ts, "POST", regionURL+"/private-networks",
 		`{"name":"barrage-`+tag+`","subnets":["10.`+subnetOctet(tag)+`.0.0/24"]}`)
 	pnID := ""
@@ -410,5 +422,103 @@ func TestARestoreDuringTrafficLandsInOneWorld(t *testing.T) {
 	// whole map.
 	if _, found := st.Get("scaleway", "instance/ip", beforeID); !found && st.Len() == 0 {
 		t.Error("the restore landed in no world at all: the store is empty")
+	}
+}
+
+// The contention the first barrage could not stage.
+//
+// Its workers each took their own /24, so two requests never disputed one pool
+// and no allocator defect could show. An audit proved the blindness by removing
+// the private-NIC lock: thirty green runs. It also found the defect the blindness
+// was hiding — releasing an address took no lock at all, while booking one did.
+//
+// So this one puts every worker on a single network, and drives the write half
+// of ipam/v1 that nothing exercised: book, attach through a NIC, release.
+func TestASharedNetworkUnderBarrageNeverHandsOutOneAddressTwice(t *testing.T) {
+	runtime := newBarrageRuntime()
+	ts, st := newBarrageServer(t, runtime)
+
+	// One network for everybody. A /24 leaves 250-odd addresses, so exhaustion
+	// is not what this measures.
+	status, pn := doRaw(ts, "POST", regionURL+"/private-networks",
+		`{"name":"contended","subnets":["10.199.0.0/24"]}`)
+	if status != http.StatusCreated {
+		t.Fatalf("create the shared network: %d (%v)", status, pn)
+	}
+	pnID, _ := pn["id"].(string)
+
+	var wg sync.WaitGroup
+	problems := make(chan string, barrageWorkers*barrageRounds*6)
+
+	for w := range barrageWorkers {
+		wg.Add(1)
+		go func(worker int) {
+			defer wg.Done()
+			for round := range barrageRounds {
+				tag := fmt.Sprintf("w%d-r%d", worker, round)
+
+				// A booked address, released again — the path that frees an
+				// address, run against the paths that take one.
+				status, booked := doRaw(ts, "POST", ipamURL+"/ips",
+					`{"source":{"private_network_id":"`+pnID+`"}}`)
+				if status != http.StatusOK && status != http.StatusCreated {
+					problems <- fmt.Sprintf("%s: book answered %d", tag, status)
+					continue
+				}
+				bookedID, _ := booked["id"].(string)
+
+				// A server with a NIC on the same network, which allocates from
+				// the very pool the release is handing back to.
+				status, server := doRaw(ts, "POST", zoneURL+"/servers",
+					`{"name":"contend-`+tag+`","commercial_type":"DEV1-S"}`)
+				if status != http.StatusCreated {
+					problems <- fmt.Sprintf("%s: server create answered %d", tag, status)
+					doRaw(ts, "DELETE", ipamURL+"/ips/"+bookedID, "")
+					continue
+				}
+				srv, _ := server["server"].(map[string]any)
+				serverID, _ := srv["id"].(string)
+
+				// The NIC takes the address this worker booked, through
+				// ipam_ip_ids — what the Terraform provider does. Without it the
+				// NIC allocates a fresh address, the release disputes nothing,
+				// and the barrage is blind: proved by falsification, five green
+				// runs with the release lock removed.
+				//
+				// The release then races the attach on the *same* address, which
+				// is the sequence an audit walked and no test staged.
+				var inner sync.WaitGroup
+				inner.Add(2)
+				go func() {
+					defer inner.Done()
+					doRaw(ts, "POST", zoneURL+"/servers/"+serverID+"/private_nics",
+						`{"private_network_id":"`+pnID+`","ipam_ip_ids":["`+bookedID+`"]}`)
+				}()
+				go func() {
+					defer inner.Done()
+					doRaw(ts, "DELETE", ipamURL+"/ips/"+bookedID, "")
+				}()
+				inner.Wait()
+				doRaw(ts, "POST", zoneURL+"/servers/"+serverID+"/action", `{"action":"poweroff"}`)
+				doRaw(ts, "DELETE", zoneURL+"/servers/"+serverID, "")
+			}
+		}(w)
+	}
+	wg.Wait()
+	close(problems)
+
+	var refused []string
+	for p := range problems {
+		refused = append(refused, p)
+	}
+	if len(refused) > 0 {
+		t.Errorf("%d request(s) the barrage did not expect to fail:\n%s",
+			len(refused), strings.Join(firstFew(refused, 5), "\n"))
+	}
+
+	// The invariant the contention exists to test: one address, one resource.
+	if found := storetest.Sweep(st.All()); len(found) != 0 {
+		t.Errorf("one pool under contention produced an incoherent store:\n%s",
+			strings.Join(found, "\n"))
 	}
 }

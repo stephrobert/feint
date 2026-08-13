@@ -569,19 +569,27 @@ surface cannot keep growing if the suite that proves it becomes the bottleneck.
 
 ### `--vm` gets proven by CI, on a runner nobody owns — tracked by #125
 
-Today **no workflow in this repository starts a machine runtime**: zero
-`FEINT_VM`, zero `incus`, and the `network.sh` suites are never invoked in CI.
-The mode that carries the product's argument — real machines, real addresses,
-two VPCs that cannot reach each other — is proven only by the eight virtual
-machines in [install.md](install.md) and on the author's station. That is a
-measurement nobody else can reproduce by opening a pull request, which is the
-definition of evidence this project refuses everywhere else. The external
-review ranks this first of everything (#125), and the cadence proposal (#136)
-puts it in the first trust-buying version.
+**Landed, and it is a nightly job rather than a gate.**
+`.github/workflows/runtime-proof.yml` installs Incus (Zabbly stable, pinned key)
+and OVN on a GitHub-hosted `ubuntu-24.04`, wires the northbound connection, and
+runs the network, ssh and crash suites in both `incus` and `incus-ovn`. Both legs
+have passed, cross-VPC isolation asserted, on a machine nobody here owns.
 
-It sits in *later* only in the scheduling sense; the groundwork is measured
-(2026-07-30, on the upstream projects' own CI), and the whole thing rests on
-one unproven combination:
+What is still true, and is the only thing that should be read as a limit: **no
+pull-request gate starts a machine runtime.** The job is advisory until its
+promotion criterion is met, so the mode that carries the product's argument is
+not yet something a contributor's pull request has to satisfy.
+
+This paragraph said "no workflow in this repository starts a machine runtime"
+until an audit measured it against the workflow added by the very release train
+that shipped it. It had propagated to five places in two languages, and
+`docs --check` reconducted it at every release because it compares the page with
+its generator: it proves the form, never the claim. Verifying is not parsing,
+committed on this project's own documentation — recorded here rather than
+quietly reworded.
+
+The groundwork below was measured on 2026-07-30, before the job existed, and the
+combination it calls unproven has since been run:
 
 - **Incus runs on a GitHub-hosted `ubuntu-24.04`.** `lxc/incus` drives its own
   `test/main.sh` there with real containers on zfs, btrfs, lvm and ceph.
@@ -589,8 +597,9 @@ one unproven combination:
   `system-test` — the variant that loads `openvswitch.ko`, not the userspace one
   — on the same runner, after `apt install linux-modules-extra-$(uname -r)` and a
   hosts-file fix from its `.ci/linux-util.sh`.
-- **Nobody runs the two together.** The Incus CI contains no occurrence of
-  `ovn`, and the repository has no OVN test suite at all.
+- **Nobody ran the two together — until this job did.** The Incus CI contains no
+  occurrence of `ovn`, and that repository has no OVN test suite at all, so the
+  first evidence that the combination works on a hosted runner is this one.
 
 One trap and one unknown. The trap is **AppArmor**: that same `.ci/linux-util.sh`
 runs `aa-teardown` and disables the service, which reads like a prerequisite and
@@ -603,14 +612,15 @@ system on every runner and call it setup. The unknown is **arm64**: neither
 upstream project exercises it on a hosted runner, so a green run there would be
 this repository's first arm64 evidence of any kind, not merely of `--vm`.
 
-The order is measure, then gate. The job lands behind `workflow_dispatch`, is
-run by hand, and moves onto `pull_request` only once its nightly failure rate
+The order is measure, then gate. The job runs nightly and by
+`workflow_dispatch`, and moves onto `pull_request` only once its failure rate
 over a stated number of nights is at a stated threshold — a number the Actions
-history proves, not an opinion (#125 records the rule). A gate that is red on
+history proves, not an opinion. That streak is not there yet, which is why this
+is not a gate. A gate that is red on
 the day it appears is a gate everyone learns to ignore, and this repository
 already carries the note about what that costs.
 
-**Evidence:** a CI job installs Incus from Zabbly plus OVN on a hosted runner,
+**Evidence, met:** a CI job installs Incus from Zabbly plus OVN on a hosted runner,
 wires the northbound connection, and `FEINT_VM=incus-ovn` runs the network suite
 to completion — the subnet created through the emulated API, the address the API
 published answering, and the isolation assertion passing rather than skipping.

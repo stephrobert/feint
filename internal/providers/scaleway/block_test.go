@@ -351,3 +351,53 @@ func TestTheBlockCatalogueAnswers(t *testing.T) {
 		t.Error("the entry carries no pricing, and the SDK decodes a Money there")
 	}
 }
+
+// A volume restored from a snapshot may grow, and may not shrink below it.
+//
+// The guard existed on updateBlockVolume and only there, while its comment
+// stated a property of the volume — "a volume grows and does not shrink". An
+// audit created a 1 GB volume from a 10 GB snapshot and got 201 with a healthy
+// "available": the data cannot fit, and the emulator said it did.
+//
+// Nothing else could have seen it. The barrage of #134 drives no block route,
+// and the invariant sweep asks about identity and uniqueness, not about whether
+// a size makes sense. Only a client suite would have caught it, and no fixture
+// creates from a snapshot with a smaller size.
+func TestABlockVolumeRestoredSmallerThanItsSnapshotIsRefused(t *testing.T) {
+	ts := newTestServer(t)
+	volumeID := blockVolumeWith(t, ts, "source", 10000000000)
+
+	status, snap := do(t, ts, "POST", blockURL+"/snapshots",
+		`{"name":"snap","volume_id":"`+volumeID+`"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("create snapshot: expected 201, got %d (%v)", status, snap)
+	}
+	snapID, _ := snap["id"].(string)
+
+	status, got := do(t, ts, "POST", blockURL+"/volumes",
+		`{"name":"shrunk","from_snapshot":{"snapshot_id":"`+snapID+`","size":1000000000}}`)
+	if status != http.StatusBadRequest {
+		t.Fatalf("restore into a volume smaller than the snapshot: expected 400, got %d (%v)", status, got)
+	}
+
+	// The accepting halves, because a guard that refuses every resize would pass
+	// the assertion above and break the product: growing works, and asking for
+	// nothing takes the snapshot's own size.
+	status, grown := do(t, ts, "POST", blockURL+"/volumes",
+		`{"name":"grown","from_snapshot":{"snapshot_id":"`+snapID+`","size":20000000000}}`)
+	if status != http.StatusCreated {
+		t.Fatalf("restore into a larger volume: expected 201, got %d (%v)", status, grown)
+	}
+	if grown["size"] != float64(20000000000) {
+		t.Errorf("the grown volume is %v, want 20000000000", grown["size"])
+	}
+
+	status, same := do(t, ts, "POST", blockURL+"/volumes",
+		`{"name":"same","from_snapshot":{"snapshot_id":"`+snapID+`"}}`)
+	if status != http.StatusCreated {
+		t.Fatalf("restore with no size: expected 201, got %d (%v)", status, same)
+	}
+	if same["size"] != snap["size"] {
+		t.Errorf("with no size the volume is %v, and its snapshot is %v", same["size"], snap["size"])
+	}
+}

@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -171,4 +172,63 @@ func TestEvidenceTokensNameAxesAndNeverCount(t *testing.T) {
 	if !strings.Contains(violated, "contract-violated") {
 		t.Errorf("a violation must be printed loudly, got %q", violated)
 	}
+}
+
+// Every mounted operation has a row in the evidence artefact.
+//
+// Not a completeness nicety: the artefact is the record `docs/routes.md` prints
+// from, and an operation missing from it renders as "—" — indistinguishable from
+// an operation nothing has proven. An audit found the artefact fourteen
+// operations behind at a release candidate, because #146 mounted routes after
+// #145 wrote the file, and nothing was red. The page was honest and the record
+// was stale, which is the half-truth this project exists to refuse, committed on
+// the artefact whose whole purpose is to measure rather than assume.
+//
+// Regenerating is `mise run evidence:update`. This test is what makes forgetting
+// it a failure instead of a silent gap.
+func TestEveryMountedOperationHasAnEvidenceRow(t *testing.T) {
+	// The repository root from this package's directory: moduleRoot lives in the
+	// external test package and cannot be reached from here.
+	artefact, err := loadEvidenceArtefact(filepath.Join("..", "..", "coverage", "evidence.json"))
+	if err != nil {
+		t.Fatalf("read the evidence artefact: %v", err)
+	}
+	if len(artefact.Operations) == 0 {
+		t.Fatal("the evidence artefact is empty, so this test would pass while measuring nothing")
+	}
+
+	env := emulator.DefaultEnv()
+	srv, err := emulator.NewServer(env, packsFor(env)...)
+	if err != nil {
+		t.Fatalf("build the emulator: %v", err)
+	}
+
+	var missing []string
+	mounted := 0
+	for _, route := range srv.AllRoutes() {
+		if route.Operation == "" {
+			continue
+		}
+		mounted++
+		if _, recorded := artefact.Operations[route.Operation]; !recorded {
+			missing = append(missing, route.Operation)
+		}
+	}
+	if mounted == 0 {
+		t.Fatal("no mounted operation was found, so this test measured nothing")
+	}
+	sort.Strings(missing)
+	if len(missing) > 0 {
+		t.Errorf("%d of %d mounted operations have no row in coverage/evidence.json, "+
+			"so docs/routes.md prints \"—\" for them and nothing says the record is behind.\n"+
+			"Run `mise run evidence:update`. Missing:\n  %s",
+			len(missing), mounted, strings.Join(firstMissing(missing, 8), "\n  "))
+	}
+}
+
+func firstMissing(all []string, n int) []string {
+	if len(all) <= n {
+		return all
+	}
+	return append(all[:n:n], "…")
 }

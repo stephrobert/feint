@@ -17,6 +17,49 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Non publié]
 
+### Corrigé
+
+- **Six défauts trouvés par l'audit du train 0.8, et le faux verdict qui en a
+  révélé un septième.** La livraison a été auditée deux fois avant le tag ; tout
+  ce qui suit a été reproduit avant d'être corrigé.
+
+  - **Un volume block restauré plus petit que son snapshot répondait 201.** Le
+    garde vivait sur `updateBlockVolume` alors que son commentaire énonçait une
+    propriété du volume — « un volume grandit et ne rétrécit pas » — tenue sur un
+    chemin sur deux. Un snapshot de 10 Go restauré dans un volume de 1 Go,
+    `available`. Ni le barrage ni le balayage d'invariants ne pouvaient le voir :
+    l'un ne pilote aucune route block, l'autre interroge l'identité, pas le sens
+    d'une taille.
+  - **La libération d'une adresse IPAM ne prenait aucun verrou**, quand la
+    réservation tenait l'allocateur de la reconstruction jusqu'au stockage.
+    `allocatorFor` reconstruit l'occupation depuis les seules ressources IPAM :
+    en supprimer une est exactement ce qui libère une adresse. Les deux chemins
+    de libération le tiennent désormais et relisent sous verrou, et les écritures
+    passent par `Commit` plutôt que `Put`, qui réinsère une ressource que le
+    client a relâchée.
+  - **Une revendication de falsification était fausse.** « Neutralisez n'importe
+    lequel des trois verrous et le barrage rougit au premier essai » : trente
+    exécutions vertes sans le verrou de NIC privée. Chaque travailleur prend son
+    propre subnet, donc aucun défaut de contention ne peut y apparaître, quoi
+    qu'il pilote. La phrase dit maintenant lesquels deux il tient, et nomme le
+    test qui tient le troisième.
+  - **L'artefact de preuve avait quatorze opérations de retard** au moment de
+    livrer, sans que rien ne soit rouge : `docs/routes.md` affichait « — » pour
+    elles, ce qui se lit exactement comme une opération que rien n'a prouvée. Un
+    test exige désormais que toute opération montée y ait sa ligne.
+  - **Une assertion de conformance produisait un faux verdict.** `feint clean` a
+    gagné une ligne signalant les enregistrements runtime périmés, imprimée avant
+    son bilan ; la suite Outscale comparait le début de toute la sortie et
+    annonçait « the delete left a machine behind » quand le bilan disait zéro.
+    Elle lit le décompte, et refuse de trancher quand il n'y a rien à lire.
+  - **La documentation affirmait qu'aucun workflow ne démarre de runtime**, à
+    cinq endroits dans deux langues, démentie par le job nocturne livré dans le
+    même train. L'affirmation était gelée dans le générateur, donc
+    `feint docs --check` la reconduisait à chaque release : le gate compare la
+    page à son générateur, il prouve la forme et jamais l'énoncé. La distinction
+    vraie — aucun gate de pull request n'en démarre — est ce qu'ils disent
+    désormais.
+
 ### Modifié
 
 - **La recette de vérification nomme le workflow de release, pas le dépôt**

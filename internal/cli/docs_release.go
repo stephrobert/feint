@@ -239,25 +239,38 @@ func renderPlatformTable(names []string) string {
 		// with a machine.
 		vm := "**impossible**: Incus publishes no macOS server"
 		if strings.HasPrefix(platform, "linux-") {
-			// And this is the honest state of the other half: no workflow in
-			// this repository starts a machine runtime at all. `--vm` is proven
-			// on the releases in the table further down, by
-			// tools/install/ansible/site.yml, and on the author's station.
-			// Nothing in CI proves it, on any architecture.
-			vm = "possible; proven by the release table below, never in CI"
+			// The honest state of the other half, and it moved with #139.
+			//
+			// This said "no workflow in this repository starts a machine runtime
+			// at all", which stopped being true the day runtime-proof.yml landed
+			// — in the same release train, without touching this file. An audit
+			// found the sentence still here, propagated to five places in two
+			// languages, and `docs --check` reconducted it at every release
+			// because it compares the page with this generator: it proves the
+			// form, never the claim. Verifying is not parsing, applied to the
+			// project's own documentation.
+			//
+			// The distinction that is true: no `pull_request` gate starts a
+			// runtime — the nightly job is advisory until its promotion criterion
+			// is met (#125) — and amd64 is what that job runs on.
+			vm = "possible; a nightly CI job proves it, and no pull-request gate does"
 			if !strings.HasSuffix(platform, "-amd64") {
-				vm = "Incus is packaged for it; nothing here has proven it"
+				vm = "Incus is packaged for it; the nightly runtime job runs amd64 only"
 			}
 		}
 		fmt.Fprintf(&b, "| `%s` | %s | %s |\n", name, control, vm)
 	}
 
-	b.WriteString("\n**`--vm` is off by default, and no workflow turns it on.** Starting machines is\n" +
-		"a side effect on whoever's host runs it, so it is asked for rather than assumed,\n" +
-		"and the conformance suite has to stay runnable where no runtime exists — which\n" +
-		"is CI. The network suites skip themselves there and say so. What proves that\n" +
-		"mode is `FEINT_VM=incus-ovn mise run conformance` on a host with Incus, and the\n" +
-		"eight virtual machines in the table below.\n")
+	b.WriteString("\n**`--vm` is off by default, and no pull-request gate turns it on.** Starting\n" +
+		"machines is a side effect on whoever's host runs it, so it is asked for rather\n" +
+		"than assumed, and the conformance suite has to stay runnable where no runtime\n" +
+		"exists — which is every pull request. The network suites skip themselves there\n" +
+		"and say so.\n\n" +
+		"A nightly job does run it: `.github/workflows/runtime-proof.yml` installs Incus\n" +
+		"and OVN on a GitHub-hosted runner and drives the network, ssh and crash suites\n" +
+		"in both modes. It is advisory until its promotion criterion is met, which is\n" +
+		"why no pull request depends on it. Locally, `FEINT_VM=incus-ovn mise run\n" +
+		"conformance` on a host with Incus proves the same thing.\n")
 	if guardedByVisibility(goWorkflow) {
 		b.WriteString("\nThe non-amd64 runners are free here and billed on a private repository, so the\n" +
 			"job skips on a private fork rather than spending somebody's minutes without\n" +

@@ -597,16 +597,26 @@ passent.
 
 ### `--vm` se fait prouver par la CI, sur un runner que personne ne possède : suivi par #125
 
-Aujourd'hui **aucun workflow de ce dépôt ne démarre un runtime de machines** :
-zéro `FEINT_VM`, zéro `incus`, et les suites `network.sh` ne sont jamais
-invoquées en CI. Le mode qui porte l'argument du produit (de vraies machines,
-de vraies adresses, deux VPC qui ne peuvent pas se joindre) n'est prouvé que
-par les huit machines virtuelles d'[install.md](install.md) et sur la station
-de l'auteur. C'est une mesure que personne d'autre ne peut reproduire en
-ouvrant une pull request, soit la définition de preuve que ce projet refuse
-partout ailleurs. La revue externe classe ce sujet premier de tout (#125), et
-la proposition de cadence (#136) le place dans la première version qui achète
-de la confiance.
+**Livré, et c'est un job nocturne plutôt qu'un gate.**
+`.github/workflows/runtime-proof.yml` installe Incus (canal Zabbly stable, clé
+épinglée) et OVN sur un `ubuntu-24.04` hébergé par GitHub, câble la connexion
+northbound, et exécute les suites réseau, ssh et crash dans les deux modes,
+`incus` et `incus-ovn`. Les deux jambes sont passées, isolation entre VPC
+affirmée, sur une machine que personne ici ne possède.
+
+Ce qui reste vrai, et qui est la seule chose à lire comme une limite :
+**aucun gate de pull request ne démarre un runtime de machines.** Le job est
+consultatif tant que son critère de promotion n'est pas atteint, donc le mode
+qui porte l'argument du produit n'est pas encore quelque chose qu'une pull
+request doive satisfaire.
+
+Ce paragraphe affirmait « aucun workflow de ce dépôt ne démarre un runtime de
+machines » jusqu'à ce qu'un audit le confronte au workflow ajouté par le train
+de livraison qui l'a lui-même embarqué. L'affirmation s'était propagée à cinq
+endroits dans deux langues, et `docs --check` la reconduisait à chaque release,
+puisqu'il compare la page à son générateur : il prouve la forme, jamais
+l'énoncé. Vérifier n'est pas parser, commis sur la documentation de ce projet —
+consigné ici plutôt que discrètement réécrit.
 
 Il ne reste dans « plus tard » qu'au sens du calendrier ; le terrain est
 mesuré (30 juillet 2026, sur la CI des projets amont eux-mêmes), et le tout

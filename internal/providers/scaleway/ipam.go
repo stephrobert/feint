@@ -402,9 +402,18 @@ func (p *Pack) releaseIPAMIPSet(w http.ResponseWriter, r *http.Request) {
 		}
 		batch = append(batch, res)
 	}
+	// The same lock, for the same reason releaseOne takes it: a delete frees an
+	// address, and freeing one while another request is allocating hands it out
+	// twice. Re-read under the lock, since the checks above ran outside it.
+	p.addresses.Lock()
 	for _, res := range batch {
-		p.env.Store.Delete(Name, kindIPAMIP, res.ID)
+		current, found := p.env.Store.Get(Name, kindIPAMIP, res.ID)
+		if !found || ipamAttached(current) {
+			continue
+		}
+		p.env.Store.Delete(Name, kindIPAMIP, current.ID)
 	}
+	p.addresses.Unlock()
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -412,11 +421,33 @@ func (p *Pack) releaseIPAMIPSet(w http.ResponseWriter, r *http.Request) {
 // wrong destroy order retryable instead of silently breaking the NIC still
 // using the address. TestReleasingAnAttachedIPIsRefused fails without it.
 func (p *Pack) releaseOne(w http.ResponseWriter, res *resource.Resource) bool {
-	if ipamAttached(res) {
-		writePrecondition(w, "ip", res.ID, "IP is still attached to a resource; detach it first")
+	// The allocator's lock, held across the attachment check and the delete.
+	//
+	// bookIP and createPrivateNIC hold it from rebuild to Put, and releasing did
+	// not hold it at all — which is the half that makes an address available
+	// again. An audit walked the sequence: this reads an unattached address, a
+	// NIC create attaches it under the lock, this deletes the IPAM resource, and
+	// the next Allocate hands the same address to a second NIC. Two interfaces,
+	// one address; under --vm, two machines configured alike.
+	//
+	// allocatorFor rebuilds occupancy from the IPAM resources alone, so deleting
+	// one is exactly what frees an address: the read and the delete belong in the
+	// same critical section as the allocation they race.
+	// TestAReleasedAddressCannotBeTakenWhileItIsBeingAttached fails without this.
+	p.addresses.Lock()
+	defer p.addresses.Unlock()
+
+	// Re-read under the lock. The caller resolved this resource outside it, and
+	// an attachment that landed in between is invisible to a stale clone.
+	current, found := p.env.Store.Get(Name, kindIPAMIP, res.ID)
+	if !found {
+		return true
+	}
+	if ipamAttached(current) {
+		writePrecondition(w, "ip", current.ID, "IP is still attached to a resource; detach it first")
 		return false
 	}
-	p.env.Store.Delete(Name, kindIPAMIP, res.ID)
+	p.env.Store.Delete(Name, kindIPAMIP, current.ID)
 	return true
 }
 
@@ -444,8 +475,18 @@ func (p *Pack) updateIPAMIP(w http.ResponseWriter, r *http.Request) {
 		}
 		res.Attrs["reverses"] = reverses
 	}
-	res.Updated = p.env.Now()
-	p.env.Store.Put(res)
+	// Commit rather than Put: an address released while this PATCH was decoding
+	// must stay released, not come back carrying new tags.
+	//
+	// TestCommitDoesNotResurrectAReleasedAddress holds the store-level half. The
+	// handler-level race has no deterministic seam — a concurrent-HTTP test of it
+	// stayed green with Put restored — so this call site is the connection, read
+	// rather than triggered. Said plainly instead of citing a test that would not
+	// fail.
+	if !p.env.Store.Commit(res, p.env.Now()) {
+		writeNotFound(w, "ip", res.ID)
+		return
+	}
 
 	emulator.WriteJSON(w, http.StatusOK, p.ipamIPView(res))
 }
@@ -547,8 +588,11 @@ func (p *Pack) detachCustom(w http.ResponseWriter, res *resource.Resource, req *
 	}
 	delete(res.Attrs, attrCustomMAC)
 	delete(res.Attrs, attrCustomName)
-	res.Updated = p.env.Now()
-	p.env.Store.Put(res)
+	// Commit, never Put. Put re-inserts unconditionally, so a release that landed
+	// while this was deciding is undone and the address comes back — the
+	// resurrection CLAUDE.md records as already paid for three times. A false
+	// return means the client released it meanwhile, which is not an error.
+	p.env.Store.Commit(res, p.env.Now())
 	return true
 }
 
@@ -558,8 +602,8 @@ func (p *Pack) setCustomAttachment(res *resource.Resource, custom *customResourc
 	if custom.Name != nil {
 		res.Attrs[attrCustomName] = *custom.Name
 	}
-	res.Updated = p.env.Now()
-	p.env.Store.Put(res)
+	// Commit rather than Put, for the reason detachCustom gives.
+	p.env.Store.Commit(res, p.env.Now())
 }
 
 // newIPAMIP records the address a private NIC received, as the resource a
