@@ -151,6 +151,14 @@ run = [
   "tools/conformance/exoscale/ssh.sh http://$FEINT_ADDR",
 ]
 
+[tasks."conformance:crash"]
+description = "Kill a serving emulator and prove the crash policy: leftovers labelled, restart warns, clean sweeps to zero. Needs FEINT_VM=incus"
+depends = ["build"]
+# Not part of the `conformance` aggregate: this suite runs `feint clean`, which
+# sweeps every labelled object on the host — including the aggregate's own
+# running emulator's networks. It owns its emulator, on its own port.
+run = "tools/conformance/crash.sh"
+
 [tasks."conformance:oapi"]
 description = "Drive the running emulator with the real Outscale CLI"
 run = "tools/conformance/outscale/oapi-cli.sh http://$FEINT_ADDR"

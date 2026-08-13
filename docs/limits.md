@@ -181,6 +181,39 @@ still holds a subnet — all reachable, all refused, all tested. A refusal that
 would need an artificial delay to become reachable is not served, and belongs in
 this list instead.
 
+## What survives a dead emulator, in one table
+
+The store is memory: a dead process loses every emulated resource, and that is
+the model, not a defect. The machines are different. A container the runtime
+started does not die with the process that asked for it, so the policy below
+exists, and it is deterministic — measured on 2026-08-13 by running every row
+that can be triggered (`tools/conformance/crash.sh` triggers them on every run
+where a runtime is configured).
+
+| Event | The store | The machines, networks and rule sets |
+|---|---|---|
+| Graceful exit (Ctrl-C, SIGTERM, `feint stop`) | lost (saved first with `--state`) | stay, labelled `user.feint.provider` |
+| Graceful exit with `--cleanup` | lost (saved first with `--state`) | swept before exit, counted out loud |
+| SIGKILL, crash, power loss | lost | stay, labelled — nothing had a chance to run |
+| Restart | starts empty | **named, never adopted**: startup warns "labelled machines from a previous run exist; nothing was adopted, `feint clean` removes them", listing them by name |
+| `feint clean` | untouched (it is a separate process) | everything labelled is removed; the runtime is queried, and the sweep reports what it could not remove instead of claiming success |
+
+Why restart never adopts: the store that gave those machines meaning died with
+the previous process. A machine resurrected from the runtime would be state
+without an owner — trusted for the same bad reason a restored snapshot used to
+be trusted, and `snapshot.go` documents where that leads. The startup notice
+names the leftovers precisely so the operator decides, with
+`TestStartupNamesTheLeftoversItDidNotAdopt` holding the line and
+`tools/conformance/crash.sh` proving the whole sequence — kill, survive
+labelled, warn, sweep to zero — against a real runtime, the runtime queried
+directly rather than the store.
+
+The notice keys on machines. Networks and rule sets alone stay silent: an
+empty emulated bridge is reused under its own name by the next run or refused
+as a block conflict out loud, the OVN uplink is deliberately kept across runs,
+and a warning that fired on every healthy restart would train everyone to
+ignore it — the exact way a gate dies, already measured on this repository.
+
 ## Authentication is accepted, never verified
 
 No signature is checked, on any provider. Credentials must merely be well-formed,

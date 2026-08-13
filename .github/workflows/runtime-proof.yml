@@ -315,3 +315,15 @@ jobs:
       - name: Stop the emulator
         if: always()
         run: sudo ./feint stop --addr 127.0.0.1:4599 || true
+
+      # The crash policy, proven by a kill (#135): SIGKILL a serving emulator
+      # with a machine up, assert the leftovers survive labelled, assert the
+      # restart names them without adopting them, assert `clean` leaves zero
+      # labelled objects with the runtime queried directly. After the stop
+      # above, deliberately: this suite runs `feint clean`, which sweeps every
+      # labelled object on the host — including the main emulator's networks,
+      # had it still been serving.
+      - name: Crash proof — what survives a kill
+        env:
+          MODE: ${{ matrix.mode }}
+        run: sudo env FEINT_VM="${MODE}" tools/conformance/crash.sh

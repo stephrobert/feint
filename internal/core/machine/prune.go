@@ -34,3 +34,27 @@ type Pruner interface {
 	// in that order: a network cannot go while a machine sits on it.
 	Prune(ctx context.Context) (Pruned, error)
 }
+
+// Leftovers names the labelled work a runtime still holds, without touching
+// it. It is the read-only half of a sweep: what Prune would remove, found and
+// named so a restart can say it out loud instead of serving beside it (#135).
+type Leftovers struct {
+	Machines  []string
+	Networks  []string
+	Firewalls []string
+}
+
+// Total reports whether anything was found at all.
+func (l Leftovers) Total() int { return len(l.Machines) + len(l.Networks) + len(l.Firewalls) }
+
+// Surveyor is the optional half of a Driver that can name the emulator's
+// labelled work without acting on it. A restart uses it to notice what a
+// previous life left behind; adoption is deliberately not on offer, because
+// the store that gave those objects meaning died with the process that
+// created them.
+type Surveyor interface {
+	// Survey lists the machines, networks and rule sets carrying the
+	// emulator's mark. It must issue no mutating command: naming is the whole
+	// contract, TestSurveyFindsOnlyTheEmulatorsWorkAndTouchesNothing holds it.
+	Survey(ctx context.Context) (Leftovers, error)
+}

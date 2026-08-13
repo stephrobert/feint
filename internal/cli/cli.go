@@ -474,6 +474,10 @@ func serve(args []string, stdout io.Writer) error {
 	// What the runtime knows, the emulator says. Without this an operator debugs
 	// a machine that will not start by reading the daemon's own log, which is
 	// exactly the step nobody thinks of taking.
+	// What a previous life left on the runtime, said before this one serves
+	// beside it. The policy and its boundaries live in leftovers.go.
+	reportLeftovers(driver, env.Log)
+
 	watchCtx, stopWatching := context.WithCancel(context.Background())
 	defer stopWatching()
 	if watcher, ok := driver.(machine.Watcher); ok {

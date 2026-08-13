@@ -99,6 +99,27 @@ func (d *Incus) Prune(ctx context.Context) (Pruned, error) {
 	return pruned, nil
 }
 
+// Survey implements Surveyor: the same three listings Prune starts from, and
+// nothing else. Every command it issues is a read (`query`); the test
+// TestSurveyFindsOnlyTheEmulatorsWorkAndTouchesNothing fails if a mutating
+// verb ever creeps in.
+func (d *Incus) Survey(ctx context.Context) (Leftovers, error) {
+	var left Leftovers
+	machines, err := d.labelled(ctx, "/1.0/instances?recursion=1")
+	if err != nil {
+		return left, err
+	}
+	left.Machines = machines
+
+	networks, err := d.labelled(ctx, "/1.0/networks?recursion=1")
+	if err != nil {
+		return left, err
+	}
+	left.Networks = networks
+	left.Firewalls = d.ownedACLs(ctx)
+	return left, nil
+}
+
 // labelled returns the names of the resources at the endpoint carrying the
 // emulator's label. Incus stores labels as user.* config keys.
 func (d *Incus) labelled(ctx context.Context, endpoint string) ([]string, error) {
