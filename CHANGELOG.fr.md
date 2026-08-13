@@ -19,6 +19,21 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Le tableau de statut est généré depuis le workflow qui le prouve** (signalé
+  par un lecteur comparant le README à la CI). Il annonçait Outscale prouvé par
+  `oapi-cli` et Terraform. Les deux étaient vrais du dépôt et un seul l'était de
+  la CI : la fixture Terraform Outscale existe, applique vingt-et-une
+  ressources, produit un second plan vide et détruit proprement — et aucun
+  workflow ne la lançait, si bien qu'une régression y serait arrivée en release
+  sans un seul rouge.
+
+  La suite est en CI désormais, sur les deux moteurs, et le tableau n'est plus
+  écrit à la main : sa colonne *proven by* est lue depuis
+  `.github/workflows/conformance.yml`, donc un client y apparaît quand un
+  workflow le pilote et en sort quand il cesse. Une suite exécutée par la CI que
+  personne n'a nommée est refusée par son nom plutôt qu'omise en silence —
+  sous-estimer ce qui est prouvé est le même défaut vu de l'autre côté.
+
 - **Six défauts trouvés par l'audit du train 0.8, et le faux verdict qui en a
   révélé un septième.** La livraison a été auditée deux fois avant le tag ; tout
   ce qui suit a été reproduit avant d'être corrigé.

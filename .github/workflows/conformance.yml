@@ -242,9 +242,25 @@ jobs:
           # The fixture script calls `terraform`; OpenTofu is a drop-in for this purpose.
           sudo ln -sf /usr/local/bin/tofu /usr/local/bin/terraform
 
-      - name: Run the Terraform conformance suite
+      # Both providers that have a Terraform fixture, not one.
+      #
+      # This ran the Scaleway fixture alone, while the status table said Outscale
+      # was proven by Terraform too. The table was not wrong — the fixture exists,
+      # applies seventeen resources and passes — but it was proven only where a
+      # human runs `mise run conformance`, so a regression in it would reach a
+      # release without a single red check. The same shape as the `--vm` claims
+      # fixed in #147: a real proof, narrower in reach than the sentence
+      # describing it.
+      #
+      # Reported by a reader comparing the README with the workflow, which is the
+      # only way this is ever found.
+      - name: Run the Terraform conformance suite — Scaleway
         if: matrix.client == 'terraform' || matrix.client == 'opentofu'
         run: tools/conformance/scaleway/terraform.sh http://127.0.0.1:4599
+
+      - name: Run the Terraform conformance suite — Outscale
+        if: matrix.client == 'terraform' || matrix.client == 'opentofu'
+        run: tools/conformance/outscale/terraform.sh http://127.0.0.1:4599
 
       # No client at all: every route driven from its provider's own API
       # description, which is the half of conformance that needs nothing

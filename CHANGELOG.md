@@ -17,6 +17,20 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **The status table is generated from the workflow that proves it** (reported
+  by a reader comparing the README with CI). It said Outscale was proven by
+  `oapi-cli` and Terraform. Both were true of the repository and only one was
+  true of CI: the Outscale Terraform fixture exists, applies twenty-one
+  resources, plans empty and destroys clean — and no workflow ran it, so a
+  regression in it would have reached a release without one red check.
+
+  The suite is in CI now, on both engines, and the table is no longer
+  hand-written: its *proven by* column is read from
+  `.github/workflows/conformance.yml`, so a client appears when a workflow drives
+  it and goes when it stops. A suite CI runs that nobody mapped is refused by
+  name rather than dropped in silence — understating what is proven is the same
+  defect wearing the other face.
+
 - **Six defects an audit of the 0.8 train found, and the false verdict that
   found a seventh.** The delivery was audited twice before tagging; everything
   below was reproduced before being fixed.

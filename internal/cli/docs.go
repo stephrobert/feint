@@ -204,6 +204,16 @@ func docs(args []string, stdout, stderr io.Writer) int {
 	// same install commands as the README. It is the page a release dates
 	// fastest, and the only one whose numbers nobody re-measures when cutting
 	// one.
+	// A fifth: the status table, whose "proven by" column is read from the
+	// conformance workflow rather than maintained. It said Outscale was proven
+	// by Terraform, which was true of the fixture and false of CI — a claim a
+	// reader had to compare two files to falsify (#147's family).
+	statusChanged, statusErr := spliceStatus(*target, conformanceWorkflow)
+	if statusErr != nil {
+		fmt.Fprintf(stderr, "feint: %v\n", statusErr)
+		return exitError
+	}
+
 	installChanged, installErr := splicePrereq(*installDoc, goModPath)
 	if installErr != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", installErr)
@@ -247,6 +257,10 @@ func docs(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "feint: %s is out of date; run `mise run docs:coverage`\n", *target)
 			return exitDrift
 		}
+		if statusChanged {
+			fmt.Fprintf(stderr, "feint: the status table in %s is behind the conformance workflow; run `feint docs`\n", *target)
+			return exitDrift
+		}
 		if limitsChanged {
 			fmt.Fprintf(stderr, "feint: %s is out of date; run `mise run docs:coverage`\n", *limits)
 			return exitDrift
@@ -270,6 +284,13 @@ func docs(args []string, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintf(stdout, "%s is up to date\n", *target)
 		return exitOK
+	}
+	if statusChanged {
+		if err := writeSplicedStatus(*target, conformanceWorkflow); err != nil {
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
+		fmt.Fprintf(stdout, "%s status table updated\n", *target)
 	}
 	if limitsChanged {
 		if err := writeSplicedContracts(*limits, *contractsDir); err != nil {
