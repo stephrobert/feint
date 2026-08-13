@@ -13,9 +13,47 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
-## [Unreleased]
+## [0.7.3]
 
 ### Fixed
+
+- **The address a client reads now answers, on every provider and in both
+  runtime modes** (#116, #117). A server carrying a flexible IP published one
+  address while the machine held another, or none: the routing was recorded
+  before the machine existed and never replayed at poweron, and a machine with
+  no private NIC booted on the operator's own profile bridge, where applying a
+  firewall rule re-plugged the interface and cost it the DHCP lease. So `ssh`
+  to the published address timed out while the container was up and answering
+  its neighbours.
+
+  The address a client reads stays the provider's own — TEST-NET-3, -2 and -1,
+  one block per pack so two emulated clouds on one host can never route the
+  same /32 — and it is now genuinely routed, from the first boot, on a network
+  the emulator owns. Publishing the runtime's DHCP address was rejected: it
+  desynchronises `server.public_ips[].address` from `GET /ips/{id}`, which the
+  real cloud never does, and it varies with `--vm` and with the host.
+
+  `dynamic_ip_required` was decoded, echoed back in the response and read by
+  nobody; it allocates an ephemeral address now, released at stop. Because the
+  field *was* read, it never appeared in `unread_request_fields` — the one
+  blind spot the contract gate has.
+
+- **The login is proven on all three packs, not asserted on two.** `ssh.sh`
+  existed for Scaleway alone, so `outscale` and Exoscale's template
+  `default-user` were names in a table nobody drove. There are three suites
+  now, each registering its key through its own provider's API and opening a
+  real session, and each fails rather than skips when a runtime is present —
+  the Scaleway one used to skip there, which is how a broken address shipped
+  under a green run.
+
+- **What OVN cannot do is declared rather than written as a limit.** A
+  subnet-internal address answers the host in bridge mode and not in OVN,
+  because the router that separates two VPCs also SNATs the host's connections
+  on the way back — measured, with sshd up and answering its neighbours while
+  the host read the port as closed. `capabilities.private_from_host` says
+  which, so a probe skips with a reason instead of failing, and the routed
+  public plane crosses in both modes, which is why every pack's ssh chain uses
+  it.
 
 - **A whole Scaleway product answered `404 page not found` in plain text.**
   Reported by @vde-dis on #74, measured under a real OpenTofu apply:
