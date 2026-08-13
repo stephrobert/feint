@@ -48,15 +48,34 @@ func (d *Incus) RouteAddress(ctx context.Context, spec AddressSpec) error {
 		return err
 	}
 	// The machine answers on it. A /32 on purpose: the address is a route to
-	// this machine, not a subnet it belongs to. "file exists" is the address
-	// already being there, which is what the contract promises on a second call.
+	// this machine, not a subnet it belongs to.
 	if _, err := d.run(ctx, "exec", spec.Machine, "--",
 		"ip", "address", "add", spec.Address+"/32", "dev", device); err != nil {
-		if !strings.Contains(strings.ToLower(err.Error()), "file exists") {
+		if !addressAlreadyThere(err) {
 			return fmt.Errorf("give %s to %s: %w", spec.Address, spec.Machine, err)
 		}
 	}
 	return nil
+}
+
+// addressAlreadyThere reads "the address is already on the interface" out of an
+// `ip address add` failure, which the contract promises on a second call.
+//
+// Two wordings, because two implementations of `ip` are in play and only one of
+// them was known. iproute2, on Debian, Ubuntu and the RHEL family, says
+// "RTNETLINK answers: File exists". Busybox, which is the `ip` an Alpine image
+// ships, says "Error: ipv4: Address already assigned." — measured on
+// images:alpine/3.21/cloud rather than recalled.
+//
+// Matching only the first turned a re-route of an Alpine machine into a hard
+// failure, on the idempotent path the contract says must succeed. A third
+// runtime would need its own line here, and the failure would at least name the
+// address rather than hide.
+// TestARepeatedRouteIsNotAFailure fails without this.
+func addressAlreadyThere(err error) bool {
+	said := strings.ToLower(err.Error())
+	return strings.Contains(said, "file exists") ||
+		strings.Contains(said, "address already assigned")
 }
 
 // mustOwn refuses to touch a network the emulator did not create. The label is
