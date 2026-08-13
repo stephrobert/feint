@@ -19,6 +19,27 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Modifié
 
+- **Un barrage de trafic concurrent, et un balayage d'invariants sur le store**
+  (#134). Chaque pack pilote désormais ses propres routes servies depuis dix
+  travailleurs simultanés — le parallélisme par défaut de Terraform — puis le
+  store est balayé par un contrôle neutre vis-à-vis des providers dans
+  `internal/core/store/storetest` : aucun identifiant émis deux fois, aucune
+  adresse détenue par deux ressources d'un même genre, aucun objet runtime
+  revendiqué par deux ressources. Un restore de snapshot en pleine circulation a
+  son propre test.
+
+  **Il a trouvé un vrai défaut dès sa première exécution contre Exoscale** :
+  l'allocation d'IP élastique était un lire-modifier-écrire sans verrou, si bien
+  que trois adresses sur seize créations sont allées à deux ressources chacune.
+  Le pack Scaleway avait corrigé cette forme pour ses propres pools depuis
+  longtemps et celui-ci ne l'a jamais reçue — écrit deux fois, corrigé une fois,
+  vivant dans l'autre copie.
+
+  Le balayage vit dans le noyau et ne connaît aucun provider : un quatrième pack
+  en hérite en appelant une fonction. Il reconnaît les adresses à leur forme et
+  non au nom de l'attribut, parce qu'un balayage indexé sur l'orthographe de
+  chaque pack est un balayage auquel un pack nouveau échappe.
+
 - **Un snapshot est compris ou refusé, et dit de quelle version il est** (#133).
   `feint snapshot save`, `GET /_feint/state` et `--state` écrivent désormais
   `{"format": "feint-snapshot", "version": 1, "resources": [...]}` au lieu d'un

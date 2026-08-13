@@ -17,6 +17,24 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Changed
 
+- **A barrage of concurrent traffic, and one invariant sweep over the store**
+  (#134). Each pack now drives its own served routes from ten workers at once —
+  Terraform's default parallelism — and the store is then swept by a
+  provider-neutral check in `internal/core/store/storetest`: no identifier issued
+  twice, no address held by two resources of one kind, no runtime object claimed
+  by two resources. A snapshot restore racing live traffic has its own test.
+
+  **It found a real defect on its first run against Exoscale**: elastic IP
+  allocation was a read-modify-write with no lock, so three addresses out of
+  sixteen creates went to two resources each. The Scaleway pack fixed that shape
+  for its own pools long ago and this one never received it — written twice,
+  fixed once, alive in the other copy.
+
+  The sweep lives in the core and knows no provider, so a fourth pack inherits it
+  by calling one function; it finds addresses by shape rather than by attribute
+  name, because a sweep keyed on each pack's spelling is a sweep a new pack
+  escapes.
+
 - **A snapshot is understood or refused, and says which version it is** (#133).
   `feint snapshot save`, `GET /_feint/state` and `--state` now write
   `{"format": "feint-snapshot", "version": 1, "resources": [...]}` instead of a
