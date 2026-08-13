@@ -17,6 +17,38 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Non publié]
 
+### Modifié
+
+- **Un snapshot est compris ou refusé, et dit de quelle version il est** (#133).
+  `feint snapshot save`, `GET /_feint/state` et `--state` écrivent désormais
+  `{"format": "feint-snapshot", "version": 1, "resources": [...]}` au lieu d'un
+  tableau nu, et `Restore` refuse tout ce dont il ne peut pas rendre compte :
+  une version qu'il ne lit pas, un format qui n'est pas le nôtre, un champ
+  inconnu sur une ressource.
+
+  **C'est un changement cassant des formats d'état et de snapshot.** Un fichier
+  écrit par une 0.7.x est refusé, avec le message qui dit comment le convertir,
+  et un `PUT /_feint/state` portant un tableau nu l'est aussi. Reprendre un
+  snapshot depuis l'instance qui détient l'état est la voie de sortie.
+
+  Pourquoi cela valait de casser : l'ancien format perdait des données en
+  silence. Un snapshot portant un champ que ce binaire ne déclare pas se
+  restaurait *avec succès*, `encoding/json` jetait le champ, et la sauvegarde
+  suivante réécrivait le fichier sans lui. Le store était cohérent, faux, et
+  vert — mesuré avant le changement, pas redouté. `snapshot.go` documente ce
+  format comme fait pour survivre à son instance et être chargé dans une autre,
+  ce qui est précisément le moment où cela mord.
+
+  `Attrs` reste ouvert, parce que ses clés sont des données qu'un pack a
+  choisies et non un schéma : un attribut nouveau n'est pas un changement de
+  format, et le refuser rendrait cassant tout ajout dans un pack.
+
+  Deux documents se contredisaient sur la nature de cette promesse —
+  `store.go` qualifiait le format de détail d'implémentation sans engagement de
+  compatibilité, `RELEASING.md` le classait parmi les surfaces dont le
+  changement est cassant. Ils disent maintenant la même chose, et c'est le plus
+  strict qui l'emporte.
+
 ### Ajouté
 
 - **Scaleway sert le Block Storage, et le volume racine d'un serveur devient

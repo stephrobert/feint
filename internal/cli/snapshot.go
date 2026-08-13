@@ -375,13 +375,17 @@ func putState(addr string, body []byte) (int, error) {
 
 // countResources counts the entries of a snapshot without giving them a type.
 //
-// The store's format is documented as an implementation detail with no
-// compatibility promise, so this decodes into raw messages: counting must not be
-// a second place that knows what a resource looks like.
+// Raw messages, deliberately: counting must not become a second place that knows
+// what a resource looks like. But it does have to know the envelope, and that is
+// the whole point of #133 — this function read a bare array, so the day the
+// header appeared it would have answered -1 for every snapshot ever written,
+// silently, because its own error path is a sentinel rather than a failure.
 func countResources(body []byte) int {
-	var list []json.RawMessage
-	if err := json.Unmarshal(body, &list); err != nil {
+	var file struct {
+		Resources []json.RawMessage `json:"resources"`
+	}
+	if err := json.Unmarshal(body, &file); err != nil {
 		return -1
 	}
-	return len(list)
+	return len(file.Resources)
 }

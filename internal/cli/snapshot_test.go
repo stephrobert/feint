@@ -62,7 +62,7 @@ func TestSnapshotNeedsANameBeforeItsFlags(t *testing.T) {
 // the endpoint returned, that load sends it back unchanged, and that list counts
 // the entries of the file rather than trusting whoever wrote it.
 func TestSnapshotRoundTrip(t *testing.T) {
-	state := `[{"id":"a","kind":"ip"},{"id":"b","kind":"server"}]`
+	state := `{"format":"feint-snapshot","version":1,"resources":[{"id":"a","kind":"ip"},{"id":"b","kind":"server"}]}`
 	var received string
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -131,7 +131,7 @@ func TestSnapshotRoundTrip(t *testing.T) {
 // fails afterwards.
 func TestSnapshotSaveRefusesToOverwriteWithoutForce(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`[{"id":"a"}]`))
+		_, _ = w.Write([]byte(`{"format":"feint-snapshot","version":1,"resources":[{"id":"a"}]}`))
 	}))
 	defer srv.Close()
 	addr := strings.TrimPrefix(srv.URL, "http://")

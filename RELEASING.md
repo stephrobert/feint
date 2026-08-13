@@ -125,6 +125,15 @@ wanted. What breaks is on this project's own side — the CLI's verbs and flags,
 the exit codes, the shape of `/_feint/*`, the state and snapshot formats, and
 any emulated behaviour a test could have relied on.
 
+The snapshot format is the one of those that says its own version. Since #133 a
+snapshot is `{"format": "feint-snapshot", "version": N, "resources": [...]}`, and
+`Restore` refuses anything it cannot account for: another version, another
+format, an unknown field. Bumping `snapshotVersion` in
+`internal/core/store/store.go` is therefore a breaking change under this
+section — and a file written by an older feint fails loudly at the boundary
+rather than restoring three quarters of itself in silence, which is what it did
+before.
+
 The one exception worth calling out: **a response shape corrected to match the
 provider's document is a fix, not a break**, even when a downstream test was
 asserting the wrong one. That is the point of the project, and a test that

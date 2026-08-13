@@ -52,7 +52,11 @@ func TestStateRoundTripsThroughTheRealHandlers(t *testing.T) {
 	}
 
 	// Emptied, then restored from the bytes the emulator itself produced.
-	if err := env.Store.Restore(strings.NewReader("[]")); err != nil {
+	//
+	// The envelope is not decoration here: a bare `[]` is refused since #133,
+	// because a file with no format header cannot be shown to be complete.
+	empty := `{"format":"feint-snapshot","version":1,"resources":[]}`
+	if err := env.Store.Restore(strings.NewReader(empty)); err != nil {
 		t.Fatalf("empty the store: %v", err)
 	}
 	if env.Store.Len() != 0 {

@@ -373,18 +373,31 @@ func TestACreateWhoseResourceVanishesLeavesNoMachineBehind(t *testing.T) {
 
 	// The machine is starting; empty the store under it.
 	<-runtime.entered
-	req, err := http.NewRequest(http.MethodPut, ts.URL+"/_feint/state", strings.NewReader("[]"))
+	// The snapshot envelope, not a bare array: a file with no format header is
+	// refused since #133, and this fixture was one.
+	empty := `{"format":"feint-snapshot","version":1,"resources":[]}`
+	req, err := http.NewRequest(http.MethodPut, ts.URL+"/_feint/state", strings.NewReader(empty))
 	if err != nil {
+		close(runtime.release)
 		t.Fatalf("build the restore: %v", err)
 	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
+		close(runtime.release)
 		t.Fatalf("restore an empty state: %v", err)
 	}
 	_ = res.Body.Close()
 	// Checked, because a refused restore would leave this test measuring
 	// nothing while looking green.
+	//
+	// Every failure path above releases the runtime first, and that is not
+	// tidiness: t.Fatalf unwinds this goroutine, the create is still blocked
+	// inside Start, and httptest's Close waits for requests in flight. So a
+	// refused restore used to hang the whole package until the test binary's
+	// timeout — ten minutes of silence instead of one red line, met exactly
+	// once, when #133 made this very restore start failing.
 	if res.StatusCode != http.StatusOK {
+		close(runtime.release)
 		t.Fatalf("the restore answered %d; the store was not emptied", res.StatusCode)
 	}
 	close(runtime.release)

@@ -190,8 +190,14 @@ func (s *Store) Len() int {
 	return len(s.items)
 }
 
-// Snapshot writes the whole store as JSON. The format is an implementation
-// detail of the emulator and carries no compatibility promise.
+// Snapshot writes the whole store as JSON, under a format header.
+//
+// The format is a published surface, not an implementation detail. This comment
+// said the opposite until #133, while RELEASING.md listed "the state and
+// snapshot formats" among the surfaces whose change is breaking — two sentences
+// that could not both be the policy, and the file itself was written as if the
+// looser one were true. It is the stricter one: the format is named, versioned,
+// and a change to it is a breaking change under SemVer.
 //
 // The encoding happens into memory under the lock, and the write to w happens
 // without it. Encoding straight into w held the read lock for as long as the
@@ -218,7 +224,11 @@ func (s *Store) Snapshot(w io.Writer) error {
 	}
 	enc := json.NewEncoder(&buf)
 	enc.SetIndent("", "  ")
-	err := enc.Encode(list)
+	err := enc.Encode(snapshotFile{
+		Format:    snapshotFormat,
+		Version:   snapshotVersion,
+		Resources: list,
+	})
 	s.mu.RUnlock()
 
 	if err != nil {
@@ -230,16 +240,86 @@ func (s *Store) Snapshot(w io.Writer) error {
 	return nil
 }
 
+// The snapshot envelope, and the rule it exists to enforce: a snapshot is
+// understood or refused, never restored partially in silence.
+//
+// Until #133 the file was a bare JSON array decoded with a plain Decode, so
+// `encoding/json` dropped every field this build does not declare — measured,
+// not feared: a resource carrying `encryption_key_ref` restored successfully,
+// and the following Snapshot wrote it back without the field. The store was
+// coherent, wrong, and green, which is the exact failure this project exists to
+// refuse, committed on its own state file.
+//
+// snapshot.go documents the format as made to outlive its instance and be loaded
+// into another one, and RELEASING.md lists it among the surfaces whose change is
+// breaking. Both are only true if the file says which version it is.
+const (
+	snapshotFormat  = "feint-snapshot"
+	snapshotVersion = 1
+)
+
+// snapshotFile is the envelope. Kept closed on the way in — an unknown key here
+// means the file was written by something this build does not understand, and
+// guessing which half is safe to keep is the silent partial restore all over
+// again.
+type snapshotFile struct {
+	Format    string               `json:"format"`
+	Version   int                  `json:"version"`
+	Resources []*resource.Resource `json:"resources"`
+}
+
 // Restore replaces the store content with a snapshot produced by Snapshot.
+//
+// Understood or refused. Four answers, each deliberate:
+//
+//   - this version, every field known: restored;
+//   - a version from the future, or a format that is not ours: refused, naming
+//     both what was read and what this build writes, because an operator whose
+//     restore fails needs to know which of the two binaries to change;
+//   - a bare `[...]`, which is every snapshot written before #133: refused, and
+//     the message says how to convert it. Accepting it silently as "version 0"
+//     was the other option and it loses the property this change is for — such a
+//     file has already passed through a decoder that drops unknown fields, so
+//     nobody can say whether it is complete.
+//   - an unknown field on a resource: refused, naming the field. Attrs stays
+//     open, because its keys are data a pack chose, not schema.
+//
+// TestASnapshotFromTheFutureIsRefused, TestAnUnknownResourceFieldIsRefused and
+// TestALegacyBareArrayIsRefusedWithARemedy fail without this.
 func (s *Store) Restore(r io.Reader) error {
-	var list []*resource.Resource
-	if err := json.NewDecoder(r).Decode(&list); err != nil {
+	dec := json.NewDecoder(r)
+	dec.DisallowUnknownFields()
+
+	var file snapshotFile
+	if err := dec.Decode(&file); err != nil {
+		// A bare array is the pre-#133 format, and it is worth telling apart
+		// from a corrupt file: the operator has a real snapshot in their hand
+		// and needs to know what to do with it, not that their JSON is broken.
+		if looksLikeBareArray(err) {
+			return fmt.Errorf("restore store: this snapshot has no format header, "+
+				"so it was written by feint before the %s envelope existed (#133). "+
+				"Its completeness cannot be established — the decoder that wrote it "+
+				"dropped fields it did not know. Take a fresh snapshot from the "+
+				"instance that holds the state, or wrap the array as "+
+				`{"format":%q,"version":%d,"resources":[...]}`,
+				snapshotFormat, snapshotFormat, snapshotVersion)
+		}
 		return fmt.Errorf("restore store: %w", err)
 	}
+	if file.Format != snapshotFormat {
+		return fmt.Errorf("restore store: format is %q, and this build reads %q",
+			file.Format, snapshotFormat)
+	}
+	if file.Version != snapshotVersion {
+		return fmt.Errorf("restore store: snapshot version %d, and this build reads version %d: "+
+			"restore it with the feint that wrote it, or take a fresh snapshot",
+			file.Version, snapshotVersion)
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.items = make(map[string]*resource.Resource, len(list))
-	for _, res := range list {
+	s.items = make(map[string]*resource.Resource, len(file.Resources))
+	for _, res := range file.Resources {
 		// A snapshot is operator-supplied, and a null element in the array
 		// decodes to a nil pointer that panics on the next field read. Skipped
 		// rather than refused: one bad entry must not make a session
@@ -250,4 +330,15 @@ func (s *Store) Restore(r io.Reader) error {
 		s.items[key(res.Tenant.Provider, res.Kind, res.ID)] = res
 	}
 	return nil
+}
+
+// looksLikeBareArray tells the old format from a corrupt file.
+//
+// By the decoder's own complaint rather than by peeking at the first byte: the
+// reader may not be seekable — `PUT /_feint/state` hands a request body straight
+// through — and buffering the whole file to look at one character would undo the
+// bound snapshot.go puts on it.
+func looksLikeBareArray(err error) bool {
+	var typeErr *json.UnmarshalTypeError
+	return errors.As(err, &typeErr) && typeErr.Value == "array"
 }
