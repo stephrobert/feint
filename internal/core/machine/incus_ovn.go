@@ -331,11 +331,12 @@ func (d *Incus) routeAddressOVN(ctx context.Context, spec AddressSpec) error {
 	}
 
 	// The machine answers on it, a /32 because the address is a route to this
-	// machine, not a subnet it belongs to. "file exists" is the second call's
-	// success.
+	// machine, not a subnet it belongs to. Already-there is the second call's
+	// success, in whichever wording the guest's `ip` uses (addressAlreadyThere:
+	// busybox does not say "file exists", and Alpine ships busybox).
 	if _, err := d.run(ctx, "exec", spec.Machine, "--",
 		"ip", "address", "add", route, "dev", device); err != nil &&
-		!strings.Contains(strings.ToLower(err.Error()), "file exists") {
+		!addressAlreadyThere(err) {
 		return fmt.Errorf("give %s to %s: %w", spec.Address, spec.Machine, err)
 	}
 	return nil
@@ -370,17 +371,32 @@ func (d *Incus) unrouteAddressOVN(ctx context.Context, machine, address string) 
 }
 
 // repairGuestInterface restores what a device re-plug cost the guest: the
-// fixed address the control plane published, and the link state. Measured on
+// address the interface carried, the link state, and the routes. Measured on
 // 7.2: any change to a non-live-updatable key removes and re-adds the NIC,
 // and the new interface comes up bare, with no DHCP client watching it.
+//
+// Two kinds of address, one repair. A pinned one is read off the device key.
+// A DHCP-owned one used to be declared unrepairable here, which turned a hot
+// route edit into a machine with no address at all — measured: RUNNING, guest
+// bare, sshd unreachable. The runtime itself records what the interface
+// carried (volatile.<device>.last_state.ip_addresses), the re-plug keeps the
+// NIC's hwaddr, and OVN's IPAM ties the address to that MAC — so restoring
+// the recorded address statically restores the port's own reservation, and
+// the lease's default route comes back with it.
+// TestAHotRouteEditRepairsADHCPInterface fails without the second kind.
 func (d *Incus) repairGuestInterface(ctx context.Context, machine, network, device string) error {
 	devices, err := d.instanceDevices(ctx, machine)
 	if err != nil {
 		return fmt.Errorf("inspect %s after re-plug: %w", machine, err)
 	}
 	address := devices.own[device]["ipv4.address"]
+	leased := false
 	if address == "" {
-		// Nothing was pinned, so nothing to put back; DHCP owns this one.
+		address = d.lastKnownAddress(ctx, machine, device)
+		leased = true
+	}
+	if address == "" {
+		// The interface never carried an address; there is nothing to put back.
 		return nil
 	}
 	gateway, err := d.networkGateway(ctx, network)
@@ -391,8 +407,34 @@ func (d *Incus) repairGuestInterface(ctx context.Context, machine, network, devi
 		fmt.Sprintf("%s/%d", address, gateway.Bits())); err != nil {
 		return err
 	}
+	if leased {
+		// The default route died with the lease, and nothing renews either.
+		// Restored only for the leased case: a pinned private NIC never had
+		// one, and inventing it would route a machine the control plane
+		// declared isolated.
+		if _, err := d.run(ctx, "exec", machine, "--",
+			"ip", "route", "add", "default", "via", gateway.Addr().String(), "dev", device); err != nil &&
+			!strings.Contains(strings.ToLower(err.Error()), "file exists") {
+			return fmt.Errorf("restore the default route of %s: %w", machine, err)
+		}
+	}
 	// The routes towards the peered subnets died with the interface too.
 	return d.installGuestPrivateRoutes(ctx, machine, network, device)
+}
+
+// lastKnownAddress is the IPv4 the runtime last saw on an interface, from the
+// volatile key Incus maintains per device. Empty when it never carried one.
+func (d *Incus) lastKnownAddress(ctx context.Context, machine, device string) string {
+	out, err := d.run(ctx, "config", "get", machine, "volatile."+device+".last_state.ip_addresses")
+	if err != nil {
+		return ""
+	}
+	for _, field := range strings.Split(strings.TrimSpace(string(out)), ",") {
+		if addr, err := netip.ParseAddr(strings.TrimSpace(field)); err == nil && addr.Is4() {
+			return addr.String()
+		}
+	}
+	return ""
 }
 
 // networkGateway reads a network's gateway address, with its mask, from the

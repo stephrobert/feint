@@ -1,11 +1,14 @@
 package exoscale
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"sort"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/core/machine"
 	"github.com/stephrobert/feint/internal/core/resource"
 )
 
@@ -14,9 +17,97 @@ import (
 // naming the instance, and the operation they mint refers to the elastic IP,
 // not the instance — that is what the recording shows the provider waiting on.
 //
-// The addresses come from 203.0.113.0/24 (TEST-NET-3): fixed, documented as
-// never routable, and disjoint from the machine runtime's own ranges, so an
-// elastic IP can never collide with an address a real machine answers on.
+// The addresses come from 192.0.2.0/24 (TEST-NET-1): fixed, documented as
+// never routable on the internet, and disjoint from the machine runtime's own
+// ranges. One RFC 5737 block per pack, because an attached address is routed
+// on the host now and one host serves three emulated clouds: Scaleway keeps
+// TEST-NET-3, Outscale has TEST-NET-2, and each pack's guard refuses the
+// other two.
+//
+// Attaching routes the address to the instance's machine, the way the real
+// cloud puts an elastic IP on an instance; detaching and deleting take the
+// route back. It moved only the record for as long as the machines sat on the
+// operator's default bridge, which the driver rightly refuses to route
+// through; they live on emulator-owned networks now.
+
+// elasticIPBlock is the block as a prefix, for the guard below.
+const elasticIPBlock = "192.0.2.0/24"
+
+// emulatedElasticIP reports whether an address is one this pack can have
+// handed out: inside elasticIPBlock. A stored address is restored verbatim by
+// PUT /_feint/state and `feint snapshot load`, and routing an arbitrary value
+// would send the host's traffic for that address into a container.
+// TestAPoisonedElasticIPIsNeverRouted fails without it.
+func emulatedElasticIP(address string) bool {
+	prefix, err := netip.ParsePrefix(elasticIPBlock)
+	if err != nil {
+		return false
+	}
+	addr, err := netip.ParseAddr(address)
+	if err != nil {
+		return false
+	}
+	return prefix.Contains(addr)
+}
+
+// routeElasticIP makes an attached address reach the instance's machine.
+// Degrades quietly, like every runtime call in this pack.
+// TestAttachElasticIPRoutesTheAddress fails without it.
+func (p *Pack) routeElasticIP(ctx context.Context, address string, inst *resource.Resource) {
+	router, ok := p.env.Machines.(machine.Router)
+	if !ok {
+		return
+	}
+	name := inst.Runtime[p.binding().RuntimeKey]
+	if name == "" || address == "" {
+		return
+	}
+	if !emulatedElasticIP(address) {
+		p.logger().Warn("refusing to route an address outside the emulated elastic block",
+			"address", address, "instance", inst.ID)
+		return
+	}
+	if err := router.RouteAddress(ctx, machine.AddressSpec{Machine: name, Address: address}); err != nil {
+		p.logger().Error("could not route the elastic IP to the machine",
+			"address", address, "instance", inst.ID, "error", err)
+	}
+}
+
+// unrouteElasticIP takes the route back. The machine may already be gone; the
+// driver treats that as nothing left to undo, and on OVN it still withdraws
+// the uplink route, which outlives the machine.
+func (p *Pack) unrouteElasticIP(ctx context.Context, address string, inst *resource.Resource) {
+	router, ok := p.env.Machines.(machine.Router)
+	if !ok || !emulatedElasticIP(address) {
+		return
+	}
+	name := ""
+	if inst != nil {
+		name = inst.Runtime[p.binding().RuntimeKey]
+	}
+	if err := router.UnrouteAddress(ctx, name, address); err != nil {
+		p.logger().Error("could not stop routing the elastic IP",
+			"address", address, "error", err)
+	}
+}
+
+// elasticBootAddresses is what an instance's machine must answer on from its
+// first boot: every elastic IP attached to it. On the launch rather than
+// routed afterwards, because editing a live OVN NIC re-plugs it.
+func (p *Pack) elasticBootAddresses(res *resource.Resource) []string {
+	ids := stringList(res.Attrs[attrElasticIPIDs])
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		eip, found := p.env.Store.Get(Name, kindElasticIP, id)
+		if !found {
+			continue
+		}
+		if address, _ := eip.Attrs["ip"].(string); emulatedElasticIP(address) {
+			out = append(out, address)
+		}
+	}
+	return out
+}
 
 const (
 	kindElasticIP = "elastic-ip"
@@ -78,7 +169,7 @@ func (p *Pack) freeElasticAddress() (string, bool) {
 		}
 	}
 	for host := 1; host <= 254; host++ {
-		ip := fmt.Sprintf("203.0.113.%d", host)
+		ip := fmt.Sprintf("192.0.2.%d", host)
 		if !used[ip] {
 			return ip, true
 		}
@@ -142,12 +233,18 @@ func (p *Pack) deleteElasticIP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The address is withdrawn from every instance that publishes it before the
-	// IP goes: a view naming a deleted IP would be published by nothing.
+	// IP goes: a view naming a deleted IP would be published by nothing, and a
+	// route that outlived its record would shadow the next allocation.
+	address := ""
+	if eip, found := p.env.Store.Get(Name, kindElasticIP, id); found {
+		address, _ = eip.Attrs["ip"].(string)
+	}
 	for _, inst := range p.env.Store.List(kindInstance, resource.Tenant{Provider: Name}) {
 		ids := stringList(inst.Attrs[attrElasticIPIDs])
 		if !contains(ids, id) {
 			continue
 		}
+		p.unrouteElasticIP(r.Context(), address, inst)
 		_ = p.env.Store.Update(Name, kindInstance, inst.ID, func(stored *resource.Resource) error {
 			stored.Attrs[attrElasticIPIDs] = without(stringList(stored.Attrs[attrElasticIPIDs]), id)
 			return nil
@@ -158,11 +255,35 @@ func (p *Pack) deleteElasticIP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Pack) attachInstanceToElasticIP(w http.ResponseWriter, r *http.Request) {
-	p.changeInstanceMembership(w, r, kindElasticIP, nounElasticIP, attrElasticIPIDs, true)
+	instanceID, ok := p.changeInstanceMembership(w, r, kindElasticIP, nounElasticIP, attrElasticIPIDs, true)
+	if !ok {
+		return
+	}
+	p.moveElasticRoute(r, instanceID, true)
 }
 
 func (p *Pack) detachInstanceFromElasticIP(w http.ResponseWriter, r *http.Request) {
-	p.changeInstanceMembership(w, r, kindElasticIP, nounElasticIP, attrElasticIPIDs, false)
+	instanceID, ok := p.changeInstanceMembership(w, r, kindElasticIP, nounElasticIP, attrElasticIPIDs, false)
+	if !ok {
+		return
+	}
+	p.moveElasticRoute(r, instanceID, false)
+}
+
+// moveElasticRoute routes or unroutes the elastic IP the request names, on the
+// instance the membership change just touched.
+func (p *Pack) moveElasticRoute(r *http.Request, instanceID string, attach bool) {
+	inst, foundInstance := p.env.Store.Get(Name, kindInstance, instanceID)
+	eip, foundIP := p.env.Store.Get(Name, kindElasticIP, r.PathValue("id"))
+	if !foundInstance || !foundIP {
+		return
+	}
+	address, _ := eip.Attrs["ip"].(string)
+	if attach {
+		p.routeElasticIP(r.Context(), address, inst)
+		return
+	}
+	p.unrouteElasticIP(r.Context(), address, inst)
 }
 
 func elasticIPView(res *resource.Resource) map[string]any {

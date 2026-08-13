@@ -250,21 +250,23 @@ func (p *Pack) detachInstanceFromSecurityGroup(w http.ResponseWriter, r *http.Re
 
 // changeInstanceMembership adds or removes one group-like resource on one
 // instance. Shared by security groups and elastic IPs, whose attach routes are
-// the same measured shape with different nouns.
-func (p *Pack) changeInstanceMembership(w http.ResponseWriter, r *http.Request, kind, noun, attr string, add bool) {
+// the same measured shape with different nouns. It reports the instance it
+// touched, so a caller with a side effect to apply — routing an elastic IP —
+// knows the membership really changed first.
+func (p *Pack) changeInstanceMembership(w http.ResponseWriter, r *http.Request, kind, noun, attr string, add bool) (instanceID string, ok bool) {
 	var req instanceTarget
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
-		return
+		return "", false
 	}
 	if req.Instance.ID == "" {
 		writeError(w, http.StatusBadRequest, "instance is required")
-		return
+		return "", false
 	}
 	id := r.PathValue("id")
-	if _, ok := p.env.Store.Get(Name, kind, id); !ok {
+	if _, found := p.env.Store.Get(Name, kind, id); !found {
 		writeError(w, http.StatusNotFound, "resource not found")
-		return
+		return "", false
 	}
 	err := p.env.Store.Update(Name, kindInstance, req.Instance.ID, func(stored *resource.Resource) error {
 		ids := stringList(stored.Attrs[attr])
@@ -283,9 +285,10 @@ func (p *Pack) changeInstanceMembership(w http.ResponseWriter, r *http.Request, 
 	})
 	if err != nil {
 		writeError(w, http.StatusNotFound, "resource not found")
-		return
+		return "", false
 	}
 	p.writeOperation(w, p.operationReferring(noun, id))
+	return req.Instance.ID, true
 }
 
 // securityGroupView is the measured shape: rules and external-sources are

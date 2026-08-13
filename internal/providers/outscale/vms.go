@@ -670,6 +670,11 @@ func (p *Pack) deleteVms(w http.ResponseWriter, r *http.Request) {
 			defer unlock()
 
 			previous := res.State
+			// Terminating releases the machine's public address, which is
+			// upstream's own behaviour: the address stays allocated and stops
+			// naming a machine that no longer exists. It must precede the
+			// destroy, because on OVN the uplink route outlives the machine.
+			p.releaseVmPublicIPs(r.Context(), res)
 			p.removeMachine(r.Context(), res)
 			// Terminated, not removed. The machine is destroyed, and the record
 			// stays readable: the Terraform provider answers DeleteVms by

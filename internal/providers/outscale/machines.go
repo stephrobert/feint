@@ -88,9 +88,17 @@ func (p *Pack) powerOn(ctx context.Context, res *resource.Resource) {
 		// Base64-encoded, so that is what a read must give back, and what
 		// cloud-init must never receive.
 		CloudInit: cloudinit.Decode(userData),
-		Labels:    map[string]string{"feint.vm": res.ID},
+		// The public address linked to this Vm, on the launch: a route edited
+		// onto a live OVN NIC re-plugs it and costs the guest its lease.
+		PublicAddresses: p.publicBootAddresses(res.ID),
+		Labels:          map[string]string{"feint.vm": res.ID},
 	})
 	p.rememberAddress(res)
+	// The boot installed the host half of the route; this hands the guest its
+	// address, and repairs a machine that already existed. Idempotent.
+	for _, address := range p.publicBootAddresses(res.ID) {
+		p.routeLinkedIP(ctx, address, res)
+	}
 }
 
 // rememberAddress keeps the private address on the resource, not only on the

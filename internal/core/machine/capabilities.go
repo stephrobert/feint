@@ -37,6 +37,20 @@ type Capabilities struct {
 	// OwnKernel: the machine boots its own kernel, so a test touching sysctl,
 	// kernel modules or the boot path measures something.
 	OwnKernel bool `json:"own_kernel"`
+	// PrivateFromHost: an address inside an emulated subnet answers from the
+	// host that runs the emulator, not only from the other machines.
+	//
+	// This is the second claim that separates the modes, and it is isolation's
+	// mirror image. A managed bridge is an interface of the host, so the host
+	// reaches every machine on it directly. An OVN network sits behind its own
+	// router with SNAT towards the uplink: a connection from the host to an
+	// internal address goes in unmapped and the reply comes back source-NATed
+	// to the router's uplink address, so the handshake never completes —
+	// measured, sshd up and answering its neighbours while the host read the
+	// port as closed. Only an externally routed public address (l2proxy)
+	// answers the host there, which is why the Scaleway ssh chain holds in
+	// both modes and a chain reading a subnet-internal address holds in one.
+	PrivateFromHost bool `json:"private_from_host"`
 }
 
 // Capable is implemented by a driver that declares what it delivers. It is an
@@ -93,12 +107,16 @@ func (Noop) Capabilities() Capabilities { return Capabilities{} }
 // Isolation follows OVN and nothing else. Addresses and the firewall hold in
 // every mode: both were measured on bridges, and the OVN mode carries them with
 // three documented behavioural differences rather than losing them.
+// PrivateFromHost is isolation's trade, not an accident: the same router that
+// separates two VPC's subnets by construction NATs the host away from their
+// insides, so the two claims cannot both be true of one Incus mode.
 func (d *Incus) Capabilities() Capabilities {
 	return Capabilities{
-		Machines:  true,
-		Addresses: true,
-		Firewall:  true,
-		Isolation: d.OVN,
-		OwnKernel: d.VM,
+		Machines:        true,
+		Addresses:       true,
+		Firewall:        true,
+		Isolation:       d.OVN,
+		OwnKernel:       d.VM,
+		PrivateFromHost: !d.OVN,
 	}
 }

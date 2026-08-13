@@ -88,6 +88,7 @@ EOF
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "  ok: $*"; }
+skip() { echo "  SKIP: $*" >&2; }
 osc() { oapi-cli --config "$WORK/config.json" "$@"; }
 
 echo "conformance: oapi-cli against $ENDPOINT"
@@ -402,7 +403,8 @@ ok "vm $vm_id, running"
 # With a machine runtime configured, "running" has to mean something. Without
 # one the emulator tracks state only, which is the default and stays untested
 # here so CI needs no runtime.
-MACHINES="$(curl -sf "$ENDPOINT/_feint/health" | jq -r '.machines')"
+health="$(curl -sf "$ENDPOINT/_feint/health")"
+MACHINES="$(printf '%s' "$health" | jq -r '.machines')"
 if [ "$MACHINES" != "none" ]; then
   echo "- the address the API publishes is the one the machine answers on"
   ip=""
@@ -412,9 +414,18 @@ if [ "$MACHINES" != "none" ]; then
     sleep 0.5
   done
   [ -n "$ip" ] || fail "the machine is running and the API publishes no PrivateIp"
-  ping -c 2 -W 2 "$ip" >/dev/null 2>&1 \
-    || fail "the API publishes $ip and nothing answers there"
-  ok "$ip, and it answers"
+  # This probe runs from the host, and whether a subnet-internal address
+  # answers the host is a property of the mode, declared rather than deduced
+  # from its name: an OVN router SNATs the host away from the inside of its
+  # networks (docs/limits.md), and the ssh suite proves reachability there
+  # through the routed public plane instead.
+  if [ "$(printf '%s' "$health" | jq -r '.capabilities.private_from_host')" = "true" ]; then
+    ping -c 2 -W 2 "$ip" >/dev/null 2>&1 \
+      || fail "the API publishes $ip and nothing answers there"
+    ok "$ip, and it answers"
+  else
+    skip "$MACHINES declares private_from_host=false; reachability is proven on the public plane (ssh suite)"
+  fi
 fi
 
 echo "- read it back"

@@ -98,14 +98,17 @@ func TestPublicAddressesAreRoutedBeforeTheFirstBoot(t *testing.T) {
 				t.Fatalf("start: %v", err)
 			}
 
-			routeIdx, startIdx := -1, -1
+			routeIdx, startIdx, uplinkIdx := -1, -1, -1
 			want := "config device set srv eth0 " + mode.key + "=203.0.113.2/32,203.0.113.9/32"
 			for i, cmd := range f.commands() {
-				switch cmd {
-				case want:
+				switch {
+				case cmd == want:
 					routeIdx = i
-				case "start srv":
+				case cmd == "start srv":
 					startIdx = i
+				case strings.HasPrefix(cmd, "network set "+DefaultUplinkName+" ipv4.routes=") &&
+					strings.Contains(cmd, "203.0.113.2/32") && uplinkIdx == -1:
+					uplinkIdx = i
 				}
 			}
 			if routeIdx == -1 {
@@ -116,6 +119,87 @@ func TestPublicAddressesAreRoutedBeforeTheFirstBoot(t *testing.T) {
 				t.Fatalf("the routes were set after the boot (route at %d, start at %d): the live edit re-plugs an OVN NIC",
 					routeIdx, startIdx)
 			}
+			if mode.ovn {
+				// Incus validates the device key against the uplink's routes
+				// and refuses it otherwise — measured: "Uplink network doesn't
+				// contain ... in its routes". So the /32 must reach the uplink
+				// first, or the whole boot fails.
+				if uplinkIdx == -1 || uplinkIdx > routeIdx {
+					t.Fatalf("the uplink does not carry the /32 before the device names it (uplink at %d, device at %d):\n%s",
+						uplinkIdx, routeIdx, strings.Join(f.commands(), "\n"))
+				}
+			} else if uplinkIdx != -1 {
+				t.Fatalf("bridge mode touched the OVN uplink:\n%s", strings.Join(f.commands(), "\n"))
+			}
 		})
+	}
+}
+
+// A mode switch leaves the default network behind as the wrong type, and
+// EnsureNetwork rightly refuses to reuse it — so every boot of the new mode
+// failed until somebody swept by hand. The replacement is bounded twice over:
+// only the emulator's own labelled network goes, and only when it is empty.
+func TestTheDefaultNetworkFollowsTheMode(t *testing.T) {
+	leftover := func(labelled bool, usedBy string) string {
+		label := ""
+		if labelled {
+			label = `"user.` + LabelKey + `": "feint"`
+		}
+		return `{"type": "bridge", "config": {` + label + `}, "used_by": [` + usedBy + `]}`
+	}
+
+	cases := []struct {
+		name     string
+		existing string
+		replaced bool
+	}{
+		{"an empty labelled bridge is replaced in ovn mode", leftover(true, ""), true},
+		{"a network with a machine on it stays", leftover(true, `"/1.0/instances/x"`), false},
+		{"an unlabelled network is never touched", leftover(false, ""), false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeRuntime{answers: map[string]string{
+				"query /1.0/networks/" + DefaultMachineNetwork: tc.existing,
+			}}
+			d := newFakeDriver(f)
+			d.OVN = true
+
+			// The error path is not under test: EnsureNetwork will refuse the
+			// wrong-typed leftover in the cases where it stays, and that
+			// refusal is its own test's business.
+			_ = d.ensureDefaultNetwork(context.Background())
+
+			deleted := len(f.matching("network delete "+DefaultMachineNetwork)) > 0
+			if deleted != tc.replaced {
+				t.Errorf("deleted=%v, want %v:\n%s", deleted, tc.replaced,
+					strings.Join(f.commands(), "\n"))
+			}
+		})
+	}
+}
+
+// A Start that fails after init must not leave the instance behind: the next
+// poweron would find it, take the already-exists path, and boot a machine
+// missing the very keys the failed call was setting — measured in OVN mode,
+// where the half-made machine came up with no route key, no DHCP lease and no
+// ssh daemon, while the API said running.
+func TestAFailedStartLeavesNoHalfMadeInstance(t *testing.T) {
+	f := &fakeRuntime{fail: map[string]error{
+		"ipv4.address=10.181.0.2": errors.New("Device validation failed"),
+	}}
+	startScript(f)
+	d := newFakeDriver(f)
+
+	_, err := d.Start(context.Background(), Spec{
+		Name:        "srv",
+		Image:       "alpine:3.21",
+		Attachments: []Attachment{{Network: "fnt-abc", Address: "10.181.0.2"}},
+	})
+	if err == nil {
+		t.Fatal("a refused device key did not fail the start")
+	}
+	if len(f.matching("delete --force srv")) != 1 {
+		t.Fatalf("the half-made instance was left behind:\n%s", strings.Join(f.commands(), "\n"))
 	}
 }

@@ -129,8 +129,16 @@ run = [
 ]
 
 [tasks."conformance:ssh"]
-description = "Register a key, boot a server, log into it. Needs FEINT_VM=incus or incus-vm"
-run = "tools/conformance/scaleway/ssh.sh http://$FEINT_ADDR"
+description = "Register a key, boot a server, log into it — on every provider. Needs FEINT_VM=incus or incus-vm"
+# Three providers, three logins, one chain each: the login is a per-pack fact
+# (root, outscale, the template's default-user), and a good image with the
+# wrong login is a machine nobody enters. One suite proved it, two asserted it;
+# now each pack is driven by its own official client to a real shell.
+run = [
+  "tools/conformance/scaleway/ssh.sh http://$FEINT_ADDR",
+  "tools/conformance/outscale/ssh.sh http://$FEINT_ADDR",
+  "tools/conformance/exoscale/ssh.sh http://$FEINT_ADDR",
+]
 
 [tasks."conformance:oapi"]
 description = "Drive the running emulator with the real Outscale CLI"

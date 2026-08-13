@@ -17,8 +17,8 @@ func TestAPublicIpIsAllocatedListedAndReleased(t *testing.T) {
 	ip, _ := created["PublicIp"].(map[string]any)
 	// Deterministic first address, from the documented-fictional TEST-NET-3
 	// block ReadPublicIpRanges publishes.
-	if ip["PublicIp"] != "203.0.113.1" {
-		t.Fatalf("first allocation = %v, want 203.0.113.1", ip["PublicIp"])
+	if ip["PublicIp"] != "198.51.100.1" {
+		t.Fatalf("first allocation = %v, want 198.51.100.1", ip["PublicIp"])
 	}
 	// Measured: an unlinked address is exactly {PublicIpId, PublicIp, Tags} —
 	// no Vm, Nic or NatService keys, not even empty ones.
@@ -30,18 +30,18 @@ func TestAPublicIpIsAllocatedListedAndReleased(t *testing.T) {
 
 	second := call(t, ts, doc, "CreatePublicIp", `{}`)
 	ip2, _ := second["PublicIp"].(map[string]any)
-	if ip2["PublicIp"] != "203.0.113.2" {
-		t.Fatalf("second allocation = %v, want 203.0.113.2", ip2["PublicIp"])
+	if ip2["PublicIp"] != "198.51.100.2" {
+		t.Fatalf("second allocation = %v, want 198.51.100.2", ip2["PublicIp"])
 	}
 
 	// The catalogue and the allocator answer from the same block.
 	ranges := call(t, ts, doc, "ReadPublicIpRanges", `{}`)
-	if list, _ := ranges["PublicIps"].([]any); len(list) != 1 || list[0] != "203.0.113.0/24" {
+	if list, _ := ranges["PublicIps"].([]any); len(list) != 1 || list[0] != "198.51.100.0/24" {
 		t.Fatalf("ReadPublicIpRanges does not publish the allocator's block: %v", ranges["PublicIps"])
 	}
 
 	// Deleting by address value, which the API accepts alongside the id.
-	call(t, ts, doc, "DeletePublicIp", `{"PublicIp":"203.0.113.1"}`)
+	call(t, ts, doc, "DeletePublicIp", `{"PublicIp":"198.51.100.1"}`)
 	left := call(t, ts, doc, "ReadPublicIps", `{}`)
 	if list, _ := left["PublicIps"].([]any); len(list) != 1 {
 		t.Fatalf("one address should remain: %v", left["PublicIps"])

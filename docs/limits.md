@@ -263,6 +263,19 @@ Bounds, stated rather than implied:
   emulated machines). It is a documentation address on purpose; nothing routes
   it beyond the host, and that is the point — a test that half-works against
   the real internet is worse than an address that visibly goes nowhere.
+- A **subnet-internal** address — Outscale's `PrivateIp`, Exoscale's
+  `public-ip`, both of which this emulator fills with the machine's own
+  address — answers the host in bridge mode and not in OVN mode, and the
+  runtime declares which (`capabilities.private_from_host`). The cause is
+  isolation's own machinery: the OVN router that separates two VPCs by
+  construction also SNATs the host's connections on the way back, so the
+  handshake never completes — measured, sshd up and answering its neighbours
+  while the host read the port as closed. The routed public plane crosses
+  that boundary in both modes, which is why every pack's ssh chain logs in
+  through it: a Scaleway flexible IP, an Outscale `LinkPublicIp`, an Exoscale
+  elastic IP — each is genuinely routed to the machine, and each pack draws
+  from its own RFC 5737 block (TEST-NET-3, -2 and -1 respectively) so two
+  emulated clouds on one host can never route the same /32 to two machines.
 - On a **virtual machine** (`--vm incus-vm`), the host half of the route is in
   place from the first boot, and the guest half — the address on the guest's
   own interface — lands on the first read after the agent answers, the same
@@ -785,16 +798,23 @@ one with an empty type. If Outscale adds a value, that field is where it goes.
 
 ## Outscale's gateways and NAT move records, not packets
 
-`InternetService`, `LinkInternetService`, `NatService`, `LinkPublicIp` and the
-routes that name them are served, and none of them makes a packet flow.
+`InternetService`, `LinkInternetService`, `NatService` and the routes that
+name them are served, and none of them makes a packet flow.
 
-This one is structural rather than unbuilt, and the difference matters because
+`LinkPublicIp` is no longer on that list: a linked address is routed to the
+Vm's machine, answers from the host that runs the emulator, and
+`ssh outscale@<PublicIp>` opens a shell — the outscale ssh conformance suite
+drives exactly that. The limit was real while the machines sat on the
+operator's default bridge, which the driver rightly refuses to route through;
+they boot on emulator-owned networks now.
+
+The rest is structural rather than unbuilt, and the difference matters because
 everything around it was buildable and got built. The emulator has no data
-plane: it creates bridges and containers on one host through Incus, and a NAT
-service is a managed appliance in a facility this machine is not in. A public
-address allocated here comes from `203.0.113.0/24` — TEST-NET-3, reserved by
-RFC 5737 and routed nowhere on purpose, so an address that goes nowhere is
-visibly fictional rather than quietly broken.
+plane beyond that host: a NAT service is a managed appliance in a facility
+this machine is not in. A public address allocated here comes from
+`198.51.100.0/24` — TEST-NET-2, reserved by RFC 5737 and routed nowhere on
+purpose, so beyond this host an address goes visibly nowhere rather than
+quietly somewhere.
 
 What *is* real is the resource algebra, and it is what a plan actually depends
 on: an address a NAT service holds refuses to be released, a gateway refuses to

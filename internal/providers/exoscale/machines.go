@@ -2,6 +2,7 @@ package exoscale
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/stephrobert/feint/internal/core/cloudinit"
 	"github.com/stephrobert/feint/internal/core/machine"
@@ -34,6 +35,15 @@ func (p *Pack) binding() machine.Binding {
 		FailedState: "error",
 		Log:         p.env.Log,
 	}
+}
+
+// logger returns the environment logger, or the default one when a caller
+// built an Env by hand without setting it.
+func (p *Pack) logger() *slog.Logger {
+	if p.env.Log != nil {
+		return p.env.Log
+	}
+	return slog.Default()
 }
 
 // catalogueDate is when the emulated catalogue claims to have been built. A
@@ -135,8 +145,16 @@ func (p *Pack) start(ctx context.Context, res *resource.Resource) {
 		// Decoded here, stored encoded: Exoscale documents user-data as base64,
 		// so that is what a read gives back and what cloud-init must not see.
 		CloudInit: cloudinit.Decode(userData),
-		Labels:    map[string]string{"feint.instance": res.ID},
+		// The elastic IPs already attached, on the launch: a route edited onto
+		// a live OVN NIC re-plugs it and costs the guest its lease.
+		PublicAddresses: p.elasticBootAddresses(res),
+		Labels:          map[string]string{"feint.instance": res.ID},
 	})
+	// The boot installed the host half of every route; this hands the guest
+	// its addresses, and repairs a machine that already existed. Idempotent.
+	for _, address := range p.elasticBootAddresses(res) {
+		p.routeElasticIP(ctx, address, res)
+	}
 }
 
 // authorizedKeys is the material of the key an instance names, or nothing.
@@ -166,8 +184,12 @@ func (p *Pack) authorizedKeys(res *resource.Resource) []string {
 }
 
 // destroy removes the backing machine, so a leftover cannot outlive the instance
-// that justified it.
+// that justified it. The elastic routes go first, because on OVN the uplink
+// route outlives the machine.
 func (p *Pack) destroy(ctx context.Context, res *resource.Resource) {
+	for _, address := range p.elasticBootAddresses(res) {
+		p.unrouteElasticIP(ctx, address, res)
+	}
 	p.binding().Destroy(ctx, res)
 }
 

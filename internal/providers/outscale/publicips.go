@@ -1,29 +1,42 @@
 package outscale
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"strings"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/core/machine"
 	"github.com/stephrobert/feint/internal/core/resource"
 )
 
 // Public IPs: allocate, list, release.
 //
-// The addresses come from 203.0.113.0/24 — TEST-NET-3, reserved by RFC 5737 for
-// documentation and never routed. An emulator that handed out addresses from a
-// real public block would let a test half-work against the real internet, which
-// is worse than an address that visibly goes nowhere. ReadPublicIpRanges
-// publishes the same block, so the catalogue and the allocator cannot disagree.
+// The addresses come from 198.51.100.0/24 — TEST-NET-2, reserved by RFC 5737
+// for documentation and never routed. An emulator that handed out addresses
+// from a real public block would let a test half-work against the real
+// internet, which is worse than an address that visibly goes nowhere.
+// ReadPublicIpRanges publishes the same block, so the catalogue and the
+// allocator cannot disagree.
 //
-// LinkPublicIp and UnlinkPublicIp are served in the CONTROL PLANE ONLY: the
-// record moves, no packet does. They were declined at first on the argument that
-// publishing an address is the runtime's job — defensible, and wrong on the
-// evidence: the provider's own examples/net_vm fixture holds an
-// `outscale_public_ip_link`, so the refusal failed the apply partway through and
-// left the twelve other resources unproven. A stated limit beats an apply that
-// cannot finish; docs/limits.md carries it.
+// TEST-NET-2 and not TEST-NET-3, which every pack used to draw from: a linked
+// address is routed on the host now, and one host serves three emulated
+// clouds, so two packs handing out the same "public" /32 would route it to
+// two machines and let ARP order pick the winner. RFC 5737 reserves exactly
+// three blocks; each pack owns one (Scaleway keeps TEST-NET-3, Exoscale takes
+// TEST-NET-1), and the guard of each refuses the other two.
+//
+// LinkPublicIp and UnlinkPublicIp move the record AND the packet: a linked
+// address is routed to the Vm's machine the way a Scaleway flexible IP is, so
+// `ssh outscale@<PublicIp>` opens a shell — that is the address a real
+// Outscale user logs into, and for a long time this pack only moved the
+// record. The limit was real while machines sat on the operator's default
+// profile bridge, which the driver rightly refuses to route through; the
+// machines live on emulator-owned networks now, and the limit went with it.
+// (They were declined even earlier, which failed the provider's own
+// examples/net_vm fixture partway through its apply.)
 //
 // Shape measured (X-2 sweep, 2026-08-08): an unlinked address carries exactly
 // PublicIp, PublicIpId and Tags — no Vm/Nic/NatService keys, not even empty.
@@ -34,7 +47,96 @@ const kindPublicIP = "publicip"
 
 // publicIPBase is the fictional block addresses are allocated from,
 // sequentially from .1: deterministic, so a test can pin the first address.
-const publicIPBase = "203.0.113."
+const publicIPBase = "198.51.100."
+
+// publicIPBlock is the same block as a prefix, for the guard below.
+const publicIPBlock = "198.51.100.0/24"
+
+// emulatedPublicIP reports whether an address is one this pack can have handed
+// out: inside publicIPBlock. It is the authorisation half on the way to the
+// driver — a stored address is restored verbatim by PUT /_feint/state and
+// `feint snapshot load`, and routing an arbitrary value would send the host's
+// traffic for that address into a container.
+// TestAPoisonedPublicIpIsNeverRouted fails without it.
+func emulatedPublicIP(address string) bool {
+	prefix, err := netip.ParsePrefix(publicIPBlock)
+	if err != nil {
+		return false
+	}
+	addr, err := netip.ParseAddr(address)
+	if err != nil {
+		return false
+	}
+	return prefix.Contains(addr)
+}
+
+// routeLinkedIP makes a linked public address reach the Vm's machine, the way
+// the real cloud routes an EIP to its instance. LinkPublicIp used to move the
+// record and no packet — a stated limit while nothing on the host could carry
+// the address; the machines sit on emulator-owned networks now, so the limit
+// stopped being one. Degrades quietly, like every runtime call in this pack.
+// TestLinkPublicIpRoutesTheAddress fails without it.
+func (p *Pack) routeLinkedIP(ctx context.Context, address string, vm *resource.Resource) {
+	router, ok := p.env.Machines.(machine.Router)
+	if !ok {
+		return
+	}
+	name := vm.Runtime[p.binding().RuntimeKey]
+	if name == "" || address == "" {
+		return
+	}
+	if !emulatedPublicIP(address) {
+		p.logger().Warn("refusing to route an address outside the emulated public block",
+			"address", address, "vm", vm.ID)
+		return
+	}
+	if err := router.RouteAddress(ctx, machine.AddressSpec{Machine: name, Address: address}); err != nil {
+		p.logger().Error("could not route the public IP to the machine",
+			"address", address, "vm", vm.ID, "error", err)
+	}
+}
+
+// unrouteLinkedIP takes the route back. The machine may already be gone; the
+// driver treats that as nothing left to undo, and on OVN it still withdraws
+// the uplink route, which outlives the machine.
+func (p *Pack) unrouteLinkedIP(ctx context.Context, address string, vm *resource.Resource) {
+	router, ok := p.env.Machines.(machine.Router)
+	if !ok || !emulatedPublicIP(address) {
+		return
+	}
+	machineName := ""
+	if vm != nil {
+		machineName = vm.Runtime[p.binding().RuntimeKey]
+	}
+	if err := router.UnrouteAddress(ctx, machineName, address); err != nil {
+		p.logger().Error("could not stop routing the public IP",
+			"address", address, "error", err)
+	}
+}
+
+// publicBootAddresses is what a Vm's machine must answer on from its first
+// boot: the public address linked to it, when one is. On the launch rather
+// than routed afterwards, because editing a live OVN NIC re-plugs it.
+func (p *Pack) publicBootAddresses(vmID string) []string {
+	if address := p.publicIPOf(vmID); emulatedPublicIP(address) {
+		return []string{address}
+	}
+	return nil
+}
+
+// releaseVmPublicIPs unlinks and unroutes every public address a Vm holds,
+// which is what terminating the Vm does upstream: the address stays allocated,
+// and stops naming a machine that no longer exists.
+// TestTerminateReleasesTheLinkedPublicIp fails without it.
+func (p *Pack) releaseVmPublicIPs(ctx context.Context, vm *resource.Resource) {
+	for _, address := range p.env.Store.List(kindPublicIP, resource.Tenant{Provider: Name}) {
+		if stringOf(address.Attrs["VmId"]) != vm.ID {
+			continue
+		}
+		p.unrouteLinkedIP(ctx, stringOf(address.Attrs["PublicIp"]), vm)
+		p.releasePublicIP(address)
+	}
+}
 
 func (p *Pack) createPublicIP(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -156,6 +258,13 @@ func (p *Pack) deletePublicIP(w http.ResponseWriter, r *http.Request) {
 		p.conflict(w, "the public IP "+res.ID+" is held by "+natID)
 		return
 	}
+	// A linked address is unrouted before its record vanishes, or the machine
+	// keeps answering on an address the API no longer describes.
+	if vmID := stringOf(res.Attrs["VmId"]); vmID != "" {
+		if vm, found := p.env.Store.Get(Name, kindVM, vmID); found {
+			p.unrouteLinkedIP(r.Context(), stringOf(res.Attrs["PublicIp"]), vm)
+		}
+	}
 	p.env.Store.Delete(Name, kindPublicIP, res.ID)
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
 }
@@ -187,15 +296,15 @@ func publicIPView(res *resource.Resource) map[string]any {
 	return out
 }
 
-// linkPublicIP attaches an address to a machine, in the control plane only.
+// linkPublicIP attaches an address to a machine, and routes it there: with a
+// runtime on, the linked address answers from the host, filtered like any
+// other traffic to the machine. The address still comes from the
+// documented-fictional block, so it answers this host and nothing beyond it.
 //
-// What this does NOT do is route a packet, and saying so is the point: the
-// address comes from a documented-fictional block, nothing on the host carries
-// it, and no NAT rule is written. docs/limits.md records it. The reason it is
-// served rather than declined is measured: the provider's own examples/net_vm
-// fixture holds an `outscale_public_ip_link`, so declining it fails the apply on
-// the eleventh resource of thirteen — and an apply that cannot complete proves
-// nothing about the twelve that worked.
+// The reason it is served rather than declined is measured: the provider's own
+// examples/net_vm fixture holds an `outscale_public_ip_link`, so declining it
+// fails the apply on the eleventh resource of thirteen — and an apply that
+// cannot complete proves nothing about the twelve that worked.
 //
 // The fields it fills come from the read sweep: an address linked to a machine
 // answers with VmId, NicId, NicAccountId and PrivateIp beside its own.
@@ -254,6 +363,14 @@ func (p *Pack) linkPublicIP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Moving the address means taking it back first: the route lives on the
+	// previous machine, and two machines claiming one /32 answer by ARP order.
+	if holder := stringOf(address.Attrs["VmId"]); holder != "" && holder != req.VMID {
+		if previous, found := p.env.Store.Get(Name, kindVM, holder); found {
+			p.unrouteLinkedIP(r.Context(), stringOf(address.Attrs["PublicIp"]), previous)
+		}
+	}
+
 	linkID := newID("eipassoc", p.env.NewID())
 	address.Attrs["VmId"] = req.VMID
 	address.Attrs["NicId"] = nicID
@@ -264,6 +381,13 @@ func (p *Pack) linkPublicIP(w http.ResponseWriter, r *http.Request) {
 	if !p.env.Store.Commit(address, p.env.Now()) {
 		p.notFound(w, "public IP", address.ID)
 		return
+	}
+	// The record moved; now the packet does too. A link to a bare NicId names
+	// no machine, so only the VmId form routes.
+	if req.VMID != "" {
+		if vm, found := p.env.Store.Get(Name, kindVM, req.VMID); found {
+			p.routeLinkedIP(r.Context(), stringOf(address.Attrs["PublicIp"]), vm)
+		}
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"LinkPublicIpId":  linkID,
@@ -288,6 +412,11 @@ func (p *Pack) unlinkPublicIP(w http.ResponseWriter, r *http.Request) {
 		}
 		if linked != req.LinkPublicIPID && stringOf(address.Attrs["PublicIp"]) != req.PublicIP {
 			continue
+		}
+		// The route goes with the record: an address that stays routed after
+		// its unlink shadows the next machine it is linked to.
+		if vm, found := p.env.Store.Get(Name, kindVM, stringOf(address.Attrs["VmId"])); found {
+			p.unrouteLinkedIP(r.Context(), stringOf(address.Attrs["PublicIp"]), vm)
 		}
 		p.releasePublicIP(address)
 		emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
