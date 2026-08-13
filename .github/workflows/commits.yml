@@ -49,9 +49,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install commitizen (pinned, same version as the hook)
-        env:
-          CZ_VERSION: '4.16.5'
-        run: pip install --no-cache-dir "commitizen==${CZ_VERSION}"
+        run: pip install --no-cache-dir --require-hashes -r tools/ci/commitizen-requirements.txt
 
       # The range, not the working tree: this says nothing about the files and
       # everything about the messages the branch adds.

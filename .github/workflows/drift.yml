@@ -118,7 +118,16 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
-          pipx install uv >/dev/null 2>&1 || pip install --quiet uv
+          # Pinned by hash. This install took whatever uv was newest, every
+          # week, in the workflow that regenerates committed artefacts and
+          # opens a pull request with them: Scorecard's Pinned-Dependencies
+          # flagged it and was right.
+          #
+          # The requirements file carries the version and the hashes, and
+          # TestTheWorkflowsPinTheSameToolsAsMise fails when it and mise.toml
+          # name different ones, so a workstation and this runner cannot drift
+          # apart. Regenerate it with the command in its header.
+          pip install --quiet --require-hashes -r tools/ci/uv-requirements.txt
           # Not `mise run`: mise is not installed on a GitHub runner, so this
           # step failed with "command not found" every week — silently, because
           # of continue-on-error above, which left the contracts half of the

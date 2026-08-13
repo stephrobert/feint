@@ -37,8 +37,13 @@ Deux conséquences qui méritent d'être dites franchement :
 
 ## Signaler une vulnérabilité
 
-Signalez en privé via **Security → Report a vulnerability** sur ce dépôt. Cela
-ouvre un avis privé que seuls les mainteneurs peuvent lire.
+Signalez en privé via **Security → Report a vulnerability** sur ce dépôt :
+<https://github.com/stephrobert/feint/security/advisories/new>. Cela ouvre un
+avis privé que seuls les mainteneurs peuvent lire.
+
+Si GitHub vous est inaccessible, écrivez à l'adresse publiée sur
+<https://blog.stephane-robert.info>, en précisant qu'il s'agit d'une
+vulnérabilité pour que le message ne soit pas lu comme du courrier ordinaire.
 
 Merci de ne pas ouvrir d'issue publique pour quoi que ce soit d'exploitable.
 

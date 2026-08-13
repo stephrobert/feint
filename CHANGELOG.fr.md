@@ -94,6 +94,24 @@ change ni l'un ni l'autre a sa place dans `git log`.
   façon, l'émulateur n'ayant derrière elle qu'un enregistrement et aucun
   contenu de disque, et le journal dit lequel des deux cas s'applique.
 
+### Sécurité
+
+- **Deux installations de CI prenaient la dernière version disponible.**
+  `pipx install uv`, dans le workflow de dérive hebdomadaire, n'était épinglé à
+  rien — et c'est le job qui régénère des artefacts versionnés et ouvre une pull
+  request avec eux ; commitizen, lui, l'était par version et non par empreinte.
+  Les deux installent désormais depuis un fichier d'exigences avec empreintes,
+  et `TestTheWorkflowsPinTheSameToolsAsMise` échoue dès qu'une version y cesse
+  de correspondre au fichier qui la possède : `mise.toml` pour uv, le hook
+  pre-commit pour commitizen, de sorte qu'un poste et un runner ne peuvent pas
+  exécuter des outils différents. Signalé par Pinned-Dependencies d'OpenSSF
+  Scorecard.
+
+- **`SECURITY.md` porte une adresse joignable.** Il décrivait comment signaler
+  sans lier quoi que ce soit : il fallait savoir où GitHub range le formulaire.
+  Il nomme désormais l'URL de l'avis, et une seconde voie pour qui n'a pas accès
+  à GitHub.
+
 ## [0.7.2]
 
 ### Ajouté

@@ -90,6 +90,21 @@ what this project is judged on: **a response shape a client can observe**, and
   record and holds no disk contents — and the log says which of the two cases
   it is.
 
+### Security
+
+- **Two CI installs took whatever was newest.** `pipx install uv` in the weekly
+  drift workflow was pinned to nothing at all — in the job that regenerates
+  committed artefacts and opens a pull request with them — and commitizen was
+  pinned by version rather than by hash. Both install from a requirements file
+  with hashes now, and `TestTheWorkflowsPinTheSameToolsAsMise` fails when a
+  version there stops matching the file that owns it: `mise.toml` for uv, the
+  pre-commit hook for commitizen, so a workstation and a runner cannot run
+  different tools. Reported by OpenSSF Scorecard's Pinned-Dependencies.
+
+- **`SECURITY.md` carries a reachable address.** It described how to report and
+  linked nothing, so a reader had to know where GitHub keeps the form. It names
+  the advisory URL now, and a second route for anyone GitHub is unavailable to.
+
 ## [0.7.2]
 
 ### Added

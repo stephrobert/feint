@@ -36,7 +36,12 @@ Two consequences worth stating plainly:
 ## Reporting a vulnerability
 
 Report privately through GitHub's **Security → Report a vulnerability** on this
-repository. That opens a private advisory only the maintainers can read.
+repository: <https://github.com/stephrobert/feint/security/advisories/new>. That
+opens a private advisory only the maintainers can read.
+
+If GitHub is unavailable to you, write to the address published at
+<https://blog.stephane-robert.info>, and say that the message concerns a
+vulnerability so it is not read as ordinary mail.
 
 Please do not open a public issue for anything exploitable.
 
