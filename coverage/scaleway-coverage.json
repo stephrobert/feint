@@ -1,11 +1,34 @@
 {
   "provider": "scaleway",
-  "total": 288,
-  "implemented": 66,
-  "declined": 222,
+  "total": 315,
+  "implemented": 88,
+  "declined": 227,
   "unknown": 0,
   "orphans": null,
   "products": [
+    {
+      "product": "block",
+      "total": 27,
+      "implemented": 22,
+      "declined": 5,
+      "unknown": 0,
+      "versions": [
+        {
+          "version": "v1",
+          "total": 13,
+          "implemented": 11,
+          "declined": 2,
+          "unknown": 0
+        },
+        {
+          "version": "v1alpha1",
+          "total": 14,
+          "implemented": 11,
+          "declined": 3,
+          "unknown": 0
+        }
+      ]
+    },
     {
       "product": "iam",
       "total": 83,
@@ -102,6 +125,173 @@
     }
   ],
   "entries": [
+    {
+      "operation": "block/v1/API.CreateSnapshot",
+      "product": "block",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "block/v1/API.CreateVolume",
+      "product": "block",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "block/v1/API.DeleteSnapshot",
+      "product": "block",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "block/v1/API.DeleteVolume",
+      "product": "block",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "block/v1/API.ExportSnapshotToObjectStorage",
+      "product": "block",
+      "reason": "it moves a snapshot's bytes through Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "block/v1/API.GetSnapshot",
+      "product": "block",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "block/v1/API.GetVolume",
+      "product": "block",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "block/v1/API.ImportSnapshotFromObjectStorage",
+      "product": "block",
+      "reason": "it moves a snapshot's bytes through Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "block/v1/API.ListSnapshots",
+      "product": "block",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "block/v1/API.ListVolumeTypes",
+      "product": "block",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "block/v1/API.ListVolumes",
+      "product": "block",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "block/v1/API.UpdateSnapshot",
+      "product": "block",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "block/v1/API.UpdateVolume",
+      "product": "block",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "block/v1alpha1/API.CreateSnapshot",
+      "product": "block",
+      "version": "v1alpha1",
+      "status": "implemented"
+    },
+    {
+      "operation": "block/v1alpha1/API.CreateVolume",
+      "product": "block",
+      "version": "v1alpha1",
+      "status": "implemented"
+    },
+    {
+      "operation": "block/v1alpha1/API.DeleteSnapshot",
+      "product": "block",
+      "version": "v1alpha1",
+      "status": "implemented"
+    },
+    {
+      "operation": "block/v1alpha1/API.DeleteVolume",
+      "product": "block",
+      "version": "v1alpha1",
+      "status": "implemented"
+    },
+    {
+      "operation": "block/v1alpha1/API.ExportSnapshotToObjectStorage",
+      "product": "block",
+      "reason": "it moves a snapshot's bytes through Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "block/v1alpha1/API.GetSnapshot",
+      "product": "block",
+      "version": "v1alpha1",
+      "status": "implemented"
+    },
+    {
+      "operation": "block/v1alpha1/API.GetVolume",
+      "product": "block",
+      "version": "v1alpha1",
+      "status": "implemented"
+    },
+    {
+      "operation": "block/v1alpha1/API.ImportSnapshotFromObjectStorage",
+      "product": "block",
+      "reason": "it moves a snapshot's bytes through Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "block/v1alpha1/API.ImportSnapshotFromS3",
+      "product": "block",
+      "reason": "it moves a snapshot's bytes through Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md",
+      "version": "v1alpha1",
+      "status": "declined"
+    },
+    {
+      "operation": "block/v1alpha1/API.ListSnapshots",
+      "product": "block",
+      "version": "v1alpha1",
+      "status": "implemented"
+    },
+    {
+      "operation": "block/v1alpha1/API.ListVolumeTypes",
+      "product": "block",
+      "version": "v1alpha1",
+      "status": "implemented"
+    },
+    {
+      "operation": "block/v1alpha1/API.ListVolumes",
+      "product": "block",
+      "version": "v1alpha1",
+      "status": "implemented"
+    },
+    {
+      "operation": "block/v1alpha1/API.UpdateSnapshot",
+      "product": "block",
+      "version": "v1alpha1",
+      "status": "implemented"
+    },
+    {
+      "operation": "block/v1alpha1/API.UpdateVolume",
+      "product": "block",
+      "version": "v1alpha1",
+      "status": "implemented"
+    },
     {
       "operation": "iam/v1alpha1/API.AddGroupMember",
       "product": "iam",

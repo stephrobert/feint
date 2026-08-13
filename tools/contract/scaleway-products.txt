@@ -24,3 +24,9 @@ vpc/v2
 ipam/v1
 iam/v1alpha1
 marketplace/v2
+block/v1
+# The alpha is here because the CLI is: scw 2.56.3 calls /block/v1alpha1 for
+# every block command while the Terraform provider calls /block/v1, so the
+# emulator serves both and both must be checked against their own description.
+# Measured on the first conformance run of SW-3, not assumed.
+block/v1alpha1

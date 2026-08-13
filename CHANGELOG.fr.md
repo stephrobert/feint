@@ -19,6 +19,45 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Scaleway sert le Block Storage, et le volume racine d'un serveur devient
+  enfin écrivable** (#8). `block/v1` et `block/v1alpha1` montent 22 routes :
+  volumes, snapshots et catalogue de types. `root_volume { volume_type =
+  "sbs_volume" }` est honoré, le disque est créé dans Block, et le provider
+  Terraform le relit par le repli qu'il a toujours utilisé —
+  `instance.GetVolume` d'abord, puis `block.GetVolume` sur un 404 typé.
+
+  Avant cela, `root_volume` n'avait aucune valeur utilisable : le provider
+  refuse `b_ssd` d'emblée depuis la 2.79, et `sbs_volume` produisait un diff
+  permanent. Mesuré et signalé par @vde-dis, qui a tenté de l'honorer, vu
+  l'apply mourir sur « waiting for Volume failed: http error 404 Not Found », et
+  jeté le changement plutôt que de deviner. La fixture de conformance omettait
+  le bloc : la suite était verte sans jamais poser la question — un test qui
+  évite la seule entrée qui casse. Elle déclare le bloc désormais.
+
+  Deux choses que seuls les vrais clients pouvaient dire, trouvées au premier
+  passage de la suite. `scw` 2.56.3 appelle `/block/v1alpha1` pour **toutes**
+  ses commandes block quand le provider Terraform appelle `/block/v1` : deux
+  clients officiels d'un même cloud, épinglés chacun à une orthographe, donc les
+  deux sont servis par les mêmes handlers plutôt qu'une refusée sur une raison
+  que le CLI dément. Et `scw block volume create` refuse un nombre d'octets brut
+  là où la commande instance l'accepte, exigeant `10G`.
+
+  La forme du volume vient d'un enregistrement d'un vrai compte et non du SDK,
+  d'où `kms_key_id` et `last_detached_at` présents et nuls, et un `references`
+  calculé depuis l'attachement plutôt que stocké à côté. L'identifiant d'une
+  référence dérive de la paire qu'il relie, donc il relit à l'identique à chaque
+  plan.
+
+  Refus qu'un client peut observer : un volume créé sans `from_empty` ni
+  `from_snapshot` ou avec les deux, un volume qui rétrécirait, un `kms_key_id`
+  nommant un Key Manager que cet émulateur ne sert pas, un volume supprimé sous
+  son serveur, un snapshot supprimé sous un volume qui en est issu. Les deux
+  transferts Object Storage restent refusés, pour la raison que porte
+  `instance/v1.ExportSnapshot`.
+
+  Conformance : **158 routes sur 206 prouvées par un vrai client**, contre 146
+  sur 184.
+
 - **Scaleway sert les snapshots et les images que le client crée** (#7). La
   séquence de l'image dorée — snapshoter un volume, y tailler une image, lister
   puis supprimer les deux dans l'ordre que l'API impose — est un parcours de

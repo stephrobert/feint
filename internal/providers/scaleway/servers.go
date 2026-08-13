@@ -193,6 +193,17 @@ func (p *Pack) rootVolume(server *resource.Resource, name, project, organization
 	if wanted.Name != "" {
 		volumeName = wanted.Name
 	}
+	// sbs_volume is honoured since SW-3, and it is the only asked-for type that
+	// is: the local ones stay overridden for the reason above, which is unchanged.
+	// The disk lands in block/v1 rather than instance/v1, which is where the
+	// Terraform provider goes to read it back.
+	if wanted.VolumeType == "sbs_volume" {
+		vol := p.newBlockRootVolume(server.Tenant.Zone, project, volumeName, size)
+		// A volume this call just built: it can belong to nobody else, so the
+		// only error attachVolume returns cannot happen here.
+		_ = p.attachVolume(vol, server, name)
+		return vol
+	}
 	// Overridden rather than honoured, for the two reasons above. Not repeated
 	// here: this comment used to state one of them a second time, and the two
 	// copies had already drifted apart — one carried a clause the other did
@@ -939,7 +950,14 @@ func deref(p *bool, fallback bool) bool {
 //
 // TestAdditionalVolumesAreAttachedAtCreate fails without this.
 func (p *Pack) attachTemplateVolumes(templates map[string]volumeTemplate, root, server *resource.Resource, zone, serverName string) map[string]any {
+	// A root volume that lives in block gets block's rendering inside the server,
+	// which is an instance VolumeServer carrying volume_type "sbs_volume" — the
+	// value that sends the Terraform provider to the block fallback (#8).
+	// Copying the instance view here would publish a volume with no type at all.
 	out := map[string]any{"0": volumeView(root)}
+	if root.Kind == kindBlockVolume {
+		out["0"] = blockRootVolumeServerView(root)
+	}
 	for key, tpl := range templates {
 		if key == "0" || tpl.ID == "" {
 			continue

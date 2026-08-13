@@ -52,6 +52,13 @@ func (p *Pack) Routes() []emulator.Route {
 	// The VPC product is regional, not zonal, and it is a different API root.
 	const regions = "/vpc/v2/regions/{region}"
 	const ipamRegions = "/ipam/v1/regions/{region}"
+	// Block Storage is zonal like instance, and a separate API root: a client
+	// reaching a volume through the Terraform provider's fallback arrives here,
+	// not under /instance/v1.
+	const blockZones = "/block/v1/zones/{zone}"
+	// The alpha the CLI is still pinned to, measured rather than assumed: see the
+	// routes below.
+	const blockAlphaZones = "/block/v1alpha1/zones/{zone}"
 	return []emulator.Route{
 		{Method: "GET", Path: zones + "/servers", Operation: "instance/v1/API.ListServers", Handler: p.listServers},
 		{Method: "POST", Path: zones + "/servers", Operation: "instance/v1/API.CreateServer", Handler: p.createServer},
@@ -119,6 +126,54 @@ func (p *Pack) Routes() []emulator.Route {
 		// first, and a 501 here failed the command outright.
 		{Method: "POST", Path: zones + "/servers/{id}/attach-volume", Operation: "instance/v1/API.AttachServerVolume", Handler: p.attachServerVolume},
 		{Method: "POST", Path: zones + "/servers/{id}/detach-volume", Operation: "instance/v1/API.DetachServerVolume", Handler: p.detachServerVolume},
+
+		// Block Storage (SBS). Not a second volume product beside the first: it
+		// is where the Terraform provider lands whenever a volume is not an
+		// instance one, through GetUnknownVolume's fallback. With these routes
+		// unmounted, an apply carrying root_volume.volume_type = "sbs_volume"
+		// died on "waiting for Volume failed: http error 404 Not Found" (#8).
+		{Method: "GET", Path: blockZones + "/volumes", Operation: "block/v1/API.ListVolumes", Handler: p.listBlockVolumes},
+		{Method: "POST", Path: blockZones + "/volumes", Operation: "block/v1/API.CreateVolume", Handler: p.createBlockVolume},
+		{Method: "GET", Path: blockZones + "/volumes/{id}", Operation: "block/v1/API.GetVolume", Handler: p.getBlockVolume},
+		{Method: "PATCH", Path: blockZones + "/volumes/{id}", Operation: "block/v1/API.UpdateVolume", Handler: p.updateBlockVolume},
+		{Method: "DELETE", Path: blockZones + "/volumes/{id}", Operation: "block/v1/API.DeleteVolume", Handler: p.deleteBlockVolume},
+		{Method: "GET", Path: blockZones + "/snapshots", Operation: "block/v1/API.ListSnapshots", Handler: p.listBlockSnapshots},
+		{Method: "POST", Path: blockZones + "/snapshots", Operation: "block/v1/API.CreateSnapshot", Handler: p.createBlockSnapshot},
+		{Method: "GET", Path: blockZones + "/snapshots/{id}", Operation: "block/v1/API.GetSnapshot", Handler: p.getBlockSnapshot},
+		{Method: "PATCH", Path: blockZones + "/snapshots/{id}", Operation: "block/v1/API.UpdateSnapshot", Handler: p.updateBlockSnapshot},
+		{Method: "DELETE", Path: blockZones + "/snapshots/{id}", Operation: "block/v1/API.DeleteSnapshot", Handler: p.deleteBlockSnapshot},
+		// The catalogue of this product, for the reason the instance one exists:
+		// a client reads the stock before it creates, and gives up on a 404.
+		{Method: "GET", Path: blockZones + "/volume-types", Operation: "block/v1/API.ListVolumeTypes", Handler: p.listBlockVolumeTypes},
+
+		// The same product under the spelling the CLI uses.
+		//
+		// This was declined at first, on the reading that v1 supersedes the alpha
+		// and "every client the conformance suite drives calls v1". The suite said
+		// otherwise on the first run: `scw block volume list` answered
+		// "feint does not serve /block/v1alpha1/zones/fr-par-1/volumes". The CLI —
+		// 2.56.3, the version this repository pins in CI — is on the alpha for
+		// every block command, while the Terraform provider is on v1. Two official
+		// clients of one cloud, each pinned to a different spelling, and the north
+		// star does not let us pick a favourite.
+		//
+		// The handlers are shared rather than copied, because the alpha's shapes
+		// are a strict subset: v1's Volume adds kms_key_id and srn, its Snapshot
+		// adds public, and nothing exists in the alpha that v1 lacks. A client
+		// decoding the alpha ignores the extra fields; a second implementation
+		// would be a second thing to keep in step, which is what the original
+		// refusal was right to fear and wrong about how to avoid.
+		{Method: "GET", Path: blockAlphaZones + "/volumes", Operation: "block/v1alpha1/API.ListVolumes", Handler: p.listBlockVolumes},
+		{Method: "POST", Path: blockAlphaZones + "/volumes", Operation: "block/v1alpha1/API.CreateVolume", Handler: p.createBlockVolume},
+		{Method: "GET", Path: blockAlphaZones + "/volumes/{id}", Operation: "block/v1alpha1/API.GetVolume", Handler: p.getBlockVolume},
+		{Method: "PATCH", Path: blockAlphaZones + "/volumes/{id}", Operation: "block/v1alpha1/API.UpdateVolume", Handler: p.updateBlockVolume},
+		{Method: "DELETE", Path: blockAlphaZones + "/volumes/{id}", Operation: "block/v1alpha1/API.DeleteVolume", Handler: p.deleteBlockVolume},
+		{Method: "GET", Path: blockAlphaZones + "/snapshots", Operation: "block/v1alpha1/API.ListSnapshots", Handler: p.listBlockSnapshots},
+		{Method: "POST", Path: blockAlphaZones + "/snapshots", Operation: "block/v1alpha1/API.CreateSnapshot", Handler: p.createBlockSnapshot},
+		{Method: "GET", Path: blockAlphaZones + "/snapshots/{id}", Operation: "block/v1alpha1/API.GetSnapshot", Handler: p.getBlockSnapshot},
+		{Method: "PATCH", Path: blockAlphaZones + "/snapshots/{id}", Operation: "block/v1alpha1/API.UpdateSnapshot", Handler: p.updateBlockSnapshot},
+		{Method: "DELETE", Path: blockAlphaZones + "/snapshots/{id}", Operation: "block/v1alpha1/API.DeleteSnapshot", Handler: p.deleteBlockSnapshot},
+		{Method: "GET", Path: blockAlphaZones + "/volume-types", Operation: "block/v1alpha1/API.ListVolumeTypes", Handler: p.listBlockVolumeTypes},
 
 		// VPCs and Private Networks. This is what turns a declared block into a
 		// real bridge: the subnet is validated, checked against its siblings for
@@ -312,6 +367,31 @@ func (p *Pack) Declined() []emulator.Decline {
 		emulator.Because("it mounts Scaleway's File Storage product, and there is no filesystem service behind this emulator for a machine to mount",
 			"instance/v1/API.AttachServerFileSystem",
 			"instance/v1/API.DetachServerFileSystem"),
+
+		// Block Storage, the two halves SW-3 does not serve.
+		//
+		// The transfers write and read a snapshot's bytes through Object Storage,
+		// which is the same measured reason instance/v1/API.ExportSnapshot carries:
+		// the Terraform provider builds the S3 endpoint from the region in code,
+		// so pointing it here would take DNS interception and a certificate it
+		// accepts. An emulated snapshot has no bytes to send there in any case.
+		emulator.Because("it moves a snapshot's bytes through Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md",
+			"block/v1/API.ExportSnapshotToObjectStorage",
+			"block/v1/API.ImportSnapshotFromObjectStorage"),
+
+		// The alpha's own transfers, declined for the reason its v1 twins are: they
+		// move bytes through Object Storage. ImportSnapshotFromS3 is the older
+		// spelling of the same call and goes with them.
+		//
+		// The rest of block/v1alpha1 is served, not declined, and the first
+		// version of this entry declined the lot with a reason the conformance
+		// suite falsified on its first run — "every client calls v1", while `scw`
+		// 2.56.3 calls the alpha for every block command. The routes above carry
+		// what replaced it.
+		emulator.Because("it moves a snapshot's bytes through Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md",
+			"block/v1alpha1/API.ExportSnapshotToObjectStorage",
+			"block/v1alpha1/API.ImportSnapshotFromObjectStorage",
+			"block/v1alpha1/API.ImportSnapshotFromS3"),
 
 		// Written by hand in instance_utils.go and marked deprecated there, which
 		// is why the scan sees them at all: it reads every non-test file rather

@@ -102,6 +102,24 @@ resource "scaleway_instance_server" "conformance" {
   image             = "ubuntu_jammy"
   tags              = ["feint", "conformance"]
   security_group_id = scaleway_instance_security_group.conformance.id
+
+  # The one input this fixture used to avoid, and the reason it was green while
+  # `root_volume` had no usable value at all (#8, reported by @vde-dis).
+  #
+  # b_ssd will not plan from provider 2.79 on ("b_ssd volumes are not supported
+  # anymore"), and sbs_volume sent the provider to
+  # GET /block/v1/zones/fr-par-1/volumes/<id>, which nothing served: the apply
+  # died on "waiting for Volume failed: http error 404 Not Found". So the way
+  # through was to omit the block, which is what this fixture did — a test that
+  # avoids the one input that breaks is a test that cannot fail.
+  #
+  # SW-3 serves block/v1 and honours the type, so the block belongs here now.
+  # This is the line that proves GetUnknownVolume's fallback works end to end,
+  # through the real provider rather than through our reading of it.
+  root_volume {
+    volume_type = "sbs_volume"
+    size_in_gb  = 20
+  }
 }
 
 # The attachment, which is where the addressing plan meets the machine: the address comes from the

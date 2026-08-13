@@ -256,4 +256,58 @@ scw instance server stop "$img_server_id" zone="$ZONE" >/dev/null || fail "clean
 scw instance server delete "$img_server_id" zone="$ZONE" >/dev/null || fail "cleanup: delete rejected"
 ok "snapshotted, cut, listed, deleted in order"
 
+# Block Storage, the product the Terraform provider falls back to and no client
+# drove before SW-3. The CLI is the only thing that exercises the write half:
+# the provider only ever reads a volume it created through the instance side.
+echo "- a block volume is created, snapshotted, restored and deleted in order"
+# The size carries its unit: the CLI refuses raw bytes here with "size must be
+# defined using the G or GB unit", where the instance volume command took them.
+# Two commands of one CLI that do not agree, and only the CLI says so.
+blk="$(scw block volume create name=conformance-blk perf-iops=5000 from-empty.size=10G \
+        zone="$ZONE" -o json)" || fail "block volume create rejected: $blk"
+blk_id="$(printf '%s' "$blk" | jq -r '(.volume // .).id')"
+[ -n "$blk_id" ] && [ "$blk_id" != null ] || fail "no id in the block volume create response: $blk"
+# The bare envelope: block/v1 answers the resource itself where instance/v1 wraps
+# it. A wrapper here would have decoded as an empty volume.
+printf '%s' "$blk" | jq -e '(.volume // .).specs.class == "sbs"' >/dev/null \
+  || fail "the block volume does not report the sbs storage class: $blk"
+
+scw block volume list zone="$ZONE" -o json \
+  | jq -e --arg i "$blk_id" 'any(.[]; .id == $i)' >/dev/null \
+  || fail "the block volume is missing from the listing"
+scw block volume update volume-id="$blk_id" name=conformance-blk-2 zone="$ZONE" -o json >/dev/null \
+  || fail "block volume update rejected"
+
+blk_snap="$(scw block snapshot create name=conformance-blk-snap volume-id="$blk_id" \
+             zone="$ZONE" -o json)" || fail "block snapshot create rejected: $blk_snap"
+blk_snap_id="$(printf '%s' "$blk_snap" | jq -r '(.snapshot // .).id')"
+[ -n "$blk_snap_id" ] && [ "$blk_snap_id" != null ] || fail "no id in the block snapshot response: $blk_snap"
+scw block snapshot get "$blk_snap_id" zone="$ZONE" -o json \
+  | jq -e --arg v "$blk_id" '(.snapshot // .).parent_volume.id == $v' >/dev/null \
+  || fail "the block snapshot does not name the volume it came from"
+scw block snapshot list zone="$ZONE" -o json \
+  | jq -e --arg i "$blk_snap_id" 'any(.[]; .id == $i)' >/dev/null \
+  || fail "the block snapshot is missing from the listing"
+
+# Restored from the snapshot, which is the second of the two create branches and
+# the one the API says is exclusive with the first.
+blk_restored="$(scw block volume create name=conformance-blk-restored perf-iops=5000 \
+                 from-snapshot.snapshot-id="$blk_snap_id" zone="$ZONE" -o json)" \
+  || fail "restore from a block snapshot rejected: $blk_restored"
+blk_restored_id="$(printf '%s' "$blk_restored" | jq -r '(.volume // .).id')"
+
+# The order the API imposes, and the refusal that makes it retryable.
+if scw block snapshot delete "$blk_snap_id" zone="$ZONE" >/dev/null 2>&1; then
+  fail "the block snapshot deleted while a volume was restored from it"
+fi
+scw block volume delete "$blk_restored_id" zone="$ZONE" >/dev/null || fail "delete of the restored volume rejected"
+scw block snapshot delete "$blk_snap_id" zone="$ZONE" >/dev/null \
+  || fail "block snapshot delete rejected once nothing came from it"
+scw block volume delete "$blk_id" zone="$ZONE" >/dev/null || fail "block volume delete rejected"
+
+# The catalogue this product needs, for the reason the instance one exists.
+scw block volume-type list zone="$ZONE" -o json | jq -e 'length > 0' >/dev/null \
+  || fail "the block volume-type catalogue answered nothing"
+ok "created, snapshotted, restored, refused, deleted in order"
+
 echo "conformance: scw CLI passed"

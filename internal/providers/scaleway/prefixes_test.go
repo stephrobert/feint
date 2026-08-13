@@ -90,10 +90,19 @@ func TestAnUnservedProductAnswersInScalewaysDialect(t *testing.T) {
 
 	// Both measured by @vde-dis under a real OpenTofu apply: a load balancer
 	// address and a public gateway address, neither served, both Scaleway.
+	//
+	// /block/v1 used to sit here as a third case and was removed by SW-3, which
+	// serves it. That is the healthy direction for this list: a product leaves it
+	// by being implemented.
+	//
+	// block/v1alpha1 briefly replaced it here and lasted one conformance run —
+	// `scw` 2.56.3 calls the alpha for every block command, so it is served too.
+	// Managed Kubernetes took the slot instead: an entire product with no route
+	// under it and none planned, which is the shape this test exists for.
 	for _, path := range []string{
 		"/lb/v1/zones/fr-par-1/ips",
 		"/vpc-gw/v2/zones/fr-par-1/ips",
-		"/block/v1/zones/fr-par-1/volumes",
+		"/k8s/v1/regions/fr-par/clusters",
 	} {
 		// do() decodes the body as JSON and fails otherwise, which is the half
 		// that matters: the SDK reads the content type first and drops a body

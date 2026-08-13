@@ -110,29 +110,46 @@ the login that image provisions — root on Scaleway, `outscale` on Outscale, th
 template's own `default-user` on Exoscale — because the right distribution with
 the wrong login is still a machine nobody can enter.
 
-## A Scaleway server's root volume type cannot be written
+## A Scaleway server's root volume type: what is writable, and what is not
 
-`scaleway_instance_server` has no usable `root_volume { volume_type }` here
-today, whichever value is given. Omitting the block is the way through, and it
-is what `tools/conformance/scaleway/terraform/` does — which is why the suite is
-green and shows none of this.
+**`sbs_volume` works since SW-3.** `tools/conformance/scaleway/terraform/`
+declares it, and the apply, the empty second plan and the destroy all pass. The
+limit this section used to describe — no usable value at all — is over.
+
+It is worth keeping how it read, because the fixture is the part that stings:
+
+> Omitting the block is the way through, and it is what
+> `tools/conformance/scaleway/terraform/` does — which is why the suite is green
+> and shows none of this.
+
+A fixture that avoids the one input that breaks is a test that cannot fail. The
+fixture now declares the block, and would go red if the fallback stopped working.
 
 Measured by @vde-dis on #8, with OpenTofu 1.12.5 and `scaleway/scaleway` 2.80.0:
 
-- **`b_ssd` will not plan.** From provider 2.79 on it is refused outright:
+- **`b_ssd` will not plan**, and that is upstream's decision, not this
+  emulator's. From provider 2.79 on it is refused before any request leaves:
   *"b_ssd volumes are not supported anymore. Remove explicit b_ssd volume_type,
   migrate to sbs or downgrade terraform."*
-- **`sbs_volume` plans for ever.** The emulator overrides the type to `b_ssd`,
-  so the value read back never matches the value sent.
+- **`sbs_volume` used to plan for ever**, because the emulator overrode the type
+  to `b_ssd` and the value read back never matched the value sent. It is now
+  honoured: the disk is created in `block/v1`, and the provider reads it back
+  through the fallback it always used — `instance.GetVolume` first, then
+  `block.GetVolume` on a typed 404.
+- **The local types (`l_ssd`, `scratch`) are still overridden**, and that has its
+  own reason, unchanged: the emulated catalogue declares
+  `volumes_constraint.min_size` at 0 and the CLI sums local volumes against it,
+  so attaching one would make the CLI refuse the very creation it just asked for.
 
-Honouring `sbs_volume` is not the fix, and that was measured too: the provider
-then reads the volume back through `GET /block/v1/zones/{zone}/volumes/{id}`,
-no pack serves `block/v1`, and the apply dies on *"waiting for Volume failed:
-http error 404 Not Found"*. A permanent diff is bad; an apply that cannot
-finish is worse.
+What is still not emulated behind an SBS volume is the storage itself: the size,
+the class and the IO/s are recorded and answered, and nothing is written
+anywhere. `perf_iops` is a number a client reads back, not a rate anything
+measures.
 
-The two belong in one batch, which is what **#8 (SW-3)** is. This limit ends
-with it.
+Volume encryption is refused rather than faked: `kms_key_id` names a key in
+Scaleway's Key Manager, which this emulator does not serve, so a create carrying
+one is rejected. Accepting it would let a client read its own key back from a
+volume nothing encrypts.
 
 ## Lifecycle transitions are immediate
 
@@ -696,7 +713,7 @@ proof.
 |---|---|--:|---|
 | Exoscale | `2.0.0` | 472 | *assumed* by this emulator |
 | Outscale | `1.42.0` | 655 | **declared** by the provider |
-| Scaleway | `instance/v1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2` | 263 | **declared** by the provider |
+| Scaleway | `instance/v1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2, block/v1, block/v1alpha1` | 290 | **declared** by the provider |
 <!-- contracts:end -->
 
 **Declared** means the provider wrote `additionalProperties: false` themselves:

@@ -1,10 +1,154 @@
 {
  "provider": "scaleway",
  "source": "https://www.scaleway.com/en/developers/api/<product>/schema.yml",
- "apiVersion": "instance/v1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2",
+ "apiVersion": "instance/v1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2, block/v1, block/v1alpha1",
  "pathPrefix": "",
  "closedPolicy": "declared",
  "operations": {
+  "block/v1.CreateSnapshot": {
+   "path": "/block/v1/zones/{zone}/snapshots",
+   "method": "POST",
+   "request": "block/v1.CreateSnapshot.Request",
+   "response": "block/v1.scaleway.block.v1.Snapshot"
+  },
+  "block/v1.CreateVolume": {
+   "path": "/block/v1/zones/{zone}/volumes",
+   "method": "POST",
+   "request": "block/v1.CreateVolume.Request",
+   "response": "block/v1.scaleway.block.v1.Volume"
+  },
+  "block/v1.DeleteSnapshot": {
+   "path": "/block/v1/zones/{zone}/snapshots/{snapshot_id}",
+   "method": "DELETE"
+  },
+  "block/v1.DeleteVolume": {
+   "path": "/block/v1/zones/{zone}/volumes/{volume_id}",
+   "method": "DELETE"
+  },
+  "block/v1.ExportSnapshotToObjectStorage": {
+   "path": "/block/v1/zones/{zone}/snapshots/{snapshot_id}/export-to-object-storage",
+   "method": "POST",
+   "request": "block/v1.ExportSnapshotToObjectStorage.Request",
+   "response": "block/v1.scaleway.block.v1.Snapshot"
+  },
+  "block/v1.GetSnapshot": {
+   "path": "/block/v1/zones/{zone}/snapshots/{snapshot_id}",
+   "method": "GET",
+   "response": "block/v1.scaleway.block.v1.Snapshot"
+  },
+  "block/v1.GetVolume": {
+   "path": "/block/v1/zones/{zone}/volumes/{volume_id}",
+   "method": "GET",
+   "response": "block/v1.scaleway.block.v1.Volume"
+  },
+  "block/v1.ImportSnapshotFromObjectStorage": {
+   "path": "/block/v1/zones/{zone}/snapshots/import-from-object-storage",
+   "method": "POST",
+   "request": "block/v1.ImportSnapshotFromObjectStorage.Request",
+   "response": "block/v1.scaleway.block.v1.Snapshot"
+  },
+  "block/v1.ListSnapshots": {
+   "path": "/block/v1/zones/{zone}/snapshots",
+   "method": "GET",
+   "response": "block/v1.scaleway.block.v1.ListSnapshotsResponse"
+  },
+  "block/v1.ListVolumeTypes": {
+   "path": "/block/v1/zones/{zone}/volume-types",
+   "method": "GET",
+   "response": "block/v1.scaleway.block.v1.ListVolumeTypesResponse"
+  },
+  "block/v1.ListVolumes": {
+   "path": "/block/v1/zones/{zone}/volumes",
+   "method": "GET",
+   "response": "block/v1.scaleway.block.v1.ListVolumesResponse"
+  },
+  "block/v1.UpdateSnapshot": {
+   "path": "/block/v1/zones/{zone}/snapshots/{snapshot_id}",
+   "method": "PATCH",
+   "request": "block/v1.UpdateSnapshot.Request",
+   "response": "block/v1.scaleway.block.v1.Snapshot"
+  },
+  "block/v1.UpdateVolume": {
+   "path": "/block/v1/zones/{zone}/volumes/{volume_id}",
+   "method": "PATCH",
+   "request": "block/v1.UpdateVolume.Request",
+   "response": "block/v1.scaleway.block.v1.Volume"
+  },
+  "block/v1alpha1.CreateSnapshot": {
+   "path": "/block/v1alpha1/zones/{zone}/snapshots",
+   "method": "POST",
+   "request": "block/v1alpha1.CreateSnapshot.Request",
+   "response": "block/v1alpha1.scaleway.block.v1alpha1.Snapshot"
+  },
+  "block/v1alpha1.CreateVolume": {
+   "path": "/block/v1alpha1/zones/{zone}/volumes",
+   "method": "POST",
+   "request": "block/v1alpha1.CreateVolume.Request",
+   "response": "block/v1alpha1.scaleway.block.v1alpha1.Volume"
+  },
+  "block/v1alpha1.DeleteSnapshot": {
+   "path": "/block/v1alpha1/zones/{zone}/snapshots/{snapshot_id}",
+   "method": "DELETE"
+  },
+  "block/v1alpha1.DeleteVolume": {
+   "path": "/block/v1alpha1/zones/{zone}/volumes/{volume_id}",
+   "method": "DELETE"
+  },
+  "block/v1alpha1.ExportSnapshotToObjectStorage": {
+   "path": "/block/v1alpha1/zones/{zone}/snapshots/{snapshot_id}/export-to-object-storage",
+   "method": "POST",
+   "request": "block/v1alpha1.ExportSnapshotToObjectStorage.Request",
+   "response": "block/v1alpha1.scaleway.block.v1alpha1.Snapshot"
+  },
+  "block/v1alpha1.GetSnapshot": {
+   "path": "/block/v1alpha1/zones/{zone}/snapshots/{snapshot_id}",
+   "method": "GET",
+   "response": "block/v1alpha1.scaleway.block.v1alpha1.Snapshot"
+  },
+  "block/v1alpha1.GetVolume": {
+   "path": "/block/v1alpha1/zones/{zone}/volumes/{volume_id}",
+   "method": "GET",
+   "response": "block/v1alpha1.scaleway.block.v1alpha1.Volume"
+  },
+  "block/v1alpha1.ImportSnapshotFromObjectStorage": {
+   "path": "/block/v1alpha1/zones/{zone}/snapshots/import-from-object-storage",
+   "method": "POST",
+   "request": "block/v1alpha1.ImportSnapshotFromObjectStorage.Request",
+   "response": "block/v1alpha1.scaleway.block.v1alpha1.Snapshot"
+  },
+  "block/v1alpha1.ImportSnapshotFromS3": {
+   "path": "/block/v1alpha1/zones/{zone}/snapshots/import-from-s3",
+   "method": "POST",
+   "request": "block/v1alpha1.ImportSnapshotFromS3.Request",
+   "response": "block/v1alpha1.scaleway.block.v1alpha1.Snapshot"
+  },
+  "block/v1alpha1.ListSnapshots": {
+   "path": "/block/v1alpha1/zones/{zone}/snapshots",
+   "method": "GET",
+   "response": "block/v1alpha1.scaleway.block.v1alpha1.ListSnapshotsResponse"
+  },
+  "block/v1alpha1.ListVolumeTypes": {
+   "path": "/block/v1alpha1/zones/{zone}/volume-types",
+   "method": "GET",
+   "response": "block/v1alpha1.scaleway.block.v1alpha1.ListVolumeTypesResponse"
+  },
+  "block/v1alpha1.ListVolumes": {
+   "path": "/block/v1alpha1/zones/{zone}/volumes",
+   "method": "GET",
+   "response": "block/v1alpha1.scaleway.block.v1alpha1.ListVolumesResponse"
+  },
+  "block/v1alpha1.UpdateSnapshot": {
+   "path": "/block/v1alpha1/zones/{zone}/snapshots/{snapshot_id}",
+   "method": "PATCH",
+   "request": "block/v1alpha1.UpdateSnapshot.Request",
+   "response": "block/v1alpha1.scaleway.block.v1alpha1.Snapshot"
+  },
+  "block/v1alpha1.UpdateVolume": {
+   "path": "/block/v1alpha1/zones/{zone}/volumes/{volume_id}",
+   "method": "PATCH",
+   "request": "block/v1alpha1.UpdateVolume.Request",
+   "response": "block/v1alpha1.scaleway.block.v1alpha1.Volume"
+  },
   "iam/v1alpha1.AddGroupMember": {
    "path": "/iam/v1alpha1/groups/{group_id}/add-member",
    "method": "POST",
@@ -1068,6 +1212,746 @@
   }
  },
  "schemas": {
+  "block/v1.CreateSnapshot.Request": {
+   "closed": false,
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "public": {
+     "type": "boolean"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "volume_id": {
+     "type": "string"
+    }
+   }
+  },
+  "block/v1.CreateVolume.Request": {
+   "closed": false,
+   "required": [
+    "name",
+    "project_id"
+   ],
+   "properties": {
+    "from_empty": {
+     "type": "object"
+    },
+    "from_snapshot": {
+     "type": "object"
+    },
+    "kms_key_id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "perf_iops": {
+     "type": "integer"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "block/v1.ExportSnapshotToObjectStorage.Request": {
+   "closed": false,
+   "properties": {
+    "bucket": {
+     "type": "string"
+    },
+    "key": {
+     "type": "string"
+    }
+   }
+  },
+  "block/v1.ImportSnapshotFromObjectStorage.Request": {
+   "closed": false,
+   "properties": {
+    "bucket": {
+     "type": "string"
+    },
+    "key": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "size": {
+     "type": "integer"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "block/v1.UpdateSnapshot.Request": {
+   "closed": false,
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "public": {
+     "type": "boolean"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "block/v1.UpdateVolume.Request": {
+   "closed": false,
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "perf_iops": {
+     "type": "integer"
+    },
+    "size": {
+     "type": "integer"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "block/v1.scaleway.block.v1.ListSnapshotsResponse": {
+   "closed": false,
+   "properties": {
+    "snapshots": {
+     "type": "array",
+     "items": {
+      "ref": "block/v1.scaleway.block.v1.Snapshot"
+     }
+    },
+    "total_count": {
+     "type": "integer"
+    }
+   }
+  },
+  "block/v1.scaleway.block.v1.ListVolumeTypesResponse": {
+   "closed": false,
+   "properties": {
+    "total_count": {
+     "type": "integer"
+    },
+    "volume_types": {
+     "type": "array",
+     "items": {
+      "ref": "block/v1.scaleway.block.v1.VolumeType"
+     }
+    }
+   }
+  },
+  "block/v1.scaleway.block.v1.ListVolumesResponse": {
+   "closed": false,
+   "properties": {
+    "total_count": {
+     "type": "integer"
+    },
+    "volumes": {
+     "type": "array",
+     "items": {
+      "ref": "block/v1.scaleway.block.v1.Volume"
+     }
+    }
+   }
+  },
+  "block/v1.scaleway.block.v1.Reference": {
+   "closed": false,
+   "properties": {
+    "created_at": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "product_resource_id": {
+     "type": "string"
+    },
+    "product_resource_type": {
+     "type": "string"
+    },
+    "status": {
+     "type": "string",
+     "enum": [
+      "unknown_status",
+      "attaching",
+      "attached",
+      "detaching",
+      "detached",
+      "creating",
+      "error"
+     ]
+    },
+    "type": {
+     "type": "string",
+     "enum": [
+      "unknown_type",
+      "link",
+      "exclusive",
+      "read_only"
+     ]
+    }
+   }
+  },
+  "block/v1.scaleway.block.v1.Snapshot": {
+   "closed": false,
+   "properties": {
+    "class": {
+     "type": "string",
+     "enum": [
+      "unknown_storage_class",
+      "unspecified",
+      "bssd",
+      "sbs"
+     ]
+    },
+    "created_at": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "parent_volume": {
+     "type": "object"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "public": {
+     "type": "boolean"
+    },
+    "references": {
+     "type": "array",
+     "items": {
+      "ref": "block/v1.scaleway.block.v1.Reference"
+     }
+    },
+    "size": {
+     "type": "integer"
+    },
+    "status": {
+     "type": "string",
+     "enum": [
+      "unknown_status",
+      "creating",
+      "available",
+      "error",
+      "deleting",
+      "deleted",
+      "in_use",
+      "locked",
+      "exporting"
+     ]
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "updated_at": {
+     "type": "string"
+    },
+    "zone": {
+     "type": "string"
+    }
+   }
+  },
+  "block/v1.scaleway.block.v1.Volume": {
+   "closed": false,
+   "properties": {
+    "created_at": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "kms_key_id": {
+     "type": "string"
+    },
+    "last_detached_at": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "parent_snapshot_id": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "references": {
+     "type": "array",
+     "items": {
+      "ref": "block/v1.scaleway.block.v1.Reference"
+     }
+    },
+    "size": {
+     "type": "integer"
+    },
+    "specs": {
+     "type": "object"
+    },
+    "status": {
+     "type": "string",
+     "enum": [
+      "unknown_status",
+      "creating",
+      "available",
+      "in_use",
+      "deleting",
+      "deleted",
+      "resizing",
+      "error",
+      "snapshotting",
+      "locked",
+      "updating"
+     ]
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "type": {
+     "type": "string"
+    },
+    "updated_at": {
+     "type": "string"
+    },
+    "zone": {
+     "type": "string"
+    }
+   }
+  },
+  "block/v1.scaleway.block.v1.VolumeType": {
+   "closed": false,
+   "properties": {
+    "pricing": {
+     "type": "object"
+    },
+    "snapshot_pricing": {
+     "type": "object"
+    },
+    "specs": {
+     "type": "object"
+    },
+    "type": {
+     "type": "string"
+    },
+    "zone": {
+     "type": "string"
+    }
+   }
+  },
+  "block/v1alpha1.CreateSnapshot.Request": {
+   "closed": false,
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "volume_id": {
+     "type": "string"
+    }
+   }
+  },
+  "block/v1alpha1.CreateVolume.Request": {
+   "closed": false,
+   "required": [
+    "name",
+    "project_id"
+   ],
+   "properties": {
+    "from_empty": {
+     "type": "object"
+    },
+    "from_snapshot": {
+     "type": "object"
+    },
+    "name": {
+     "type": "string"
+    },
+    "perf_iops": {
+     "type": "integer"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "block/v1alpha1.ExportSnapshotToObjectStorage.Request": {
+   "closed": false,
+   "properties": {
+    "bucket": {
+     "type": "string"
+    },
+    "key": {
+     "type": "string"
+    }
+   }
+  },
+  "block/v1alpha1.ImportSnapshotFromObjectStorage.Request": {
+   "closed": false,
+   "properties": {
+    "bucket": {
+     "type": "string"
+    },
+    "key": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "size": {
+     "type": "integer"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "block/v1alpha1.ImportSnapshotFromS3.Request": {
+   "closed": false,
+   "properties": {
+    "bucket": {
+     "type": "string"
+    },
+    "key": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "size": {
+     "type": "integer"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "block/v1alpha1.UpdateSnapshot.Request": {
+   "closed": false,
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "block/v1alpha1.UpdateVolume.Request": {
+   "closed": false,
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "perf_iops": {
+     "type": "integer"
+    },
+    "size": {
+     "type": "integer"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "block/v1alpha1.scaleway.block.v1alpha1.ListSnapshotsResponse": {
+   "closed": false,
+   "properties": {
+    "snapshots": {
+     "type": "array",
+     "items": {
+      "ref": "block/v1alpha1.scaleway.block.v1alpha1.Snapshot"
+     }
+    },
+    "total_count": {
+     "type": "integer"
+    }
+   }
+  },
+  "block/v1alpha1.scaleway.block.v1alpha1.ListVolumeTypesResponse": {
+   "closed": false,
+   "properties": {
+    "total_count": {
+     "type": "integer"
+    },
+    "volume_types": {
+     "type": "array",
+     "items": {
+      "ref": "block/v1alpha1.scaleway.block.v1alpha1.VolumeType"
+     }
+    }
+   }
+  },
+  "block/v1alpha1.scaleway.block.v1alpha1.ListVolumesResponse": {
+   "closed": false,
+   "properties": {
+    "total_count": {
+     "type": "integer"
+    },
+    "volumes": {
+     "type": "array",
+     "items": {
+      "ref": "block/v1alpha1.scaleway.block.v1alpha1.Volume"
+     }
+    }
+   }
+  },
+  "block/v1alpha1.scaleway.block.v1alpha1.Reference": {
+   "closed": false,
+   "properties": {
+    "created_at": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "product_resource_id": {
+     "type": "string"
+    },
+    "product_resource_type": {
+     "type": "string"
+    },
+    "status": {
+     "type": "string",
+     "enum": [
+      "unknown_status",
+      "attaching",
+      "attached",
+      "detaching",
+      "detached",
+      "creating",
+      "error"
+     ]
+    },
+    "type": {
+     "type": "string",
+     "enum": [
+      "unknown_type",
+      "link",
+      "exclusive",
+      "read_only"
+     ]
+    }
+   }
+  },
+  "block/v1alpha1.scaleway.block.v1alpha1.Snapshot": {
+   "closed": false,
+   "properties": {
+    "class": {
+     "type": "string",
+     "enum": [
+      "unknown_storage_class",
+      "unspecified",
+      "bssd",
+      "sbs"
+     ]
+    },
+    "created_at": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "parent_volume": {
+     "type": "object"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "references": {
+     "type": "array",
+     "items": {
+      "ref": "block/v1alpha1.scaleway.block.v1alpha1.Reference"
+     }
+    },
+    "size": {
+     "type": "integer"
+    },
+    "status": {
+     "type": "string",
+     "enum": [
+      "unknown_status",
+      "creating",
+      "available",
+      "error",
+      "deleting",
+      "deleted",
+      "in_use",
+      "locked",
+      "exporting"
+     ]
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "updated_at": {
+     "type": "string"
+    },
+    "zone": {
+     "type": "string"
+    }
+   }
+  },
+  "block/v1alpha1.scaleway.block.v1alpha1.Volume": {
+   "closed": false,
+   "properties": {
+    "created_at": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "last_detached_at": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "parent_snapshot_id": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "references": {
+     "type": "array",
+     "items": {
+      "ref": "block/v1alpha1.scaleway.block.v1alpha1.Reference"
+     }
+    },
+    "size": {
+     "type": "integer"
+    },
+    "specs": {
+     "type": "object"
+    },
+    "status": {
+     "type": "string",
+     "enum": [
+      "unknown_status",
+      "creating",
+      "available",
+      "in_use",
+      "deleting",
+      "deleted",
+      "resizing",
+      "error",
+      "snapshotting",
+      "locked",
+      "updating"
+     ]
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "type": {
+     "type": "string"
+    },
+    "updated_at": {
+     "type": "string"
+    },
+    "zone": {
+     "type": "string"
+    }
+   }
+  },
+  "block/v1alpha1.scaleway.block.v1alpha1.VolumeType": {
+   "closed": false,
+   "properties": {
+    "pricing": {
+     "type": "object"
+    },
+    "snapshot_pricing": {
+     "type": "object"
+    },
+    "specs": {
+     "type": "object"
+    },
+    "type": {
+     "type": "string"
+    }
+   }
+  },
   "iam/v1alpha1.AddGroupMember.Request": {
    "closed": false,
    "properties": {
@@ -1730,6 +2614,12 @@
   "iam/v1alpha1.scaleway.iam.v1alpha1.Group": {
    "closed": false,
    "properties": {
+    "all_applications": {
+     "type": "boolean"
+    },
+    "all_users": {
+     "type": "boolean"
+    },
     "application_ids": {
      "type": "array",
      "items": {

@@ -1,6 +1,7 @@
 {
   "provider": "scaleway",
   "products": [
+    "block",
     "iam",
     "instance",
     "ipam",
