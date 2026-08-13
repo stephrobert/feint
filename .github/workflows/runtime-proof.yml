@@ -26,6 +26,14 @@
 # Actions history proves. Until that streak exists, this workflow stays advisory
 # and #125 stays open.
 #
+# That sentence was the whole of the measurement until the `streak` job below
+# existed: a criterion nobody computed, waiting for somebody to think of opening
+# the Actions history. It counts nights only — the first measurement it took
+# returned 0, where a reader eyeballing the history had said 1 by counting a
+# push-triggered run, and the push history also holds a failure and a
+# cancellation. Counting every event would let the streak be earned by pressing
+# a button.
+#
 # What this does not repeat: the client matrix of conformance.yml. The control
 # plane is proven there on every pull request, with --vm off. This job proves
 # the layer conformance.yml deliberately leaves out — the machine behind the
@@ -327,3 +335,77 @@ jobs:
         env:
           MODE: ${{ matrix.mode }}
         run: sudo env FEINT_VM="${MODE}" tools/conformance/crash.sh
+
+  # The criterion, counted rather than remembered.
+  #
+  # The header above states the rule: promotion to `pull_request` when 14
+  # consecutive scheduled runs are green. That sentence was the whole of the
+  # measurement until now — a number nobody computes, waiting for somebody to
+  # think of opening the Actions history. "A comment is not a control", one level
+  # up: the control it describes is a control of the project rather than of the
+  # code, and it had no instrument either.
+  #
+  # So this counts the streak and publishes it in the run summary, every night.
+  # It never fails: a red here would punish the runner's weather rather than
+  # measure it, and the whole point of the rule is that this workflow stays
+  # advisory. What it does is remove the excuse — when the streak reaches the
+  # target, the summary says so in as many words, and #125 has an answer instead
+  # of an opinion.
+  streak:
+    name: Consecutive green scheduled runs
+    needs: runtime
+    if: always() && github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
+        with:
+          egress-policy: audit
+
+      - name: Count the streak, from the Actions history
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET: '14'
+        run: |
+          set -euo pipefail
+
+          # Scheduled runs only, newest first. A dispatch or a branch push is a
+          # human asking a question; the rule counts nights, and mixing the two
+          # would let somebody earn the streak by pressing a button 14 times.
+          conclusions="$(gh api --paginate \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/runtime-proof.yml/runs?event=schedule&per_page=100" \
+            --jq '.workflow_runs[] | select(.status == "completed") | .conclusion')"
+
+          streak=0
+          for c in $conclusions; do
+            if [ "$c" = "success" ]; then
+              streak=$((streak + 1))
+            else
+              break
+            fi
+          done
+
+          total="$(printf '%s\n' "$conclusions" | grep -c . || true)"
+          {
+            echo "## Promotion criterion (#125)"
+            echo
+            echo "| | |"
+            echo "|---|--:|"
+            echo "| Consecutive green scheduled runs | **${streak}** |"
+            echo "| Target | ${TARGET} |"
+            echo "| Completed scheduled runs on record | ${total} |"
+            echo
+            if [ "$streak" -ge "$TARGET" ]; then
+              echo "**The criterion is met.** Move this workflow onto \`pull_request\` and close #125."
+              echo "The number above is what earns it; nothing else has to be decided."
+            else
+              echo "Not met: $((TARGET - streak)) more consecutive green nights."
+              echo "This workflow stays advisory and #125 stays open, which is the rule its"
+              echo "header states rather than a preference."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "streak=${streak}/${TARGET}"
