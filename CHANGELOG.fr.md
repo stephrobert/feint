@@ -36,6 +36,17 @@ change ni l'un ni l'autre a sa place dans `git log`.
   changer une surface gelée à dessein est dans RELEASING.fr.md (« Surfaces
   gelées »).
 
+## [Non publié]
+
+### Modifié
+
+- **`/_feint/conformance` passe en version de schéma 2.** `evidence.*[].probed`
+  était un booléen et vaut désormais `response`, `refusal` ou `none` (#156). Un
+  consommateur testant `probed === true` lirait une chaîne toujours vraie et
+  compterait chaque refus comme un succès — la surestimation que #156 supprime,
+  réapparue une couche plus loin. Le changement de version est ce qui lui permet
+  de s'en apercevoir.
+
 ## [0.8.0]
 
 ### Corrigé

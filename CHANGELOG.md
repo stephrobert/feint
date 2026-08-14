@@ -32,6 +32,14 @@ what this project is judged on: **a response shape a client can observe**, and
   fixture and version moved together — passing. The procedure for changing a
   frozen surface on purpose is in RELEASING.md ("Frozen surfaces").
 
+### Changed
+
+- **`/_feint/conformance` moves to schema version 2.** `evidence.*[].probed`
+  was a boolean and is now one of `response`, `refusal` or `none` (#156). A
+  consumer branching on `probed === true` would read a truthy string and count
+  every refusal as a success — the overstatement #156 removed, reappearing one
+  layer out. The version bump is what lets it notice.
+
 ## [0.8.0]
 
 ### Fixed

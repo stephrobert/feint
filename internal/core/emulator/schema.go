@@ -33,7 +33,13 @@ const (
 	// the wrapped object, which then carries its version like the others.
 	RoutesSchemaVersion = 1
 	// ConformanceSchemaVersion is the shape of GET /_feint/conformance.
-	ConformanceSchemaVersion = 1
+	//
+	// 2 since #156: `evidence.*[].probed` went from a bool to one of "response",
+	// "refusal" or "none". A consumer branching on `probed === true` reads a
+	// truthy string now and would count every refusal as a success — which is
+	// the exact overstatement #156 removed, reappearing one layer out. The bump
+	// is what lets it notice.
+	ConformanceSchemaVersion = 2
 	// TraceSchemaVersion is the shape of GET /_feint/trace.
 	TraceSchemaVersion = 1
 )
