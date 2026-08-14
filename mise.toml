@@ -273,6 +273,34 @@ fi
 tools/conformance/score.sh "http://$FEINT_ADDR"
 """
 
+[tasks."image:build"]
+description = "Build the control-plane container image from a fresh static binary"
+# The image copies a prebuilt binary (see the Dockerfile for why); this builds
+# it the way the release does — static, trimmed — so what runs locally is what
+# a released image contains, minus the version stamp.
+run = """
+set -e
+CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o dist/feint-linux-amd64 ./cmd/feint
+docker build -t feint:dev .
+"""
+
+[tasks."conformance:image"]
+description = "Prove the container image: the scw suite and the probe against the emulator inside it"
+depends = ["image:build"]
+# The same proof as conformance.yml's `image` job: default command, no flag a
+# `services:` block would not pass, driven from outside through the published
+# port. On its own port, like conformance:crash, so a `mise run serve` on the
+# default one keeps running.
+run = """
+set -e
+addr=127.0.0.1:4598
+docker run -d --name feint-image -p "$addr:4599" feint:dev
+trap 'docker rm -f feint-image >/dev/null 2>&1 || true' EXIT
+./dist/feint-linux-amd64 wait --addr "$addr" --timeout 30s
+tools/conformance/scaleway/scw-cli.sh "http://$addr"
+./dist/feint-linux-amd64 probe --endpoint "http://$addr" --contracts contracts
+"""
+
 [tasks."evidence:update"]
 description = "Regenerate coverage/evidence.json from two fresh conformance runs, then refresh the docs that print it"
 depends = ["build"]

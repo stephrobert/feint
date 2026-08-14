@@ -214,6 +214,13 @@ func docs(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "feint: %v\n", commandsErr)
 		return exitError
 	}
+	// The container section, on the same terms: its image name is checked
+	// against the release workflow and its version against the CHANGELOG.
+	containerChanged, containerErr := spliceContainer(*installDoc, releaseWorkflow, goModPath, changelogPath)
+	if containerErr != nil {
+		fmt.Fprintf(stderr, "feint: %v\n", containerErr)
+		return exitError
+	}
 
 	// Not generated sections but comparisons, and they belong to the same gate.
 	// Reported in both modes, because an operator running `feint docs` to fix
@@ -255,7 +262,7 @@ func docs(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "feint: %s is out of date; run `mise run docs:coverage`\n", *routesDoc)
 			return exitDrift
 		}
-		if installChanged || commandsChanged {
+		if installChanged || commandsChanged || containerChanged {
 			fmt.Fprintf(stderr, "feint: %s is out of date; run `mise run docs:coverage`\n", *installDoc)
 			return exitDrift
 		}
@@ -299,7 +306,14 @@ func docs(args []string, stdout, stderr io.Writer) int {
 			return exitError
 		}
 	}
-	if installChanged || commandsChanged {
+	// Third writer of the same file, so it re-reads after the two above.
+	if containerChanged {
+		if err := writeSplicedContainer(*installDoc, releaseWorkflow, goModPath, changelogPath); err != nil {
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
+	}
+	if installChanged || commandsChanged || containerChanged {
 		fmt.Fprintf(stdout, "%s updated\n", *installDoc)
 	}
 

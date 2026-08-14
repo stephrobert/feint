@@ -206,6 +206,54 @@ else
   rm -rf "$workdir"
 fi
 
+# --- the container verification recipe ---------------------------------------
+
+# Same discipline as the blob recipe above, one artefact later: the image
+# reference and the identity are extracted from the page rather than retyped,
+# the previous release is what exists to verify, and the identity must also
+# refuse another workflow. A previous release that has no image is reported and
+# tolerated rather than failed — the image ships from the first tag cut after
+# the Dockerfile landed — because release.yml runs this same recipe against the
+# image it has just pushed, where "no image" is impossible.
+image_ref="$(grep -o 'cosign verify ghcr\.io/[^ ]*' docs/install.md | head -1 | sed 's/^cosign verify //')"
+if [ -z "$image_ref" ]; then
+  ko "docs/install.md publishes no container image reference" \
+     "the generated container block changed shape; check internal/cli/docs_container.go"
+elif ! command -v cosign >/dev/null 2>&1; then
+  ok "cosign absent, container recipe not exercised (CI runs it)"
+elif [ -z "$recipe_identity" ]; then
+  : # already reported: the page publishes no identity at all
+else
+  previous="$(git tag --list 'v*' --sort=-v:refname | grep -v "^${VERSION}$" | head -1)"
+  if [ -z "$previous" ]; then
+    ok "no previous release to verify the container recipe against"
+  else
+    prev_ref="${image_ref%:*}:${previous}"
+    # triangulate resolves the manifest without verifying anything: it is the
+    # cheapest way to tell "no image at this tag" from "an image that fails
+    # verification", and only the second is about this repository.
+    if ! cosign triangulate "$prev_ref" >/dev/null 2>&1; then
+      ok "no image published at $prev_ref; release.yml verifies the one this release pushes"
+    elif cosign verify "$prev_ref" \
+           --certificate-identity-regexp "$recipe_identity" \
+           --certificate-oidc-issuer https://token.actions.githubusercontent.com >/dev/null 2>&1; then
+      # And it has to be able to fail, like the blob recipe above (#129).
+      wrong="${recipe_identity/release/drift}"
+      if cosign verify "$prev_ref" \
+           --certificate-identity-regexp "$wrong" \
+           --certificate-oidc-issuer https://token.actions.githubusercontent.com >/dev/null 2>&1; then
+        ko "the image identity accepts another workflow of this repository" \
+           "anchor it on .github/workflows/release.yml@refs/tags/v (#129)"
+      else
+        ok "the container recipe verifies $prev_ref, and refuses another workflow"
+      fi
+    else
+      ko "the recipe in docs/install.md does not verify $prev_ref" \
+         "the page and the release workflow disagree about who signs the image"
+    fi
+  fi
+fi
+
 # --- the conformance claim --------------------------------------------------
 
 # Not run here: it needs the four clients installed, and a release cut from a
@@ -216,7 +264,9 @@ fi
 # opentofu, oapi-cli, exo-cli, probe. Matching on "conformance" found nothing on
 # a green run and refused every tag with "no conformance run found" — a gate that
 # blocks the release it was written to authorise.
-conformance_jobs='^(scw-cli|terraform|opentofu|oapi-cli|exo-cli|probe)$'
+# `image` is in the list because the release publishes one: a tag whose image
+# job never ran would push a container nobody has driven a client against.
+conformance_jobs='^(scw-cli|terraform|opentofu|oapi-cli|exo-cli|probe|image)$'
 
 # And the query is written out rather than parameterised, because the previous
 # attempt to parameterise it is what broke this gate a second time.

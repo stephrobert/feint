@@ -120,6 +120,23 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **A container image, control plane only, published with the release.** The
+  release workflow pushes `ghcr.io/stephrobert/feint:<tag>` for linux/amd64 and
+  linux/arm64 — the exact binaries the release signs, wrapped in `scratch`,
+  16.6 MB, nothing else inside. It runs `feint serve` with `--vm off` and says
+  so: real machines stay a property of the binary on an Incus host, and an
+  image claiming otherwise would be the half-truth this project refuses. The
+  proof is not "it starts": the conformance workflow's `image` job drives the
+  emulator inside the container with the official `scw` CLI and the contract
+  probe on every pull request, through the published port, the way a
+  `services:` block reaches it. The image is signed (keyless, by digest) and
+  carries provenance and SBOM attestations under the same
+  `release.yml@refs/tags/v` identity as the binaries; the verification recipe
+  in docs/install.md is executed by the release workflow against the image it
+  has just pushed, and by the preflight against the previous release. One tag
+  per release, nothing mutable: no `latest`. A release now refuses to push an
+  image whose own `feint version` is not the tag being released.
+
 - **Scaleway serves Block Storage, and a server's root volume can finally be
   written** (#8). `block/v1` and `block/v1alpha1` mount 22 routes: volumes,
   snapshots and the volume-type catalogue. `root_volume { volume_type =

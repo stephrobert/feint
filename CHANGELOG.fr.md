@@ -133,6 +133,24 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Une image de conteneur, plan de contrôle seulement, publiée avec la
+  release.** Le workflow de release pousse `ghcr.io/stephrobert/feint:<tag>`
+  pour linux/amd64 et linux/arm64 : les binaires exacts que la release signe,
+  enveloppés dans `scratch`, 16,6 Mo, rien d'autre à l'intérieur. Elle exécute
+  `feint serve` avec `--vm off` et le dit : les vraies machines restent une
+  propriété du binaire sur un hôte Incus, et une image qui prétendrait le
+  contraire serait la demi-vérité que ce projet refuse. La preuve n'est pas
+  « elle démarre » : le job `image` du workflow de conformance pilote
+  l'émulateur dans le conteneur avec le CLI officiel `scw` et la sonde de
+  contrats à chaque pull request, à travers le port publié, comme un bloc
+  `services:` l'atteint. L'image est signée (keyless, par digest) et porte des
+  attestations de provenance et de SBOM sous la même identité
+  `release.yml@refs/tags/v` que les binaires ; la recette de vérification de
+  docs/install.md est exécutée par le workflow de release contre l'image qu'il
+  vient de pousser, et par le preflight contre la release précédente. Un tag
+  par release, rien de mutable : pas de `latest`. Une release refuse désormais
+  de pousser une image dont le propre `feint version` n'est pas le tag publié.
+
 - **Scaleway sert le Block Storage, et le volume racine d'un serveur devient
   enfin écrivable** (#8). `block/v1` et `block/v1alpha1` montent 22 routes :
   volumes, snapshots et catalogue de types. `root_volume { volume_type =
