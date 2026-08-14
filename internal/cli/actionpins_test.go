@@ -94,3 +94,76 @@ func TestEveryWorkflowPinsAnActionToOneSHA(t *testing.T) {
 			action, len(shas), detail.String())
 	}
 }
+
+// Every workflow asks for the Go version mise pins, patch included.
+//
+// Two pull requests fixed the same failure on one morning, in two ways, and the
+// merge is where they had to be reconciled. go1.26.6 fixed five standard-library
+// vulnerabilities; a `go-version: '1.26'` minor pin let setup-go take whatever
+// 1.26.x the runner image had cached, so govulncheck went red on every pull
+// request — including ones that touched no Go file — and a rerun installed the
+// same stale patch again.
+//
+// `check-latest: true` was the other fix, and it is not the one kept: it makes
+// CI resolve a version the mise pin does not name, so the toolchain in CI and
+// the one a contributor runs locally drift apart in silence. An exact pin is
+// reproducible and moves when somebody decides it moves. This is what stops the
+// two from disagreeing again — including in the six workflows that were still on
+// the minor when the reconciliation happened, none of which the failure had
+// reached yet.
+func TestTheGoWorkflowPinsTheVersionMiseDoes(t *testing.T) {
+	root := moduleRoot(t)
+
+	config, err := os.ReadFile(filepath.Join(root, "mise.toml"))
+	if err != nil {
+		t.Fatalf("read mise.toml: %v", err)
+	}
+	wanted := regexp.MustCompile(`(?m)^go\s*=\s*"([0-9.]+)"`).FindSubmatch(config)
+	if wanted == nil {
+		t.Fatal("mise.toml pins no Go version, so this test cannot compare anything")
+	}
+	pin := string(wanted[1])
+	if strings.Count(pin, ".") < 2 {
+		t.Fatalf("mise pins Go %q, which names no patch: the comparison below would "+
+			"accept the drift it exists to catch", pin)
+	}
+
+	entries, err := os.ReadDir(filepath.Join(root, ".github", "workflows"))
+	if err != nil {
+		t.Fatalf("read the workflow directory: %v", err)
+	}
+	asked := regexp.MustCompile(`go-version:\s*'([^']+)'`)
+	found := 0
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yml") {
+			continue
+		}
+		body, err := os.ReadFile(filepath.Join(root, ".github", "workflows", entry.Name())) //nolint:gosec // paths from the walk
+		if err != nil {
+			t.Fatalf("read %s: %v", entry.Name(), err)
+		}
+		for _, line := range strings.Split(string(body), "\n") {
+			// Comment lines are prose, and prose quotes versions: the paragraph
+			// explaining why the minor pin failed contains the literal string it
+			// warns about, and matching it made this test fail on its own
+			// explanation. Found by running it.
+			if strings.HasPrefix(strings.TrimSpace(line), "#") {
+				continue
+			}
+			m := asked.FindStringSubmatch(line)
+			if m == nil {
+				continue
+			}
+			found++
+			if m[1] != pin {
+				t.Errorf("%s asks for Go %q and mise pins %q: CI and a contributor's "+
+					"laptop would build with different toolchains, and only one of them "+
+					"is the one govulncheck judged", entry.Name(), m[1], pin)
+			}
+		}
+	}
+	if found == 0 {
+		t.Fatal("no workflow asks for a Go version: the pattern no longer matches how " +
+			"they are written, and this test would pass while measuring nothing")
+	}
+}
