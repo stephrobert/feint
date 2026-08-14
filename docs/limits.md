@@ -103,15 +103,51 @@ matters:
 | `curl --resolve` / `--connect-to` | one command | works — proven landing `s3.fr-par.scw.cloud` and `<bucket>.s3.fr-par.scw.cloud` locally with a wildcard cert — but **curl only**; the SDK has no equivalent |
 | `HOSTALIASES` (glibc) | one process | only the cgo resolver, and only single-label names — **useless for a dotted FQDN** |
 | `LD_PRELOAD` getaddrinfo shim | one process | only cgo-resolver binaries. Measured: `scw` is dynamically linked with cgo getaddrinfo (interceptable); `exo` is static pure-Go (not). Terraform providers build `CGO_ENABLED=0` — **not interceptable** |
-| network namespace + bind-mounted `/etc/hosts` | disposable | needs unprivileged user namespaces, which this station **blocks** (`apparmor_restrict_unprivileged_userns=1`; `unshare -r` → `EPERM`) — increasingly the default |
+| network namespace + bind-mounted `/etc/hosts` | disposable | **works, with one named AppArmor profile.** The station sets `apparmor_restrict_unprivileged_userns=1`, and the first measurement read `unshare -r` → `EPERM` as "namespaces are blocked". Re-measured: the namespace is created and root maps fine; what the restriction removes is *capabilities inside it*, so `ip link add` answers `RTNETLINK: Operation not permitted`. `tools/install/apparmor/feint` grants `userns` to one binary path and the interface is created — see below |
 | edit `/etc/hosts` | whole machine, persistent | works for every client, but it is a **durable change to the operator's machine** — the thing the pitch forbids |
 
 So for the one blocked client — the pure-Go, statically linked AWS SDK inside the
-Scaleway Terraform provider, which offers no `--resolve` — the only mechanisms
-that reach it are the two that touch the machine durably (`/etc/hosts`) or need a
-privilege this station denies (a network namespace). The cheap, scoped
+Scaleway Terraform provider, which offers no `--resolve` — the cheap scoped
 mechanisms (`curl --resolve`, `HOSTALIASES`, an `LD_PRELOAD` shim) all miss it,
-each for a different reason.
+each for a different reason. What reaches it is a network namespace, and that
+one is available.
+
+#### The namespace row was wrong, and the correction is worth reading
+
+The first measurement concluded that this station blocks unprivileged user
+namespaces, from `unshare -r` answering `EPERM`. Re-measured with the exit codes
+read properly — the earlier reading took `$?` through a pipe, which is the
+false-verdict shape this repository keeps meeting — the three questions separate:
+
+| asked | answer |
+|---|---|
+| `unshare --user --net true` | **0** — the namespace is created |
+| a uid map putting this user at root inside it | **works** — `id -u` answers 0 |
+| `ip link add dummy0 type dummy` inside it | `RTNETLINK answers: Operation not permitted` |
+
+So the restriction does not stop the namespace. Ubuntu transitions the process
+into the stock `unprivileged_userns` profile, whose first line is
+`audit deny capability` — the namespace exists and is powerless, which is a
+better design than refusing outright and reads exactly the same from a script
+that only checks whether `unshare` failed.
+
+**The fix is one named profile, not a sysctl.**
+`tools/install/apparmor/feint` grants `userns` to the feint binary path and
+nothing else, in the same shape the distribution ships for `lxc-unshare`,
+`bwrap` and a dozen others. Setting `kernel.apparmor_restrict_unprivileged_userns=0`
+would lift the restriction for *every* program on the host; this lifts it for one
+path.
+
+Measured on a witness binary, both ways: with the profile loaded the interface is
+created; unload it and `RTNETLINK: Operation not permitted` comes straight back.
+
+```bash
+sudo install -m 0644 tools/install/apparmor/feint /etc/apparmor.d/feint
+sudo apparmor_parser -r /etc/apparmor.d/feint
+```
+
+Nothing in feint requires it. Without the profile, the paths that need a
+namespace refuse and say so; every other command works unchanged.
 
 ### 4. What the standard library gives for free
 
