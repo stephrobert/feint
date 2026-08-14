@@ -248,6 +248,9 @@ case "$plan_status" in
 esac
 
 echo "- destroy"
+# The Net this run created, read before it is destroyed: the check below asks
+# whether *this* Net is gone, not whether the emulator holds none at all.
+net_id="$("$TF" output -raw net_id 2>/dev/null || true)"
 "$TF" destroy -no-color -auto-approve -var "endpoint=$ENDPOINT" >/dev/null
 DESTROYED=1
 
@@ -259,8 +262,33 @@ DESTROYED=1
 # than still running.
 nets="$(curl -sf -X POST "$ENDPOINT/api/v1/ReadNets" -H 'Content-Type: application/json' -d '{}')" \
   || fail "ReadNets rejected"
-printf '%s' "$nets" | jq -e '.Nets | length == 0' >/dev/null \
-  || fail "the destroyed Net still answers: $nets"
+# Scoped to the Net this run made, and that scoping is the fix for a false
+# verdict rather than a refinement.
+#
+# The check read `.Nets | length == 0` — no Net anywhere — which is true only
+# when this suite is the sole creator against a fresh emulator. Run it against
+# an emulator another run had touched and it announced "the destroyed Net still
+# answers" while the destroy had worked perfectly: the message blamed the
+# subject for the state of the bench. Reproduced on this station, and green on
+# the same commit from a clean start.
+#
+# Two failures, told apart, because they need different actions: a Net that
+# outlived its own destroy is a defect in the emulator, and a Net somebody else
+# left is a dirty bench.
+if [ -n "$net_id" ]; then
+  if printf '%s' "$nets" | jq -e --arg n "$net_id" 'any(.Nets[]?; .NetId == $n)' >/dev/null; then
+    fail "the Net this run created ($net_id) outlived its own destroy: $nets"
+  fi
+  others="$(printf '%s' "$nets" | jq -r '.Nets | length')"
+  if [ "$others" != "0" ]; then
+    echo "  note: $others Net(s) from another run are still here; this suite's own is gone"
+  fi
+else
+  # No output to scope by, so fall back to the old question and say so: a check
+  # that cannot name what it is looking for must not pretend it did.
+  printf '%s' "$nets" | jq -e '.Nets | length == 0' >/dev/null \
+    || fail "no net_id output to scope by, and the emulator still holds a Net: $nets"
+fi
 
 vms="$(curl -sf -X POST "$ENDPOINT/api/v1/ReadVms" -H 'Content-Type: application/json' \
         -d "{\"Filters\":{\"VmIds\":[\"$vm_id\"]}}")" || fail "ReadVms rejected"

@@ -17,6 +17,18 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **A destroy assertion told two failures apart** (found while lifting a
+  reserve on #152). The Outscale Terraform suite asked whether the emulator held
+  *no* Net at all, which is true only when it is the sole creator against a
+  fresh emulator. Run against a bench another run had touched, it announced "the
+  destroyed Net still answers" while the destroy had worked perfectly: the
+  message blamed the subject for the state of the bench.
+
+  It now asks whether *this run's* Net is gone, names it when it is not, and says
+  plainly when somebody else's resources are still around. Falsified: make the
+  emulator keep a Net through its own delete and the suite fails naming the
+  identifier.
+
 - **The status table is generated from the workflow that proves it** (reported
   by a reader comparing the README with CI). It said Outscale was proven by
   `oapi-cli` and Terraform. Both were true of the repository and only one was
