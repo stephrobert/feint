@@ -278,7 +278,7 @@ if [ -n "${FEINT_EVIDENCE_OUT:-}" ]; then
   if [ -n "${FEINT_EVIDENCE_JOIN:-}" ]; then
     ./feint evidence --endpoint "http://$FEINT_ADDR" --out "$FEINT_EVIDENCE_OUT" --join "$FEINT_EVIDENCE_JOIN"
   else
-    ./feint evidence --endpoint "http://$FEINT_ADDR" --out "$FEINT_EVIDENCE_OUT"
+    ./feint evidence --endpoint "http://$FEINT_ADDR" --out "$FEINT_EVIDENCE_OUT" --allow-narrowing
   fi
 fi
 # Two numbers rather than one: how much is mounted, and how much of it a real

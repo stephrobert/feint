@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"sort"
@@ -240,4 +241,68 @@ func firstMissing(all []string, n int) []string {
 		return all
 	}
 	return append(all[:n:n], "…")
+}
+
+// A record does not quietly narrow the runtimes it was earned under.
+//
+// Twice in one day an artefact was regenerated from a machines-off run alone and
+// silently dropped the dataplane axis for 169 operations. Nothing was red: the
+// file declared `machines: ["none"]`, so it was honest — and `docs/routes.md`
+// then printed the absence exactly like an operation nothing has proven.
+//
+// The comparison is on runtimes, not on axes, and that distinction is the whole
+// design. An axis can legitimately shrink when a claim is corrected: #156 took
+// `probed` from 181 arrivals down to 83 verdicts, and that is a fix. Losing a
+// *runtime* is never a fix — it means a leg did not run.
+func TestEvidenceRefusesToNarrowTheRuntimesItWasEarnedUnder(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "evidence.json")
+
+	earned := &evidenceArtefact{
+		Format: evidenceFormat, Version: evidenceVersion,
+		Machines:   []string{"incus", "none"},
+		Operations: map[string]emulator.Evidence{"instance/v1/API.ListServers": {}},
+	}
+	writeArtefact(t, path, earned)
+
+	// A run that reaches machines off only would drop every proof taken under
+	// incus. It must refuse, and name what would go.
+	offOnly := &evidenceArtefact{
+		Format: evidenceFormat, Version: evidenceVersion,
+		Machines:   []string{"none"},
+		Operations: map[string]emulator.Evidence{"instance/v1/API.ListServers": {}},
+	}
+	lost := runtimesLost(path, offOnly)
+	if len(lost) != 1 || lost[0] != "incus" {
+		t.Fatalf("narrowing to machines-off reported %v as lost, want [incus]", lost)
+	}
+
+	// The accepting halves, because a guard that refuses every write would pass
+	// the assertion above and stop the tool working.
+	if lost := runtimesLost(path, earned); len(lost) != 0 {
+		t.Errorf("rewriting the same runtimes reported %v as lost", lost)
+	}
+	wider := &evidenceArtefact{
+		Format: evidenceFormat, Version: evidenceVersion,
+		Machines:   []string{"incus", "incus-ovn", "none"},
+		Operations: earned.Operations,
+	}
+	if lost := runtimesLost(path, wider); len(lost) != 0 {
+		t.Errorf("gaining a runtime reported %v as lost", lost)
+	}
+	// And the first write of an artefact narrows nothing.
+	if lost := runtimesLost(filepath.Join(dir, "absent.json"), offOnly); len(lost) != 0 {
+		t.Errorf("writing where no record exists reported %v as lost", lost)
+	}
+}
+
+func writeArtefact(t *testing.T, path string, art *evidenceArtefact) {
+	t.Helper()
+	blob, err := json.MarshalIndent(art, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if err := os.WriteFile(path, append(blob, '\n'), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
 }

@@ -53,12 +53,41 @@ type evidenceArtefact struct {
 	Operations map[string]emulator.Evidence `json:"operations"`
 }
 
+// runtimesLost reads the record already at path and answers the runtimes it was
+// earned under that this one does not reach. A missing or unreadable file loses
+// nothing: the first write of an artefact is not a narrowing.
+//
+// "none" is not a runtime. A record earned with machines off and rewritten with
+// machines off narrows nothing, and one that gains a runtime is a widening.
+func runtimesLost(path string, next *evidenceArtefact) []string {
+	existing, err := readEvidence(path)
+	if err != nil || existing == nil {
+		return nil
+	}
+	reached := map[string]bool{}
+	for _, m := range next.Machines {
+		reached[m] = true
+	}
+	var lost []string
+	for _, m := range existing.Machines {
+		if m == "none" || reached[m] {
+			continue
+		}
+		lost = append(lost, m)
+	}
+	sort.Strings(lost)
+	return lost
+}
+
 func evidence(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("evidence", flag.ContinueOnError)
 	endpoint := fs.String("endpoint", "http://"+DefaultAddr, "the running emulator to read /_feint/conformance from")
 	shapesDir := fs.String("shapes", "shapes", "directory of observed real-cloud shapes; the shape axis is resolved from it (empty to leave the run's answer)")
 	out := fs.String("out", filepath.Join("coverage", "evidence.json"), "where to write the artefact")
 	join := fs.String("join", "", "an artefact from another leg of the same regeneration, merged in (fresh runs only; see the header comment)")
+	allowNarrowing := fs.Bool("allow-narrowing", false,
+		"write even when this run reaches fewer runtimes than the record it replaces; "+
+			"for the single-leg caller of evidence:update, never for a committed artefact")
 	if err := fs.Parse(args); err != nil {
 		return exitError
 	}
@@ -108,6 +137,36 @@ func evidence(args []string, stdout, stderr io.Writer) int {
 			return exitError
 		}
 		art = joinEvidence(art, other)
+	}
+
+	// Refuse to overwrite a record with one that proves less.
+	//
+	// Twice in one day an artefact was regenerated from a machines-off run alone
+	// and silently dropped the dataplane axis for 169 operations. Nothing was
+	// red: the file declared `machines: ["none"]`, so it was honest — and
+	// docs/routes.md then printed the absence exactly like an operation nothing
+	// has proven. A record that quietly narrows is the same defect as a record
+	// that goes stale, and the second one already has a control.
+	//
+	// The comparison is on the runtimes the record was earned under, not on the
+	// axes: an axis can legitimately shrink when a claim is corrected — #156 took
+	// probed from 181 arrivals down to 83 verdicts, and that is a fix, not a
+	// loss. Losing a *runtime* is never a fix; it means a leg did not run.
+	//
+	// --allow-narrowing exists for the one caller that legitimately writes a
+	// single leg: `evidence:update` writes its machines-off leg to a temporary
+	// file before joining the runtime one.
+	// TestEvidenceRefusesToNarrowTheRuntimesItWasEarnedUnder fails without this.
+	if !*allowNarrowing {
+		if lost := runtimesLost(*out, art); len(lost) > 0 {
+			fmt.Fprintf(stderr, "feint: %s was earned under %s and this run only reaches %s, "+
+				"so writing it would drop every proof taken under %s.\n"+
+				"Run `mise run evidence:update` on a host that can start machines, or pass "+
+				"--allow-narrowing when a single leg is what you meant.\n",
+				*out, strings.Join(lost, ", "), strings.Join(art.Machines, ", "),
+				strings.Join(lost, ", "))
+			return exitError
+		}
 	}
 
 	blob, err := json.MarshalIndent(art, "", "  ")
