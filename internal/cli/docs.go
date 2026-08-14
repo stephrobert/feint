@@ -194,7 +194,11 @@ func docs(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "feint: %v\n", evErr)
 		return exitError
 	}
-	routesChanged, routesErr := spliceRoutes(*routesDoc, evidenceArt)
+	// The same artefacts the tables read decide which section a route files
+	// under, so the reference page and the README can never disagree on where
+	// an operation belongs.
+	opGroups := operationGroups(reports)
+	routesChanged, routesErr := spliceRoutes(*routesDoc, evidenceArt, opGroups)
 	if routesErr != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", routesErr)
 		return exitError
@@ -307,7 +311,7 @@ func docs(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "%s updated\n", *limits)
 	}
 	if routesChanged {
-		if err := writeSplicedRoutes(*routesDoc, evidenceArt); err != nil {
+		if err := writeSplicedRoutes(*routesDoc, evidenceArt, opGroups); err != nil {
 			fmt.Fprintf(stderr, "feint: %v\n", err)
 			return exitError
 		}
@@ -447,6 +451,20 @@ func unmeasured(rep drift.CoverageFile, byProduct map[string]int) []string {
 	return out
 }
 
+// operationGroups maps every operation the coverage artefacts know to the group
+// it counts under — the upstream's own grouping, its product where the upstream
+// declares none. One map across providers, because operation names already
+// carry their provider's namespace and the route reference looks them up flat.
+func operationGroups(reports []drift.CoverageFile) map[string]string {
+	out := make(map[string]string)
+	for _, rep := range reports {
+		for _, e := range rep.Entries {
+			out[e.Operation] = e.GroupName()
+		}
+	}
+	return out
+}
+
 // loadCoverage reads every <provider>-coverage.json in dir, ordered by provider
 // so two runs render the same document.
 func loadCoverage(dir string) ([]drift.CoverageFile, error) {
@@ -473,9 +491,18 @@ func loadCoverage(dir string) ([]drift.CoverageFile, error) {
 }
 
 // renderCoverage builds the Markdown. One table per provider, its rows the
-// upstream products, because a product is the unit a decision is taken on: a
-// single row saying "Scaleway 49/179" hides that Instance is nearly done and VPC
-// is barely started.
+// upstream's own grouping of its surface, because a group is the unit a
+// decision is taken on: a single row saying "Scaleway 49/179" hides that
+// Instance is nearly done and VPC is barely started.
+//
+// The grouping is the upstream's, never one invented here: Scaleway's SDK
+// packages, Outscale's document tags, the roots of Exoscale's tag hierarchy.
+// Before the artefacts carried it, Scaleway showed six rows because its SDK has
+// a package per product while Outscale's 236 operations sat in one `osc` row
+// and Exoscale's 374 in one `exoscale` row — a difference that read as depth
+// when it was only SDK layout, and that hid the one distinction these tables
+// exist to make: Exoscale's "12% served" is 39% managed databases declined by
+// the roadmap, not 88% missing.
 func renderCoverage(reports []drift.CoverageFile, routes map[string]map[string]int) string {
 	// Most served first, name breaking the tie. Alphabetical would open on the
 	// least finished pack, and the order still has to be a function of the data
@@ -505,13 +532,23 @@ func renderCoverage(reports []drift.CoverageFile, routes map[string]map[string]i
 	for _, rep := range reports {
 		byProduct := routes[rep.Provider]
 		fmt.Fprintf(&b, "#### %s\n\n", strings.ToUpper(rep.Provider[:1])+rep.Provider[1:])
-		fmt.Fprintf(&b, "%d routes mounted, %s of the measured upstream surface served.\n\n",
-			routeTotal(byProduct), percent(rep.Implemented, rep.Total))
-		b.WriteString("| Product | Served | Declined | Untriaged | Upstream |\n")
+		// Three shares, not one: "12% served" alone reads as 88% missing, when
+		// most of the gap is operations somebody decided to refuse. The
+		// distinction between a refusal and an absence is the one these tables
+		// exist to make, so the headline makes it before the rows do.
+		fmt.Fprintf(&b, "%d routes mounted. Of the %d operations upstream declares: %s served,\n%s declined on purpose, %s untriaged.\n\n",
+			routeTotal(byProduct), rep.Total,
+			percent(rep.Implemented, rep.Total), percent(rep.Declined, rep.Total), percent(rep.Unknown, rep.Total))
+		named, rest, foldedGroups := foldSmallGroups(groupRows(rep), rep.Total)
+		b.WriteString("| Group | Served | Declined | Untriaged | Upstream |\n")
 		b.WriteString("|---|--:|--:|--:|--:|\n")
-		for _, p := range rep.Products {
+		for _, g := range named {
 			fmt.Fprintf(&b, "| `%s` | %d | %d | %d | %d |\n",
-				p.Product, p.Implemented, p.Declined, p.Unknown, p.Total)
+				g.Group, g.Implemented, g.Declined, g.Unknown, g.Total)
+		}
+		if foldedGroups > 0 {
+			fmt.Fprintf(&b, "| *… %d smaller groups* | %d | %d | %d | %d |\n",
+				foldedGroups, rest.Implemented, rest.Declined, rest.Unknown, rest.Total)
 		}
 		fmt.Fprintf(&b, "| **Total** | **%d** | **%d** | **%d** | **%d** |\n\n",
 			rep.Implemented, rep.Declined, rep.Unknown, rep.Total)
@@ -527,6 +564,10 @@ func renderCoverage(reports []drift.CoverageFile, routes map[string]map[string]i
 		}
 	}
 
+	b.WriteString("Rows are the provider's own grouping of its surface — Scaleway's SDK products,\n")
+	b.WriteString("Outscale's API tags, the roots of Exoscale's tag hierarchy — never a grouping\n")
+	b.WriteString("invented here. Groups under 2% of a surface fold into the *smaller groups* row\n")
+	b.WriteString("of their table, counts intact, so no block-sized decision can hide in it.\n\n")
 	b.WriteString("**Declined** is a decision, not a gap: an operation nobody intends to emulate,\n")
 	b.WriteString("with the reason in the pack's `Declined()`. **Untriaged** is the honest column —\n")
 	b.WriteString("upstream operations nobody has ruled on yet. A new one appearing there fails CI\n")
@@ -534,6 +575,72 @@ func renderCoverage(reports []drift.CoverageFile, routes map[string]map[string]i
 	b.WriteString("instead of following it by hand.\n")
 
 	return b.String()
+}
+
+// groupRows returns the rows of one provider's table: the upstream groups when
+// the artefact carries them, its products otherwise — an artefact written
+// before groups existed still renders, it just renders what it knows.
+func groupRows(rep drift.CoverageFile) []drift.GroupCount {
+	if len(rep.Groups) > 0 {
+		return rep.Groups
+	}
+	rows := make([]drift.GroupCount, 0, len(rep.Products))
+	for _, p := range rep.Products {
+		rows = append(rows, drift.GroupCount{
+			Group:       p.Product,
+			Total:       p.Total,
+			Implemented: p.Implemented,
+			Declined:    p.Declined,
+			Unknown:     p.Unknown,
+		})
+	}
+	return rows
+}
+
+// foldSmallGroups splits a provider's groups into the rows worth naming and one
+// explicit residual, so a 50-tag surface does not become a 50-row table.
+//
+// The floor is 2% of the provider's surface. It is a share rather than a count
+// so the same sentence holds for a 236-operation provider and a 374-operation
+// one, and it is what bounds the lie a fold can tell: nothing a reader would
+// call a block — Exoscale's 146 dbaas refusals, Outscale's 24 Policy ones —
+// can ever land in the residual, because a block is precisely a group too big
+// for the floor. Asserted by TestFoldSmallGroupsNeverFoldsABlockDecision, which
+// fails if a group at or above the floor stops being named.
+//
+// Named rows come back largest first, name breaking ties, because the table's
+// job is comparative and the biggest block is the first thing to compare. The
+// residual keeps exact counts: folding is about naming, never about numbers.
+// One small group folds into nothing — a residual of one would hide a name to
+// save no space.
+func foldSmallGroups(groups []drift.GroupCount, total int) (named []drift.GroupCount, rest drift.GroupCount, foldedGroups int) {
+	var small []drift.GroupCount
+	for _, g := range groups {
+		// Strictly under 2%: g is named when g.Total/total >= 1/50, kept in
+		// integers so the comparison is exact.
+		if g.Total*50 >= total {
+			named = append(named, g)
+		} else {
+			small = append(small, g)
+		}
+	}
+	if len(small) == 1 {
+		named = append(named, small[0])
+		small = nil
+	}
+	sort.SliceStable(named, func(i, j int) bool {
+		if named[i].Total != named[j].Total {
+			return named[i].Total > named[j].Total
+		}
+		return named[i].Group < named[j].Group
+	})
+	for _, g := range small {
+		rest.Total += g.Total
+		rest.Implemented += g.Implemented
+		rest.Declined += g.Declined
+		rest.Unknown += g.Unknown
+	}
+	return named, rest, len(small)
 }
 
 // renderBanner reproduces what `feint serve` prints on startup, so the example

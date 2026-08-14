@@ -21,6 +21,365 @@
       "unknown": 18
     }
   ],
+  "groups": [
+    {
+      "group": "AccessKey",
+      "total": 4,
+      "implemented": 0,
+      "declined": 4,
+      "unknown": 0
+    },
+    {
+      "group": "Account",
+      "total": 6,
+      "implemented": 0,
+      "declined": 5,
+      "unknown": 1
+    },
+    {
+      "group": "ApiAccessPolicy",
+      "total": 2,
+      "implemented": 0,
+      "declined": 2,
+      "unknown": 0
+    },
+    {
+      "group": "ApiAccessRule",
+      "total": 4,
+      "implemented": 0,
+      "declined": 4,
+      "unknown": 0
+    },
+    {
+      "group": "ApiLog",
+      "total": 1,
+      "implemented": 0,
+      "declined": 1,
+      "unknown": 0
+    },
+    {
+      "group": "Ca",
+      "total": 4,
+      "implemented": 0,
+      "declined": 4,
+      "unknown": 0
+    },
+    {
+      "group": "Catalog",
+      "total": 3,
+      "implemented": 0,
+      "declined": 3,
+      "unknown": 0
+    },
+    {
+      "group": "ClientGateway",
+      "total": 3,
+      "implemented": 0,
+      "declined": 3,
+      "unknown": 0
+    },
+    {
+      "group": "DedicatedGroup",
+      "total": 4,
+      "implemented": 0,
+      "declined": 4,
+      "unknown": 0
+    },
+    {
+      "group": "DhcpOption",
+      "total": 3,
+      "implemented": 1,
+      "declined": 0,
+      "unknown": 2
+    },
+    {
+      "group": "DirectLink",
+      "total": 3,
+      "implemented": 0,
+      "declined": 3,
+      "unknown": 0
+    },
+    {
+      "group": "DirectLinkInterface",
+      "total": 4,
+      "implemented": 0,
+      "declined": 4,
+      "unknown": 0
+    },
+    {
+      "group": "FlexibleGpu",
+      "total": 7,
+      "implemented": 0,
+      "declined": 7,
+      "unknown": 0
+    },
+    {
+      "group": "IdentityProvider",
+      "total": 6,
+      "implemented": 0,
+      "declined": 6,
+      "unknown": 0
+    },
+    {
+      "group": "Image",
+      "total": 6,
+      "implemented": 4,
+      "declined": 2,
+      "unknown": 0
+    },
+    {
+      "group": "InternetService",
+      "total": 5,
+      "implemented": 5,
+      "declined": 0,
+      "unknown": 0
+    },
+    {
+      "group": "Keypair",
+      "total": 3,
+      "implemented": 3,
+      "declined": 0,
+      "unknown": 0
+    },
+    {
+      "group": "Listener",
+      "total": 6,
+      "implemented": 0,
+      "declined": 6,
+      "unknown": 0
+    },
+    {
+      "group": "LoadBalancer",
+      "total": 12,
+      "implemented": 1,
+      "declined": 11,
+      "unknown": 0
+    },
+    {
+      "group": "LoadBalancerPolicy",
+      "total": 2,
+      "implemented": 0,
+      "declined": 2,
+      "unknown": 0
+    },
+    {
+      "group": "Location",
+      "total": 1,
+      "implemented": 0,
+      "declined": 1,
+      "unknown": 0
+    },
+    {
+      "group": "NatService",
+      "total": 3,
+      "implemented": 3,
+      "declined": 0,
+      "unknown": 0
+    },
+    {
+      "group": "Net",
+      "total": 4,
+      "implemented": 3,
+      "declined": 0,
+      "unknown": 1
+    },
+    {
+      "group": "NetAccessPoint",
+      "total": 5,
+      "implemented": 1,
+      "declined": 0,
+      "unknown": 4
+    },
+    {
+      "group": "NetPeering",
+      "total": 5,
+      "implemented": 0,
+      "declined": 0,
+      "unknown": 5
+    },
+    {
+      "group": "Nic",
+      "total": 8,
+      "implemented": 5,
+      "declined": 0,
+      "unknown": 3
+    },
+    {
+      "group": "Policy",
+      "total": 24,
+      "implemented": 0,
+      "declined": 24,
+      "unknown": 0
+    },
+    {
+      "group": "ProductType",
+      "total": 3,
+      "implemented": 0,
+      "declined": 3,
+      "unknown": 0
+    },
+    {
+      "group": "PublicCatalog",
+      "total": 1,
+      "implemented": 0,
+      "declined": 1,
+      "unknown": 0
+    },
+    {
+      "group": "PublicIp",
+      "total": 6,
+      "implemented": 6,
+      "declined": 0,
+      "unknown": 0
+    },
+    {
+      "group": "Quota",
+      "total": 1,
+      "implemented": 0,
+      "declined": 1,
+      "unknown": 0
+    },
+    {
+      "group": "Region",
+      "total": 1,
+      "implemented": 1,
+      "declined": 0,
+      "unknown": 0
+    },
+    {
+      "group": "Route",
+      "total": 3,
+      "implemented": 3,
+      "declined": 0,
+      "unknown": 0
+    },
+    {
+      "group": "RouteTable",
+      "total": 6,
+      "implemented": 5,
+      "declined": 0,
+      "unknown": 1
+    },
+    {
+      "group": "SecurityGroup",
+      "total": 3,
+      "implemented": 3,
+      "declined": 0,
+      "unknown": 0
+    },
+    {
+      "group": "SecurityGroupRule",
+      "total": 2,
+      "implemented": 2,
+      "declined": 0,
+      "unknown": 0
+    },
+    {
+      "group": "ServerCertificate",
+      "total": 4,
+      "implemented": 0,
+      "declined": 4,
+      "unknown": 0
+    },
+    {
+      "group": "Snapshot",
+      "total": 6,
+      "implemented": 3,
+      "declined": 3,
+      "unknown": 0
+    },
+    {
+      "group": "Subnet",
+      "total": 4,
+      "implemented": 3,
+      "declined": 0,
+      "unknown": 1
+    },
+    {
+      "group": "Subregion",
+      "total": 1,
+      "implemented": 1,
+      "declined": 0,
+      "unknown": 0
+    },
+    {
+      "group": "Tag",
+      "total": 3,
+      "implemented": 3,
+      "declined": 0,
+      "unknown": 0
+    },
+    {
+      "group": "Task",
+      "total": 1,
+      "implemented": 0,
+      "declined": 1,
+      "unknown": 0
+    },
+    {
+      "group": "User",
+      "total": 4,
+      "implemented": 0,
+      "declined": 4,
+      "unknown": 0
+    },
+    {
+      "group": "UserGroup",
+      "total": 8,
+      "implemented": 0,
+      "declined": 8,
+      "unknown": 0
+    },
+    {
+      "group": "VirtualGateway",
+      "total": 6,
+      "implemented": 0,
+      "declined": 6,
+      "unknown": 0
+    },
+    {
+      "group": "Vm",
+      "total": 12,
+      "implemented": 10,
+      "declined": 2,
+      "unknown": 0
+    },
+    {
+      "group": "VmGroup",
+      "total": 6,
+      "implemented": 0,
+      "declined": 6,
+      "unknown": 0
+    },
+    {
+      "group": "VmTemplate",
+      "total": 4,
+      "implemented": 0,
+      "declined": 4,
+      "unknown": 0
+    },
+    {
+      "group": "Volume",
+      "total": 7,
+      "implemented": 6,
+      "declined": 1,
+      "unknown": 0
+    },
+    {
+      "group": "VpnConnection",
+      "total": 6,
+      "implemented": 0,
+      "declined": 6,
+      "unknown": 0
+    },
+    {
+      "group": "oks",
+      "total": 27,
+      "implemented": 0,
+      "declined": 27,
+      "unknown": 0
+    }
+  ],
   "entries": [
     {
       "operation": "oks/Client.CreateCluster",
@@ -187,1327 +546,1563 @@
     {
       "operation": "osc/Client.AcceptNetPeering",
       "product": "osc",
+      "group": "NetPeering",
       "status": "unknown"
     },
     {
       "operation": "osc/Client.AddUserToUserGroup",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "UserGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CheckAuthentication",
       "product": "osc",
+      "group": "Account",
       "status": "unknown"
     },
     {
       "operation": "osc/Client.CreateAccessKey",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "AccessKey",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateAccount",
       "product": "osc",
       "reason": "the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on",
+      "group": "Account",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateApiAccessRule",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "ApiAccessRule",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateCa",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Ca",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateClientGateway",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "ClientGateway",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateDedicatedGroup",
       "product": "osc",
       "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "group": "DedicatedGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateDhcpOptions",
       "product": "osc",
+      "group": "DhcpOption",
       "status": "unknown"
     },
     {
       "operation": "osc/Client.CreateDirectLink",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "DirectLink",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateDirectLinkInterface",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "DirectLinkInterface",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateFlexibleGpu",
       "product": "osc",
       "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "group": "FlexibleGpu",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateImage",
       "product": "osc",
+      "group": "Image",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateImageExportTask",
       "product": "osc",
       "reason": "Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale",
+      "group": "Image",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateInternetService",
       "product": "osc",
+      "group": "InternetService",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateKeypair",
       "product": "osc",
+      "group": "Keypair",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateListenerRule",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "Listener",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateLoadBalancer",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "LoadBalancer",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateLoadBalancerListeners",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "Listener",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateLoadBalancerPolicy",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "LoadBalancerPolicy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateLoadBalancerTags",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "LoadBalancer",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateNatService",
       "product": "osc",
+      "group": "NatService",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateNet",
       "product": "osc",
+      "group": "Net",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateNetAccessPoint",
       "product": "osc",
+      "group": "NetAccessPoint",
       "status": "unknown"
     },
     {
       "operation": "osc/Client.CreateNetPeering",
       "product": "osc",
+      "group": "NetPeering",
       "status": "unknown"
     },
     {
       "operation": "osc/Client.CreateNic",
       "product": "osc",
+      "group": "Nic",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.CreatePolicy",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreatePolicyVersion",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateProductType",
       "product": "osc",
       "reason": "the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on",
+      "group": "ProductType",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreatePublicIp",
       "product": "osc",
+      "group": "PublicIp",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateRoute",
       "product": "osc",
+      "group": "Route",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateRouteTable",
       "product": "osc",
+      "group": "RouteTable",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateSecurityGroup",
       "product": "osc",
+      "group": "SecurityGroup",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateSecurityGroupRule",
       "product": "osc",
+      "group": "SecurityGroupRule",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateServerCertificate",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "ServerCertificate",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateSnapshot",
       "product": "osc",
+      "group": "Snapshot",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateSnapshotExportTask",
       "product": "osc",
       "reason": "Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale",
+      "group": "Snapshot",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateSubnet",
       "product": "osc",
+      "group": "Subnet",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateTags",
       "product": "osc",
+      "group": "Tag",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateUser",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "User",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateUserGroup",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "UserGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateVirtualGateway",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "VirtualGateway",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateVmGroup",
       "product": "osc",
       "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "group": "VmGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateVmTemplate",
       "product": "osc",
       "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "group": "VmTemplate",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateVms",
       "product": "osc",
+      "group": "Vm",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateVolume",
       "product": "osc",
+      "group": "Volume",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateVpnConnection",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "VpnConnection",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateVpnConnectionRoute",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "VpnConnection",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteAccessKey",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "AccessKey",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteApiAccessRule",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "ApiAccessRule",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteCa",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Ca",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteClientGateway",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "ClientGateway",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteDedicatedGroup",
       "product": "osc",
       "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "group": "DedicatedGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteDhcpOptions",
       "product": "osc",
+      "group": "DhcpOption",
       "status": "unknown"
     },
     {
       "operation": "osc/Client.DeleteDirectLink",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "DirectLink",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteDirectLinkInterface",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "DirectLinkInterface",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteExportTask",
       "product": "osc",
       "reason": "Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale",
+      "group": "Task",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteFlexibleGpu",
       "product": "osc",
       "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "group": "FlexibleGpu",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteImage",
       "product": "osc",
+      "group": "Image",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteInternetService",
       "product": "osc",
+      "group": "InternetService",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteKeypair",
       "product": "osc",
+      "group": "Keypair",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteListenerRule",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "Listener",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteLoadBalancer",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "LoadBalancer",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteLoadBalancerListeners",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "Listener",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteLoadBalancerPolicy",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "LoadBalancerPolicy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteLoadBalancerTags",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "LoadBalancer",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteNatService",
       "product": "osc",
+      "group": "NatService",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteNet",
       "product": "osc",
+      "group": "Net",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteNetAccessPoint",
       "product": "osc",
+      "group": "NetAccessPoint",
       "status": "unknown"
     },
     {
       "operation": "osc/Client.DeleteNetPeering",
       "product": "osc",
+      "group": "NetPeering",
       "status": "unknown"
     },
     {
       "operation": "osc/Client.DeleteNic",
       "product": "osc",
+      "group": "Nic",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.DeletePolicy",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeletePolicyVersion",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteProductType",
       "product": "osc",
       "reason": "the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on",
+      "group": "ProductType",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeletePublicIp",
       "product": "osc",
+      "group": "PublicIp",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteRoute",
       "product": "osc",
+      "group": "Route",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteRouteTable",
       "product": "osc",
+      "group": "RouteTable",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteSecurityGroup",
       "product": "osc",
+      "group": "SecurityGroup",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteSecurityGroupRule",
       "product": "osc",
+      "group": "SecurityGroupRule",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteServerCertificate",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "ServerCertificate",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteSnapshot",
       "product": "osc",
+      "group": "Snapshot",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteSubnet",
       "product": "osc",
+      "group": "Subnet",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteTags",
       "product": "osc",
+      "group": "Tag",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteUser",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "User",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteUserGroup",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "UserGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteUserGroupPolicy",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteUserPolicy",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteVirtualGateway",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "VirtualGateway",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteVmGroup",
       "product": "osc",
       "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "group": "VmGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteVmTemplate",
       "product": "osc",
       "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "group": "VmTemplate",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteVms",
       "product": "osc",
+      "group": "Vm",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteVolume",
       "product": "osc",
+      "group": "Volume",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteVpnConnection",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "VpnConnection",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteVpnConnectionRoute",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "VpnConnection",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeregisterVmsInLoadBalancer",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "LoadBalancer",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DisableOutscaleLogin",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "IdentityProvider",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DisableOutscaleLoginForUsers",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "IdentityProvider",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DisableOutscaleLoginPerUsers",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "IdentityProvider",
       "status": "declined"
     },
     {
       "operation": "osc/Client.EnableOutscaleLogin",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "IdentityProvider",
       "status": "declined"
     },
     {
       "operation": "osc/Client.EnableOutscaleLoginForUsers",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "IdentityProvider",
       "status": "declined"
     },
     {
       "operation": "osc/Client.EnableOutscaleLoginPerUsers",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "IdentityProvider",
       "status": "declined"
     },
     {
       "operation": "osc/Client.LinkFlexibleGpu",
       "product": "osc",
       "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "group": "FlexibleGpu",
       "status": "declined"
     },
     {
       "operation": "osc/Client.LinkInternetService",
       "product": "osc",
+      "group": "InternetService",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.LinkLoadBalancerBackendMachines",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "LoadBalancer",
       "status": "declined"
     },
     {
       "operation": "osc/Client.LinkManagedPolicyToUserGroup",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.LinkNic",
       "product": "osc",
+      "group": "Nic",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.LinkPolicy",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.LinkPrivateIps",
       "product": "osc",
+      "group": "Nic",
       "status": "unknown"
     },
     {
       "operation": "osc/Client.LinkPublicIp",
       "product": "osc",
+      "group": "PublicIp",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.LinkRouteTable",
       "product": "osc",
+      "group": "RouteTable",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.LinkVirtualGateway",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "VirtualGateway",
       "status": "declined"
     },
     {
       "operation": "osc/Client.LinkVolume",
       "product": "osc",
+      "group": "Volume",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.PutUserGroupPolicy",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.PutUserPolicy",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadAccessKeys",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "AccessKey",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadAccounts",
       "product": "osc",
       "reason": "the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on",
+      "group": "Account",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadAdminPassword",
       "product": "osc",
+      "group": "Vm",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadApiAccessPolicy",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "ApiAccessPolicy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadApiAccessRules",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "ApiAccessRule",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadApiLogs",
       "product": "osc",
       "reason": "the trail records calls made against Outscale's platform, and nothing here made any of them",
+      "group": "ApiLog",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadCO2EmissionAccount",
       "product": "osc",
       "reason": "the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on",
+      "group": "Account",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadCas",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Ca",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadCatalog",
       "product": "osc",
       "reason": "no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so",
+      "group": "Catalog",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadCatalogs",
       "product": "osc",
       "reason": "no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so",
+      "group": "Catalog",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadClientGateways",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "ClientGateway",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadConsoleOutput",
       "product": "osc",
       "reason": "each answers a question about something that never happened here: a console nothing captured, a stop history nothing kept, migration tasks for updates applied immediately",
+      "group": "Vm",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadConsumptionAccount",
       "product": "osc",
       "reason": "the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on",
+      "group": "Account",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadDedicatedGroups",
       "product": "osc",
       "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "group": "DedicatedGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadDhcpOptions",
       "product": "osc",
+      "group": "DhcpOption",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadDirectLinkInterfaces",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "DirectLinkInterface",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadDirectLinks",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "DirectLink",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadEntitiesLinkedToPolicy",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadFlexibleGpuCatalog",
       "product": "osc",
       "reason": "no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so",
+      "group": "FlexibleGpu",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadFlexibleGpus",
       "product": "osc",
       "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "group": "FlexibleGpu",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadImageExportTasks",
       "product": "osc",
       "reason": "Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale",
+      "group": "Image",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadImages",
       "product": "osc",
+      "group": "Image",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadInternetServices",
       "product": "osc",
+      "group": "InternetService",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadKeypairs",
       "product": "osc",
+      "group": "Keypair",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadLinkedPolicies",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadListenerRules",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "Listener",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadLoadBalancerTags",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "LoadBalancer",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadLoadBalancers",
       "product": "osc",
+      "group": "LoadBalancer",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadLocations",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "Location",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadManagedPoliciesLinkedToUserGroup",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadNatServices",
       "product": "osc",
+      "group": "NatService",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadNetAccessPointServices",
       "product": "osc",
+      "group": "NetAccessPoint",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadNetAccessPoints",
       "product": "osc",
+      "group": "NetAccessPoint",
       "status": "unknown"
     },
     {
       "operation": "osc/Client.ReadNetPeerings",
       "product": "osc",
+      "group": "NetPeering",
       "status": "unknown"
     },
     {
       "operation": "osc/Client.ReadNets",
       "product": "osc",
+      "group": "Net",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadNics",
       "product": "osc",
+      "group": "Nic",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadPolicies",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadPolicy",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadPolicyVersion",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadPolicyVersions",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadProductTypes",
       "product": "osc",
       "reason": "the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on",
+      "group": "ProductType",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadPublicCatalog",
       "product": "osc",
       "reason": "no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so",
+      "group": "PublicCatalog",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadPublicIpRanges",
       "product": "osc",
+      "group": "PublicIp",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadPublicIps",
       "product": "osc",
+      "group": "PublicIp",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadQuotas",
       "product": "osc",
       "reason": "the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on",
+      "group": "Quota",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadRegions",
       "product": "osc",
+      "group": "Region",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadRouteTables",
       "product": "osc",
+      "group": "RouteTable",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadSecurityGroups",
       "product": "osc",
+      "group": "SecurityGroup",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadServerCertificates",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "ServerCertificate",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadSnapshotExportTasks",
       "product": "osc",
       "reason": "Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale",
+      "group": "Snapshot",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadSnapshots",
       "product": "osc",
+      "group": "Snapshot",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadSubnets",
       "product": "osc",
+      "group": "Subnet",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadSubregions",
       "product": "osc",
+      "group": "Subregion",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadTags",
       "product": "osc",
+      "group": "Tag",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadUnitPrice",
       "product": "osc",
       "reason": "the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on",
+      "group": "Catalog",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadUserGroup",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "UserGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadUserGroupPolicies",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadUserGroupPolicy",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadUserGroups",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "UserGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadUserGroupsPerUser",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "UserGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadUserPolicies",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadUserPolicy",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadUsers",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "User",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadVirtualGateways",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "VirtualGateway",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadVmGroups",
       "product": "osc",
       "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "group": "VmGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadVmTemplates",
       "product": "osc",
       "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "group": "VmTemplate",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadVmTypes",
       "product": "osc",
+      "group": "Vm",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadVms",
       "product": "osc",
+      "group": "Vm",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadVmsHealth",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "LoadBalancer",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadVmsState",
       "product": "osc",
+      "group": "Vm",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadVmsStopHistory",
       "product": "osc",
       "reason": "each answers a question about something that never happened here: a console nothing captured, a stop history nothing kept, migration tasks for updates applied immediately",
+      "group": "Vm",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadVolumeUpdateTasks",
       "product": "osc",
       "reason": "each answers a question about something that never happened here: a console nothing captured, a stop history nothing kept, migration tasks for updates applied immediately",
+      "group": "Volume",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadVolumes",
       "product": "osc",
+      "group": "Volume",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadVpnConnections",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "VpnConnection",
       "status": "declined"
     },
     {
       "operation": "osc/Client.RebootVms",
       "product": "osc",
+      "group": "Vm",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.RegisterVmsInLoadBalancer",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "LoadBalancer",
       "status": "declined"
     },
     {
       "operation": "osc/Client.RejectNetPeering",
       "product": "osc",
+      "group": "NetPeering",
       "status": "unknown"
     },
     {
       "operation": "osc/Client.RemoveUserFromUserGroup",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "UserGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ScaleDownVmGroup",
       "product": "osc",
       "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "group": "VmGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ScaleUpVmGroup",
       "product": "osc",
       "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "group": "VmGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.SetDefaultPolicyVersion",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.StartVms",
       "product": "osc",
+      "group": "Vm",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.StopVms",
       "product": "osc",
+      "group": "Vm",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.UnlinkFlexibleGpu",
       "product": "osc",
       "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "group": "FlexibleGpu",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UnlinkInternetService",
       "product": "osc",
+      "group": "InternetService",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.UnlinkLoadBalancerBackendMachines",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "LoadBalancer",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UnlinkManagedPolicyFromUserGroup",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UnlinkNic",
       "product": "osc",
+      "group": "Nic",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.UnlinkPolicy",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Policy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UnlinkPrivateIps",
       "product": "osc",
+      "group": "Nic",
       "status": "unknown"
     },
     {
       "operation": "osc/Client.UnlinkPublicIp",
       "product": "osc",
+      "group": "PublicIp",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.UnlinkRouteTable",
       "product": "osc",
+      "group": "RouteTable",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.UnlinkVirtualGateway",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "VirtualGateway",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UnlinkVolume",
       "product": "osc",
+      "group": "Volume",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.UpdateAccessKey",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "AccessKey",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateAccount",
       "product": "osc",
       "reason": "the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on",
+      "group": "Account",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateApiAccessPolicy",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "ApiAccessPolicy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateApiAccessRule",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "ApiAccessRule",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateCa",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "Ca",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateDedicatedGroup",
       "product": "osc",
       "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "group": "DedicatedGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateDirectLinkInterface",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "DirectLinkInterface",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateFlexibleGpu",
       "product": "osc",
       "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "group": "FlexibleGpu",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateImage",
       "product": "osc",
+      "group": "Image",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.UpdateListenerRule",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "Listener",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateLoadBalancer",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "LoadBalancer",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateNet",
       "product": "osc",
+      "group": "Net",
       "status": "unknown"
     },
     {
       "operation": "osc/Client.UpdateNetAccessPoint",
       "product": "osc",
+      "group": "NetAccessPoint",
       "status": "unknown"
     },
     {
       "operation": "osc/Client.UpdateNic",
       "product": "osc",
+      "group": "Nic",
       "status": "unknown"
     },
     {
       "operation": "osc/Client.UpdateRoute",
       "product": "osc",
+      "group": "Route",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.UpdateRoutePropagation",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "VirtualGateway",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateRouteTableLink",
       "product": "osc",
+      "group": "RouteTable",
       "status": "unknown"
     },
     {
       "operation": "osc/Client.UpdateServerCertificate",
       "product": "osc",
       "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "group": "ServerCertificate",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateSnapshot",
       "product": "osc",
       "reason": "UpdateSnapshot manages cross-account permissions, and the emulator has one implicit account: there is nobody to grant to",
+      "group": "Snapshot",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateSubnet",
       "product": "osc",
+      "group": "Subnet",
       "status": "unknown"
     },
     {
       "operation": "osc/Client.UpdateUser",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "User",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateUserGroup",
       "product": "osc",
       "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+      "group": "UserGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateVm",
       "product": "osc",
+      "group": "Vm",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.UpdateVmGroup",
       "product": "osc",
       "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "group": "VmGroup",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateVmTemplate",
       "product": "osc",
       "reason": "GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal",
+      "group": "VmTemplate",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateVolume",
       "product": "osc",
+      "group": "Volume",
       "status": "implemented"
     },
     {
       "operation": "osc/Client.UpdateVpnConnection",
       "product": "osc",
       "reason": "each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one",
+      "group": "VpnConnection",
       "status": "declined"
     }
   ]

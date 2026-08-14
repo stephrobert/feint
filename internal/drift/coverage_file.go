@@ -30,6 +30,16 @@ type CoverageFile struct {
 	Unknown     int           `json:"unknown"`
 	Orphans     []string      `json:"orphans"`
 	Products    []ProductView `json:"products"`
+	// Groups breaks the same surface down along the upstream's own grouping —
+	// Exoscale's tag hierarchy roots, Outscale's tags — falling back to the
+	// product where the upstream declares none, so the three sum to the same
+	// totals. Products stays what it is: the unit a scan is scoped and a whole
+	// surface declined on (`--products`, oks in one decision). Groups is what a
+	// reader compares: without it, Scaleway showed six rows because its SDK has
+	// a package per product while Outscale's 236 operations sat in one `osc`
+	// row, and the difference read as depth when it was only SDK layout.
+	// Additive: readers of the fields above are unaffected.
+	Groups []GroupCount `json:"groups,omitempty"`
 	// Entries is the per-operation verdict, sorted by operation name.
 	//
 	// It carries the reason a declined operation is declined, and that is the
@@ -102,6 +112,7 @@ func (r Report) File() CoverageFile {
 		Unknown:     r.Unknown,
 		Orphans:     r.Orphans,
 		Products:    views,
+		Groups:      r.Groups(),
 		Entries:     entries,
 	}
 }

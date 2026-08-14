@@ -225,6 +225,8 @@ Usage:
                     Compare the upstream API surface with what the packs serve.
                     Scaleway and Outscale are read from an SDK checkout; Exoscale
                     publishes an OpenAPI document, so it is read with --contract.
+                    Given both, the SDK lists the operations and the contract adds
+                    the upstream's own grouping, which the SDK flattens away.
 
   feint probe      [--endpoint http://127.0.0.1:4599] [--contracts <dir>] [--provider <name>]
                     Drive every mounted route from its API description and check
@@ -646,7 +648,7 @@ func coverage(args []string, stdout, stderr io.Writer) int {
 		err      error
 	)
 	switch {
-	case *contractPath != "":
+	case *contractPath != "" && *sdk == "":
 		// A provider that publishes an OpenAPI document needs no SDK reader: the
 		// contract already lists its whole surface, and one artefact then feeds
 		// both the drift gate and the response check.
@@ -667,6 +669,18 @@ func coverage(args []string, stdout, stderr io.Writer) int {
 			return exitError
 		}
 		upstream, err = scan(*sdk)
+		// Given both, the SDK is the authority on which operations exist — its
+		// method names are what routes declare — and the contract only adds
+		// where the upstream's document files each one. Outscale is the case:
+		// oapi-codegen drops the document's 50 tags when it flattens every
+		// operation onto one Client, so without this join the whole surface
+		// renders as a single `osc` row.
+		if err == nil && *contractPath != "" {
+			var doc *contract.Doc
+			if doc, err = contract.Load(*contractPath); err == nil {
+				drift.Regroup(upstream, doc)
+			}
+		}
 	}
 	if err != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", err)

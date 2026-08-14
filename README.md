@@ -580,36 +580,69 @@ what this emulator serves, declines on purpose, or has not triaged yet.
 
 #### Scaleway
 
-102 routes mounted, 32% of the measured upstream surface served.
+102 routes mounted. Of the 315 operations upstream declares: 32% served,
+67% declined on purpose, 0% untriaged.
 
-| Product | Served | Declined | Untriaged | Upstream |
+| Group | Served | Declined | Untriaged | Upstream |
 |---|--:|--:|--:|--:|
-| `block` | 22 | 5 | 0 | 27 |
-| `iam` | 5 | 78 | 0 | 83 |
 | `instance` | 48 | 102 | 0 | 150 |
+| `iam` | 5 | 78 | 0 | 83 |
+| `vpc` | 17 | 20 | 0 | 37 |
+| `block` | 22 | 5 | 0 | 27 |
 | `ipam` | 9 | 1 | 0 | 10 |
 | `marketplace` | 1 | 7 | 0 | 8 |
-| `vpc` | 17 | 20 | 0 | 37 |
 | **Total** | **102** | **213** | **0** | **315** |
 
 #### Outscale
 
-72 routes mounted, 27% of the measured upstream surface served.
+72 routes mounted. Of the 263 operations upstream declares: 27% served,
+65% declined on purpose, 6% untriaged.
 
-| Product | Served | Declined | Untriaged | Upstream |
+| Group | Served | Declined | Untriaged | Upstream |
 |---|--:|--:|--:|--:|
 | `oks` | 0 | 27 | 0 | 27 |
-| `osc` | 72 | 146 | 18 | 236 |
+| `Policy` | 0 | 24 | 0 | 24 |
+| `LoadBalancer` | 1 | 11 | 0 | 12 |
+| `Vm` | 10 | 2 | 0 | 12 |
+| `Nic` | 5 | 0 | 3 | 8 |
+| `UserGroup` | 0 | 8 | 0 | 8 |
+| `FlexibleGpu` | 0 | 7 | 0 | 7 |
+| `Volume` | 6 | 1 | 0 | 7 |
+| `Account` | 0 | 5 | 1 | 6 |
+| `IdentityProvider` | 0 | 6 | 0 | 6 |
+| `Image` | 4 | 2 | 0 | 6 |
+| `Listener` | 0 | 6 | 0 | 6 |
+| `PublicIp` | 6 | 0 | 0 | 6 |
+| `RouteTable` | 5 | 0 | 1 | 6 |
+| `Snapshot` | 3 | 3 | 0 | 6 |
+| `VirtualGateway` | 0 | 6 | 0 | 6 |
+| `VmGroup` | 0 | 6 | 0 | 6 |
+| `VpnConnection` | 0 | 6 | 0 | 6 |
+| *… 33 smaller groups* | 32 | 53 | 13 | 98 |
 | **Total** | **72** | **173** | **18** | **263** |
 
 #### Exoscale
 
-46 routes mounted, 12% of the measured upstream surface served.
+46 routes mounted. Of the 374 operations upstream declares: 12% served,
+67% declined on purpose, 20% untriaged.
 
-| Product | Served | Declined | Untriaged | Upstream |
+| Group | Served | Declined | Untriaged | Upstream |
 |---|--:|--:|--:|--:|
-| `exoscale` | 46 | 253 | 75 | 374 |
+| `dbaas` | 0 | 146 | 0 | 146 |
+| `compute` | 42 | 9 | 60 | 111 |
+| `sks` | 0 | 25 | 0 | 25 |
+| `ai` | 0 | 22 | 0 | 22 |
+| `iam` | 0 | 18 | 0 | 18 |
+| `kms` | 0 | 16 | 0 | 16 |
+| `block-storage` | 0 | 0 | 13 | 13 |
+| `dns` | 0 | 10 | 0 | 10 |
+| *… 6 smaller groups* | 4 | 7 | 2 | 13 |
 | **Total** | **46** | **253** | **75** | **374** |
+
+Rows are the provider's own grouping of its surface — Scaleway's SDK products,
+Outscale's API tags, the roots of Exoscale's tag hierarchy — never a grouping
+invented here. Groups under 2% of a surface fold into the *smaller groups* row
+of their table, counts intact, so no block-sized decision can hide in it.
 
 **Declined** is a decision, not a gap: an operation nobody intends to emulate,
 with the reason in the pack's `Declined()`. **Untriaged** is the honest column —

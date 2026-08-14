@@ -28,10 +28,19 @@ const (
 )
 
 // renderRoutes builds the reference body: every mounted route by provider and
-// product, each with the proofs it has earned, then what each pack declines
-// on purpose. evidence may be nil — an installed binary has no artefact — and
-// the page then says so instead of rendering a column of guesses.
-func renderRoutes(evidence *evidenceArtefact) (string, error) {
+// upstream group, each with the proofs it has earned, then what each pack
+// declines on purpose. evidence may be nil — an installed binary has no
+// artefact — and the page then says so instead of rendering a column of
+// guesses.
+//
+// groups maps an operation to the group the upstream's own document files it
+// under, read from the coverage artefacts so this page and the README tables
+// can never disagree on where an operation belongs. An operation the artefacts
+// do not know falls back to the first segment of its name — the product — which
+// is exactly what every section was before groups existed. The map may be
+// empty (an installed binary has no coverage/ either) and the page then keeps
+// its product sections rather than failing.
+func renderRoutes(evidence *evidenceArtefact, groups map[string]string) (string, error) {
 	srv, _, err := newServer(nil)
 	if err != nil {
 		return "", err
@@ -51,31 +60,40 @@ func renderRoutes(evidence *evidenceArtefact) (string, error) {
 	b.WriteString("counted.\n")
 	b.WriteString(evidenceLegend(evidence))
 
+	// The group an operation files under: the upstream's own grouping when the
+	// coverage artefacts carry it, the product segment of its name otherwise.
+	sectionOf := func(operation string) string {
+		if g := groups[operation]; g != "" {
+			return g
+		}
+		return productOf(operation)
+	}
+
 	for _, p := range srv.Packs() {
 		fmt.Fprintf(&b, "\n## %s\n\n", strings.ToUpper(p.Name()[:1])+p.Name()[1:])
 
-		byProduct := make(map[string][]string)
+		bySection := make(map[string][]string)
 		for _, r := range p.Routes() {
 			row := fmt.Sprintf("| `%s` | `%s` | `%s` |", r.Method, r.Path, r.Operation)
 			if evidence != nil {
 				row += fmt.Sprintf(" %s |", evidenceTokens(evidence.Operations[r.Operation]))
 			}
-			byProduct[productOf(r.Operation)] = append(byProduct[productOf(r.Operation)], row)
+			bySection[sectionOf(r.Operation)] = append(bySection[sectionOf(r.Operation)], row)
 		}
-		products := make([]string, 0, len(byProduct))
-		for product := range byProduct {
-			products = append(products, product)
+		sections := make([]string, 0, len(bySection))
+		for section := range bySection {
+			sections = append(sections, section)
 		}
-		sort.Strings(products)
+		sort.Strings(sections)
 
 		header := "| Method | Path | Upstream operation |\n|---|---|---|\n"
 		if evidence != nil {
 			header = "| Method | Path | Upstream operation | Proven by |\n|---|---|---|---|\n"
 		}
-		for _, product := range products {
-			rows := byProduct[product]
+		for _, section := range sections {
+			rows := bySection[section]
 			sort.Strings(rows)
-			fmt.Fprintf(&b, "### `%s`\n\n", product)
+			fmt.Fprintf(&b, "### `%s`\n\n", section)
 			b.WriteString(header)
 			for _, row := range rows {
 				b.WriteString(row)
@@ -85,7 +103,6 @@ func renderRoutes(evidence *evidenceArtefact) (string, error) {
 		}
 
 		declined := append([]emulator.Decline(nil), p.Declined()...)
-		sort.Slice(declined, func(i, j int) bool { return declined[i].Operation < declined[j].Operation })
 		fmt.Fprintf(&b, "### Declined on purpose (%d)\n\n", len(declined))
 		if len(declined) == 0 {
 			b.WriteString("Nothing yet: everything upstream declares is either served or untriaged.\n")
@@ -93,13 +110,67 @@ func renderRoutes(evidence *evidenceArtefact) (string, error) {
 		}
 		b.WriteString("Operations this pack knowingly does not serve, and why. Declining is a\n")
 		b.WriteString("decision the drift gate records, which is what separates it from having\n")
-		b.WriteString("missed one — and the reason is what separates a decision from a list.\n\n")
-		for _, d := range declined {
-			fmt.Fprintf(&b, "- `%s` — %s\n", d.Operation, d.Reason)
+		b.WriteString("missed one — and the reason is what separates a decision from a list.\n")
+		b.WriteString("One line is one decision: the group upstream files the operations under,\n")
+		b.WriteString("how many it covers, and the reason they share. The per-operation verdicts\n")
+		b.WriteString("are in `coverage/`, one artefact per provider.\n\n")
+		for _, block := range declineBlocks(declined, sectionOf) {
+			fmt.Fprintf(&b, "- `%s` — %s — %s\n", block.group, countNoun(block.n, "operation"), block.reason)
 		}
 	}
 
 	return b.String(), nil
+}
+
+// declineBlock is one refusal decision as the page states it: a group, how many
+// of its operations it covers, and the reason they share.
+type declineBlock struct {
+	group  string
+	n      int
+	reason string
+}
+
+// declineBlocks folds a pack's declined operations into decisions.
+//
+// The flat list this replaces was 253 bullets long for Exoscale — 146 of them
+// the same sentence about managed databases repeated verbatim — which buried
+// the eight other decisions it contained. The unit a reader weighs is the
+// decision, and a decision here is a group plus the reason its operations
+// share: 146 dbaas refusals collapse into one line saying 146, they do not
+// vanish. A group refused for several distinct reasons renders one line per
+// reason, because those are distinct decisions.
+//
+// Ordered by group, then by weight so a group's biggest refusal leads, reason
+// text breaking ties so two runs render the same bytes.
+func declineBlocks(declined []emulator.Decline, sectionOf func(string) string) []declineBlock {
+	type key struct{ group, reason string }
+	counts := make(map[key]int)
+	for _, d := range declined {
+		counts[key{sectionOf(d.Operation), d.Reason}]++
+	}
+	out := make([]declineBlock, 0, len(counts))
+	for k, n := range counts {
+		out = append(out, declineBlock{group: k.group, n: n, reason: k.reason})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].group != out[j].group {
+			return out[i].group < out[j].group
+		}
+		if out[i].n != out[j].n {
+			return out[i].n > out[j].n
+		}
+		return out[i].reason < out[j].reason
+	})
+	return out
+}
+
+// countNoun renders "1 operation" or "146 operations", because "operation(s)"
+// on a page a human reads is the writer passing their work to the reader.
+func countNoun(n int, noun string) string {
+	if n == 1 {
+		return fmt.Sprintf("%d %s", n, noun)
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
 }
 
 // evidenceLegend states what each proof token asserts, and what is absent on
@@ -202,7 +273,7 @@ func loadEvidenceArtefact(path string) (*evidenceArtefact, error) {
 // it changed. Absent file, or a file without the markers: nothing to do, no
 // complaint — the same terms as the contract table, so `feint docs` still works
 // for somebody who installed the binary and has no docs/ directory.
-func spliceRoutes(path string, evidence *evidenceArtefact) (bool, error) {
+func spliceRoutes(path string, evidence *evidenceArtefact, groups map[string]string) (bool, error) {
 	if path == "" {
 		return false, nil
 	}
@@ -216,7 +287,7 @@ func spliceRoutes(path string, evidence *evidenceArtefact) (bool, error) {
 	if !strings.Contains(string(current), routesStartMarker) {
 		return false, nil
 	}
-	rendered, err := renderRoutes(evidence)
+	rendered, err := renderRoutes(evidence, groups)
 	if err != nil {
 		return false, err
 	}
@@ -228,12 +299,12 @@ func spliceRoutes(path string, evidence *evidenceArtefact) (bool, error) {
 }
 
 // writeSplicedRoutes writes what spliceRoutes reported as changed.
-func writeSplicedRoutes(path string, evidence *evidenceArtefact) error {
+func writeSplicedRoutes(path string, evidence *evidenceArtefact, groups map[string]string) error {
 	current, err := os.ReadFile(path) //nolint:gosec // operator-supplied path, by design
 	if err != nil {
 		return err
 	}
-	rendered, err := renderRoutes(evidence)
+	rendered, err := renderRoutes(evidence, groups)
 	if err != nil {
 		return err
 	}

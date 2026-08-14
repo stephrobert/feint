@@ -34,6 +34,12 @@ type Operation struct {
 	// Version is the product's API version where the SDK carries one. Outscale's
 	// generated clients do not, and it stays empty rather than invented.
 	Version string
+	// Group is the upstream's own grouping of the operation, where a document
+	// declares one: the root of Exoscale's tag hierarchy, Outscale's flat tag.
+	// Scaleway needs none — its SDK layout already groups by product. Empty when
+	// nothing upstream groups the operation, and every reader then falls back to
+	// Product, so a provider without tags renders exactly as it did before.
+	Group string
 }
 
 // receiverName returns the type name of a method receiver, dereferencing the

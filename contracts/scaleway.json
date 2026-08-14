@@ -8,162 +8,192 @@
   "block/v1.CreateSnapshot": {
    "path": "/block/v1/zones/{zone}/snapshots",
    "method": "POST",
+   "group": "Snapshot",
    "request": "block/v1.CreateSnapshot.Request",
    "response": "block/v1.scaleway.block.v1.Snapshot"
   },
   "block/v1.CreateVolume": {
    "path": "/block/v1/zones/{zone}/volumes",
    "method": "POST",
+   "group": "Volume",
    "request": "block/v1.CreateVolume.Request",
    "response": "block/v1.scaleway.block.v1.Volume"
   },
   "block/v1.DeleteSnapshot": {
    "path": "/block/v1/zones/{zone}/snapshots/{snapshot_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "Snapshot"
   },
   "block/v1.DeleteVolume": {
    "path": "/block/v1/zones/{zone}/volumes/{volume_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "Volume"
   },
   "block/v1.ExportSnapshotToObjectStorage": {
    "path": "/block/v1/zones/{zone}/snapshots/{snapshot_id}/export-to-object-storage",
    "method": "POST",
+   "group": "Snapshot",
    "request": "block/v1.ExportSnapshotToObjectStorage.Request",
    "response": "block/v1.scaleway.block.v1.Snapshot"
   },
   "block/v1.GetSnapshot": {
    "path": "/block/v1/zones/{zone}/snapshots/{snapshot_id}",
    "method": "GET",
+   "group": "Snapshot",
    "response": "block/v1.scaleway.block.v1.Snapshot"
   },
   "block/v1.GetVolume": {
    "path": "/block/v1/zones/{zone}/volumes/{volume_id}",
    "method": "GET",
+   "group": "Volume",
    "response": "block/v1.scaleway.block.v1.Volume"
   },
   "block/v1.ImportSnapshotFromObjectStorage": {
    "path": "/block/v1/zones/{zone}/snapshots/import-from-object-storage",
    "method": "POST",
+   "group": "Snapshot",
    "request": "block/v1.ImportSnapshotFromObjectStorage.Request",
    "response": "block/v1.scaleway.block.v1.Snapshot"
   },
   "block/v1.ListSnapshots": {
    "path": "/block/v1/zones/{zone}/snapshots",
    "method": "GET",
+   "group": "Snapshot",
    "response": "block/v1.scaleway.block.v1.ListSnapshotsResponse"
   },
   "block/v1.ListVolumeTypes": {
    "path": "/block/v1/zones/{zone}/volume-types",
    "method": "GET",
+   "group": "Volume Type",
    "response": "block/v1.scaleway.block.v1.ListVolumeTypesResponse"
   },
   "block/v1.ListVolumes": {
    "path": "/block/v1/zones/{zone}/volumes",
    "method": "GET",
+   "group": "Volume",
    "response": "block/v1.scaleway.block.v1.ListVolumesResponse"
   },
   "block/v1.UpdateSnapshot": {
    "path": "/block/v1/zones/{zone}/snapshots/{snapshot_id}",
    "method": "PATCH",
+   "group": "Snapshot",
    "request": "block/v1.UpdateSnapshot.Request",
    "response": "block/v1.scaleway.block.v1.Snapshot"
   },
   "block/v1.UpdateVolume": {
    "path": "/block/v1/zones/{zone}/volumes/{volume_id}",
    "method": "PATCH",
+   "group": "Volume",
    "request": "block/v1.UpdateVolume.Request",
    "response": "block/v1.scaleway.block.v1.Volume"
   },
   "block/v1alpha1.CreateSnapshot": {
    "path": "/block/v1alpha1/zones/{zone}/snapshots",
    "method": "POST",
+   "group": "Snapshot",
    "request": "block/v1alpha1.CreateSnapshot.Request",
    "response": "block/v1alpha1.scaleway.block.v1alpha1.Snapshot"
   },
   "block/v1alpha1.CreateVolume": {
    "path": "/block/v1alpha1/zones/{zone}/volumes",
    "method": "POST",
+   "group": "Volume",
    "request": "block/v1alpha1.CreateVolume.Request",
    "response": "block/v1alpha1.scaleway.block.v1alpha1.Volume"
   },
   "block/v1alpha1.DeleteSnapshot": {
    "path": "/block/v1alpha1/zones/{zone}/snapshots/{snapshot_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "Snapshot"
   },
   "block/v1alpha1.DeleteVolume": {
    "path": "/block/v1alpha1/zones/{zone}/volumes/{volume_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "Volume"
   },
   "block/v1alpha1.ExportSnapshotToObjectStorage": {
    "path": "/block/v1alpha1/zones/{zone}/snapshots/{snapshot_id}/export-to-object-storage",
    "method": "POST",
+   "group": "Snapshot",
    "request": "block/v1alpha1.ExportSnapshotToObjectStorage.Request",
    "response": "block/v1alpha1.scaleway.block.v1alpha1.Snapshot"
   },
   "block/v1alpha1.GetSnapshot": {
    "path": "/block/v1alpha1/zones/{zone}/snapshots/{snapshot_id}",
    "method": "GET",
+   "group": "Snapshot",
    "response": "block/v1alpha1.scaleway.block.v1alpha1.Snapshot"
   },
   "block/v1alpha1.GetVolume": {
    "path": "/block/v1alpha1/zones/{zone}/volumes/{volume_id}",
    "method": "GET",
+   "group": "Volume",
    "response": "block/v1alpha1.scaleway.block.v1alpha1.Volume"
   },
   "block/v1alpha1.ImportSnapshotFromObjectStorage": {
    "path": "/block/v1alpha1/zones/{zone}/snapshots/import-from-object-storage",
    "method": "POST",
+   "group": "Snapshot",
    "request": "block/v1alpha1.ImportSnapshotFromObjectStorage.Request",
    "response": "block/v1alpha1.scaleway.block.v1alpha1.Snapshot"
   },
   "block/v1alpha1.ImportSnapshotFromS3": {
    "path": "/block/v1alpha1/zones/{zone}/snapshots/import-from-s3",
    "method": "POST",
+   "group": "Snapshot",
    "request": "block/v1alpha1.ImportSnapshotFromS3.Request",
    "response": "block/v1alpha1.scaleway.block.v1alpha1.Snapshot"
   },
   "block/v1alpha1.ListSnapshots": {
    "path": "/block/v1alpha1/zones/{zone}/snapshots",
    "method": "GET",
+   "group": "Snapshot",
    "response": "block/v1alpha1.scaleway.block.v1alpha1.ListSnapshotsResponse"
   },
   "block/v1alpha1.ListVolumeTypes": {
    "path": "/block/v1alpha1/zones/{zone}/volume-types",
    "method": "GET",
+   "group": "Volume Type",
    "response": "block/v1alpha1.scaleway.block.v1alpha1.ListVolumeTypesResponse"
   },
   "block/v1alpha1.ListVolumes": {
    "path": "/block/v1alpha1/zones/{zone}/volumes",
    "method": "GET",
+   "group": "Volume",
    "response": "block/v1alpha1.scaleway.block.v1alpha1.ListVolumesResponse"
   },
   "block/v1alpha1.UpdateSnapshot": {
    "path": "/block/v1alpha1/zones/{zone}/snapshots/{snapshot_id}",
    "method": "PATCH",
+   "group": "Snapshot",
    "request": "block/v1alpha1.UpdateSnapshot.Request",
    "response": "block/v1alpha1.scaleway.block.v1alpha1.Snapshot"
   },
   "block/v1alpha1.UpdateVolume": {
    "path": "/block/v1alpha1/zones/{zone}/volumes/{volume_id}",
    "method": "PATCH",
+   "group": "Volume",
    "request": "block/v1alpha1.UpdateVolume.Request",
    "response": "block/v1alpha1.scaleway.block.v1alpha1.Volume"
   },
   "iam/v1alpha1.AddGroupMember": {
    "path": "/iam/v1alpha1/groups/{group_id}/add-member",
    "method": "POST",
+   "group": "Groups",
    "request": "iam/v1alpha1.AddGroupMember.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Group"
   },
   "iam/v1alpha1.AddGroupMembers": {
    "path": "/iam/v1alpha1/groups/{group_id}/add-members",
    "method": "POST",
+   "group": "Groups",
    "request": "iam/v1alpha1.AddGroupMembers.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Group"
   },
   "iam/v1alpha1.AddSamlCertificate": {
    "path": "/iam/v1alpha1/saml/{saml_id}/certificates",
    "method": "POST",
+   "group": "SAML",
    "request": "iam/v1alpha1.AddSamlCertificate.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.SamlCertificate"
   },
@@ -176,135 +206,163 @@
   "iam/v1alpha1.ClonePolicy": {
    "path": "/iam/v1alpha1/policies/{policy_id}/clone",
    "method": "POST",
+   "group": "Policies",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Policy"
   },
   "iam/v1alpha1.CreateAPIKey": {
    "path": "/iam/v1alpha1/api-keys",
    "method": "POST",
+   "group": "API Keys",
    "request": "iam/v1alpha1.CreateAPIKey.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.APIKey"
   },
   "iam/v1alpha1.CreateApplication": {
    "path": "/iam/v1alpha1/applications",
    "method": "POST",
+   "group": "Applications",
    "request": "iam/v1alpha1.CreateApplication.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Application"
   },
   "iam/v1alpha1.CreateGroup": {
    "path": "/iam/v1alpha1/groups",
    "method": "POST",
+   "group": "Groups",
    "request": "iam/v1alpha1.CreateGroup.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Group"
   },
   "iam/v1alpha1.CreatePolicy": {
    "path": "/iam/v1alpha1/policies",
    "method": "POST",
+   "group": "Policies",
    "request": "iam/v1alpha1.CreatePolicy.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Policy"
   },
   "iam/v1alpha1.CreateSSHKey": {
    "path": "/iam/v1alpha1/ssh-keys",
    "method": "POST",
+   "group": "SSH Keys",
    "request": "iam/v1alpha1.CreateSSHKey.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.SSHKey"
   },
   "iam/v1alpha1.CreateScimToken": {
    "path": "/iam/v1alpha1/scim/{scim_id}/tokens",
    "method": "POST",
+   "group": "SCIM",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.CreateScimTokenResponse"
   },
   "iam/v1alpha1.CreateUser": {
    "path": "/iam/v1alpha1/users",
    "method": "POST",
+   "group": "Users",
    "request": "iam/v1alpha1.CreateUser.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.User"
   },
   "iam/v1alpha1.CreateUserMFAOTP": {
    "path": "/iam/v1alpha1/users/{user_id}/mfa-otp",
    "method": "POST",
+   "group": "Users",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.MFAOTP"
   },
   "iam/v1alpha1.DeleteAPIKey": {
    "path": "/iam/v1alpha1/api-keys/{access_key}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "API Keys"
   },
   "iam/v1alpha1.DeleteApplication": {
    "path": "/iam/v1alpha1/applications/{application_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "Applications"
   },
   "iam/v1alpha1.DeleteGroup": {
    "path": "/iam/v1alpha1/groups/{group_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "Groups"
   },
   "iam/v1alpha1.DeleteJWT": {
    "path": "/iam/v1alpha1/jwts/{jti}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "JWTs"
   },
   "iam/v1alpha1.DeletePolicy": {
    "path": "/iam/v1alpha1/policies/{policy_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "Policies"
   },
   "iam/v1alpha1.DeleteSSHKey": {
    "path": "/iam/v1alpha1/ssh-keys/{ssh_key_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "SSH Keys"
   },
   "iam/v1alpha1.DeleteSaml": {
    "path": "/iam/v1alpha1/saml/{saml_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "SAML"
   },
   "iam/v1alpha1.DeleteSamlCertificate": {
    "path": "/iam/v1alpha1/saml-certificates/{certificate_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "SAML"
   },
   "iam/v1alpha1.DeleteScim": {
    "path": "/iam/v1alpha1/scim/{scim_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "SCIM"
   },
   "iam/v1alpha1.DeleteScimToken": {
    "path": "/iam/v1alpha1/scim-tokens/{token_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "SCIM"
   },
   "iam/v1alpha1.DeleteUser": {
    "path": "/iam/v1alpha1/users/{user_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "Users"
   },
   "iam/v1alpha1.DeleteUserMFAOTP": {
    "path": "/iam/v1alpha1/users/{user_id}/mfa-otp",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "Users"
   },
   "iam/v1alpha1.EnableOrganizationSaml": {
    "path": "/iam/v1alpha1/organizations/{organization_id}/saml",
    "method": "POST",
+   "group": "SAML",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Saml"
   },
   "iam/v1alpha1.EnableOrganizationScim": {
    "path": "/iam/v1alpha1/organizations/{organization_id}/scim",
    "method": "POST",
+   "group": "SCIM",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Scim"
   },
   "iam/v1alpha1.GetAPIKey": {
    "path": "/iam/v1alpha1/api-keys/{access_key}",
    "method": "GET",
+   "group": "API Keys",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.APIKey"
   },
   "iam/v1alpha1.GetApplication": {
    "path": "/iam/v1alpha1/applications/{application_id}",
    "method": "GET",
+   "group": "Applications",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Application"
   },
   "iam/v1alpha1.GetGroup": {
    "path": "/iam/v1alpha1/groups/{group_id}",
    "method": "GET",
+   "group": "Groups",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Group"
   },
   "iam/v1alpha1.GetJWT": {
    "path": "/iam/v1alpha1/jwts/{jti}",
    "method": "GET",
+   "group": "JWTs",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.JWT"
   },
   "iam/v1alpha1.GetLog": {
    "path": "/iam/v1alpha1/logs/{log_id}",
    "method": "GET",
+   "group": "Logs",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Log"
   },
   "iam/v1alpha1.GetOrganization": {
@@ -315,41 +373,49 @@
   "iam/v1alpha1.GetOrganizationSaml": {
    "path": "/iam/v1alpha1/organizations/{organization_id}/saml",
    "method": "GET",
+   "group": "SAML",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Saml"
   },
   "iam/v1alpha1.GetOrganizationScim": {
    "path": "/iam/v1alpha1/organizations/{organization_id}/scim",
    "method": "GET",
+   "group": "SCIM",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Scim"
   },
   "iam/v1alpha1.GetOrganizationSecuritySettings": {
    "path": "/iam/v1alpha1/organizations/{organization_id}/security-settings",
    "method": "GET",
+   "group": "Security Settings",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.OrganizationSecuritySettings"
   },
   "iam/v1alpha1.GetPolicy": {
    "path": "/iam/v1alpha1/policies/{policy_id}",
    "method": "GET",
+   "group": "Policies",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Policy"
   },
   "iam/v1alpha1.GetQuotum": {
    "path": "/iam/v1alpha1/quota/{quotum_name}",
    "method": "GET",
+   "group": "Quotas",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Quotum"
   },
   "iam/v1alpha1.GetSSHKey": {
    "path": "/iam/v1alpha1/ssh-keys/{ssh_key_id}",
    "method": "GET",
+   "group": "SSH Keys",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.SSHKey"
   },
   "iam/v1alpha1.GetSamlCertificate": {
    "path": "/iam/v1alpha1/saml-certificates/{certificate_id}",
    "method": "GET",
+   "group": "SAML",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.SamlCertificate"
   },
   "iam/v1alpha1.GetUser": {
    "path": "/iam/v1alpha1/users/{user_id}",
    "method": "GET",
+   "group": "Users",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.User"
   },
   "iam/v1alpha1.GetUserConnections": {
@@ -370,81 +436,97 @@
   "iam/v1alpha1.ListAPIKeys": {
    "path": "/iam/v1alpha1/api-keys",
    "method": "GET",
+   "group": "API Keys",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListAPIKeysResponse"
   },
   "iam/v1alpha1.ListApplications": {
    "path": "/iam/v1alpha1/applications",
    "method": "GET",
+   "group": "Applications",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListApplicationsResponse"
   },
   "iam/v1alpha1.ListGracePeriods": {
    "path": "/iam/v1alpha1/grace-periods",
    "method": "GET",
+   "group": "Users",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListGracePeriodsResponse"
   },
   "iam/v1alpha1.ListGroups": {
    "path": "/iam/v1alpha1/groups",
    "method": "GET",
+   "group": "Groups",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListGroupsResponse"
   },
   "iam/v1alpha1.ListJWTs": {
    "path": "/iam/v1alpha1/jwts",
    "method": "GET",
+   "group": "JWTs",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListJWTsResponse"
   },
   "iam/v1alpha1.ListLogs": {
    "path": "/iam/v1alpha1/logs",
    "method": "GET",
+   "group": "Logs",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListLogsResponse"
   },
   "iam/v1alpha1.ListPermissionSets": {
    "path": "/iam/v1alpha1/permission-sets",
    "method": "GET",
+   "group": "Permission sets",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListPermissionSetsResponse"
   },
   "iam/v1alpha1.ListPolicies": {
    "path": "/iam/v1alpha1/policies",
    "method": "GET",
+   "group": "Policies",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListPoliciesResponse"
   },
   "iam/v1alpha1.ListQuota": {
    "path": "/iam/v1alpha1/quota",
    "method": "GET",
+   "group": "Quotas",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListQuotaResponse"
   },
   "iam/v1alpha1.ListRules": {
    "path": "/iam/v1alpha1/rules",
    "method": "GET",
+   "group": "Rules",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListRulesResponse"
   },
   "iam/v1alpha1.ListSSHKeys": {
    "path": "/iam/v1alpha1/ssh-keys",
    "method": "GET",
+   "group": "SSH Keys",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListSSHKeysResponse"
   },
   "iam/v1alpha1.ListSamlCertificates": {
    "path": "/iam/v1alpha1/saml/{saml_id}/certificates",
    "method": "GET",
+   "group": "SAML",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListSamlCertificatesResponse"
   },
   "iam/v1alpha1.ListScimTokens": {
    "path": "/iam/v1alpha1/scim/{scim_id}/tokens",
    "method": "GET",
+   "group": "SCIM",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListScimTokensResponse"
   },
   "iam/v1alpha1.ListUsers": {
    "path": "/iam/v1alpha1/users",
    "method": "GET",
+   "group": "Users",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListUsersResponse"
   },
   "iam/v1alpha1.LockUser": {
    "path": "/iam/v1alpha1/users/{user_id}/lock",
    "method": "POST",
+   "group": "Users",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.User"
   },
   "iam/v1alpha1.RemoveGroupMember": {
    "path": "/iam/v1alpha1/groups/{group_id}/remove-member",
    "method": "POST",
+   "group": "Groups",
    "request": "iam/v1alpha1.RemoveGroupMember.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Group"
   },
@@ -456,6 +538,7 @@
   "iam/v1alpha1.SetGroupMembers": {
    "path": "/iam/v1alpha1/groups/{group_id}/members",
    "method": "PUT",
+   "group": "Groups",
    "request": "iam/v1alpha1.SetGroupMembers.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Group"
   },
@@ -468,29 +551,34 @@
   "iam/v1alpha1.SetRules": {
    "path": "/iam/v1alpha1/rules",
    "method": "PUT",
+   "group": "Rules",
    "request": "iam/v1alpha1.SetRules.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.SetRulesResponse"
   },
   "iam/v1alpha1.UnlockUser": {
    "path": "/iam/v1alpha1/users/{user_id}/unlock",
    "method": "POST",
+   "group": "Users",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.User"
   },
   "iam/v1alpha1.UpdateAPIKey": {
    "path": "/iam/v1alpha1/api-keys/{access_key}",
    "method": "PATCH",
+   "group": "API Keys",
    "request": "iam/v1alpha1.UpdateAPIKey.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.APIKey"
   },
   "iam/v1alpha1.UpdateApplication": {
    "path": "/iam/v1alpha1/applications/{application_id}",
    "method": "PATCH",
+   "group": "Applications",
    "request": "iam/v1alpha1.UpdateApplication.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Application"
   },
   "iam/v1alpha1.UpdateGroup": {
    "path": "/iam/v1alpha1/groups/{group_id}",
    "method": "PATCH",
+   "group": "Groups",
    "request": "iam/v1alpha1.UpdateGroup.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Group"
   },
@@ -503,60 +591,70 @@
   "iam/v1alpha1.UpdateOrganizationSecuritySettings": {
    "path": "/iam/v1alpha1/organizations/{organization_id}/security-settings",
    "method": "PATCH",
+   "group": "Security Settings",
    "request": "iam/v1alpha1.UpdateOrganizationSecuritySettings.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.OrganizationSecuritySettings"
   },
   "iam/v1alpha1.UpdatePolicy": {
    "path": "/iam/v1alpha1/policies/{policy_id}",
    "method": "PATCH",
+   "group": "Policies",
    "request": "iam/v1alpha1.UpdatePolicy.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Policy"
   },
   "iam/v1alpha1.UpdateSSHKey": {
    "path": "/iam/v1alpha1/ssh-keys/{ssh_key_id}",
    "method": "PATCH",
+   "group": "SSH Keys",
    "request": "iam/v1alpha1.UpdateSSHKey.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.SSHKey"
   },
   "iam/v1alpha1.UpdateSaml": {
    "path": "/iam/v1alpha1/saml/{saml_id}",
    "method": "PATCH",
+   "group": "SAML",
    "request": "iam/v1alpha1.UpdateSaml.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Saml"
   },
   "iam/v1alpha1.UpdateUser": {
    "path": "/iam/v1alpha1/users/{user_id}",
    "method": "PATCH",
+   "group": "Users",
    "request": "iam/v1alpha1.UpdateUser.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.User"
   },
   "iam/v1alpha1.UpdateUserPassword": {
    "path": "/iam/v1alpha1/users/{user_id}/update-password",
    "method": "POST",
+   "group": "Users",
    "request": "iam/v1alpha1.UpdateUserPassword.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.User"
   },
   "iam/v1alpha1.UpdateUserUsername": {
    "path": "/iam/v1alpha1/users/{user_id}/update-username",
    "method": "POST",
+   "group": "Users",
    "request": "iam/v1alpha1.UpdateUserUsername.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.User"
   },
   "iam/v1alpha1.ValidateUserMFAOTP": {
    "path": "/iam/v1alpha1/users/{user_id}/validate-mfa-otp",
    "method": "POST",
+   "group": "Users",
    "request": "iam/v1alpha1.ValidateUserMFAOTP.Request",
    "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ValidateUserMFAOTPResponse"
   },
   "instance/v1.AttachServerFileSystem": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/attach-filesystem",
    "method": "POST",
+   "group": "Instances",
    "request": "instance/v1.AttachServerFileSystem.Request",
    "response": "instance/v1.scaleway.instance.v1.AttachServerFileSystemResponse"
   },
   "instance/v1.AttachServerVolume": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/attach-volume",
    "method": "POST",
+   "group": "Instances",
    "request": "instance/v1.AttachServerVolume.Request",
    "response": "instance/v1.scaleway.instance.v1.AttachServerVolumeResponse"
   },
@@ -568,112 +666,134 @@
   "instance/v1.CreateImage": {
    "path": "/instance/v1/zones/{zone}/images",
    "method": "POST",
+   "group": "Images",
    "request": "instance/v1.CreateImage.Request",
    "response": "instance/v1.scaleway.instance.v1.CreateImageResponse"
   },
   "instance/v1.CreateIp": {
    "path": "/instance/v1/zones/{zone}/ips",
    "method": "POST",
+   "group": "IPs",
    "request": "instance/v1.CreateIp.Request",
    "response": "instance/v1.scaleway.instance.v1.CreateIpResponse"
   },
   "instance/v1.CreatePlacementGroup": {
    "path": "/instance/v1/zones/{zone}/placement_groups",
    "method": "POST",
+   "group": "Placement Groups",
    "request": "instance/v1.CreatePlacementGroup.Request",
    "response": "instance/v1.scaleway.instance.v1.CreatePlacementGroupResponse"
   },
   "instance/v1.CreatePrivateNIC": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/private_nics",
    "method": "POST",
+   "group": "Private NICs",
    "request": "instance/v1.CreatePrivateNIC.Request",
    "response": "instance/v1.scaleway.instance.v1.CreatePrivateNICResponse"
   },
   "instance/v1.CreateSecurityGroup": {
    "path": "/instance/v1/zones/{zone}/security_groups",
    "method": "POST",
+   "group": "Security Groups",
    "request": "instance/v1.CreateSecurityGroup.Request",
    "response": "instance/v1.scaleway.instance.v1.CreateSecurityGroupResponse"
   },
   "instance/v1.CreateSecurityGroupRule": {
    "path": "/instance/v1/zones/{zone}/security_groups/{security_group_id}/rules",
    "method": "POST",
+   "group": "Security Groups",
    "request": "instance/v1.CreateSecurityGroupRule.Request",
    "response": "instance/v1.scaleway.instance.v1.CreateSecurityGroupRuleResponse"
   },
   "instance/v1.CreateServer": {
    "path": "/instance/v1/zones/{zone}/servers",
    "method": "POST",
+   "group": "Instances",
    "request": "instance/v1.CreateServer.Request",
    "response": "instance/v1.scaleway.instance.v1.CreateServerResponse"
   },
   "instance/v1.CreateSnapshot": {
    "path": "/instance/v1/zones/{zone}/snapshots",
    "method": "POST",
+   "group": "Snapshots",
    "request": "instance/v1.CreateSnapshot.Request",
    "response": "instance/v1.scaleway.instance.v1.CreateSnapshotResponse"
   },
   "instance/v1.CreateVolume": {
    "path": "/instance/v1/zones/{zone}/volumes",
    "method": "POST",
+   "group": "Volumes",
    "request": "instance/v1.CreateVolume.Request",
    "response": "instance/v1.scaleway.instance.v1.CreateVolumeResponse"
   },
   "instance/v1.DeleteImage": {
    "path": "/instance/v1/zones/{zone}/images/{image_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "Images"
   },
   "instance/v1.DeleteIp": {
    "path": "/instance/v1/zones/{zone}/ips/{ip}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "IPs"
   },
   "instance/v1.DeletePlacementGroup": {
    "path": "/instance/v1/zones/{zone}/placement_groups/{placement_group_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "Placement Groups"
   },
   "instance/v1.DeletePrivateNIC": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/private_nics/{private_nic_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "Private NICs"
   },
   "instance/v1.DeleteSecurityGroup": {
    "path": "/instance/v1/zones/{zone}/security_groups/{security_group_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "Security Groups"
   },
   "instance/v1.DeleteSecurityGroupRule": {
    "path": "/instance/v1/zones/{zone}/security_groups/{security_group_id}/rules/{security_group_rule_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "Security Groups"
   },
   "instance/v1.DeleteServer": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "Instances"
   },
   "instance/v1.DeleteServerUserData": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/user_data/{key}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "User Data"
   },
   "instance/v1.DeleteSnapshot": {
    "path": "/instance/v1/zones/{zone}/snapshots/{snapshot_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "Snapshots"
   },
   "instance/v1.DeleteVolume": {
    "path": "/instance/v1/zones/{zone}/volumes/{volume_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "Volumes"
   },
   "instance/v1.DetachServerFileSystem": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/detach-filesystem",
    "method": "POST",
+   "group": "Instances",
    "request": "instance/v1.DetachServerFileSystem.Request",
    "response": "instance/v1.scaleway.instance.v1.DetachServerFileSystemResponse"
   },
   "instance/v1.DetachServerVolume": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/detach-volume",
    "method": "POST",
+   "group": "Instances",
    "request": "instance/v1.DetachServerVolume.Request",
    "response": "instance/v1.scaleway.instance.v1.DetachServerVolumeResponse"
   },
   "instance/v1.ExportSnapshot": {
    "path": "/instance/v1/zones/{zone}/snapshots/{snapshot_id}/export",
    "method": "POST",
+   "group": "Snapshots",
    "request": "instance/v1.ExportSnapshot.Request",
    "response": "instance/v1.scaleway.instance.v1.ExportSnapshotResponse"
   },
@@ -685,297 +805,352 @@
   "instance/v1.GetImage": {
    "path": "/instance/v1/zones/{zone}/images/{image_id}",
    "method": "GET",
+   "group": "Images",
    "response": "instance/v1.scaleway.instance.v1.GetImageResponse"
   },
   "instance/v1.GetIp": {
    "path": "/instance/v1/zones/{zone}/ips/{ip}",
    "method": "GET",
+   "group": "IPs",
    "response": "instance/v1.scaleway.instance.v1.GetIpResponse"
   },
   "instance/v1.GetPlacementGroup": {
    "path": "/instance/v1/zones/{zone}/placement_groups/{placement_group_id}",
    "method": "GET",
+   "group": "Placement Groups",
    "response": "instance/v1.scaleway.instance.v1.GetPlacementGroupResponse"
   },
   "instance/v1.GetPlacementGroupServers": {
    "path": "/instance/v1/zones/{zone}/placement_groups/{placement_group_id}/servers",
    "method": "GET",
+   "group": "Placement Groups",
    "response": "instance/v1.scaleway.instance.v1.GetPlacementGroupServersResponse"
   },
   "instance/v1.GetPrivateNIC": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/private_nics/{private_nic_id}",
    "method": "GET",
+   "group": "Private NICs",
    "response": "instance/v1.scaleway.instance.v1.GetPrivateNICResponse"
   },
   "instance/v1.GetSecurityGroup": {
    "path": "/instance/v1/zones/{zone}/security_groups/{security_group_id}",
    "method": "GET",
+   "group": "Security Groups",
    "response": "instance/v1.scaleway.instance.v1.GetSecurityGroupResponse"
   },
   "instance/v1.GetSecurityGroupRule": {
    "path": "/instance/v1/zones/{zone}/security_groups/{security_group_id}/rules/{security_group_rule_id}",
    "method": "GET",
+   "group": "Security Groups",
    "response": "instance/v1.scaleway.instance.v1.GetSecurityGroupRuleResponse"
   },
   "instance/v1.GetServer": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}",
    "method": "GET",
+   "group": "Instances",
    "response": "instance/v1.scaleway.instance.v1.GetServerResponse"
   },
   "instance/v1.GetServerCompatibleTypes": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/compatible-types",
    "method": "GET",
+   "group": "Instances",
    "response": "instance/v1.scaleway.instance.v1.ServerCompatibleTypes"
   },
   "instance/v1.GetServerTypesAvailability": {
    "path": "/instance/v1/zones/{zone}/products/servers/availability",
    "method": "GET",
+   "group": "Instance Types",
    "response": "instance/v1.scaleway.instance.v1.GetServerTypesAvailabilityResponse"
   },
   "instance/v1.GetServerUserData": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/user_data/{key}",
    "method": "GET",
+   "group": "User Data",
    "response": "instance/v1.scaleway.std.File"
   },
   "instance/v1.GetSnapshot": {
    "path": "/instance/v1/zones/{zone}/snapshots/{snapshot_id}",
    "method": "GET",
+   "group": "Snapshots",
    "response": "instance/v1.scaleway.instance.v1.GetSnapshotResponse"
   },
   "instance/v1.GetVolume": {
    "path": "/instance/v1/zones/{zone}/volumes/{volume_id}",
    "method": "GET",
+   "group": "Volumes",
    "response": "instance/v1.scaleway.instance.v1.GetVolumeResponse"
   },
   "instance/v1.ListDefaultSecurityGroupRules": {
    "path": "/instance/v1/zones/{zone}/security_groups/default/rules",
    "method": "GET",
+   "group": "Security Groups",
    "response": "instance/v1.scaleway.instance.v1.ListSecurityGroupRulesResponse"
   },
   "instance/v1.ListImages": {
    "path": "/instance/v1/zones/{zone}/images",
    "method": "GET",
+   "group": "Images",
    "response": "instance/v1.scaleway.instance.v1.ListImagesResponse"
   },
   "instance/v1.ListIps": {
    "path": "/instance/v1/zones/{zone}/ips",
    "method": "GET",
+   "group": "IPs",
    "response": "instance/v1.scaleway.instance.v1.ListIpsResponse"
   },
   "instance/v1.ListPlacementGroups": {
    "path": "/instance/v1/zones/{zone}/placement_groups",
    "method": "GET",
+   "group": "Placement Groups",
    "response": "instance/v1.scaleway.instance.v1.ListPlacementGroupsResponse"
   },
   "instance/v1.ListPrivateNICs": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/private_nics",
    "method": "GET",
+   "group": "Private NICs",
    "response": "instance/v1.scaleway.instance.v1.ListPrivateNICsResponse"
   },
   "instance/v1.ListSecurityGroupRules": {
    "path": "/instance/v1/zones/{zone}/security_groups/{security_group_id}/rules",
    "method": "GET",
+   "group": "Security Groups",
    "response": "instance/v1.scaleway.instance.v1.ListSecurityGroupRulesResponse"
   },
   "instance/v1.ListSecurityGroups": {
    "path": "/instance/v1/zones/{zone}/security_groups",
    "method": "GET",
+   "group": "Security Groups",
    "response": "instance/v1.scaleway.instance.v1.ListSecurityGroupsResponse"
   },
   "instance/v1.ListServerActions": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/action",
    "method": "GET",
+   "group": "Instances",
    "response": "instance/v1.scaleway.instance.v1.ListServerActionsResponse"
   },
   "instance/v1.ListServerUserData": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/user_data",
    "method": "GET",
+   "group": "User Data",
    "response": "instance/v1.scaleway.instance.v1.ListServerUserDataResponse"
   },
   "instance/v1.ListServers": {
    "path": "/instance/v1/zones/{zone}/servers",
    "method": "GET",
+   "group": "Instances",
    "response": "instance/v1.scaleway.instance.v1.ListServersResponse"
   },
   "instance/v1.ListServersTypes": {
    "path": "/instance/v1/zones/{zone}/products/servers",
    "method": "GET",
+   "group": "Instance Types",
    "response": "instance/v1.scaleway.instance.v1.ListServersTypesResponse"
   },
   "instance/v1.ListSnapshots": {
    "path": "/instance/v1/zones/{zone}/snapshots",
    "method": "GET",
+   "group": "Snapshots",
    "response": "instance/v1.scaleway.instance.v1.ListSnapshotsResponse"
   },
   "instance/v1.ListVolumes": {
    "path": "/instance/v1/zones/{zone}/volumes",
    "method": "GET",
+   "group": "Volumes",
    "response": "instance/v1.scaleway.instance.v1.ListVolumesResponse"
   },
   "instance/v1.ListVolumesTypes": {
    "path": "/instance/v1/zones/{zone}/products/volumes",
    "method": "GET",
+   "group": "Volume Types",
    "response": "instance/v1.scaleway.instance.v1.ListVolumesTypesResponse"
   },
   "instance/v1.ReleaseIpToIpam": {
    "path": "/instance/v1/zones/{zone}/ips/{ip_id}/release-to-ipam",
-   "method": "POST"
+   "method": "POST",
+   "group": "IPs"
   },
   "instance/v1.ServerAction": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/action",
    "method": "POST",
+   "group": "Instances",
    "request": "instance/v1.ServerAction.Request",
    "response": "instance/v1.scaleway.instance.v1.ServerActionResponse"
   },
   "instance/v1.SetImage": {
    "path": "/instance/v1/zones/{zone}/images/{id}",
    "method": "PUT",
+   "group": "Images",
    "request": "instance/v1.SetImage.Request",
    "response": "instance/v1.scaleway.instance.v1.SetImageResponse"
   },
   "instance/v1.SetPlacementGroup": {
    "path": "/instance/v1/zones/{zone}/placement_groups/{placement_group_id}",
    "method": "PUT",
+   "group": "Placement Groups",
    "request": "instance/v1.SetPlacementGroup.Request",
    "response": "instance/v1.scaleway.instance.v1.SetPlacementGroupResponse"
   },
   "instance/v1.SetPlacementGroupServers": {
    "path": "/instance/v1/zones/{zone}/placement_groups/{placement_group_id}/servers",
    "method": "PUT",
+   "group": "Placement Groups",
    "request": "instance/v1.SetPlacementGroupServers.Request",
    "response": "instance/v1.scaleway.instance.v1.SetPlacementGroupServersResponse"
   },
   "instance/v1.SetSecurityGroup": {
    "path": "/instance/v1/zones/{zone}/security_groups/{id}",
    "method": "PUT",
+   "group": "Security Groups",
    "request": "instance/v1.SetSecurityGroup.Request",
    "response": "instance/v1.scaleway.instance.v1.SetSecurityGroupResponse"
   },
   "instance/v1.SetSecurityGroupRule": {
    "path": "/instance/v1/zones/{zone}/security_groups/{security_group_id}/rules/{security_group_rule_id}",
    "method": "PUT",
+   "group": "Security Groups",
    "request": "instance/v1.SetSecurityGroupRule.Request",
    "response": "instance/v1.scaleway.instance.v1.SetSecurityGroupRuleResponse"
   },
   "instance/v1.SetSecurityGroupRules": {
    "path": "/instance/v1/zones/{zone}/security_groups/{security_group_id}/rules",
    "method": "PUT",
+   "group": "Security Groups",
    "request": "instance/v1.SetSecurityGroupRules.Request",
    "response": "instance/v1.scaleway.instance.v1.SetSecurityGroupRulesResponse"
   },
   "instance/v1.SetServerUserData": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/user_data/{key}",
-   "method": "PATCH"
+   "method": "PATCH",
+   "group": "User Data"
   },
   "instance/v1.SetSnapshot": {
    "path": "/instance/v1/zones/{zone}/snapshots/{snapshot_id}",
    "method": "PUT",
+   "group": "Snapshots",
    "request": "instance/v1.SetSnapshot.Request",
    "response": "instance/v1.scaleway.instance.v1.SetSnapshotResponse"
   },
   "instance/v1.SetVolume": {
    "path": "/instance/v1/zones/{zone}/volumes/{id}",
    "method": "PUT",
+   "group": "Volumes",
    "request": "instance/v1.SetVolume.Request",
    "response": "instance/v1.scaleway.instance.v1.SetVolumeResponse"
   },
   "instance/v1.UpdateImage": {
    "path": "/instance/v1/zones/{zone}/images/{image_id}",
    "method": "PATCH",
+   "group": "Images",
    "request": "instance/v1.UpdateImage.Request",
    "response": "instance/v1.scaleway.instance.v1.UpdateImageResponse"
   },
   "instance/v1.UpdateIp": {
    "path": "/instance/v1/zones/{zone}/ips/{ip}",
    "method": "PATCH",
+   "group": "IPs",
    "request": "instance/v1.UpdateIp.Request",
    "response": "instance/v1.scaleway.instance.v1.UpdateIpResponse"
   },
   "instance/v1.UpdatePlacementGroup": {
    "path": "/instance/v1/zones/{zone}/placement_groups/{placement_group_id}",
    "method": "PATCH",
+   "group": "Placement Groups",
    "request": "instance/v1.UpdatePlacementGroup.Request",
    "response": "instance/v1.scaleway.instance.v1.UpdatePlacementGroupResponse"
   },
   "instance/v1.UpdatePlacementGroupServers": {
    "path": "/instance/v1/zones/{zone}/placement_groups/{placement_group_id}/servers",
    "method": "PATCH",
+   "group": "Placement Groups",
    "request": "instance/v1.UpdatePlacementGroupServers.Request",
    "response": "instance/v1.scaleway.instance.v1.UpdatePlacementGroupServersResponse"
   },
   "instance/v1.UpdatePrivateNIC": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/private_nics/{private_nic_id}",
    "method": "PATCH",
+   "group": "Private NICs",
    "request": "instance/v1.UpdatePrivateNIC.Request",
    "response": "instance/v1.scaleway.instance.v1.PrivateNIC"
   },
   "instance/v1.UpdateSecurityGroup": {
    "path": "/instance/v1/zones/{zone}/security_groups/{security_group_id}",
    "method": "PATCH",
+   "group": "Security Groups",
    "request": "instance/v1.UpdateSecurityGroup.Request",
    "response": "instance/v1.scaleway.instance.v1.UpdateSecurityGroupResponse"
   },
   "instance/v1.UpdateSecurityGroupRule": {
    "path": "/instance/v1/zones/{zone}/security_groups/{security_group_id}/rules/{security_group_rule_id}",
    "method": "PATCH",
+   "group": "Security Groups",
    "request": "instance/v1.UpdateSecurityGroupRule.Request",
    "response": "instance/v1.scaleway.instance.v1.UpdateSecurityGroupRuleResponse"
   },
   "instance/v1.UpdateServer": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}",
    "method": "PATCH",
+   "group": "Instances",
    "request": "instance/v1.UpdateServer.Request",
    "response": "instance/v1.scaleway.instance.v1.UpdateServerResponse"
   },
   "instance/v1.UpdateSnapshot": {
    "path": "/instance/v1/zones/{zone}/snapshots/{snapshot_id}",
    "method": "PATCH",
+   "group": "Snapshots",
    "request": "instance/v1.UpdateSnapshot.Request",
    "response": "instance/v1.scaleway.instance.v1.UpdateSnapshotResponse"
   },
   "instance/v1.UpdateVolume": {
    "path": "/instance/v1/zones/{zone}/volumes/{volume_id}",
    "method": "PATCH",
+   "group": "Volumes",
    "request": "instance/v1.UpdateVolume.Request",
    "response": "instance/v1.scaleway.instance.v1.UpdateVolumeResponse"
   },
   "ipam/v1.AttachIP": {
    "path": "/ipam/v1/regions/{region}/ips/{ip_id}/attach",
    "method": "POST",
+   "group": "IPs",
    "request": "ipam/v1.AttachIP.Request",
    "response": "ipam/v1.scaleway.ipam.v1.IP"
   },
   "ipam/v1.BookIP": {
    "path": "/ipam/v1/regions/{region}/ips",
    "method": "POST",
+   "group": "IPs",
    "request": "ipam/v1.BookIP.Request",
    "response": "ipam/v1.scaleway.ipam.v1.IP"
   },
   "ipam/v1.DetachIP": {
    "path": "/ipam/v1/regions/{region}/ips/{ip_id}/detach",
    "method": "POST",
+   "group": "IPs",
    "request": "ipam/v1.DetachIP.Request",
    "response": "ipam/v1.scaleway.ipam.v1.IP"
   },
   "ipam/v1.GetIP": {
    "path": "/ipam/v1/regions/{region}/ips/{ip_id}",
    "method": "GET",
+   "group": "IPs",
    "response": "ipam/v1.scaleway.ipam.v1.IP"
   },
   "ipam/v1.ListIPs": {
    "path": "/ipam/v1/regions/{region}/ips",
    "method": "GET",
+   "group": "IPs",
    "response": "ipam/v1.scaleway.ipam.v1.ListIPsResponse"
   },
   "ipam/v1.MoveIP": {
    "path": "/ipam/v1/regions/{region}/ips/{ip_id}/move",
    "method": "POST",
+   "group": "IPs",
    "request": "ipam/v1.MoveIP.Request",
    "response": "ipam/v1.scaleway.ipam.v1.IP"
   },
   "ipam/v1.ReleaseIP": {
    "path": "/ipam/v1/regions/{region}/ips/{ip_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "IPs"
   },
   "ipam/v1.ReleaseIPSet": {
    "path": "/ipam/v1/regions/{region}/ip-sets/release",
@@ -985,228 +1160,272 @@
   "ipam/v1.UpdateIP": {
    "path": "/ipam/v1/regions/{region}/ips/{ip_id}",
    "method": "PATCH",
+   "group": "IPs",
    "request": "ipam/v1.UpdateIP.Request",
    "response": "ipam/v1.scaleway.ipam.v1.IP"
   },
   "marketplace/v2.GetCategory": {
    "path": "/marketplace/v2/categories/{category_id}",
    "method": "GET",
+   "group": "Marketplace Image Categories",
    "response": "marketplace/v2.scaleway.marketplace.v2.Category"
   },
   "marketplace/v2.GetImage": {
    "path": "/marketplace/v2/images/{image_id}",
    "method": "GET",
+   "group": "Marketplace Images",
    "response": "marketplace/v2.scaleway.marketplace.v2.Image"
   },
   "marketplace/v2.GetLocalImage": {
    "path": "/marketplace/v2/local-images/{local_image_id}",
    "method": "GET",
+   "group": "Marketplace Local Images",
    "response": "marketplace/v2.scaleway.marketplace.v2.LocalImage"
   },
   "marketplace/v2.GetVersion": {
    "path": "/marketplace/v2/versions/{version_id}",
    "method": "GET",
+   "group": "Marketplace Image Versions",
    "response": "marketplace/v2.scaleway.marketplace.v2.Version"
   },
   "marketplace/v2.ListCategories": {
    "path": "/marketplace/v2/categories",
    "method": "GET",
+   "group": "Marketplace Image Categories",
    "response": "marketplace/v2.scaleway.marketplace.v2.ListCategoriesResponse"
   },
   "marketplace/v2.ListImages": {
    "path": "/marketplace/v2/images",
    "method": "GET",
+   "group": "Marketplace Images",
    "response": "marketplace/v2.scaleway.marketplace.v2.ListImagesResponse"
   },
   "marketplace/v2.ListLocalImages": {
    "path": "/marketplace/v2/local-images",
    "method": "GET",
+   "group": "Marketplace Local Images",
    "response": "marketplace/v2.scaleway.marketplace.v2.ListLocalImagesResponse"
   },
   "marketplace/v2.ListVersions": {
    "path": "/marketplace/v2/versions",
    "method": "GET",
+   "group": "Marketplace Image Versions",
    "response": "marketplace/v2.scaleway.marketplace.v2.ListVersionsResponse"
   },
   "vpc/v2.AddPrivateNetworkS3Endpoint": {
    "path": "/vpc/v2/regions/{region}/s3-integration/{vpc_id}/private-networks",
    "method": "POST",
+   "group": "S3 integration",
    "request": "vpc/v2.AddPrivateNetworkS3Endpoint.Request",
    "response": "vpc/v2.scaleway.vpc.v2.AddPrivateNetworkS3EndpointResponse"
   },
   "vpc/v2.CreateIngressRule": {
    "path": "/vpc/v2/regions/{region}/ingress-rules",
    "method": "POST",
+   "group": "Ingress Rules",
    "request": "vpc/v2.CreateIngressRule.Request",
    "response": "vpc/v2.scaleway.vpc.v2.IngressRule"
   },
   "vpc/v2.CreatePrivateNetwork": {
    "path": "/vpc/v2/regions/{region}/private-networks",
    "method": "POST",
+   "group": "Private Networks",
    "request": "vpc/v2.CreatePrivateNetwork.Request",
    "response": "vpc/v2.scaleway.vpc.v2.PrivateNetwork"
   },
   "vpc/v2.CreateRoute": {
    "path": "/vpc/v2/regions/{region}/routes",
    "method": "POST",
+   "group": "Routes",
    "request": "vpc/v2.CreateRoute.Request",
    "response": "vpc/v2.scaleway.vpc.v2.Route"
   },
   "vpc/v2.CreateVPC": {
    "path": "/vpc/v2/regions/{region}/vpcs",
    "method": "POST",
+   "group": "VPCs",
    "request": "vpc/v2.CreateVPC.Request",
    "response": "vpc/v2.scaleway.vpc.v2.VPC"
   },
   "vpc/v2.CreateVPCConnector": {
    "path": "/vpc/v2/regions/{region}/vpc-connectors",
    "method": "POST",
+   "group": "VPC Connectors",
    "request": "vpc/v2.CreateVPCConnector.Request",
    "response": "vpc/v2.scaleway.vpc.v2.VPCConnector"
   },
   "vpc/v2.DeleteIngressRule": {
    "path": "/vpc/v2/regions/{region}/ingress-rules/{rule_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "Ingress Rules"
   },
   "vpc/v2.DeletePrivateNetwork": {
    "path": "/vpc/v2/regions/{region}/private-networks/{private_network_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "Private Networks"
   },
   "vpc/v2.DeletePrivateNetworkS3Endpoint": {
    "path": "/vpc/v2/regions/{region}/s3-integration/{vpc_id}/private-networks/{private_network_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "S3 integration"
   },
   "vpc/v2.DeleteRoute": {
    "path": "/vpc/v2/regions/{region}/routes/{route_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "Routes"
   },
   "vpc/v2.DeleteVPC": {
    "path": "/vpc/v2/regions/{region}/vpcs/{vpc_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "VPCs"
   },
   "vpc/v2.DeleteVPCConnector": {
    "path": "/vpc/v2/regions/{region}/vpc-connectors/{vpc_connector_id}",
-   "method": "DELETE"
+   "method": "DELETE",
+   "group": "VPC Connectors"
   },
   "vpc/v2.DisableS3Endpoint": {
    "path": "/vpc/v2/regions/{region}/s3-integration/{vpc_id}/disable",
    "method": "POST",
+   "group": "S3 integration",
    "response": "vpc/v2.scaleway.vpc.v2.VPC"
   },
   "vpc/v2.EnableDHCP": {
    "path": "/vpc/v2/regions/{region}/private-networks/{private_network_id}/enable-dhcp",
    "method": "POST",
+   "group": "Private Networks",
    "response": "vpc/v2.scaleway.vpc.v2.PrivateNetwork"
   },
   "vpc/v2.EnableRouting": {
    "path": "/vpc/v2/regions/{region}/vpcs/{vpc_id}/enable-routing",
    "method": "POST",
+   "group": "VPCs",
    "response": "vpc/v2.scaleway.vpc.v2.VPC"
   },
   "vpc/v2.EnableS3Endpoint": {
    "path": "/vpc/v2/regions/{region}/s3-integration/{vpc_id}/enable",
    "method": "POST",
+   "group": "S3 integration",
    "response": "vpc/v2.scaleway.vpc.v2.VPC"
   },
   "vpc/v2.GetAcl": {
    "path": "/vpc/v2/regions/{region}/vpcs/{vpc_id}/acl-rules",
    "method": "GET",
+   "group": "Network ACLs",
    "response": "vpc/v2.scaleway.vpc.v2.GetAclResponse"
   },
   "vpc/v2.GetIngressRule": {
    "path": "/vpc/v2/regions/{region}/ingress-rules/{rule_id}",
    "method": "GET",
+   "group": "Ingress Rules",
    "response": "vpc/v2.scaleway.vpc.v2.IngressRule"
   },
   "vpc/v2.GetPrivateNetwork": {
    "path": "/vpc/v2/regions/{region}/private-networks/{private_network_id}",
    "method": "GET",
+   "group": "Private Networks",
    "response": "vpc/v2.scaleway.vpc.v2.PrivateNetwork"
   },
   "vpc/v2.GetRoute": {
    "path": "/vpc/v2/regions/{region}/routes/{route_id}",
    "method": "GET",
+   "group": "Routes",
    "response": "vpc/v2.scaleway.vpc.v2.Route"
   },
   "vpc/v2.GetVPC": {
    "path": "/vpc/v2/regions/{region}/vpcs/{vpc_id}",
    "method": "GET",
+   "group": "VPCs",
    "response": "vpc/v2.scaleway.vpc.v2.VPC"
   },
   "vpc/v2.GetVPCConnector": {
    "path": "/vpc/v2/regions/{region}/vpc-connectors/{vpc_connector_id}",
    "method": "GET",
+   "group": "VPC Connectors",
    "response": "vpc/v2.scaleway.vpc.v2.VPCConnector"
   },
   "vpc/v2.ListIngressRules": {
    "path": "/vpc/v2/regions/{region}/ingress-rules",
    "method": "GET",
+   "group": "Ingress Rules",
    "response": "vpc/v2.scaleway.vpc.v2.ListIngressRulesResponse"
   },
   "vpc/v2.ListPrivateNetworks": {
    "path": "/vpc/v2/regions/{region}/private-networks",
    "method": "GET",
+   "group": "Private Networks",
    "response": "vpc/v2.scaleway.vpc.v2.ListPrivateNetworksResponse"
   },
   "vpc/v2.ListSubnetOverlaps": {
    "path": "/vpc/v2/regions/{region}/vpc-connectors/{vpc_connector_id}/subnet-overlaps",
    "method": "GET",
+   "group": "VPC Connectors",
    "response": "vpc/v2.scaleway.vpc.v2.ListSubnetOverlapsResponse"
   },
   "vpc/v2.ListSubnets": {
    "path": "/vpc/v2/regions/{region}/subnets",
    "method": "GET",
+   "group": "Subnets",
    "response": "vpc/v2.scaleway.vpc.v2.ListSubnetsResponse"
   },
   "vpc/v2.ListVPCConnectors": {
    "path": "/vpc/v2/regions/{region}/vpc-connectors",
    "method": "GET",
+   "group": "VPC Connectors",
    "response": "vpc/v2.scaleway.vpc.v2.ListVPCConnectorsResponse"
   },
   "vpc/v2.ListVPCs": {
    "path": "/vpc/v2/regions/{region}/vpcs",
    "method": "GET",
+   "group": "VPCs",
    "response": "vpc/v2.scaleway.vpc.v2.ListVPCsResponse"
   },
   "vpc/v2.SetAcl": {
    "path": "/vpc/v2/regions/{region}/vpcs/{vpc_id}/acl-rules",
    "method": "PUT",
+   "group": "Network ACLs",
    "request": "vpc/v2.SetAcl.Request",
    "response": "vpc/v2.scaleway.vpc.v2.SetAclResponse"
   },
   "vpc/v2.SetPrivateNetworksS3Endpoint": {
    "path": "/vpc/v2/regions/{region}/s3-integration/{vpc_id}/private-networks",
    "method": "PUT",
+   "group": "S3 integration",
    "request": "vpc/v2.SetPrivateNetworksS3Endpoint.Request",
    "response": "vpc/v2.scaleway.vpc.v2.SetPrivateNetworksS3EndpointResponse"
   },
   "vpc/v2.UpdateIngressRule": {
    "path": "/vpc/v2/regions/{region}/ingress-rules/{rule_id}",
    "method": "PATCH",
+   "group": "Ingress Rules",
    "request": "vpc/v2.UpdateIngressRule.Request",
    "response": "vpc/v2.scaleway.vpc.v2.IngressRule"
   },
   "vpc/v2.UpdatePrivateNetwork": {
    "path": "/vpc/v2/regions/{region}/private-networks/{private_network_id}",
    "method": "PATCH",
+   "group": "Private Networks",
    "request": "vpc/v2.UpdatePrivateNetwork.Request",
    "response": "vpc/v2.scaleway.vpc.v2.PrivateNetwork"
   },
   "vpc/v2.UpdateRoute": {
    "path": "/vpc/v2/regions/{region}/routes/{route_id}",
    "method": "PATCH",
+   "group": "Routes",
    "request": "vpc/v2.UpdateRoute.Request",
    "response": "vpc/v2.scaleway.vpc.v2.Route"
   },
   "vpc/v2.UpdateVPC": {
    "path": "/vpc/v2/regions/{region}/vpcs/{vpc_id}",
    "method": "PATCH",
+   "group": "VPCs",
    "request": "vpc/v2.UpdateVPC.Request",
    "response": "vpc/v2.scaleway.vpc.v2.VPC"
   },
   "vpc/v2.UpdateVPCConnector": {
    "path": "/vpc/v2/regions/{region}/vpc-connectors/{vpc_connector_id}",
    "method": "PATCH",
+   "group": "VPC Connectors",
    "request": "vpc/v2.UpdateVPCConnector.Request",
    "response": "vpc/v2.scaleway.vpc.v2.VPCConnector"
   }

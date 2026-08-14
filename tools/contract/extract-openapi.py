@@ -184,6 +184,48 @@ def success_body(op: dict) -> dict:
     return {}
 
 
+def tag_roots(spec: dict) -> dict:
+    """Map each declared tag to the root of its parent chain.
+
+    Exoscale's document declares a two-level hierarchy in its top-level tags
+    section: `role` carries `parent: iam`, `dbaas-mysql` carries `parent:
+    dbaas`. The root of that chain is the provider's own product-level
+    grouping, and it is what the coverage tables group by. Outscale declares
+    no hierarchy, so every tag is its own root and the mapping is empty.
+
+    A parent that is not itself a declared tag (Exoscale's `general`) is still
+    a valid root: the walk simply stops there. A cycle would make the walk
+    loop forever on a malformed document, so each chain refuses to revisit a
+    tag it has already seen.
+    """
+    parent = {t["name"]: t.get("parent") for t in spec.get("tags", []) if "name" in t}
+    roots = {}
+    for name in parent:
+        tag, seen = name, set()
+        while parent.get(tag) and tag not in seen:
+            seen.add(tag)
+            tag = parent[tag]
+        roots[name] = tag
+    return roots
+
+
+def group_of(op: dict, roots: dict) -> str | None:
+    """The upstream group an operation belongs to: the root of its first tag.
+
+    The first tag, because that is the one the provider files the operation
+    under (Exoscale's create-snapshot is tagged instance then snapshot, and
+    their own reference lists it under the instance product). The name is the
+    document's own, never translated: inventing a grouping is exactly what
+    reading tags exists to avoid. An operation with no tag gets no group, and
+    the readers say so rather than filing it somewhere plausible.
+    """
+    tags = op.get("tags") or []
+    if not tags:
+        return None
+    first = tags[0]
+    return roots.get(first, first)
+
+
 def path_prefix(spec: dict) -> str:
     """The path every operation hangs off, taken from the declared server URL.
 
@@ -203,6 +245,8 @@ def read_spec(path: str, args, schemas: dict, operations: dict) -> tuple[str, st
     with open(path) as f:
         spec = yaml.safe_load(f)
 
+    roots = tag_roots(spec)
+
     declared_closed = 0
     for name, sch in (spec.get("components", {}).get("schemas") or {}).items():
         if sch.get("additionalProperties") is False:
@@ -217,6 +261,8 @@ def read_spec(path: str, args, schemas: dict, operations: dict) -> tuple[str, st
                 continue
             oid = op["operationId"]
             entry = {"path": path, "method": method.upper()}
+            if group := group_of(op, roots):
+                entry["group"] = group
             if req := json_schema_of(op.get("requestBody"), schemas, oid + ".Request", args):
                 entry["request"] = req
             if resp := json_schema_of(success_body(op), schemas, oid + ".Response", args):

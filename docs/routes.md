@@ -204,298 +204,212 @@ disappears from the suite.
 Operations this pack knowingly does not serve, and why. Declining is a
 decision the drift gate records, which is what separates it from having
 missed one — and the reason is what separates a decision from a list.
+One line is one decision: the group upstream files the operations under,
+how many it covers, and the reason they share. The per-operation verdicts
+are in `coverage/`, one artefact per provider.
 
-- `block/v1/API.ExportSnapshotToObjectStorage` — it moves a snapshot's bytes through Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md
-- `block/v1/API.ImportSnapshotFromObjectStorage` — it moves a snapshot's bytes through Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md
-- `block/v1alpha1/API.ExportSnapshotToObjectStorage` — it moves a snapshot's bytes through Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md
-- `block/v1alpha1/API.ImportSnapshotFromObjectStorage` — it moves a snapshot's bytes through Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md
-- `block/v1alpha1/API.ImportSnapshotFromS3` — it moves a snapshot's bytes through Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md
-- `iam/v1alpha1/API.AddGroupMember` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.AddGroupMembers` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.AddSamlCertificate` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.ClonePolicy` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.CreateAPIKey` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.CreateApplication` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.CreateGroup` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.CreateJWT` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.CreatePolicy` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.CreateScimToken` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.CreateUser` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.CreateUserMFAOTP` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.DeleteAPIKey` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.DeleteApplication` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.DeleteGroup` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.DeleteJWT` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.DeletePolicy` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.DeleteSaml` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.DeleteSamlCertificate` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.DeleteScim` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.DeleteScimToken` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.DeleteUser` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.DeleteUserMFAOTP` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.DeleteWebAuthnAuthenticator` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.EnableOrganizationSaml` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.EnableOrganizationScim` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.FinishUserWebAuthnRegistration` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.GetAPIKey` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.GetApplication` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.GetGroup` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.GetJWT` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.GetLog` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.GetOrganization` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.GetOrganizationSaml` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.GetOrganizationScim` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.GetOrganizationSecuritySettings` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.GetPolicy` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.GetQuotum` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.GetSamlCertificate` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.GetUser` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.GetUserConnections` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.InitiateUserConnection` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.JoinUserConnection` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.ListAPIKeys` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.ListApplications` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.ListGracePeriods` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.ListGroups` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.ListJWTs` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.ListLogs` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.ListPermissionSets` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.ListPolicies` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.ListQuota` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.ListRules` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.ListSamlCertificates` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.ListScimTokens` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.ListUserWebAuthnAuthenticators` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.ListUsers` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.LockUser` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.ParseSamlMetadata` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.RemoveGroupMember` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.RemoveUserConnection` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.SetGroupMembers` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.SetOrganizationAlias` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.SetRules` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.StartUserWebAuthnRegistration` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.UnlockUser` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.UpdateAPIKey` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.UpdateApplication` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.UpdateGroup` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.UpdateOrganizationLoginMethods` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.UpdateOrganizationSecuritySettings` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.UpdatePolicy` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.UpdateSaml` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.UpdateUser` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.UpdateUserPassword` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.UpdateUserUsername` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.UpdateWebAuthnAuthenticator` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `iam/v1alpha1/API.ValidateUserMFAOTP` — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
-- `instance/v1/API.ApplyBlockMigration` — there is no legacy storage behind this emulator to migrate from, so a plan would describe a move between two things that are the same store
-- `instance/v1/API.AttachServerFileSystem` — it mounts Scaleway's File Storage product, and there is no filesystem service behind this emulator for a machine to mount
-- `instance/v1/API.AttachVolume` — the SDK's hand-written helpers, deprecated upstream in favour of AttachServerVolume and DetachServerVolume, which this pack serves and which the CLI calls
-- `instance/v1/API.CheckBlockMigrationOrganizationQuotas` — capacity and quotas are the provider's fleet, and a local emulator that answered would be inventing headroom a client could plan against
-- `instance/v1/API.CreatePlacementGroup` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
-- `instance/v1/API.DeletePlacementGroup` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
-- `instance/v1/API.DetachServerFileSystem` — it mounts Scaleway's File Storage product, and there is no filesystem service behind this emulator for a machine to mount
-- `instance/v1/API.DetachVolume` — the SDK's hand-written helpers, deprecated upstream in favour of AttachServerVolume and DetachServerVolume, which this pack serves and which the CLI calls
-- `instance/v1/API.ExportSnapshot` — it writes into Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md
-- `instance/v1/API.GetDashboard` — its thirteen counters span resources this pack does not serve, so every total would be short by the unemulated remainder with nothing saying which
-- `instance/v1/API.GetPlacementGroup` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
-- `instance/v1/API.GetPlacementGroupServers` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
-- `instance/v1/API.GetServerCompatibleTypes` — capacity and quotas are the provider's fleet, and a local emulator that answered would be inventing headroom a client could plan against
-- `instance/v1/API.GetServerTypesAvailability` — capacity and quotas are the provider's fleet, and a local emulator that answered would be inventing headroom a client could plan against
-- `instance/v1/API.ListDefaultSecurityGroupRules` — the seeded rule set is a value the SDK does not carry, so an invented list would state which ports a real client believes are open, and docs/limits.md records that these rules do filter packets
-- `instance/v1/API.ListPlacementGroups` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
-- `instance/v1/API.ListServerActions` — the server already publishes allowed_actions, derived from its state, so a second listing would be a second place to keep in step with the first
-- `instance/v1/API.ListVolumesTypes` — the emulator serves one volume type, b_ssd, because that is what its catalogue attaches, so a type list would describe capabilities nothing here can create
-- `instance/v1/API.PlanBlockMigration` — there is no legacy storage behind this emulator to migrate from, so a plan would describe a move between two things that are the same store
-- `instance/v1/API.ReleaseIPToIpam` — it hands an instance flexible IP over to IPAM's pool, and the public addresses of this emulator live and die with the instance product: IPAM here holds private-network addresses only
-- `instance/v1/API.SetPlacementGroup` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
-- `instance/v1/API.SetPlacementGroupServers` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
-- `instance/v1/API.UpdatePlacementGroup` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
-- `instance/v1/API.UpdatePlacementGroupServers` — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
-- `instance/v1/API.UpdatePrivateNIC` — its request carries tags and nothing else, and the pack stores no tag on a private NIC, so it would answer success over a field nothing reads back
-- `instance/v1/MetadataAPI.DeleteUserData` — the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials
-- `instance/v1/MetadataAPI.GetMetadata` — the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials
-- `instance/v1/MetadataAPI.GetUserData` — the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials
-- `instance/v1/MetadataAPI.ListUserData` — the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials
-- `instance/v1/MetadataAPI.SetUserData` — the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials
-- `instance/v2alpha1/API.AddSecurityGroupRules` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.AttachServerFileSystem` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.AttachServerIP` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.AttachServerPrivateNetworkInterface` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.AttachServerVolume` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.CheckTemplate` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.CreatePlacementGroup` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.CreatePrivateNetworkInterface` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.CreateSecurityGroup` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.CreateServer` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.CreateServerFromTemplate` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.CreateTemplate` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.DeletePlacementGroup` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.DeletePrivateNetworkInterface` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.DeleteSecurityGroup` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.DeleteSecurityGroupRules` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.DeleteServer` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.DeleteTemplate` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.DeleteTemplateUserData` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.DeleteUserData` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.DetachServerFileSystem` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.DetachServerIP` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.DetachServerPrivateNetworkInterface` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.DetachServerVolume` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.GetPlacementGroup` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.GetPrivateNetworkInterface` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.GetResourceCounts` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.GetSecurityGroup` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.GetServer` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.GetServerCloudInit` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.GetTemplate` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.GetTemplateCloudInit` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.GetTemplateUserData` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.GetUserData` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.ListPlacementGroups` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.ListPrivateNetworkInterfaces` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.ListSecurityGroups` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.ListServerTypes` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.ListServers` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.ListTemplateUserDataKeys` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.ListTemplates` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.ListUserDataKeys` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.PauseServer` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.RebootServer` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.SetSecurityGroupRules` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.SetServerCloudInit` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.SetServerDefaultIP` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.SetTemplateCloudInit` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.SetTemplateUserData` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.SetUserData` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.StartServer` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.StopAndDeleteServer` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.StopServer` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.UpdatePlacementGroup` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.UpdatePrivateNetworkInterface` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.UpdateSecurityGroup` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.UpdateSecurityGroupRule` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.UpdateServer` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/API.UpdateTemplate` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/VolumeAPI.CreateSnapshot` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/VolumeAPI.CreateVolume` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/VolumeAPI.DeleteSnapshot` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/VolumeAPI.DeleteVolume` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/VolumeAPI.ExportSnapshotToObjectStorage` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/VolumeAPI.GetSnapshot` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/VolumeAPI.GetVolume` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/VolumeAPI.ImportSnapshotFromObjectStorage` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/VolumeAPI.ListSnapshots` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/VolumeAPI.ListVolumeTypes` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/VolumeAPI.ListVolumes` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/VolumeAPI.UpdateSnapshot` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `instance/v2alpha1/VolumeAPI.UpdateVolume` — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
-- `ipam/v1alpha1/API.ListIPs` — ipam/v1alpha1 is the superseded draft of ipam/v1, which is served
-- `marketplace/v2/API.GetCategory` — the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long
-- `marketplace/v2/API.GetImage` — the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long
-- `marketplace/v2/API.GetLocalImage` — the CLI resolves its default image through ListLocalImages, which is served, so a per-id lookup would be a second door onto the same fixed table
-- `marketplace/v2/API.GetVersion` — the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long
-- `marketplace/v2/API.ListCategories` — the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long
-- `marketplace/v2/API.ListImages` — the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long
-- `marketplace/v2/API.ListVersions` — the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long
-- `vpc/v2/API.AddPrivateNetworkS3Endpoint` — they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md
-- `vpc/v2/API.CreateIngressRule` — no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN
-- `vpc/v2/API.CreateVPCConnector` — it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart
-- `vpc/v2/API.DeleteIngressRule` — no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN
-- `vpc/v2/API.DeletePrivateNetworkS3Endpoint` — they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md
-- `vpc/v2/API.DeleteVPCConnector` — it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart
-- `vpc/v2/API.DisableS3Endpoint` — they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md
-- `vpc/v2/API.EnableCustomRoutesPropagation` — the portal's API document does not describe it yet, and every route mounted here is checked against that document, so it cannot be served until the document catches up with the SDK
-- `vpc/v2/API.EnableS3Endpoint` — they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md
-- `vpc/v2/API.GetACL` — no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN
-- `vpc/v2/API.GetIngressRule` — no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN
-- `vpc/v2/API.GetVPCConnector` — it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart
-- `vpc/v2/API.ListIngressRules` — no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN
-- `vpc/v2/API.ListSubnetOverlaps` — its request names a VPC connector and nothing else — it compares the subnets across a peering — and the connectors are declined below until OVN mode has measured peering
-- `vpc/v2/API.ListVPCConnectors` — it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart
-- `vpc/v2/API.SetACL` — no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN
-- `vpc/v2/API.SetPrivateNetworksS3Endpoint` — they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md
-- `vpc/v2/API.UpdateIngressRule` — no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN
-- `vpc/v2/API.UpdateVPCConnector` — it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart
-- `vpc/v2/RoutesWithNexthopAPI.ListRoutesWithNexthop` — the portal's API document does not describe it yet, and every route mounted here is checked against that document, so it cannot be served until the document catches up with the SDK
+- `block` — 5 operations — it moves a snapshot's bytes through Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md
+- `iam` — 78 operations — the emulator accepts every credential on purpose, so serving users, policies and keys would describe an access control that nothing here enforces
+- `instance` — 72 operations — instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1
+- `instance` — 9 operations — placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked
+- `instance` — 5 operations — the metadata service answers on the link-local address 169.254.42.42, from inside the machine, to a caller that carries no credentials
+- `instance` — 3 operations — capacity and quotas are the provider's fleet, and a local emulator that answered would be inventing headroom a client could plan against
+- `instance` — 2 operations — it mounts Scaleway's File Storage product, and there is no filesystem service behind this emulator for a machine to mount
+- `instance` — 2 operations — the SDK's hand-written helpers, deprecated upstream in favour of AttachServerVolume and DetachServerVolume, which this pack serves and which the CLI calls
+- `instance` — 2 operations — there is no legacy storage behind this emulator to migrate from, so a plan would describe a move between two things that are the same store
+- `instance` — 1 operation — it hands an instance flexible IP over to IPAM's pool, and the public addresses of this emulator live and die with the instance product: IPAM here holds private-network addresses only
+- `instance` — 1 operation — it writes into Object Storage, which is not emulated because the Terraform provider builds the S3 endpoint in code: supporting it needs DNS interception and a certificate, measured in docs/limits.md
+- `instance` — 1 operation — its request carries tags and nothing else, and the pack stores no tag on a private NIC, so it would answer success over a field nothing reads back
+- `instance` — 1 operation — its thirteen counters span resources this pack does not serve, so every total would be short by the unemulated remainder with nothing saying which
+- `instance` — 1 operation — the emulator serves one volume type, b_ssd, because that is what its catalogue attaches, so a type list would describe capabilities nothing here can create
+- `instance` — 1 operation — the seeded rule set is a value the SDK does not carry, so an invented list would state which ports a real client believes are open, and docs/limits.md records that these rules do filter packets
+- `instance` — 1 operation — the server already publishes allowed_actions, derived from its state, so a second listing would be a second place to keep in step with the first
+- `ipam` — 1 operation — ipam/v1alpha1 is the superseded draft of ipam/v1, which is served
+- `marketplace` — 6 operations — the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long
+- `marketplace` — 1 operation — the CLI resolves its default image through ListLocalImages, which is served, so a per-id lookup would be a second door onto the same fixed table
+- `vpc` — 7 operations — no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN
+- `vpc` — 5 operations — it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart
+- `vpc` — 5 operations — they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md
+- `vpc` — 2 operations — the portal's API document does not describe it yet, and every route mounted here is checked against that document, so it cannot be served until the document catches up with the SDK
+- `vpc` — 1 operation — its request names a VPC connector and nothing else — it compares the subnets across a peering — and the connectors are declined below until OVN mode has measured peering
 
 ## Outscale
 
-### `osc`
+### `DhcpOption`
+
+| Method | Path | Upstream operation | Proven by |
+|---|---|---|---|
+| `POST` | `/api/v1/ReadDhcpOptions` | `osc/Client.ReadDhcpOptions` | `client` `contract` `shape` `probe` |
+
+### `Image`
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
 | `POST` | `/api/v1/CreateImage` | `osc/Client.CreateImage` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/CreateInternetService` | `osc/Client.CreateInternetService` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/CreateKeypair` | `osc/Client.CreateKeypair` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/CreateNatService` | `osc/Client.CreateNatService` | `client` `contract` `behaviour` |
-| `POST` | `/api/v1/CreateNet` | `osc/Client.CreateNet` | `client` `contract` `probe` `behaviour` `negative` |
-| `POST` | `/api/v1/CreateNic` | `osc/Client.CreateNic` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/CreatePublicIp` | `osc/Client.CreatePublicIp` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/CreateRouteTable` | `osc/Client.CreateRouteTable` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/CreateRoute` | `osc/Client.CreateRoute` | `client` `contract` `behaviour` |
-| `POST` | `/api/v1/CreateSecurityGroupRule` | `osc/Client.CreateSecurityGroupRule` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/CreateSecurityGroup` | `osc/Client.CreateSecurityGroup` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/CreateSnapshot` | `osc/Client.CreateSnapshot` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/CreateSubnet` | `osc/Client.CreateSubnet` | `client` `contract` `probe` `behaviour` `negative` |
-| `POST` | `/api/v1/CreateTags` | `osc/Client.CreateTags` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/CreateVms` | `osc/Client.CreateVms` | `client` `contract` `probe` `behaviour` `negative` |
-| `POST` | `/api/v1/CreateVolume` | `osc/Client.CreateVolume` | `client` `contract` `probe` `behaviour` |
 | `POST` | `/api/v1/DeleteImage` | `osc/Client.DeleteImage` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/DeleteInternetService` | `osc/Client.DeleteInternetService` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/DeleteKeypair` | `osc/Client.DeleteKeypair` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/DeleteNatService` | `osc/Client.DeleteNatService` | `client` `contract` `behaviour` |
-| `POST` | `/api/v1/DeleteNet` | `osc/Client.DeleteNet` | `client` `contract` `probe` `behaviour` `negative` |
-| `POST` | `/api/v1/DeleteNic` | `osc/Client.DeleteNic` | `client` `contract` `behaviour` |
-| `POST` | `/api/v1/DeletePublicIp` | `osc/Client.DeletePublicIp` | `client` `contract` `probe` `behaviour` `negative` |
-| `POST` | `/api/v1/DeleteRouteTable` | `osc/Client.DeleteRouteTable` | `client` `contract` `behaviour` |
-| `POST` | `/api/v1/DeleteRoute` | `osc/Client.DeleteRoute` | `client` `contract` `behaviour` |
-| `POST` | `/api/v1/DeleteSecurityGroupRule` | `osc/Client.DeleteSecurityGroupRule` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/DeleteSecurityGroup` | `osc/Client.DeleteSecurityGroup` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/DeleteSnapshot` | `osc/Client.DeleteSnapshot` | `client` `contract` `behaviour` |
-| `POST` | `/api/v1/DeleteSubnet` | `osc/Client.DeleteSubnet` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/DeleteTags` | `osc/Client.DeleteTags` | `contract` `probe` |
-| `POST` | `/api/v1/DeleteVms` | `osc/Client.DeleteVms` | `client` `contract` `probe` |
-| `POST` | `/api/v1/DeleteVolume` | `osc/Client.DeleteVolume` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/LinkInternetService` | `osc/Client.LinkInternetService` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/LinkNic` | `osc/Client.LinkNic` | `client` `contract` `behaviour` |
-| `POST` | `/api/v1/LinkPublicIp` | `osc/Client.LinkPublicIp` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/LinkRouteTable` | `osc/Client.LinkRouteTable` | `client` `contract` `behaviour` |
-| `POST` | `/api/v1/LinkVolume` | `osc/Client.LinkVolume` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/ReadAdminPassword` | `osc/Client.ReadAdminPassword` | `contract` `probe` |
-| `POST` | `/api/v1/ReadDhcpOptions` | `osc/Client.ReadDhcpOptions` | `client` `contract` `shape` `probe` |
 | `POST` | `/api/v1/ReadImages` | `osc/Client.ReadImages` | `client` `contract` `shape` `probe` `behaviour` |
+| `POST` | `/api/v1/UpdateImage` | `osc/Client.UpdateImage` | `client` `contract` `probe` `behaviour` `negative` |
+
+### `InternetService`
+
+| Method | Path | Upstream operation | Proven by |
+|---|---|---|---|
+| `POST` | `/api/v1/CreateInternetService` | `osc/Client.CreateInternetService` | `client` `contract` `probe` `behaviour` |
+| `POST` | `/api/v1/DeleteInternetService` | `osc/Client.DeleteInternetService` | `client` `contract` `probe` `behaviour` |
+| `POST` | `/api/v1/LinkInternetService` | `osc/Client.LinkInternetService` | `client` `contract` `probe` `behaviour` |
 | `POST` | `/api/v1/ReadInternetServices` | `osc/Client.ReadInternetServices` | `client` `contract` `shape` `probe` `behaviour` |
+| `POST` | `/api/v1/UnlinkInternetService` | `osc/Client.UnlinkInternetService` | `client` `contract` `probe` `behaviour` |
+
+### `Keypair`
+
+| Method | Path | Upstream operation | Proven by |
+|---|---|---|---|
+| `POST` | `/api/v1/CreateKeypair` | `osc/Client.CreateKeypair` | `client` `contract` `probe` `behaviour` |
+| `POST` | `/api/v1/DeleteKeypair` | `osc/Client.DeleteKeypair` | `client` `contract` `probe` `behaviour` |
 | `POST` | `/api/v1/ReadKeypairs` | `osc/Client.ReadKeypairs` | `client` `contract` `shape` `probe` `behaviour` |
+
+### `LoadBalancer`
+
+| Method | Path | Upstream operation | Proven by |
+|---|---|---|---|
 | `POST` | `/api/v1/ReadLoadBalancers` | `osc/Client.ReadLoadBalancers` | `client` `contract` `shape` `probe` |
+
+### `NatService`
+
+| Method | Path | Upstream operation | Proven by |
+|---|---|---|---|
+| `POST` | `/api/v1/CreateNatService` | `osc/Client.CreateNatService` | `client` `contract` `behaviour` |
+| `POST` | `/api/v1/DeleteNatService` | `osc/Client.DeleteNatService` | `client` `contract` `behaviour` |
 | `POST` | `/api/v1/ReadNatServices` | `osc/Client.ReadNatServices` | `client` `contract` `shape` `probe` `behaviour` |
-| `POST` | `/api/v1/ReadNetAccessPointServices` | `osc/Client.ReadNetAccessPointServices` | `contract` `shape` `probe` |
+
+### `Net`
+
+| Method | Path | Upstream operation | Proven by |
+|---|---|---|---|
+| `POST` | `/api/v1/CreateNet` | `osc/Client.CreateNet` | `client` `contract` `probe` `behaviour` `negative` |
+| `POST` | `/api/v1/DeleteNet` | `osc/Client.DeleteNet` | `client` `contract` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/ReadNets` | `osc/Client.ReadNets` | `client` `contract` `shape` `probe` `behaviour` |
+
+### `NetAccessPoint`
+
+| Method | Path | Upstream operation | Proven by |
+|---|---|---|---|
+| `POST` | `/api/v1/ReadNetAccessPointServices` | `osc/Client.ReadNetAccessPointServices` | `contract` `shape` `probe` |
+
+### `Nic`
+
+| Method | Path | Upstream operation | Proven by |
+|---|---|---|---|
+| `POST` | `/api/v1/CreateNic` | `osc/Client.CreateNic` | `client` `contract` `probe` `behaviour` |
+| `POST` | `/api/v1/DeleteNic` | `osc/Client.DeleteNic` | `client` `contract` `behaviour` |
+| `POST` | `/api/v1/LinkNic` | `osc/Client.LinkNic` | `client` `contract` `behaviour` |
 | `POST` | `/api/v1/ReadNics` | `osc/Client.ReadNics` | `client` `contract` `shape` `probe` `behaviour` |
+| `POST` | `/api/v1/UnlinkNic` | `osc/Client.UnlinkNic` | `client` `contract` `behaviour` |
+
+### `PublicIp`
+
+| Method | Path | Upstream operation | Proven by |
+|---|---|---|---|
+| `POST` | `/api/v1/CreatePublicIp` | `osc/Client.CreatePublicIp` | `client` `contract` `probe` `behaviour` |
+| `POST` | `/api/v1/DeletePublicIp` | `osc/Client.DeletePublicIp` | `client` `contract` `probe` `behaviour` `negative` |
+| `POST` | `/api/v1/LinkPublicIp` | `osc/Client.LinkPublicIp` | `client` `contract` `probe` `behaviour` |
 | `POST` | `/api/v1/ReadPublicIpRanges` | `osc/Client.ReadPublicIpRanges` | `contract` `shape` `probe` |
 | `POST` | `/api/v1/ReadPublicIps` | `osc/Client.ReadPublicIps` | `client` `contract` `shape` `probe` `behaviour` |
+| `POST` | `/api/v1/UnlinkPublicIp` | `osc/Client.UnlinkPublicIp` | `client` `contract` `probe` `behaviour` |
+
+### `Region`
+
+| Method | Path | Upstream operation | Proven by |
+|---|---|---|---|
 | `POST` | `/api/v1/ReadRegions` | `osc/Client.ReadRegions` | `client` `contract` `shape` `probe` |
+
+### `Route`
+
+| Method | Path | Upstream operation | Proven by |
+|---|---|---|---|
+| `POST` | `/api/v1/CreateRoute` | `osc/Client.CreateRoute` | `client` `contract` `behaviour` |
+| `POST` | `/api/v1/DeleteRoute` | `osc/Client.DeleteRoute` | `client` `contract` `behaviour` |
+| `POST` | `/api/v1/UpdateRoute` | `osc/Client.UpdateRoute` | `client` `contract` `behaviour` |
+
+### `RouteTable`
+
+| Method | Path | Upstream operation | Proven by |
+|---|---|---|---|
+| `POST` | `/api/v1/CreateRouteTable` | `osc/Client.CreateRouteTable` | `client` `contract` `probe` `behaviour` |
+| `POST` | `/api/v1/DeleteRouteTable` | `osc/Client.DeleteRouteTable` | `client` `contract` `behaviour` |
+| `POST` | `/api/v1/LinkRouteTable` | `osc/Client.LinkRouteTable` | `client` `contract` `behaviour` |
 | `POST` | `/api/v1/ReadRouteTables` | `osc/Client.ReadRouteTables` | `client` `contract` `shape` `probe` `behaviour` |
+| `POST` | `/api/v1/UnlinkRouteTable` | `osc/Client.UnlinkRouteTable` | `client` `contract` `behaviour` |
+
+### `SecurityGroup`
+
+| Method | Path | Upstream operation | Proven by |
+|---|---|---|---|
+| `POST` | `/api/v1/CreateSecurityGroup` | `osc/Client.CreateSecurityGroup` | `client` `contract` `probe` `behaviour` |
+| `POST` | `/api/v1/DeleteSecurityGroup` | `osc/Client.DeleteSecurityGroup` | `client` `contract` `probe` `behaviour` |
 | `POST` | `/api/v1/ReadSecurityGroups` | `osc/Client.ReadSecurityGroups` | `client` `contract` `shape` `probe` `behaviour` |
+
+### `SecurityGroupRule`
+
+| Method | Path | Upstream operation | Proven by |
+|---|---|---|---|
+| `POST` | `/api/v1/CreateSecurityGroupRule` | `osc/Client.CreateSecurityGroupRule` | `client` `contract` `probe` `behaviour` |
+| `POST` | `/api/v1/DeleteSecurityGroupRule` | `osc/Client.DeleteSecurityGroupRule` | `client` `contract` `probe` `behaviour` |
+
+### `Snapshot`
+
+| Method | Path | Upstream operation | Proven by |
+|---|---|---|---|
+| `POST` | `/api/v1/CreateSnapshot` | `osc/Client.CreateSnapshot` | `client` `contract` `probe` `behaviour` |
+| `POST` | `/api/v1/DeleteSnapshot` | `osc/Client.DeleteSnapshot` | `client` `contract` `behaviour` |
 | `POST` | `/api/v1/ReadSnapshots` | `osc/Client.ReadSnapshots` | `client` `contract` `shape` `probe` `behaviour` |
+
+### `Subnet`
+
+| Method | Path | Upstream operation | Proven by |
+|---|---|---|---|
+| `POST` | `/api/v1/CreateSubnet` | `osc/Client.CreateSubnet` | `client` `contract` `probe` `behaviour` `negative` |
+| `POST` | `/api/v1/DeleteSubnet` | `osc/Client.DeleteSubnet` | `client` `contract` `probe` `behaviour` |
 | `POST` | `/api/v1/ReadSubnets` | `osc/Client.ReadSubnets` | `client` `contract` `shape` `probe` `behaviour` |
+
+### `Subregion`
+
+| Method | Path | Upstream operation | Proven by |
+|---|---|---|---|
 | `POST` | `/api/v1/ReadSubregions` | `osc/Client.ReadSubregions` | `client` `contract` `shape` `probe` |
+
+### `Tag`
+
+| Method | Path | Upstream operation | Proven by |
+|---|---|---|---|
+| `POST` | `/api/v1/CreateTags` | `osc/Client.CreateTags` | `client` `contract` `probe` `behaviour` |
+| `POST` | `/api/v1/DeleteTags` | `osc/Client.DeleteTags` | `contract` `probe` |
 | `POST` | `/api/v1/ReadTags` | `osc/Client.ReadTags` | `client` `contract` `shape` `probe` `behaviour` |
+
+### `Vm`
+
+| Method | Path | Upstream operation | Proven by |
+|---|---|---|---|
+| `POST` | `/api/v1/CreateVms` | `osc/Client.CreateVms` | `client` `contract` `probe` `behaviour` `negative` |
+| `POST` | `/api/v1/DeleteVms` | `osc/Client.DeleteVms` | `client` `contract` `probe` |
+| `POST` | `/api/v1/ReadAdminPassword` | `osc/Client.ReadAdminPassword` | `contract` `probe` |
 | `POST` | `/api/v1/ReadVmTypes` | `osc/Client.ReadVmTypes` | `client` `contract` `shape` `probe` |
 | `POST` | `/api/v1/ReadVmsState` | `osc/Client.ReadVmsState` | `client` `contract` `shape` `probe` |
 | `POST` | `/api/v1/ReadVms` | `osc/Client.ReadVms` | `client` `contract` `shape` `probe` `behaviour` |
-| `POST` | `/api/v1/ReadVolumes` | `osc/Client.ReadVolumes` | `client` `contract` `shape` `probe` `behaviour` |
 | `POST` | `/api/v1/RebootVms` | `osc/Client.RebootVms` | `client` `contract` `probe` `behaviour` |
 | `POST` | `/api/v1/StartVms` | `osc/Client.StartVms` | `client` `contract` `probe` `behaviour` |
 | `POST` | `/api/v1/StopVms` | `osc/Client.StopVms` | `client` `contract` `probe` |
-| `POST` | `/api/v1/UnlinkInternetService` | `osc/Client.UnlinkInternetService` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/UnlinkNic` | `osc/Client.UnlinkNic` | `client` `contract` `behaviour` |
-| `POST` | `/api/v1/UnlinkPublicIp` | `osc/Client.UnlinkPublicIp` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/UnlinkRouteTable` | `osc/Client.UnlinkRouteTable` | `client` `contract` `behaviour` |
-| `POST` | `/api/v1/UnlinkVolume` | `osc/Client.UnlinkVolume` | `client` `contract` `probe` `behaviour` |
-| `POST` | `/api/v1/UpdateImage` | `osc/Client.UpdateImage` | `client` `contract` `probe` `behaviour` `negative` |
-| `POST` | `/api/v1/UpdateRoute` | `osc/Client.UpdateRoute` | `client` `contract` `behaviour` |
 | `POST` | `/api/v1/UpdateVm` | `osc/Client.UpdateVm` | `client` `contract` `probe` `negative` |
+
+### `Volume`
+
+| Method | Path | Upstream operation | Proven by |
+|---|---|---|---|
+| `POST` | `/api/v1/CreateVolume` | `osc/Client.CreateVolume` | `client` `contract` `probe` `behaviour` |
+| `POST` | `/api/v1/DeleteVolume` | `osc/Client.DeleteVolume` | `client` `contract` `probe` `behaviour` |
+| `POST` | `/api/v1/LinkVolume` | `osc/Client.LinkVolume` | `client` `contract` `probe` `behaviour` |
+| `POST` | `/api/v1/ReadVolumes` | `osc/Client.ReadVolumes` | `client` `contract` `shape` `probe` `behaviour` |
+| `POST` | `/api/v1/UnlinkVolume` | `osc/Client.UnlinkVolume` | `client` `contract` `probe` `behaviour` |
 | `POST` | `/api/v1/UpdateVolume` | `osc/Client.UpdateVolume` | `client` `contract` `probe` `behaviour` `negative` |
 
 ### Declined on purpose (173)
@@ -503,184 +417,51 @@ missed one — and the reason is what separates a decision from a list.
 Operations this pack knowingly does not serve, and why. Declining is a
 decision the drift gate records, which is what separates it from having
 missed one — and the reason is what separates a decision from a list.
+One line is one decision: the group upstream files the operations under,
+how many it covers, and the reason they share. The per-operation verdicts
+are in `coverage/`, one artefact per provider.
 
-- `oks/Client.CreateCluster` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.CreateProject` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.DeleteCluster` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.DeleteProject` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.GetCPSubregions` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.GetCluster` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.GetClusterTemplate` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.GetControlPlanePlans` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.GetKubeconfig` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.GetKubeconfigWithPubkeyNACL` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.GetKubernetesVersions` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.GetNetPeeringAcceptanceTemplate` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.GetNetPeeringRequestTemplate` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.GetNodepoolTemplate` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.GetProject` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.GetProjectNets` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.GetProjectPublicIps` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.GetProjectQuotas` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.GetProjectSnapshots` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.GetProjectTemplate` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.GetQuotas` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.ListAllClusters` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.ListClustersByProjectID` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.ListProjects` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.UpdateCluster` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.UpdateProject` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `oks/Client.UpgradeCluster` — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
-- `osc/Client.AddUserToUserGroup` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.CreateAccessKey` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.CreateAccount` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
-- `osc/Client.CreateApiAccessRule` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.CreateCa` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.CreateClientGateway` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
-- `osc/Client.CreateDedicatedGroup` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
-- `osc/Client.CreateDirectLink` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
-- `osc/Client.CreateDirectLinkInterface` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
-- `osc/Client.CreateFlexibleGpu` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
-- `osc/Client.CreateImageExportTask` — Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale
-- `osc/Client.CreateListenerRule` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.CreateLoadBalancer` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.CreateLoadBalancerListeners` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.CreateLoadBalancerPolicy` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.CreateLoadBalancerTags` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.CreatePolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.CreatePolicyVersion` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.CreateProductType` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
-- `osc/Client.CreateServerCertificate` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.CreateSnapshotExportTask` — Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale
-- `osc/Client.CreateUser` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.CreateUserGroup` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.CreateVirtualGateway` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
-- `osc/Client.CreateVmGroup` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
-- `osc/Client.CreateVmTemplate` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
-- `osc/Client.CreateVpnConnection` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
-- `osc/Client.CreateVpnConnectionRoute` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
-- `osc/Client.DeleteAccessKey` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.DeleteApiAccessRule` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.DeleteCa` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.DeleteClientGateway` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
-- `osc/Client.DeleteDedicatedGroup` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
-- `osc/Client.DeleteDirectLink` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
-- `osc/Client.DeleteDirectLinkInterface` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
-- `osc/Client.DeleteExportTask` — Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale
-- `osc/Client.DeleteFlexibleGpu` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
-- `osc/Client.DeleteListenerRule` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.DeleteLoadBalancer` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.DeleteLoadBalancerListeners` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.DeleteLoadBalancerPolicy` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.DeleteLoadBalancerTags` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.DeletePolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.DeletePolicyVersion` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.DeleteProductType` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
-- `osc/Client.DeleteServerCertificate` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.DeleteUser` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.DeleteUserGroup` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.DeleteUserGroupPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.DeleteUserPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.DeleteVirtualGateway` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
-- `osc/Client.DeleteVmGroup` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
-- `osc/Client.DeleteVmTemplate` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
-- `osc/Client.DeleteVpnConnection` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
-- `osc/Client.DeleteVpnConnectionRoute` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
-- `osc/Client.DeregisterVmsInLoadBalancer` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.DisableOutscaleLogin` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.DisableOutscaleLoginForUsers` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.DisableOutscaleLoginPerUsers` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.EnableOutscaleLogin` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.EnableOutscaleLoginForUsers` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.EnableOutscaleLoginPerUsers` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.LinkFlexibleGpu` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
-- `osc/Client.LinkLoadBalancerBackendMachines` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.LinkManagedPolicyToUserGroup` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.LinkPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.LinkVirtualGateway` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
-- `osc/Client.PutUserGroupPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.PutUserPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.ReadAccessKeys` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.ReadAccounts` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
-- `osc/Client.ReadApiAccessPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.ReadApiAccessRules` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.ReadApiLogs` — the trail records calls made against Outscale's platform, and nothing here made any of them
-- `osc/Client.ReadCO2EmissionAccount` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
-- `osc/Client.ReadCas` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.ReadCatalog` — no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so
-- `osc/Client.ReadCatalogs` — no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so
-- `osc/Client.ReadClientGateways` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
-- `osc/Client.ReadConsoleOutput` — each answers a question about something that never happened here: a console nothing captured, a stop history nothing kept, migration tasks for updates applied immediately
-- `osc/Client.ReadConsumptionAccount` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
-- `osc/Client.ReadDedicatedGroups` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
-- `osc/Client.ReadDirectLinkInterfaces` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
-- `osc/Client.ReadDirectLinks` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
-- `osc/Client.ReadEntitiesLinkedToPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.ReadFlexibleGpuCatalog` — no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so
-- `osc/Client.ReadFlexibleGpus` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
-- `osc/Client.ReadImageExportTasks` — Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale
-- `osc/Client.ReadLinkedPolicies` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.ReadListenerRules` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.ReadLoadBalancerTags` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.ReadLocations` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
-- `osc/Client.ReadManagedPoliciesLinkedToUserGroup` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.ReadPolicies` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.ReadPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.ReadPolicyVersion` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.ReadPolicyVersions` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.ReadProductTypes` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
-- `osc/Client.ReadPublicCatalog` — no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so
-- `osc/Client.ReadQuotas` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
-- `osc/Client.ReadServerCertificates` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.ReadSnapshotExportTasks` — Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale
-- `osc/Client.ReadUnitPrice` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
-- `osc/Client.ReadUserGroup` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.ReadUserGroupPolicies` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.ReadUserGroupPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.ReadUserGroups` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.ReadUserGroupsPerUser` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.ReadUserPolicies` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.ReadUserPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.ReadUsers` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.ReadVirtualGateways` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
-- `osc/Client.ReadVmGroups` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
-- `osc/Client.ReadVmTemplates` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
-- `osc/Client.ReadVmsHealth` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.ReadVmsStopHistory` — each answers a question about something that never happened here: a console nothing captured, a stop history nothing kept, migration tasks for updates applied immediately
-- `osc/Client.ReadVolumeUpdateTasks` — each answers a question about something that never happened here: a console nothing captured, a stop history nothing kept, migration tasks for updates applied immediately
-- `osc/Client.ReadVpnConnections` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
-- `osc/Client.RegisterVmsInLoadBalancer` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.RemoveUserFromUserGroup` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.ScaleDownVmGroup` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
-- `osc/Client.ScaleUpVmGroup` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
-- `osc/Client.SetDefaultPolicyVersion` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.UnlinkFlexibleGpu` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
-- `osc/Client.UnlinkLoadBalancerBackendMachines` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.UnlinkManagedPolicyFromUserGroup` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.UnlinkPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.UnlinkVirtualGateway` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
-- `osc/Client.UpdateAccessKey` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.UpdateAccount` — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
-- `osc/Client.UpdateApiAccessPolicy` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.UpdateApiAccessRule` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.UpdateCa` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.UpdateDedicatedGroup` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
-- `osc/Client.UpdateDirectLinkInterface` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
-- `osc/Client.UpdateFlexibleGpu` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
-- `osc/Client.UpdateListenerRule` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.UpdateLoadBalancer` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.UpdateRoutePropagation` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
-- `osc/Client.UpdateServerCertificate` — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
-- `osc/Client.UpdateSnapshot` — UpdateSnapshot manages cross-account permissions, and the emulator has one implicit account: there is nobody to grant to
-- `osc/Client.UpdateUser` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.UpdateUserGroup` — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
-- `osc/Client.UpdateVmGroup` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
-- `osc/Client.UpdateVmTemplate` — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
-- `osc/Client.UpdateVpnConnection` — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `AccessKey` — 4 operations — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `Account` — 5 operations — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
+- `ApiAccessPolicy` — 2 operations — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `ApiAccessRule` — 4 operations — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `ApiLog` — 1 operation — the trail records calls made against Outscale's platform, and nothing here made any of them
+- `Ca` — 4 operations — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `Catalog` — 2 operations — no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so
+- `Catalog` — 1 operation — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
+- `ClientGateway` — 3 operations — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `DedicatedGroup` — 4 operations — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
+- `DirectLink` — 3 operations — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `DirectLinkInterface` — 4 operations — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `FlexibleGpu` — 6 operations — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
+- `FlexibleGpu` — 1 operation — no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so
+- `IdentityProvider` — 6 operations — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `Image` — 2 operations — Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale
+- `Listener` — 6 operations — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
+- `LoadBalancer` — 11 operations — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
+- `LoadBalancerPolicy` — 2 operations — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
+- `Location` — 1 operation — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `Policy` — 24 operations — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `ProductType` — 3 operations — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
+- `PublicCatalog` — 1 operation — no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so
+- `Quota` — 1 operation — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
+- `ServerCertificate` — 4 operations — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
+- `Snapshot` — 2 operations — Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale
+- `Snapshot` — 1 operation — UpdateSnapshot manages cross-account permissions, and the emulator has one implicit account: there is nobody to grant to
+- `Task` — 1 operation — Export tasks write an image or a snapshot into Object Storage, which is not emulated: the reasons are in docs/limits.md and none of them are about Outscale
+- `User` — 4 operations — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `UserGroup` — 8 operations — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
+- `VirtualGateway` — 6 operations — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `Vm` — 2 operations — each answers a question about something that never happened here: a console nothing captured, a stop history nothing kept, migration tasks for updates applied immediately
+- `VmGroup` — 6 operations — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
+- `VmTemplate` — 4 operations — GPUs and dedicated hosts are hardware this station does not have, and the templates and groups above them are proprietary orchestration, out of scope here for the same reason as baremetal
+- `Volume` — 1 operation — each answers a question about something that never happened here: a console nothing captured, a stop history nothing kept, migration tasks for updates applied immediately
+- `VpnConnection` — 6 operations — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `oks` — 27 operations — a managed control plane on its own host and API version, which no route here mounts: answering any of it would describe a service the emulator does not run
 
 ## Exoscale
 
-### `exoscale`
+### `compute`
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
@@ -700,16 +481,12 @@ missed one — and the reason is what separates a decision from a list.
 | `GET` | `/v2/instance-type` | `exoscale/v2.list-instance-types` | `client` `contract` `shape` `probe` |
 | `GET` | `/v2/instance/{id}` | `exoscale/v2.get-instance` | `client` `contract` `probe` `behaviour` |
 | `GET` | `/v2/instance` | `exoscale/v2.list-instances` | `client` `contract` `shape` `probe` `behaviour` |
-| `GET` | `/v2/operation/{id}` | `exoscale/v2.get-operation` | `probe` |
-| `GET` | `/v2/quota/{name}` | `exoscale/v2.get-quota` | — |
-| `GET` | `/v2/quota` | `exoscale/v2.list-quotas` | `client` `contract` `probe` |
 | `GET` | `/v2/security-group/{id}` | `exoscale/v2.get-security-group` | `probe` |
 | `GET` | `/v2/security-group` | `exoscale/v2.list-security-groups` | `client` `contract` `shape` `probe` `behaviour` |
 | `GET` | `/v2/ssh-key/{name}` | `exoscale/v2.get-ssh-key` | `client` `contract` `behaviour` |
 | `GET` | `/v2/ssh-key` | `exoscale/v2.list-ssh-keys` | `client` `contract` `shape` `probe` `behaviour` |
 | `GET` | `/v2/template/{id}` | `exoscale/v2.get-template` | `client` `contract` `probe` |
 | `GET` | `/v2/template` | `exoscale/v2.list-templates` | `client` `contract` `shape` `probe` |
-| `GET` | `/v2/zone` | `exoscale/v2.list-zones` | `client` `contract` `shape` `probe` |
 | `POST` | `/v2/anti-affinity-group` | `exoscale/v2.create-anti-affinity-group` | `client` `contract` `probe` `behaviour` |
 | `POST` | `/v2/elastic-ip` | `exoscale/v2.create-elastic-ip` | `client` `contract` `probe` `behaviour` |
 | `POST` | `/v2/instance` | `exoscale/v2.create-instance` | `client` `contract` `probe` `behaviour` |
@@ -731,263 +508,38 @@ missed one — and the reason is what separates a decision from a list.
 | `PUT` | `/v2/security-group/{id}:attach` | `exoscale/v2.attach-instance-to-security-group` | `client` `contract` `probe` `behaviour` |
 | `PUT` | `/v2/security-group/{id}:detach` | `exoscale/v2.detach-instance-from-security-group` | `client` `contract` `probe` `behaviour` |
 
+### `general`
+
+| Method | Path | Upstream operation | Proven by |
+|---|---|---|---|
+| `GET` | `/v2/operation/{id}` | `exoscale/v2.get-operation` | `probe` |
+| `GET` | `/v2/zone` | `exoscale/v2.list-zones` | `client` `contract` `shape` `probe` |
+
+### `quotas`
+
+| Method | Path | Upstream operation | Proven by |
+|---|---|---|---|
+| `GET` | `/v2/quota/{name}` | `exoscale/v2.get-quota` | — |
+| `GET` | `/v2/quota` | `exoscale/v2.list-quotas` | `client` `contract` `probe` |
+
 ### Declined on purpose (253)
 
 Operations this pack knowingly does not serve, and why. Declining is a
 decision the drift gate records, which is what separates it from having
 missed one — and the reason is what separates a decision from a list.
+One line is one decision: the group upstream files the operations under,
+how many it covers, and the reason they share. The per-operation verdicts
+are in `coverage/`, one artefact per provider.
 
-- `exoscale/v2.assume-iam-role` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
-- `exoscale/v2.attach-dbaas-service-to-endpoint` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.cancel-kms-key-deletion` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
-- `exoscale/v2.create-ai-api-key` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
-- `exoscale/v2.create-api-key` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
-- `exoscale/v2.create-dbaas-clickhouse-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-external-endpoint-datadog` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-external-endpoint-elasticsearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-external-endpoint-opensearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-external-endpoint-prometheus` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-external-endpoint-rsyslog` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-integration` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-kafka-schema-registry-acl-config` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-kafka-topic-acl-config` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-kafka-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-mysql-database` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-mysql-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-opensearch-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-pg-connection-pool` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-pg-database` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-pg-upgrade-check` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-postgres-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-service-clickhouse` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-service-grafana` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-service-kafka` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-service-mysql` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-service-opensearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-service-pg` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-service-thanos` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-service-valkey` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-task-migration-check` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-dbaas-valkey-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.create-deployment` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
-- `exoscale/v2.create-dns-domain` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
-- `exoscale/v2.create-dns-domain-record` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
-- `exoscale/v2.create-iam-role` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
-- `exoscale/v2.create-kms-key` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
-- `exoscale/v2.create-model` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
-- `exoscale/v2.create-sks-cluster` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.create-sks-nodepool` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.create-user` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
-- `exoscale/v2.decrypt` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
-- `exoscale/v2.delete-ai-api-key` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
-- `exoscale/v2.delete-api-key` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
-- `exoscale/v2.delete-dbaas-clickhouse-role` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-clickhouse-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-external-endpoint-datadog` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-external-endpoint-elasticsearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-external-endpoint-opensearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-external-endpoint-prometheus` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-external-endpoint-rsyslog` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-integration` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-kafka-schema-registry-acl-config` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-kafka-topic-acl-config` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-kafka-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-mysql-database` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-mysql-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-opensearch-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-pg-connection-pool` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-pg-database` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-postgres-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-service` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-service-clickhouse` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-service-grafana` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-service-kafka` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-service-mysql` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-service-opensearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-service-pg` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-service-thanos` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-service-valkey` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-dbaas-valkey-user` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.delete-deployment` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
-- `exoscale/v2.delete-dns-domain` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
-- `exoscale/v2.delete-dns-domain-record` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
-- `exoscale/v2.delete-iam-role` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
-- `exoscale/v2.delete-model` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
-- `exoscale/v2.delete-reverse-dns-elastic-ip` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
-- `exoscale/v2.delete-reverse-dns-instance` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
-- `exoscale/v2.delete-sks-cluster` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.delete-sks-nodepool` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.delete-user` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
-- `exoscale/v2.detach-dbaas-service-from-endpoint` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.disable-kms-key` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
-- `exoscale/v2.disable-kms-key-rotation` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
-- `exoscale/v2.enable-dbaas-mysql-writes` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.enable-kms-key` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
-- `exoscale/v2.enable-kms-key-rotation` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
-- `exoscale/v2.encrypt` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
-- `exoscale/v2.evict-sks-nodepool-members` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.generate-data-key` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
-- `exoscale/v2.generate-sks-cluster-kubeconfig` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.generate-sks-karpenter-exoscale-nodeclass` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.generate-sks-karpenter-nodepool` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.get-active-nodepool-template` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.get-ai-api-key` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
-- `exoscale/v2.get-api-key` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
-- `exoscale/v2.get-console-proxy-url` — there is no console to proxy and no password to reveal: machines here are opened by the registered SSH key, and a URL or a password the emulator invented would claim an access nothing answers
-- `exoscale/v2.get-dbaas-ca-certificate` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-clickhouse-acl-config` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-external-endpoint-datadog` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-external-endpoint-elasticsearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-external-endpoint-opensearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-external-endpoint-prometheus` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-external-endpoint-rsyslog` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-external-integration` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-external-integration-settings-datadog` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-integration` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-kafka-acl-config` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-migration-status` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-opensearch-acl-config` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-service-clickhouse` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-service-grafana` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-service-kafka` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-service-logs` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-service-metrics` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-service-mysql` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-service-opensearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-service-pg` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-service-thanos` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-service-type` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-service-valkey` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-settings-clickhouse` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-settings-grafana` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-settings-kafka` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-settings-mysql` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-settings-opensearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-settings-pg` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-settings-thanos` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-settings-valkey` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-dbaas-task` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.get-deployment` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
-- `exoscale/v2.get-deployment-logs` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
-- `exoscale/v2.get-dns-domain` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
-- `exoscale/v2.get-dns-domain-record` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
-- `exoscale/v2.get-dns-domain-zone-file` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
-- `exoscale/v2.get-env-impact` — there is no account behind this emulator and no consumption to report, so any figure here would be one it invented and somebody planned against
-- `exoscale/v2.get-iam-organization-policy` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
-- `exoscale/v2.get-iam-role` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
-- `exoscale/v2.get-impact-estimate` — there is no account behind this emulator and no consumption to report, so any figure here would be one it invented and somebody planned against
-- `exoscale/v2.get-impact-report` — there is no account behind this emulator and no consumption to report, so any figure here would be one it invented and somebody planned against
-- `exoscale/v2.get-inference-engine-help` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
-- `exoscale/v2.get-kms-key` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
-- `exoscale/v2.get-live-balance` — there is no account behind this emulator and no consumption to report, so any figure here would be one it invented and somebody planned against
-- `exoscale/v2.get-model` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
-- `exoscale/v2.get-reverse-dns-elastic-ip` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
-- `exoscale/v2.get-reverse-dns-instance` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
-- `exoscale/v2.get-sks-cluster` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.get-sks-cluster-authority-cert` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.get-sks-cluster-inspection` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.get-sks-nodepool` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.get-sos-presigned-url` — object storage is refused across this project for a measured reason: clients build the S3 endpoint in code, so serving it needs DNS interception and a certificate, recorded in docs/limits.md
-- `exoscale/v2.get-usage-report` — there is no account behind this emulator and no consumption to report, so any figure here would be one it invented and somebody planned against
-- `exoscale/v2.get-user-org-consumption-quota` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
-- `exoscale/v2.list-ai-api-keys` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
-- `exoscale/v2.list-ai-instance-types` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
-- `exoscale/v2.list-api-keys` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
-- `exoscale/v2.list-dbaas-clickhouse-roles` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.list-dbaas-clickhouse-users` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.list-dbaas-external-endpoint-types` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.list-dbaas-external-endpoints` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.list-dbaas-external-integrations` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.list-dbaas-integration-settings` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.list-dbaas-integration-types` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.list-dbaas-service-types` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.list-dbaas-services` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.list-dbaas-valkey-users` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.list-deployments` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
-- `exoscale/v2.list-dns-domain-records` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
-- `exoscale/v2.list-dns-domains` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
-- `exoscale/v2.list-iam-roles` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
-- `exoscale/v2.list-kms-key-rotations` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
-- `exoscale/v2.list-kms-keys` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
-- `exoscale/v2.list-models` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
-- `exoscale/v2.list-sks-cluster-deprecated-resources` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.list-sks-cluster-versions` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.list-sks-clusters` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.list-sos-buckets-usage` — object storage is refused across this project for a measured reason: clients build the S3 endpoint in code, so serving it needs DNS interception and a certificate, recorded in docs/limits.md
-- `exoscale/v2.list-users` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
-- `exoscale/v2.re-encrypt` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
-- `exoscale/v2.replicate-kms-key` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
-- `exoscale/v2.reset-dbaas-clickhouse-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.reset-dbaas-grafana-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.reset-dbaas-kafka-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.reset-dbaas-mysql-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.reset-dbaas-opensearch-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.reset-dbaas-postgres-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.reset-dbaas-valkey-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.reset-iam-organization-policy` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
-- `exoscale/v2.reset-instance-password` — there is no console to proxy and no password to reveal: machines here are opened by the registered SSH key, and a URL or a password the emulator invented would claim an access nothing answers
-- `exoscale/v2.reveal-ai-api-key` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
-- `exoscale/v2.reveal-dbaas-clickhouse-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.reveal-dbaas-grafana-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.reveal-dbaas-kafka-connect-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.reveal-dbaas-kafka-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.reveal-dbaas-mysql-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.reveal-dbaas-opensearch-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.reveal-dbaas-postgres-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.reveal-dbaas-thanos-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.reveal-dbaas-valkey-user-password` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.reveal-deployment-api-key` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
-- `exoscale/v2.reveal-instance-password` — there is no console to proxy and no password to reveal: machines here are opened by the registered SSH key, and a URL or a password the emulator invented would claim an access nothing answers
-- `exoscale/v2.rotate-ai-api-key` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
-- `exoscale/v2.rotate-kms-key` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
-- `exoscale/v2.rotate-sks-ccm-credentials` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.rotate-sks-csi-credentials` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.rotate-sks-karpenter-credentials` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.rotate-sks-operators-ca` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.scale-deployment` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
-- `exoscale/v2.scale-sks-nodepool` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.schedule-kms-key-deletion` — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
-- `exoscale/v2.start-dbaas-clickhouse-maintenance` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.start-dbaas-grafana-maintenance` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.start-dbaas-kafka-maintenance` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.start-dbaas-mysql-maintenance` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.start-dbaas-opensearch-maintenance` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.start-dbaas-pg-maintenance` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.start-dbaas-thanos-maintenance` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.start-dbaas-valkey-maintenance` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.stop-dbaas-mysql-migration` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.stop-dbaas-pg-migration` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.stop-dbaas-valkey-migration` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.update-ai-api-key` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
-- `exoscale/v2.update-dbaas-external-endpoint-datadog` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.update-dbaas-external-endpoint-elasticsearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.update-dbaas-external-endpoint-opensearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.update-dbaas-external-endpoint-prometheus` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.update-dbaas-external-endpoint-rsyslog` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.update-dbaas-external-integration-settings-datadog` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.update-dbaas-integration` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.update-dbaas-opensearch-acl-config` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.update-dbaas-pg-connection-pool` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.update-dbaas-postgres-allow-replication` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.update-dbaas-service-clickhouse` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.update-dbaas-service-grafana` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.update-dbaas-service-kafka` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.update-dbaas-service-mysql` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.update-dbaas-service-opensearch` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.update-dbaas-service-pg` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.update-dbaas-service-thanos` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.update-dbaas-service-valkey` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.update-dbaas-valkey-user-access-control` — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
-- `exoscale/v2.update-deployment` — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
-- `exoscale/v2.update-dns-domain-record` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
-- `exoscale/v2.update-iam-organization-policy` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
-- `exoscale/v2.update-iam-role` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
-- `exoscale/v2.update-iam-role-policy` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
-- `exoscale/v2.update-reverse-dns-elastic-ip` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
-- `exoscale/v2.update-reverse-dns-instance` — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
-- `exoscale/v2.update-sks-cluster` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.update-sks-nodepool` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.update-user-role` — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
-- `exoscale/v2.upgrade-sks-cluster` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
-- `exoscale/v2.upgrade-sks-cluster-service-level` — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `ai` — 22 operations — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `compute` — 6 operations — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
+- `compute` — 3 operations — there is no console to proxy and no password to reveal: machines here are opened by the registered SSH key, and a URL or a password the emulator invented would claim an access nothing answers
+- `dbaas` — 146 operations — these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing
+- `dns` — 10 operations — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
+- `exoscale` — 2 operations — there is no account behind this emulator and no consumption to report, so any figure here would be one it invented and somebody planned against
+- `iam` — 18 operations — the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies
+- `kms` — 16 operations — a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing
+- `organization` — 3 operations — there is no account behind this emulator and no consumption to report, so any figure here would be one it invented and somebody planned against
+- `sks` — 25 operations — a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere
+- `sos` — 2 operations — object storage is refused across this project for a measured reason: clients build the S3 endpoint in code, so serving it needs DNS interception and a certificate, recorded in docs/limits.md
 <!-- routes:end -->

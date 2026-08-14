@@ -40,7 +40,11 @@ case "$MODE" in
     status=0
     "$FEINT" coverage --sdk "$SCALEWAY_SDK" --products "$SCALEWAY_PRODUCTS" \
       --baseline coverage/scaleway-baseline.json || status=$?
+    # --contract on top of --sdk: the SDK lists the operations, the contract
+    # carries the tags their document files them under, which oapi-codegen
+    # flattens away. Without it every artefact row collapses back into `osc`.
     "$FEINT" coverage --provider outscale --sdk "$OUTSCALE_SDK" \
+      --contract contracts/outscale.json \
       --baseline coverage/outscale-baseline.json || status=$?
     "$FEINT" coverage --provider exoscale --contract contracts/exoscale.json \
       --baseline coverage/exoscale-baseline.json || status=$?
@@ -53,8 +57,10 @@ case "$MODE" in
     "$FEINT" coverage --sdk "$SCALEWAY_SDK" --products "$SCALEWAY_PRODUCTS" \
       --format json > coverage/scaleway-coverage.json
     "$FEINT" coverage --provider outscale --sdk "$OUTSCALE_SDK" \
+      --contract contracts/outscale.json \
       --baseline coverage/outscale-baseline.json --write-baseline
     "$FEINT" coverage --provider outscale --sdk "$OUTSCALE_SDK" \
+      --contract contracts/outscale.json \
       --format json > coverage/outscale-coverage.json
     "$FEINT" coverage --provider exoscale --contract contracts/exoscale.json \
       --baseline coverage/exoscale-baseline.json --write-baseline

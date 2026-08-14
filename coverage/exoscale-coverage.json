@@ -23,29 +23,133 @@
       ]
     }
   ],
+  "groups": [
+    {
+      "group": "ai",
+      "total": 22,
+      "implemented": 0,
+      "declined": 22,
+      "unknown": 0
+    },
+    {
+      "group": "audit-trail",
+      "total": 1,
+      "implemented": 0,
+      "declined": 0,
+      "unknown": 1
+    },
+    {
+      "group": "block-storage",
+      "total": 13,
+      "implemented": 0,
+      "declined": 0,
+      "unknown": 13
+    },
+    {
+      "group": "compute",
+      "total": 111,
+      "implemented": 42,
+      "declined": 9,
+      "unknown": 60
+    },
+    {
+      "group": "dbaas",
+      "total": 146,
+      "implemented": 0,
+      "declined": 146,
+      "unknown": 0
+    },
+    {
+      "group": "dns",
+      "total": 10,
+      "implemented": 0,
+      "declined": 10,
+      "unknown": 0
+    },
+    {
+      "group": "exoscale",
+      "total": 2,
+      "implemented": 0,
+      "declined": 2,
+      "unknown": 0
+    },
+    {
+      "group": "general",
+      "total": 2,
+      "implemented": 2,
+      "declined": 0,
+      "unknown": 0
+    },
+    {
+      "group": "iam",
+      "total": 18,
+      "implemented": 0,
+      "declined": 18,
+      "unknown": 0
+    },
+    {
+      "group": "kms",
+      "total": 16,
+      "implemented": 0,
+      "declined": 16,
+      "unknown": 0
+    },
+    {
+      "group": "organization",
+      "total": 4,
+      "implemented": 0,
+      "declined": 3,
+      "unknown": 1
+    },
+    {
+      "group": "quotas",
+      "total": 2,
+      "implemented": 2,
+      "declined": 0,
+      "unknown": 0
+    },
+    {
+      "group": "sks",
+      "total": 25,
+      "implemented": 0,
+      "declined": 25,
+      "unknown": 0
+    },
+    {
+      "group": "sos",
+      "total": 2,
+      "implemented": 0,
+      "declined": 2,
+      "unknown": 0
+    }
+  ],
   "entries": [
     {
       "operation": "exoscale/v2.add-external-source-to-security-group",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.add-instance-protection",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.add-rule-to-security-group",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.add-service-to-load-balancer",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -53,12 +157,14 @@
       "product": "exoscale",
       "reason": "the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies",
       "version": "2.0.0",
+      "group": "iam",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.attach-block-storage-volume-to-instance",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "block-storage",
       "status": "unknown"
     },
     {
@@ -66,30 +172,35 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.attach-instance-to-elastic-ip",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.attach-instance-to-private-network",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.attach-instance-to-security-group",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.attach-instance-to-subnet",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -97,12 +208,14 @@
       "product": "exoscale",
       "reason": "a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing",
       "version": "2.0.0",
+      "group": "kms",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.copy-template",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -110,12 +223,14 @@
       "product": "exoscale",
       "reason": "inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
       "version": "2.0.0",
+      "group": "ai",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.create-anti-affinity-group",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
@@ -123,18 +238,21 @@
       "product": "exoscale",
       "reason": "the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies",
       "version": "2.0.0",
+      "group": "iam",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.create-block-storage-snapshot",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "block-storage",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.create-block-storage-volume",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "block-storage",
       "status": "unknown"
     },
     {
@@ -142,6 +260,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -149,6 +268,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -156,6 +276,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -163,6 +284,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -170,6 +292,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -177,6 +300,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -184,6 +308,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -191,6 +316,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -198,6 +324,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -205,6 +332,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -212,6 +340,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -219,6 +348,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -226,6 +356,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -233,6 +364,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -240,6 +372,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -247,6 +380,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -254,6 +388,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -261,6 +396,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -268,6 +404,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -275,6 +412,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -282,6 +420,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -289,6 +428,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -296,6 +436,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -303,6 +444,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -310,6 +452,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -317,6 +460,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -324,6 +468,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -331,6 +476,7 @@
       "product": "exoscale",
       "reason": "inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
       "version": "2.0.0",
+      "group": "ai",
       "status": "declined"
     },
     {
@@ -338,6 +484,7 @@
       "product": "exoscale",
       "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
       "version": "2.0.0",
+      "group": "dns",
       "status": "declined"
     },
     {
@@ -345,12 +492,14 @@
       "product": "exoscale",
       "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
       "version": "2.0.0",
+      "group": "dns",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.create-elastic-ip",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
@@ -358,18 +507,21 @@
       "product": "exoscale",
       "reason": "the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies",
       "version": "2.0.0",
+      "group": "iam",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.create-instance",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.create-instance-pool",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -377,12 +529,14 @@
       "product": "exoscale",
       "reason": "a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing",
       "version": "2.0.0",
+      "group": "kms",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.create-load-balancer",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -390,24 +544,28 @@
       "product": "exoscale",
       "reason": "inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
       "version": "2.0.0",
+      "group": "ai",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.create-private-network",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.create-route",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.create-security-group",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
@@ -415,6 +573,7 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
@@ -422,18 +581,21 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.create-snapshot",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.create-subnet",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -441,12 +603,14 @@
       "product": "exoscale",
       "reason": "the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies",
       "version": "2.0.0",
+      "group": "iam",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.create-vpc",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -454,6 +618,7 @@
       "product": "exoscale",
       "reason": "a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing",
       "version": "2.0.0",
+      "group": "kms",
       "status": "declined"
     },
     {
@@ -461,12 +626,14 @@
       "product": "exoscale",
       "reason": "inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
       "version": "2.0.0",
+      "group": "ai",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.delete-anti-affinity-group",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
@@ -474,18 +641,21 @@
       "product": "exoscale",
       "reason": "the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies",
       "version": "2.0.0",
+      "group": "iam",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.delete-block-storage-snapshot",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "block-storage",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.delete-block-storage-volume",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "block-storage",
       "status": "unknown"
     },
     {
@@ -493,6 +663,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -500,6 +671,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -507,6 +679,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -514,6 +687,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -521,6 +695,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -528,6 +703,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -535,6 +711,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -542,6 +719,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -549,6 +727,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -556,6 +735,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -563,6 +743,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -570,6 +751,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -577,6 +759,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -584,6 +767,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -591,6 +775,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -598,6 +783,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -605,6 +791,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -612,6 +799,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -619,6 +807,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -626,6 +815,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -633,6 +823,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -640,6 +831,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -647,6 +839,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -654,6 +847,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -661,6 +855,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -668,6 +863,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -675,6 +871,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -682,6 +879,7 @@
       "product": "exoscale",
       "reason": "inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
       "version": "2.0.0",
+      "group": "ai",
       "status": "declined"
     },
     {
@@ -689,6 +887,7 @@
       "product": "exoscale",
       "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
       "version": "2.0.0",
+      "group": "dns",
       "status": "declined"
     },
     {
@@ -696,12 +895,14 @@
       "product": "exoscale",
       "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
       "version": "2.0.0",
+      "group": "dns",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.delete-elastic-ip",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
@@ -709,30 +910,35 @@
       "product": "exoscale",
       "reason": "the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies",
       "version": "2.0.0",
+      "group": "iam",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.delete-instance",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.delete-instance-pool",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.delete-load-balancer",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.delete-load-balancer-service",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -740,12 +946,14 @@
       "product": "exoscale",
       "reason": "inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
       "version": "2.0.0",
+      "group": "ai",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.delete-private-network",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -753,6 +961,7 @@
       "product": "exoscale",
       "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
       "version": "2.0.0",
+      "group": "compute",
       "status": "declined"
     },
     {
@@ -760,24 +969,28 @@
       "product": "exoscale",
       "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
       "version": "2.0.0",
+      "group": "compute",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.delete-route",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.delete-rule-from-security-group",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.delete-security-group",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
@@ -785,6 +998,7 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
@@ -792,30 +1006,35 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.delete-snapshot",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.delete-ssh-key",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.delete-subnet",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.delete-template",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -823,18 +1042,21 @@
       "product": "exoscale",
       "reason": "the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies",
       "version": "2.0.0",
+      "group": "iam",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.delete-vpc",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.detach-block-storage-volume",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "block-storage",
       "status": "unknown"
     },
     {
@@ -842,30 +1064,35 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.detach-instance-from-elastic-ip",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.detach-instance-from-private-network",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.detach-instance-from-security-group",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.detach-instance-from-subnet",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -873,6 +1100,7 @@
       "product": "exoscale",
       "reason": "a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing",
       "version": "2.0.0",
+      "group": "kms",
       "status": "declined"
     },
     {
@@ -880,6 +1108,7 @@
       "product": "exoscale",
       "reason": "a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing",
       "version": "2.0.0",
+      "group": "kms",
       "status": "declined"
     },
     {
@@ -887,6 +1116,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -894,6 +1124,7 @@
       "product": "exoscale",
       "reason": "a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing",
       "version": "2.0.0",
+      "group": "kms",
       "status": "declined"
     },
     {
@@ -901,12 +1132,14 @@
       "product": "exoscale",
       "reason": "a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing",
       "version": "2.0.0",
+      "group": "kms",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.enable-tpm",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -914,12 +1147,14 @@
       "product": "exoscale",
       "reason": "a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing",
       "version": "2.0.0",
+      "group": "kms",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.evict-instance-pool-members",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -927,12 +1162,14 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.export-snapshot",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -940,6 +1177,7 @@
       "product": "exoscale",
       "reason": "a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing",
       "version": "2.0.0",
+      "group": "kms",
       "status": "declined"
     },
     {
@@ -947,6 +1185,7 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
@@ -954,6 +1193,7 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
@@ -961,6 +1201,7 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
@@ -968,6 +1209,7 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
@@ -975,12 +1217,14 @@
       "product": "exoscale",
       "reason": "inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
       "version": "2.0.0",
+      "group": "ai",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.get-anti-affinity-group",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
@@ -988,18 +1232,21 @@
       "product": "exoscale",
       "reason": "the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies",
       "version": "2.0.0",
+      "group": "iam",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.get-block-storage-snapshot",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "block-storage",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.get-block-storage-volume",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "block-storage",
       "status": "unknown"
     },
     {
@@ -1007,6 +1254,7 @@
       "product": "exoscale",
       "reason": "there is no console to proxy and no password to reveal: machines here are opened by the registered SSH key, and a URL or a password the emulator invented would claim an access nothing answers",
       "version": "2.0.0",
+      "group": "compute",
       "status": "declined"
     },
     {
@@ -1014,6 +1262,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1021,6 +1270,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1028,6 +1278,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1035,6 +1286,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1042,6 +1294,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1049,6 +1302,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1056,6 +1310,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1063,6 +1318,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1070,6 +1326,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1077,6 +1334,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1084,6 +1342,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1091,6 +1350,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1098,6 +1358,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1105,6 +1366,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1112,6 +1374,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1119,6 +1382,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1126,6 +1390,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1133,6 +1398,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1140,6 +1406,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1147,6 +1414,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1154,6 +1422,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1161,6 +1430,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1168,6 +1438,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1175,6 +1446,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1182,6 +1454,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1189,6 +1462,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1196,6 +1470,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1203,6 +1478,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1210,6 +1486,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1217,6 +1494,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1224,6 +1502,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1231,6 +1510,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1238,12 +1518,14 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.get-deploy-target",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
@@ -1251,6 +1533,7 @@
       "product": "exoscale",
       "reason": "inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
       "version": "2.0.0",
+      "group": "ai",
       "status": "declined"
     },
     {
@@ -1258,6 +1541,7 @@
       "product": "exoscale",
       "reason": "inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
       "version": "2.0.0",
+      "group": "ai",
       "status": "declined"
     },
     {
@@ -1265,6 +1549,7 @@
       "product": "exoscale",
       "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
       "version": "2.0.0",
+      "group": "dns",
       "status": "declined"
     },
     {
@@ -1272,6 +1557,7 @@
       "product": "exoscale",
       "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
       "version": "2.0.0",
+      "group": "dns",
       "status": "declined"
     },
     {
@@ -1279,12 +1565,14 @@
       "product": "exoscale",
       "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
       "version": "2.0.0",
+      "group": "dns",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.get-elastic-ip",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
@@ -1292,6 +1580,7 @@
       "product": "exoscale",
       "reason": "there is no account behind this emulator and no consumption to report, so any figure here would be one it invented and somebody planned against",
       "version": "2.0.0",
+      "group": "organization",
       "status": "declined"
     },
     {
@@ -1299,6 +1588,7 @@
       "product": "exoscale",
       "reason": "the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies",
       "version": "2.0.0",
+      "group": "iam",
       "status": "declined"
     },
     {
@@ -1306,6 +1596,7 @@
       "product": "exoscale",
       "reason": "the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies",
       "version": "2.0.0",
+      "group": "iam",
       "status": "declined"
     },
     {
@@ -1327,24 +1618,28 @@
       "product": "exoscale",
       "reason": "inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
       "version": "2.0.0",
+      "group": "ai",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.get-instance",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.get-instance-pool",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.get-instance-type",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
@@ -1352,6 +1647,7 @@
       "product": "exoscale",
       "reason": "a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing",
       "version": "2.0.0",
+      "group": "kms",
       "status": "declined"
     },
     {
@@ -1359,18 +1655,21 @@
       "product": "exoscale",
       "reason": "there is no account behind this emulator and no consumption to report, so any figure here would be one it invented and somebody planned against",
       "version": "2.0.0",
+      "group": "organization",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.get-load-balancer",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.get-load-balancer-service",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -1378,30 +1677,35 @@
       "product": "exoscale",
       "reason": "inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
       "version": "2.0.0",
+      "group": "ai",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.get-operation",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "general",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.get-organization",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "organization",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.get-private-network",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.get-quota",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "quotas",
       "status": "implemented"
     },
     {
@@ -1409,6 +1713,7 @@
       "product": "exoscale",
       "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
       "version": "2.0.0",
+      "group": "compute",
       "status": "declined"
     },
     {
@@ -1416,12 +1721,14 @@
       "product": "exoscale",
       "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
       "version": "2.0.0",
+      "group": "compute",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.get-security-group",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
@@ -1429,6 +1736,7 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
@@ -1436,6 +1744,7 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
@@ -1443,6 +1752,7 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
@@ -1450,12 +1760,14 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.get-snapshot",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -1463,24 +1775,28 @@
       "product": "exoscale",
       "reason": "object storage is refused across this project for a measured reason: clients build the S3 endpoint in code, so serving it needs DNS interception and a certificate, recorded in docs/limits.md",
       "version": "2.0.0",
+      "group": "sos",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.get-ssh-key",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.get-subnet",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.get-template",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
@@ -1488,6 +1804,7 @@
       "product": "exoscale",
       "reason": "there is no account behind this emulator and no consumption to report, so any figure here would be one it invented and somebody planned against",
       "version": "2.0.0",
+      "group": "organization",
       "status": "declined"
     },
     {
@@ -1495,12 +1812,14 @@
       "product": "exoscale",
       "reason": "inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
       "version": "2.0.0",
+      "group": "ai",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.get-vpc",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -1508,6 +1827,7 @@
       "product": "exoscale",
       "reason": "inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
       "version": "2.0.0",
+      "group": "ai",
       "status": "declined"
     },
     {
@@ -1515,12 +1835,14 @@
       "product": "exoscale",
       "reason": "inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
       "version": "2.0.0",
+      "group": "ai",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.list-anti-affinity-groups",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
@@ -1528,18 +1850,21 @@
       "product": "exoscale",
       "reason": "the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies",
       "version": "2.0.0",
+      "group": "iam",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.list-block-storage-snapshots",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "block-storage",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.list-block-storage-volumes",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "block-storage",
       "status": "unknown"
     },
     {
@@ -1547,6 +1872,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1554,6 +1880,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1561,6 +1888,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1568,6 +1896,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1575,6 +1904,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1582,6 +1912,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1589,6 +1920,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1596,6 +1928,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1603,6 +1936,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1610,12 +1944,14 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.list-deploy-targets",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
@@ -1623,6 +1959,7 @@
       "product": "exoscale",
       "reason": "inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
       "version": "2.0.0",
+      "group": "ai",
       "status": "declined"
     },
     {
@@ -1630,6 +1967,7 @@
       "product": "exoscale",
       "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
       "version": "2.0.0",
+      "group": "dns",
       "status": "declined"
     },
     {
@@ -1637,18 +1975,21 @@
       "product": "exoscale",
       "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
       "version": "2.0.0",
+      "group": "dns",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.list-elastic-ips",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.list-events",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "audit-trail",
       "status": "unknown"
     },
     {
@@ -1656,24 +1997,28 @@
       "product": "exoscale",
       "reason": "the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies",
       "version": "2.0.0",
+      "group": "iam",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.list-instance-pools",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.list-instance-types",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.list-instances",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
@@ -1681,6 +2026,7 @@
       "product": "exoscale",
       "reason": "a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing",
       "version": "2.0.0",
+      "group": "kms",
       "status": "declined"
     },
     {
@@ -1688,12 +2034,14 @@
       "product": "exoscale",
       "reason": "a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing",
       "version": "2.0.0",
+      "group": "kms",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.list-load-balancers",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -1701,30 +2049,35 @@
       "product": "exoscale",
       "reason": "inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
       "version": "2.0.0",
+      "group": "ai",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.list-private-networks",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.list-quotas",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "quotas",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.list-routes",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.list-security-groups",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
@@ -1732,6 +2085,7 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
@@ -1739,6 +2093,7 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
@@ -1746,12 +2101,14 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.list-snapshots",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -1759,24 +2116,28 @@
       "product": "exoscale",
       "reason": "object storage is refused across this project for a measured reason: clients build the S3 endpoint in code, so serving it needs DNS interception and a certificate, recorded in docs/limits.md",
       "version": "2.0.0",
+      "group": "sos",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.list-ssh-keys",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.list-subnets",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.list-templates",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
@@ -1784,30 +2145,35 @@
       "product": "exoscale",
       "reason": "the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies",
       "version": "2.0.0",
+      "group": "iam",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.list-vpc-routes",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.list-vpcs",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.list-zones",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "general",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.promote-snapshot-to-template",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -1815,36 +2181,42 @@
       "product": "exoscale",
       "reason": "a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing",
       "version": "2.0.0",
+      "group": "kms",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.reboot-instance",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.register-ssh-key",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.register-template",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.remove-external-source-from-security-group",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.remove-instance-protection",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
@@ -1852,6 +2224,7 @@
       "product": "exoscale",
       "reason": "a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing",
       "version": "2.0.0",
+      "group": "kms",
       "status": "declined"
     },
     {
@@ -1859,6 +2232,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1866,6 +2240,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1873,6 +2248,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1880,6 +2256,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1887,6 +2264,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1894,6 +2272,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1901,12 +2280,14 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.reset-elastic-ip-field",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -1914,18 +2295,21 @@
       "product": "exoscale",
       "reason": "the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies",
       "version": "2.0.0",
+      "group": "iam",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.reset-instance",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.reset-instance-field",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -1933,42 +2317,49 @@
       "product": "exoscale",
       "reason": "there is no console to proxy and no password to reveal: machines here are opened by the registered SSH key, and a URL or a password the emulator invented would claim an access nothing answers",
       "version": "2.0.0",
+      "group": "compute",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.reset-instance-pool-field",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.reset-load-balancer-field",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.reset-load-balancer-service-field",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.reset-private-network-field",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.resize-block-storage-volume",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "block-storage",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.resize-instance-disk",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
@@ -1976,6 +2367,7 @@
       "product": "exoscale",
       "reason": "inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
       "version": "2.0.0",
+      "group": "ai",
       "status": "declined"
     },
     {
@@ -1983,6 +2375,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1990,6 +2383,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -1997,6 +2391,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2004,6 +2399,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2011,6 +2407,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2018,6 +2415,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2025,6 +2423,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2032,6 +2431,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2039,6 +2439,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2046,6 +2447,7 @@
       "product": "exoscale",
       "reason": "inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
       "version": "2.0.0",
+      "group": "ai",
       "status": "declined"
     },
     {
@@ -2053,12 +2455,14 @@
       "product": "exoscale",
       "reason": "there is no console to proxy and no password to reveal: machines here are opened by the registered SSH key, and a URL or a password the emulator invented would claim an access nothing answers",
       "version": "2.0.0",
+      "group": "compute",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.revert-instance-to-snapshot",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -2066,6 +2470,7 @@
       "product": "exoscale",
       "reason": "inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
       "version": "2.0.0",
+      "group": "ai",
       "status": "declined"
     },
     {
@@ -2073,6 +2478,7 @@
       "product": "exoscale",
       "reason": "a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing",
       "version": "2.0.0",
+      "group": "kms",
       "status": "declined"
     },
     {
@@ -2080,6 +2486,7 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
@@ -2087,6 +2494,7 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
@@ -2094,6 +2502,7 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
@@ -2101,6 +2510,7 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
@@ -2108,18 +2518,21 @@
       "product": "exoscale",
       "reason": "inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
       "version": "2.0.0",
+      "group": "ai",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.scale-instance",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.scale-instance-pool",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -2127,6 +2540,7 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
@@ -2134,6 +2548,7 @@
       "product": "exoscale",
       "reason": "a key management service that emulated its own cryptography would return ciphertext no real key ever produced, which is worse than refusing",
       "version": "2.0.0",
+      "group": "kms",
       "status": "declined"
     },
     {
@@ -2141,6 +2556,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2148,6 +2564,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2155,6 +2572,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2162,6 +2580,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2169,6 +2588,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2176,6 +2596,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2183,6 +2604,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2190,12 +2612,14 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.start-instance",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
@@ -2203,6 +2627,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2210,6 +2635,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2217,12 +2643,14 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.stop-instance",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
@@ -2230,18 +2658,21 @@
       "product": "exoscale",
       "reason": "inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
       "version": "2.0.0",
+      "group": "ai",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.update-block-storage-snapshot",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "block-storage",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.update-block-storage-volume",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "block-storage",
       "status": "unknown"
     },
     {
@@ -2249,6 +2680,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2256,6 +2688,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2263,6 +2696,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2270,6 +2704,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2277,6 +2712,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2284,6 +2720,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2291,6 +2728,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2298,6 +2736,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2305,6 +2744,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2312,6 +2752,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2319,6 +2760,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2326,6 +2768,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2333,6 +2776,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2340,6 +2784,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2347,6 +2792,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2354,6 +2800,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2361,6 +2808,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2368,6 +2816,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2375,6 +2824,7 @@
       "product": "exoscale",
       "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
       "version": "2.0.0",
+      "group": "dbaas",
       "status": "declined"
     },
     {
@@ -2382,6 +2832,7 @@
       "product": "exoscale",
       "reason": "inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",
       "version": "2.0.0",
+      "group": "ai",
       "status": "declined"
     },
     {
@@ -2389,12 +2840,14 @@
       "product": "exoscale",
       "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
       "version": "2.0.0",
+      "group": "dns",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.update-elastic-ip",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
@@ -2402,6 +2855,7 @@
       "product": "exoscale",
       "reason": "the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies",
       "version": "2.0.0",
+      "group": "iam",
       "status": "declined"
     },
     {
@@ -2409,6 +2863,7 @@
       "product": "exoscale",
       "reason": "the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies",
       "version": "2.0.0",
+      "group": "iam",
       "status": "declined"
     },
     {
@@ -2416,42 +2871,49 @@
       "product": "exoscale",
       "reason": "the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies",
       "version": "2.0.0",
+      "group": "iam",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.update-instance",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "implemented"
     },
     {
       "operation": "exoscale/v2.update-instance-pool",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.update-load-balancer",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.update-load-balancer-service",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.update-private-network",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.update-private-network-instance-ip",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -2459,6 +2921,7 @@
       "product": "exoscale",
       "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
       "version": "2.0.0",
+      "group": "compute",
       "status": "declined"
     },
     {
@@ -2466,6 +2929,7 @@
       "product": "exoscale",
       "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
       "version": "2.0.0",
+      "group": "compute",
       "status": "declined"
     },
     {
@@ -2473,6 +2937,7 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
@@ -2480,18 +2945,21 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.update-subnet",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
       "operation": "exoscale/v2.update-template",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -2499,12 +2967,14 @@
       "product": "exoscale",
       "reason": "the emulator accepts every credential on purpose, so serving roles and policies would describe an access control that nothing here applies",
       "version": "2.0.0",
+      "group": "iam",
       "status": "declined"
     },
     {
       "operation": "exoscale/v2.update-vpc",
       "product": "exoscale",
       "version": "2.0.0",
+      "group": "compute",
       "status": "unknown"
     },
     {
@@ -2512,6 +2982,7 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     },
     {
@@ -2519,6 +2990,7 @@
       "product": "exoscale",
       "reason": "a managed Kubernetes control plane on hosts the emulator does not run, so a kubeconfig it issued would point nowhere",
       "version": "2.0.0",
+      "group": "sks",
       "status": "declined"
     }
   ]

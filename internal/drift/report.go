@@ -34,7 +34,25 @@ type Entry struct {
 	// differ per version: a stable v1 addition is work, an alpha rewrite is a
 	// Declined() block, and a product total that mixes them hides the decision.
 	Version string `json:"version,omitempty"`
-	Status  Status `json:"status"`
+	// Group is the upstream's own grouping of the operation — Exoscale's tag
+	// hierarchy root, Outscale's tag — empty when the upstream declares none,
+	// and the entry then counts under its Product. It exists because a product
+	// total can be a fourre-tout: one `osc` row of 236 operations reads as one
+	// undifferentiated surface, when upstream files it under 50 named tags and
+	// the verdicts cluster cleanly along them.
+	Group  string `json:"group,omitempty"`
+	Status Status `json:"status"`
+}
+
+// GroupName is the group an entry counts under: the upstream's own grouping
+// when it declares one, the product otherwise. The fallback lives here, once,
+// because three renderers apply it and one of them forgetting would file the
+// same operation two different places on two pages.
+func (e Entry) GroupName() string {
+	if e.Group != "" {
+		return e.Group
+	}
+	return e.Product
 }
 
 // Report is the coverage of one provider.
@@ -70,7 +88,7 @@ func Compare(provider string, upstream []Operation, served []string, declined ma
 	matched := make(map[string]bool, len(servedSet))
 
 	for _, op := range upstream {
-		e := Entry{Operation: op.Name, Product: op.Product, Version: op.Version, Status: StatusUnknown}
+		e := Entry{Operation: op.Name, Product: op.Product, Version: op.Version, Group: op.Group, Status: StatusUnknown}
 		switch {
 		case servedSet[op.Name]:
 			e.Status = StatusImplemented
@@ -187,6 +205,50 @@ func (r Report) ByProduct() map[string]Report {
 		}
 		sub.Entries = append(sub.Entries, e)
 		out[e.Product] = sub
+	}
+	return out
+}
+
+// GroupCount is the coverage of one upstream group.
+type GroupCount struct {
+	Group       string `json:"group"`
+	Total       int    `json:"total"`
+	Implemented int    `json:"implemented"`
+	Declined    int    `json:"declined"`
+	Unknown     int    `json:"unknown"`
+}
+
+// Groups returns per-group counts for the report's entries, sorted by group
+// name so two runs produce the same artefact bytes. Entries whose upstream
+// declares no grouping count under their product, so the three providers'
+// tables can be rendered by one function and the sums always match the totals.
+func (r Report) Groups() []GroupCount {
+	counts := make(map[string]*GroupCount)
+	for _, e := range r.Entries {
+		name := e.GroupName()
+		gc, ok := counts[name]
+		if !ok {
+			gc = &GroupCount{Group: name}
+			counts[name] = gc
+		}
+		gc.Total++
+		switch e.Status {
+		case StatusImplemented:
+			gc.Implemented++
+		case StatusDeclined:
+			gc.Declined++
+		case StatusUnknown:
+			gc.Unknown++
+		}
+	}
+	names := make([]string, 0, len(counts))
+	for name := range counts {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	out := make([]GroupCount, 0, len(names))
+	for _, name := range names {
+		out = append(out, *counts[name])
 	}
 	return out
 }

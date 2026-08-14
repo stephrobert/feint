@@ -61,8 +61,14 @@ type Doc struct {
 
 // Operation ties an API call to the schemas on either side of it.
 type Operation struct {
-	Path     string `json:"path"`
-	Method   string `json:"method"`
+	Path   string `json:"path"`
+	Method string `json:"method"`
+	// Group is where the provider's own document files the operation: the root
+	// of its first tag's parent chain (Exoscale declares role under iam,
+	// dbaas-mysql under dbaas; Outscale declares a flat tag per resource).
+	// Empty when the document leaves the operation untagged — the readers fall
+	// back to the product rather than filing it somewhere plausible.
+	Group    string `json:"group,omitempty"`
 	Request  string `json:"request"`
 	Response string `json:"response"`
 }

@@ -8,1416 +8,1652 @@
   "AcceptNetPeering": {
    "path": "/AcceptNetPeering",
    "method": "POST",
+   "group": "NetPeering",
    "request": "AcceptNetPeeringRequest",
    "response": "AcceptNetPeeringResponse"
   },
   "AddUserToUserGroup": {
    "path": "/AddUserToUserGroup",
    "method": "POST",
+   "group": "UserGroup",
    "request": "AddUserToUserGroupRequest",
    "response": "AddUserToUserGroupResponse"
   },
   "CheckAuthentication": {
    "path": "/CheckAuthentication",
    "method": "POST",
+   "group": "Account",
    "request": "CheckAuthenticationRequest",
    "response": "CheckAuthenticationResponse"
   },
   "CreateAccessKey": {
    "path": "/CreateAccessKey",
    "method": "POST",
+   "group": "AccessKey",
    "request": "CreateAccessKeyRequest",
    "response": "CreateAccessKeyResponse"
   },
   "CreateAccount": {
    "path": "/CreateAccount",
    "method": "POST",
+   "group": "Account",
    "request": "CreateAccountRequest",
    "response": "CreateAccountResponse"
   },
   "CreateApiAccessRule": {
    "path": "/CreateApiAccessRule",
    "method": "POST",
+   "group": "ApiAccessRule",
    "request": "CreateApiAccessRuleRequest",
    "response": "CreateApiAccessRuleResponse"
   },
   "CreateCa": {
    "path": "/CreateCa",
    "method": "POST",
+   "group": "Ca",
    "request": "CreateCaRequest",
    "response": "CreateCaResponse"
   },
   "CreateClientGateway": {
    "path": "/CreateClientGateway",
    "method": "POST",
+   "group": "ClientGateway",
    "request": "CreateClientGatewayRequest",
    "response": "CreateClientGatewayResponse"
   },
   "CreateDedicatedGroup": {
    "path": "/CreateDedicatedGroup",
    "method": "POST",
+   "group": "DedicatedGroup",
    "request": "CreateDedicatedGroupRequest",
    "response": "CreateDedicatedGroupResponse"
   },
   "CreateDhcpOptions": {
    "path": "/CreateDhcpOptions",
    "method": "POST",
+   "group": "DhcpOption",
    "request": "CreateDhcpOptionsRequest",
    "response": "CreateDhcpOptionsResponse"
   },
   "CreateDirectLink": {
    "path": "/CreateDirectLink",
    "method": "POST",
+   "group": "DirectLink",
    "request": "CreateDirectLinkRequest",
    "response": "CreateDirectLinkResponse"
   },
   "CreateDirectLinkInterface": {
    "path": "/CreateDirectLinkInterface",
    "method": "POST",
+   "group": "DirectLinkInterface",
    "request": "CreateDirectLinkInterfaceRequest",
    "response": "CreateDirectLinkInterfaceResponse"
   },
   "CreateFlexibleGpu": {
    "path": "/CreateFlexibleGpu",
    "method": "POST",
+   "group": "FlexibleGpu",
    "request": "CreateFlexibleGpuRequest",
    "response": "CreateFlexibleGpuResponse"
   },
   "CreateImage": {
    "path": "/CreateImage",
    "method": "POST",
+   "group": "Image",
    "request": "CreateImageRequest",
    "response": "CreateImageResponse"
   },
   "CreateImageExportTask": {
    "path": "/CreateImageExportTask",
    "method": "POST",
+   "group": "Image",
    "request": "CreateImageExportTaskRequest",
    "response": "CreateImageExportTaskResponse"
   },
   "CreateInternetService": {
    "path": "/CreateInternetService",
    "method": "POST",
+   "group": "InternetService",
    "request": "CreateInternetServiceRequest",
    "response": "CreateInternetServiceResponse"
   },
   "CreateKeypair": {
    "path": "/CreateKeypair",
    "method": "POST",
+   "group": "Keypair",
    "request": "CreateKeypairRequest",
    "response": "CreateKeypairResponse"
   },
   "CreateListenerRule": {
    "path": "/CreateListenerRule",
    "method": "POST",
+   "group": "Listener",
    "request": "CreateListenerRuleRequest",
    "response": "CreateListenerRuleResponse"
   },
   "CreateLoadBalancer": {
    "path": "/CreateLoadBalancer",
    "method": "POST",
+   "group": "LoadBalancer",
    "request": "CreateLoadBalancerRequest",
    "response": "CreateLoadBalancerResponse"
   },
   "CreateLoadBalancerListeners": {
    "path": "/CreateLoadBalancerListeners",
    "method": "POST",
+   "group": "Listener",
    "request": "CreateLoadBalancerListenersRequest",
    "response": "CreateLoadBalancerListenersResponse"
   },
   "CreateLoadBalancerPolicy": {
    "path": "/CreateLoadBalancerPolicy",
    "method": "POST",
+   "group": "LoadBalancerPolicy",
    "request": "CreateLoadBalancerPolicyRequest",
    "response": "CreateLoadBalancerPolicyResponse"
   },
   "CreateLoadBalancerTags": {
    "path": "/CreateLoadBalancerTags",
    "method": "POST",
+   "group": "LoadBalancer",
    "request": "CreateLoadBalancerTagsRequest",
    "response": "CreateLoadBalancerTagsResponse"
   },
   "CreateNatService": {
    "path": "/CreateNatService",
    "method": "POST",
+   "group": "NatService",
    "request": "CreateNatServiceRequest",
    "response": "CreateNatServiceResponse"
   },
   "CreateNet": {
    "path": "/CreateNet",
    "method": "POST",
+   "group": "Net",
    "request": "CreateNetRequest",
    "response": "CreateNetResponse"
   },
   "CreateNetAccessPoint": {
    "path": "/CreateNetAccessPoint",
    "method": "POST",
+   "group": "NetAccessPoint",
    "request": "CreateNetAccessPointRequest",
    "response": "CreateNetAccessPointResponse"
   },
   "CreateNetPeering": {
    "path": "/CreateNetPeering",
    "method": "POST",
+   "group": "NetPeering",
    "request": "CreateNetPeeringRequest",
    "response": "CreateNetPeeringResponse"
   },
   "CreateNic": {
    "path": "/CreateNic",
    "method": "POST",
+   "group": "Nic",
    "request": "CreateNicRequest",
    "response": "CreateNicResponse"
   },
   "CreatePolicy": {
    "path": "/CreatePolicy",
    "method": "POST",
+   "group": "Policy",
    "request": "CreatePolicyRequest",
    "response": "CreatePolicyResponse"
   },
   "CreatePolicyVersion": {
    "path": "/CreatePolicyVersion",
    "method": "POST",
+   "group": "Policy",
    "request": "CreatePolicyVersionRequest",
    "response": "CreatePolicyVersionResponse"
   },
   "CreateProductType": {
    "path": "/CreateProductType",
    "method": "POST",
+   "group": "ProductType",
    "request": "CreateProductTypeRequest",
    "response": "CreateProductTypeResponse"
   },
   "CreatePublicIp": {
    "path": "/CreatePublicIp",
    "method": "POST",
+   "group": "PublicIp",
    "request": "CreatePublicIpRequest",
    "response": "CreatePublicIpResponse"
   },
   "CreateRoute": {
    "path": "/CreateRoute",
    "method": "POST",
+   "group": "Route",
    "request": "CreateRouteRequest",
    "response": "CreateRouteResponse"
   },
   "CreateRouteTable": {
    "path": "/CreateRouteTable",
    "method": "POST",
+   "group": "RouteTable",
    "request": "CreateRouteTableRequest",
    "response": "CreateRouteTableResponse"
   },
   "CreateSecurityGroup": {
    "path": "/CreateSecurityGroup",
    "method": "POST",
+   "group": "SecurityGroup",
    "request": "CreateSecurityGroupRequest",
    "response": "CreateSecurityGroupResponse"
   },
   "CreateSecurityGroupRule": {
    "path": "/CreateSecurityGroupRule",
    "method": "POST",
+   "group": "SecurityGroupRule",
    "request": "CreateSecurityGroupRuleRequest",
    "response": "CreateSecurityGroupRuleResponse"
   },
   "CreateServerCertificate": {
    "path": "/CreateServerCertificate",
    "method": "POST",
+   "group": "ServerCertificate",
    "request": "CreateServerCertificateRequest",
    "response": "CreateServerCertificateResponse"
   },
   "CreateSnapshot": {
    "path": "/CreateSnapshot",
    "method": "POST",
+   "group": "Snapshot",
    "request": "CreateSnapshotRequest",
    "response": "CreateSnapshotResponse"
   },
   "CreateSnapshotExportTask": {
    "path": "/CreateSnapshotExportTask",
    "method": "POST",
+   "group": "Snapshot",
    "request": "CreateSnapshotExportTaskRequest",
    "response": "CreateSnapshotExportTaskResponse"
   },
   "CreateSubnet": {
    "path": "/CreateSubnet",
    "method": "POST",
+   "group": "Subnet",
    "request": "CreateSubnetRequest",
    "response": "CreateSubnetResponse"
   },
   "CreateTags": {
    "path": "/CreateTags",
    "method": "POST",
+   "group": "Tag",
    "request": "CreateTagsRequest",
    "response": "CreateTagsResponse"
   },
   "CreateUser": {
    "path": "/CreateUser",
    "method": "POST",
+   "group": "User",
    "request": "CreateUserRequest",
    "response": "CreateUserResponse"
   },
   "CreateUserGroup": {
    "path": "/CreateUserGroup",
    "method": "POST",
+   "group": "UserGroup",
    "request": "CreateUserGroupRequest",
    "response": "CreateUserGroupResponse"
   },
   "CreateVirtualGateway": {
    "path": "/CreateVirtualGateway",
    "method": "POST",
+   "group": "VirtualGateway",
    "request": "CreateVirtualGatewayRequest",
    "response": "CreateVirtualGatewayResponse"
   },
   "CreateVmGroup": {
    "path": "/CreateVmGroup",
    "method": "POST",
+   "group": "VmGroup",
    "request": "CreateVmGroupRequest",
    "response": "CreateVmGroupResponse"
   },
   "CreateVmTemplate": {
    "path": "/CreateVmTemplate",
    "method": "POST",
+   "group": "VmTemplate",
    "request": "CreateVmTemplateRequest",
    "response": "CreateVmTemplateResponse"
   },
   "CreateVms": {
    "path": "/CreateVms",
    "method": "POST",
+   "group": "Vm",
    "request": "CreateVmsRequest",
    "response": "CreateVmsResponse"
   },
   "CreateVolume": {
    "path": "/CreateVolume",
    "method": "POST",
+   "group": "Volume",
    "request": "CreateVolumeRequest",
    "response": "CreateVolumeResponse"
   },
   "CreateVpnConnection": {
    "path": "/CreateVpnConnection",
    "method": "POST",
+   "group": "VpnConnection",
    "request": "CreateVpnConnectionRequest",
    "response": "CreateVpnConnectionResponse"
   },
   "CreateVpnConnectionRoute": {
    "path": "/CreateVpnConnectionRoute",
    "method": "POST",
+   "group": "VpnConnection",
    "request": "CreateVpnConnectionRouteRequest",
    "response": "CreateVpnConnectionRouteResponse"
   },
   "DeleteAccessKey": {
    "path": "/DeleteAccessKey",
    "method": "POST",
+   "group": "AccessKey",
    "request": "DeleteAccessKeyRequest",
    "response": "DeleteAccessKeyResponse"
   },
   "DeleteApiAccessRule": {
    "path": "/DeleteApiAccessRule",
    "method": "POST",
+   "group": "ApiAccessRule",
    "request": "DeleteApiAccessRuleRequest",
    "response": "DeleteApiAccessRuleResponse"
   },
   "DeleteCa": {
    "path": "/DeleteCa",
    "method": "POST",
+   "group": "Ca",
    "request": "DeleteCaRequest",
    "response": "DeleteCaResponse"
   },
   "DeleteClientGateway": {
    "path": "/DeleteClientGateway",
    "method": "POST",
+   "group": "ClientGateway",
    "request": "DeleteClientGatewayRequest",
    "response": "DeleteClientGatewayResponse"
   },
   "DeleteDedicatedGroup": {
    "path": "/DeleteDedicatedGroup",
    "method": "POST",
+   "group": "DedicatedGroup",
    "request": "DeleteDedicatedGroupRequest",
    "response": "DeleteDedicatedGroupResponse"
   },
   "DeleteDhcpOptions": {
    "path": "/DeleteDhcpOptions",
    "method": "POST",
+   "group": "DhcpOption",
    "request": "DeleteDhcpOptionsRequest",
    "response": "DeleteDhcpOptionsResponse"
   },
   "DeleteDirectLink": {
    "path": "/DeleteDirectLink",
    "method": "POST",
+   "group": "DirectLink",
    "request": "DeleteDirectLinkRequest",
    "response": "DeleteDirectLinkResponse"
   },
   "DeleteDirectLinkInterface": {
    "path": "/DeleteDirectLinkInterface",
    "method": "POST",
+   "group": "DirectLinkInterface",
    "request": "DeleteDirectLinkInterfaceRequest",
    "response": "DeleteDirectLinkInterfaceResponse"
   },
   "DeleteExportTask": {
    "path": "/DeleteExportTask",
    "method": "POST",
+   "group": "Task",
    "request": "DeleteExportTaskRequest",
    "response": "DeleteExportTaskResponse"
   },
   "DeleteFlexibleGpu": {
    "path": "/DeleteFlexibleGpu",
    "method": "POST",
+   "group": "FlexibleGpu",
    "request": "DeleteFlexibleGpuRequest",
    "response": "DeleteFlexibleGpuResponse"
   },
   "DeleteImage": {
    "path": "/DeleteImage",
    "method": "POST",
+   "group": "Image",
    "request": "DeleteImageRequest",
    "response": "DeleteImageResponse"
   },
   "DeleteInternetService": {
    "path": "/DeleteInternetService",
    "method": "POST",
+   "group": "InternetService",
    "request": "DeleteInternetServiceRequest",
    "response": "DeleteInternetServiceResponse"
   },
   "DeleteKeypair": {
    "path": "/DeleteKeypair",
    "method": "POST",
+   "group": "Keypair",
    "request": "DeleteKeypairRequest",
    "response": "DeleteKeypairResponse"
   },
   "DeleteListenerRule": {
    "path": "/DeleteListenerRule",
    "method": "POST",
+   "group": "Listener",
    "request": "DeleteListenerRuleRequest",
    "response": "DeleteListenerRuleResponse"
   },
   "DeleteLoadBalancer": {
    "path": "/DeleteLoadBalancer",
    "method": "POST",
+   "group": "LoadBalancer",
    "request": "DeleteLoadBalancerRequest",
    "response": "DeleteLoadBalancerResponse"
   },
   "DeleteLoadBalancerListeners": {
    "path": "/DeleteLoadBalancerListeners",
    "method": "POST",
+   "group": "Listener",
    "request": "DeleteLoadBalancerListenersRequest",
    "response": "DeleteLoadBalancerListenersResponse"
   },
   "DeleteLoadBalancerPolicy": {
    "path": "/DeleteLoadBalancerPolicy",
    "method": "POST",
+   "group": "LoadBalancerPolicy",
    "request": "DeleteLoadBalancerPolicyRequest",
    "response": "DeleteLoadBalancerPolicyResponse"
   },
   "DeleteLoadBalancerTags": {
    "path": "/DeleteLoadBalancerTags",
    "method": "POST",
+   "group": "LoadBalancer",
    "request": "DeleteLoadBalancerTagsRequest",
    "response": "DeleteLoadBalancerTagsResponse"
   },
   "DeleteNatService": {
    "path": "/DeleteNatService",
    "method": "POST",
+   "group": "NatService",
    "request": "DeleteNatServiceRequest",
    "response": "DeleteNatServiceResponse"
   },
   "DeleteNet": {
    "path": "/DeleteNet",
    "method": "POST",
+   "group": "Net",
    "request": "DeleteNetRequest",
    "response": "DeleteNetResponse"
   },
   "DeleteNetAccessPoint": {
    "path": "/DeleteNetAccessPoint",
    "method": "POST",
+   "group": "NetAccessPoint",
    "request": "DeleteNetAccessPointRequest",
    "response": "DeleteNetAccessPointResponse"
   },
   "DeleteNetPeering": {
    "path": "/DeleteNetPeering",
    "method": "POST",
+   "group": "NetPeering",
    "request": "DeleteNetPeeringRequest",
    "response": "DeleteNetPeeringResponse"
   },
   "DeleteNic": {
    "path": "/DeleteNic",
    "method": "POST",
+   "group": "Nic",
    "request": "DeleteNicRequest",
    "response": "DeleteNicResponse"
   },
   "DeletePolicy": {
    "path": "/DeletePolicy",
    "method": "POST",
+   "group": "Policy",
    "request": "DeletePolicyRequest",
    "response": "DeletePolicyResponse"
   },
   "DeletePolicyVersion": {
    "path": "/DeletePolicyVersion",
    "method": "POST",
+   "group": "Policy",
    "request": "DeletePolicyVersionRequest",
    "response": "DeletePolicyVersionResponse"
   },
   "DeleteProductType": {
    "path": "/DeleteProductType",
    "method": "POST",
+   "group": "ProductType",
    "request": "DeleteProductTypeRequest",
    "response": "DeleteProductTypeResponse"
   },
   "DeletePublicIp": {
    "path": "/DeletePublicIp",
    "method": "POST",
+   "group": "PublicIp",
    "request": "DeletePublicIpRequest",
    "response": "DeletePublicIpResponse"
   },
   "DeleteRoute": {
    "path": "/DeleteRoute",
    "method": "POST",
+   "group": "Route",
    "request": "DeleteRouteRequest",
    "response": "DeleteRouteResponse"
   },
   "DeleteRouteTable": {
    "path": "/DeleteRouteTable",
    "method": "POST",
+   "group": "RouteTable",
    "request": "DeleteRouteTableRequest",
    "response": "DeleteRouteTableResponse"
   },
   "DeleteSecurityGroup": {
    "path": "/DeleteSecurityGroup",
    "method": "POST",
+   "group": "SecurityGroup",
    "request": "DeleteSecurityGroupRequest",
    "response": "DeleteSecurityGroupResponse"
   },
   "DeleteSecurityGroupRule": {
    "path": "/DeleteSecurityGroupRule",
    "method": "POST",
+   "group": "SecurityGroupRule",
    "request": "DeleteSecurityGroupRuleRequest",
    "response": "DeleteSecurityGroupRuleResponse"
   },
   "DeleteServerCertificate": {
    "path": "/DeleteServerCertificate",
    "method": "POST",
+   "group": "ServerCertificate",
    "request": "DeleteServerCertificateRequest",
    "response": "DeleteServerCertificateResponse"
   },
   "DeleteSnapshot": {
    "path": "/DeleteSnapshot",
    "method": "POST",
+   "group": "Snapshot",
    "request": "DeleteSnapshotRequest",
    "response": "DeleteSnapshotResponse"
   },
   "DeleteSubnet": {
    "path": "/DeleteSubnet",
    "method": "POST",
+   "group": "Subnet",
    "request": "DeleteSubnetRequest",
    "response": "DeleteSubnetResponse"
   },
   "DeleteTags": {
    "path": "/DeleteTags",
    "method": "POST",
+   "group": "Tag",
    "request": "DeleteTagsRequest",
    "response": "DeleteTagsResponse"
   },
   "DeleteUser": {
    "path": "/DeleteUser",
    "method": "POST",
+   "group": "User",
    "request": "DeleteUserRequest",
    "response": "DeleteUserResponse"
   },
   "DeleteUserGroup": {
    "path": "/DeleteUserGroup",
    "method": "POST",
+   "group": "UserGroup",
    "request": "DeleteUserGroupRequest",
    "response": "DeleteUserGroupResponse"
   },
   "DeleteUserGroupPolicy": {
    "path": "/DeleteUserGroupPolicy",
    "method": "POST",
+   "group": "Policy",
    "request": "DeleteUserGroupPolicyRequest",
    "response": "DeleteUserGroupPolicyResponse"
   },
   "DeleteUserPolicy": {
    "path": "/DeleteUserPolicy",
    "method": "POST",
+   "group": "Policy",
    "request": "DeleteUserPolicyRequest",
    "response": "DeleteUserPolicyResponse"
   },
   "DeleteVirtualGateway": {
    "path": "/DeleteVirtualGateway",
    "method": "POST",
+   "group": "VirtualGateway",
    "request": "DeleteVirtualGatewayRequest",
    "response": "DeleteVirtualGatewayResponse"
   },
   "DeleteVmGroup": {
    "path": "/DeleteVmGroup",
    "method": "POST",
+   "group": "VmGroup",
    "request": "DeleteVmGroupRequest",
    "response": "DeleteVmGroupResponse"
   },
   "DeleteVmTemplate": {
    "path": "/DeleteVmTemplate",
    "method": "POST",
+   "group": "VmTemplate",
    "request": "DeleteVmTemplateRequest",
    "response": "DeleteVmTemplateResponse"
   },
   "DeleteVms": {
    "path": "/DeleteVms",
    "method": "POST",
+   "group": "Vm",
    "request": "DeleteVmsRequest",
    "response": "DeleteVmsResponse"
   },
   "DeleteVolume": {
    "path": "/DeleteVolume",
    "method": "POST",
+   "group": "Volume",
    "request": "DeleteVolumeRequest",
    "response": "DeleteVolumeResponse"
   },
   "DeleteVpnConnection": {
    "path": "/DeleteVpnConnection",
    "method": "POST",
+   "group": "VpnConnection",
    "request": "DeleteVpnConnectionRequest",
    "response": "DeleteVpnConnectionResponse"
   },
   "DeleteVpnConnectionRoute": {
    "path": "/DeleteVpnConnectionRoute",
    "method": "POST",
+   "group": "VpnConnection",
    "request": "DeleteVpnConnectionRouteRequest",
    "response": "DeleteVpnConnectionRouteResponse"
   },
   "DeregisterVmsInLoadBalancer": {
    "path": "/DeregisterVmsInLoadBalancer",
    "method": "POST",
+   "group": "LoadBalancer",
    "request": "DeregisterVmsInLoadBalancerRequest",
    "response": "DeregisterVmsInLoadBalancerResponse"
   },
   "DisableOutscaleLogin": {
    "path": "/DisableOutscaleLogin",
    "method": "POST",
+   "group": "IdentityProvider",
    "request": "DisableOutscaleLoginRequest",
    "response": "DisableOutscaleLoginResponse"
   },
   "DisableOutscaleLoginForUsers": {
    "path": "/DisableOutscaleLoginForUsers",
    "method": "POST",
+   "group": "IdentityProvider",
    "request": "DisableOutscaleLoginRequest",
    "response": "DisableOutscaleLoginResponse"
   },
   "DisableOutscaleLoginPerUsers": {
    "path": "/DisableOutscaleLoginPerUsers",
    "method": "POST",
+   "group": "IdentityProvider",
    "request": "DisableOutscaleLoginPerUsersRequest",
    "response": "DisableOutscaleLoginPerUsersResponse"
   },
   "EnableOutscaleLogin": {
    "path": "/EnableOutscaleLogin",
    "method": "POST",
+   "group": "IdentityProvider",
    "request": "EnableOutscaleLoginRequest",
    "response": "EnableOutscaleLoginResponse"
   },
   "EnableOutscaleLoginForUsers": {
    "path": "/EnableOutscaleLoginForUsers",
    "method": "POST",
+   "group": "IdentityProvider",
    "request": "EnableOutscaleLoginForUsersRequest",
    "response": "EnableOutscaleLoginForUsersResponse"
   },
   "EnableOutscaleLoginPerUsers": {
    "path": "/EnableOutscaleLoginPerUsers",
    "method": "POST",
+   "group": "IdentityProvider",
    "request": "EnableOutscaleLoginPerUsersRequest",
    "response": "EnableOutscaleLoginPerUsersResponse"
   },
   "LinkFlexibleGpu": {
    "path": "/LinkFlexibleGpu",
    "method": "POST",
+   "group": "FlexibleGpu",
    "request": "LinkFlexibleGpuRequest",
    "response": "LinkFlexibleGpuResponse"
   },
   "LinkInternetService": {
    "path": "/LinkInternetService",
    "method": "POST",
+   "group": "InternetService",
    "request": "LinkInternetServiceRequest",
    "response": "LinkInternetServiceResponse"
   },
   "LinkLoadBalancerBackendMachines": {
    "path": "/LinkLoadBalancerBackendMachines",
    "method": "POST",
+   "group": "LoadBalancer",
    "request": "LinkLoadBalancerBackendMachinesRequest",
    "response": "LinkLoadBalancerBackendMachinesResponse"
   },
   "LinkManagedPolicyToUserGroup": {
    "path": "/LinkManagedPolicyToUserGroup",
    "method": "POST",
+   "group": "Policy",
    "request": "LinkManagedPolicyToUserGroupRequest",
    "response": "LinkManagedPolicyToUserGroupResponse"
   },
   "LinkNic": {
    "path": "/LinkNic",
    "method": "POST",
+   "group": "Nic",
    "request": "LinkNicRequest",
    "response": "LinkNicResponse"
   },
   "LinkPolicy": {
    "path": "/LinkPolicy",
    "method": "POST",
+   "group": "Policy",
    "request": "LinkPolicyRequest",
    "response": "LinkPolicyResponse"
   },
   "LinkPrivateIps": {
    "path": "/LinkPrivateIps",
    "method": "POST",
+   "group": "Nic",
    "request": "LinkPrivateIpsRequest",
    "response": "LinkPrivateIpsResponse"
   },
   "LinkPublicIp": {
    "path": "/LinkPublicIp",
    "method": "POST",
+   "group": "PublicIp",
    "request": "LinkPublicIpRequest",
    "response": "LinkPublicIpResponse"
   },
   "LinkRouteTable": {
    "path": "/LinkRouteTable",
    "method": "POST",
+   "group": "RouteTable",
    "request": "LinkRouteTableRequest",
    "response": "LinkRouteTableResponse"
   },
   "LinkVirtualGateway": {
    "path": "/LinkVirtualGateway",
    "method": "POST",
+   "group": "VirtualGateway",
    "request": "LinkVirtualGatewayRequest",
    "response": "LinkVirtualGatewayResponse"
   },
   "LinkVolume": {
    "path": "/LinkVolume",
    "method": "POST",
+   "group": "Volume",
    "request": "LinkVolumeRequest",
    "response": "LinkVolumeResponse"
   },
   "PutUserGroupPolicy": {
    "path": "/PutUserGroupPolicy",
    "method": "POST",
+   "group": "Policy",
    "request": "PutUserGroupPolicyRequest",
    "response": "PutUserGroupPolicyResponse"
   },
   "PutUserPolicy": {
    "path": "/PutUserPolicy",
    "method": "POST",
+   "group": "Policy",
    "request": "PutUserPolicyRequest",
    "response": "PutUserPolicyResponse"
   },
   "ReadAccessKeys": {
    "path": "/ReadAccessKeys",
    "method": "POST",
+   "group": "AccessKey",
    "request": "ReadAccessKeysRequest",
    "response": "ReadAccessKeysResponse"
   },
   "ReadAccounts": {
    "path": "/ReadAccounts",
    "method": "POST",
+   "group": "Account",
    "request": "ReadAccountsRequest",
    "response": "ReadAccountsResponse"
   },
   "ReadAdminPassword": {
    "path": "/ReadAdminPassword",
    "method": "POST",
+   "group": "Vm",
    "request": "ReadAdminPasswordRequest",
    "response": "ReadAdminPasswordResponse"
   },
   "ReadApiAccessPolicy": {
    "path": "/ReadApiAccessPolicy",
    "method": "POST",
+   "group": "ApiAccessPolicy",
    "request": "ReadApiAccessPolicyRequest",
    "response": "ReadApiAccessPolicyResponse"
   },
   "ReadApiAccessRules": {
    "path": "/ReadApiAccessRules",
    "method": "POST",
+   "group": "ApiAccessRule",
    "request": "ReadApiAccessRulesRequest",
    "response": "ReadApiAccessRulesResponse"
   },
   "ReadApiLogs": {
    "path": "/ReadApiLogs",
    "method": "POST",
+   "group": "ApiLog",
    "request": "ReadApiLogsRequest",
    "response": "ReadApiLogsResponse"
   },
   "ReadCO2EmissionAccount": {
    "path": "/ReadCO2EmissionAccount",
    "method": "POST",
+   "group": "Account",
    "request": "ReadCO2EmissionAccountRequest",
    "response": "ReadCO2EmissionAccountResponse"
   },
   "ReadCas": {
    "path": "/ReadCas",
    "method": "POST",
+   "group": "Ca",
    "request": "ReadCasRequest",
    "response": "ReadCasResponse"
   },
   "ReadCatalog": {
    "path": "/ReadCatalog",
    "method": "POST",
+   "group": "Catalog",
    "request": "ReadCatalogRequest",
    "response": "ReadCatalogResponse"
   },
   "ReadCatalogs": {
    "path": "/ReadCatalogs",
    "method": "POST",
+   "group": "Catalog",
    "request": "ReadCatalogsRequest",
    "response": "ReadCatalogsResponse"
   },
   "ReadClientGateways": {
    "path": "/ReadClientGateways",
    "method": "POST",
+   "group": "ClientGateway",
    "request": "ReadClientGatewaysRequest",
    "response": "ReadClientGatewaysResponse"
   },
   "ReadConsoleOutput": {
    "path": "/ReadConsoleOutput",
    "method": "POST",
+   "group": "Vm",
    "request": "ReadConsoleOutputRequest",
    "response": "ReadConsoleOutputResponse"
   },
   "ReadConsumptionAccount": {
    "path": "/ReadConsumptionAccount",
    "method": "POST",
+   "group": "Account",
    "request": "ReadConsumptionAccountRequest",
    "response": "ReadConsumptionAccountResponse"
   },
   "ReadDedicatedGroups": {
    "path": "/ReadDedicatedGroups",
    "method": "POST",
+   "group": "DedicatedGroup",
    "request": "ReadDedicatedGroupsRequest",
    "response": "ReadDedicatedGroupsResponse"
   },
   "ReadDhcpOptions": {
    "path": "/ReadDhcpOptions",
    "method": "POST",
+   "group": "DhcpOption",
    "request": "ReadDhcpOptionsRequest",
    "response": "ReadDhcpOptionsResponse"
   },
   "ReadDirectLinkInterfaces": {
    "path": "/ReadDirectLinkInterfaces",
    "method": "POST",
+   "group": "DirectLinkInterface",
    "request": "ReadDirectLinkInterfacesRequest",
    "response": "ReadDirectLinkInterfacesResponse"
   },
   "ReadDirectLinks": {
    "path": "/ReadDirectLinks",
    "method": "POST",
+   "group": "DirectLink",
    "request": "ReadDirectLinksRequest",
    "response": "ReadDirectLinksResponse"
   },
   "ReadEntitiesLinkedToPolicy": {
    "path": "/ReadEntitiesLinkedToPolicy",
    "method": "POST",
+   "group": "Policy",
    "request": "ReadEntitiesLinkedToPolicyRequest",
    "response": "ReadEntitiesLinkedToPolicyResponse"
   },
   "ReadFlexibleGpuCatalog": {
    "path": "/ReadFlexibleGpuCatalog",
    "method": "POST",
+   "group": "FlexibleGpu",
    "request": "ReadFlexibleGpuCatalogRequest",
    "response": "ReadFlexibleGpuCatalogResponse"
   },
   "ReadFlexibleGpus": {
    "path": "/ReadFlexibleGpus",
    "method": "POST",
+   "group": "FlexibleGpu",
    "request": "ReadFlexibleGpusRequest",
    "response": "ReadFlexibleGpusResponse"
   },
   "ReadImageExportTasks": {
    "path": "/ReadImageExportTasks",
    "method": "POST",
+   "group": "Image",
    "request": "ReadImageExportTasksRequest",
    "response": "ReadImageExportTasksResponse"
   },
   "ReadImages": {
    "path": "/ReadImages",
    "method": "POST",
+   "group": "Image",
    "request": "ReadImagesRequest",
    "response": "ReadImagesResponse"
   },
   "ReadInternetServices": {
    "path": "/ReadInternetServices",
    "method": "POST",
+   "group": "InternetService",
    "request": "ReadInternetServicesRequest",
    "response": "ReadInternetServicesResponse"
   },
   "ReadKeypairs": {
    "path": "/ReadKeypairs",
    "method": "POST",
+   "group": "Keypair",
    "request": "ReadKeypairsRequest",
    "response": "ReadKeypairsResponse"
   },
   "ReadLinkedPolicies": {
    "path": "/ReadLinkedPolicies",
    "method": "POST",
+   "group": "Policy",
    "request": "ReadLinkedPoliciesRequest",
    "response": "ReadLinkedPoliciesResponse"
   },
   "ReadListenerRules": {
    "path": "/ReadListenerRules",
    "method": "POST",
+   "group": "Listener",
    "request": "ReadListenerRulesRequest",
    "response": "ReadListenerRulesResponse"
   },
   "ReadLoadBalancerTags": {
    "path": "/ReadLoadBalancerTags",
    "method": "POST",
+   "group": "LoadBalancer",
    "request": "ReadLoadBalancerTagsRequest",
    "response": "ReadLoadBalancerTagsResponse"
   },
   "ReadLoadBalancers": {
    "path": "/ReadLoadBalancers",
    "method": "POST",
+   "group": "LoadBalancer",
    "request": "ReadLoadBalancersRequest",
    "response": "ReadLoadBalancersResponse"
   },
   "ReadLocations": {
    "path": "/ReadLocations",
    "method": "POST",
+   "group": "Location",
    "request": "ReadLocationsRequest",
    "response": "ReadLocationsResponse"
   },
   "ReadManagedPoliciesLinkedToUserGroup": {
    "path": "/ReadManagedPoliciesLinkedToUserGroup",
    "method": "POST",
+   "group": "Policy",
    "request": "ReadManagedPoliciesLinkedToUserGroupRequest",
    "response": "ReadManagedPoliciesLinkedToUserGroupResponse"
   },
   "ReadNatServices": {
    "path": "/ReadNatServices",
    "method": "POST",
+   "group": "NatService",
    "request": "ReadNatServicesRequest",
    "response": "ReadNatServicesResponse"
   },
   "ReadNetAccessPointServices": {
    "path": "/ReadNetAccessPointServices",
    "method": "POST",
+   "group": "NetAccessPoint",
    "request": "ReadNetAccessPointServicesRequest",
    "response": "ReadNetAccessPointServicesResponse"
   },
   "ReadNetAccessPoints": {
    "path": "/ReadNetAccessPoints",
    "method": "POST",
+   "group": "NetAccessPoint",
    "request": "ReadNetAccessPointsRequest",
    "response": "ReadNetAccessPointsResponse"
   },
   "ReadNetPeerings": {
    "path": "/ReadNetPeerings",
    "method": "POST",
+   "group": "NetPeering",
    "request": "ReadNetPeeringsRequest",
    "response": "ReadNetPeeringsResponse"
   },
   "ReadNets": {
    "path": "/ReadNets",
    "method": "POST",
+   "group": "Net",
    "request": "ReadNetsRequest",
    "response": "ReadNetsResponse"
   },
   "ReadNics": {
    "path": "/ReadNics",
    "method": "POST",
+   "group": "Nic",
    "request": "ReadNicsRequest",
    "response": "ReadNicsResponse"
   },
   "ReadPolicies": {
    "path": "/ReadPolicies",
    "method": "POST",
+   "group": "Policy",
    "request": "ReadPoliciesRequest",
    "response": "ReadPoliciesResponse"
   },
   "ReadPolicy": {
    "path": "/ReadPolicy",
    "method": "POST",
+   "group": "Policy",
    "request": "ReadPolicyRequest",
    "response": "ReadPolicyResponse"
   },
   "ReadPolicyVersion": {
    "path": "/ReadPolicyVersion",
    "method": "POST",
+   "group": "Policy",
    "request": "ReadPolicyVersionRequest",
    "response": "ReadPolicyVersionResponse"
   },
   "ReadPolicyVersions": {
    "path": "/ReadPolicyVersions",
    "method": "POST",
+   "group": "Policy",
    "request": "ReadPolicyVersionsRequest",
    "response": "ReadPolicyVersionsResponse"
   },
   "ReadProductTypes": {
    "path": "/ReadProductTypes",
    "method": "POST",
+   "group": "ProductType",
    "request": "ReadProductTypesRequest",
    "response": "ReadProductTypesResponse"
   },
   "ReadPublicCatalog": {
    "path": "/ReadPublicCatalog",
    "method": "POST",
+   "group": "PublicCatalog",
    "request": "ReadPublicCatalogRequest",
    "response": "ReadPublicCatalogResponse"
   },
   "ReadPublicIpRanges": {
    "path": "/ReadPublicIpRanges",
    "method": "POST",
+   "group": "PublicIp",
    "request": "ReadPublicIpRangesRequest",
    "response": "ReadPublicIpRangesResponse"
   },
   "ReadPublicIps": {
    "path": "/ReadPublicIps",
    "method": "POST",
+   "group": "PublicIp",
    "request": "ReadPublicIpsRequest",
    "response": "ReadPublicIpsResponse"
   },
   "ReadQuotas": {
    "path": "/ReadQuotas",
    "method": "POST",
+   "group": "Quota",
    "request": "ReadQuotasRequest",
    "response": "ReadQuotasResponse"
   },
   "ReadRegions": {
    "path": "/ReadRegions",
    "method": "POST",
+   "group": "Region",
    "request": "ReadRegionsRequest",
    "response": "ReadRegionsResponse"
   },
   "ReadRouteTables": {
    "path": "/ReadRouteTables",
    "method": "POST",
+   "group": "RouteTable",
    "request": "ReadRouteTablesRequest",
    "response": "ReadRouteTablesResponse"
   },
   "ReadSecurityGroups": {
    "path": "/ReadSecurityGroups",
    "method": "POST",
+   "group": "SecurityGroup",
    "request": "ReadSecurityGroupsRequest",
    "response": "ReadSecurityGroupsResponse"
   },
   "ReadServerCertificates": {
    "path": "/ReadServerCertificates",
    "method": "POST",
+   "group": "ServerCertificate",
    "request": "ReadServerCertificatesRequest",
    "response": "ReadServerCertificatesResponse"
   },
   "ReadSnapshotExportTasks": {
    "path": "/ReadSnapshotExportTasks",
    "method": "POST",
+   "group": "Snapshot",
    "request": "ReadSnapshotExportTasksRequest",
    "response": "ReadSnapshotExportTasksResponse"
   },
   "ReadSnapshots": {
    "path": "/ReadSnapshots",
    "method": "POST",
+   "group": "Snapshot",
    "request": "ReadSnapshotsRequest",
    "response": "ReadSnapshotsResponse"
   },
   "ReadSubnets": {
    "path": "/ReadSubnets",
    "method": "POST",
+   "group": "Subnet",
    "request": "ReadSubnetsRequest",
    "response": "ReadSubnetsResponse"
   },
   "ReadSubregions": {
    "path": "/ReadSubregions",
    "method": "POST",
+   "group": "Subregion",
    "request": "ReadSubregionsRequest",
    "response": "ReadSubregionsResponse"
   },
   "ReadTags": {
    "path": "/ReadTags",
    "method": "POST",
+   "group": "Tag",
    "request": "ReadTagsRequest",
    "response": "ReadTagsResponse"
   },
   "ReadUnitPrice": {
    "path": "/ReadUnitPrice",
    "method": "POST",
+   "group": "Catalog",
    "request": "ReadUnitPriceRequest",
    "response": "ReadUnitPriceResponse"
   },
   "ReadUserGroup": {
    "path": "/ReadUserGroup",
    "method": "POST",
+   "group": "UserGroup",
    "request": "ReadUserGroupRequest",
    "response": "ReadUserGroupResponse"
   },
   "ReadUserGroupPolicies": {
    "path": "/ReadUserGroupPolicies",
    "method": "POST",
+   "group": "Policy",
    "request": "ReadUserGroupPoliciesRequest",
    "response": "ReadUserGroupPoliciesResponse"
   },
   "ReadUserGroupPolicy": {
    "path": "/ReadUserGroupPolicy",
    "method": "POST",
+   "group": "Policy",
    "request": "ReadUserGroupPolicyRequest",
    "response": "ReadUserGroupPolicyResponse"
   },
   "ReadUserGroups": {
    "path": "/ReadUserGroups",
    "method": "POST",
+   "group": "UserGroup",
    "request": "ReadUserGroupsRequest",
    "response": "ReadUserGroupsResponse"
   },
   "ReadUserGroupsPerUser": {
    "path": "/ReadUserGroupsPerUser",
    "method": "POST",
+   "group": "UserGroup",
    "request": "ReadUserGroupsPerUserRequest",
    "response": "ReadUserGroupsPerUserResponse"
   },
   "ReadUserPolicies": {
    "path": "/ReadUserPolicies",
    "method": "POST",
+   "group": "Policy",
    "request": "ReadUserPoliciesRequest",
    "response": "ReadUserPoliciesResponse"
   },
   "ReadUserPolicy": {
    "path": "/ReadUserPolicy",
    "method": "POST",
+   "group": "Policy",
    "request": "ReadUserPolicyRequest",
    "response": "ReadUserPolicyResponse"
   },
   "ReadUsers": {
    "path": "/ReadUsers",
    "method": "POST",
+   "group": "User",
    "request": "ReadUsersRequest",
    "response": "ReadUsersResponse"
   },
   "ReadVirtualGateways": {
    "path": "/ReadVirtualGateways",
    "method": "POST",
+   "group": "VirtualGateway",
    "request": "ReadVirtualGatewaysRequest",
    "response": "ReadVirtualGatewaysResponse"
   },
   "ReadVmGroups": {
    "path": "/ReadVmGroups",
    "method": "POST",
+   "group": "VmGroup",
    "request": "ReadVmGroupsRequest",
    "response": "ReadVmGroupsResponse"
   },
   "ReadVmTemplates": {
    "path": "/ReadVmTemplates",
    "method": "POST",
+   "group": "VmTemplate",
    "request": "ReadVmTemplatesRequest",
    "response": "ReadVmTemplatesResponse"
   },
   "ReadVmTypes": {
    "path": "/ReadVmTypes",
    "method": "POST",
+   "group": "Vm",
    "request": "ReadVmTypesRequest",
    "response": "ReadVmTypesResponse"
   },
   "ReadVms": {
    "path": "/ReadVms",
    "method": "POST",
+   "group": "Vm",
    "request": "ReadVmsRequest",
    "response": "ReadVmsResponse"
   },
   "ReadVmsHealth": {
    "path": "/ReadVmsHealth",
    "method": "POST",
+   "group": "LoadBalancer",
    "request": "ReadVmsHealthRequest",
    "response": "ReadVmsHealthResponse"
   },
   "ReadVmsState": {
    "path": "/ReadVmsState",
    "method": "POST",
+   "group": "Vm",
    "request": "ReadVmsStateRequest",
    "response": "ReadVmsStateResponse"
   },
   "ReadVmsStopHistory": {
    "path": "/ReadVmsStopHistory",
    "method": "POST",
+   "group": "Vm",
    "request": "ReadVmsStopHistoryRequest",
    "response": "ReadVmsStopHistoryResponse"
   },
   "ReadVolumeUpdateTasks": {
    "path": "/ReadVolumeUpdateTasks",
    "method": "POST",
+   "group": "Volume",
    "request": "ReadVolumeUpdateTasksRequest",
    "response": "ReadVolumeUpdateTasksResponse"
   },
   "ReadVolumes": {
    "path": "/ReadVolumes",
    "method": "POST",
+   "group": "Volume",
    "request": "ReadVolumesRequest",
    "response": "ReadVolumesResponse"
   },
   "ReadVpnConnections": {
    "path": "/ReadVpnConnections",
    "method": "POST",
+   "group": "VpnConnection",
    "request": "ReadVpnConnectionsRequest",
    "response": "ReadVpnConnectionsResponse"
   },
   "RebootVms": {
    "path": "/RebootVms",
    "method": "POST",
+   "group": "Vm",
    "request": "RebootVmsRequest",
    "response": "RebootVmsResponse"
   },
   "RegisterVmsInLoadBalancer": {
    "path": "/RegisterVmsInLoadBalancer",
    "method": "POST",
+   "group": "LoadBalancer",
    "request": "RegisterVmsInLoadBalancerRequest",
    "response": "RegisterVmsInLoadBalancerResponse"
   },
   "RejectNetPeering": {
    "path": "/RejectNetPeering",
    "method": "POST",
+   "group": "NetPeering",
    "request": "RejectNetPeeringRequest",
    "response": "RejectNetPeeringResponse"
   },
   "RemoveUserFromUserGroup": {
    "path": "/RemoveUserFromUserGroup",
    "method": "POST",
+   "group": "UserGroup",
    "request": "RemoveUserFromUserGroupRequest",
    "response": "RemoveUserFromUserGroupResponse"
   },
   "ScaleDownVmGroup": {
    "path": "/ScaleDownVmGroup",
    "method": "POST",
+   "group": "VmGroup",
    "request": "ScaleDownVmGroupRequest",
    "response": "ScaleDownVmGroupResponse"
   },
   "ScaleUpVmGroup": {
    "path": "/ScaleUpVmGroup",
    "method": "POST",
+   "group": "VmGroup",
    "request": "ScaleUpVmGroupRequest",
    "response": "ScaleUpVmGroupResponse"
   },
   "SetDefaultPolicyVersion": {
    "path": "/SetDefaultPolicyVersion",
    "method": "POST",
+   "group": "Policy",
    "request": "SetDefaultPolicyVersionRequest",
    "response": "SetDefaultPolicyVersionResponse"
   },
   "StartVms": {
    "path": "/StartVms",
    "method": "POST",
+   "group": "Vm",
    "request": "StartVmsRequest",
    "response": "StartVmsResponse"
   },
   "StopVms": {
    "path": "/StopVms",
    "method": "POST",
+   "group": "Vm",
    "request": "StopVmsRequest",
    "response": "StopVmsResponse"
   },
   "UnlinkFlexibleGpu": {
    "path": "/UnlinkFlexibleGpu",
    "method": "POST",
+   "group": "FlexibleGpu",
    "request": "UnlinkFlexibleGpuRequest",
    "response": "UnlinkFlexibleGpuResponse"
   },
   "UnlinkInternetService": {
    "path": "/UnlinkInternetService",
    "method": "POST",
+   "group": "InternetService",
    "request": "UnlinkInternetServiceRequest",
    "response": "UnlinkInternetServiceResponse"
   },
   "UnlinkLoadBalancerBackendMachines": {
    "path": "/UnlinkLoadBalancerBackendMachines",
    "method": "POST",
+   "group": "LoadBalancer",
    "request": "UnlinkLoadBalancerBackendMachinesRequest",
    "response": "UnlinkLoadBalancerBackendMachinesResponse"
   },
   "UnlinkManagedPolicyFromUserGroup": {
    "path": "/UnlinkManagedPolicyFromUserGroup",
    "method": "POST",
+   "group": "Policy",
    "request": "UnlinkManagedPolicyFromUserGroupRequest",
    "response": "UnlinkManagedPolicyFromUserGroupResponse"
   },
   "UnlinkNic": {
    "path": "/UnlinkNic",
    "method": "POST",
+   "group": "Nic",
    "request": "UnlinkNicRequest",
    "response": "UnlinkNicResponse"
   },
   "UnlinkPolicy": {
    "path": "/UnlinkPolicy",
    "method": "POST",
+   "group": "Policy",
    "request": "UnlinkPolicyRequest",
    "response": "UnlinkPolicyResponse"
   },
   "UnlinkPrivateIps": {
    "path": "/UnlinkPrivateIps",
    "method": "POST",
+   "group": "Nic",
    "request": "UnlinkPrivateIpsRequest",
    "response": "UnlinkPrivateIpsResponse"
   },
   "UnlinkPublicIp": {
    "path": "/UnlinkPublicIp",
    "method": "POST",
+   "group": "PublicIp",
    "request": "UnlinkPublicIpRequest",
    "response": "UnlinkPublicIpResponse"
   },
   "UnlinkRouteTable": {
    "path": "/UnlinkRouteTable",
    "method": "POST",
+   "group": "RouteTable",
    "request": "UnlinkRouteTableRequest",
    "response": "UnlinkRouteTableResponse"
   },
   "UnlinkVirtualGateway": {
    "path": "/UnlinkVirtualGateway",
    "method": "POST",
+   "group": "VirtualGateway",
    "request": "UnlinkVirtualGatewayRequest",
    "response": "UnlinkVirtualGatewayResponse"
   },
   "UnlinkVolume": {
    "path": "/UnlinkVolume",
    "method": "POST",
+   "group": "Volume",
    "request": "UnlinkVolumeRequest",
    "response": "UnlinkVolumeResponse"
   },
   "UpdateAccessKey": {
    "path": "/UpdateAccessKey",
    "method": "POST",
+   "group": "AccessKey",
    "request": "UpdateAccessKeyRequest",
    "response": "UpdateAccessKeyResponse"
   },
   "UpdateAccount": {
    "path": "/UpdateAccount",
    "method": "POST",
+   "group": "Account",
    "request": "UpdateAccountRequest",
    "response": "UpdateAccountResponse"
   },
   "UpdateApiAccessPolicy": {
    "path": "/UpdateApiAccessPolicy",
    "method": "POST",
+   "group": "ApiAccessPolicy",
    "request": "UpdateApiAccessPolicyRequest",
    "response": "UpdateApiAccessPolicyResponse"
   },
   "UpdateApiAccessRule": {
    "path": "/UpdateApiAccessRule",
    "method": "POST",
+   "group": "ApiAccessRule",
    "request": "UpdateApiAccessRuleRequest",
    "response": "UpdateApiAccessRuleResponse"
   },
   "UpdateCa": {
    "path": "/UpdateCa",
    "method": "POST",
+   "group": "Ca",
    "request": "UpdateCaRequest",
    "response": "UpdateCaResponse"
   },
   "UpdateDedicatedGroup": {
    "path": "/UpdateDedicatedGroup",
    "method": "POST",
+   "group": "DedicatedGroup",
    "request": "UpdateDedicatedGroupRequest",
    "response": "UpdateDedicatedGroupResponse"
   },
   "UpdateDirectLinkInterface": {
    "path": "/UpdateDirectLinkInterface",
    "method": "POST",
+   "group": "DirectLinkInterface",
    "request": "UpdateDirectLinkInterfaceRequest",
    "response": "UpdateDirectLinkInterfaceResponse"
   },
   "UpdateFlexibleGpu": {
    "path": "/UpdateFlexibleGpu",
    "method": "POST",
+   "group": "FlexibleGpu",
    "request": "UpdateFlexibleGpuRequest",
    "response": "UpdateFlexibleGpuResponse"
   },
   "UpdateImage": {
    "path": "/UpdateImage",
    "method": "POST",
+   "group": "Image",
    "request": "UpdateImageRequest",
    "response": "UpdateImageResponse"
   },
   "UpdateListenerRule": {
    "path": "/UpdateListenerRule",
    "method": "POST",
+   "group": "Listener",
    "request": "UpdateListenerRuleRequest",
    "response": "UpdateListenerRuleResponse"
   },
   "UpdateLoadBalancer": {
    "path": "/UpdateLoadBalancer",
    "method": "POST",
+   "group": "LoadBalancer",
    "request": "UpdateLoadBalancerRequest",
    "response": "UpdateLoadBalancerResponse"
   },
   "UpdateNet": {
    "path": "/UpdateNet",
    "method": "POST",
+   "group": "Net",
    "request": "UpdateNetRequest",
    "response": "UpdateNetResponse"
   },
   "UpdateNetAccessPoint": {
    "path": "/UpdateNetAccessPoint",
    "method": "POST",
+   "group": "NetAccessPoint",
    "request": "UpdateNetAccessPointRequest",
    "response": "UpdateNetAccessPointResponse"
   },
   "UpdateNic": {
    "path": "/UpdateNic",
    "method": "POST",
+   "group": "Nic",
    "request": "UpdateNicRequest",
    "response": "UpdateNicResponse"
   },
   "UpdateRoute": {
    "path": "/UpdateRoute",
    "method": "POST",
+   "group": "Route",
    "request": "UpdateRouteRequest",
    "response": "UpdateRouteResponse"
   },
   "UpdateRoutePropagation": {
    "path": "/UpdateRoutePropagation",
    "method": "POST",
+   "group": "VirtualGateway",
    "request": "UpdateRoutePropagationRequest",
    "response": "UpdateRoutePropagationResponse"
   },
   "UpdateRouteTableLink": {
    "path": "/UpdateRouteTableLink",
    "method": "POST",
+   "group": "RouteTable",
    "request": "UpdateRouteTableLinkRequest",
    "response": "UpdateRouteTableLinkResponse"
   },
   "UpdateServerCertificate": {
    "path": "/UpdateServerCertificate",
    "method": "POST",
+   "group": "ServerCertificate",
    "request": "UpdateServerCertificateRequest",
    "response": "UpdateServerCertificateResponse"
   },
   "UpdateSnapshot": {
    "path": "/UpdateSnapshot",
    "method": "POST",
+   "group": "Snapshot",
    "request": "UpdateSnapshotRequest",
    "response": "UpdateSnapshotResponse"
   },
   "UpdateSubnet": {
    "path": "/UpdateSubnet",
    "method": "POST",
+   "group": "Subnet",
    "request": "UpdateSubnetRequest",
    "response": "UpdateSubnetResponse"
   },
   "UpdateUser": {
    "path": "/UpdateUser",
    "method": "POST",
+   "group": "User",
    "request": "UpdateUserRequest",
    "response": "UpdateUserResponse"
   },
   "UpdateUserGroup": {
    "path": "/UpdateUserGroup",
    "method": "POST",
+   "group": "UserGroup",
    "request": "UpdateUserGroupRequest",
    "response": "UpdateUserGroupResponse"
   },
   "UpdateVm": {
    "path": "/UpdateVm",
    "method": "POST",
+   "group": "Vm",
    "request": "UpdateVmRequest",
    "response": "UpdateVmResponse"
   },
   "UpdateVmGroup": {
    "path": "/UpdateVmGroup",
    "method": "POST",
+   "group": "VmGroup",
    "request": "UpdateVmGroupRequest",
    "response": "UpdateVmGroupResponse"
   },
   "UpdateVmTemplate": {
    "path": "/UpdateVmTemplate",
    "method": "POST",
+   "group": "VmTemplate",
    "request": "UpdateVmTemplateRequest",
    "response": "UpdateVmTemplateResponse"
   },
   "UpdateVolume": {
    "path": "/UpdateVolume",
    "method": "POST",
+   "group": "Volume",
    "request": "UpdateVolumeRequest",
    "response": "UpdateVolumeResponse"
   },
   "UpdateVpnConnection": {
    "path": "/UpdateVpnConnection",
    "method": "POST",
+   "group": "VpnConnection",
    "request": "UpdateVpnConnectionRequest",
    "response": "UpdateVpnConnectionResponse"
   }

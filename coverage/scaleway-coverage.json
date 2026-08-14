@@ -124,6 +124,50 @@
       ]
     }
   ],
+  "groups": [
+    {
+      "group": "block",
+      "total": 27,
+      "implemented": 22,
+      "declined": 5,
+      "unknown": 0
+    },
+    {
+      "group": "iam",
+      "total": 83,
+      "implemented": 5,
+      "declined": 78,
+      "unknown": 0
+    },
+    {
+      "group": "instance",
+      "total": 150,
+      "implemented": 48,
+      "declined": 102,
+      "unknown": 0
+    },
+    {
+      "group": "ipam",
+      "total": 10,
+      "implemented": 9,
+      "declined": 1,
+      "unknown": 0
+    },
+    {
+      "group": "marketplace",
+      "total": 8,
+      "implemented": 1,
+      "declined": 7,
+      "unknown": 0
+    },
+    {
+      "group": "vpc",
+      "total": 37,
+      "implemented": 17,
+      "declined": 20,
+      "unknown": 0
+    }
+  ],
   "entries": [
     {
       "operation": "block/v1/API.CreateSnapshot",

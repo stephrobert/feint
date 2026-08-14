@@ -8,1031 +8,1222 @@
   "add-external-source-to-security-group": {
    "path": "/security-group/{id}:add-source",
    "method": "PUT",
+   "group": "compute",
    "request": "add-external-source-to-security-group.Request",
    "response": "operation"
   },
   "add-instance-protection": {
    "path": "/instance/{id}:add-protection",
    "method": "PUT",
+   "group": "compute",
    "response": "operation"
   },
   "add-rule-to-security-group": {
    "path": "/security-group/{id}/rules",
    "method": "POST",
+   "group": "compute",
    "request": "add-rule-to-security-group.Request",
    "response": "operation"
   },
   "add-service-to-load-balancer": {
    "path": "/load-balancer/{id}/service",
    "method": "POST",
+   "group": "compute",
    "request": "add-service-to-load-balancer.Request",
    "response": "operation"
   },
   "assume-iam-role": {
    "path": "/iam-role/{id}/assume",
    "method": "POST",
+   "group": "iam",
    "request": "assume-iam-role.Request",
    "response": "assume-iam-role.Response"
   },
   "attach-block-storage-volume-to-instance": {
    "path": "/block-storage/{id}:attach",
    "method": "PUT",
+   "group": "block-storage",
    "request": "attach-block-storage-volume-to-instance.Request",
    "response": "operation"
   },
   "attach-dbaas-service-to-endpoint": {
    "path": "/dbaas-external-endpoint/{source-service-name}/attach",
    "method": "PUT",
+   "group": "dbaas",
    "request": "attach-dbaas-service-to-endpoint.Request",
    "response": "operation"
   },
   "attach-instance-to-elastic-ip": {
    "path": "/elastic-ip/{id}:attach",
    "method": "PUT",
+   "group": "compute",
    "request": "attach-instance-to-elastic-ip.Request",
    "response": "operation"
   },
   "attach-instance-to-private-network": {
    "path": "/private-network/{id}:attach",
    "method": "PUT",
+   "group": "compute",
    "request": "attach-instance-to-private-network.Request",
    "response": "operation"
   },
   "attach-instance-to-security-group": {
    "path": "/security-group/{id}:attach",
    "method": "PUT",
+   "group": "compute",
    "request": "attach-instance-to-security-group.Request",
    "response": "operation"
   },
   "attach-instance-to-subnet": {
    "path": "/vpc/{vpc-id}/subnet/{subnet-id}/attach",
    "method": "PUT",
+   "group": "compute",
    "request": "attach-instance-to-subnet.Request",
    "response": "operation"
   },
   "cancel-kms-key-deletion": {
    "path": "/kms-key/{id}/cancel-deletion",
    "method": "POST",
+   "group": "kms",
    "response": "success-response"
   },
   "copy-template": {
    "path": "/template/{id}",
    "method": "POST",
+   "group": "compute",
    "request": "copy-template.Request",
    "response": "operation"
   },
   "create-ai-api-key": {
    "path": "/ai/api-key",
    "method": "POST",
+   "group": "ai",
    "request": "create-ai-api-key-request",
    "response": "create-ai-api-key-response"
   },
   "create-anti-affinity-group": {
    "path": "/anti-affinity-group",
    "method": "POST",
+   "group": "compute",
    "request": "create-anti-affinity-group.Request",
    "response": "operation"
   },
   "create-api-key": {
    "path": "/api-key",
    "method": "POST",
+   "group": "iam",
    "request": "create-api-key.Request",
    "response": "iam-api-key-created"
   },
   "create-block-storage-snapshot": {
    "path": "/block-storage/{id}:create-snapshot",
    "method": "POST",
+   "group": "block-storage",
    "request": "create-block-storage-snapshot.Request",
    "response": "operation"
   },
   "create-block-storage-volume": {
    "path": "/block-storage",
    "method": "POST",
+   "group": "block-storage",
    "request": "create-block-storage-volume.Request",
    "response": "operation"
   },
   "create-dbaas-clickhouse-user": {
    "path": "/dbaas-clickhouse/{service-name}/user",
    "method": "POST",
+   "group": "dbaas",
    "request": "create-dbaas-clickhouse-user.Request",
    "response": "dbaas-user-clickhouse-secrets"
   },
   "create-dbaas-external-endpoint-datadog": {
    "path": "/dbaas-external-endpoint-datadog/{name}",
    "method": "POST",
+   "group": "dbaas",
    "request": "dbaas-endpoint-datadog-input-create",
    "response": "operation"
   },
   "create-dbaas-external-endpoint-elasticsearch": {
    "path": "/dbaas-external-endpoint-elasticsearch/{name}",
    "method": "POST",
+   "group": "dbaas",
    "request": "dbaas-endpoint-elasticsearch-input-create",
    "response": "operation"
   },
   "create-dbaas-external-endpoint-opensearch": {
    "path": "/dbaas-external-endpoint-opensearch/{name}",
    "method": "POST",
+   "group": "dbaas",
    "request": "dbaas-endpoint-opensearch-input-create",
    "response": "operation"
   },
   "create-dbaas-external-endpoint-prometheus": {
    "path": "/dbaas-external-endpoint-prometheus/{name}",
    "method": "POST",
+   "group": "dbaas",
    "request": "dbaas-endpoint-prometheus-payload",
    "response": "operation"
   },
   "create-dbaas-external-endpoint-rsyslog": {
    "path": "/dbaas-external-endpoint-rsyslog/{name}",
    "method": "POST",
+   "group": "dbaas",
    "request": "dbaas-endpoint-rsyslog-input-create",
    "response": "operation"
   },
   "create-dbaas-integration": {
    "path": "/dbaas-integration",
    "method": "POST",
+   "group": "dbaas",
    "request": "create-dbaas-integration.Request",
    "response": "operation"
   },
   "create-dbaas-kafka-schema-registry-acl-config": {
    "path": "/dbaas-kafka/{name}/schema-registry/acl-config",
    "method": "POST",
+   "group": "dbaas",
    "request": "dbaas-kafka-schema-registry-acl-entry",
    "response": "operation"
   },
   "create-dbaas-kafka-topic-acl-config": {
    "path": "/dbaas-kafka/{name}/topic/acl-config",
    "method": "POST",
+   "group": "dbaas",
    "request": "dbaas-kafka-topic-acl-entry",
    "response": "operation"
   },
   "create-dbaas-kafka-user": {
    "path": "/dbaas-kafka/{service-name}/user",
    "method": "POST",
+   "group": "dbaas",
    "request": "create-dbaas-kafka-user.Request",
    "response": "operation"
   },
   "create-dbaas-mysql-database": {
    "path": "/dbaas-mysql/{service-name}/database",
    "method": "POST",
+   "group": "dbaas",
    "request": "create-dbaas-mysql-database.Request",
    "response": "operation"
   },
   "create-dbaas-mysql-user": {
    "path": "/dbaas-mysql/{service-name}/user",
    "method": "POST",
+   "group": "dbaas",
    "request": "create-dbaas-mysql-user.Request",
    "response": "operation"
   },
   "create-dbaas-opensearch-user": {
    "path": "/dbaas-opensearch/{service-name}/user",
    "method": "POST",
+   "group": "dbaas",
    "request": "create-dbaas-opensearch-user.Request",
    "response": "operation"
   },
   "create-dbaas-pg-connection-pool": {
    "path": "/dbaas-postgres/{service-name}/connection-pool",
    "method": "POST",
+   "group": "dbaas",
    "request": "create-dbaas-pg-connection-pool.Request",
    "response": "operation"
   },
   "create-dbaas-pg-database": {
    "path": "/dbaas-postgres/{service-name}/database",
    "method": "POST",
+   "group": "dbaas",
    "request": "create-dbaas-pg-database.Request",
    "response": "operation"
   },
   "create-dbaas-pg-upgrade-check": {
    "path": "/dbaas-postgres/{service}/upgrade-check",
    "method": "POST",
+   "group": "dbaas",
    "request": "create-dbaas-pg-upgrade-check.Request",
    "response": "dbaas-task"
   },
   "create-dbaas-postgres-user": {
    "path": "/dbaas-postgres/{service-name}/user",
    "method": "POST",
+   "group": "dbaas",
    "request": "create-dbaas-postgres-user.Request",
    "response": "operation"
   },
   "create-dbaas-service-clickhouse": {
    "path": "/dbaas-clickhouse/{name}",
    "method": "POST",
+   "group": "dbaas",
    "request": "create-dbaas-service-clickhouse.Request",
    "response": "operation"
   },
   "create-dbaas-service-grafana": {
    "path": "/dbaas-grafana/{name}",
    "method": "POST",
+   "group": "dbaas",
    "request": "create-dbaas-service-grafana.Request",
    "response": "operation"
   },
   "create-dbaas-service-kafka": {
    "path": "/dbaas-kafka/{name}",
    "method": "POST",
+   "group": "dbaas",
    "request": "create-dbaas-service-kafka.Request",
    "response": "operation"
   },
   "create-dbaas-service-mysql": {
    "path": "/dbaas-mysql/{name}",
    "method": "POST",
+   "group": "dbaas",
    "request": "create-dbaas-service-mysql.Request",
    "response": "operation"
   },
   "create-dbaas-service-opensearch": {
    "path": "/dbaas-opensearch/{name}",
    "method": "POST",
+   "group": "dbaas",
    "request": "create-dbaas-service-opensearch.Request",
    "response": "operation"
   },
   "create-dbaas-service-pg": {
    "path": "/dbaas-postgres/{name}",
    "method": "POST",
+   "group": "dbaas",
    "request": "create-dbaas-service-pg.Request",
    "response": "operation"
   },
   "create-dbaas-service-thanos": {
    "path": "/dbaas-thanos/{name}",
    "method": "POST",
+   "group": "dbaas",
    "request": "create-dbaas-service-thanos.Request",
    "response": "operation"
   },
   "create-dbaas-service-valkey": {
    "path": "/dbaas-valkey/{name}",
    "method": "POST",
+   "group": "dbaas",
    "request": "create-dbaas-service-valkey.Request",
    "response": "operation"
   },
   "create-dbaas-task-migration-check": {
    "path": "/dbaas-task-migration-check/{service}",
    "method": "POST",
+   "group": "dbaas",
    "request": "create-dbaas-task-migration-check.Request",
    "response": "operation"
   },
   "create-dbaas-valkey-user": {
    "path": "/dbaas-valkey/{service-name}/user",
    "method": "POST",
+   "group": "dbaas",
    "request": "create-dbaas-valkey-user.Request",
    "response": "operation"
   },
   "create-deployment": {
    "path": "/ai/deployment",
    "method": "POST",
+   "group": "ai",
    "request": "create-deployment-request",
    "response": "operation"
   },
   "create-dns-domain": {
    "path": "/dns-domain",
    "method": "POST",
+   "group": "dns",
    "request": "create-dns-domain.Request",
    "response": "operation"
   },
   "create-dns-domain-record": {
    "path": "/dns-domain/{domain-id}/record",
    "method": "POST",
+   "group": "dns",
    "request": "create-dns-domain-record.Request",
    "response": "operation"
   },
   "create-elastic-ip": {
    "path": "/elastic-ip",
    "method": "POST",
+   "group": "compute",
    "request": "create-elastic-ip.Request",
    "response": "operation"
   },
   "create-iam-role": {
    "path": "/iam-role",
    "method": "POST",
+   "group": "iam",
    "request": "create-iam-role.Request",
    "response": "operation"
   },
   "create-instance": {
    "path": "/instance",
    "method": "POST",
+   "group": "compute",
    "request": "create-instance.Request",
    "response": "operation"
   },
   "create-instance-pool": {
    "path": "/instance-pool",
    "method": "POST",
+   "group": "compute",
    "request": "create-instance-pool.Request",
    "response": "operation"
   },
   "create-kms-key": {
    "path": "/kms-key",
    "method": "POST",
+   "group": "kms",
    "request": "create-kms-key-request",
    "response": "create-kms-key-response"
   },
   "create-load-balancer": {
    "path": "/load-balancer",
    "method": "POST",
+   "group": "compute",
    "request": "create-load-balancer.Request",
    "response": "operation"
   },
   "create-model": {
    "path": "/ai/model",
    "method": "POST",
+   "group": "ai",
    "request": "create-model-request",
    "response": "operation"
   },
   "create-private-network": {
    "path": "/private-network",
    "method": "POST",
+   "group": "compute",
    "request": "create-private-network.Request",
    "response": "operation"
   },
   "create-route": {
    "path": "/vpc/{vpc-id}/subnet/{subnet-id}/route",
    "method": "POST",
+   "group": "compute",
    "request": "create-route.Request",
    "response": "route"
   },
   "create-security-group": {
    "path": "/security-group",
    "method": "POST",
+   "group": "compute",
    "request": "create-security-group.Request",
    "response": "operation"
   },
   "create-sks-cluster": {
    "path": "/sks-cluster",
    "method": "POST",
+   "group": "sks",
    "request": "create-sks-cluster.Request",
    "response": "operation"
   },
   "create-sks-nodepool": {
    "path": "/sks-cluster/{id}/nodepool",
    "method": "POST",
+   "group": "sks",
    "request": "create-sks-nodepool.Request",
    "response": "operation"
   },
   "create-snapshot": {
    "path": "/instance/{id}:create-snapshot",
    "method": "POST",
+   "group": "compute",
    "response": "operation"
   },
   "create-subnet": {
    "path": "/vpc/{vpc-id}/subnet",
    "method": "POST",
+   "group": "compute",
    "request": "create-subnet.Request",
    "response": "operation"
   },
   "create-user": {
    "path": "/user",
    "method": "POST",
+   "group": "iam",
    "request": "create-user.Request",
    "response": "operation"
   },
   "create-vpc": {
    "path": "/vpc",
    "method": "POST",
+   "group": "compute",
    "request": "create-vpc.Request",
    "response": "operation"
   },
   "decrypt": {
    "path": "/kms-key/{id}/decrypt",
    "method": "POST",
+   "group": "kms",
    "request": "decrypt-request",
    "response": "decrypt-response"
   },
   "delete-ai-api-key": {
    "path": "/ai/api-key/{id}",
    "method": "DELETE",
+   "group": "ai",
    "response": "operation"
   },
   "delete-anti-affinity-group": {
    "path": "/anti-affinity-group/{id}",
    "method": "DELETE",
+   "group": "compute",
    "response": "operation"
   },
   "delete-api-key": {
    "path": "/api-key/{id}",
    "method": "DELETE",
+   "group": "iam",
    "response": "operation"
   },
   "delete-block-storage-snapshot": {
    "path": "/block-storage-snapshot/{id}",
    "method": "DELETE",
+   "group": "block-storage",
    "response": "operation"
   },
   "delete-block-storage-volume": {
    "path": "/block-storage/{id}",
    "method": "DELETE",
+   "group": "block-storage",
    "response": "operation"
   },
   "delete-dbaas-clickhouse-role": {
    "path": "/dbaas-clickhouse/{service-name}/role/{role-uuid}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-clickhouse-user": {
    "path": "/dbaas-clickhouse/{service-name}/user/{user-uuid}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-external-endpoint-datadog": {
    "path": "/dbaas-external-endpoint-datadog/{endpoint-id}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-external-endpoint-elasticsearch": {
    "path": "/dbaas-external-endpoint-elasticsearch/{endpoint-id}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-external-endpoint-opensearch": {
    "path": "/dbaas-external-endpoint-opensearch/{endpoint-id}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-external-endpoint-prometheus": {
    "path": "/dbaas-external-endpoint-prometheus/{endpoint-id}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-external-endpoint-rsyslog": {
    "path": "/dbaas-external-endpoint-rsyslog/{endpoint-id}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-integration": {
    "path": "/dbaas-integration/{id}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-kafka-schema-registry-acl-config": {
    "path": "/dbaas-kafka/{name}/schema-registry/acl-config/{acl-id}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-kafka-topic-acl-config": {
    "path": "/dbaas-kafka/{name}/topic/acl-config/{acl-id}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-kafka-user": {
    "path": "/dbaas-kafka/{service-name}/user/{username}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-mysql-database": {
    "path": "/dbaas-mysql/{service-name}/database/{database-name}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-mysql-user": {
    "path": "/dbaas-mysql/{service-name}/user/{username}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-opensearch-user": {
    "path": "/dbaas-opensearch/{service-name}/user/{username}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-pg-connection-pool": {
    "path": "/dbaas-postgres/{service-name}/connection-pool/{connection-pool-name}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-pg-database": {
    "path": "/dbaas-postgres/{service-name}/database/{database-name}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-postgres-user": {
    "path": "/dbaas-postgres/{service-name}/user/{username}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-service": {
    "path": "/dbaas-service/{name}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-service-clickhouse": {
    "path": "/dbaas-clickhouse/{name}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-service-grafana": {
    "path": "/dbaas-grafana/{name}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-service-kafka": {
    "path": "/dbaas-kafka/{name}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-service-mysql": {
    "path": "/dbaas-mysql/{name}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-service-opensearch": {
    "path": "/dbaas-opensearch/{name}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-service-pg": {
    "path": "/dbaas-postgres/{name}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-service-thanos": {
    "path": "/dbaas-thanos/{name}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-service-valkey": {
    "path": "/dbaas-valkey/{name}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-dbaas-valkey-user": {
    "path": "/dbaas-valkey/{service-name}/user/{username}",
    "method": "DELETE",
+   "group": "dbaas",
    "response": "operation"
   },
   "delete-deployment": {
    "path": "/ai/deployment/{id}",
    "method": "DELETE",
+   "group": "ai",
    "response": "operation"
   },
   "delete-dns-domain": {
    "path": "/dns-domain/{id}",
    "method": "DELETE",
+   "group": "dns",
    "response": "operation"
   },
   "delete-dns-domain-record": {
    "path": "/dns-domain/{domain-id}/record/{record-id}",
    "method": "DELETE",
+   "group": "dns",
    "response": "operation"
   },
   "delete-elastic-ip": {
    "path": "/elastic-ip/{id}",
    "method": "DELETE",
+   "group": "compute",
    "response": "operation"
   },
   "delete-iam-role": {
    "path": "/iam-role/{id}",
    "method": "DELETE",
+   "group": "iam",
    "response": "operation"
   },
   "delete-instance": {
    "path": "/instance/{id}",
    "method": "DELETE",
+   "group": "compute",
    "response": "operation"
   },
   "delete-instance-pool": {
    "path": "/instance-pool/{id}",
    "method": "DELETE",
+   "group": "compute",
    "response": "operation"
   },
   "delete-load-balancer": {
    "path": "/load-balancer/{id}",
    "method": "DELETE",
+   "group": "compute",
    "response": "operation"
   },
   "delete-load-balancer-service": {
    "path": "/load-balancer/{id}/service/{service-id}",
    "method": "DELETE",
+   "group": "compute",
    "response": "operation"
   },
   "delete-model": {
    "path": "/ai/model/{id}",
    "method": "DELETE",
+   "group": "ai",
    "response": "operation"
   },
   "delete-private-network": {
    "path": "/private-network/{id}",
    "method": "DELETE",
+   "group": "compute",
    "response": "operation"
   },
   "delete-reverse-dns-elastic-ip": {
    "path": "/reverse-dns/elastic-ip/{id}",
    "method": "DELETE",
+   "group": "compute",
    "response": "operation"
   },
   "delete-reverse-dns-instance": {
    "path": "/reverse-dns/instance/{id}",
    "method": "DELETE",
+   "group": "compute",
    "response": "operation"
   },
   "delete-route": {
    "path": "/vpc/{vpc-id}/subnet/{subnet-id}/route/{id}",
    "method": "DELETE",
+   "group": "compute",
    "response": "empty"
   },
   "delete-rule-from-security-group": {
    "path": "/security-group/{id}/rules/{rule-id}",
    "method": "DELETE",
+   "group": "compute",
    "response": "operation"
   },
   "delete-security-group": {
    "path": "/security-group/{id}",
    "method": "DELETE",
+   "group": "compute",
    "response": "operation"
   },
   "delete-sks-cluster": {
    "path": "/sks-cluster/{id}",
    "method": "DELETE",
+   "group": "sks",
    "response": "operation"
   },
   "delete-sks-nodepool": {
    "path": "/sks-cluster/{id}/nodepool/{sks-nodepool-id}",
    "method": "DELETE",
+   "group": "sks",
    "response": "operation"
   },
   "delete-snapshot": {
    "path": "/snapshot/{id}",
    "method": "DELETE",
+   "group": "compute",
    "response": "operation"
   },
   "delete-ssh-key": {
    "path": "/ssh-key/{name}",
    "method": "DELETE",
+   "group": "compute",
    "response": "operation"
   },
   "delete-subnet": {
    "path": "/vpc/{vpc-id}/subnet/{id}",
    "method": "DELETE",
+   "group": "compute",
    "response": "empty"
   },
   "delete-template": {
    "path": "/template/{id}",
    "method": "DELETE",
+   "group": "compute",
    "response": "operation"
   },
   "delete-user": {
    "path": "/user/{id}",
    "method": "DELETE",
+   "group": "iam",
    "response": "operation"
   },
   "delete-vpc": {
    "path": "/vpc/{id}",
    "method": "DELETE",
+   "group": "compute",
    "response": "empty"
   },
   "detach-block-storage-volume": {
    "path": "/block-storage/{id}:detach",
    "method": "PUT",
+   "group": "block-storage",
    "response": "operation"
   },
   "detach-dbaas-service-from-endpoint": {
    "path": "/dbaas-external-endpoint/{source-service-name}/detach",
    "method": "PUT",
+   "group": "dbaas",
    "request": "detach-dbaas-service-from-endpoint.Request",
    "response": "operation"
   },
   "detach-instance-from-elastic-ip": {
    "path": "/elastic-ip/{id}:detach",
    "method": "PUT",
+   "group": "compute",
    "request": "detach-instance-from-elastic-ip.Request",
    "response": "operation"
   },
   "detach-instance-from-private-network": {
    "path": "/private-network/{id}:detach",
    "method": "PUT",
+   "group": "compute",
    "request": "detach-instance-from-private-network.Request",
    "response": "operation"
   },
   "detach-instance-from-security-group": {
    "path": "/security-group/{id}:detach",
    "method": "PUT",
+   "group": "compute",
    "request": "detach-instance-from-security-group.Request",
    "response": "operation"
   },
   "detach-instance-from-subnet": {
    "path": "/vpc/{vpc-id}/subnet/{subnet-id}/detach",
    "method": "PUT",
+   "group": "compute",
    "request": "detach-instance-from-subnet.Request",
    "response": "operation"
   },
   "disable-kms-key": {
    "path": "/kms-key/{id}/disable",
    "method": "POST",
+   "group": "kms",
    "response": "success-response"
   },
   "disable-kms-key-rotation": {
    "path": "/kms-key/{id}/disable-key-rotation",
    "method": "POST",
+   "group": "kms",
    "response": "disable-kms-key-rotation-response"
   },
   "enable-dbaas-mysql-writes": {
    "path": "/dbaas-mysql/{name}/enable/writes",
    "method": "PUT",
+   "group": "dbaas",
    "response": "operation"
   },
   "enable-kms-key": {
    "path": "/kms-key/{id}/enable",
    "method": "POST",
+   "group": "kms",
    "response": "success-response"
   },
   "enable-kms-key-rotation": {
    "path": "/kms-key/{id}/enable-key-rotation",
    "method": "POST",
+   "group": "kms",
    "request": "enable-kms-key-rotation-request",
    "response": "enable-kms-key-rotation-response"
   },
   "enable-tpm": {
    "path": "/instance/{id}:enable-tpm",
    "method": "POST",
+   "group": "compute",
    "response": "operation"
   },
   "encrypt": {
    "path": "/kms-key/{id}/encrypt",
    "method": "POST",
+   "group": "kms",
    "request": "encrypt-request",
    "response": "encrypt-response"
   },
   "evict-instance-pool-members": {
    "path": "/instance-pool/{id}:evict",
    "method": "PUT",
+   "group": "compute",
    "request": "evict-instance-pool-members.Request",
    "response": "operation"
   },
   "evict-sks-nodepool-members": {
    "path": "/sks-cluster/{id}/nodepool/{sks-nodepool-id}:evict",
    "method": "PUT",
+   "group": "sks",
    "request": "evict-sks-nodepool-members.Request",
    "response": "operation"
   },
   "export-snapshot": {
    "path": "/snapshot/{id}:export",
    "method": "POST",
+   "group": "compute",
    "response": "operation"
   },
   "generate-data-key": {
    "path": "/kms-key/{id}/generate-data-key",
    "method": "POST",
+   "group": "kms",
    "request": "generate-data-key-request",
    "response": "generate-data-key-response"
   },
   "generate-sks-cluster-kubeconfig": {
    "path": "/sks-cluster-kubeconfig/{id}",
    "method": "POST",
+   "group": "sks",
    "request": "sks-kubeconfig-request",
    "response": "generate-sks-cluster-kubeconfig.Response"
   },
   "generate-sks-karpenter-exoscale-nodeclass": {
    "path": "/sks-cluster/{id}/generate-karpenter-exoscale-nodeclass",
    "method": "PUT",
+   "group": "sks",
    "response": "generate-sks-karpenter-exoscale-nodeclass.Response"
   },
   "generate-sks-karpenter-nodepool": {
    "path": "/sks-cluster/{id}/generate-karpenter-nodepool",
    "method": "PUT",
+   "group": "sks",
    "response": "generate-sks-karpenter-nodepool.Response"
   },
   "get-active-nodepool-template": {
    "path": "/sks-template/{kube-version}/{variant}",
    "method": "GET",
+   "group": "sks",
    "response": "get-active-nodepool-template.Response"
   },
   "get-ai-api-key": {
    "path": "/ai/api-key/{id}",
    "method": "GET",
+   "group": "ai",
    "response": "get-ai-api-key-response"
   },
   "get-anti-affinity-group": {
    "path": "/anti-affinity-group/{id}",
    "method": "GET",
+   "group": "compute",
    "response": "anti-affinity-group"
   },
   "get-api-key": {
    "path": "/api-key/{id}",
    "method": "GET",
+   "group": "iam",
    "response": "iam-api-key"
   },
   "get-block-storage-snapshot": {
    "path": "/block-storage-snapshot/{id}",
    "method": "GET",
+   "group": "block-storage",
    "response": "block-storage-snapshot"
   },
   "get-block-storage-volume": {
    "path": "/block-storage/{id}",
    "method": "GET",
+   "group": "block-storage",
    "response": "block-storage-volume"
   },
   "get-console-proxy-url": {
    "path": "/console/{id}",
    "method": "GET",
+   "group": "compute",
    "response": "get-console-proxy-url.Response"
   },
   "get-dbaas-ca-certificate": {
    "path": "/dbaas-ca-certificate",
    "method": "GET",
+   "group": "dbaas",
    "response": "get-dbaas-ca-certificate.Response"
   },
   "get-dbaas-clickhouse-acl-config": {
    "path": "/dbaas-clickhouse/{service-name}/acl-config",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-clickhouse-acl-config"
   },
   "get-dbaas-external-endpoint-datadog": {
    "path": "/dbaas-external-endpoint-datadog/{endpoint-id}",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-external-endpoint-datadog-output"
   },
   "get-dbaas-external-endpoint-elasticsearch": {
    "path": "/dbaas-external-endpoint-elasticsearch/{endpoint-id}",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-endpoint-elasticsearch-output"
   },
   "get-dbaas-external-endpoint-opensearch": {
    "path": "/dbaas-external-endpoint-opensearch/{endpoint-id}",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-endpoint-opensearch-output"
   },
   "get-dbaas-external-endpoint-prometheus": {
    "path": "/dbaas-external-endpoint-prometheus/{endpoint-id}",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-endpoint-external-prometheus-output"
   },
   "get-dbaas-external-endpoint-rsyslog": {
    "path": "/dbaas-external-endpoint-rsyslog/{endpoint-id}",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-external-endpoint-rsyslog-output"
   },
   "get-dbaas-external-integration": {
    "path": "/dbaas-external-integration/{integration-id}",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-external-integration"
   },
   "get-dbaas-external-integration-settings-datadog": {
    "path": "/dbaas-external-integration-settings-datadog/{integration-id}",
    "method": "GET",
+   "group": "dbaas",
    "response": "get-dbaas-external-integration-settings-datadog.Response"
   },
   "get-dbaas-integration": {
    "path": "/dbaas-integration/{id}",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-integration"
   },
   "get-dbaas-kafka-acl-config": {
    "path": "/dbaas-kafka/{name}/acl-config",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-kafka-acls"
   },
   "get-dbaas-migration-status": {
    "path": "/dbaas-migration-status/{name}",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-migration-status"
   },
   "get-dbaas-opensearch-acl-config": {
    "path": "/dbaas-opensearch/{name}/acl-config",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-opensearch-acl-config"
   },
   "get-dbaas-service-clickhouse": {
    "path": "/dbaas-clickhouse/{name}",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-service-clickhouse"
   },
   "get-dbaas-service-grafana": {
    "path": "/dbaas-grafana/{name}",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-service-grafana"
   },
   "get-dbaas-service-kafka": {
    "path": "/dbaas-kafka/{name}",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-service-kafka"
   },
   "get-dbaas-service-logs": {
    "path": "/dbaas-service-logs/{service-name}",
    "method": "POST",
+   "group": "dbaas",
    "request": "get-dbaas-service-logs.Request",
    "response": "dbaas-service-logs"
   },
   "get-dbaas-service-metrics": {
    "path": "/dbaas-service-metrics/{service-name}",
    "method": "POST",
+   "group": "dbaas",
    "request": "get-dbaas-service-metrics.Request",
    "response": "get-dbaas-service-metrics.Response"
   },
   "get-dbaas-service-mysql": {
    "path": "/dbaas-mysql/{name}",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-service-mysql"
   },
   "get-dbaas-service-opensearch": {
    "path": "/dbaas-opensearch/{name}",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-service-opensearch"
   },
   "get-dbaas-service-pg": {
    "path": "/dbaas-postgres/{name}",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-service-pg"
   },
   "get-dbaas-service-thanos": {
    "path": "/dbaas-thanos/{name}",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-service-thanos"
   },
   "get-dbaas-service-type": {
    "path": "/dbaas-service-type/{service-type-name}",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-service-type"
   },
   "get-dbaas-service-valkey": {
    "path": "/dbaas-valkey/{name}",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-service-valkey"
   },
   "get-dbaas-settings-clickhouse": {
    "path": "/dbaas-settings-clickhouse",
    "method": "GET",
+   "group": "dbaas",
    "response": "get-dbaas-settings-clickhouse.Response"
   },
   "get-dbaas-settings-grafana": {
    "path": "/dbaas-settings-grafana",
    "method": "GET",
+   "group": "dbaas",
    "response": "get-dbaas-settings-grafana.Response"
   },
   "get-dbaas-settings-kafka": {
    "path": "/dbaas-settings-kafka",
    "method": "GET",
+   "group": "dbaas",
    "response": "get-dbaas-settings-kafka.Response"
   },
   "get-dbaas-settings-mysql": {
    "path": "/dbaas-settings-mysql",
    "method": "GET",
+   "group": "dbaas",
    "response": "get-dbaas-settings-mysql.Response"
   },
   "get-dbaas-settings-opensearch": {
    "path": "/dbaas-settings-opensearch",
    "method": "GET",
+   "group": "dbaas",
    "response": "get-dbaas-settings-opensearch.Response"
   },
   "get-dbaas-settings-pg": {
    "path": "/dbaas-settings-pg",
    "method": "GET",
+   "group": "dbaas",
    "response": "get-dbaas-settings-pg.Response"
   },
   "get-dbaas-settings-thanos": {
    "path": "/dbaas-settings-thanos",
    "method": "GET",
+   "group": "dbaas",
    "response": "get-dbaas-settings-thanos.Response"
   },
   "get-dbaas-settings-valkey": {
    "path": "/dbaas-settings-valkey",
    "method": "GET",
+   "group": "dbaas",
    "response": "get-dbaas-settings-valkey.Response"
   },
   "get-dbaas-task": {
    "path": "/dbaas-task/{service}/{id}",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-task"
   },
   "get-deploy-target": {
    "path": "/deploy-target/{id}",
    "method": "GET",
+   "group": "compute",
    "response": "deploy-target"
   },
   "get-deployment": {
    "path": "/ai/deployment/{id}",
    "method": "GET",
+   "group": "ai",
    "response": "get-deployment-response"
   },
   "get-deployment-logs": {
    "path": "/ai/deployment/{id}/logs",
    "method": "GET",
+   "group": "ai",
    "response": "get-deployment-logs-response"
   },
   "get-dns-domain": {
    "path": "/dns-domain/{id}",
    "method": "GET",
+   "group": "dns",
    "response": "dns-domain"
   },
   "get-dns-domain-record": {
    "path": "/dns-domain/{domain-id}/record/{record-id}",
    "method": "GET",
+   "group": "dns",
    "response": "dns-domain-record"
   },
   "get-dns-domain-zone-file": {
    "path": "/dns-domain/{id}/zone",
    "method": "GET",
+   "group": "dns",
    "response": "get-dns-domain-zone-file.Response"
   },
   "get-elastic-ip": {
    "path": "/elastic-ip/{id}",
    "method": "GET",
+   "group": "compute",
    "response": "elastic-ip"
   },
   "get-env-impact": {
    "path": "/env-impact/{period}",
    "method": "GET",
+   "group": "organization",
    "response": "env-impact-report"
   },
   "get-iam-organization-policy": {
    "path": "/iam-organization-policy",
    "method": "GET",
+   "group": "iam",
    "response": "iam-policy"
   },
   "get-iam-role": {
    "path": "/iam-role/{id}",
    "method": "GET",
+   "group": "iam",
    "response": "iam-role"
   },
   "get-impact-estimate": {
@@ -1049,969 +1240,1150 @@
   "get-inference-engine-help": {
    "path": "/ai/help/inference-engine-parameters",
    "method": "GET",
+   "group": "ai",
    "response": "get-inference-engine-help-response"
   },
   "get-instance": {
    "path": "/instance/{id}",
    "method": "GET",
+   "group": "compute",
    "response": "instance"
   },
   "get-instance-pool": {
    "path": "/instance-pool/{id}",
    "method": "GET",
+   "group": "compute",
    "response": "instance-pool"
   },
   "get-instance-type": {
    "path": "/instance-type/{id}",
    "method": "GET",
+   "group": "compute",
    "response": "instance-type"
   },
   "get-kms-key": {
    "path": "/kms-key/{id}",
    "method": "GET",
+   "group": "kms",
    "response": "get-kms-key-response"
   },
   "get-live-balance": {
    "path": "/live-balance",
    "method": "GET",
+   "group": "organization",
    "response": "live-balance"
   },
   "get-load-balancer": {
    "path": "/load-balancer/{id}",
    "method": "GET",
+   "group": "compute",
    "response": "load-balancer"
   },
   "get-load-balancer-service": {
    "path": "/load-balancer/{id}/service/{service-id}",
    "method": "GET",
+   "group": "compute",
    "response": "load-balancer-service"
   },
   "get-model": {
    "path": "/ai/model/{id}",
    "method": "GET",
+   "group": "ai",
    "response": "get-model-response"
   },
   "get-operation": {
    "path": "/operation/{id}",
    "method": "GET",
+   "group": "general",
    "response": "operation"
   },
   "get-organization": {
    "path": "/organization",
    "method": "GET",
+   "group": "organization",
    "response": "organization"
   },
   "get-private-network": {
    "path": "/private-network/{id}",
    "method": "GET",
+   "group": "compute",
    "response": "private-network"
   },
   "get-quota": {
    "path": "/quota/{entity}",
    "method": "GET",
+   "group": "quotas",
    "response": "quota"
   },
   "get-reverse-dns-elastic-ip": {
    "path": "/reverse-dns/elastic-ip/{id}",
    "method": "GET",
+   "group": "compute",
    "response": "reverse-dns-record"
   },
   "get-reverse-dns-instance": {
    "path": "/reverse-dns/instance/{id}",
    "method": "GET",
+   "group": "compute",
    "response": "reverse-dns-record"
   },
   "get-security-group": {
    "path": "/security-group/{id}",
    "method": "GET",
+   "group": "compute",
    "response": "security-group"
   },
   "get-sks-cluster": {
    "path": "/sks-cluster/{id}",
    "method": "GET",
+   "group": "sks",
    "response": "sks-cluster"
   },
   "get-sks-cluster-authority-cert": {
    "path": "/sks-cluster/{id}/authority/{authority}/cert",
    "method": "GET",
+   "group": "sks",
    "response": "get-sks-cluster-authority-cert.Response"
   },
   "get-sks-cluster-inspection": {
    "path": "/sks-cluster/{id}/inspection",
-   "method": "GET"
+   "method": "GET",
+   "group": "sks"
   },
   "get-sks-nodepool": {
    "path": "/sks-cluster/{id}/nodepool/{sks-nodepool-id}",
    "method": "GET",
+   "group": "sks",
    "response": "sks-nodepool"
   },
   "get-snapshot": {
    "path": "/snapshot/{id}",
    "method": "GET",
+   "group": "compute",
    "response": "snapshot"
   },
   "get-sos-presigned-url": {
    "path": "/sos/{bucket}/presigned-url",
    "method": "GET",
+   "group": "sos",
    "response": "get-sos-presigned-url.Response"
   },
   "get-ssh-key": {
    "path": "/ssh-key/{name}",
    "method": "GET",
+   "group": "compute",
    "response": "ssh-key"
   },
   "get-subnet": {
    "path": "/vpc/{vpc-id}/subnet/{id}",
    "method": "GET",
+   "group": "compute",
    "response": "subnet"
   },
   "get-template": {
    "path": "/template/{id}",
    "method": "GET",
+   "group": "compute",
    "response": "template"
   },
   "get-usage-report": {
    "path": "/usage-report",
    "method": "GET",
+   "group": "organization",
    "response": "get-usage-report.Response"
   },
   "get-user-org-consumption-quota": {
    "path": "/ai/quota",
    "method": "GET",
+   "group": "ai",
    "response": "org-consumption-quota-response"
   },
   "get-vpc": {
    "path": "/vpc/{id}",
    "method": "GET",
+   "group": "compute",
    "response": "vpc"
   },
   "list-ai-api-keys": {
    "path": "/ai/api-key",
    "method": "GET",
+   "group": "ai",
    "response": "list-ai-api-keys-response"
   },
   "list-ai-instance-types": {
    "path": "/ai/instance-type",
    "method": "GET",
+   "group": "ai",
    "response": "list-ai-instance-types-response"
   },
   "list-anti-affinity-groups": {
    "path": "/anti-affinity-group",
    "method": "GET",
+   "group": "compute",
    "response": "list-anti-affinity-groups.Response"
   },
   "list-api-keys": {
    "path": "/api-key",
    "method": "GET",
+   "group": "iam",
    "response": "list-api-keys.Response"
   },
   "list-block-storage-snapshots": {
    "path": "/block-storage-snapshot",
    "method": "GET",
+   "group": "block-storage",
    "response": "list-block-storage-snapshots.Response"
   },
   "list-block-storage-volumes": {
    "path": "/block-storage",
    "method": "GET",
+   "group": "block-storage",
    "response": "list-block-storage-volumes.Response"
   },
   "list-dbaas-clickhouse-roles": {
    "path": "/dbaas-clickhouse/{service-name}/role",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-clickhouse-roles"
   },
   "list-dbaas-clickhouse-users": {
    "path": "/dbaas-clickhouse/{service-name}/user",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-clickhouse-users"
   },
   "list-dbaas-external-endpoint-types": {
    "path": "/dbaas-external-endpoint-types",
    "method": "GET",
+   "group": "dbaas",
    "response": "list-dbaas-external-endpoint-types.Response"
   },
   "list-dbaas-external-endpoints": {
    "path": "/dbaas-external-endpoints",
    "method": "GET",
+   "group": "dbaas",
    "response": "list-dbaas-external-endpoints.Response"
   },
   "list-dbaas-external-integrations": {
    "path": "/dbaas-external-integrations/{service-name}",
    "method": "GET",
+   "group": "dbaas",
    "response": "list-dbaas-external-integrations.Response"
   },
   "list-dbaas-integration-settings": {
    "path": "/dbaas-integration-settings/{integration-type}/{source-type}/{dest-type}",
    "method": "GET",
+   "group": "dbaas",
    "response": "list-dbaas-integration-settings.Response"
   },
   "list-dbaas-integration-types": {
    "path": "/dbaas-integration-types",
    "method": "GET",
+   "group": "dbaas",
    "response": "list-dbaas-integration-types.Response"
   },
   "list-dbaas-service-types": {
    "path": "/dbaas-service-type",
    "method": "GET",
+   "group": "dbaas",
    "response": "list-dbaas-service-types.Response"
   },
   "list-dbaas-services": {
    "path": "/dbaas-service",
    "method": "GET",
+   "group": "dbaas",
    "response": "list-dbaas-services.Response"
   },
   "list-dbaas-valkey-users": {
    "path": "/dbaas-valkey/{service-name}/user",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-valkey-users"
   },
   "list-deploy-targets": {
    "path": "/deploy-target",
    "method": "GET",
+   "group": "compute",
    "response": "list-deploy-targets.Response"
   },
   "list-deployments": {
    "path": "/ai/deployment",
    "method": "GET",
+   "group": "ai",
    "response": "list-deployments-response"
   },
   "list-dns-domain-records": {
    "path": "/dns-domain/{domain-id}/record",
    "method": "GET",
+   "group": "dns",
    "response": "list-dns-domain-records.Response"
   },
   "list-dns-domains": {
    "path": "/dns-domain",
    "method": "GET",
+   "group": "dns",
    "response": "list-dns-domains.Response"
   },
   "list-elastic-ips": {
    "path": "/elastic-ip",
    "method": "GET",
+   "group": "compute",
    "response": "list-elastic-ips.Response"
   },
   "list-events": {
    "path": "/event",
-   "method": "GET"
+   "method": "GET",
+   "group": "audit-trail"
   },
   "list-iam-roles": {
    "path": "/iam-role",
    "method": "GET",
+   "group": "iam",
    "response": "list-iam-roles.Response"
   },
   "list-instance-pools": {
    "path": "/instance-pool",
    "method": "GET",
+   "group": "compute",
    "response": "list-instance-pools.Response"
   },
   "list-instance-types": {
    "path": "/instance-type",
    "method": "GET",
+   "group": "compute",
    "response": "list-instance-types.Response"
   },
   "list-instances": {
    "path": "/instance",
    "method": "GET",
+   "group": "compute",
    "response": "list-instances.Response"
   },
   "list-kms-key-rotations": {
    "path": "/kms-key/{id}/list-key-rotations",
    "method": "GET",
+   "group": "kms",
    "response": "list-kms-key-rotations-response"
   },
   "list-kms-keys": {
    "path": "/kms-key",
    "method": "GET",
+   "group": "kms",
    "response": "list-kms-keys-response"
   },
   "list-load-balancers": {
    "path": "/load-balancer",
    "method": "GET",
+   "group": "compute",
    "response": "list-load-balancers.Response"
   },
   "list-models": {
    "path": "/ai/model",
    "method": "GET",
+   "group": "ai",
    "response": "list-models-response"
   },
   "list-private-networks": {
    "path": "/private-network",
    "method": "GET",
+   "group": "compute",
    "response": "list-private-networks.Response"
   },
   "list-quotas": {
    "path": "/quota",
    "method": "GET",
+   "group": "quotas",
    "response": "list-quotas.Response"
   },
   "list-routes": {
    "path": "/vpc/{vpc-id}/subnet/{subnet-id}/route",
    "method": "GET",
+   "group": "compute",
    "response": "list-routes.Response"
   },
   "list-security-groups": {
    "path": "/security-group",
    "method": "GET",
+   "group": "compute",
    "response": "list-security-groups.Response"
   },
   "list-sks-cluster-deprecated-resources": {
    "path": "/sks-cluster-deprecated-resources/{id}",
-   "method": "GET"
+   "method": "GET",
+   "group": "sks"
   },
   "list-sks-cluster-versions": {
    "path": "/sks-cluster-version",
    "method": "GET",
+   "group": "sks",
    "response": "list-sks-cluster-versions.Response"
   },
   "list-sks-clusters": {
    "path": "/sks-cluster",
    "method": "GET",
+   "group": "sks",
    "response": "list-sks-clusters.Response"
   },
   "list-snapshots": {
    "path": "/snapshot",
    "method": "GET",
+   "group": "compute",
    "response": "list-snapshots.Response"
   },
   "list-sos-buckets-usage": {
    "path": "/sos-buckets-usage",
    "method": "GET",
+   "group": "sos",
    "response": "list-sos-buckets-usage.Response"
   },
   "list-ssh-keys": {
    "path": "/ssh-key",
    "method": "GET",
+   "group": "compute",
    "response": "list-ssh-keys.Response"
   },
   "list-subnets": {
    "path": "/vpc/{vpc-id}/subnet",
    "method": "GET",
+   "group": "compute",
    "response": "list-subnets.Response"
   },
   "list-templates": {
    "path": "/template",
    "method": "GET",
+   "group": "compute",
    "response": "list-templates.Response"
   },
   "list-users": {
    "path": "/user",
    "method": "GET",
+   "group": "iam",
    "response": "list-users.Response"
   },
   "list-vpc-routes": {
    "path": "/vpc/{vpc-id}/route",
    "method": "GET",
+   "group": "compute",
    "response": "list-vpc-routes.Response"
   },
   "list-vpcs": {
    "path": "/vpc",
    "method": "GET",
+   "group": "compute",
    "response": "list-vpcs.Response"
   },
   "list-zones": {
    "path": "/zone",
    "method": "GET",
+   "group": "general",
    "response": "list-zones.Response"
   },
   "promote-snapshot-to-template": {
    "path": "/snapshot/{id}:promote",
    "method": "POST",
+   "group": "compute",
    "request": "promote-snapshot-to-template.Request",
    "response": "operation"
   },
   "re-encrypt": {
    "path": "/kms-key/{id}/re-encrypt",
    "method": "POST",
+   "group": "kms",
    "request": "re-encrypt-request",
    "response": "re-encrypt-response"
   },
   "reboot-instance": {
    "path": "/instance/{id}:reboot",
    "method": "PUT",
+   "group": "compute",
    "response": "operation"
   },
   "register-ssh-key": {
    "path": "/ssh-key",
    "method": "POST",
+   "group": "compute",
    "request": "register-ssh-key.Request",
    "response": "operation"
   },
   "register-template": {
    "path": "/template",
    "method": "POST",
+   "group": "compute",
    "request": "register-template.Request",
    "response": "operation"
   },
   "remove-external-source-from-security-group": {
    "path": "/security-group/{id}:remove-source",
    "method": "PUT",
+   "group": "compute",
    "request": "remove-external-source-from-security-group.Request",
    "response": "operation"
   },
   "remove-instance-protection": {
    "path": "/instance/{id}:remove-protection",
    "method": "PUT",
+   "group": "compute",
    "response": "operation"
   },
   "replicate-kms-key": {
    "path": "/kms-key/{id}/replicate",
    "method": "POST",
+   "group": "kms",
    "request": "replicate-kms-key-request",
    "response": "success-response"
   },
   "reset-dbaas-clickhouse-user-password": {
    "path": "/dbaas-clickhouse/{service-name}/user/{username}/password/reset",
    "method": "PUT",
+   "group": "dbaas",
    "request": "reset-dbaas-clickhouse-user-password.Request",
    "response": "dbaas-user-clickhouse-secrets"
   },
   "reset-dbaas-grafana-user-password": {
    "path": "/dbaas-grafana/{service-name}/user/{username}/password/reset",
    "method": "PUT",
+   "group": "dbaas",
    "request": "reset-dbaas-grafana-user-password.Request",
    "response": "operation"
   },
   "reset-dbaas-kafka-user-password": {
    "path": "/dbaas-kafka/{service-name}/user/{username}/password/reset",
    "method": "PUT",
+   "group": "dbaas",
    "request": "reset-dbaas-kafka-user-password.Request",
    "response": "operation"
   },
   "reset-dbaas-mysql-user-password": {
    "path": "/dbaas-mysql/{service-name}/user/{username}/password/reset",
    "method": "PUT",
+   "group": "dbaas",
    "request": "reset-dbaas-mysql-user-password.Request",
    "response": "operation"
   },
   "reset-dbaas-opensearch-user-password": {
    "path": "/dbaas-opensearch/{service-name}/user/{username}/password/reset",
    "method": "PUT",
+   "group": "dbaas",
    "request": "reset-dbaas-opensearch-user-password.Request",
    "response": "operation"
   },
   "reset-dbaas-postgres-user-password": {
    "path": "/dbaas-postgres/{service-name}/user/{username}/password/reset",
    "method": "PUT",
+   "group": "dbaas",
    "request": "reset-dbaas-postgres-user-password.Request",
    "response": "operation"
   },
   "reset-dbaas-valkey-user-password": {
    "path": "/dbaas-valkey/{service-name}/user/{username}/password/reset",
    "method": "PUT",
+   "group": "dbaas",
    "request": "reset-dbaas-valkey-user-password.Request",
    "response": "operation"
   },
   "reset-elastic-ip-field": {
    "path": "/elastic-ip/{id}/{field}",
    "method": "DELETE",
+   "group": "compute",
    "response": "operation"
   },
   "reset-iam-organization-policy": {
    "path": "/iam-organization-policy:reset",
    "method": "POST",
+   "group": "iam",
    "response": "operation"
   },
   "reset-instance": {
    "path": "/instance/{id}:reset",
    "method": "PUT",
+   "group": "compute",
    "request": "reset-instance.Request",
    "response": "operation"
   },
   "reset-instance-field": {
    "path": "/instance/{id}/{field}",
    "method": "DELETE",
+   "group": "compute",
    "response": "operation"
   },
   "reset-instance-password": {
    "path": "/instance/{id}:reset-password",
    "method": "PUT",
+   "group": "compute",
    "response": "operation"
   },
   "reset-instance-pool-field": {
    "path": "/instance-pool/{id}/{field}",
    "method": "DELETE",
+   "group": "compute",
    "response": "operation"
   },
   "reset-load-balancer-field": {
    "path": "/load-balancer/{id}/{field}",
    "method": "DELETE",
+   "group": "compute",
    "response": "operation"
   },
   "reset-load-balancer-service-field": {
    "path": "/load-balancer/{id}/service/{service-id}/{field}",
    "method": "DELETE",
+   "group": "compute",
    "response": "operation"
   },
   "reset-private-network-field": {
    "path": "/private-network/{id}/{field}",
    "method": "DELETE",
+   "group": "compute",
    "response": "operation"
   },
   "resize-block-storage-volume": {
    "path": "/block-storage/{id}:resize-volume",
    "method": "PUT",
+   "group": "block-storage",
    "request": "resize-block-storage-volume.Request",
    "response": "block-storage-volume"
   },
   "resize-instance-disk": {
    "path": "/instance/{id}:resize-disk",
    "method": "PUT",
+   "group": "compute",
    "request": "resize-instance-disk.Request",
    "response": "operation"
   },
   "reveal-ai-api-key": {
    "path": "/ai/api-key/{id}/reveal",
    "method": "GET",
+   "group": "ai",
    "response": "reveal-ai-api-key-response"
   },
   "reveal-dbaas-clickhouse-user-password": {
    "path": "/dbaas-clickhouse/{service-name}/user/{username}/password/reveal",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-user-clickhouse-secrets"
   },
   "reveal-dbaas-grafana-user-password": {
    "path": "/dbaas-grafana/{service-name}/user/{username}/password/reveal",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-user-grafana-secrets"
   },
   "reveal-dbaas-kafka-connect-password": {
    "path": "/dbaas-kafka/{service-name}/connect/password/reveal",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-user-kafka-connect-secrets"
   },
   "reveal-dbaas-kafka-user-password": {
    "path": "/dbaas-kafka/{service-name}/user/{username}/password/reveal",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-user-kafka-secrets"
   },
   "reveal-dbaas-mysql-user-password": {
    "path": "/dbaas-mysql/{service-name}/user/{username}/password/reveal",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-user-mysql-secrets"
   },
   "reveal-dbaas-opensearch-user-password": {
    "path": "/dbaas-opensearch/{service-name}/user/{username}/password/reveal",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-user-opensearch-secrets"
   },
   "reveal-dbaas-postgres-user-password": {
    "path": "/dbaas-postgres/{service-name}/user/{username}/password/reveal",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-user-postgres-secrets"
   },
   "reveal-dbaas-thanos-user-password": {
    "path": "/dbaas-thanos/{service-name}/user/{username}/password/reveal",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-user-thanos-secrets"
   },
   "reveal-dbaas-valkey-user-password": {
    "path": "/dbaas-valkey/{service-name}/user/{username}/password/reveal",
    "method": "GET",
+   "group": "dbaas",
    "response": "dbaas-user-valkey-secrets"
   },
   "reveal-deployment-api-key": {
    "path": "/ai/deployment/{id}/api-key",
    "method": "GET",
+   "group": "ai",
    "response": "reveal-deployment-api-key-response"
   },
   "reveal-instance-password": {
    "path": "/instance/{id}:password",
    "method": "GET",
+   "group": "compute",
    "response": "instance-password"
   },
   "revert-instance-to-snapshot": {
    "path": "/instance/{instance-id}:revert-snapshot",
    "method": "POST",
+   "group": "compute",
    "request": "revert-instance-to-snapshot.Request",
    "response": "operation"
   },
   "rotate-ai-api-key": {
    "path": "/ai/api-key/{id}/rotate",
    "method": "POST",
+   "group": "ai",
    "response": "rotate-ai-api-key-response"
   },
   "rotate-kms-key": {
    "path": "/kms-key/{id}/rotate",
    "method": "POST",
+   "group": "kms",
    "response": "rotate-kms-key-response"
   },
   "rotate-sks-ccm-credentials": {
    "path": "/sks-cluster/{id}/rotate-ccm-credentials",
    "method": "PUT",
+   "group": "sks",
    "response": "operation"
   },
   "rotate-sks-csi-credentials": {
    "path": "/sks-cluster/{id}/rotate-csi-credentials",
    "method": "PUT",
+   "group": "sks",
    "response": "operation"
   },
   "rotate-sks-karpenter-credentials": {
    "path": "/sks-cluster/{id}/rotate-karpenter-credentials",
    "method": "PUT",
+   "group": "sks",
    "response": "operation"
   },
   "rotate-sks-operators-ca": {
    "path": "/sks-cluster/{id}/rotate-operators-ca",
    "method": "PUT",
+   "group": "sks",
    "response": "operation"
   },
   "scale-deployment": {
    "path": "/ai/deployment/{id}/scale",
    "method": "POST",
+   "group": "ai",
    "request": "scale-deployment-request",
    "response": "operation"
   },
   "scale-instance": {
    "path": "/instance/{id}:scale",
    "method": "PUT",
+   "group": "compute",
    "request": "scale-instance.Request",
    "response": "operation"
   },
   "scale-instance-pool": {
    "path": "/instance-pool/{id}:scale",
    "method": "PUT",
+   "group": "compute",
    "request": "scale-instance-pool.Request",
    "response": "operation"
   },
   "scale-sks-nodepool": {
    "path": "/sks-cluster/{id}/nodepool/{sks-nodepool-id}:scale",
    "method": "PUT",
+   "group": "sks",
    "request": "scale-sks-nodepool.Request",
    "response": "operation"
   },
   "schedule-kms-key-deletion": {
    "path": "/kms-key/{id}/schedule-deletion",
    "method": "POST",
+   "group": "kms",
    "request": "schedule-kms-key-deletion-request",
    "response": "schedule-kms-key-deletion-response"
   },
   "start-dbaas-clickhouse-maintenance": {
    "path": "/dbaas-clickhouse/{name}/maintenance/start",
    "method": "PUT",
+   "group": "dbaas",
    "response": "operation"
   },
   "start-dbaas-grafana-maintenance": {
    "path": "/dbaas-grafana/{name}/maintenance/start",
    "method": "PUT",
+   "group": "dbaas",
    "response": "operation"
   },
   "start-dbaas-kafka-maintenance": {
    "path": "/dbaas-kafka/{name}/maintenance/start",
    "method": "PUT",
+   "group": "dbaas",
    "response": "operation"
   },
   "start-dbaas-mysql-maintenance": {
    "path": "/dbaas-mysql/{name}/maintenance/start",
    "method": "PUT",
+   "group": "dbaas",
    "response": "operation"
   },
   "start-dbaas-opensearch-maintenance": {
    "path": "/dbaas-opensearch/{name}/maintenance/start",
    "method": "PUT",
+   "group": "dbaas",
    "response": "operation"
   },
   "start-dbaas-pg-maintenance": {
    "path": "/dbaas-postgres/{name}/maintenance/start",
    "method": "PUT",
+   "group": "dbaas",
    "response": "operation"
   },
   "start-dbaas-thanos-maintenance": {
    "path": "/dbaas-thanos/{name}/maintenance/start",
    "method": "PUT",
+   "group": "dbaas",
    "response": "operation"
   },
   "start-dbaas-valkey-maintenance": {
    "path": "/dbaas-valkey/{name}/maintenance/start",
    "method": "PUT",
+   "group": "dbaas",
    "response": "operation"
   },
   "start-instance": {
    "path": "/instance/{id}:start",
    "method": "PUT",
+   "group": "compute",
    "request": "start-instance.Request",
    "response": "operation"
   },
   "stop-dbaas-mysql-migration": {
    "path": "/dbaas-mysql/{name}/migration/stop",
    "method": "POST",
+   "group": "dbaas",
    "response": "operation"
   },
   "stop-dbaas-pg-migration": {
    "path": "/dbaas-postgres/{name}/migration/stop",
    "method": "POST",
+   "group": "dbaas",
    "response": "operation"
   },
   "stop-dbaas-valkey-migration": {
    "path": "/dbaas-valkey/{name}/migration/stop",
    "method": "POST",
+   "group": "dbaas",
    "response": "operation"
   },
   "stop-instance": {
    "path": "/instance/{id}:stop",
    "method": "PUT",
+   "group": "compute",
    "response": "operation"
   },
   "update-ai-api-key": {
    "path": "/ai/api-key/{id}",
    "method": "PATCH",
+   "group": "ai",
    "request": "update-ai-api-key-request",
    "response": "update-ai-api-key-response"
   },
   "update-block-storage-snapshot": {
    "path": "/block-storage-snapshot/{id}",
    "method": "PUT",
+   "group": "block-storage",
    "request": "update-block-storage-snapshot.Request",
    "response": "operation"
   },
   "update-block-storage-volume": {
    "path": "/block-storage/{id}",
    "method": "PUT",
+   "group": "block-storage",
    "request": "update-block-storage-volume.Request",
    "response": "operation"
   },
   "update-dbaas-external-endpoint-datadog": {
    "path": "/dbaas-external-endpoint-datadog/{endpoint-id}",
    "method": "PUT",
+   "group": "dbaas",
    "request": "dbaas-endpoint-datadog-input-update",
    "response": "operation"
   },
   "update-dbaas-external-endpoint-elasticsearch": {
    "path": "/dbaas-external-endpoint-elasticsearch/{endpoint-id}",
    "method": "PUT",
+   "group": "dbaas",
    "request": "dbaas-endpoint-elasticsearch-input-update",
    "response": "operation"
   },
   "update-dbaas-external-endpoint-opensearch": {
    "path": "/dbaas-external-endpoint-opensearch/{endpoint-id}",
    "method": "PUT",
+   "group": "dbaas",
    "request": "dbaas-endpoint-opensearch-input-update",
    "response": "operation"
   },
   "update-dbaas-external-endpoint-prometheus": {
    "path": "/dbaas-external-endpoint-prometheus/{endpoint-id}",
    "method": "PUT",
+   "group": "dbaas",
    "request": "dbaas-endpoint-prometheus-payload",
    "response": "operation"
   },
   "update-dbaas-external-endpoint-rsyslog": {
    "path": "/dbaas-external-endpoint-rsyslog/{endpoint-id}",
    "method": "PUT",
+   "group": "dbaas",
    "request": "dbaas-endpoint-rsyslog-input-update",
    "response": "operation"
   },
   "update-dbaas-external-integration-settings-datadog": {
    "path": "/dbaas-external-integration-settings-datadog/{integration-id}",
    "method": "POST",
+   "group": "dbaas",
    "request": "update-dbaas-external-integration-settings-datadog.Request",
    "response": "operation"
   },
   "update-dbaas-integration": {
    "path": "/dbaas-integration/{id}",
    "method": "PUT",
+   "group": "dbaas",
    "request": "update-dbaas-integration.Request",
    "response": "operation"
   },
   "update-dbaas-opensearch-acl-config": {
    "path": "/dbaas-opensearch/{name}/acl-config",
    "method": "PUT",
+   "group": "dbaas",
    "request": "dbaas-opensearch-acl-config",
    "response": "operation"
   },
   "update-dbaas-pg-connection-pool": {
    "path": "/dbaas-postgres/{service-name}/connection-pool/{connection-pool-name}",
    "method": "PUT",
+   "group": "dbaas",
    "request": "update-dbaas-pg-connection-pool.Request",
    "response": "operation"
   },
   "update-dbaas-postgres-allow-replication": {
    "path": "/dbaas-postgres/{service-name}/user/{username}/allow-replication",
    "method": "PUT",
+   "group": "dbaas",
    "request": "update-dbaas-postgres-allow-replication.Request",
    "response": "dbaas-postgres-users"
   },
   "update-dbaas-service-clickhouse": {
    "path": "/dbaas-clickhouse/{name}",
    "method": "PUT",
+   "group": "dbaas",
    "request": "update-dbaas-service-clickhouse.Request",
    "response": "operation"
   },
   "update-dbaas-service-grafana": {
    "path": "/dbaas-grafana/{name}",
    "method": "PUT",
+   "group": "dbaas",
    "request": "update-dbaas-service-grafana.Request",
    "response": "operation"
   },
   "update-dbaas-service-kafka": {
    "path": "/dbaas-kafka/{name}",
    "method": "PUT",
+   "group": "dbaas",
    "request": "update-dbaas-service-kafka.Request",
    "response": "operation"
   },
   "update-dbaas-service-mysql": {
    "path": "/dbaas-mysql/{name}",
    "method": "PUT",
+   "group": "dbaas",
    "request": "update-dbaas-service-mysql.Request",
    "response": "operation"
   },
   "update-dbaas-service-opensearch": {
    "path": "/dbaas-opensearch/{name}",
    "method": "PUT",
+   "group": "dbaas",
    "request": "update-dbaas-service-opensearch.Request",
    "response": "operation"
   },
   "update-dbaas-service-pg": {
    "path": "/dbaas-postgres/{name}",
    "method": "PUT",
+   "group": "dbaas",
    "request": "update-dbaas-service-pg.Request",
    "response": "operation"
   },
   "update-dbaas-service-thanos": {
    "path": "/dbaas-thanos/{name}",
    "method": "PUT",
+   "group": "dbaas",
    "request": "update-dbaas-service-thanos.Request",
    "response": "operation"
   },
   "update-dbaas-service-valkey": {
    "path": "/dbaas-valkey/{name}",
    "method": "PUT",
+   "group": "dbaas",
    "request": "update-dbaas-service-valkey.Request",
    "response": "operation"
   },
   "update-dbaas-valkey-user-access-control": {
    "path": "/dbaas-valkey/{service-name}/user/{username}",
    "method": "PUT",
+   "group": "dbaas",
    "request": "update-dbaas-valkey-user-access-control.Request",
    "response": "operation"
   },
   "update-deployment": {
    "path": "/ai/deployment/{id}",
    "method": "PATCH",
+   "group": "ai",
    "request": "update-deployment-request",
    "response": "operation"
   },
   "update-dns-domain-record": {
    "path": "/dns-domain/{domain-id}/record/{record-id}",
    "method": "PUT",
+   "group": "dns",
    "request": "update-dns-domain-record.Request",
    "response": "operation"
   },
   "update-elastic-ip": {
    "path": "/elastic-ip/{id}",
    "method": "PUT",
+   "group": "compute",
    "request": "update-elastic-ip.Request",
    "response": "operation"
   },
   "update-iam-organization-policy": {
    "path": "/iam-organization-policy",
    "method": "PUT",
+   "group": "iam",
    "request": "iam-policy",
    "response": "operation"
   },
   "update-iam-role": {
    "path": "/iam-role/{id}",
    "method": "PUT",
+   "group": "iam",
    "request": "update-iam-role.Request",
    "response": "operation"
   },
   "update-iam-role-policy": {
    "path": "/iam-role/{id}:policy",
    "method": "PUT",
+   "group": "iam",
    "request": "iam-policy",
    "response": "operation"
   },
   "update-instance": {
    "path": "/instance/{id}",
    "method": "PUT",
+   "group": "compute",
    "request": "update-instance.Request",
    "response": "operation"
   },
   "update-instance-pool": {
    "path": "/instance-pool/{id}",
    "method": "PUT",
+   "group": "compute",
    "request": "update-instance-pool.Request",
    "response": "operation"
   },
   "update-load-balancer": {
    "path": "/load-balancer/{id}",
    "method": "PUT",
+   "group": "compute",
    "request": "update-load-balancer.Request",
    "response": "operation"
   },
   "update-load-balancer-service": {
    "path": "/load-balancer/{id}/service/{service-id}",
    "method": "PUT",
+   "group": "compute",
    "request": "update-load-balancer-service.Request",
    "response": "operation"
   },
   "update-private-network": {
    "path": "/private-network/{id}",
    "method": "PUT",
+   "group": "compute",
    "request": "update-private-network.Request",
    "response": "operation"
   },
   "update-private-network-instance-ip": {
    "path": "/private-network/{id}:update-ip",
    "method": "PUT",
+   "group": "compute",
    "request": "update-private-network-instance-ip.Request",
    "response": "operation"
   },
   "update-reverse-dns-elastic-ip": {
    "path": "/reverse-dns/elastic-ip/{id}",
    "method": "POST",
+   "group": "compute",
    "request": "update-reverse-dns-elastic-ip.Request",
    "response": "operation"
   },
   "update-reverse-dns-instance": {
    "path": "/reverse-dns/instance/{id}",
    "method": "POST",
+   "group": "compute",
    "request": "update-reverse-dns-instance.Request",
    "response": "operation"
   },
   "update-sks-cluster": {
    "path": "/sks-cluster/{id}",
    "method": "PUT",
+   "group": "sks",
    "request": "update-sks-cluster.Request",
    "response": "operation"
   },
   "update-sks-nodepool": {
    "path": "/sks-cluster/{id}/nodepool/{sks-nodepool-id}",
    "method": "PUT",
+   "group": "sks",
    "request": "update-sks-nodepool.Request",
    "response": "operation"
   },
   "update-subnet": {
    "path": "/vpc/{vpc-id}/subnet/{id}",
    "method": "PUT",
+   "group": "compute",
    "request": "update-subnet.Request",
    "response": "subnet"
   },
   "update-template": {
    "path": "/template/{id}",
    "method": "PUT",
+   "group": "compute",
    "request": "update-template.Request",
    "response": "operation"
   },
   "update-user-role": {
    "path": "/user/{id}",
    "method": "PUT",
+   "group": "iam",
    "request": "update-user-role.Request",
    "response": "operation"
   },
   "update-vpc": {
    "path": "/vpc/{id}",
    "method": "PUT",
+   "group": "compute",
    "request": "update-vpc.Request",
    "response": "vpc"
   },
   "upgrade-sks-cluster": {
    "path": "/sks-cluster/{id}/upgrade",
    "method": "PUT",
+   "group": "sks",
    "request": "upgrade-sks-cluster.Request",
    "response": "operation"
   },
   "upgrade-sks-cluster-service-level": {
    "path": "/sks-cluster/{id}/upgrade-service-level",
    "method": "PUT",
+   "group": "sks",
    "response": "operation"
   }
  },
