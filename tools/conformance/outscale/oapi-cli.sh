@@ -52,6 +52,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/../guard.sh"
 guard_local "$ENDPOINT"
+# The assertion spans behind the behaviour and negative evidence axes: each
+# lifecycle block and each demanded refusal below is bracketed, and the
+# emulator refuses the bracket when its own observation does not support it.
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/../prove.sh"
 
 command -v oapi-cli >/dev/null 2>&1 || { echo "FAIL: oapi-cli is not installed" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is not installed" >&2; exit 1; }
@@ -120,11 +125,13 @@ ok "$default_type, $image_id, and a region pointing back here"
 # other local cloud emulator accepts any CIDR, checks no mask, refuses no
 # overlap, and reports a fixed address count whatever the prefix.
 echo "- the addressing plan is arithmetic, not decoration"
+span="$(prove_begin behaviour)"
 net="$(osc CreateNet --IpRange 10.190.0.0/16)" || fail "CreateNet rejected: $net"
 net_id="$(printf '%s' "$net" | jq -r '.Net.NetId // empty')"
 [ -n "$net_id" ] || fail "no NetId in the create response: $net"
 printf '%s' "$net_id" | grep -Eq '^vpc-[0-9a-f]{8}$' || fail "NetId $net_id is not shaped like one"
 
+neg="$(prove_begin negative)"
 if osc CreateNet --IpRange 10.190.128.0/17 >/dev/null 2>&1; then
   fail "a second Net took a range overlapping the first"
 fi
@@ -170,6 +177,7 @@ fi
 if osc DeleteNet --NetId "$net_id" >/dev/null 2>&1; then
   fail "a Net still holding a subnet was deleted"
 fi
+prove_end "$neg"
 ok "mask, containment, overlap and the address count all hold"
 
 # What a Net is born with. The shapes were measured against a real account
@@ -237,9 +245,11 @@ printf '%s' "$moved" | jq -e \
   || fail "the route kept its gateway alongside the NAT service: $moved"
 osc DeleteRoute --RouteTableId "$main_rtb" --DestinationIpRange 0.0.0.0/0 >/dev/null \
   || fail "DeleteRoute rejected"
+neg="$(prove_begin negative)"
 if osc DeletePublicIp --PublicIpId "$eip_id" >/dev/null 2>&1; then
   fail "an address held by a NAT service was released"
 fi
+prove_end "$neg"
 held="$(osc ReadPublicIps '--Filters.PublicIpIds[]' "$eip_id")" || fail "ReadPublicIps rejected: $held"
 printf '%s' "$held" | jq -e --arg n "$nat_id" '.PublicIps[0].NatServiceId == $n' >/dev/null \
   || fail "the held address does not name its holder: $held"
@@ -255,12 +265,14 @@ osc DeleteNet --NetId "$net_id" >/dev/null || fail "DeleteNet rejected once empt
 nets="$(osc ReadNets)" || fail "ReadNets rejected: $nets"
 printf '%s' "$nets" | jq -e '.Nets | length == 0' >/dev/null \
   || fail "the Net survived its delete: $nets"
+prove_end "$span"
 ok "deleted in the order the dependency requires"
 
 # Snapshots as control-plane records, and the conditional key that was measured
 # on a real account: a volume with no provenance has NO SnapshotId key — the
 # real cloud never sends "".
 echo "- a snapshot is a record, and provenance is a conditional key"
+span="$(prove_begin behaviour)"
 vol="$(osc CreateVolume --SubregionName eu-west-2a --Size 7)" || fail "CreateVolume rejected: $vol"
 vol_id="$(printf '%s' "$vol" | jq -r '.Volume.VolumeId // empty')"
 printf '%s' "$vol" | jq -e '.Volume | has("SnapshotId") | not' >/dev/null \
@@ -300,9 +312,11 @@ echo "- the updates a batch promised and nothing had exercised"
 grown="$(osc UpdateVolume --VolumeId "$vol_id" --Size 9)" || fail "UpdateVolume rejected: $grown"
 printf '%s' "$grown" | jq -e '.Volume.Size == 9' >/dev/null \
   || fail "the volume did not grow: $grown"
+neg="$(prove_begin negative)"
 if osc UpdateVolume --VolumeId "$vol_id" --Size 3 >/dev/null 2>&1; then
   fail "the volume shrank, which loses a filesystem"
 fi
+prove_end "$neg"
 
 # An image's description, which is the field of UpdateImage this emulator can
 # mean something by. `PermissionsToLaunch` is refused on purpose and the refusal
@@ -329,17 +343,31 @@ printf '%s' "$reread" | jq -e '.Images[0].Description == "renamed by conformance
   || fail "the description did not survive the write: $reread"
 
 # The half that is refused, and must stay refused.
+#
+# Additions is an object carrying AccountIds, not a list of objects. The old
+# spelling — Additions.0.AccountId — was refused by oapi-cli itself before
+# anything was sent, so this assertion was green while the emulator's refusal
+# went unexercised: osc exited non-zero for a reason that said nothing about
+# the API. The negative span below is what exposed it, by demanding that the
+# refusal really cross the wire.
+neg="$(prove_begin negative)"
 if osc UpdateImage --ImageId "$img_id" \
-     --PermissionsToLaunch.Additions.0.AccountId 123456789012 >/dev/null 2>&1; then
+     '--PermissionsToLaunch.Additions.AccountIds[]' 123456789012 >/dev/null 2>&1; then
   fail "PermissionsToLaunch was accepted, granting to an account that cannot exist here"
 fi
+prove_end "$neg"
 osc DeleteImage --ImageId "$img_id" >/dev/null || fail "DeleteImage rejected"
 osc DeleteSnapshot --SnapshotId "$img_snap_id" >/dev/null || fail "DeleteSnapshot rejected"
 
 osc DeleteVolume --VolumeId "$vol_id" >/dev/null || fail "DeleteVolume rejected"
+prove_end "$span"
 ok "a volume grows and refuses to shrink, an image's permissions round-trip"
 
 echo "- a keypair, because a machine nobody can log into proves nothing"
+# The keypair is created here and deleted at the very end, so this span also
+# covers the Vm cycle between the two. The Vm alone could not carry it: a
+# terminated Vm stays readable on purpose, so the store never sees it deleted.
+span="$(prove_begin behaviour)"
 keys="$(osc ReadKeypairs)" || fail "ReadKeypairs rejected: $keys"
 printf '%s' "$keys" | jq -e '.Keypairs | length == 0' >/dev/null \
   || fail "a fresh account already holds keypairs: $keys"
@@ -459,9 +487,11 @@ printf '%s' "$rebooted" | jq -e 'has("Vms") | not' >/dev/null \
 ok "the lifecycle reports every transition"
 
 echo "- retyping a running machine is refused"
+neg="$(prove_begin negative)"
 if refused="$(osc UpdateVm --VmId "$vm_id" --VmType tinav6.c4r8p2 2>&1)"; then
   fail "a running machine was retyped: $refused"
 fi
+prove_end "$neg"
 ok "refused while running"
 
 echo "- delete"
@@ -486,9 +516,11 @@ ok "deleted, and gone"
 # an error reports a parsing failure, which sends whoever reads it looking in the
 # wrong place entirely.
 echo "- a rejected request is a readable API error"
+neg="$(prove_begin negative)"
 if bad="$(osc CreateVms --VmType tinav4.c1r1p2 2>&1)"; then
   fail "creating without an ImageId was accepted: $bad"
 fi
+prove_end "$neg"
 printf '%s' "$bad" | jq -e '.Errors[0] | has("Code") and has("Type") and has("Details")' >/dev/null \
   || fail "the error is not in the SDK's ErrorResponse shape: $bad"
 ok "Errors carries Code, Type and Details"
@@ -556,6 +588,7 @@ osc DeleteKeypair --KeypairName conformance >/dev/null || fail "DeleteKeypair re
 keys="$(osc ReadKeypairs)" || fail "ReadKeypairs rejected: $keys"
 printf '%s' "$keys" | jq -e '.Keypairs | length == 0' >/dev/null \
   || fail "the keypair survived its delete: $keys"
+prove_end "$span"
 ok "nothing left behind"
 
 # Started with --contracts, the emulator has been validating every response

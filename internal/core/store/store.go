@@ -23,6 +23,59 @@ import (
 type Store struct {
 	mu    sync.RWMutex
 	items map[string]*resource.Resource
+	// observe, when set, is told about every touch a caller makes. See Observe.
+	observe func(Event)
+}
+
+// Event is one observed touch of the store: something was created, read,
+// updated, deleted, or a kind was listed.
+//
+// It exists for the behaviour axis of the evidence record (#123): "this
+// operation took part in a real lifecycle" must be observed, never declared,
+// and the store is the one place every pack's create, read and delete already
+// passes through. The event names the resource in the store's own neutral
+// coordinates — provider, kind, ID are data here, exactly as they are in the
+// snapshot — so no provider knowledge enters this package.
+//
+// Snapshot and Restore emit nothing: they move state across a persistence
+// boundary, they are not a client exercising a lifecycle.
+type Event struct {
+	// Action is one of the Event* constants below.
+	Action string
+	// Provider, Kind and ID locate the resource. ID is empty for EventListed,
+	// which is about a kind, not one resource.
+	Provider, Kind, ID string
+}
+
+// The actions an Event can carry.
+const (
+	EventCreated = "created"
+	EventRead    = "read"
+	EventUpdated = "updated"
+	EventDeleted = "deleted"
+	EventListed  = "listed"
+)
+
+// Observe registers the single observer told about every subsequent touch.
+//
+// The callback runs outside the store's lock, on the goroutine that made the
+// touch, so it may not call back into the store and must return quickly: it
+// runs on the request path.
+func (s *Store) Observe(fn func(Event)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.observe = fn
+}
+
+// notify hands an event to the observer, if any. Called after s.mu is
+// released, never under it.
+func (s *Store) notify(ev Event) {
+	s.mu.RLock()
+	fn := s.observe
+	s.mu.RUnlock()
+	if fn != nil {
+		fn(ev)
+	}
 }
 
 // New returns an empty store.
@@ -38,19 +91,33 @@ func key(provider, kind, id string) string {
 // keeps a clone, so later mutations by the caller are not visible.
 func (s *Store) Put(r *resource.Resource) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.items[key(r.Tenant.Provider, r.Kind, r.ID)] = r.Clone()
+	k := key(r.Tenant.Provider, r.Kind, r.ID)
+	_, existed := s.items[k]
+	s.items[k] = r.Clone()
+	s.mu.Unlock()
+
+	action := EventCreated
+	if existed {
+		action = EventUpdated
+	}
+	s.notify(Event{Action: action, Provider: r.Tenant.Provider, Kind: r.Kind, ID: r.ID})
 }
 
 // Get returns a clone of the resource, or false when it does not exist.
 func (s *Store) Get(provider, kind, id string) (*resource.Resource, bool) {
 	s.mu.RLock()
-	defer s.mu.RUnlock()
 	r, ok := s.items[key(provider, kind, id)]
+	var out *resource.Resource
+	if ok {
+		out = r.Clone()
+	}
+	s.mu.RUnlock()
+
 	if !ok {
 		return nil, false
 	}
-	return r.Clone(), true
+	s.notify(Event{Action: EventRead, Provider: provider, Kind: kind, ID: id})
+	return out, true
 }
 
 // ErrNotFound is what Update reports when the resource is gone. Callers that
@@ -74,20 +141,27 @@ var ErrNotFound = errors.New("resource not found")
 // write it back. Anything slow stays outside, which is why Update reports what
 // changed rather than doing the slow part itself.
 func (s *Store) Update(provider, kind, id string, change func(*resource.Resource) error) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	err := func() error {
+		s.mu.Lock()
+		defer s.mu.Unlock()
 
-	r, ok := s.items[key(provider, kind, id)]
-	if !ok {
-		return ErrNotFound
-	}
-	// The change works on a clone: a function that fails must leave the stored
-	// resource exactly as it was, not half-modified.
-	draft := r.Clone()
-	if err := change(draft); err != nil {
+		r, ok := s.items[key(provider, kind, id)]
+		if !ok {
+			return ErrNotFound
+		}
+		// The change works on a clone: a function that fails must leave the stored
+		// resource exactly as it was, not half-modified.
+		draft := r.Clone()
+		if err := change(draft); err != nil {
+			return err
+		}
+		s.items[key(provider, kind, id)] = draft
+		return nil
+	}()
+	if err != nil {
 		return err
 	}
-	s.items[key(provider, kind, id)] = draft
+	s.notify(Event{Action: EventUpdated, Provider: provider, Kind: kind, ID: id})
 	return nil
 }
 
@@ -125,10 +199,14 @@ func (s *Store) Commit(res *resource.Resource, now time.Time) bool {
 // Delete removes a resource and reports whether it existed.
 func (s *Store) Delete(provider, kind, id string) bool {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	k := key(provider, kind, id)
 	_, ok := s.items[k]
 	delete(s.items, k)
+	s.mu.Unlock()
+
+	if ok {
+		s.notify(Event{Action: EventDeleted, Provider: provider, Kind: kind, ID: id})
+	}
 	return ok
 }
 
@@ -138,20 +216,21 @@ func (s *Store) Delete(provider, kind, id string) bool {
 // produce phantom diffs.
 func (s *Store) List(kind string, t resource.Tenant) []*resource.Resource {
 	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	out := make([]*resource.Resource, 0, len(s.items))
 	for _, r := range s.items {
 		if r.Kind == kind && r.Matches(t) {
 			out = append(out, r.Clone())
 		}
 	}
+	s.mu.RUnlock()
+
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Created.Equal(out[j].Created) {
 			return out[i].ID < out[j].ID
 		}
 		return out[i].Created.Before(out[j].Created)
 	})
+	s.notify(Event{Action: EventListed, Provider: t.Provider, Kind: kind})
 	return out
 }
 

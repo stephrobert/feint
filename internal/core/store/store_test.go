@@ -102,3 +102,50 @@ func TestSnapshotRoundTrip(t *testing.T) {
 		t.Fatalf("restored resource lost its timestamps: %+v", got)
 	}
 }
+
+// The store is the one place every pack's lifecycle already passes through,
+// which is what makes its events the machine-checkable source of the behaviour
+// evidence axis: a lifecycle is observed here, never declared by a suite.
+func TestEveryTouchIsObservedAndSnapshotsAreNot(t *testing.T) {
+	s := New()
+	var seen []Event
+	s.Observe(func(ev Event) { seen = append(seen, ev) })
+
+	now := time.Now()
+	r := res("thing-1", "thing", "z", now)
+	s.Put(r)                              // created
+	s.Put(r)                              // updated: it existed
+	s.Get("scaleway", "thing", "thing-1") // read
+	s.Get("scaleway", "thing", "absent")  // nothing: not found
+	_ = s.Update("scaleway", "thing", "thing-1", func(res *resource.Resource) error {
+		res.State = "running"
+		return nil
+	}) // updated
+	s.List("thing", resource.Tenant{Provider: "scaleway"}) // listed
+	s.Delete("scaleway", "thing", "thing-1")               // deleted
+	s.Delete("scaleway", "thing", "thing-1")               // nothing: already gone
+
+	var buf bytes.Buffer
+	if err := s.Snapshot(&buf); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Restore(&buf); err != nil {
+		t.Fatal(err)
+	}
+
+	want := []string{EventCreated, EventUpdated, EventRead, EventUpdated, EventListed, EventDeleted}
+	if len(seen) != len(want) {
+		t.Fatalf("observed %d events, want %d: %+v", len(seen), len(want), seen)
+	}
+	for i, ev := range seen {
+		if ev.Action != want[i] {
+			t.Errorf("event %d is %q, want %q", i, ev.Action, want[i])
+		}
+		if ev.Action != EventListed && ev.ID != "thing-1" {
+			t.Errorf("event %d does not name the resource: %+v", i, ev)
+		}
+		if ev.Provider != "scaleway" || ev.Kind != "thing" {
+			t.Errorf("event %d does not carry the neutral coordinates: %+v", i, ev)
+		}
+	}
+}

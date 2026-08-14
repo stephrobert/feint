@@ -106,17 +106,17 @@ func TestJoinEvidenceKeepsTheStrongerAnswerOfTwoFreshLegs(t *testing.T) {
 	off := &evidenceArtefact{Format: evidenceFormat, Version: evidenceVersion,
 		Machines: []string{"none"},
 		Operations: map[string]emulator.Evidence{
-			"op": {Driven: true, Probed: true, Contract: emulator.ContractClean, Shape: emulator.ShapeObserved},
+			"op": {Driven: true, Probed: true, Behaviour: true, Contract: emulator.ContractClean, Shape: emulator.ShapeObserved},
 		}}
 	runtime := &evidenceArtefact{Format: evidenceFormat, Version: evidenceVersion,
 		Machines: []string{"incus"},
 		Operations: map[string]emulator.Evidence{
-			"op": {Driven: true, Dataplane: true, Contract: emulator.ContractViolating, Shape: emulator.ShapeObserved},
+			"op": {Driven: true, Dataplane: true, Negative: true, Contract: emulator.ContractViolating, Shape: emulator.ShapeObserved},
 		}}
 
 	joined := joinEvidence(runtime, off)
 	ev := joined.Operations["op"]
-	if !ev.Driven || !ev.Probed || !ev.Dataplane {
+	if !ev.Driven || !ev.Probed || !ev.Dataplane || !ev.Behaviour || !ev.Negative {
 		t.Errorf("each boolean axis keeps the leg that earned it: %+v", ev)
 	}
 	if ev.Contract != emulator.ContractViolating {
@@ -150,8 +150,9 @@ func TestEvidenceTokensNameAxesAndNeverCount(t *testing.T) {
 	full := evidenceTokens(emulator.Evidence{
 		Driven: true, Probed: true, Contract: emulator.ContractClean,
 		Dataplane: true, Shape: emulator.ShapeObserved,
+		Behaviour: true, Negative: true,
 	})
-	for _, token := range []string{"`client`", "`contract`", "`shape`", "`runtime`", "`probe`"} {
+	for _, token := range []string{"`client`", "`contract`", "`shape`", "`runtime`", "`probe`", "`behaviour`", "`negative`"} {
 		if !strings.Contains(full, token) {
 			t.Errorf("missing %s in %q", token, full)
 		}
@@ -159,7 +160,7 @@ func TestEvidenceTokensNameAxesAndNeverCount(t *testing.T) {
 	// The doctrine in its falsifiable form: the rendering must never collapse
 	// the axes into a count or a fraction — "5", "5/5" or "of 5" is exactly
 	// the score the record exists to refuse.
-	for _, forbidden := range []string{"5", "/", "of"} {
+	for _, forbidden := range []string{"5", "7", "/", "of"} {
 		if strings.Contains(full, forbidden) {
 			t.Errorf("the tokens carry %q, which reads as a score: %q", forbidden, full)
 		}

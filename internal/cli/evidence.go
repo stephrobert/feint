@@ -168,6 +168,8 @@ func joinEvidence(a, b *evidenceArtefact) *evidenceArtefact {
 		ev.Driven = ev.Driven || other.Driven
 		ev.Probed = ev.Probed || other.Probed
 		ev.Dataplane = ev.Dataplane || other.Dataplane
+		ev.Behaviour = ev.Behaviour || other.Behaviour
+		ev.Negative = ev.Negative || other.Negative
 		ev.Contract = strongerContract(ev.Contract, other.Contract)
 		ev.Shape = strongerShape(ev.Shape, other.Shape)
 		ops[op] = ev

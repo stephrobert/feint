@@ -16,6 +16,11 @@ ENDPOINT="${1:-http://127.0.0.1:4599}"
 # shellcheck source=/dev/null
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/guard.sh"
 guard_local "$ENDPOINT"
+# The assertion spans behind the behaviour and negative evidence axes: each
+# lifecycle block and each demanded refusal below is bracketed, and the
+# emulator refuses the bracket when its own observation does not support it.
+# shellcheck source=/dev/null
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/prove.sh"
 ZONE="${ZONE:-fr-par-1}"
 
 # The SDK validates credential FORMAT even though the emulator ignores the values: the access key
@@ -34,6 +39,7 @@ ok() { echo "  ok: $*"; }
 echo "conformance: scw CLI against $ENDPOINT"
 
 echo "- create"
+span="$(prove_begin behaviour)"
 created="$(scw instance server create name=conformance-1 type=DEV1-S zone="$ZONE" -o json 2>&1)" \
   || fail "create rejected by the CLI: $created"
 id="$(printf '%s' "$created" | jq -r '.id // empty')"
@@ -61,9 +67,12 @@ ok "powered off"
 
 echo "- delete"
 scw instance server delete "$id" zone="$ZONE" >/dev/null || fail "delete rejected"
+neg="$(prove_begin negative)"
 if scw instance server get "$id" zone="$ZONE" -o json >/dev/null 2>&1; then
   fail "the server still exists after delete"
 fi
+prove_end "$neg"
+prove_end "$span"
 ok "deleted, and gone"
 
 # Security groups. A fresh project already owns one, so the first list must return it: every
@@ -75,6 +84,7 @@ printf '%s' "$groups" | jq -e 'any(.[]; .project_default == true)' >/dev/null \
 ok "default group served"
 
 echo "- security group create, get, update"
+span="$(prove_begin behaviour)"
 # The CLI unwraps the response envelope for some commands and not for others, so the suite accepts
 # both shapes rather than asserting the CLI's own presentation.
 sg="$(scw instance security-group create name=conformance-sg description='conformance' \
@@ -114,12 +124,15 @@ sg_server="$(scw instance server create name=conformance-sg-server type=DEV1-S z
 sg_server_id="$(printf '%s' "$sg_server" | jq -r '.id')"
 printf '%s' "$sg_server" | jq -e --arg id "$sg_id" '.security_group.id == $id' >/dev/null \
   || fail "the server did not take the group: $sg_server"
+neg="$(prove_begin negative)"
 if scw instance security-group delete security-group-id="$sg_id" zone="$ZONE" >/dev/null 2>&1; then
   fail "the group was deleted while a server still used it"
 fi
+prove_end "$neg"
 scw instance server stop "$sg_server_id" zone="$ZONE" >/dev/null || fail "cleanup: poweroff rejected"
 scw instance server delete "$sg_server_id" zone="$ZONE" >/dev/null || fail "cleanup: server delete rejected"
 scw instance security-group delete security-group-id="$sg_id" zone="$ZONE" >/dev/null || fail "delete rejected once free"
+prove_end "$span"
 ok "attachment and precondition honoured"
 
 # The CLI reserves an address and names it on the create. The emulator used to
@@ -127,6 +140,7 @@ ok "attachment and precondition honoured"
 # no public address whatever was attached to it. Found by the unread-field
 # report; asserted here so it stays fixed.
 echo "- an address reserved before the create comes back on the server"
+span="$(prove_begin behaviour)"
 ip="$(scw instance ip create zone="$ZONE" -o json)" || fail "ip create rejected: $ip"
 ip_id="$(printf '%s' "$ip" | jq -r '(.ip // .).id')"
 ip_address="$(printf '%s' "$ip" | jq -r '(.ip // .).address')"
@@ -145,6 +159,7 @@ printf '%s' "$again" | jq -e --arg a "$ip_address" 'any(.public_ips[]; .address 
 scw instance server stop "$with_ip_id" zone="$ZONE" >/dev/null || fail "cleanup: poweroff rejected"
 scw instance server delete "$with_ip_id" zone="$ZONE" >/dev/null || fail "cleanup: delete rejected"
 scw instance ip delete "$ip_id" zone="$ZONE" >/dev/null || fail "cleanup: ip delete rejected"
+prove_end "$span"
 ok "reserved, attached, and reported"
 
 # The volume and address lifecycles, walked by the CLI rather than asserted in a
@@ -155,6 +170,7 @@ ok "reserved, attached, and reported"
 # answering success while the address survived. Unit tests read JSON, so they
 # saw none of it. The fixture is the thing that had to grow.
 echo "- a volume is attached, refuses to be deleted under its server, and comes back"
+span="$(prove_begin behaviour)"
 vol="$(scw instance volume create name=conformance-vol volume-type=b_ssd size=10G zone="$ZONE" -o json)" \
   || fail "volume create rejected: $vol"
 vol_id="$(printf '%s' "$vol" | jq -r '(.volume // .).id')"
@@ -179,9 +195,11 @@ scw instance volume get "$vol_id" zone="$ZONE" -o json \
 
 # The real API refuses this, and a client destroying in the wrong order depends
 # on the refusal to retry.
+neg="$(prove_begin negative)"
 if scw instance volume delete "$vol_id" zone="$ZONE" >/dev/null 2>&1; then
   fail "the volume deleted while attached to a server"
 fi
+prove_end "$neg"
 
 scw instance server detach-volume server-id="$vol_server_id" volume-id="$vol_id" zone="$ZONE" -o json >/dev/null \
   || fail "detach-volume rejected"
@@ -191,9 +209,11 @@ scw instance volume get "$vol_id" zone="$ZONE" -o json \
 scw instance volume delete "$vol_id" zone="$ZONE" >/dev/null || fail "delete rejected once detached"
 scw instance server stop "$vol_server_id" zone="$ZONE" >/dev/null || fail "cleanup: poweroff rejected"
 scw instance server delete "$vol_server_id" zone="$ZONE" >/dev/null || fail "cleanup: delete rejected"
+prove_end "$span"
 ok "attached, refused, detached, deleted"
 
 echo "- an address is a valid reference for get and for delete"
+span="$(prove_begin behaviour)"
 byaddr="$(scw instance ip create zone="$ZONE" -o json)" || fail "ip create rejected: $byaddr"
 byaddr_id="$(printf '%s' "$byaddr" | jq -r '(.ip // .).id')"
 byaddr_address="$(printf '%s' "$byaddr" | jq -r '(.ip // .).address')"
@@ -202,9 +222,12 @@ scw instance ip get "$byaddr_address" zone="$ZONE" -o json \
   || fail "get by address does not resolve to the same ip"
 scw instance ip delete "$byaddr_address" zone="$ZONE" >/dev/null || fail "delete by address rejected"
 # The half that was broken: it answered success and kept the address.
+neg="$(prove_begin negative)"
 if scw instance ip get "$byaddr_id" zone="$ZONE" -o json >/dev/null 2>&1; then
   fail "the address survived its own delete"
 fi
+prove_end "$neg"
+prove_end "$span"
 ok "resolved and deleted by address"
 
 # The golden-image path, walked by the CLI: snapshot a volume, cut an image from
@@ -212,6 +235,7 @@ ok "resolved and deleted by address"
 # SW-2; declined before it, which made `scw instance snapshot create` fail with a
 # 501 on the first call.
 echo "- a volume is snapshotted, an image is cut from it, and both read back"
+span="$(prove_begin behaviour)"
 img_server="$(scw instance server create name=conformance-golden type=DEV1-S zone="$ZONE" -o json)" \
   || fail "create for the image test rejected: $img_server"
 img_server_id="$(printf '%s' "$img_server" | jq -r '(.server // .).id')"
@@ -246,20 +270,24 @@ scw instance image list zone="$ZONE" -o json \
   || fail "the image the client cut is missing from the listing"
 
 # The order the API imposes, and the refusal that makes it retryable.
+neg="$(prove_begin negative)"
 if scw instance snapshot delete "$snap_id" zone="$ZONE" >/dev/null 2>&1; then
   fail "the snapshot deleted while an image was cut from it"
 fi
+prove_end "$neg"
 scw instance image delete "$img_id" zone="$ZONE" >/dev/null || fail "image delete rejected"
 scw instance snapshot delete "$snap_id" zone="$ZONE" >/dev/null \
   || fail "snapshot delete rejected once its image was gone"
 scw instance server stop "$img_server_id" zone="$ZONE" >/dev/null || fail "cleanup: poweroff rejected"
 scw instance server delete "$img_server_id" zone="$ZONE" >/dev/null || fail "cleanup: delete rejected"
+prove_end "$span"
 ok "snapshotted, cut, listed, deleted in order"
 
 # Block Storage, the product the Terraform provider falls back to and no client
 # drove before SW-3. The CLI is the only thing that exercises the write half:
 # the provider only ever reads a volume it created through the instance side.
 echo "- a block volume is created, snapshotted, restored and deleted in order"
+span="$(prove_begin behaviour)"
 # The size carries its unit: the CLI refuses raw bytes here with "size must be
 # defined using the G or GB unit", where the instance volume command took them.
 # Two commands of one CLI that do not agree, and only the CLI says so.
@@ -297,13 +325,16 @@ blk_restored="$(scw block volume create name=conformance-blk-restored perf-iops=
 blk_restored_id="$(printf '%s' "$blk_restored" | jq -r '(.volume // .).id')"
 
 # The order the API imposes, and the refusal that makes it retryable.
+neg="$(prove_begin negative)"
 if scw block snapshot delete "$blk_snap_id" zone="$ZONE" >/dev/null 2>&1; then
   fail "the block snapshot deleted while a volume was restored from it"
 fi
+prove_end "$neg"
 scw block volume delete "$blk_restored_id" zone="$ZONE" >/dev/null || fail "delete of the restored volume rejected"
 scw block snapshot delete "$blk_snap_id" zone="$ZONE" >/dev/null \
   || fail "block snapshot delete rejected once nothing came from it"
 scw block volume delete "$blk_id" zone="$ZONE" >/dev/null || fail "block volume delete rejected"
+prove_end "$span"
 
 # The catalogue this product needs, for the reason the instance one exists.
 scw block volume-type list zone="$ZONE" -o json | jq -e 'length > 0' >/dev/null \
@@ -314,6 +345,7 @@ ok "created, snapshotted, restored, refused, deleted in order"
 # API's constraint — "Currently IPs can only be reserved from a Private
 # Network" — which is exactly the source the emulator books from.
 echo "- an address is booked in a private network, read back, and released"
+span="$(prove_begin behaviour)"
 ipam_pn="$(scw vpc private-network create name=conformance-ipam subnets.0=10.183.0.0/24 \
              region=fr-par -o json)" || fail "private network create rejected: $ipam_pn"
 ipam_pn_id="$(printf '%s' "$ipam_pn" | jq -r '.id')"
@@ -335,10 +367,12 @@ printf '%s' "$pinned" | jq -e '.address == "10.183.0.42/24"' >/dev/null \
   || fail "the chosen address did not come back: $pinned"
 pinned_id="$(printf '%s' "$pinned" | jq -r '.id')"
 # Booked is booked: the same address a second time must fail.
+neg="$(prove_begin negative)"
 if scw ipam ip create source.private-network-id="$ipam_pn_id" address=10.183.0.42 \
      region=fr-par -o json >/dev/null 2>&1; then
   fail "the same address was booked twice"
 fi
+prove_end "$neg"
 
 scw ipam ip list region=fr-par -o json \
   | jq -e --arg i "$booked_id" 'any(.[]; .id == $i)' >/dev/null \
@@ -355,6 +389,7 @@ if scw ipam ip get "$booked_id" region=fr-par -o json >/dev/null 2>&1; then
 fi
 scw vpc private-network delete "$ipam_pn_id" region=fr-par >/dev/null \
   || fail "cleanup: private network delete rejected"
+prove_end "$span"
 ok "booked, pinned, refused twice, listed, updated, released"
 
 echo "conformance: scw CLI passed"

@@ -31,17 +31,23 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.26'
-          # This job runs govulncheck, and govulncheck's verdict is about the
-          # standard library the binary was built with. Without check-latest,
-          # setup-go takes whatever 1.26.x the runner image preinstalled — so
-          # the morning go1.26.6 fixed five stdlib vulnerabilities, this job
-          # built with the cached go1.26.5 and turned red on every pull
-          # request, including one that touched no Go file, until the runner
-          # image caught up days later. Measured on 2026-08-14; the rerun
-          # installed go1.26.5 a second time, which is what separated "the
-          # manifest has 1.26.6" from "this job uses it".
-          check-latest: true
+          # The full patch mise pins, not the minor.
+          #
+          # Two pull requests fixed the same failure on the same morning, in two
+          # ways, and the merge is where they had to be reconciled. go1.26.6
+          # fixed five standard-library vulnerabilities; a `go-version: '1.26'`
+          # minor pin let setup-go take whatever 1.26.x the runner image had cached —
+          # 1.26.5 — so govulncheck went red on every pull request, including
+          # ones touching no Go file. A rerun installed 1.26.5 again, which is
+          # what separated "the manifest has 1.26.6" from "this job uses it".
+          #
+          # `check-latest: true` was the other fix. It works, and it was not
+          # kept: it makes CI resolve a version the mise pin does not name, so
+          # the toolchain here and the one a contributor runs locally drift
+          # apart silently — the divergence CONTRIBUTING.md forbids. An exact
+          # pin is reproducible and moves when somebody decides it moves.
+          # TestTheGoWorkflowPinsTheVersionMiseDoes fails when the two disagree.
+          go-version: '1.26.6'
           # No go.sum to key a cache on: the zero-dependency rule keeps this module
           # dependency-free, and a pre-commit hook fails if the file ever
           # appears. Pointing the cache at it warned on every run and never
@@ -175,7 +181,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.26'
+          go-version: '1.26.6'
           cache: false
 
       - name: go build
