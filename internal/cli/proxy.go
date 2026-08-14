@@ -2,11 +2,13 @@ package cli
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -38,6 +40,7 @@ func proxyCommand(args []string, _ io.Writer, stderr io.Writer) int {
 	maxBody := fs.Int("max-body", proxy.DefaultMaxBody, "record at most this many bytes of each body; the rest is declared, never silently cut")
 	queue := fs.Int("queue", proxy.DefaultQueue, "how many exchanges may wait to be written before one is dropped")
 	expose := fs.Bool("expose-to-network", false, "listen off loopback, which offers this proxy's transcript and this cloud account to the network")
+	intercept := fs.String("intercept", "", "serve HTTPS with a locally-minted certificate for these comma-separated hostnames, so a client redirected to this proxy by name (a container's own /etc/hosts) trusts it and lands here; see docs/limits.md #76")
 	if err := fs.Parse(args); err != nil {
 		return exitError
 	}
@@ -94,7 +97,9 @@ func proxyCommand(args []string, _ io.Writer, stderr io.Writer) int {
 	fmt.Fprintf(stderr, "  upstream  %s\n", target)
 	fmt.Fprintf(stderr, "  recording %s\n", *record)
 	fmt.Fprintf(stderr, "  naming    %s\n", namingOf(*provider))
-	fmt.Fprintf(stderr, "  point a client at http://%s and drive it as usual\n", *addr)
+	if *intercept == "" {
+		fmt.Fprintf(stderr, "  point a client at http://%s and drive it as usual\n", *addr)
+	}
 
 	srv := &http.Server{
 		Addr:    *addr,
@@ -107,12 +112,29 @@ func proxyCommand(args []string, _ io.Writer, stderr io.Writer) int {
 		ReadHeaderTimeout: 30 * time.Second,
 	}
 
+	// serve is the listener the run blocks on. Plain HTTP by default; HTTPS with a
+	// minted certificate when --intercept names the hosts a redirected client will
+	// address. The certificate half of #76: everything after this is identical.
+	serve := srv.ListenAndServe
+	if *intercept != "" {
+		cfg, cleanup, err := setUpInterception(*intercept, *addr, stderr)
+		if err != nil {
+			_ = writer.Close()
+			_ = closeOut()
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
+		defer cleanup()
+		srv.TLSConfig = cfg
+		serve = func() error { return srv.ListenAndServeTLS("", "") }
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	errs := make(chan error, 1)
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := serve(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errs <- err
 		}
 	}()
@@ -189,6 +211,64 @@ func checkProxyAddr(addr string, expose bool) error {
 	return fmt.Errorf("refusing to listen on %s: every request through this proxy carries a real "+
 		"credential, and off loopback anyone who can reach the port can relay through it and "+
 		"land in your transcript. Pass --expose-to-network if that is what you want", addr)
+}
+
+// setUpInterception mints the certificate a redirected client must trust, writes
+// its CA where SSL_CERT_FILE can find it, and prints the two-line recipe that
+// makes the redirect disposable.
+//
+// It writes nothing durable and installs nothing: the CA lands in a temporary
+// file that cleanup removes, never in the system trust store, and the name
+// redirect is left to the operator's own namespace — a container's /etc/hosts —
+// never this machine's. That scoping is the safety argument of docs/limits.md's
+// #76 section, and this function keeps to it by construction: it cannot touch the
+// operator's /etc/hosts because it never writes one.
+func setUpInterception(hosts, addr string, stderr io.Writer) (*tls.Config, func(), error) {
+	names := splitHosts(hosts)
+	if len(names) == 0 {
+		return nil, nil, fmt.Errorf("--intercept was given no hostname")
+	}
+	ic, err := proxy.MintInterceptor(names...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("mint the interception certificate: %w", err)
+	}
+	caFile, err := os.CreateTemp("", "feint-intercept-ca-*.pem")
+	if err != nil {
+		return nil, nil, fmt.Errorf("create the CA file: %w", err)
+	}
+	caPath := caFile.Name()
+	_ = caFile.Close()
+	if err := ic.WriteCA(caPath); err != nil {
+		_ = os.Remove(caPath)
+		return nil, nil, err
+	}
+
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		port = "4600"
+	}
+	fmt.Fprintf(stderr, "  intercepting HTTPS for %s\n", strings.Join(names, ", "))
+	fmt.Fprintf(stderr, "  CA written to %s (a temporary file, removed on exit)\n", caPath)
+	fmt.Fprintln(stderr, "  point a client at this proxy by name, in a namespace of its own, e.g.:")
+	fmt.Fprintf(stderr, "    export SSL_CERT_FILE=%s\n", caPath)
+	for _, n := range names {
+		fmt.Fprintf(stderr, "    # resolve %s to this proxy (a container's own /etc/hosts, never yours):\n", n)
+		fmt.Fprintf(stderr, "    #   podman run --add-host=%s:host-gateway ... , proxy reachable on :%s\n", n, port)
+	}
+	return ic.ServerTLSConfig(), func() { _ = os.Remove(caPath) }, nil
+}
+
+// splitHosts turns the comma list --intercept takes into trimmed, non-empty
+// names. A trailing comma or a stray space must not become an empty hostname the
+// mint then refuses.
+func splitHosts(list string) []string {
+	var out []string
+	for _, part := range strings.Split(list, ",") {
+		if p := strings.TrimSpace(part); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // proxyTable builds the route table an exchange is named from.
