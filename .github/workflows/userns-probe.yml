@@ -1,0 +1,59 @@
+name: userns probe
+
+# Measure, on a GitHub hosted runner, whether a disposable network namespace is
+# reachable there — the question docs/limits.md (#76) leaves open and that the
+# recording-by-interception path depends on for CI reproducibility.
+#
+# "What works on the author's station proves nothing about a runner, and #125
+# showed these machines are more permissive than assumed." So this asks, on the
+# runner itself, the same three questions the station was re-measured with, plus
+# whether rootless podman gives a container its own namespace and hosts file. It
+# runs on demand, reads nothing, writes nothing, and pulls in no third-party
+# action — there is nothing here to pin and nothing to leak.
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  probe:
+    name: three-way user namespace probe
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # First step of every job here: monitor egress and block the runner from
+      # being tampered with. This job pulls nothing and reaches nowhere, so audit
+      # records an empty list, which is the point — the probe touches only the
+      # kernel's namespace machinery.
+      - name: Harden the runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: probe
+        # set +e: every line is a measurement, and a non-zero exit is a datum,
+        # not a failure of the job. The job only fails if the shell itself breaks.
+        run: |
+          set +e
+          echo "## runner"
+          echo "kernel: $(uname -r)"
+          echo "apparmor_restrict_unprivileged_userns: $(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || echo absent)"
+          echo
+          echo "## 1. bare namespace creation"
+          unshare --user --net true; echo "exit=$?"
+          echo
+          echo "## 2. map this user to root inside it"
+          unshare --user --map-root-user --net id -u; echo "exit=$?"
+          echo
+          echo "## 3. create an interface inside it"
+          unshare --user --map-root-user --net sh -c 'ip link add dummy0 type dummy; echo "ip-link exit=$?"; ip link set lo up; echo "lo-up exit=$?"'
+          echo "outer exit=$?"
+          echo
+          echo "## 4. rootless podman: own netns + own /etc/hosts, no host trace"
+          if command -v podman >/dev/null 2>&1; then
+            podman run --rm --add-host=probe.example:127.0.0.1 alpine getent hosts probe.example; echo "podman exit=$?"
+            echo "host /etc/hosts mentions probe.example: $(grep -c probe.example /etc/hosts)"
+          else
+            echo "podman: not installed on this runner image"
+          fi

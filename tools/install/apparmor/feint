@@ -1,0 +1,46 @@
+# AppArmor profile: let feint create an unprivileged user namespace.
+#
+# Why this exists, and why it is not a sysctl.
+#
+# Ubuntu 24.04 ships `kernel.apparmor_restrict_unprivileged_userns=1`, which
+# stops any unconfined program from creating a user namespace. It is a real
+# hardening: user namespaces are a large kernel attack surface, and most desktop
+# software has no business opening one.
+#
+# feint needs one for exactly one job — standing a network namespace up so a
+# recording can intercept a name the client resolves itself, measured in
+# docs/limits.md (#76). Without a namespace the alternatives are all worse: a
+# durable /etc/hosts edit, an LD_PRELOAD shim that misses statically linked Go
+# binaries, or turning the sysctl off for the whole machine.
+#
+# That last one is what this file exists to avoid. Setting the sysctl to 0 lifts
+# the restriction for *every* program on the host; this profile lifts it for one
+# path, and `flags=(unconfined)` means feint is otherwise no more confined than
+# it was — this grants a capability, it does not tighten or loosen anything else.
+#
+# It is the same shape the distribution itself ships for lxc-unshare, bwrap and
+# a dozen others: see /etc/apparmor.d/lxc-unshare.
+#
+# Install:
+#     sudo install -m 0644 tools/install/apparmor/feint /etc/apparmor.d/feint
+#     sudo apparmor_parser -r /etc/apparmor.d/feint
+#
+# Remove, and the restriction applies to feint again:
+#     sudo apparmor_parser -R /etc/apparmor.d/feint
+#     sudo rm /etc/apparmor.d/feint
+#
+# Nothing in feint requires this profile. Without it, the recording paths that
+# need a namespace refuse and say so; every other command works unchanged.
+
+abi <abi/4.0>,
+include <tunables/global>
+
+# The paths a feint binary is installed to, and the one a checkout builds.
+# An AppArmor profile keys on the executable path: a binary somewhere else is
+# not covered, which is the point — this grants nothing to an unknown file.
+profile feint /{usr/local/bin,usr/bin,home/*/.local/bin,home/*/go/bin}/feint flags=(unconfined) {
+  userns,
+
+  # Site-specific additions and overrides. See local/README for details.
+  include if exists <local/feint>
+}

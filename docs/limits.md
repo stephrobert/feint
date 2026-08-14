@@ -103,15 +103,51 @@ matters:
 | `curl --resolve` / `--connect-to` | one command | works — proven landing `s3.fr-par.scw.cloud` and `<bucket>.s3.fr-par.scw.cloud` locally with a wildcard cert — but **curl only**; the SDK has no equivalent |
 | `HOSTALIASES` (glibc) | one process | only the cgo resolver, and only single-label names — **useless for a dotted FQDN** |
 | `LD_PRELOAD` getaddrinfo shim | one process | only cgo-resolver binaries. Measured: `scw` is dynamically linked with cgo getaddrinfo (interceptable); `exo` is static pure-Go (not). Terraform providers build `CGO_ENABLED=0` — **not interceptable** |
-| network namespace + bind-mounted `/etc/hosts` | disposable | needs unprivileged user namespaces, which this station **blocks** (`apparmor_restrict_unprivileged_userns=1`; `unshare -r` → `EPERM`) — increasingly the default |
+| network namespace + bind-mounted `/etc/hosts` | disposable | **works, with one named AppArmor profile.** The station sets `apparmor_restrict_unprivileged_userns=1`, and the first measurement read `unshare -r` → `EPERM` as "namespaces are blocked". Re-measured: the namespace is created and root maps fine; what the restriction removes is *capabilities inside it*, so `ip link add` answers `RTNETLINK: Operation not permitted`. `tools/install/apparmor/feint` grants `userns` to one binary path and the interface is created — see below |
 | edit `/etc/hosts` | whole machine, persistent | works for every client, but it is a **durable change to the operator's machine** — the thing the pitch forbids |
 
 So for the one blocked client — the pure-Go, statically linked AWS SDK inside the
-Scaleway Terraform provider, which offers no `--resolve` — the only mechanisms
-that reach it are the two that touch the machine durably (`/etc/hosts`) or need a
-privilege this station denies (a network namespace). The cheap, scoped
+Scaleway Terraform provider, which offers no `--resolve` — the cheap scoped
 mechanisms (`curl --resolve`, `HOSTALIASES`, an `LD_PRELOAD` shim) all miss it,
-each for a different reason.
+each for a different reason. What reaches it is a network namespace, and that
+one is available.
+
+#### The namespace row was wrong, and the correction is worth reading
+
+The first measurement concluded that this station blocks unprivileged user
+namespaces, from `unshare -r` answering `EPERM`. Re-measured with the exit codes
+read properly — the earlier reading took `$?` through a pipe, which is the
+false-verdict shape this repository keeps meeting — the three questions separate:
+
+| asked | answer |
+|---|---|
+| `unshare --user --net true` | **0** — the namespace is created |
+| a uid map putting this user at root inside it | **works** — `id -u` answers 0 |
+| `ip link add dummy0 type dummy` inside it | `RTNETLINK answers: Operation not permitted` |
+
+So the restriction does not stop the namespace. Ubuntu transitions the process
+into the stock `unprivileged_userns` profile, whose first line is
+`audit deny capability` — the namespace exists and is powerless, which is a
+better design than refusing outright and reads exactly the same from a script
+that only checks whether `unshare` failed.
+
+**The fix is one named profile, not a sysctl.**
+`tools/install/apparmor/feint` grants `userns` to the feint binary path and
+nothing else, in the same shape the distribution ships for `lxc-unshare`,
+`bwrap` and a dozen others. Setting `kernel.apparmor_restrict_unprivileged_userns=0`
+would lift the restriction for *every* program on the host; this lifts it for one
+path.
+
+Measured on a witness binary, both ways: with the profile loaded the interface is
+created; unload it and `RTNETLINK: Operation not permitted` comes straight back.
+
+```bash
+sudo install -m 0644 tools/install/apparmor/feint /etc/apparmor.d/feint
+sudo apparmor_parser -r /etc/apparmor.d/feint
+```
+
+Nothing in feint requires it. Without the profile, the paths that need a
+namespace refuse and say so; every other command works unchanged.
 
 ### 4. What the standard library gives for free
 
@@ -122,6 +158,10 @@ One caveat the wildcard exposes: `*.s3.<region>.scw.cloud` is single-level, so a
 bucket name containing a dot (`my.bucket.s3.<region>.scw.cloud`) is not covered —
 measured, `curl` refuses it. There is no DNS server in the standard library, but
 per number 3 the measured case does not need one.
+
+This is no longer a projection: `internal/proxy/intercept.go` mints exactly that
+CA and leaf from the standard library alone, and `feint proxy --intercept` serves
+the recorder over TLS with it. See number 6.
 
 ### 5. What is dangerous when it is on — and it is not the certificate
 
@@ -135,17 +175,64 @@ a stale emulator (silent, and the exact failure this project exists to avoid).
 Whatever is ever retained here must scope the redirect as narrowly as the cert —
 a devcontainer with its own hosts file, an explicit and temporary entry the
 operator makes and removes — and must never install a CA into the system store or
-edit `/etc/hosts` on the operator's behalf.
+edit `/etc/hosts` on the operator's behalf. Number 6 is how that scoping is done
+in practice: the redirect lives in a namespace the client owns, never in the
+operator's own `/etc/hosts`.
+
+### 6. Built, and where the redirect is now permitted
+
+The two halves stopped being a projection. `feint proxy --intercept
+<host>[,<host>]` serves the recorder (see `docs/proxy.md`) over HTTPS with a
+certificate `internal/proxy/intercept.go` mints from the standard library alone:
+a short-lived, non-CA leaf covering the names a redirected client will address. It
+writes the CA to a temporary file for `SSL_CERT_FILE`, prints the redirect recipe,
+and removes the CA on exit. The scoping number 5 demands is structural here — the
+command installs nothing into the system store and writes no `/etc/hosts`, because
+it has no code that could.
+
+That leaves one question, and number 3 answered it for the station: where the
+*name* resolves to loopback, disposably and without a durable trace. Measured
+across the places an operator actually has, rather than assumed:
+
+| place | verdict | how, and what it costs the machine |
+|---|---|---|
+| a rootless container (podman, docker) | **works, no host trace** | the container has its own network namespace and its own `/etc/hosts`; `--add-host=<name>:host-gateway` redirects the name and `SSL_CERT_FILE` carries the CA. It reaches the namespace through the setuid `newuidmap` helper, a path the `apparmor_restrict_unprivileged_userns` sysctl does not touch, so it needs no profile — measured here, `grep <name> /etc/hosts` on the host stays empty afterwards |
+| feint's own user + network namespace | **works with the named profile** | `tools/install/apparmor/feint` (number 3); feint itself opens the namespace, so the profile covers it. A separately-launched `unshare` or `ip` is not covered, by design, and that is the right architecture: a tool that asks the operator for `sudo unshare` has already lost *no trace* |
+| Incus container (`--vm incus`) | **works** | a container is a namespace; already piloted by this repository |
+| a GitHub hosted runner (`ubuntu-24.04`) | **the container path works; feint's own namespace needs the profile** | measured, not assumed (workflow run `31791022679`, `.github/workflows/userns-probe.yml`, image `20260810.271`, kernel `6.17-azure`): the runner carries the *same* `apparmor_restrict_unprivileged_userns=1`. Bare namespace creates (`exit 0`), the root map is refused (`exit 1`) — an unconfined `unshare` is as powerless here as on the station. Rootless podman works out of the box and leaves no host trace (`grep` on the host stays empty), so the container row is the portable CI path. feint's own namespace would need `tools/install/apparmor/feint` loaded first, which a runner permits through passwordless sudo |
+
+The through-line: in every permitted place the redirect is as disposable and as
+narrowly scoped as `SSL_CERT_FILE` itself. It lives in a namespace the operator's
+next *real* apply never enters, and it vanishes when that namespace does — which is
+exactly what number 5 says any retained redirect must do.
+
+**Why this was built now: #92, not S3.** The driver was the recorder, not Object
+Storage. `feint proxy` records a real client by being its configured endpoint, but
+a cloud that republishes its own address in a response body walks the client away:
+Exoscale's `GET /v2/zone` hands back `https://api-ch-gva-2.exoscale.com/v2`, the
+client follows it, and a session worth about ninety exchanges recorded **eight**
+(#92). The plain proxy cannot hold a client it does not resolve for. Interception
+can: with the republished name resolving to the proxy in a namespace of its own and
+the CA trusted, the client follows the republished address straight back and the
+whole session is kept. `TestInterceptionRecordsThePostHandoffExchanges` reproduces
+it without an account — one session driven twice against the same recorder, the
+republished name resolving to the proxy, then away — and records the whole thing
+one way, only the pre-handoff exchange the other. Eight-of-ninety, and the fix, on
+one run.
 
 ### The verdict
 
-**Refused, now with numbers behind it — and the refusal changes shape.** Object
-Storage through Terraform stays out, not because the certificate is a project of
-its own (it is under 100 lines of standard library, and every Go client including
-the Terraform plugin accepts it through one process-scoped environment variable),
-but because reaching the single hardcoded endpoint needs a name redirect that, on
-a hardened Linux, no client-scoped mechanism delivers for a static pure-Go plugin
-— leaving only machine-touching options that the *no trace* pitch forbids.
+**Refused, now with numbers behind it — and the refusal changes shape twice.**
+Object Storage through Terraform stays out, but no longer for the reason first
+written. The certificate was never the project it was called: it is `feint proxy
+--intercept`, under 100 lines of standard library, accepted by every Go client
+including the Terraform plugin through one process-scoped environment variable. And
+the name redirect, first read as undeliverable without touching the machine, is
+deliverable after all — in a namespace the client owns (number 6): a rootless
+container, or feint's own namespace under one named profile. What is left is not a
+feasibility wall but an operator ceremony — the client must run inside that
+namespace — and whether the S3-through-Terraform corner is worth that ceremony is a
+product call, the only thing still holding the refusal.
 
 The blocker is one product on one client, so the MinIO + `SCW_S3_ENDPOINT` page
 remains the right answer for the S3 workflow, and the refusal caps coverage by
