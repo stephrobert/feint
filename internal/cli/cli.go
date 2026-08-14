@@ -82,6 +82,18 @@ const (
 	exitDrift = 2
 )
 
+// cliSurfaceVersion names the version of the CLI surface a CI is allowed to
+// depend on: the verbs, the flags the help declares for each, and the exit
+// codes above. It moves when any of those move — additions included, because
+// the number means "the surface changed", not "the surface broke"; the
+// CHANGELOG says which of the two it was.
+//
+// The surface itself is frozen in testdata/frozen/cli.json, compared by
+// TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
+// without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
+// The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
+const cliSurfaceVersion = 1
+
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
 	if len(args) < 2 {

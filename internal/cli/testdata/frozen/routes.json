@@ -1,0 +1,27 @@
+{
+  "history": [
+    {
+      "schema_version": 1,
+      "content": {
+        "fields": [
+          {
+            "path": "[]",
+            "type": "object"
+          },
+          {
+            "path": "[].method",
+            "type": "string"
+          },
+          {
+            "path": "[].operation",
+            "type": "string"
+          },
+          {
+            "path": "[].path",
+            "type": "string"
+          }
+        ]
+      }
+    }
+  ]
+}

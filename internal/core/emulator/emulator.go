@@ -412,11 +412,12 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	// what this process can actually prove instead of hardcoding a mode name,
 	// and an operator can see what they have without reading a file.
 	writeJSON(w, http.StatusOK, map[string]any{
-		"status":       "ok",
-		"providers":    providers,
-		"resources":    s.env.Store.Len(),
-		"machines":     driver,
-		"capabilities": capabilities,
+		"schema_version": HealthSchemaVersion,
+		"status":         "ok",
+		"providers":      providers,
+		"resources":      s.env.Store.Len(),
+		"machines":       driver,
+		"capabilities":   capabilities,
 	})
 }
 

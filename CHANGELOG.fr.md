@@ -15,6 +15,27 @@ parce que c'est là-dessus que ce projet est jugé : **une forme de réponse qu'
 client peut observer**, et **une limite qui a bougé**. Une refactorisation qui ne
 change ni l'un ni l'autre a sa place dans `git log`.
 
+## [Unreleased]
+
+### Ajouté
+
+- **Ce dont la CI a le droit de dépendre est gelé par un test, pas par une
+  phrase** (#132). Les formes de `/_feint/health`, `/_feint/routes`,
+  `/_feint/conformance` et `/_feint/trace`, les verbes et drapeaux du CLI et
+  les codes de sortie (0 ok, 1 erreur, 2 dérive) ont désormais chacun une
+  fixture versionnée (l'arbre des champs, jamais une valeur), comparée par
+  `go test` sur chaque pull request. Les trois charges utiles objet gagnent un
+  champ `schema_version` (c'est la seule forme de réponse qu'un client peut
+  observer changer : une clé nouvelle, additive) pour qu'un pipeline puisse s'y
+  brancher ; ce qui garde le champ honnête est le gate, qui refuse un
+  changement de fixture sans mouvement de la version déclarée. La
+  régénération (`mise run frozen:update`) ajoute à l'historique de la fixture
+  et ne réécrit jamais une entrée. Chaque garde a été falsifiée dans une copie
+  hors dépôt : cinq mutations, cinq tests nommés qui mordent, et le changement
+  volontaire (forme, fixture et version ensemble) qui passe. La procédure pour
+  changer une surface gelée à dessein est dans RELEASING.fr.md (« Surfaces
+  gelées »).
+
 ## [0.8.0]
 
 ### Corrigé

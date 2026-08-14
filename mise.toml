@@ -55,6 +55,17 @@ description = "Everything CI runs on a pull request"
 depends = ["lint", "test", "shapes:check"]
 run = "echo 'local check passed'"
 
+[tasks."frozen:update"]
+description = "Regenerate the frozen CI-surface fixtures after a deliberate change; then bump the surface's version constant"
+# The fixtures freeze what CI is allowed to depend on: the shape of the
+# /_feint/* payloads and the CLI's verbs, flags and exit codes (#132). This
+# appends the observed form to the fixture's history at the next version and
+# never rewrites an entry — the tests stay red until the matching constant
+# (internal/core/emulator/schema.go, or cliSurfaceVersion in internal/cli)
+# follows, which is the gate: a shape cannot move while its version stands
+# still, and a bump owes the CHANGELOG its line.
+run = "FEINT_UPDATE_FROZEN=1 go test ./internal/cli -run 'TestTheFrozenSurfacesStillMatchTheirFixture'"
+
 [tasks."shapes:check"]
 description = "Fail if the emulator omits a field the recorded shapes prove the real cloud returns"
 depends = ["build"]

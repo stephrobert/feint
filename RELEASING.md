@@ -125,6 +125,37 @@ wanted. What breaks is on this project's own side — the CLI's verbs and flags,
 the exit codes, the shape of `/_feint/*`, the state and snapshot formats, and
 any emulated behaviour a test could have relied on.
 
+### Frozen surfaces
+
+Most of that list is no longer prose (#132). The shapes of `/_feint/health`,
+`/_feint/routes`, `/_feint/conformance` and `/_feint/trace`, the CLI's verbs and
+flags, and the exit codes each have a committed fixture under
+`internal/cli/testdata/frozen/` — the field tree, never a value — and two tests
+gate them on every pull request:
+`TestTheFrozenSurfacesStillMatchTheirFixture` fails when a shape moves and the
+fixture did not, and `TestASurfaceChangeDemandsItsVersionBump` fails when the
+fixture moved and the declared version did not. The three object payloads serve
+that version as `schema_version`, so a consumer can branch on it; the gate is
+what keeps the field from lying.
+
+Changing one of these surfaces on purpose is four steps, in one commit:
+
+1. change the code;
+2. `mise run frozen:update` — it appends the new form to the fixture's history
+   at the next version, and never rewrites an entry;
+3. bump the matching constant: `internal/core/emulator/schema.go` for the
+   `/_feint/*` payloads, `cliSurfaceVersion` in `internal/cli/cli.go` for the
+   CLI — the tests stay red until this step, which is the point;
+4. write the CHANGELOG line the bump is the signal for. Whether it lands as a
+   fix or a break is this section's ordinary question; the fixture only proves
+   the surface moved, not which of the two it was.
+
+What is deliberately not frozen: the prose of the help text around the verbs
+and flags, the values behind every frozen key (counters, identifiers, lists
+that grow when routes are mounted), and the trace fields only some exchanges
+carry (`unread`, `violations`). A freeze that caught any of those would go red
+on routine runs and be disarmed within the week.
+
 The snapshot format is the one of those that says its own version. Since #133 a
 snapshot is `{"format": "feint-snapshot", "version": N, "resources": [...]}`, and
 `Restore` refuses anything it cannot account for: another version, another

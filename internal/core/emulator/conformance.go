@@ -299,6 +299,12 @@ func (r *recorder) Write(b []byte) (int, error) {
 //
 // TestStatusCountsWhatAClientDrove in internal/cli fails without this.
 type ConformanceView struct {
+	// SchemaVersion says which shape of this document the reader holds, so a
+	// pipeline can branch on it. Its meaning is enforced by the frozen fixture
+	// (see schema.go): a shape change that does not move
+	// ConformanceSchemaVersion fails TestASurfaceChangeDemandsItsVersionBump
+	// in internal/cli.
+	SchemaVersion int `json:"schema_version"`
 	// Served is how many routes are mounted.
 	Served int `json:"served"`
 	// Exercised is how many of them a real client drove at least once. The
@@ -518,6 +524,7 @@ func (s *Server) handleConformance(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, ConformanceView{
+		SchemaVersion:       ConformanceSchemaVersion,
 		Served:              len(routes),
 		Exercised:           len(routes) - len(untouched),
 		Probed:              probedOnly,

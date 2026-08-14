@@ -1,0 +1,71 @@
+{
+  "history": [
+    {
+      "schema_version": 1,
+      "content": {
+        "fields": [
+          {
+            "path": "count",
+            "type": "number"
+          },
+          {
+            "path": "exchanges",
+            "type": "array"
+          },
+          {
+            "path": "exchanges[]",
+            "type": "object"
+          },
+          {
+            "path": "exchanges[].method",
+            "type": "string"
+          },
+          {
+            "path": "exchanges[].mounted",
+            "type": "bool"
+          },
+          {
+            "path": "exchanges[].ms",
+            "type": "number"
+          },
+          {
+            "path": "exchanges[].operation",
+            "type": "string"
+          },
+          {
+            "path": "exchanges[].path",
+            "type": "string"
+          },
+          {
+            "path": "exchanges[].provider",
+            "type": "string"
+          },
+          {
+            "path": "exchanges[].query",
+            "type": "string"
+          },
+          {
+            "path": "exchanges[].seq",
+            "type": "number"
+          },
+          {
+            "path": "exchanges[].status",
+            "type": "number"
+          },
+          {
+            "path": "exchanges[].t",
+            "type": "string"
+          },
+          {
+            "path": "kept",
+            "type": "number"
+          },
+          {
+            "path": "schema_version",
+            "type": "number"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -13,6 +13,25 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
+## [Unreleased]
+
+### Added
+
+- **What CI is allowed to depend on is frozen by a test, not by a sentence**
+  (#132). The shapes of `/_feint/health`, `/_feint/routes`,
+  `/_feint/conformance` and `/_feint/trace`, the CLI's verbs and flags, and the
+  exit codes (0 ok, 1 error, 2 drift) now each have a committed fixture — the
+  field tree, never a value — compared by `go test` on every pull request. The
+  three object payloads gain a `schema_version` field (this is the one shape
+  change a client can observe: a new key, additive) so a pipeline can branch on
+  it; what keeps the field honest is the gate, which refuses a fixture change
+  that does not move the declared version. Regeneration
+  (`mise run frozen:update`) appends to the fixture's history and never
+  rewrites an entry. Each guard was falsified in a copy outside the repository:
+  five mutations, five named tests biting, and the deliberate change — shape,
+  fixture and version moved together — passing. The procedure for changing a
+  frozen surface on purpose is in RELEASING.md ("Frozen surfaces").
+
 ## [0.8.0]
 
 ### Fixed

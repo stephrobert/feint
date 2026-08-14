@@ -291,7 +291,8 @@ func (s *Server) handleTrace(w http.ResponseWriter, _ *http.Request) {
 		out = append(out, json.RawMessage(e.data))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"count": len(out),
+		"schema_version": TraceSchemaVersion,
+		"count":          len(out),
 		// Said on the wire rather than left for a reader to discover by
 		// counting: a trace that silently held the last 256 of 4000 calls would
 		// make a script assert on a window it did not know it was looking

@@ -132,6 +132,40 @@ casse est du côté propre de ce projet — les verbes et drapeaux du CLI, les c
 de sortie, la forme de `/_feint/*`, les formats d'état et de snapshot, et tout
 comportement émulé sur lequel un test aurait pu s'appuyer.
 
+### Surfaces gelées
+
+L'essentiel de cette liste n'est plus de la prose (#132). Les formes de
+`/_feint/health`, `/_feint/routes`, `/_feint/conformance` et `/_feint/trace`,
+les verbes et drapeaux du CLI et les codes de sortie ont chacun une fixture
+versionnée sous `internal/cli/testdata/frozen/` (l'arbre des champs, jamais une
+valeur), et deux tests les gardent sur chaque pull request :
+`TestTheFrozenSurfacesStillMatchTheirFixture` échoue quand une forme bouge sans
+sa fixture, et `TestASurfaceChangeDemandsItsVersionBump` échoue quand la fixture
+bouge sans la version déclarée. Les trois charges utiles objet servent cette
+version dans `schema_version`, pour qu'un consommateur puisse s'y brancher ; le
+gate est ce qui empêche le champ de mentir.
+
+Changer une de ces surfaces volontairement tient en quatre étapes, dans un même
+commit :
+
+1. changer le code ;
+2. `mise run frozen:update` : la nouvelle forme est ajoutée à l'historique de la
+   fixture, à la version suivante, sans jamais réécrire une entrée ;
+3. incrémenter la constante correspondante : `internal/core/emulator/schema.go`
+   pour les charges `/_feint/*`, `cliSurfaceVersion` dans
+   `internal/cli/cli.go` pour le CLI. Les tests restent rouges jusqu'à cette
+   étape, et c'est le but ;
+4. écrire la ligne de CHANGELOG dont l'incrément est le signal. Correctif ou
+   rupture, c'est la question ordinaire de cette section ; la fixture prouve
+   seulement que la surface a bougé, pas lequel des deux c'était.
+
+Ce qui n'est délibérément pas gelé : la prose du texte d'aide autour des verbes
+et drapeaux, les valeurs derrière chaque clé gelée (compteurs, identifiants,
+listes qui grandissent quand des routes se montent), et les champs de trace que
+seuls certains échanges portent (`unread`, `violations`). Un gel qui attraperait
+l'un d'eux rougirait sur des exécutions de routine et serait désarmé dans la
+semaine.
+
 La seule exception qui mérite d'être signalée : **une forme de réponse corrigée
 pour correspondre au document du provider est un correctif, pas une rupture**,
 même quand un test en aval affirmait la mauvaise. C'est tout le propos du projet,
