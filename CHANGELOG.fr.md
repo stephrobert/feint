@@ -19,6 +19,19 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Une assertion de destruction distingue deux pannes** (trouvé en levant une
+  réserve sur #152). La suite Terraform Outscale demandait si l'émulateur ne
+  détenait **aucun** Net, ce qui n'est vrai que lorsqu'elle en est la seule
+  créatrice sur un émulateur neuf. Exécutée sur un banc qu'un autre run avait
+  touché, elle annonçait « the destroyed Net still answers » alors que la
+  destruction avait parfaitement fonctionné : le message accusait le sujet pour
+  l'état du banc.
+
+  Elle demande désormais si le Net **de ce run** a disparu, le nomme quand ce
+  n'est pas le cas, et dit franchement quand des ressources d'un autre run
+  traînent encore. Falsifié : faire survivre un Net à son propre delete fait
+  échouer la suite en nommant l'identifiant.
+
 - **Le tableau de statut est généré depuis le workflow qui le prouve** (signalé
   par un lecteur comparant le README à la CI). Il annonçait Outscale prouvé par
   `oapi-cli` et Terraform. Les deux étaient vrais du dépôt et un seul l'était de
