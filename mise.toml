@@ -1,7 +1,7 @@
 # mise — unified toolchain + task runner for feint (versions pinned, reproducible across machines
 # and CI). Activate: `mise install` then `mise trust`. Run a task: `mise run <task>`. List: `mise tasks`.
 [tools]
-go = "1.26.5"            # the feint binary
+go = "1.26.6"            # the feint binary
 golangci-lint = "2.12.2" # Go linters, mirrors .golangci.yml and the Go workflow
 trufflehog = "3.95.6"    # secret scanning (pre-commit + CI)
 python = "3.12.11"       # the contract extraction under tools/, development time only
