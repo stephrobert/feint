@@ -197,3 +197,30 @@ func TestViolationsAreOrdered(t *testing.T) {
 		}
 	}
 }
+
+// TestAProbePlansOnlyTheRoutesItsDocumentDescribes: resolving a name is not
+// owning a route. Outscale's contract keys on bare operationIds, so Scaleway's
+// instance/v1/API.CreateImage resolved in it too, and the probe planned a
+// Scaleway route against the Outscale path — the verdict then landed on
+// whichever route the call actually hit. Owns demands the method and the path,
+// not the name alone.
+func TestAProbePlansOnlyTheRoutesItsDocumentDescribes(t *testing.T) {
+	doc, err := contract.Read(strings.NewReader(`{
+	  "provider": "stub",
+	  "pathPrefix": "/api/v1",
+	  "operations": {"CreateImage": {"method": "POST", "path": "/CreateImage", "response": "V"}},
+	  "schemas": {"V": {"closed": false, "properties": {"ok": {"type": "boolean"}}}}
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	owned := contract.MountedRoute{Method: "POST", Path: "/api/v1/CreateImage", Operation: "osc/Client.CreateImage"}
+	if !doc.Owns(owned) {
+		t.Errorf("the route the document describes is owned: %+v", owned)
+	}
+	foreign := contract.MountedRoute{Method: "POST", Path: "/instance/v1/zones/{zone}/images", Operation: "instance/v1/API.CreateImage"}
+	if doc.Owns(foreign) {
+		t.Errorf("a route that only shares the operation's bare name is not owned: %+v", foreign)
+	}
+}

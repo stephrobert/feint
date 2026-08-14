@@ -92,11 +92,11 @@ func TestEveryRouteAnswersItsContract(t *testing.T) {
 	}
 }
 
-// Scaleway is probed too, and expected to prove less. Its document declares no
-// request schema at all — the bodies are inline, which the extraction cannot
-// name — so only the operations that take no body are reachable. Stated as a
-// test so the day the extraction learns inline bodies, the gain is visible
-// rather than assumed.
+// Scaleway is probed like the others; what it cannot prove is the family of
+// operations whose exchanges the document gives no schema for (the 204
+// deletes, the user-data files). Failures here are contract disagreements the
+// seeded run provoked — the block lists ignoring per_page were found exactly
+// this way.
 func TestScalewayProbesWhatItsDocumentAllows(t *testing.T) {
 	report := runProbe(t, scaleway.Name)
 	for _, failure := range report.Failures() {

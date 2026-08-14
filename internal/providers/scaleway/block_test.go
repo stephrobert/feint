@@ -401,3 +401,43 @@ func TestABlockVolumeRestoredSmallerThanItsSnapshotIsRefused(t *testing.T) {
 		t.Errorf("with no size the volume is %v, and its snapshot is %v", same["size"], snap["size"])
 	}
 }
+
+// TestBlockListsHonourThePageSize: both block lists predate the pack's paging
+// helper and served everything whatever the client asked. Invisible while the
+// emulated account never held two block volumes; the seeded probe (#163) made
+// two and measured `per_page=1` answering both. The refusal to regress is
+// cheap: two volumes, two snapshots, one page of one.
+func TestBlockListsHonourThePageSize(t *testing.T) {
+	ts := newTestServer(t)
+
+	for _, name := range []string{"first", "second"} {
+		status, created := do(t, ts, "POST", blockURL+"/volumes",
+			`{"name":"`+name+`","from_empty":{"size":10000000000}}`)
+		if status != http.StatusCreated {
+			t.Fatalf("create volume %s: expected 201, got %d (%v)", name, status, created)
+		}
+		id, _ := created["id"].(string)
+		status, snapped := do(t, ts, "POST", blockURL+"/snapshots",
+			`{"name":"snap-`+name+`","volume_id":"`+id+`"}`)
+		if status != http.StatusCreated {
+			t.Fatalf("create snapshot of %s: expected 201, got %d (%v)", name, status, snapped)
+		}
+	}
+
+	for _, list := range []struct{ path, field string }{
+		{"/volumes", "volumes"},
+		{"/snapshots", "snapshots"},
+	} {
+		status, got := do(t, ts, "GET", blockURL+list.path+"?per_page=1", "")
+		if status != http.StatusOK {
+			t.Fatalf("list %s: expected 200, got %d (%v)", list.path, status, got)
+		}
+		items, _ := got[list.field].([]any)
+		if len(items) != 1 {
+			t.Errorf("%s?per_page=1 answered %d items, and the parameter is served on every other list", list.path, len(items))
+		}
+		if count, _ := got["total_count"].(float64); count != 2 {
+			t.Errorf("%s total_count is %v, and the page must not shrink it", list.path, got["total_count"])
+		}
+	}
+}

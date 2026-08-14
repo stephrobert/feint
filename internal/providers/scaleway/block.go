@@ -301,8 +301,14 @@ func (p *Pack) listBlockVolumes(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, p.blockVolumeView(res))
 	}
+	// Paged like every other list of this pack. This list predates the helper
+	// and served everything whatever the client asked; invisible while the
+	// emulated account never held two block volumes, measured the day the
+	// probe seeded them (TestBlockListsHonourThePageSize fails without it).
+	page := parsePage(r)
+	start, end := page.slice(len(out))
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"volumes":     out,
+		"volumes":     out[start:end],
 		"total_count": len(out),
 	})
 }
@@ -501,8 +507,11 @@ func (p *Pack) listBlockSnapshots(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, p.blockSnapshotView(res))
 	}
+	// Same paging, same reason as listBlockVolumes above.
+	page := parsePage(r)
+	start, end := page.slice(len(out))
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"snapshots":   out,
+		"snapshots":   out[start:end],
 		"total_count": len(out),
 	})
 }

@@ -2487,8 +2487,12 @@
     "project_id"
    ],
    "properties": {
-    "from_empty": {},
-    "from_snapshot": {},
+    "from_empty": {
+     "ref": "block/v1.scaleway.block.v1.CreateVolumeRequest.FromEmpty"
+    },
+    "from_snapshot": {
+     "ref": "block/v1.scaleway.block.v1.CreateVolumeRequest.FromSnapshot"
+    },
     "kms_key_id": {
      "type": "string"
     },
@@ -2944,8 +2948,12 @@
     "project_id"
    ],
    "properties": {
-    "from_empty": {},
-    "from_snapshot": {},
+    "from_empty": {
+     "ref": "block/v1alpha1.scaleway.block.v1alpha1.CreateVolumeRequest.FromEmpty"
+    },
+    "from_snapshot": {
+     "ref": "block/v1alpha1.scaleway.block.v1alpha1.CreateVolumeRequest.FromSnapshot"
+    },
     "name": {
      "type": "string"
     },
@@ -3575,7 +3583,9 @@
     "email": {
      "type": "string"
     },
-    "member": {},
+    "member": {
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.CreateUserRequest.Member"
+    },
     "organization_id": {
      "type": "string"
     },

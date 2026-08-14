@@ -124,6 +124,18 @@ def property_shape(prop: dict) -> dict:
             return {"type": wrapped}
         return {"ref": ref_name(prop["$ref"])}
 
+    # A nullable reference — `oneOf: [$ref X, type: "null"]` — is the reference:
+    # the validator already accepts null everywhere, so the wrapper only hid the
+    # shape. Scaleway writes its exclusive request branches this way (block/v1's
+    # CreateVolume.from_empty), and dropping the oneOf left the property with no
+    # shape at all, which the probe read as "nothing to build" and the emulator
+    # answered with the refusal #163 measured.
+    if "oneOf" in prop:
+        refs = [b for b in prop["oneOf"] if "$ref" in b]
+        others = [b for b in prop["oneOf"] if "$ref" not in b and b.get("type") != "null"]
+        if len(refs) == 1 and not others:
+            return property_shape(refs[0])
+
     out: dict = {}
     kind = scalar_type(prop.get("type"))
     if kind:

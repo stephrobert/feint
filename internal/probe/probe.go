@@ -36,11 +36,16 @@
 //
 // # Where it refuses to guess
 //
-// An identifier is never invented. Values come from what earlier calls in the
-// plan returned, and an operation needing one that nothing produces makes the
-// planning fail with a message naming it. Inventing an id would be an invented
-// format dressed up as automation, which is the one thing this project never
-// does: a shape comes from the provider's own SDK or not at all.
+// An identifier is never invented. The plan seeds what its calls will need
+// (#163): creates run before the operations that use their products, each
+// body is built from the contract's own request schema, and every identifier
+// comes from what an earlier call in the same run returned — typed, so a
+// server id never stands in for a volume id. An operation needing something
+// nothing produces still runs when any real identifier exists to refuse, and
+// is skipped with the missing value named when none does. Inventing an id
+// would be an invented format dressed up as automation, which is the one
+// thing this project never does: a shape comes from the provider's own SDK or
+// not at all.
 package probe
 
 import (
@@ -195,10 +200,42 @@ func (r *Runner) Run(ctx context.Context, routes []contract.MountedRoute) (Repor
 		client = &http.Client{Timeout: 30 * time.Second}
 	}
 
+	lastCreate := -1
+	for i, step := range plan {
+		if step.Kind == kindCreate {
+			lastCreate = i
+		}
+	}
+
 	pool := newPool()
 	report := Report{Provider: r.Doc.Provider}
-	for _, step := range plan {
+	for i, step := range plan {
 		report.Results = append(report.Results, r.call(ctx, client, step, pool))
+
+		if i == lastCreate {
+			// The retry half of the seeding (#163): a create the plan could
+			// not order — a dependency cycle, or a need only a later create
+			// satisfies — gets exactly one second attempt while the pool holds
+			// everything the first pass made and before the second read pass
+			// measures the result. Only steps that produced nothing are
+			// retried, so nothing is created twice, and the first result is
+			// replaced only when the retry did better: a promotion must come
+			// from a real answer, never from double counting.
+			// TestAnUnorderableCreateIsRetriedOnce fails without this pass.
+			for j := range report.Results {
+				res, retried := report.Results[j], plan[j]
+				if retried.Kind != kindCreate {
+					continue
+				}
+				if res.Skipped == "" && !res.Refused && res.Err == nil && res.Status < 300 {
+					continue
+				}
+				retry := r.call(ctx, client, retried, pool)
+				if retry.Skipped == "" && retry.Err == nil && retry.Status < 300 && !retry.Refused {
+					report.Results[j] = retry
+				}
+			}
+		}
 	}
 	return report, nil
 }
@@ -210,7 +247,7 @@ func (r *Runner) call(ctx context.Context, client *http.Client, step Step, pool 
 		return result
 	}
 
-	body, err := minimalBody(r.Doc, step.Request, pool)
+	body, err := minimalBody(r.Doc, step, step.Request, pool)
 	if err != nil {
 		// Not a failure: the contract does not let us build this call honestly,
 		// and inventing the missing value is the one thing this must not do.
@@ -218,7 +255,7 @@ func (r *Runner) call(ctx context.Context, client *http.Client, step Step, pool 
 		return result
 	}
 
-	path, err := pool.fill(step.Path)
+	path, err := pool.fill(step.Product, step.Path)
 	if err != nil {
 		result.Skipped = err.Error()
 		return result
@@ -245,8 +282,12 @@ func (r *Runner) call(ctx context.Context, client *http.Client, step Step, pool 
 	result.Violations = r.Doc.ValidateResponse(step.Contract, decoded)
 
 	// Whatever came back feeds the calls that follow: this is how a create finds
-	// the identifier a delete needs, without a scenario written by hand.
-	pool.harvest(decoded)
+	// the identifier a delete needs, without a scenario written by hand. The
+	// name the create sent is kept too, because it is now the name of a real
+	// resource: Exoscale addresses an SSH key by name, and the only place that
+	// name ever appears is the request that registered it.
+	pool.harvest(r.Doc, step, decoded)
+	pool.harvestSentName(step, body)
 
 	if len(result.Violations) > 0 {
 		return result

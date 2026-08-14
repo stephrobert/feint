@@ -118,11 +118,14 @@ func mountedRoutes(endpoint string) ([]contract.MountedRoute, error) {
 	return out, nil
 }
 
-// routesOf keeps the routes one contract knows about.
+// routesOf keeps the routes one contract describes — name, method and path,
+// not name alone: Outscale's document resolves any bare operationId, and a
+// Scaleway route matched by name used to be probed against the Outscale path
+// (see contract.Doc.Owns).
 func routesOf(routes []contract.MountedRoute, doc *contract.Doc) []contract.MountedRoute {
 	out := make([]contract.MountedRoute, 0, len(routes))
 	for _, r := range routes {
-		if _, _, known := doc.OperationFor(r.Operation); known {
+		if doc.Owns(r) {
 			out = append(out, r)
 		}
 	}

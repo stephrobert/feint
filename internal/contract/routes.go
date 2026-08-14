@@ -58,6 +58,24 @@ func (d *Doc) CheckRoutes(routes []MountedRoute) []RouteMismatch {
 	return out
 }
 
+// Owns reports whether this document actually describes one mounted route:
+// the operation resolves, and the route serves it at the method and path the
+// document declares.
+//
+// Resolving the name alone is not ownership. Outscale's contract keys on bare
+// operationIds, so Scaleway's instance/v1/API.CreateImage resolves in it too —
+// and the probe then planned Scaleway's route against Outscale's path, called
+// /api/v1/CreateImage under a Scaleway label, and recorded the verdict on
+// whichever route the call actually hit. One document, one route table:
+// TestAProbePlansOnlyTheRoutesItsDocumentDescribes fails without this.
+func (d *Doc) Owns(r MountedRoute) bool {
+	op, _, known := d.OperationFor(r.Operation)
+	if !known {
+		return false
+	}
+	return op.Method == r.Method && samePath(d.PathPrefix+op.Path, r.Path)
+}
+
 // samePath compares two path templates, ignoring what the parameters are called.
 //
 // A document writes /instance/{id} where another writes /instance/{instance-id},
