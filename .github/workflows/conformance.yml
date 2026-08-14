@@ -19,6 +19,13 @@ on:
 
 permissions: {}
 
+# One pin for the one client two jobs install: the scw-cli leg of the matrix
+# and the image job both read this, so the version that proves the binary and
+# the version that proves the image cannot quietly diverge. The other clients
+# stay pinned in their own install steps, where each has exactly one.
+env:
+  SCW_VERSION: '2.56.3'
+
 jobs:
   # The page, driven by the one client that can say whether it renders: a
   # headless browser. It is a job of its own rather than a leg of the matrix
@@ -56,6 +63,85 @@ jobs:
       # those in its network suite.
       - name: Check the page in a browser
         run: tools/ui/screenshots.sh --check
+
+  # The same proof as the matrix below, against the emulator running inside the
+  # container image instead of a host process. This is what the roadmap's image
+  # item names as its evidence: an image that merely starts proves nothing, so
+  # the official CLI and the contract probe drive it from the host, through the
+  # published port, exactly the way a `services:` block would reach it.
+  #
+  # It runs on every pull request rather than only at release, because release
+  # is the one moment a broken Dockerfile cannot be cheaply fixed: the tag is
+  # pushed, the workflow fails, and the release exists half-published.
+  image:
+    name: image
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26'
+          cache: false
+
+      # The same build the release performs (static, trimmed), because the
+      # image copies a prebuilt binary rather than compiling one: the bytes in
+      # a released image are the bytes in the release, and this job must build
+      # them the same way to prove the same thing.
+      - name: Build the binary and the image
+        run: |
+          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o dist/feint-linux-amd64 ./cmd/feint
+          docker build -t feint:conformance .
+
+      # Default command, no override: what a `services:` block runs is the
+      # image as shipped, and a proof that quietly passes different flags
+      # proves a different image.
+      - name: Start the container
+        run: |
+          docker run -d --name feint -p 127.0.0.1:4599:4599 feint:conformance
+          dist/feint-linux-amd64 wait --addr 127.0.0.1:4599 --timeout 30s
+
+      # Same pinned version (the workflow-level SCW_VERSION), same upstream
+      # checksums as the scw-cli leg of the matrix: one client, two emulator
+      # packagings, one truth.
+      - name: Install the Scaleway CLI
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          base="https://github.com/scaleway/scaleway-cli/releases/download/v${SCW_VERSION}"
+          asset="scaleway-cli_${SCW_VERSION}_linux_amd64"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/${asset}" "${base}/${asset}"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/sums" "${base}/SHA256SUMS"
+          (cd "${workdir}" && grep " ${asset}$" sums | sha256sum -c -)
+          sudo install -m 0755 "${workdir}/${asset}" /usr/local/bin/scw
+          scw version
+
+      - name: Run the CLI conformance suite against the image
+        run: tools/conformance/scaleway/scw-cli.sh http://127.0.0.1:4599
+
+      # Contract checking happens on the host side — the probe reads the
+      # committed contracts and validates every answer the container gives —
+      # so the image stays what a user pulls: no contracts directory inside,
+      # no flag a `services:` block would not pass.
+      - name: Probe every route of the image against its contract
+        run: dist/feint-linux-amd64 probe --endpoint http://127.0.0.1:4599 --contracts contracts
+
+      - name: The container's log
+        if: failure()
+        run: docker logs feint 2>&1 | tail -100 || true
+
+      - name: Stop the container
+        if: always()
+        run: docker rm -f feint || true
 
   clients:
     name: ${{ matrix.client }}
@@ -113,8 +199,6 @@ jobs:
       # upstream rather than from this file.
       - name: Install the Scaleway CLI
         if: matrix.client == 'scw-cli'
-        env:
-          SCW_VERSION: '2.56.3'
         run: |
           set -euo pipefail
           workdir="$(mktemp -d)"

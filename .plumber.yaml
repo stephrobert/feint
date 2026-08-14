@@ -85,6 +85,9 @@ github:
         - sigstore/cosign-installer # keyless signing of release artefacts
         - trufflesecurity/trufflehog # secret scan
         - softprops/action-gh-release # release publication
+        - docker/setup-buildx-action # multi-arch builder for the release image
+        - docker/login-action # ghcr.io login before the release image push
+        - docker/build-push-action # build and push of the release image
 
     # ===========================================
     # Container images must not use forbidden tags

@@ -1,0 +1,6 @@
+# The image copies one prebuilt binary and nothing else; the context should
+# carry one prebuilt binary and nothing else. Everything is excluded, then the
+# binaries are let back in — a full-repository context would ship .git and the
+# SDK checkouts to the daemon on every build for nothing.
+*
+!dist/feint-linux-*

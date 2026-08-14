@@ -32,6 +32,16 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26'
+          # This job runs govulncheck, and govulncheck's verdict is about the
+          # standard library the binary was built with. Without check-latest,
+          # setup-go takes whatever 1.26.x the runner image preinstalled — so
+          # the morning go1.26.6 fixed five stdlib vulnerabilities, this job
+          # built with the cached go1.26.5 and turned red on every pull
+          # request, including one that touched no Go file, until the runner
+          # image caught up days later. Measured on 2026-08-14; the rerun
+          # installed go1.26.5 a second time, which is what separated "the
+          # manifest has 1.26.6" from "this job uses it".
+          check-latest: true
           # No go.sum to key a cache on: the zero-dependency rule keeps this module
           # dependency-free, and a pre-commit hook fails if the file ever
           # appears. Pointing the cache at it warned on every run and never
