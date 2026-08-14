@@ -163,6 +163,28 @@ func (p *Pack) start(ctx context.Context, res *resource.Resource) {
 	for _, address := range p.elasticBootAddresses(res) {
 		p.routeElasticIP(ctx, address, res)
 	}
+	// The private networks the instance already joined come back as extra
+	// interfaces, after the boot rather than on it: Exoscale's eth0 is the
+	// public interface — the address this pack publishes as public-ip is the
+	// primary interface's — so a membership must never become the primary the
+	// way a Boot.Attachment would. Attach is idempotent by network, so a
+	// machine that kept its devices across a stop is repaired, not doubled.
+	p.reattachPrivateNetworks(ctx, res)
+}
+
+// reattachPrivateNetworks puts a freshly booted machine back on every private
+// network its memberships name. Attaching to a stopped instance and then
+// starting it is the ordinary order, and without this the machine came up on
+// the default network alone while the API published a membership it had never
+// taken.
+func (p *Pack) reattachPrivateNetworks(ctx context.Context, res *resource.Resource) {
+	for _, m := range instanceAttachmentsOf(res) {
+		pn, found := p.env.Store.Get(Name, kindPrivateNetwork, m.NetworkID)
+		if !found {
+			continue
+		}
+		p.attachMachineToPrivateNetwork(ctx, res, pn, m.IP)
+	}
 }
 
 // authorizedKeys is the material of the key an instance names, or nothing.

@@ -1,24 +1,24 @@
 {
   "provider": "exoscale",
   "total": 374,
-  "implemented": 46,
+  "implemented": 57,
   "declined": 253,
-  "unknown": 75,
+  "unknown": 64,
   "orphans": null,
   "products": [
     {
       "product": "exoscale",
       "total": 374,
-      "implemented": 46,
+      "implemented": 57,
       "declined": 253,
-      "unknown": 75,
+      "unknown": 64,
       "versions": [
         {
           "version": "2.0.0",
           "total": 374,
-          "implemented": 46,
+          "implemented": 57,
           "declined": 253,
-          "unknown": 75
+          "unknown": 64
         }
       ]
     }
@@ -48,9 +48,9 @@
     {
       "group": "compute",
       "total": 111,
-      "implemented": 42,
+      "implemented": 53,
       "declined": 9,
-      "unknown": 60
+      "unknown": 49
     },
     {
       "group": "dbaas",
@@ -129,7 +129,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.add-instance-protection",
@@ -187,7 +187,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.attach-instance-to-security-group",
@@ -552,7 +552,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.create-route",
@@ -954,7 +954,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.delete-reverse-dns-elastic-ip",
@@ -1079,7 +1079,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.detach-instance-from-security-group",
@@ -1699,7 +1699,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.get-quota",
@@ -2057,7 +2057,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.list-quotas",
@@ -2210,7 +2210,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.remove-instance-protection",
@@ -2346,7 +2346,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.resize-block-storage-volume",
@@ -2907,14 +2907,14 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.update-private-network-instance-ip",
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.update-reverse-dns-elastic-ip",

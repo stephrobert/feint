@@ -2,6 +2,7 @@ package exoscale
 
 import (
 	"net/http"
+	"net/netip"
 	"sort"
 	"strings"
 
@@ -291,6 +292,64 @@ func (p *Pack) changeInstanceMembership(w http.ResponseWriter, r *http.Request, 
 	return req.Instance.ID, true
 }
 
+// externalSourceRequest is the measured body of the ":add-source" and
+// ":remove-source" actions — `{"cidr":"203.0.113.0/24"}`, traced from
+// `exo compute security-group source add` on 2026-08-14.
+type externalSourceRequest struct {
+	CIDR string `json:"cidr"`
+}
+
+func (p *Pack) addExternalSourceToSecurityGroup(w http.ResponseWriter, r *http.Request) {
+	p.changeExternalSources(w, r, true)
+}
+
+func (p *Pack) removeExternalSourceFromSecurityGroup(w http.ResponseWriter, r *http.Request) {
+	p.changeExternalSources(w, r, false)
+}
+
+// changeExternalSources adds or removes one CIDR on one group. The value is
+// parsed rather than stored blindly: an external source is a block a firewall
+// is meant to match, and a stored string no parser accepts is an addressing
+// plan that means nothing. TestAnExternalSourceMustBeACIDR fails without the
+// check.
+func (p *Pack) changeExternalSources(w http.ResponseWriter, r *http.Request, add bool) {
+	var req externalSourceRequest
+	if err := emulator.DecodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if _, err := netip.ParsePrefix(req.CIDR); err != nil {
+		writeError(w, http.StatusBadRequest, "cidr must be an IP block in CIDR form")
+		return
+	}
+	p.ensureDefaultSecurityGroup()
+	id := r.PathValue("id")
+	err := p.env.Store.Update(Name, kindSecurityGroup, id, func(stored *resource.Resource) error {
+		sources := stringList(stored.Attrs["external-sources"])
+		kept := make([]any, 0, len(sources)+1)
+		for _, existing := range sources {
+			if existing != req.CIDR {
+				kept = append(kept, existing)
+			}
+		}
+		if add {
+			kept = append(kept, req.CIDR)
+		}
+		if len(kept) == 0 {
+			delete(stored.Attrs, "external-sources")
+		} else {
+			stored.Attrs["external-sources"] = kept
+		}
+		stored.Updated = p.env.Now()
+		return nil
+	})
+	if err != nil {
+		writeError(w, http.StatusNotFound, "resource not found")
+		return
+	}
+	p.writeOperation(w, p.operationReferring(nounSecurityGroup, id))
+}
+
 // securityGroupView is the measured shape: rules and external-sources are
 // omitted keys when empty.
 //
@@ -309,6 +368,9 @@ func securityGroupView(res *resource.Resource) map[string]any {
 	}
 	if rules, _ := res.Attrs["rules"].([]any); len(rules) > 0 {
 		out["rules"] = rules
+	}
+	if sources, _ := res.Attrs["external-sources"].([]any); len(sources) > 0 {
+		out["external-sources"] = sources
 	}
 	return out
 }

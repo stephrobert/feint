@@ -207,6 +207,87 @@ exoc compute instance elastic-ip detach "$id" "$eip_ip" >/dev/null || fail "eip 
 exoc -Q compute elastic-ip delete "$eip_ip" --force >/dev/null || fail "eip delete rejected"
 ok "$eip_ip attached, published, detached, deleted"
 
+echo "- private networks: the range round-trips, an attach leases from it (EXO-3's own evidence)"
+span_pn="$(prove_begin behaviour)"
+exoc compute private-network create conformance-pn \
+  --description 'conformance' --start-ip 10.90.0.20 --end-ip 10.90.0.200 --netmask 255.255.255.0 \
+  >/dev/null || fail "private-network create rejected"
+pn="$(exoc -O json compute private-network show conformance-pn)" || fail "private-network show rejected"
+# The CLI relabels the API's kebab-case on output (start-ip prints as start_ip)
+# and derives type=managed from the presence of the range; the assertion reads
+# what the client prints, because that is what a user would copy.
+printf '%s' "$pn" | jq -e '.start_ip == "10.90.0.20" and .end_ip == "10.90.0.200"
+  and .netmask == "255.255.255.0" and .type == "managed"' >/dev/null \
+  || fail "the declared range did not come back: $pn"
+exoc compute instance private-network attach "$id" conformance-pn >/dev/null \
+  || fail "private-network attach rejected"
+pn="$(exoc -O json compute private-network show conformance-pn)" || fail "show after attach rejected"
+# The CLI resolves the lease's instance-id to the instance *name* on output;
+# the suite reads what the client prints, and the instance here is named
+# "conformance".
+lease="$(printf '%s' "$pn" | jq -r '.leases[]? | select(.instance == "conformance") | .ip_address')"
+case "$lease" in
+  10.90.0.*) ok "attached, lease $lease taken from the declared range" ;;
+  *) fail "the lease is '$lease', outside the declared range: $pn" ;;
+esac
+shown="$(exoc -O json compute instance show "$id")" || fail "instance show after attach rejected"
+printf '%s' "$shown" | jq -e '(.private_networks // []) | length == 1' >/dev/null \
+  || fail "the instance does not publish its private network: $shown"
+
+echo "- update-ip moves the lease, the network publishes the move"
+exoc compute instance private-network update-ip "$id" conformance-pn --ip 10.90.0.99 >/dev/null \
+  || fail "private-network update-ip rejected"
+pn="$(exoc -O json compute private-network show conformance-pn)" || fail "show after update-ip rejected"
+printf '%s' "$pn" | jq -e \
+  'any(.leases[]?; .instance == "conformance" and .ip_address == "10.90.0.99")' >/dev/null \
+  || fail "the lease did not move to 10.90.0.99: $pn"
+ok "lease moved to 10.90.0.99"
+
+echo "- a network an instance still sits on refuses its delete"
+neg="$(prove_begin negative)"
+if exoc -Q compute private-network delete conformance-pn --force >/dev/null 2>&1; then
+  fail "an attached private network accepted its delete"
+fi
+# A static lease outside the declared range is refused too: same span, the two
+# refusals this batch's control plane owes.
+if exoc compute instance private-network update-ip "$id" conformance-pn --ip 192.0.2.7 >/dev/null 2>&1; then
+  fail "a lease outside the declared range was accepted"
+fi
+prove_end "$neg"
+ok "delete refused while attached, out-of-range lease refused"
+
+echo "- detach takes the lease with it, and the delete then passes"
+exoc compute instance private-network detach "$id" conformance-pn >/dev/null \
+  || fail "private-network detach rejected"
+pn="$(exoc -O json compute private-network show conformance-pn)" || fail "show after detach rejected"
+printf '%s' "$pn" | jq -e '(.leases // []) | length == 0' >/dev/null \
+  || fail "the lease survived its detach: $pn"
+exoc -Q compute private-network delete conformance-pn --force >/dev/null \
+  || fail "private-network delete rejected"
+after_pn="$(exoc -O json compute private-network list)" || fail "private-network list rejected"
+printf '%s' "$after_pn" | jq -e 'all(.[]; .name != "conformance-pn")' >/dev/null \
+  || fail "the network survived its delete: $after_pn"
+prove_end "$span_pn"
+ok "detached, deleted, and gone"
+
+# No span of its own: a source add and remove mutate an existing group, and a
+# behaviour span demands a lifecycle — the emulator refused the bracket when
+# this section claimed one, which is the assertion channel working as designed.
+# The group's own create and delete already sit inside the suite's outer span.
+echo "- external sources on a security group round-trip"
+exoc compute security-group source add conformance-sg 203.0.113.0/24 >/dev/null \
+  || fail "security-group source add rejected"
+sg="$(exoc -O json compute security-group show conformance-sg)" || fail "sg show rejected"
+printf '%s' "$sg" | jq -e '.external_sources == ["203.0.113.0/24"]' >/dev/null \
+  || fail "the source did not come back: $sg"
+# --force, because the remove prompts for confirmation and a suite has no tty.
+exoc compute security-group source remove conformance-sg 203.0.113.0/24 --force >/dev/null \
+  || fail "security-group source remove rejected"
+sg="$(exoc -O json compute security-group show conformance-sg)" || fail "sg show after remove rejected"
+printf '%s' "$sg" | jq -e '(.external_sources // []) | length == 0' >/dev/null \
+  || fail "the source survived its removal: $sg"
+ok "source added, published, removed"
+
 echo "- delete, and it is gone"
 exoc -Q compute instance delete "$id" --force >/dev/null || fail "instance delete rejected"
 after="$(exoc -O json compute instance list)" || fail "instance list rejected: $after"

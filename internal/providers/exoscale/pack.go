@@ -130,6 +130,23 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "PUT", Path: "/v2/elastic-ip/{id}:attach", Operation: operation("attach-instance-to-elastic-ip"), Handler: p.attachInstanceToElasticIP},
 		{Method: "PUT", Path: "/v2/elastic-ip/{id}:detach", Operation: operation("detach-instance-from-elastic-ip"), Handler: p.detachInstanceFromElasticIP},
 
+		// Private networks and their leases, batch 3 (#9). The action-suffix
+		// routes resolve like the instance's own; the reset route is the one
+		// field their API description declares resettable.
+		{Method: "POST", Path: "/v2/private-network", Operation: operation("create-private-network"), Handler: p.createPrivateNetwork},
+		{Method: "GET", Path: "/v2/private-network", Operation: operation("list-private-networks"), Handler: p.listPrivateNetworks},
+		{Method: "GET", Path: "/v2/private-network/{id}", Operation: operation("get-private-network"), Handler: p.getPrivateNetwork},
+		{Method: "PUT", Path: "/v2/private-network/{id}", Operation: operation("update-private-network"), Handler: p.updatePrivateNetwork},
+		{Method: "DELETE", Path: "/v2/private-network/{id}", Operation: operation("delete-private-network"), Handler: p.deletePrivateNetwork},
+		{Method: "DELETE", Path: "/v2/private-network/{id}/{field}", Operation: operation("reset-private-network-field"), Handler: p.resetPrivateNetworkField},
+		{Method: "PUT", Path: "/v2/private-network/{id}:attach", Operation: operation("attach-instance-to-private-network"), Handler: p.attachInstanceToPrivateNetwork},
+		{Method: "PUT", Path: "/v2/private-network/{id}:detach", Operation: operation("detach-instance-from-private-network"), Handler: p.detachInstanceFromPrivateNetwork},
+		{Method: "PUT", Path: "/v2/private-network/{id}:update-ip", Operation: operation("update-private-network-instance-ip"), Handler: p.updatePrivateNetworkInstanceIP},
+
+		// The external sources of a security group, the last piece of batch 3.
+		{Method: "PUT", Path: "/v2/security-group/{id}:add-source", Operation: operation("add-external-source-to-security-group"), Handler: p.addExternalSourceToSecurityGroup},
+		{Method: "PUT", Path: "/v2/security-group/{id}:remove-source", Operation: operation("remove-external-source-from-security-group"), Handler: p.removeExternalSourceFromSecurityGroup},
+
 		// Deploy targets: a read the CLI makes while resolving a create. An
 		// emulated account has none, and an empty list is the honest inventory.
 		{Method: "GET", Path: "/v2/deploy-target", Operation: operation("list-deploy-targets"), Handler: p.listDeployTargets},
@@ -935,12 +952,13 @@ func (p *Pack) view(res *resource.Resource) map[string]any {
 		"secureboot-enabled":                      res.Attrs["secureboot-enabled"],
 		"tpm-enabled":                             res.Attrs["tpm-enabled"],
 		"application-consistent-snapshot-enabled": false,
-		// Present and empty rather than absent: the products behind them are
-		// batches 3 and 4, and this is what the real API answers for an
-		// instance that has none. block-storage-volumes was measured beside
-		// them and stays off: their published schema does not declare it on
-		// instance, and the contract check enforces that schema as closed.
-		"private-networks":     []any{},
+		// Present and empty rather than absent: this is what the real API
+		// answers for an instance that has none. block-storage-volumes was
+		// measured beside them and stays off: their published schema does not
+		// declare it on instance, and the contract check enforces that schema
+		// as closed. private-networks became a computed relation with batch 3;
+		// snapshots stay ahead, in batch 4.
+		"private-networks":     p.privateNetworkRefs(res),
 		"snapshots":            []any{},
 		"anti-affinity-groups": p.antiAffinityGroupRefs(res),
 		"security-groups":      securityGroupRefs(res),

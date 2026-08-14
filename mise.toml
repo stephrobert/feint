@@ -148,6 +148,7 @@ description = "Prove the emulated network is real: blocks, addresses, and a fire
 run = [
   "tools/conformance/scaleway/network.sh http://$FEINT_ADDR",
   "tools/conformance/outscale/network.sh http://$FEINT_ADDR",
+  "tools/conformance/exoscale/network.sh http://$FEINT_ADDR",
 ]
 
 [tasks."conformance:ssh"]
@@ -269,6 +270,7 @@ if [ "${FEINT_VM:-off}" = "off" ]; then ./feint probe --endpoint "http://$FEINT_
 # Skips itself when no machine runtime is configured, so CI stays runtime-free.
 tools/conformance/scaleway/network.sh "http://$FEINT_ADDR"
 tools/conformance/outscale/network.sh "http://$FEINT_ADDR"
+tools/conformance/exoscale/network.sh "http://$FEINT_ADDR"
 # The evidence artefact (#123), written only when a caller asks for it: a
 # partial or ad-hoc run must not overwrite the recorded proofs by accident.
 # `mise run evidence:update` is the caller, and sets the two variables.
