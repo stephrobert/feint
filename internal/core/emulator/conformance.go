@@ -69,6 +69,18 @@ type observer struct {
 	// above say how many; the stream says what happened, once, with its time and
 	// its status.
 	stream *stream
+	// flight is the set of requests currently being handled, so a store touch
+	// can be attributed to the one client exchange that caused it — and only
+	// when there is exactly one, because attributing under concurrency would be
+	// guessing. See assert.go.
+	flight    map[int64]flightEntry
+	flightSeq int64
+	// spans are the assertion spans a suite has opened and not yet closed.
+	spans map[string]*assertSpan
+	// behaviour and negative record, per operation, the two axes only a closed
+	// span can earn. See assert.go for what each requires.
+	behaviour map[string]bool
+	negative  map[string]bool
 }
 
 func newObserver(contracts map[string]*contract.Doc, events *stream) *observer {
@@ -80,6 +92,10 @@ func newObserver(contracts map[string]*contract.Doc, events *stream) *observer {
 		checked:    map[string]int{},
 		unread:     map[string]map[string]bool{},
 		contracts:  contracts,
+		flight:     map[int64]flightEntry{},
+		spans:      map[string]*assertSpan{},
+		behaviour:  map[string]bool{},
+		negative:   map[string]bool{},
 	}
 }
 
@@ -89,7 +105,12 @@ func (o *observer) wrap(provider string, r Route) http.HandlerFunc {
 	doc := o.contracts[provider]
 
 	return func(w http.ResponseWriter, req *http.Request) {
-		o.record(r.Operation, req.Header.Get(ProbeHeader) != "")
+		synthetic := req.Header.Get(ProbeHeader) != ""
+		o.record(r.Operation, synthetic)
+		// In flight for as long as the handler runs, so a store touch the
+		// handler makes can be attributed to this operation (assert.go).
+		token := o.beginFlight(r.Operation, synthetic)
+		defer o.endFlight(token)
 
 		// The report is filed whether or not a contract is loaded: a field the
 		// client sent and the handler ignored is a defect on its own, and
@@ -109,6 +130,10 @@ func (o *observer) wrap(provider string, r Route) http.HandlerFunc {
 		started := time.Now()
 		r.Handler(rec, req)
 		elapsed := time.Since(started)
+
+		// Offered to every open assertion span: the negative axis is computed
+		// from exactly these lines (assert.go).
+		o.spanExchange(r.Operation, rec.status, synthetic)
 
 		unread := rep.fields()
 		// Only a request the handler accepted. A field named in a 4xx was not
@@ -326,13 +351,13 @@ type ConformanceView struct {
 
 // Evidence names the independent proofs one operation carries.
 //
-// Two axes this record deliberately does not have, because they have no
-// machine-checkable source: `behaviour` (a conformance assertion names this
-// operation inside a lifecycle sequence) and `negative` (an error case was
-// reproduced on purpose). The suites prove both today and emit no signal at
-// the assertion level, so any value here would be hand-declared — the exact
-// kind of comment-that-is-not-a-control this record exists to replace. They
-// appear when the suites can name what each assertion proved, not before.
+// The behaviour and negative axes were deliberately absent until the suites
+// could emit a signal at the assertion level (#123 declined them for exactly
+// that reason: without one, any value would have been hand-declared — a
+// comment, not a control). The signal now exists: an assertion span, opened
+// and closed by a suite against /_feint/assert, whose claim the emulator
+// verifies against its own observations before anything is marked. See
+// assert.go for what each span must contain.
 type Evidence struct {
 	// Driven: a real client reached this operation at least once this run.
 	// It asserts what the suite asserted, nothing more — #116 and #83 were
@@ -357,6 +382,17 @@ type Evidence struct {
 	// when the catalogue does not cover it, "unknown" when this server was
 	// given no catalogue to look in.
 	Shape string `json:"shape"`
+	// Behaviour: this operation touched a resource whose full lifecycle —
+	// created, then destroyed — the store itself observed inside an assertion
+	// span a suite declared (assert.go). It does not say the operation's own
+	// effect was asserted; the suite's checks around the sequence are what
+	// they are, and `driven` above already carries that caveat.
+	Behaviour bool `json:"behaviour"`
+	// Negative: inside a span where a suite declared it was demanding a
+	// refusal, this operation really answered a 4xx to a real client. One
+	// demanded refusal earns it; it does not say every refusal this operation
+	// owes was reproduced.
+	Negative bool `json:"negative"`
 }
 
 // Contract verdicts and shape states, named once.
@@ -419,6 +455,14 @@ func (s *Server) handleConformance(w http.ResponseWriter, _ *http.Request) {
 	for name := range s.observer.contracts {
 		providers = append(providers, name)
 	}
+	behaviour := make(map[string]bool, len(s.observer.behaviour))
+	for op := range s.observer.behaviour {
+		behaviour[op] = true
+	}
+	negative := make(map[string]bool, len(s.observer.negative))
+	for op := range s.observer.negative {
+		negative[op] = true
+	}
 	s.observer.mu.Unlock()
 	sort.Strings(providers)
 
@@ -468,6 +512,8 @@ func (s *Server) handleConformance(w http.ResponseWriter, _ *http.Request) {
 			Contract:  verdict,
 			Dataplane: calls[r.Operation] > 0 && runtimeOn,
 			Shape:     shapeState,
+			Behaviour: behaviour[r.Operation],
+			Negative:  negative[r.Operation],
 		}
 	}
 

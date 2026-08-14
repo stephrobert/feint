@@ -30,6 +30,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/../guard.sh"
 guard_local "$ENDPOINT"
+# The assertion spans behind the behaviour and negative evidence axes: each
+# lifecycle block and each demanded refusal below is bracketed, and the
+# emulator refuses the bracket when its own observation does not support it.
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/../prove.sh"
 
 command -v exo >/dev/null 2>&1 || { echo "FAIL: exo is not installed" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is not installed" >&2; exit 1; }
@@ -82,6 +87,7 @@ esac
 ok "$template_name, $type_name"
 
 echo "- ssh keys, which the create registers on its own before posting"
+span="$(prove_begin behaviour)"
 keys_before="$(exoc -O json compute ssh-key list)" || fail "ssh-key list rejected: $keys_before"
 printf '%s' "$keys_before" | jq -e 'length == 0' >/dev/null \
   || fail "a fresh account already holds SSH keys: $keys_before"
@@ -97,6 +103,7 @@ keys="$(exoc -O json compute ssh-key list)" || fail "ssh-key list rejected: $key
 printf '%s' "$keys" | jq -e 'any(.[]; .name == "conformance" and (.fingerprint | length) > 0)' >/dev/null \
   || fail "the registered key came back without a fingerprint: $keys"
 exoc -Q compute ssh-key delete conformance --force >/dev/null || fail "ssh-key delete rejected"
+prove_end "$span"
 ok "registered with a computed fingerprint, and removed"
 
 echo "- the limits a client reads, counted rather than invented"
@@ -114,6 +121,7 @@ else
 fi
 
 echo "- create, from the catalogue the emulator just published"
+span="$(prove_begin behaviour)"
 exoc compute instance create conformance \
   --zone "$EXOSCALE_ZONE" --template "$template_name" --instance-type "$type_name" \
   >/dev/null || fail "instance create rejected"
@@ -152,9 +160,11 @@ ok "scaled to standard.small, disk at 11 GiB"
 
 echo "- protection: a protected instance refuses its delete"
 exoc compute instance update "$id" --protection >/dev/null || fail "protection update rejected"
+neg="$(prove_begin negative)"
 if exoc -Q compute instance delete "$id" --force >/dev/null 2>&1; then
   fail "a protected instance accepted its delete"
 fi
+prove_end "$neg"
 exoc compute instance update "$id" --protection=false >/dev/null || fail "protection removal rejected"
 ok "delete refused while protected, protection removable"
 
@@ -209,6 +219,7 @@ exoc -Q compute security-group delete conformance-sg --force >/dev/null \
   || fail "security-group delete rejected"
 exoc -Q compute anti-affinity-group delete conformance-aag --force >/dev/null \
   || fail "anti-affinity-group delete rejected"
+prove_end "$span"
 ok "security group and anti-affinity group deleted"
 
 # Every answer above was also checked against Exoscale's own API description,

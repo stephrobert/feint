@@ -25,6 +25,11 @@ ENDPOINT="${1:-http://127.0.0.1:4599}"
 # shellcheck source=/dev/null
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/guard.sh"
 guard_local "$ENDPOINT"
+# The assertion span behind the behaviour evidence axis: the whole
+# apply-to-destroy cycle is bracketed, and the emulator only accepts the
+# bracket if its own store saw resources created and then destroyed inside it.
+# shellcheck source=/dev/null
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/prove.sh"
 ZONE="${ZONE:-fr-par-1}"
 TF="${FEINT_TF:-}"
 if [ -z "$TF" ]; then
@@ -71,6 +76,7 @@ if [ "${FEINT_TF_APPLY:-1}" != "1" ]; then
 fi
 
 echo "- apply"
+span="$(prove_begin behaviour)"
 "$TF" apply -no-color -auto-approve tfplan
 server_id="$("$TF" output -raw server_id)"
 [ -n "$server_id" ] || fail "apply produced no server id"
@@ -131,7 +137,9 @@ echo "- destroy"
 DESTROYED=1
 
 # Destroy reporting success is not the same as the resource being gone: the provider believes
-# whatever the delete answered. Ask the emulator.
+# whatever the delete answered. Ask the emulator. Each of these is a demanded
+# refusal, so the block is a negative span: the emulator must have really said no.
+neg="$(prove_begin negative)"
 code="$(curl -s -o /dev/null -w '%{http_code}' "$ENDPOINT/instance/v1/zones/$ZONE/servers/$server_uuid")"
 [ "$code" = "404" ] || fail "the destroyed server still answers $code"
 # And the volume with it. The provider destroys through terminate, which used to
@@ -148,6 +156,8 @@ code="$(curl -s -o /dev/null -w '%{http_code}' "$ENDPOINT/ipam/v1/regions/fr-par
 [ "$code" = "404" ] || fail "the released address still answers $code"
 code="$(curl -s -o /dev/null -w '%{http_code}' "$ENDPOINT/vpc/v2/regions/fr-par/routes/$route_uuid")"
 [ "$code" = "404" ] || fail "the destroyed route still answers $code"
+prove_end "$neg"
+prove_end "$span"
 ok "destroyed, and gone from the API"
 
 echo "conformance: $TF apply/destroy passed"

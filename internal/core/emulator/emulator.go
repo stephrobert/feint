@@ -238,6 +238,16 @@ func NewServer(env *Env, packs ...Pack) (*Server, error) {
 	s.mountSelf("GET /_feint/trace", s.handleTrace)
 	s.mountSelf("GET /_feint/state", s.handleStateRead)
 	s.mountSelf("PUT /_feint/state", s.handleStateWrite)
+	// The assertion spans behind the behaviour and negative evidence axes: a
+	// suite brackets one assertion, and the emulator resolves what it proved
+	// from its own observations. See assert.go.
+	s.mountSelf("POST /_feint/assert", s.handleAssertOpen)
+	s.mountSelf("POST /_feint/assert/{id}", s.handleAssertClose)
+	// The store tells the observer about every touch the handlers make, which
+	// is what lets a lifecycle be observed rather than declared.
+	if env.Store != nil {
+		env.Store.Observe(s.observer.storeTouch)
+	}
 
 	// "/" matches anything no other pattern does, and net/http 1.22 patterns are
 	// specific-wins, so this never shadows a mounted route.

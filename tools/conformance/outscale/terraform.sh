@@ -34,6 +34,11 @@ ENDPOINT="${1:-http://127.0.0.1:4599}"
 # shellcheck source=/dev/null
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/guard.sh"
 guard_local "$ENDPOINT"
+# The assertion span behind the behaviour evidence axis: the whole
+# apply-to-destroy cycle is bracketed, and the emulator only accepts the
+# bracket if its own store saw resources created and then destroyed inside it.
+# shellcheck source=/dev/null
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/prove.sh"
 
 TF="${FEINT_TF:-}"
 if [ -z "$TF" ]; then
@@ -97,6 +102,7 @@ if [ "${FEINT_TF_APPLY:-1}" != "1" ]; then
 fi
 
 echo "- apply"
+span="$(prove_begin behaviour)"
 "$TF" apply -no-color -auto-approve tfplan >/dev/null
 vm_id="$("$TF" output -raw vm_id)"
 [ -n "$vm_id" ] || fail "apply produced no Vm id"
@@ -260,6 +266,7 @@ vms="$(curl -sf -X POST "$ENDPOINT/api/v1/ReadVms" -H 'Content-Type: application
         -d "{\"Filters\":{\"VmIds\":[\"$vm_id\"]}}")" || fail "ReadVms rejected"
 printf '%s' "$vms" | jq -e '.Vms[0].State == "terminated" or (.Vms | length == 0)' >/dev/null \
   || fail "the destroyed Vm is not terminated: $vms"
+prove_end "$span"
 ok "destroyed, and the API agrees"
 
 echo "conformance: outscale $TF apply/destroy passed"
