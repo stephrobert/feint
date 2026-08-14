@@ -22,15 +22,18 @@ import (
 const evidenceContract = `{
   "provider": "stub",
   "operations": {
-    "OpA": {"method": "GET", "path": "/stub/a", "response": "AView"}
+    "OpA": {"method": "GET", "path": "/stub/a", "response": "AView"},
+    "OpB": {"method": "GET", "path": "/stub/b", "response": "BView"}
   },
   "schemas": {
-    "AView": {"closed": true, "properties": {"ok": {"type": "boolean"}}}
+    "AView": {"closed": true, "properties": {"ok": {"type": "boolean"}}},
+    "BView": {"closed": true}
   }
 }`
 
 // evidenceServer mounts one pack with two routes: /stub/a answers what its
-// handler is told to, /stub/b answers an empty object with no contract entry.
+// handler is told to, /stub/b answers an empty object, which its schema
+// accepts.
 func evidenceServer(t *testing.T, env *emulator.Env, body string) *emulator.Server {
 	t.Helper()
 	pack := stubPack{name: "stub", routes: []emulator.Route{
@@ -102,11 +105,11 @@ func TestEvidenceKeepsDrivenAndProbedApart(t *testing.T) {
 
 	ev := viewOf(t, ts).Evidence
 	a, b := ev["stub/v1/API.OpA"], ev["stub/v1/API.OpB"]
-	if !a.Driven || a.Probed {
+	if !a.Driven || a.Probed != emulator.ProbeNone {
 		t.Errorf("OpA was driven by a client, not probed: %+v", a)
 	}
-	if b.Driven || !b.Probed {
-		t.Errorf("OpB was probed, and a probe must never count as driven: %+v", b)
+	if b.Driven || b.Probed != emulator.ProbeResponse {
+		t.Errorf("OpB was probed and validated, and a probe must never count as driven: %+v", b)
 	}
 }
 

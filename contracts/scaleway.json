@@ -4,6 +4,7 @@
  "apiVersion": "instance/v1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2, block/v1, block/v1alpha1",
  "pathPrefix": "",
  "closedPolicy": "declared",
+ "errorSchema": "scw.ResponseError",
  "operations": {
   "block/v1.CreateSnapshot": {
    "path": "/block/v1/zones/{zone}/snapshots",
@@ -59,19 +60,100 @@
    "path": "/block/v1/zones/{zone}/snapshots",
    "method": "GET",
    "group": "Snapshot",
-   "response": "block/v1.scaleway.block.v1.ListSnapshotsResponse"
+   "response": "block/v1.scaleway.block.v1.ListSnapshotsResponse",
+   "query": {
+    "order_by": {
+     "ref": "block/v1.scaleway.block.v1.ListSnapshotsRequest.OrderBy"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "volume_id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "include_deleted": {
+     "type": "boolean"
+    }
+   }
   },
   "block/v1.ListVolumeTypes": {
    "path": "/block/v1/zones/{zone}/volume-types",
    "method": "GET",
    "group": "Volume Type",
-   "response": "block/v1.scaleway.block.v1.ListVolumeTypesResponse"
+   "response": "block/v1.scaleway.block.v1.ListVolumeTypesResponse",
+   "query": {
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    }
+   }
   },
   "block/v1.ListVolumes": {
    "path": "/block/v1/zones/{zone}/volumes",
    "method": "GET",
    "group": "Volume",
-   "response": "block/v1.scaleway.block.v1.ListVolumesResponse"
+   "response": "block/v1.scaleway.block.v1.ListVolumesResponse",
+   "query": {
+    "order_by": {
+     "ref": "block/v1.scaleway.block.v1.ListVolumesRequest.OrderBy"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "name": {
+     "type": "string"
+    },
+    "product_resource_id": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "include_deleted": {
+     "type": "boolean"
+    },
+    "volume_type": {
+     "type": "string"
+    },
+    "volume_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
   },
   "block/v1.UpdateSnapshot": {
    "path": "/block/v1/zones/{zone}/snapshots/{snapshot_id}",
@@ -148,19 +230,85 @@
    "path": "/block/v1alpha1/zones/{zone}/snapshots",
    "method": "GET",
    "group": "Snapshot",
-   "response": "block/v1alpha1.scaleway.block.v1alpha1.ListSnapshotsResponse"
+   "response": "block/v1alpha1.scaleway.block.v1alpha1.ListSnapshotsResponse",
+   "query": {
+    "order_by": {
+     "ref": "block/v1alpha1.scaleway.block.v1alpha1.ListSnapshotsRequest.OrderBy"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "volume_id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
   },
   "block/v1alpha1.ListVolumeTypes": {
    "path": "/block/v1alpha1/zones/{zone}/volume-types",
    "method": "GET",
    "group": "Volume Type",
-   "response": "block/v1alpha1.scaleway.block.v1alpha1.ListVolumeTypesResponse"
+   "response": "block/v1alpha1.scaleway.block.v1alpha1.ListVolumeTypesResponse",
+   "query": {
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    }
+   }
   },
   "block/v1alpha1.ListVolumes": {
    "path": "/block/v1alpha1/zones/{zone}/volumes",
    "method": "GET",
    "group": "Volume",
-   "response": "block/v1alpha1.scaleway.block.v1alpha1.ListVolumesResponse"
+   "response": "block/v1alpha1.scaleway.block.v1alpha1.ListVolumesResponse",
+   "query": {
+    "order_by": {
+     "ref": "block/v1alpha1.scaleway.block.v1alpha1.ListVolumesRequest.OrderBy"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "name": {
+     "type": "string"
+    },
+    "product_resource_id": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
   },
   "block/v1alpha1.UpdateSnapshot": {
    "path": "/block/v1alpha1/zones/{zone}/snapshots/{snapshot_id}",
@@ -398,7 +546,12 @@
    "path": "/iam/v1alpha1/quota/{quotum_name}",
    "method": "GET",
    "group": "Quotas",
-   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Quotum"
+   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.Quotum",
+   "query": {
+    "organization_id": {
+     "type": "string"
+    }
+   }
   },
   "iam/v1alpha1.GetSSHKey": {
    "path": "/iam/v1alpha1/ssh-keys/{ssh_key_id}",
@@ -437,67 +590,341 @@
    "path": "/iam/v1alpha1/api-keys",
    "method": "GET",
    "group": "API Keys",
-   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListAPIKeysResponse"
+   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListAPIKeysResponse",
+   "query": {
+    "order_by": {
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.ListAPIKeysRequest.OrderBy"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "editable": {
+     "type": "boolean"
+    },
+    "expired": {
+     "type": "boolean"
+    },
+    "access_key": {
+     "type": "string"
+    },
+    "description": {
+     "type": "string"
+    },
+    "bearer_id": {
+     "type": "string"
+    },
+    "bearer_type": {
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.BearerType"
+    },
+    "access_keys": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
   },
   "iam/v1alpha1.ListApplications": {
    "path": "/iam/v1alpha1/applications",
    "method": "GET",
    "group": "Applications",
-   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListApplicationsResponse"
+   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListApplicationsResponse",
+   "query": {
+    "order_by": {
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.ListApplicationsRequest.OrderBy"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "name": {
+     "type": "string"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "editable": {
+     "type": "boolean"
+    },
+    "application_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "tag": {
+     "type": "string"
+    }
+   }
   },
   "iam/v1alpha1.ListGracePeriods": {
    "path": "/iam/v1alpha1/grace-periods",
    "method": "GET",
    "group": "Users",
-   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListGracePeriodsResponse"
+   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListGracePeriodsResponse",
+   "query": {
+    "user_id": {
+     "type": "string"
+    }
+   }
   },
   "iam/v1alpha1.ListGroups": {
    "path": "/iam/v1alpha1/groups",
    "method": "GET",
    "group": "Groups",
-   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListGroupsResponse"
+   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListGroupsResponse",
+   "query": {
+    "order_by": {
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.ListGroupsRequest.OrderBy"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "application_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "user_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "group_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "tag": {
+     "type": "string"
+    }
+   }
   },
   "iam/v1alpha1.ListJWTs": {
    "path": "/iam/v1alpha1/jwts",
    "method": "GET",
    "group": "JWTs",
-   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListJWTsResponse"
+   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListJWTsResponse",
+   "query": {
+    "order_by": {
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.ListJWTsRequest.OrderBy"
+    },
+    "audience_id": {
+     "type": "string"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "expired": {
+     "type": "boolean"
+    }
+   }
   },
   "iam/v1alpha1.ListLogs": {
    "path": "/iam/v1alpha1/logs",
    "method": "GET",
    "group": "Logs",
-   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListLogsResponse"
+   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListLogsResponse",
+   "query": {
+    "order_by": {
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.ListLogsRequest.OrderBy"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "created_after": {
+     "type": "string"
+    },
+    "created_before": {
+     "type": "string"
+    },
+    "action": {
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.Log.Action"
+    },
+    "resource_type": {
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.Log.ResourceType"
+    },
+    "search": {
+     "type": "string"
+    }
+   }
   },
   "iam/v1alpha1.ListPermissionSets": {
    "path": "/iam/v1alpha1/permission-sets",
    "method": "GET",
    "group": "Permission sets",
-   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListPermissionSetsResponse"
+   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListPermissionSetsResponse",
+   "query": {
+    "order_by": {
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.ListPermissionSetsRequest.OrderBy"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "organization_id": {
+     "type": "string"
+    }
+   }
   },
   "iam/v1alpha1.ListPolicies": {
    "path": "/iam/v1alpha1/policies",
    "method": "GET",
    "group": "Policies",
-   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListPoliciesResponse"
+   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListPoliciesResponse",
+   "query": {
+    "order_by": {
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.ListPoliciesRequest.OrderBy"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "editable": {
+     "type": "boolean"
+    },
+    "user_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "group_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "application_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "no_principal": {
+     "type": "boolean"
+    },
+    "policy_name": {
+     "type": "string"
+    },
+    "tag": {
+     "type": "string"
+    },
+    "policy_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
   },
   "iam/v1alpha1.ListQuota": {
    "path": "/iam/v1alpha1/quota",
    "method": "GET",
    "group": "Quotas",
-   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListQuotaResponse"
+   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListQuotaResponse",
+   "query": {
+    "order_by": {
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.ListQuotaRequest.OrderBy"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "quotum_names": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
   },
   "iam/v1alpha1.ListRules": {
    "path": "/iam/v1alpha1/rules",
    "method": "GET",
    "group": "Rules",
-   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListRulesResponse"
+   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListRulesResponse",
+   "query": {
+    "policy_id": {
+     "type": "string"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    }
+   }
   },
   "iam/v1alpha1.ListSSHKeys": {
    "path": "/iam/v1alpha1/ssh-keys",
    "method": "GET",
    "group": "SSH Keys",
-   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListSSHKeysResponse"
+   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListSSHKeysResponse",
+   "query": {
+    "order_by": {
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.ListSSHKeysRequest.OrderBy"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "disabled": {
+     "type": "boolean"
+    }
+   }
   },
   "iam/v1alpha1.ListSamlCertificates": {
    "path": "/iam/v1alpha1/saml/{saml_id}/certificates",
@@ -509,13 +936,53 @@
    "path": "/iam/v1alpha1/scim/{scim_id}/tokens",
    "method": "GET",
    "group": "SCIM",
-   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListScimTokensResponse"
+   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListScimTokensResponse",
+   "query": {
+    "order_by": {
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.ListScimTokensRequest.OrderBy"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    }
+   }
   },
   "iam/v1alpha1.ListUsers": {
    "path": "/iam/v1alpha1/users",
    "method": "GET",
    "group": "Users",
-   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListUsersResponse"
+   "response": "iam/v1alpha1.scaleway.iam.v1alpha1.ListUsersResponse",
+   "query": {
+    "order_by": {
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.ListUsersRequest.OrderBy"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "user_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "mfa": {
+     "type": "boolean"
+    },
+    "tag": {
+     "type": "string"
+    },
+    "type": {
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.User.Type"
+    }
+   }
   },
   "iam/v1alpha1.LockUser": {
    "path": "/iam/v1alpha1/users/{user_id}/lock",
@@ -800,7 +1267,15 @@
   "instance/v1.GetDashboard": {
    "path": "/instance/v1/zones/{zone}/dashboard",
    "method": "GET",
-   "response": "instance/v1.scaleway.instance.v1.GetDashboardResponse"
+   "response": "instance/v1.scaleway.instance.v1.GetDashboardResponse",
+   "query": {
+    "organization": {
+     "type": "string"
+    },
+    "project": {
+     "type": "string"
+    }
+   }
   },
   "instance/v1.GetImage": {
    "path": "/instance/v1/zones/{zone}/images/{image_id}",
@@ -860,7 +1335,15 @@
    "path": "/instance/v1/zones/{zone}/products/servers/availability",
    "method": "GET",
    "group": "Instance Types",
-   "response": "instance/v1.scaleway.instance.v1.GetServerTypesAvailabilityResponse"
+   "response": "instance/v1.scaleway.instance.v1.GetServerTypesAvailabilityResponse",
+   "query": {
+    "per_page": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    }
+   }
   },
   "instance/v1.GetServerUserData": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/user_data/{key}",
@@ -890,37 +1373,148 @@
    "path": "/instance/v1/zones/{zone}/images",
    "method": "GET",
    "group": "Images",
-   "response": "instance/v1.scaleway.instance.v1.ListImagesResponse"
+   "response": "instance/v1.scaleway.instance.v1.ListImagesResponse",
+   "query": {
+    "organization": {
+     "type": "string"
+    },
+    "per_page": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "name": {
+     "type": "string"
+    },
+    "public": {
+     "type": "boolean"
+    },
+    "arch": {
+     "type": "string"
+    },
+    "project": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "string"
+    }
+   }
   },
   "instance/v1.ListIps": {
    "path": "/instance/v1/zones/{zone}/ips",
    "method": "GET",
    "group": "IPs",
-   "response": "instance/v1.scaleway.instance.v1.ListIpsResponse"
+   "response": "instance/v1.scaleway.instance.v1.ListIpsResponse",
+   "query": {
+    "project": {
+     "type": "string"
+    },
+    "organization": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "per_page": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "type": {
+     "type": "string"
+    }
+   }
   },
   "instance/v1.ListPlacementGroups": {
    "path": "/instance/v1/zones/{zone}/placement_groups",
    "method": "GET",
    "group": "Placement Groups",
-   "response": "instance/v1.scaleway.instance.v1.ListPlacementGroupsResponse"
+   "response": "instance/v1.scaleway.instance.v1.ListPlacementGroupsResponse",
+   "query": {
+    "per_page": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "organization": {
+     "type": "string"
+    },
+    "project": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    }
+   }
   },
   "instance/v1.ListPrivateNICs": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/private_nics",
    "method": "GET",
    "group": "Private NICs",
-   "response": "instance/v1.scaleway.instance.v1.ListPrivateNICsResponse"
+   "response": "instance/v1.scaleway.instance.v1.ListPrivateNICsResponse",
+   "query": {
+    "tags": {
+     "type": "string"
+    },
+    "per_page": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    }
+   }
   },
   "instance/v1.ListSecurityGroupRules": {
    "path": "/instance/v1/zones/{zone}/security_groups/{security_group_id}/rules",
    "method": "GET",
    "group": "Security Groups",
-   "response": "instance/v1.scaleway.instance.v1.ListSecurityGroupRulesResponse"
+   "response": "instance/v1.scaleway.instance.v1.ListSecurityGroupRulesResponse",
+   "query": {
+    "per_page": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    }
+   }
   },
   "instance/v1.ListSecurityGroups": {
    "path": "/instance/v1/zones/{zone}/security_groups",
    "method": "GET",
    "group": "Security Groups",
-   "response": "instance/v1.scaleway.instance.v1.ListSecurityGroupsResponse"
+   "response": "instance/v1.scaleway.instance.v1.ListSecurityGroupsResponse",
+   "query": {
+    "name": {
+     "type": "string"
+    },
+    "organization": {
+     "type": "string"
+    },
+    "project": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "string"
+    },
+    "project_default": {
+     "type": "boolean"
+    },
+    "per_page": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    }
+   }
   },
   "instance/v1.ListServerActions": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/action",
@@ -938,31 +1532,143 @@
    "path": "/instance/v1/zones/{zone}/servers",
    "method": "GET",
    "group": "Instances",
-   "response": "instance/v1.scaleway.instance.v1.ListServersResponse"
+   "response": "instance/v1.scaleway.instance.v1.ListServersResponse",
+   "query": {
+    "per_page": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "organization": {
+     "type": "string"
+    },
+    "project": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "private_ip": {
+     "type": "string"
+    },
+    "without_ip": {
+     "type": "boolean"
+    },
+    "with_ip": {
+     "type": "string"
+    },
+    "commercial_type": {
+     "type": "string"
+    },
+    "state": {
+     "ref": "instance/v1.scaleway.instance.v1.Server.State"
+    },
+    "tags": {
+     "type": "string"
+    },
+    "private_network": {
+     "type": "string"
+    },
+    "order": {
+     "ref": "instance/v1.scaleway.instance.v1.ListServersRequest.Order"
+    },
+    "private_networks": {
+     "type": "string"
+    },
+    "private_nic_mac_address": {
+     "type": "string"
+    },
+    "servers": {
+     "type": "string"
+    }
+   }
   },
   "instance/v1.ListServersTypes": {
    "path": "/instance/v1/zones/{zone}/products/servers",
    "method": "GET",
    "group": "Instance Types",
-   "response": "instance/v1.scaleway.instance.v1.ListServersTypesResponse"
+   "response": "instance/v1.scaleway.instance.v1.ListServersTypesResponse",
+   "query": {
+    "per_page": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    }
+   }
   },
   "instance/v1.ListSnapshots": {
    "path": "/instance/v1/zones/{zone}/snapshots",
    "method": "GET",
    "group": "Snapshots",
-   "response": "instance/v1.scaleway.instance.v1.ListSnapshotsResponse"
+   "response": "instance/v1.scaleway.instance.v1.ListSnapshotsResponse",
+   "query": {
+    "organization": {
+     "type": "string"
+    },
+    "project": {
+     "type": "string"
+    },
+    "per_page": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "name": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "string"
+    },
+    "base_volume_id": {
+     "type": "string"
+    }
+   }
   },
   "instance/v1.ListVolumes": {
    "path": "/instance/v1/zones/{zone}/volumes",
    "method": "GET",
    "group": "Volumes",
-   "response": "instance/v1.scaleway.instance.v1.ListVolumesResponse"
+   "response": "instance/v1.scaleway.instance.v1.ListVolumesResponse",
+   "query": {
+    "volume_type": {
+     "ref": "instance/v1.scaleway.instance.v1.Volume.VolumeType"
+    },
+    "per_page": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "organization": {
+     "type": "string"
+    },
+    "project": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    }
+   }
   },
   "instance/v1.ListVolumesTypes": {
    "path": "/instance/v1/zones/{zone}/products/volumes",
    "method": "GET",
    "group": "Volume Types",
-   "response": "instance/v1.scaleway.instance.v1.ListVolumesTypesResponse"
+   "response": "instance/v1.scaleway.instance.v1.ListVolumesTypesResponse",
+   "query": {
+    "per_page": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    }
+   }
   },
   "instance/v1.ReleaseIpToIpam": {
    "path": "/instance/v1/zones/{zone}/ips/{ip_id}/release-to-ipam",
@@ -1138,7 +1844,69 @@
    "path": "/ipam/v1/regions/{region}/ips",
    "method": "GET",
    "group": "IPs",
-   "response": "ipam/v1.scaleway.ipam.v1.ListIPsResponse"
+   "response": "ipam/v1.scaleway.ipam.v1.ListIPsResponse",
+   "query": {
+    "order_by": {
+     "ref": "ipam/v1.scaleway.ipam.v1.ListIPsRequest.OrderBy"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "vpc_id": {
+     "type": "string"
+    },
+    "attached": {
+     "type": "boolean"
+    },
+    "resource_name": {
+     "type": "string"
+    },
+    "resource_id": {
+     "type": "string"
+    },
+    "resource_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "resource_type": {
+     "ref": "ipam/v1.scaleway.ipam.v1.Resource.Type"
+    },
+    "resource_types": {
+     "type": "array",
+     "items": {
+      "ref": "ipam/v1.scaleway.ipam.v1.Resource.Type"
+     }
+    },
+    "mac_address": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "is_ipv6": {
+     "type": "boolean"
+    },
+    "ip_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
   },
   "ipam/v1.MoveIP": {
    "path": "/ipam/v1/regions/{region}/ips/{ip_id}/move",
@@ -1192,25 +1960,87 @@
    "path": "/marketplace/v2/categories",
    "method": "GET",
    "group": "Marketplace Image Categories",
-   "response": "marketplace/v2.scaleway.marketplace.v2.ListCategoriesResponse"
+   "response": "marketplace/v2.scaleway.marketplace.v2.ListCategoriesResponse",
+   "query": {
+    "page_size": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    }
+   }
   },
   "marketplace/v2.ListImages": {
    "path": "/marketplace/v2/images",
    "method": "GET",
    "group": "Marketplace Images",
-   "response": "marketplace/v2.scaleway.marketplace.v2.ListImagesResponse"
+   "response": "marketplace/v2.scaleway.marketplace.v2.ListImagesResponse",
+   "query": {
+    "page_size": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "order_by": {
+     "ref": "marketplace/v2.scaleway.marketplace.v2.ListImagesRequest.OrderBy"
+    },
+    "arch": {
+     "type": "string"
+    },
+    "category": {
+     "type": "string"
+    },
+    "include_eol": {
+     "type": "boolean"
+    }
+   }
   },
   "marketplace/v2.ListLocalImages": {
    "path": "/marketplace/v2/local-images",
    "method": "GET",
    "group": "Marketplace Local Images",
-   "response": "marketplace/v2.scaleway.marketplace.v2.ListLocalImagesResponse"
+   "response": "marketplace/v2.scaleway.marketplace.v2.ListLocalImagesResponse",
+   "query": {
+    "page_size": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "order_by": {
+     "ref": "marketplace/v2.scaleway.marketplace.v2.ListLocalImagesRequest.OrderBy"
+    },
+    "zone": {
+     "type": "string"
+    },
+    "arch": {
+     "type": "string"
+    },
+    "type": {
+     "ref": "marketplace/v2.scaleway.marketplace.v2.LocalImage.Type"
+    }
+   }
   },
   "marketplace/v2.ListVersions": {
    "path": "/marketplace/v2/versions",
    "method": "GET",
    "group": "Marketplace Image Versions",
-   "response": "marketplace/v2.scaleway.marketplace.v2.ListVersionsResponse"
+   "response": "marketplace/v2.scaleway.marketplace.v2.ListVersionsResponse",
+   "query": {
+    "image_id": {
+     "type": "string"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "order_by": {
+     "ref": "marketplace/v2.scaleway.marketplace.v2.ListVersionsRequest.OrderBy"
+    }
+   }
   },
   "vpc/v2.AddPrivateNetworkS3Endpoint": {
    "path": "/vpc/v2/regions/{region}/s3-integration/{vpc_id}/private-networks",
@@ -1306,13 +2136,26 @@
    "path": "/vpc/v2/regions/{region}/s3-integration/{vpc_id}/enable",
    "method": "POST",
    "group": "S3 integration",
-   "response": "vpc/v2.scaleway.vpc.v2.VPC"
+   "response": "vpc/v2.scaleway.vpc.v2.VPC",
+   "query": {
+    "private_network_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
   },
   "vpc/v2.GetAcl": {
    "path": "/vpc/v2/regions/{region}/vpcs/{vpc_id}/acl-rules",
    "method": "GET",
    "group": "Network ACLs",
-   "response": "vpc/v2.scaleway.vpc.v2.GetAclResponse"
+   "response": "vpc/v2.scaleway.vpc.v2.GetAclResponse",
+   "query": {
+    "is_ipv6": {
+     "type": "boolean"
+    }
+   }
   },
   "vpc/v2.GetIngressRule": {
    "path": "/vpc/v2/regions/{region}/ingress-rules/{rule_id}",
@@ -1348,37 +2191,220 @@
    "path": "/vpc/v2/regions/{region}/ingress-rules",
    "method": "GET",
    "group": "Ingress Rules",
-   "response": "vpc/v2.scaleway.vpc.v2.ListIngressRulesResponse"
+   "response": "vpc/v2.scaleway.vpc.v2.ListIngressRulesResponse",
+   "query": {
+    "order_by": {
+     "ref": "vpc/v2.scaleway.vpc.v2.ListIngressRulesRequest.OrderBy"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "vpc_id": {
+     "type": "string"
+    },
+    "nexthop_resource_ip": {
+     "type": "string"
+    },
+    "nexthop_private_network_id": {
+     "type": "string"
+    },
+    "is_ipv6": {
+     "type": "boolean"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    }
+   }
   },
   "vpc/v2.ListPrivateNetworks": {
    "path": "/vpc/v2/regions/{region}/private-networks",
    "method": "GET",
    "group": "Private Networks",
-   "response": "vpc/v2.scaleway.vpc.v2.ListPrivateNetworksResponse"
+   "response": "vpc/v2.scaleway.vpc.v2.ListPrivateNetworksResponse",
+   "query": {
+    "order_by": {
+     "ref": "vpc/v2.scaleway.vpc.v2.ListPrivateNetworksRequest.OrderBy"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "name": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "private_network_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "vpc_id": {
+     "type": "string"
+    },
+    "dhcp_enabled": {
+     "type": "boolean"
+    },
+    "s3_integration_enabled": {
+     "type": "boolean"
+    }
+   }
   },
   "vpc/v2.ListSubnetOverlaps": {
    "path": "/vpc/v2/regions/{region}/vpc-connectors/{vpc_connector_id}/subnet-overlaps",
    "method": "GET",
    "group": "VPC Connectors",
-   "response": "vpc/v2.scaleway.vpc.v2.ListSubnetOverlapsResponse"
+   "response": "vpc/v2.scaleway.vpc.v2.ListSubnetOverlapsResponse",
+   "query": {
+    "order_by": {
+     "ref": "vpc/v2.scaleway.vpc.v2.ListSubnetOverlapsRequest.OrderBy"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    }
+   }
   },
   "vpc/v2.ListSubnets": {
    "path": "/vpc/v2/regions/{region}/subnets",
    "method": "GET",
    "group": "Subnets",
-   "response": "vpc/v2.scaleway.vpc.v2.ListSubnetsResponse"
+   "response": "vpc/v2.scaleway.vpc.v2.ListSubnetsResponse",
+   "query": {
+    "order_by": {
+     "ref": "vpc/v2.scaleway.vpc.v2.ListSubnetsRequest.OrderBy"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "subnet_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "vpc_id": {
+     "type": "string"
+    }
+   }
   },
   "vpc/v2.ListVPCConnectors": {
    "path": "/vpc/v2/regions/{region}/vpc-connectors",
    "method": "GET",
    "group": "VPC Connectors",
-   "response": "vpc/v2.scaleway.vpc.v2.ListVPCConnectorsResponse"
+   "response": "vpc/v2.scaleway.vpc.v2.ListVPCConnectorsResponse",
+   "query": {
+    "order_by": {
+     "ref": "vpc/v2.scaleway.vpc.v2.ListVPCConnectorsRequest.OrderBy"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "name": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "vpc_id": {
+     "type": "string"
+    },
+    "target_vpc_id": {
+     "type": "string"
+    },
+    "status": {
+     "ref": "vpc/v2.scaleway.vpc.v2.VPCConnectorStatus"
+    }
+   }
   },
   "vpc/v2.ListVPCs": {
    "path": "/vpc/v2/regions/{region}/vpcs",
    "method": "GET",
    "group": "VPCs",
-   "response": "vpc/v2.scaleway.vpc.v2.ListVPCsResponse"
+   "response": "vpc/v2.scaleway.vpc.v2.ListVPCsResponse",
+   "query": {
+    "order_by": {
+     "ref": "vpc/v2.scaleway.vpc.v2.ListVPCsRequest.OrderBy"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "name": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "is_default": {
+     "type": "boolean"
+    },
+    "routing_enabled": {
+     "type": "boolean"
+    },
+    "s3_integration_enabled": {
+     "type": "boolean"
+    }
+   }
   },
   "vpc/v2.SetAcl": {
    "path": "/vpc/v2/regions/{region}/vpcs/{vpc_id}/acl-rules",
@@ -1461,12 +2487,8 @@
     "project_id"
    ],
    "properties": {
-    "from_empty": {
-     "type": "object"
-    },
-    "from_snapshot": {
-     "type": "object"
-    },
+    "from_empty": {},
+    "from_snapshot": {},
     "kms_key_id": {
      "type": "string"
     },
@@ -1534,10 +2556,7 @@
      "type": "boolean"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     }
    }
   },
@@ -1554,12 +2573,55 @@
      "type": "integer"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     }
    }
+  },
+  "block/v1.google.type.Money": {
+   "closed": false,
+   "properties": {
+    "currency_code": {
+     "type": "string"
+    },
+    "nanos": {
+     "type": "integer"
+    },
+    "units": {
+     "type": "integer"
+    }
+   }
+  },
+  "block/v1.scaleway.block.v1.CreateVolumeRequest.FromEmpty": {
+   "closed": false,
+   "required": [
+    "size"
+   ],
+   "properties": {
+    "size": {
+     "type": "integer"
+    }
+   }
+  },
+  "block/v1.scaleway.block.v1.CreateVolumeRequest.FromSnapshot": {
+   "closed": false,
+   "properties": {
+    "size": {
+     "type": "integer"
+    },
+    "snapshot_id": {
+     "type": "string"
+    }
+   }
+  },
+  "block/v1.scaleway.block.v1.ListSnapshotsRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "name_asc",
+    "name_desc"
+   ]
   },
   "block/v1.scaleway.block.v1.ListSnapshotsResponse": {
    "closed": false,
@@ -1588,6 +2650,16 @@
      }
     }
    }
+  },
+  "block/v1.scaleway.block.v1.ListVolumesRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "name_asc",
+    "name_desc"
+   ]
   },
   "block/v1.scaleway.block.v1.ListVolumesResponse": {
    "closed": false,
@@ -1619,39 +2691,41 @@
      "type": "string"
     },
     "status": {
-     "type": "string",
-     "enum": [
-      "unknown_status",
-      "attaching",
-      "attached",
-      "detaching",
-      "detached",
-      "creating",
-      "error"
-     ]
+     "ref": "block/v1.scaleway.block.v1.Reference.Status"
     },
     "type": {
-     "type": "string",
-     "enum": [
-      "unknown_type",
-      "link",
-      "exclusive",
-      "read_only"
-     ]
+     "ref": "block/v1.scaleway.block.v1.Reference.Type"
     }
    }
+  },
+  "block/v1.scaleway.block.v1.Reference.Status": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_status",
+    "attaching",
+    "attached",
+    "detaching",
+    "detached",
+    "creating",
+    "error"
+   ]
+  },
+  "block/v1.scaleway.block.v1.Reference.Type": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_type",
+    "link",
+    "exclusive",
+    "read_only"
+   ]
   },
   "block/v1.scaleway.block.v1.Snapshot": {
    "closed": false,
    "properties": {
     "class": {
-     "type": "string",
-     "enum": [
-      "unknown_storage_class",
-      "unspecified",
-      "bssd",
-      "sbs"
-     ]
+     "ref": "block/v1.scaleway.block.v1.StorageClass"
     },
     "created_at": {
      "type": "string"
@@ -1663,7 +2737,7 @@
      "type": "string"
     },
     "parent_volume": {
-     "type": "object"
+     "ref": "block/v1.scaleway.block.v1.Snapshot.ParentVolume"
     },
     "project_id": {
      "type": "string"
@@ -1681,18 +2755,7 @@
      "type": "integer"
     },
     "status": {
-     "type": "string",
-     "enum": [
-      "unknown_status",
-      "creating",
-      "available",
-      "error",
-      "deleting",
-      "deleted",
-      "in_use",
-      "locked",
-      "exporting"
-     ]
+     "ref": "block/v1.scaleway.block.v1.Snapshot.Status"
     },
     "tags": {
      "type": "array",
@@ -1707,6 +2770,48 @@
      "type": "string"
     }
    }
+  },
+  "block/v1.scaleway.block.v1.Snapshot.ParentVolume": {
+   "closed": false,
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "status": {
+     "ref": "block/v1.scaleway.block.v1.Volume.Status"
+    },
+    "type": {
+     "type": "string"
+    }
+   }
+  },
+  "block/v1.scaleway.block.v1.Snapshot.Status": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_status",
+    "creating",
+    "available",
+    "error",
+    "deleting",
+    "deleted",
+    "in_use",
+    "locked",
+    "exporting"
+   ]
+  },
+  "block/v1.scaleway.block.v1.StorageClass": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_storage_class",
+    "unspecified",
+    "bssd",
+    "sbs"
+   ]
   },
   "block/v1.scaleway.block.v1.Volume": {
    "closed": false,
@@ -1742,23 +2847,10 @@
      "type": "integer"
     },
     "specs": {
-     "type": "object"
+     "ref": "block/v1.scaleway.block.v1.VolumeSpecifications"
     },
     "status": {
-     "type": "string",
-     "enum": [
-      "unknown_status",
-      "creating",
-      "available",
-      "in_use",
-      "deleting",
-      "deleted",
-      "resizing",
-      "error",
-      "snapshotting",
-      "locked",
-      "updating"
-     ]
+     "ref": "block/v1.scaleway.block.v1.Volume.Status"
     },
     "tags": {
      "type": "array",
@@ -1777,17 +2869,45 @@
     }
    }
   },
+  "block/v1.scaleway.block.v1.Volume.Status": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_status",
+    "creating",
+    "available",
+    "in_use",
+    "deleting",
+    "deleted",
+    "resizing",
+    "error",
+    "snapshotting",
+    "locked",
+    "updating"
+   ]
+  },
+  "block/v1.scaleway.block.v1.VolumeSpecifications": {
+   "closed": false,
+   "properties": {
+    "class": {
+     "ref": "block/v1.scaleway.block.v1.StorageClass"
+    },
+    "perf_iops": {
+     "type": "integer"
+    }
+   }
+  },
   "block/v1.scaleway.block.v1.VolumeType": {
    "closed": false,
    "properties": {
     "pricing": {
-     "type": "object"
+     "ref": "block/v1.google.type.Money"
     },
     "snapshot_pricing": {
-     "type": "object"
+     "ref": "block/v1.google.type.Money"
     },
     "specs": {
-     "type": "object"
+     "ref": "block/v1.scaleway.block.v1.VolumeSpecifications"
     },
     "type": {
      "type": "string"
@@ -1824,12 +2944,8 @@
     "project_id"
    ],
    "properties": {
-    "from_empty": {
-     "type": "object"
-    },
-    "from_snapshot": {
-     "type": "object"
-    },
+    "from_empty": {},
+    "from_snapshot": {},
     "name": {
      "type": "string"
     },
@@ -1917,10 +3033,7 @@
      "type": "string"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     }
    }
   },
@@ -1937,12 +3050,55 @@
      "type": "integer"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     }
    }
+  },
+  "block/v1alpha1.google.type.Money": {
+   "closed": false,
+   "properties": {
+    "currency_code": {
+     "type": "string"
+    },
+    "nanos": {
+     "type": "integer"
+    },
+    "units": {
+     "type": "integer"
+    }
+   }
+  },
+  "block/v1alpha1.scaleway.block.v1alpha1.CreateVolumeRequest.FromEmpty": {
+   "closed": false,
+   "required": [
+    "size"
+   ],
+   "properties": {
+    "size": {
+     "type": "integer"
+    }
+   }
+  },
+  "block/v1alpha1.scaleway.block.v1alpha1.CreateVolumeRequest.FromSnapshot": {
+   "closed": false,
+   "properties": {
+    "size": {
+     "type": "integer"
+    },
+    "snapshot_id": {
+     "type": "string"
+    }
+   }
+  },
+  "block/v1alpha1.scaleway.block.v1alpha1.ListSnapshotsRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "name_asc",
+    "name_desc"
+   ]
   },
   "block/v1alpha1.scaleway.block.v1alpha1.ListSnapshotsResponse": {
    "closed": false,
@@ -1971,6 +3127,16 @@
      }
     }
    }
+  },
+  "block/v1alpha1.scaleway.block.v1alpha1.ListVolumesRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "name_asc",
+    "name_desc"
+   ]
   },
   "block/v1alpha1.scaleway.block.v1alpha1.ListVolumesResponse": {
    "closed": false,
@@ -2002,39 +3168,41 @@
      "type": "string"
     },
     "status": {
-     "type": "string",
-     "enum": [
-      "unknown_status",
-      "attaching",
-      "attached",
-      "detaching",
-      "detached",
-      "creating",
-      "error"
-     ]
+     "ref": "block/v1alpha1.scaleway.block.v1alpha1.Reference.Status"
     },
     "type": {
-     "type": "string",
-     "enum": [
-      "unknown_type",
-      "link",
-      "exclusive",
-      "read_only"
-     ]
+     "ref": "block/v1alpha1.scaleway.block.v1alpha1.Reference.Type"
     }
    }
+  },
+  "block/v1alpha1.scaleway.block.v1alpha1.Reference.Status": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_status",
+    "attaching",
+    "attached",
+    "detaching",
+    "detached",
+    "creating",
+    "error"
+   ]
+  },
+  "block/v1alpha1.scaleway.block.v1alpha1.Reference.Type": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_type",
+    "link",
+    "exclusive",
+    "read_only"
+   ]
   },
   "block/v1alpha1.scaleway.block.v1alpha1.Snapshot": {
    "closed": false,
    "properties": {
     "class": {
-     "type": "string",
-     "enum": [
-      "unknown_storage_class",
-      "unspecified",
-      "bssd",
-      "sbs"
-     ]
+     "ref": "block/v1alpha1.scaleway.block.v1alpha1.StorageClass"
     },
     "created_at": {
      "type": "string"
@@ -2046,7 +3214,7 @@
      "type": "string"
     },
     "parent_volume": {
-     "type": "object"
+     "ref": "block/v1alpha1.scaleway.block.v1alpha1.Snapshot.ParentVolume"
     },
     "project_id": {
      "type": "string"
@@ -2061,18 +3229,7 @@
      "type": "integer"
     },
     "status": {
-     "type": "string",
-     "enum": [
-      "unknown_status",
-      "creating",
-      "available",
-      "error",
-      "deleting",
-      "deleted",
-      "in_use",
-      "locked",
-      "exporting"
-     ]
+     "ref": "block/v1alpha1.scaleway.block.v1alpha1.Snapshot.Status"
     },
     "tags": {
      "type": "array",
@@ -2087,6 +3244,48 @@
      "type": "string"
     }
    }
+  },
+  "block/v1alpha1.scaleway.block.v1alpha1.Snapshot.ParentVolume": {
+   "closed": false,
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "status": {
+     "ref": "block/v1alpha1.scaleway.block.v1alpha1.Volume.Status"
+    },
+    "type": {
+     "type": "string"
+    }
+   }
+  },
+  "block/v1alpha1.scaleway.block.v1alpha1.Snapshot.Status": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_status",
+    "creating",
+    "available",
+    "error",
+    "deleting",
+    "deleted",
+    "in_use",
+    "locked",
+    "exporting"
+   ]
+  },
+  "block/v1alpha1.scaleway.block.v1alpha1.StorageClass": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_storage_class",
+    "unspecified",
+    "bssd",
+    "sbs"
+   ]
   },
   "block/v1alpha1.scaleway.block.v1alpha1.Volume": {
    "closed": false,
@@ -2119,23 +3318,10 @@
      "type": "integer"
     },
     "specs": {
-     "type": "object"
+     "ref": "block/v1alpha1.scaleway.block.v1alpha1.VolumeSpecifications"
     },
     "status": {
-     "type": "string",
-     "enum": [
-      "unknown_status",
-      "creating",
-      "available",
-      "in_use",
-      "deleting",
-      "deleted",
-      "resizing",
-      "error",
-      "snapshotting",
-      "locked",
-      "updating"
-     ]
+     "ref": "block/v1alpha1.scaleway.block.v1alpha1.Volume.Status"
     },
     "tags": {
      "type": "array",
@@ -2154,17 +3340,45 @@
     }
    }
   },
+  "block/v1alpha1.scaleway.block.v1alpha1.Volume.Status": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_status",
+    "creating",
+    "available",
+    "in_use",
+    "deleting",
+    "deleted",
+    "resizing",
+    "error",
+    "snapshotting",
+    "locked",
+    "updating"
+   ]
+  },
+  "block/v1alpha1.scaleway.block.v1alpha1.VolumeSpecifications": {
+   "closed": false,
+   "properties": {
+    "class": {
+     "ref": "block/v1alpha1.scaleway.block.v1alpha1.StorageClass"
+    },
+    "perf_iops": {
+     "type": "integer"
+    }
+   }
+  },
   "block/v1alpha1.scaleway.block.v1alpha1.VolumeType": {
    "closed": false,
    "properties": {
     "pricing": {
-     "type": "object"
+     "ref": "block/v1alpha1.google.type.Money"
     },
     "snapshot_pricing": {
-     "type": "object"
+     "ref": "block/v1alpha1.google.type.Money"
     },
     "specs": {
-     "type": "object"
+     "ref": "block/v1alpha1.scaleway.block.v1alpha1.VolumeSpecifications"
     },
     "type": {
      "type": "string"
@@ -2210,12 +3424,7 @@
      "type": "string"
     },
     "type": {
-     "type": "string",
-     "enum": [
-      "unknown_certificate_type",
-      "signing",
-      "encryption"
-     ]
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.SamlCertificate.Type"
     }
    }
   },
@@ -2366,9 +3575,7 @@
     "email": {
      "type": "string"
     },
-    "member": {
-     "type": "object"
-    },
+    "member": {},
     "organization_id": {
      "type": "string"
     },
@@ -2478,10 +3685,7 @@
      "type": "string"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     }
    }
   },
@@ -2495,10 +3699,7 @@
      "type": "string"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     }
    }
   },
@@ -2558,10 +3759,7 @@
      "type": "boolean"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     },
     "user_id": {
      "type": "string"
@@ -2609,10 +3807,7 @@
      "type": "string"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     }
    }
   },
@@ -2731,6 +3926,15 @@
     }
    }
   },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.BearerType": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_bearer_type",
+    "user",
+    "application"
+   ]
+  },
   "iam/v1alpha1.scaleway.iam.v1alpha1.CheckPermissionsRequest.Permission": {
    "closed": false,
    "properties": {
@@ -2782,10 +3986,38 @@
    "closed": false,
    "properties": {
     "organization": {
-     "type": "object"
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.Connection.ConnectedOrganization"
     },
     "user": {
-     "type": "object"
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.Connection.ConnectedUser"
+    }
+   }
+  },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.Connection.ConnectedOrganization": {
+   "closed": false,
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "locked": {
+     "type": "boolean"
+    },
+    "name": {
+     "type": "string"
+    }
+   }
+  },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.Connection.ConnectedUser": {
+   "closed": false,
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "type": {
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.User.Type"
+    },
+    "username": {
+     "type": "string"
     }
    }
   },
@@ -2796,7 +4028,39 @@
      "type": "string"
     },
     "token": {
-     "type": "object"
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.ScimToken"
+    }
+   }
+  },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.CreateUserRequest.Member": {
+   "closed": false,
+   "properties": {
+    "email": {
+     "type": "string"
+    },
+    "first_name": {
+     "type": "string"
+    },
+    "last_name": {
+     "type": "string"
+    },
+    "locale": {
+     "type": "string"
+    },
+    "password": {
+     "type": "string"
+    },
+    "phone_number": {
+     "type": "string"
+    },
+    "send_password_email": {
+     "type": "boolean"
+    },
+    "send_welcome_email": {
+     "type": "boolean"
+    },
+    "username": {
+     "type": "string"
     }
    }
   },
@@ -2821,14 +4085,18 @@
      "type": "string"
     },
     "type": {
-     "type": "string",
-     "enum": [
-      "unknown_grace_period_type",
-      "update_password",
-      "set_mfa"
-     ]
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.GracePeriodType"
     }
    }
+  },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.GracePeriodType": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_grace_period_type",
+    "update_password",
+    "set_mfa"
+   ]
   },
   "iam/v1alpha1.scaleway.iam.v1alpha1.Group": {
    "closed": false,
@@ -2923,6 +4191,20 @@
     }
    }
   },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.ListAPIKeysRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "updated_at_asc",
+    "updated_at_desc",
+    "expires_at_asc",
+    "expires_at_desc",
+    "access_key_asc",
+    "access_key_desc"
+   ]
+  },
   "iam/v1alpha1.scaleway.iam.v1alpha1.ListAPIKeysResponse": {
    "closed": false,
    "properties": {
@@ -2936,6 +4218,18 @@
      "type": "integer"
     }
    }
+  },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.ListApplicationsRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "updated_at_asc",
+    "updated_at_desc",
+    "name_asc",
+    "name_desc"
+   ]
   },
   "iam/v1alpha1.scaleway.iam.v1alpha1.ListApplicationsResponse": {
    "closed": false,
@@ -2962,6 +4256,18 @@
     }
    }
   },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.ListGroupsRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "updated_at_asc",
+    "updated_at_desc",
+    "name_asc",
+    "name_desc"
+   ]
+  },
   "iam/v1alpha1.scaleway.iam.v1alpha1.ListGroupsResponse": {
    "closed": false,
    "properties": {
@@ -2975,6 +4281,16 @@
      "type": "integer"
     }
    }
+  },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.ListJWTsRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "updated_at_asc",
+    "updated_at_desc"
+   ]
   },
   "iam/v1alpha1.scaleway.iam.v1alpha1.ListJWTsResponse": {
    "closed": false,
@@ -2990,6 +4306,14 @@
     }
    }
   },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.ListLogsRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc"
+   ]
+  },
   "iam/v1alpha1.scaleway.iam.v1alpha1.ListLogsResponse": {
    "closed": false,
    "properties": {
@@ -3003,6 +4327,16 @@
      "type": "integer"
     }
    }
+  },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.ListPermissionSetsRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "name_asc",
+    "name_desc",
+    "created_at_asc",
+    "created_at_desc"
+   ]
   },
   "iam/v1alpha1.scaleway.iam.v1alpha1.ListPermissionSetsResponse": {
    "closed": false,
@@ -3018,6 +4352,16 @@
     }
    }
   },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.ListPoliciesRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "policy_name_asc",
+    "policy_name_desc",
+    "created_at_asc",
+    "created_at_desc"
+   ]
+  },
   "iam/v1alpha1.scaleway.iam.v1alpha1.ListPoliciesResponse": {
    "closed": false,
    "properties": {
@@ -3031,6 +4375,14 @@
      "type": "integer"
     }
    }
+  },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.ListQuotaRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "name_asc",
+    "name_desc"
+   ]
   },
   "iam/v1alpha1.scaleway.iam.v1alpha1.ListQuotaResponse": {
    "closed": false,
@@ -3060,6 +4412,18 @@
     }
    }
   },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.ListSSHKeysRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "updated_at_asc",
+    "updated_at_desc",
+    "name_asc",
+    "name_desc"
+   ]
+  },
   "iam/v1alpha1.scaleway.iam.v1alpha1.ListSSHKeysResponse": {
    "closed": false,
    "properties": {
@@ -3085,6 +4449,14 @@
     }
    }
   },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.ListScimTokensRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc"
+   ]
+  },
   "iam/v1alpha1.scaleway.iam.v1alpha1.ListScimTokensResponse": {
    "closed": false,
    "properties": {
@@ -3098,6 +4470,22 @@
      "type": "integer"
     }
    }
+  },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.ListUsersRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "updated_at_asc",
+    "updated_at_desc",
+    "email_asc",
+    "email_desc",
+    "last_login_asc",
+    "last_login_desc",
+    "username_asc",
+    "username_desc"
+   ]
   },
   "iam/v1alpha1.scaleway.iam.v1alpha1.ListUsersResponse": {
    "closed": false,
@@ -3113,17 +4501,20 @@
     }
    }
   },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.LocalityType": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "global",
+    "region",
+    "zone"
+   ]
+  },
   "iam/v1alpha1.scaleway.iam.v1alpha1.Log": {
    "closed": false,
    "properties": {
     "action": {
-     "type": "string",
-     "enum": [
-      "unknown_action",
-      "created",
-      "updated",
-      "deleted"
-     ]
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.Log.Action"
     },
     "bearer_id": {
      "type": "string"
@@ -3144,20 +4535,34 @@
      "type": "string"
     },
     "resource_type": {
-     "type": "string",
-     "enum": [
-      "unknown_resource_type",
-      "api_key",
-      "user",
-      "application",
-      "group",
-      "policy"
-     ]
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.Log.ResourceType"
     },
     "user_agent": {
      "type": "string"
     }
    }
+  },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.Log.Action": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_action",
+    "created",
+    "updated",
+    "deleted"
+   ]
+  },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.Log.ResourceType": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_resource_type",
+    "api_key",
+    "user",
+    "application",
+    "group",
+    "policy"
+   ]
   },
   "iam/v1alpha1.scaleway.iam.v1alpha1.MFAOTP": {
    "closed": false,
@@ -3217,10 +4622,7 @@
    "closed": false,
    "properties": {
     "categories": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     },
     "description": {
      "type": "string"
@@ -3232,15 +4634,19 @@
      "type": "string"
     },
     "scope_type": {
-     "type": "string",
-     "enum": [
-      "unknown_scope_type",
-      "projects",
-      "organization",
-      "account_root_user"
-     ]
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.PermissionSet.ScopeType"
     }
    }
+  },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.PermissionSet.ScopeType": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_scope_type",
+    "projects",
+    "organization",
+    "account_root_user"
+   ]
   },
   "iam/v1alpha1.scaleway.iam.v1alpha1.Policy": {
    "closed": false,
@@ -3317,12 +4723,7 @@
      }
     },
     "locality_type": {
-     "type": "string",
-     "enum": [
-      "global",
-      "region",
-      "zone"
-     ]
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.LocalityType"
     },
     "name": {
      "type": "string"
@@ -3374,25 +4775,13 @@
      "type": "string"
     },
     "permission_set_names": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     },
     "permission_sets_scope_type": {
-     "type": "string",
-     "enum": [
-      "unknown_scope_type",
-      "projects",
-      "organization",
-      "account_root_user"
-     ]
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.PermissionSet.ScopeType"
     },
     "project_ids": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     }
    }
   },
@@ -3406,16 +4795,10 @@
      "type": "string"
     },
     "permission_set_names": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     },
     "project_ids": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     }
    }
   },
@@ -3461,22 +4844,37 @@
      "type": "string"
     },
     "service_provider": {
-     "type": "object"
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.Saml.ServiceProvider"
     },
     "single_sign_on_url": {
      "type": "string"
     },
     "status": {
-     "type": "string",
-     "enum": [
-      "unknown_saml_status",
-      "valid",
-      "missing_certificate",
-      "missing_entity_id",
-      "missing_single_sign_on_url"
-     ]
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.Saml.Status"
     }
    }
+  },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.Saml.ServiceProvider": {
+   "closed": false,
+   "properties": {
+    "assertion_consumer_service_url": {
+     "type": "string"
+    },
+    "entity_id": {
+     "type": "string"
+    }
+   }
+  },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.Saml.Status": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_saml_status",
+    "valid",
+    "missing_certificate",
+    "missing_entity_id",
+    "missing_single_sign_on_url"
+   ]
   },
   "iam/v1alpha1.scaleway.iam.v1alpha1.SamlCertificate": {
    "closed": false,
@@ -3491,22 +4889,30 @@
      "type": "string"
     },
     "origin": {
-     "type": "string",
-     "enum": [
-      "unknown_certificate_origin",
-      "scaleway",
-      "identity_provider"
-     ]
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.SamlCertificate.Origin"
     },
     "type": {
-     "type": "string",
-     "enum": [
-      "unknown_certificate_type",
-      "signing",
-      "encryption"
-     ]
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.SamlCertificate.Type"
     }
    }
+  },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.SamlCertificate.Origin": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_certificate_origin",
+    "scaleway",
+    "identity_provider"
+   ]
+  },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.SamlCertificate.Type": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_certificate_type",
+    "signing",
+    "encryption"
+   ]
   },
   "iam/v1alpha1.scaleway.iam.v1alpha1.Scim": {
    "closed": false,
@@ -3590,12 +4996,7 @@
      "type": "string"
     },
     "status": {
-     "type": "string",
-     "enum": [
-      "unknown_status",
-      "invitation_pending",
-      "activated"
-     ]
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.User.Status"
     },
     "tags": {
      "type": "array",
@@ -3607,12 +5008,7 @@
      "type": "boolean"
     },
     "type": {
-     "type": "string",
-     "enum": [
-      "unknown_type",
-      "owner",
-      "member"
-     ]
+     "ref": "iam/v1alpha1.scaleway.iam.v1alpha1.User.Type"
     },
     "updated_at": {
      "type": "string"
@@ -3621,6 +5017,15 @@
      "type": "string"
     }
    }
+  },
+  "iam/v1alpha1.scaleway.iam.v1alpha1.User.Status": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_status",
+    "invitation_pending",
+    "activated"
+   ]
   },
   "iam/v1alpha1.scaleway.iam.v1alpha1.User.Type": {
    "closed": false,
@@ -3680,13 +5085,7 @@
    ],
    "properties": {
     "arch": {
-     "type": "string",
-     "enum": [
-      "unknown_arch",
-      "x86_64",
-      "arm",
-      "arm64"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.Arch"
     },
     "extra_volumes": {
      "type": "object"
@@ -3733,12 +5132,7 @@
      }
     },
     "type": {
-     "type": "string",
-     "enum": [
-      "unknown_iptype",
-      "routed_ipv4",
-      "routed_ipv6"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.IpType"
     }
    }
   },
@@ -3752,18 +5146,10 @@
      "type": "string"
     },
     "policy_mode": {
-     "type": "string",
-     "enum": [
-      "optional",
-      "enforced"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.PlacementGroup.PolicyMode"
     },
     "policy_type": {
-     "type": "string",
-     "enum": [
-      "max_availability",
-      "low_latency"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.PlacementGroup.PolicyType"
     },
     "project": {
      "type": "string"
@@ -3812,12 +5198,7 @@
      "type": "boolean"
     },
     "inbound_default_policy": {
-     "type": "string",
-     "enum": [
-      "unknown_policy",
-      "accept",
-      "drop"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.SecurityGroup.Policy"
     },
     "name": {
      "type": "string"
@@ -3829,12 +5210,7 @@
      "type": "boolean"
     },
     "outbound_default_policy": {
-     "type": "string",
-     "enum": [
-      "unknown_policy",
-      "accept",
-      "drop"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.SecurityGroup.Policy"
     },
     "project": {
      "type": "string"
@@ -3899,12 +5275,7 @@
      "type": "string"
     },
     "boot_type": {
-     "type": "string",
-     "enum": [
-      "local",
-      "bootscript",
-      "rescue"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.BootType"
     },
     "commercial_type": {
      "type": "string"
@@ -3937,10 +5308,7 @@
      "type": "string"
     },
     "public_ips": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     },
     "routed_ip_enabled": {
      "type": "boolean"
@@ -3981,22 +5349,13 @@
      "type": "integer"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     },
     "volume_id": {
      "type": "string"
     },
     "volume_type": {
-     "type": "string",
-     "enum": [
-      "unknown_volume_type",
-      "l_ssd",
-      "b_ssd",
-      "unified"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.Snapshot.VolumeType"
     }
    }
   },
@@ -4025,15 +5384,7 @@
      }
     },
     "volume_type": {
-     "type": "string",
-     "enum": [
-      "l_ssd",
-      "b_ssd",
-      "unified",
-      "scratch",
-      "sbs_volume",
-      "sbs_snapshot"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.Volume.VolumeType"
     }
    }
   },
@@ -4068,16 +5419,7 @@
    "closed": false,
    "properties": {
     "action": {
-     "type": "string",
-     "enum": [
-      "poweron",
-      "backup",
-      "stop_in_place",
-      "poweroff",
-      "terminate",
-      "reboot",
-      "enable_routed_ip"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.Server.Action"
     },
     "disable_ipv6": {
      "type": "boolean"
@@ -4184,12 +5526,7 @@
      "type": "boolean"
     },
     "inbound_default_policy": {
-     "type": "string",
-     "enum": [
-      "unknown_policy",
-      "accept",
-      "drop"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.SecurityGroup.Policy"
     },
     "modification_date": {
      "type": "string"
@@ -4204,12 +5541,7 @@
      "type": "boolean"
     },
     "outbound_default_policy": {
-     "type": "string",
-     "enum": [
-      "unknown_policy",
-      "accept",
-      "drop"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.SecurityGroup.Policy"
     },
     "project": {
      "type": "string"
@@ -4227,10 +5559,7 @@
      "type": "boolean"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     }
    }
   },
@@ -4337,40 +5666,19 @@
      "type": "string"
     },
     "server": {
-     "type": "object"
+     "ref": "instance/v1.scaleway.instance.v1.ServerSummary"
     },
     "size": {
      "type": "integer"
     },
     "state": {
-     "type": "string",
-     "enum": [
-      "available",
-      "snapshotting",
-      "fetching",
-      "saving",
-      "attaching",
-      "resizing",
-      "hotsyncing",
-      "error"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.Volume.State"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     },
     "volume_type": {
-     "type": "string",
-     "enum": [
-      "l_ssd",
-      "b_ssd",
-      "unified",
-      "scratch",
-      "sbs_volume",
-      "sbs_snapshot"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.Volume.VolumeType"
     }
    }
   },
@@ -4378,13 +5686,7 @@
    "closed": false,
    "properties": {
     "arch": {
-     "type": "string",
-     "enum": [
-      "unknown_arch",
-      "x86_64",
-      "arm",
-      "arm64"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.Arch"
     },
     "extra_volumes": {
      "type": "object"
@@ -4396,10 +5698,7 @@
      "type": "boolean"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     }
    }
   },
@@ -4413,18 +5712,10 @@
      "ref": "instance/v1.scaleway.instance.v1.NullableStringValue"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     },
     "type": {
-     "type": "string",
-     "enum": [
-      "unknown_iptype",
-      "routed_ipv4",
-      "routed_ipv6"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.IpType"
     }
    }
   },
@@ -4435,24 +5726,13 @@
      "type": "string"
     },
     "policy_mode": {
-     "type": "string",
-     "enum": [
-      "optional",
-      "enforced"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.PlacementGroup.PolicyMode"
     },
     "policy_type": {
-     "type": "string",
-     "enum": [
-      "max_availability",
-      "low_latency"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.PlacementGroup.PolicyType"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     }
    }
   },
@@ -4474,10 +5754,7 @@
    "closed": false,
    "properties": {
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     }
    }
   },
@@ -4491,12 +5768,7 @@
      "type": "boolean"
     },
     "inbound_default_policy": {
-     "type": "string",
-     "enum": [
-      "unknown_policy",
-      "accept",
-      "drop"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.SecurityGroup.Policy"
     },
     "name": {
      "type": "string"
@@ -4505,12 +5777,7 @@
      "type": "boolean"
     },
     "outbound_default_policy": {
-     "type": "string",
-     "enum": [
-      "unknown_policy",
-      "accept",
-      "drop"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.SecurityGroup.Policy"
     },
     "project_default": {
      "type": "boolean"
@@ -4519,10 +5786,7 @@
      "type": "boolean"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     }
    }
   },
@@ -4530,12 +5794,7 @@
    "closed": false,
    "properties": {
     "action": {
-     "type": "string",
-     "enum": [
-      "unknown_action",
-      "accept",
-      "drop"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.SecurityGroupRule.Action"
     },
     "dest_port_from": {
      "type": "integer"
@@ -4544,12 +5803,7 @@
      "type": "integer"
     },
     "direction": {
-     "type": "string",
-     "enum": [
-      "unknown_direction",
-      "inbound",
-      "outbound"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.SecurityGroupRule.Direction"
     },
     "ip_range": {
      "type": "string"
@@ -4558,14 +5812,7 @@
      "type": "integer"
     },
     "protocol": {
-     "type": "string",
-     "enum": [
-      "unknown_protocol",
-      "TCP",
-      "UDP",
-      "ICMP",
-      "ANY"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.SecurityGroupRule.Protocol"
     }
    }
   },
@@ -4594,19 +5841,13 @@
      "type": "string"
     },
     "private_nics": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     },
     "protected": {
      "type": "boolean"
     },
     "public_ips": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     },
     "routed_ip_enabled": {
      "type": "boolean"
@@ -4615,10 +5856,7 @@
      "ref": "instance/v1.scaleway.instance.v1.SecurityGroupTemplate"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     },
     "volumes": {
      "type": "object"
@@ -4632,10 +5870,7 @@
      "type": "string"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     }
    }
   },
@@ -4649,10 +5884,7 @@
      "type": "integer"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     }
    }
   },
@@ -4977,6 +6209,14 @@
     }
    }
   },
+  "instance/v1.scaleway.instance.v1.GetServerTypesAvailabilityResponse.Availability": {
+   "closed": false,
+   "properties": {
+    "availability": {
+     "ref": "instance/v1.scaleway.instance.v1.ServerTypesAvailability"
+    }
+   }
+  },
   "instance/v1.scaleway.instance.v1.GetSnapshotResponse": {
    "closed": false,
    "properties": {
@@ -5210,6 +6450,16 @@
     }
    }
   },
+  "instance/v1.scaleway.instance.v1.ListServersRequest.Order": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "creation_date_desc",
+    "creation_date_asc",
+    "modification_date_desc",
+    "modification_date_asc"
+   ]
+  },
   "instance/v1.scaleway.instance.v1.ListServersResponse": {
    "closed": false,
    "properties": {
@@ -5276,21 +6526,13 @@
      "type": "string"
     },
     "policy_mode": {
-     "type": "string",
-     "enum": [
-      "optional",
-      "enforced"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.PlacementGroup.PolicyMode"
     },
     "policy_respected": {
      "type": "boolean"
     },
     "policy_type": {
-     "type": "string",
-     "enum": [
-      "max_availability",
-      "low_latency"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.PlacementGroup.PolicyType"
     },
     "project": {
      "type": "string"
@@ -5361,12 +6603,7 @@
      "type": "string"
     },
     "state": {
-     "type": "string",
-     "enum": [
-      "available",
-      "syncing",
-      "syncing_error"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.PrivateNIC.State"
     },
     "tags": {
      "type": "array",
@@ -5378,6 +6615,15 @@
      "type": "string"
     }
    }
+  },
+  "instance/v1.scaleway.instance.v1.PrivateNIC.State": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "available",
+    "syncing",
+    "syncing_error"
+   ]
   },
   "instance/v1.scaleway.instance.v1.SecurityGroup": {
    "closed": false,
@@ -5395,12 +6641,7 @@
      "type": "string"
     },
     "inbound_default_policy": {
-     "type": "string",
-     "enum": [
-      "unknown_policy",
-      "accept",
-      "drop"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.SecurityGroup.Policy"
     },
     "modification_date": {
      "type": "string"
@@ -5415,12 +6656,7 @@
      "type": "boolean"
     },
     "outbound_default_policy": {
-     "type": "string",
-     "enum": [
-      "unknown_policy",
-      "accept",
-      "drop"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.SecurityGroup.Policy"
     },
     "project": {
      "type": "string"
@@ -5435,12 +6671,7 @@
      }
     },
     "state": {
-     "type": "string",
-     "enum": [
-      "available",
-      "syncing",
-      "syncing_error"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.SecurityGroup.State"
     },
     "stateful": {
      "type": "boolean"
@@ -5455,6 +6686,24 @@
      "type": "string"
     }
    }
+  },
+  "instance/v1.scaleway.instance.v1.SecurityGroup.Policy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_policy",
+    "accept",
+    "drop"
+   ]
+  },
+  "instance/v1.scaleway.instance.v1.SecurityGroup.State": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "available",
+    "syncing",
+    "syncing_error"
+   ]
   },
   "instance/v1.scaleway.instance.v1.SecurityGroupRule": {
    "closed": false,
@@ -5520,6 +6769,17 @@
     "ANY"
    ]
   },
+  "instance/v1.scaleway.instance.v1.SecurityGroupSummary": {
+   "closed": false,
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    }
+   }
+  },
   "instance/v1.scaleway.instance.v1.SecurityGroupTemplate": {
    "closed": false,
    "properties": {
@@ -5547,21 +6807,10 @@
      }
     },
     "arch": {
-     "type": "string",
-     "enum": [
-      "unknown_arch",
-      "x86_64",
-      "arm",
-      "arm64"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.Arch"
     },
     "boot_type": {
-     "type": "string",
-     "enum": [
-      "local",
-      "bootscript",
-      "rescue"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.BootType"
     },
     "commercial_type": {
      "type": "string"
@@ -5594,13 +6843,13 @@
      "type": "string"
     },
     "image": {
-     "type": "object"
+     "ref": "instance/v1.scaleway.instance.v1.Image"
     },
     "ipv6": {
-     "type": "object"
+     "ref": "instance/v1.scaleway.instance.v1.Server.Ipv6"
     },
     "location": {
-     "type": "object"
+     "ref": "instance/v1.scaleway.instance.v1.Server.Location"
     },
     "mac_address": {
      "type": "string"
@@ -5621,7 +6870,7 @@
      "type": "string"
     },
     "placement_group": {
-     "type": "object"
+     "ref": "instance/v1.scaleway.instance.v1.PlacementGroup"
     },
     "private_ip": {
      "type": "string"
@@ -5639,7 +6888,7 @@
      "type": "boolean"
     },
     "public_ip": {
-     "type": "object"
+     "ref": "instance/v1.scaleway.instance.v1.Server.Ip"
     },
     "public_ips": {
      "type": "array",
@@ -5651,18 +6900,10 @@
      "type": "boolean"
     },
     "security_group": {
-     "type": "object"
+     "ref": "instance/v1.scaleway.instance.v1.SecurityGroupSummary"
     },
     "state": {
-     "type": "string",
-     "enum": [
-      "running",
-      "stopped",
-      "stopped in place",
-      "starting",
-      "stopping",
-      "locked"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.Server.State"
     },
     "state_detail": {
      "type": "string"
@@ -5725,11 +6966,7 @@
      "type": "boolean"
     },
     "family": {
-     "type": "string",
-     "enum": [
-      "inet",
-      "inet6"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.Server.Ip.IpFamily"
     },
     "gateway": {
      "type": "string"
@@ -5744,28 +6981,78 @@
      "type": "string"
     },
     "provisioning_mode": {
-     "type": "string",
-     "enum": [
-      "manual",
-      "dhcp",
-      "slaac"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.Server.Ip.ProvisioningMode"
     },
     "state": {
-     "type": "string",
-     "enum": [
-      "unknown_state",
-      "detached",
-      "attached",
-      "pending",
-      "error"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.Server.Ip.State"
     },
     "tags": {
      "type": "array",
      "items": {
       "type": "string"
      }
+    }
+   }
+  },
+  "instance/v1.scaleway.instance.v1.Server.Ip.IpFamily": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "inet",
+    "inet6"
+   ]
+  },
+  "instance/v1.scaleway.instance.v1.Server.Ip.ProvisioningMode": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "manual",
+    "dhcp",
+    "slaac"
+   ]
+  },
+  "instance/v1.scaleway.instance.v1.Server.Ip.State": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_state",
+    "detached",
+    "attached",
+    "pending",
+    "error"
+   ]
+  },
+  "instance/v1.scaleway.instance.v1.Server.Ipv6": {
+   "closed": false,
+   "properties": {
+    "address": {
+     "type": "string"
+    },
+    "gateway": {
+     "type": "string"
+    },
+    "netmask": {
+     "type": "string"
+    }
+   }
+  },
+  "instance/v1.scaleway.instance.v1.Server.Location": {
+   "closed": false,
+   "properties": {
+    "cluster_id": {
+     "type": "string"
+    },
+    "hypervisor_id": {
+     "type": "string"
+    },
+    "node_id": {
+     "type": "string"
+    },
+    "platform_id": {
+     "type": "string"
+    },
+    "zone_id": {
+     "type": "string"
     }
    }
   },
@@ -5777,6 +7064,26 @@
     },
     "start_date": {
      "type": "string"
+    }
+   }
+  },
+  "instance/v1.scaleway.instance.v1.Server.State": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "running",
+    "stopped",
+    "stopped in place",
+    "starting",
+    "stopping",
+    "locked"
+   ]
+  },
+  "instance/v1.scaleway.instance.v1.ServerActionRequest.VolumeBackupTemplate": {
+   "closed": false,
+   "properties": {
+    "volume_type": {
+     "ref": "instance/v1.scaleway.instance.v1.Snapshot.VolumeType"
     }
    }
   },
@@ -5810,6 +7117,113 @@
     }
    }
   },
+  "instance/v1.scaleway.instance.v1.ServerType": {
+   "closed": false,
+   "properties": {
+    "alt_names": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "arch": {
+     "ref": "instance/v1.scaleway.instance.v1.Arch"
+    },
+    "block_bandwidth": {
+     "type": "integer"
+    },
+    "capabilities": {
+     "ref": "instance/v1.scaleway.instance.v1.ServerType.Capabilities"
+    },
+    "end_of_service": {
+     "type": "boolean"
+    },
+    "gpu": {
+     "type": "integer"
+    },
+    "gpu_info": {
+     "ref": "instance/v1.scaleway.instance.v1.ServerType.GPUInfo"
+    },
+    "hourly_price": {
+     "type": "number"
+    },
+    "monthly_price": {
+     "type": "number"
+    },
+    "ncpus": {
+     "type": "integer"
+    },
+    "network": {
+     "ref": "instance/v1.scaleway.instance.v1.ServerType.Network"
+    },
+    "per_volume_constraint": {
+     "ref": "instance/v1.scaleway.instance.v1.ServerType.VolumeConstraintsByType"
+    },
+    "ram": {
+     "type": "integer"
+    },
+    "scratch_storage_max_size": {
+     "type": "integer"
+    },
+    "scratch_storage_max_volumes_count": {
+     "type": "integer"
+    },
+    "volumes_constraint": {
+     "ref": "instance/v1.scaleway.instance.v1.ServerType.VolumeConstraintSizes"
+    }
+   }
+  },
+  "instance/v1.scaleway.instance.v1.ServerType.Capabilities": {
+   "closed": false,
+   "properties": {
+    "block_storage": {
+     "type": "boolean"
+    },
+    "boot_types": {
+     "type": "array",
+     "items": {
+      "ref": "instance/v1.scaleway.instance.v1.BootType"
+     }
+    },
+    "max_file_systems": {
+     "type": "integer"
+    }
+   }
+  },
+  "instance/v1.scaleway.instance.v1.ServerType.GPUInfo": {
+   "closed": false,
+   "properties": {
+    "gpu_manufacturer": {
+     "type": "string"
+    },
+    "gpu_memory": {
+     "type": "integer"
+    },
+    "gpu_name": {
+     "type": "string"
+    }
+   }
+  },
+  "instance/v1.scaleway.instance.v1.ServerType.Network": {
+   "closed": false,
+   "properties": {
+    "interfaces": {
+     "type": "array",
+     "items": {
+      "ref": "instance/v1.scaleway.instance.v1.ServerType.Network.Interface"
+     }
+    },
+    "ipv6_support": {
+     "type": "boolean"
+    },
+    "sum_internal_bandwidth": {
+     "type": "integer"
+    },
+    "sum_internet_bandwidth": {
+     "type": "integer"
+    }
+   }
+  },
   "instance/v1.scaleway.instance.v1.ServerType.Network.Interface": {
    "closed": false,
    "properties": {
@@ -5818,6 +7232,25 @@
     },
     "internet_bandwidth": {
      "type": "integer"
+    }
+   }
+  },
+  "instance/v1.scaleway.instance.v1.ServerType.VolumeConstraintSizes": {
+   "closed": false,
+   "properties": {
+    "max_size": {
+     "type": "integer"
+    },
+    "min_size": {
+     "type": "integer"
+    }
+   }
+  },
+  "instance/v1.scaleway.instance.v1.ServerType.VolumeConstraintsByType": {
+   "closed": false,
+   "properties": {
+    "l_ssd": {
+     "ref": "instance/v1.scaleway.instance.v1.ServerType.VolumeConstraintSizes"
     }
    }
   },
@@ -5877,12 +7310,7 @@
    "closed": false,
    "properties": {
     "action": {
-     "type": "string",
-     "enum": [
-      "unknown_action",
-      "accept",
-      "drop"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.SecurityGroupRule.Action"
     },
     "dest_port_from": {
      "type": "integer"
@@ -5891,12 +7319,7 @@
      "type": "integer"
     },
     "direction": {
-     "type": "string",
-     "enum": [
-      "unknown_direction",
-      "inbound",
-      "outbound"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.SecurityGroupRule.Direction"
     },
     "editable": {
      "type": "boolean"
@@ -5911,14 +7334,7 @@
      "type": "integer"
     },
     "protocol": {
-     "type": "string",
-     "enum": [
-      "unknown_protocol",
-      "TCP",
-      "UDP",
-      "ICMP",
-      "ANY"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.SecurityGroupRule.Protocol"
     },
     "zone": {
      "type": "string"
@@ -5956,7 +7372,7 @@
    "closed": false,
    "properties": {
     "base_volume": {
-     "type": "object"
+     "ref": "instance/v1.scaleway.instance.v1.Snapshot.BaseVolume"
     },
     "creation_date": {
      "type": "string"
@@ -5983,15 +7399,7 @@
      "type": "integer"
     },
     "state": {
-     "type": "string",
-     "enum": [
-      "available",
-      "snapshotting",
-      "error",
-      "invalid_data",
-      "importing",
-      "exporting"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.Snapshot.State"
     },
     "tags": {
      "type": "array",
@@ -6000,15 +7408,7 @@
      }
     },
     "volume_type": {
-     "type": "string",
-     "enum": [
-      "l_ssd",
-      "b_ssd",
-      "unified",
-      "scratch",
-      "sbs_volume",
-      "sbs_snapshot"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.Volume.VolumeType"
     },
     "zone": {
      "type": "string"
@@ -6038,6 +7438,16 @@
     "exporting"
    ]
   },
+  "instance/v1.scaleway.instance.v1.Snapshot.VolumeType": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_volume_type",
+    "l_ssd",
+    "b_ssd",
+    "unified"
+   ]
+  },
   "instance/v1.scaleway.instance.v1.Task": {
    "closed": false,
    "properties": {
@@ -6060,14 +7470,7 @@
      "type": "string"
     },
     "status": {
-     "type": "string",
-     "enum": [
-      "pending",
-      "started",
-      "success",
-      "failure",
-      "retry"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.Task.Status"
     },
     "terminated_at": {
      "type": "string"
@@ -6076,6 +7479,17 @@
      "type": "string"
     }
    }
+  },
+  "instance/v1.scaleway.instance.v1.Task.Status": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "pending",
+    "started",
+    "success",
+    "failure",
+    "retry"
+   ]
   },
   "instance/v1.scaleway.instance.v1.UpdateImageResponse": {
    "closed": false,
@@ -6177,23 +7591,13 @@
      "type": "string"
     },
     "server": {
-     "type": "object"
+     "ref": "instance/v1.scaleway.instance.v1.ServerSummary"
     },
     "size": {
      "type": "integer"
     },
     "state": {
-     "type": "string",
-     "enum": [
-      "available",
-      "snapshotting",
-      "fetching",
-      "saving",
-      "attaching",
-      "resizing",
-      "hotsyncing",
-      "error"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.Volume.State"
     },
     "tags": {
      "type": "array",
@@ -6202,20 +7606,26 @@
      }
     },
     "volume_type": {
-     "type": "string",
-     "enum": [
-      "l_ssd",
-      "b_ssd",
-      "unified",
-      "scratch",
-      "sbs_volume",
-      "sbs_snapshot"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.Volume.VolumeType"
     },
     "zone": {
      "type": "string"
     }
    }
+  },
+  "instance/v1.scaleway.instance.v1.Volume.State": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "available",
+    "snapshotting",
+    "fetching",
+    "saving",
+    "attaching",
+    "resizing",
+    "hotsyncing",
+    "error"
+   ]
   },
   "instance/v1.scaleway.instance.v1.Volume.VolumeType": {
    "closed": false,
@@ -6228,6 +7638,61 @@
     "sbs_volume",
     "sbs_snapshot"
    ]
+  },
+  "instance/v1.scaleway.instance.v1.VolumeImageUpdateTemplate": {
+   "closed": false,
+   "required": [
+    "id"
+   ],
+   "properties": {
+    "id": {
+     "type": "string"
+    }
+   }
+  },
+  "instance/v1.scaleway.instance.v1.VolumeServer": {
+   "closed": false,
+   "properties": {
+    "boot": {
+     "type": "boolean"
+    },
+    "creation_date": {
+     "type": "string"
+    },
+    "export_uri": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "modification_date": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "organization": {
+     "type": "string"
+    },
+    "project": {
+     "type": "string"
+    },
+    "server": {
+     "ref": "instance/v1.scaleway.instance.v1.ServerSummary"
+    },
+    "size": {
+     "type": "integer"
+    },
+    "state": {
+     "ref": "instance/v1.scaleway.instance.v1.VolumeServer.State"
+    },
+    "volume_type": {
+     "ref": "instance/v1.scaleway.instance.v1.VolumeServer.VolumeType"
+    },
+    "zone": {
+     "type": "string"
+    }
+   }
   },
   "instance/v1.scaleway.instance.v1.VolumeServer.State": {
    "closed": false,
@@ -6278,15 +7743,7 @@
      "type": "integer"
     },
     "volume_type": {
-     "type": "string",
-     "enum": [
-      "l_ssd",
-      "b_ssd",
-      "unified",
-      "scratch",
-      "sbs_volume",
-      "sbs_snapshot"
-     ]
+     "ref": "instance/v1.scaleway.instance.v1.Volume.VolumeType"
     }
    }
   },
@@ -6304,6 +7761,43 @@
     },
     "volume_type": {
      "ref": "instance/v1.scaleway.instance.v1.Volume.VolumeType"
+    }
+   }
+  },
+  "instance/v1.scaleway.instance.v1.VolumeTemplate": {
+   "closed": false,
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "organization": {
+     "type": "string"
+    },
+    "project": {
+     "type": "string"
+    },
+    "size": {
+     "type": "integer"
+    },
+    "volume_type": {
+     "ref": "instance/v1.scaleway.instance.v1.Volume.VolumeType"
+    }
+   }
+  },
+  "instance/v1.scaleway.instance.v1.VolumeType": {
+   "closed": false,
+   "properties": {
+    "capabilities": {
+     "ref": "instance/v1.scaleway.instance.v1.VolumeType.Capabilities"
+    },
+    "constraints": {
+     "ref": "instance/v1.scaleway.instance.v1.VolumeType.Constraints"
+    },
+    "display_name": {
+     "type": "string"
     }
    }
   },
@@ -6350,7 +7844,7 @@
    ],
    "properties": {
     "resource": {
-     "type": "object"
+     "ref": "ipam/v1.scaleway.ipam.v1.CustomResource"
     }
    }
   },
@@ -6371,10 +7865,10 @@
      "type": "string"
     },
     "resource": {
-     "type": "object"
+     "ref": "ipam/v1.scaleway.ipam.v1.CustomResource"
     },
     "source": {
-     "type": "object"
+     "ref": "ipam/v1.scaleway.ipam.v1.Source"
     },
     "tags": {
      "type": "array",
@@ -6391,7 +7885,7 @@
    ],
    "properties": {
     "resource": {
-     "type": "object"
+     "ref": "ipam/v1.scaleway.ipam.v1.CustomResource"
     }
    }
   },
@@ -6402,10 +7896,10 @@
    ],
    "properties": {
     "from_resource": {
-     "type": "object"
+     "ref": "ipam/v1.scaleway.ipam.v1.CustomResource"
     },
     "to_resource": {
-     "type": "object"
+     "ref": "ipam/v1.scaleway.ipam.v1.CustomResource"
     }
    }
   },
@@ -6430,10 +7924,18 @@
      }
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
+    }
+   }
+  },
+  "ipam/v1.scaleway.ipam.v1.CustomResource": {
+   "closed": false,
+   "properties": {
+    "mac_address": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
     }
    }
   },
@@ -6459,7 +7961,7 @@
      "type": "string"
     },
     "resource": {
-     "type": "object"
+     "ref": "ipam/v1.scaleway.ipam.v1.Resource"
     },
     "reverses": {
      "type": "array",
@@ -6468,7 +7970,7 @@
      }
     },
     "source": {
-     "type": "object"
+     "ref": "ipam/v1.scaleway.ipam.v1.Source"
     },
     "tags": {
      "type": "array",
@@ -6484,6 +7986,22 @@
     }
    }
   },
+  "ipam/v1.scaleway.ipam.v1.ListIPsRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_desc",
+    "created_at_asc",
+    "updated_at_desc",
+    "updated_at_asc",
+    "attached_at_desc",
+    "attached_at_asc",
+    "ip_address_desc",
+    "ip_address_asc",
+    "mac_address_desc",
+    "mac_address_asc"
+   ]
+  },
   "ipam/v1.scaleway.ipam.v1.ListIPsResponse": {
    "closed": false,
    "properties": {
@@ -6495,6 +8013,23 @@
     },
     "total_count": {
      "type": "integer"
+    }
+   }
+  },
+  "ipam/v1.scaleway.ipam.v1.Resource": {
+   "closed": false,
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "mac_address": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "type": {
+     "ref": "ipam/v1.scaleway.ipam.v1.Resource.Type"
     }
    }
   },
@@ -6543,6 +8078,26 @@
      "type": "string"
     },
     "hostname": {
+     "type": "string"
+    }
+   }
+  },
+  "ipam/v1.scaleway.ipam.v1.Source": {
+   "closed": false,
+   "properties": {
+    "private_network_id": {
+     "type": "string"
+    },
+    "regional": {
+     "type": "boolean"
+    },
+    "subnet_id": {
+     "type": "string"
+    },
+    "vpc_id": {
+     "type": "string"
+    },
+    "zonal": {
      "type": "string"
     }
    }
@@ -6610,6 +8165,18 @@
     }
    }
   },
+  "marketplace/v2.scaleway.marketplace.v2.ListImagesRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "name_asc",
+    "name_desc",
+    "created_at_asc",
+    "created_at_desc",
+    "updated_at_asc",
+    "updated_at_desc"
+   ]
+  },
   "marketplace/v2.scaleway.marketplace.v2.ListImagesResponse": {
    "closed": false,
    "properties": {
@@ -6623,6 +8190,16 @@
      "type": "integer"
     }
    }
+  },
+  "marketplace/v2.scaleway.marketplace.v2.ListLocalImagesRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "type_asc",
+    "type_desc",
+    "created_at_asc",
+    "created_at_desc"
+   ]
   },
   "marketplace/v2.scaleway.marketplace.v2.ListLocalImagesResponse": {
    "closed": false,
@@ -6679,17 +8256,21 @@
      "type": "string"
     },
     "type": {
-     "type": "string",
-     "enum": [
-      "unknown_type",
-      "instance_local",
-      "instance_sbs"
-     ]
+     "ref": "marketplace/v2.scaleway.marketplace.v2.LocalImage.Type"
     },
     "zone": {
      "type": "string"
     }
    }
+  },
+  "marketplace/v2.scaleway.marketplace.v2.LocalImage.Type": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_type",
+    "instance_local",
+    "instance_sbs"
+   ]
   },
   "marketplace/v2.scaleway.marketplace.v2.Version": {
    "closed": false,
@@ -6707,6 +8288,44 @@
      "type": "string"
     },
     "updated_at": {
+     "type": "string"
+    }
+   }
+  },
+  "scw.ResponseError": {
+   "closed": false,
+   "required": [
+    "type"
+   ],
+   "properties": {
+    "current_state": {
+     "type": "string"
+    },
+    "details": {
+     "type": "array"
+    },
+    "expired_since": {
+     "type": "string"
+    },
+    "fields": {
+     "type": "object"
+    },
+    "help_message": {
+     "type": "string"
+    },
+    "message": {
+     "type": "string"
+    },
+    "precondition": {
+     "type": "string"
+    },
+    "resource": {
+     "type": "string"
+    },
+    "resource_id": {
+     "type": "string"
+    },
+    "type": {
      "type": "string"
     }
    }
@@ -6875,12 +8494,7 @@
    ],
    "properties": {
     "default_policy": {
-     "type": "string",
-     "enum": [
-      "unknown_action",
-      "accept",
-      "drop"
-     ]
+     "ref": "vpc/v2.scaleway.vpc.v2.Action"
     },
     "is_ipv6": {
      "type": "boolean"
@@ -6923,10 +8537,7 @@
      "type": "string"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     }
    }
   },
@@ -6940,10 +8551,7 @@
      "type": "string"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     }
    }
   },
@@ -6966,10 +8574,7 @@
      "type": "string"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     }
    }
   },
@@ -6980,10 +8585,7 @@
      "type": "string"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     }
    }
   },
@@ -6994,10 +8596,7 @@
      "type": "string"
     },
     "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
+     "type": "array"
     }
    }
   },
@@ -7016,12 +8615,7 @@
    ],
    "properties": {
     "action": {
-     "type": "string",
-     "enum": [
-      "unknown_action",
-      "accept",
-      "drop"
-     ]
+     "ref": "vpc/v2.scaleway.vpc.v2.Action"
     },
     "description": {
      "type": "string"
@@ -7036,13 +8630,7 @@
      "type": "integer"
     },
     "protocol": {
-     "type": "string",
-     "enum": [
-      "ANY",
-      "TCP",
-      "UDP",
-      "ICMP"
-     ]
+     "ref": "vpc/v2.scaleway.vpc.v2.AclRule.Protocol"
     },
     "source": {
      "type": "string"
@@ -7054,6 +8642,16 @@
      "type": "integer"
     }
    }
+  },
+  "vpc/v2.scaleway.vpc.v2.AclRule.Protocol": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "ANY",
+    "TCP",
+    "UDP",
+    "ICMP"
+   ]
   },
   "vpc/v2.scaleway.vpc.v2.Action": {
    "closed": false,
@@ -7139,6 +8737,18 @@
     }
    }
   },
+  "vpc/v2.scaleway.vpc.v2.ListIngressRulesRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "source_asc",
+    "source_desc",
+    "prefix_len_asc",
+    "prefix_len_desc"
+   ]
+  },
   "vpc/v2.scaleway.vpc.v2.ListIngressRulesResponse": {
    "closed": false,
    "properties": {
@@ -7153,6 +8763,16 @@
     }
    }
   },
+  "vpc/v2.scaleway.vpc.v2.ListPrivateNetworksRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "name_asc",
+    "name_desc"
+   ]
+  },
   "vpc/v2.scaleway.vpc.v2.ListPrivateNetworksResponse": {
    "closed": false,
    "properties": {
@@ -7166,6 +8786,16 @@
      "type": "integer"
     }
    }
+  },
+  "vpc/v2.scaleway.vpc.v2.ListSubnetOverlapsRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "subnet_asc",
+    "subnet_desc",
+    "target_subnet_asc",
+    "target_subnet_desc"
+   ]
   },
   "vpc/v2.scaleway.vpc.v2.ListSubnetOverlapsResponse": {
    "closed": false,
@@ -7198,6 +8828,14 @@
     }
    }
   },
+  "vpc/v2.scaleway.vpc.v2.ListSubnetsRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc"
+   ]
+  },
   "vpc/v2.scaleway.vpc.v2.ListSubnetsResponse": {
    "closed": false,
    "properties": {
@@ -7212,6 +8850,16 @@
     }
    }
   },
+  "vpc/v2.scaleway.vpc.v2.ListVPCConnectorsRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "name_asc",
+    "name_desc"
+   ]
+  },
   "vpc/v2.scaleway.vpc.v2.ListVPCConnectorsResponse": {
    "closed": false,
    "properties": {
@@ -7225,6 +8873,16 @@
      }
     }
    }
+  },
+  "vpc/v2.scaleway.vpc.v2.ListVPCsRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "name_asc",
+    "name_desc"
+   ]
   },
   "vpc/v2.scaleway.vpc.v2.ListVPCsResponse": {
    "closed": false,
@@ -7327,15 +8985,7 @@
      }
     },
     "type": {
-     "type": "string",
-     "enum": [
-      "unknown_route_type",
-      "subnet",
-      "default",
-      "custom",
-      "interlink",
-      "s2s_vpn"
-     ]
+     "ref": "vpc/v2.scaleway.vpc.v2.RouteType"
     },
     "updated_at": {
      "type": "string"
@@ -7344,6 +8994,18 @@
      "type": "string"
     }
    }
+  },
+  "vpc/v2.scaleway.vpc.v2.RouteType": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_route_type",
+    "subnet",
+    "default",
+    "custom",
+    "interlink",
+    "s2s_vpn"
+   ]
   },
   "vpc/v2.scaleway.vpc.v2.SetAclResponse": {
    "closed": false,
@@ -7468,7 +9130,7 @@
      "type": "string"
     },
     "peer_info": {
-     "type": "object"
+     "ref": "vpc/v2.scaleway.vpc.v2.VPCConnector.PeerInfo"
     },
     "project_id": {
      "type": "string"
@@ -7477,13 +9139,7 @@
      "type": "string"
     },
     "status": {
-     "type": "string",
-     "enum": [
-      "unknown_vpc_connector_status",
-      "orphan",
-      "peered",
-      "conflict"
-     ]
+     "ref": "vpc/v2.scaleway.vpc.v2.VPCConnectorStatus"
     },
     "tags": {
      "type": "array",
@@ -7501,6 +9157,30 @@
      "type": "string"
     }
    }
+  },
+  "vpc/v2.scaleway.vpc.v2.VPCConnector.PeerInfo": {
+   "closed": false,
+   "properties": {
+    "organization_id": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "vpc_name": {
+     "type": "string"
+    }
+   }
+  },
+  "vpc/v2.scaleway.vpc.v2.VPCConnectorStatus": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_vpc_connector_status",
+    "orphan",
+    "peered",
+    "conflict"
+   ]
   }
  }
 }

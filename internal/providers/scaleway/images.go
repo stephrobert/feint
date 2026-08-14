@@ -298,7 +298,17 @@ func (p *Pack) listImages(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, p.imageView(zone, entry.ID, label))
 	}
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{"images": out})
+	// Paged like every other list of this pack. This was the one that ignored
+	// per_page — five images whatever the client asked — found the day the
+	// probe started holding paged answers to the size they asked, which is the
+	// check that fails without this (TestScalewayProbesWhatItsDocumentAllows,
+	// #156).
+	page := parsePage(r)
+	start, end := page.slice(len(out))
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{
+		"images":      out[start:end],
+		"total_count": len(out),
+	})
 }
 
 // updateImage carries the name and the tags, which is what the SDK's

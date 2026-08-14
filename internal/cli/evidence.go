@@ -32,9 +32,14 @@ import (
 
 // evidenceFormat and evidenceVersion follow the snapshot doctrine (#133): a
 // file that names what it is can be refused when it is something else.
+//
+// Version 2: the probed axis became a verdict ("response", "refusal", "none")
+// where version 1 published an arrival as a boolean — the overclaim #156
+// measured. A version-1 artefact is refused rather than reinterpreted, because
+// its probed: true is precisely the value this version exists not to carry.
 const (
 	evidenceFormat  = "feint-evidence"
-	evidenceVersion = 1
+	evidenceVersion = 2
 )
 
 // evidenceArtefact is coverage/evidence.json.
@@ -166,7 +171,7 @@ func joinEvidence(a, b *evidenceArtefact) *evidenceArtefact {
 			continue
 		}
 		ev.Driven = ev.Driven || other.Driven
-		ev.Probed = ev.Probed || other.Probed
+		ev.Probed = strongerProbe(ev.Probed, other.Probed)
 		ev.Dataplane = ev.Dataplane || other.Dataplane
 		ev.Behaviour = ev.Behaviour || other.Behaviour
 		ev.Negative = ev.Negative || other.Negative
@@ -175,6 +180,17 @@ func joinEvidence(a, b *evidenceArtefact) *evidenceArtefact {
 		ops[op] = ev
 	}
 	return &evidenceArtefact{Format: evidenceFormat, Version: evidenceVersion, Machines: names, Operations: ops}
+}
+
+// strongerProbe keeps the fuller validation: a validated success over a
+// validated refusal, either over nothing. Safe on the same terms as the other
+// two — both legs are fresh runs.
+func strongerProbe(a, b string) string {
+	rank := map[string]int{emulator.ProbeResponse: 2, emulator.ProbeRefusal: 1, emulator.ProbeNone: 0}
+	if rank[b] > rank[a] {
+		return b
+	}
+	return a
 }
 
 func strongerContract(a, b string) string {

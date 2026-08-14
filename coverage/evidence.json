@@ -1,13 +1,13 @@
 {
   "format": "feint-evidence",
-  "version": 1,
+  "version": 2,
   "machines": [
     "none"
   ],
   "operations": {
     "block/v1/API.CreateSnapshot": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -16,7 +16,7 @@
     },
     "block/v1/API.CreateVolume": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -25,7 +25,7 @@
     },
     "block/v1/API.DeleteSnapshot": {
       "driven": false,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -34,7 +34,7 @@
     },
     "block/v1/API.DeleteVolume": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -43,7 +43,7 @@
     },
     "block/v1/API.GetSnapshot": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -52,7 +52,7 @@
     },
     "block/v1/API.GetVolume": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -61,7 +61,7 @@
     },
     "block/v1/API.ListSnapshots": {
       "driven": false,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -70,7 +70,7 @@
     },
     "block/v1/API.ListVolumeTypes": {
       "driven": false,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -79,7 +79,7 @@
     },
     "block/v1/API.ListVolumes": {
       "driven": false,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -88,7 +88,7 @@
     },
     "block/v1/API.UpdateSnapshot": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -97,7 +97,7 @@
     },
     "block/v1/API.UpdateVolume": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -106,7 +106,7 @@
     },
     "block/v1alpha1/API.CreateSnapshot": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -115,7 +115,7 @@
     },
     "block/v1alpha1/API.CreateVolume": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -124,7 +124,7 @@
     },
     "block/v1alpha1/API.DeleteSnapshot": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -133,7 +133,7 @@
     },
     "block/v1alpha1/API.DeleteVolume": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -142,7 +142,7 @@
     },
     "block/v1alpha1/API.GetSnapshot": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -151,7 +151,7 @@
     },
     "block/v1alpha1/API.GetVolume": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -160,7 +160,7 @@
     },
     "block/v1alpha1/API.ListSnapshots": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -169,7 +169,7 @@
     },
     "block/v1alpha1/API.ListVolumeTypes": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -178,7 +178,7 @@
     },
     "block/v1alpha1/API.ListVolumes": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -187,7 +187,7 @@
     },
     "block/v1alpha1/API.UpdateSnapshot": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -196,16 +196,7 @@
     },
     "block/v1alpha1/API.UpdateVolume": {
       "driven": true,
-      "probed": true,
-      "contract": "clean",
-      "dataplane": false,
-      "shape": "unobserved",
-      "behaviour": true,
-      "negative": false
-    },
-    "exoscale/v2.add-external-source-to-security-group": {
-      "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -214,7 +205,7 @@
     },
     "exoscale/v2.add-instance-protection": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -223,7 +214,7 @@
     },
     "exoscale/v2.add-rule-to-security-group": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -232,16 +223,7 @@
     },
     "exoscale/v2.attach-instance-to-elastic-ip": {
       "driven": true,
-      "probed": true,
-      "contract": "clean",
-      "dataplane": false,
-      "shape": "unobserved",
-      "behaviour": true,
-      "negative": false
-    },
-    "exoscale/v2.attach-instance-to-private-network": {
-      "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -250,7 +232,7 @@
     },
     "exoscale/v2.attach-instance-to-security-group": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -259,7 +241,7 @@
     },
     "exoscale/v2.create-anti-affinity-group": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -268,7 +250,7 @@
     },
     "exoscale/v2.create-elastic-ip": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -277,16 +259,7 @@
     },
     "exoscale/v2.create-instance": {
       "driven": true,
-      "probed": true,
-      "contract": "clean",
-      "dataplane": false,
-      "shape": "unobserved",
-      "behaviour": true,
-      "negative": false
-    },
-    "exoscale/v2.create-private-network": {
-      "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -295,7 +268,7 @@
     },
     "exoscale/v2.create-security-group": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -304,7 +277,7 @@
     },
     "exoscale/v2.delete-anti-affinity-group": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -313,7 +286,7 @@
     },
     "exoscale/v2.delete-elastic-ip": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -322,16 +295,7 @@
     },
     "exoscale/v2.delete-instance": {
       "driven": true,
-      "probed": true,
-      "contract": "clean",
-      "dataplane": false,
-      "shape": "unobserved",
-      "behaviour": true,
-      "negative": true
-    },
-    "exoscale/v2.delete-private-network": {
-      "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -340,7 +304,7 @@
     },
     "exoscale/v2.delete-rule-from-security-group": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -349,7 +313,7 @@
     },
     "exoscale/v2.delete-security-group": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -358,7 +322,7 @@
     },
     "exoscale/v2.delete-ssh-key": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -367,16 +331,7 @@
     },
     "exoscale/v2.detach-instance-from-elastic-ip": {
       "driven": true,
-      "probed": true,
-      "contract": "clean",
-      "dataplane": false,
-      "shape": "unobserved",
-      "behaviour": true,
-      "negative": false
-    },
-    "exoscale/v2.detach-instance-from-private-network": {
-      "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -385,7 +340,7 @@
     },
     "exoscale/v2.detach-instance-from-security-group": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -394,7 +349,7 @@
     },
     "exoscale/v2.get-anti-affinity-group": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -403,7 +358,7 @@
     },
     "exoscale/v2.get-deploy-target": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -412,7 +367,7 @@
     },
     "exoscale/v2.get-elastic-ip": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -421,7 +376,7 @@
     },
     "exoscale/v2.get-instance": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -430,7 +385,7 @@
     },
     "exoscale/v2.get-instance-type": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -439,25 +394,16 @@
     },
     "exoscale/v2.get-operation": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
       "behaviour": false,
       "negative": false
     },
-    "exoscale/v2.get-private-network": {
-      "driven": true,
-      "probed": true,
-      "contract": "clean",
-      "dataplane": false,
-      "shape": "unobserved",
-      "behaviour": true,
-      "negative": false
-    },
     "exoscale/v2.get-quota": {
       "driven": false,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -466,7 +412,7 @@
     },
     "exoscale/v2.get-security-group": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -475,7 +421,7 @@
     },
     "exoscale/v2.get-ssh-key": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -484,7 +430,7 @@
     },
     "exoscale/v2.get-template": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -493,7 +439,7 @@
     },
     "exoscale/v2.list-anti-affinity-groups": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -502,7 +448,7 @@
     },
     "exoscale/v2.list-deploy-targets": {
       "driven": false,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -511,7 +457,7 @@
     },
     "exoscale/v2.list-elastic-ips": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -520,7 +466,7 @@
     },
     "exoscale/v2.list-instance-types": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -529,16 +475,7 @@
     },
     "exoscale/v2.list-instances": {
       "driven": true,
-      "probed": true,
-      "contract": "clean",
-      "dataplane": false,
-      "shape": "observed",
-      "behaviour": true,
-      "negative": false
-    },
-    "exoscale/v2.list-private-networks": {
-      "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -547,7 +484,7 @@
     },
     "exoscale/v2.list-quotas": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -556,7 +493,7 @@
     },
     "exoscale/v2.list-security-groups": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -565,7 +502,7 @@
     },
     "exoscale/v2.list-ssh-keys": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -574,7 +511,7 @@
     },
     "exoscale/v2.list-templates": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -583,7 +520,7 @@
     },
     "exoscale/v2.list-zones": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -592,7 +529,7 @@
     },
     "exoscale/v2.reboot-instance": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -601,16 +538,7 @@
     },
     "exoscale/v2.register-ssh-key": {
       "driven": true,
-      "probed": true,
-      "contract": "clean",
-      "dataplane": false,
-      "shape": "unobserved",
-      "behaviour": true,
-      "negative": false
-    },
-    "exoscale/v2.remove-external-source-from-security-group": {
-      "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -619,7 +547,7 @@
     },
     "exoscale/v2.remove-instance-protection": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -628,16 +556,7 @@
     },
     "exoscale/v2.reset-instance": {
       "driven": false,
-      "probed": true,
-      "contract": "unchecked",
-      "dataplane": false,
-      "shape": "unobserved",
-      "behaviour": false,
-      "negative": false
-    },
-    "exoscale/v2.reset-private-network-field": {
-      "driven": false,
-      "probed": false,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -646,7 +565,7 @@
     },
     "exoscale/v2.resize-instance-disk": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -655,7 +574,7 @@
     },
     "exoscale/v2.scale-instance": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -664,7 +583,7 @@
     },
     "exoscale/v2.start-instance": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -673,7 +592,7 @@
     },
     "exoscale/v2.stop-instance": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -682,7 +601,7 @@
     },
     "exoscale/v2.update-elastic-ip": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -691,34 +610,16 @@
     },
     "exoscale/v2.update-instance": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
       "behaviour": false,
       "negative": false
-    },
-    "exoscale/v2.update-private-network": {
-      "driven": false,
-      "probed": true,
-      "contract": "unchecked",
-      "dataplane": false,
-      "shape": "unobserved",
-      "behaviour": false,
-      "negative": false
-    },
-    "exoscale/v2.update-private-network-instance-ip": {
-      "driven": true,
-      "probed": true,
-      "contract": "clean",
-      "dataplane": false,
-      "shape": "unobserved",
-      "behaviour": true,
-      "negative": true
     },
     "iam/v1alpha1/API.CreateSSHKey": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -727,7 +628,7 @@
     },
     "iam/v1alpha1/API.DeleteSSHKey": {
       "driven": false,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -736,7 +637,7 @@
     },
     "iam/v1alpha1/API.GetSSHKey": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -745,7 +646,7 @@
     },
     "iam/v1alpha1/API.ListSSHKeys": {
       "driven": false,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -754,7 +655,7 @@
     },
     "iam/v1alpha1/API.UpdateSSHKey": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -763,7 +664,7 @@
     },
     "instance/v1/API.AttachServerVolume": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -772,7 +673,7 @@
     },
     "instance/v1/API.CreateIP": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -781,7 +682,7 @@
     },
     "instance/v1/API.CreateImage": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -790,7 +691,7 @@
     },
     "instance/v1/API.CreatePrivateNIC": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -799,7 +700,7 @@
     },
     "instance/v1/API.CreateSecurityGroup": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -808,7 +709,7 @@
     },
     "instance/v1/API.CreateSecurityGroupRule": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -817,7 +718,7 @@
     },
     "instance/v1/API.CreateServer": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -826,7 +727,7 @@
     },
     "instance/v1/API.CreateSnapshot": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -835,7 +736,7 @@
     },
     "instance/v1/API.CreateVolume": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -844,7 +745,7 @@
     },
     "instance/v1/API.DeleteIP": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -853,7 +754,7 @@
     },
     "instance/v1/API.DeleteImage": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -862,7 +763,7 @@
     },
     "instance/v1/API.DeletePrivateNIC": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -871,7 +772,7 @@
     },
     "instance/v1/API.DeleteSecurityGroup": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -880,7 +781,7 @@
     },
     "instance/v1/API.DeleteSecurityGroupRule": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -889,7 +790,7 @@
     },
     "instance/v1/API.DeleteServer": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -898,7 +799,7 @@
     },
     "instance/v1/API.DeleteServerUserData": {
       "driven": false,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -907,7 +808,7 @@
     },
     "instance/v1/API.DeleteSnapshot": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -916,7 +817,7 @@
     },
     "instance/v1/API.DeleteVolume": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -925,7 +826,7 @@
     },
     "instance/v1/API.DetachServerVolume": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -934,7 +835,7 @@
     },
     "instance/v1/API.GetIP": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -943,7 +844,7 @@
     },
     "instance/v1/API.GetImage": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -952,7 +853,7 @@
     },
     "instance/v1/API.GetPrivateNIC": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -961,7 +862,7 @@
     },
     "instance/v1/API.GetSecurityGroup": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -970,7 +871,7 @@
     },
     "instance/v1/API.GetSecurityGroupRule": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -979,7 +880,7 @@
     },
     "instance/v1/API.GetServer": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -988,7 +889,7 @@
     },
     "instance/v1/API.GetServerUserData": {
       "driven": false,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -997,7 +898,7 @@
     },
     "instance/v1/API.GetSnapshot": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1006,7 +907,7 @@
     },
     "instance/v1/API.GetVolume": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1015,7 +916,7 @@
     },
     "instance/v1/API.ListIPs": {
       "driven": false,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1024,7 +925,7 @@
     },
     "instance/v1/API.ListImages": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1033,7 +934,7 @@
     },
     "instance/v1/API.ListPrivateNICs": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1042,7 +943,7 @@
     },
     "instance/v1/API.ListSecurityGroupRules": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1051,7 +952,7 @@
     },
     "instance/v1/API.ListSecurityGroups": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1060,7 +961,7 @@
     },
     "instance/v1/API.ListServerUserData": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1069,7 +970,7 @@
     },
     "instance/v1/API.ListServers": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1078,7 +979,7 @@
     },
     "instance/v1/API.ListServersTypes": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1087,7 +988,7 @@
     },
     "instance/v1/API.ListSnapshots": {
       "driven": false,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1096,7 +997,7 @@
     },
     "instance/v1/API.ListVolumes": {
       "driven": false,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1105,7 +1006,7 @@
     },
     "instance/v1/API.ServerAction": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1114,7 +1015,7 @@
     },
     "instance/v1/API.SetSecurityGroupRules": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1123,7 +1024,7 @@
     },
     "instance/v1/API.SetServerUserData": {
       "driven": false,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -1132,7 +1033,7 @@
     },
     "instance/v1/API.UpdateIP": {
       "driven": false,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -1141,7 +1042,7 @@
     },
     "instance/v1/API.UpdateImage": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -1150,7 +1051,7 @@
     },
     "instance/v1/API.UpdateSecurityGroup": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1159,7 +1060,7 @@
     },
     "instance/v1/API.UpdateSecurityGroupRule": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1168,7 +1069,7 @@
     },
     "instance/v1/API.UpdateServer": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -1177,7 +1078,7 @@
     },
     "instance/v1/API.UpdateSnapshot": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -1186,7 +1087,7 @@
     },
     "instance/v1/API.UpdateVolume": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -1195,7 +1096,7 @@
     },
     "ipam/v1/API.AttachIP": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -1204,7 +1105,7 @@
     },
     "ipam/v1/API.BookIP": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1213,7 +1114,7 @@
     },
     "ipam/v1/API.DetachIP": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -1222,7 +1123,7 @@
     },
     "ipam/v1/API.GetIP": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1231,7 +1132,7 @@
     },
     "ipam/v1/API.ListIPs": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1240,7 +1141,7 @@
     },
     "ipam/v1/API.MoveIP": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -1249,7 +1150,7 @@
     },
     "ipam/v1/API.ReleaseIP": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -1258,7 +1159,7 @@
     },
     "ipam/v1/API.ReleaseIPSet": {
       "driven": false,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -1267,7 +1168,7 @@
     },
     "ipam/v1/API.UpdateIP": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1276,7 +1177,7 @@
     },
     "marketplace/v2/API.ListLocalImages": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1285,7 +1186,7 @@
     },
     "osc/Client.CreateImage": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1294,7 +1195,7 @@
     },
     "osc/Client.CreateInternetService": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1303,7 +1204,7 @@
     },
     "osc/Client.CreateKeypair": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1312,7 +1213,7 @@
     },
     "osc/Client.CreateNatService": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1321,7 +1222,7 @@
     },
     "osc/Client.CreateNet": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1330,7 +1231,7 @@
     },
     "osc/Client.CreateNic": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1339,7 +1240,7 @@
     },
     "osc/Client.CreatePublicIp": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1348,7 +1249,7 @@
     },
     "osc/Client.CreateRoute": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1357,7 +1258,7 @@
     },
     "osc/Client.CreateRouteTable": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1366,7 +1267,7 @@
     },
     "osc/Client.CreateSecurityGroup": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1375,7 +1276,7 @@
     },
     "osc/Client.CreateSecurityGroupRule": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1384,7 +1285,7 @@
     },
     "osc/Client.CreateSnapshot": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1393,7 +1294,7 @@
     },
     "osc/Client.CreateSubnet": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1402,7 +1303,7 @@
     },
     "osc/Client.CreateTags": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1411,7 +1312,7 @@
     },
     "osc/Client.CreateVms": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1420,7 +1321,7 @@
     },
     "osc/Client.CreateVolume": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1429,7 +1330,7 @@
     },
     "osc/Client.DeleteImage": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1438,7 +1339,7 @@
     },
     "osc/Client.DeleteInternetService": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1447,7 +1348,7 @@
     },
     "osc/Client.DeleteKeypair": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1456,7 +1357,7 @@
     },
     "osc/Client.DeleteNatService": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1465,7 +1366,7 @@
     },
     "osc/Client.DeleteNet": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1474,7 +1375,7 @@
     },
     "osc/Client.DeleteNic": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1483,7 +1384,7 @@
     },
     "osc/Client.DeletePublicIp": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1492,7 +1393,7 @@
     },
     "osc/Client.DeleteRoute": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1501,7 +1402,7 @@
     },
     "osc/Client.DeleteRouteTable": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1510,7 +1411,7 @@
     },
     "osc/Client.DeleteSecurityGroup": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1519,7 +1420,7 @@
     },
     "osc/Client.DeleteSecurityGroupRule": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1528,7 +1429,7 @@
     },
     "osc/Client.DeleteSnapshot": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1537,7 +1438,7 @@
     },
     "osc/Client.DeleteSubnet": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1546,7 +1447,7 @@
     },
     "osc/Client.DeleteTags": {
       "driven": false,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1555,7 +1456,7 @@
     },
     "osc/Client.DeleteVms": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1564,7 +1465,7 @@
     },
     "osc/Client.DeleteVolume": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1573,7 +1474,7 @@
     },
     "osc/Client.LinkInternetService": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1582,7 +1483,7 @@
     },
     "osc/Client.LinkNic": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1591,7 +1492,7 @@
     },
     "osc/Client.LinkPublicIp": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1600,7 +1501,7 @@
     },
     "osc/Client.LinkRouteTable": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1609,7 +1510,7 @@
     },
     "osc/Client.LinkVolume": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1618,7 +1519,7 @@
     },
     "osc/Client.ReadAdminPassword": {
       "driven": false,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1627,7 +1528,7 @@
     },
     "osc/Client.ReadDhcpOptions": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1636,7 +1537,7 @@
     },
     "osc/Client.ReadImages": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1645,7 +1546,7 @@
     },
     "osc/Client.ReadInternetServices": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1654,7 +1555,7 @@
     },
     "osc/Client.ReadKeypairs": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1663,7 +1564,7 @@
     },
     "osc/Client.ReadLoadBalancers": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1672,7 +1573,7 @@
     },
     "osc/Client.ReadNatServices": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1681,7 +1582,7 @@
     },
     "osc/Client.ReadNetAccessPointServices": {
       "driven": false,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1690,7 +1591,7 @@
     },
     "osc/Client.ReadNets": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1699,7 +1600,7 @@
     },
     "osc/Client.ReadNics": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1708,7 +1609,7 @@
     },
     "osc/Client.ReadPublicIpRanges": {
       "driven": false,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1717,7 +1618,7 @@
     },
     "osc/Client.ReadPublicIps": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1726,7 +1627,7 @@
     },
     "osc/Client.ReadRegions": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1735,7 +1636,7 @@
     },
     "osc/Client.ReadRouteTables": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1744,7 +1645,7 @@
     },
     "osc/Client.ReadSecurityGroups": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1753,7 +1654,7 @@
     },
     "osc/Client.ReadSnapshots": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1762,7 +1663,7 @@
     },
     "osc/Client.ReadSubnets": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1771,7 +1672,7 @@
     },
     "osc/Client.ReadSubregions": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1780,7 +1681,7 @@
     },
     "osc/Client.ReadTags": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1789,7 +1690,7 @@
     },
     "osc/Client.ReadVmTypes": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1798,7 +1699,7 @@
     },
     "osc/Client.ReadVms": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1807,7 +1708,7 @@
     },
     "osc/Client.ReadVmsState": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1816,7 +1717,7 @@
     },
     "osc/Client.ReadVolumes": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -1825,7 +1726,7 @@
     },
     "osc/Client.RebootVms": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1834,7 +1735,7 @@
     },
     "osc/Client.StartVms": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1843,7 +1744,7 @@
     },
     "osc/Client.StopVms": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1852,7 +1753,7 @@
     },
     "osc/Client.UnlinkInternetService": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1861,7 +1762,7 @@
     },
     "osc/Client.UnlinkNic": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1870,7 +1771,7 @@
     },
     "osc/Client.UnlinkPublicIp": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1879,7 +1780,7 @@
     },
     "osc/Client.UnlinkRouteTable": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1888,7 +1789,7 @@
     },
     "osc/Client.UnlinkVolume": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1897,7 +1798,7 @@
     },
     "osc/Client.UpdateImage": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1906,7 +1807,7 @@
     },
     "osc/Client.UpdateRoute": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1915,7 +1816,7 @@
     },
     "osc/Client.UpdateVm": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1924,7 +1825,7 @@
     },
     "osc/Client.UpdateVolume": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1933,7 +1834,7 @@
     },
     "vpc/v2/API.CreatePrivateNetwork": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1942,16 +1843,16 @@
     },
     "vpc/v2/API.CreateRoute": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "vpc/v2/API.CreateVPC": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1960,7 +1861,7 @@
     },
     "vpc/v2/API.DeletePrivateNetwork": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -1969,7 +1870,7 @@
     },
     "vpc/v2/API.DeleteRoute": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -1978,7 +1879,7 @@
     },
     "vpc/v2/API.DeleteVPC": {
       "driven": true,
-      "probed": false,
+      "probed": "none",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -1987,7 +1888,7 @@
     },
     "vpc/v2/API.EnableDHCP": {
       "driven": false,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -1996,7 +1897,7 @@
     },
     "vpc/v2/API.EnableRouting": {
       "driven": false,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -2005,7 +1906,7 @@
     },
     "vpc/v2/API.GetPrivateNetwork": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -2014,7 +1915,7 @@
     },
     "vpc/v2/API.GetRoute": {
       "driven": true,
-      "probed": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -2023,7 +1924,7 @@
     },
     "vpc/v2/API.GetVPC": {
       "driven": true,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -2032,7 +1933,7 @@
     },
     "vpc/v2/API.ListPrivateNetworks": {
       "driven": false,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -2041,7 +1942,7 @@
     },
     "vpc/v2/API.ListSubnets": {
       "driven": false,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -2050,7 +1951,7 @@
     },
     "vpc/v2/API.ListVPCs": {
       "driven": false,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "observed",
@@ -2059,7 +1960,7 @@
     },
     "vpc/v2/API.UpdatePrivateNetwork": {
       "driven": false,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",
@@ -2068,7 +1969,7 @@
     },
     "vpc/v2/API.UpdateRoute": {
       "driven": false,
-      "probed": true,
+      "probed": "refusal",
       "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
@@ -2077,7 +1978,7 @@
     },
     "vpc/v2/API.UpdateVPC": {
       "driven": false,
-      "probed": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": false,
       "shape": "unobserved",

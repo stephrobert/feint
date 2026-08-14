@@ -1,0 +1,28 @@
+# The shape an Exoscale refusal must have, transcribed from the SDK that reads
+# it — egoscale/v3/errors.go, handleHTTPErrorResp — and deliberately not from
+# their OpenAPI document, which is the one place the two disagree: the document
+# declares an RFC 9457 envelope with type/title/status/detail all required,
+# while egoscale decodes {message, error, title, detail, errors} with nothing
+# enforced, and its own error tests feed it {"message": "err"}. Rule 4 says the
+# SDK's structs win, and the emulator's clients are egoscale and what is built
+# on it (exo, the Terraform provider), not the document.
+#
+# required carries message because it is the field every egoscale error path
+# reads first and the one its published tests exercise; a refusal without it
+# decodes into an error that names nothing. The RFC 9457 members egoscale also
+# accepts are listed so a future pack answering that form validates too.
+#
+# additionalProperties stays true — egoscale ignores what it does not read —
+# and must stay explicit in this fragment: the Exoscale extraction runs with
+# --assume-closed, which would otherwise close this schema by default.
+name: egoscale.APIError
+schema:
+  type: object
+  additionalProperties: true
+  required: [message]
+  properties:
+    message: {type: string}
+    error: {type: string}
+    title: {type: string}
+    detail: {type: string}
+    errors: {type: array}

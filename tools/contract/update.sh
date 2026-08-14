@@ -22,6 +22,8 @@ SPEC_SCALEWAY="${FEINT_SPEC_SCALEWAY:-$ROOT/.upstream/scaleway-openapi}"
 
 extract() { uv run --with pyyaml tools/contract/extract-openapi.py "$@"; }
 
+# Outscale needs no --error-shape: its document puts the same ErrorResponse on
+# every 4xx it declares, and its SDK is generated from that document.
 extract contracts/outscale.json --provider outscale \
   --source "outscale/osc-sdk-go pkg/osc/api.yaml" \
   --spec "$SDK_OUTSCALE/pkg/osc/api.yaml"
@@ -29,8 +31,12 @@ extract contracts/outscale.json --provider outscale \
 # Exoscale closes 7 of its schemas where Outscale closes almost all of them, so
 # refusing an unknown field there is this project's decision rather than theirs.
 # The artefact records which, and --assume-closed is where the decision is made.
+#
+# --error-shape overrides the document's RFC 9457 error envelope with what
+# egoscale actually decodes; the fragment file carries the citation.
 extract contracts/exoscale.json --provider exoscale \
   --source "https://openapi-v2.exoscale.com/source.yaml" --assume-closed \
+  --error-shape tools/contract/exoscale-error.yaml \
   --spec "$SPEC_EXOSCALE"
 
 # Scaleway publishes one document per product, so its names are qualified: it
@@ -46,6 +52,9 @@ while read -r product; do
   specs="$specs --spec $product=$SPEC_SCALEWAY/$(echo "$product" | tr / -).yml"
 done < tools/contract/scaleway-products.txt
 
+# --error-shape because their documents declare no error response at all; the
+# fragment is transcribed from scw/errors.go, per rule 4.
 # shellcheck disable=SC2086 # specs is a built argument list, and must split
 extract contracts/scaleway.json --provider scaleway \
-  --source "https://www.scaleway.com/en/developers/api/<product>/schema.yml" $specs
+  --source "https://www.scaleway.com/en/developers/api/<product>/schema.yml" \
+  --error-shape tools/contract/scaleway-error.yaml $specs

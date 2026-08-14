@@ -201,8 +201,18 @@ func evidenceLegend(evidence *evidenceArtefact) string {
 		strings.Join(evidence.Machines, ", "))
 	b.WriteString("  It says the control plane ran with side effects on; it does not say a\n")
 	b.WriteString("  machine-level assertion named this operation.\n")
-	b.WriteString("- `probe` — the contract-driven probe reached it. Protocol only: a\n")
-	b.WriteString("  well-shaped empty object would pass.\n")
+	b.WriteString("- `probe` — the contract-driven probe built a call from the operation's own\n")
+	b.WriteString("  request schema and its success answer validated against the response\n")
+	b.WriteString("  schema; where the contract declares a page-size parameter, one probed\n")
+	b.WriteString("  call carried it and the answer stayed within the bound it asked. Its\n")
+	b.WriteString("  refusals, when it met any, validated against the provider's declared\n")
+	b.WriteString("  error shape. Protocol only: a well-shaped empty inventory would pass,\n")
+	b.WriteString("  and cursors and filters are not exercised.\n")
+	b.WriteString("- `probe-refusal` — everything the probe could validate here was a refusal,\n")
+	b.WriteString("  read and validated against the provider's declared error shape. It does\n")
+	b.WriteString("  not say the success shape was ever seen. Absent (neither token): the\n")
+	b.WriteString("  probe validated nothing — not reached, or answers nothing upstream\n")
+	b.WriteString("  gives a shape to.\n")
 	b.WriteString("- `behaviour` — inside a span a suite declared to be a lifecycle assertion,\n")
 	b.WriteString("  this operation touched a resource the emulator's own store saw created and\n")
 	b.WriteString("  then destroyed. The suite declares the span; the emulator verifies the\n")
@@ -243,8 +253,11 @@ func evidenceTokens(ev emulator.Evidence) string {
 	if ev.Dataplane {
 		t = append(t, "`runtime`")
 	}
-	if ev.Probed {
+	switch ev.Probed {
+	case emulator.ProbeResponse:
 		t = append(t, "`probe`")
+	case emulator.ProbeRefusal:
+		t = append(t, "`probe-refusal`")
 	}
 	if ev.Behaviour {
 		t = append(t, "`behaviour`")

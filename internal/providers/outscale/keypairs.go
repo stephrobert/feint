@@ -28,6 +28,10 @@ type createKeypairRequest struct {
 
 type readKeypairsRequest struct {
 	Filters filterSet `json:"Filters"`
+	// ResultsPerPage pages like every other Read* — the probe sends it since
+	// it started exercising the parameter (#156), and the unread-fields gate
+	// of `mise run conformance` fails when a handler ignores it.
+	ResultsPerPage int `json:"ResultsPerPage"`
 }
 
 // keypairFilters are what a keypair answers from what is stored. Tags are not
@@ -125,7 +129,7 @@ func (p *Pack) readKeypairs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Keypairs":        out,
+		"Keypairs":        page(out, req.ResultsPerPage),
 		"ResponseContext": p.context(),
 	})
 }

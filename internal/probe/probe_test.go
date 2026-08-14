@@ -2,6 +2,7 @@ package probe_test
 
 import (
 	"context"
+	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
@@ -153,6 +154,154 @@ func TestProbingDoesNotCountAsProven(t *testing.T) {
 	}
 	if strings.Contains(body, `"probed":0`) {
 		t.Error("the probe reached routes and none was counted as probed")
+	}
+}
+
+// stubDoc is a contract small enough to read whole: one plain operation, one
+// paged one, and the error shape a refusal must have.
+const stubDoc = `{
+  "provider": "stub",
+  "errorSchema": "StubError",
+  "operations": {
+    "GetThing": {"method": "GET", "path": "/thing", "response": "ThingView"},
+    "ListThings": {
+      "method": "GET", "path": "/things", "response": "ThingsView",
+      "query": {"per_page": {"type": "integer"}}
+    }
+  },
+  "schemas": {
+    "ThingView": {"closed": true, "properties": {"ok": {"type": "boolean"}}},
+    "ThingsView": {"closed": true, "properties": {"things": {"type": "array", "items": {"type": "string"}}}},
+    "StubError": {"closed": false, "required": ["message"], "properties": {"message": {"type": "string"}}}
+  }
+}`
+
+// runStub probes a hand-built server against stubDoc, optionally with the
+// error shape stripped from it.
+func runStub(t *testing.T, withErrorShape bool, handler http.Handler, routes ...contract.MountedRoute) probe.Report {
+	t.Helper()
+	doc, err := contract.Read(strings.NewReader(stubDoc))
+	if err != nil {
+		t.Fatalf("read the stub contract: %v", err)
+	}
+	if !withErrorShape {
+		doc.ErrorSchema = ""
+	}
+	ts := httptest.NewServer(handler)
+	t.Cleanup(ts.Close)
+	runner := &probe.Runner{Doc: doc, Base: ts.URL, Client: ts.Client()}
+	report, err := runner.Run(context.Background(), routes)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	return report
+}
+
+func plainText404(w http.ResponseWriter, _ *http.Request) {
+	http.Error(w, "404 page not found", http.StatusNotFound)
+}
+
+// TestARefusedProbeIsReadAgainstTheErrorShape is the check #156 was filed for:
+// a 4xx used to return before any validation, so text/plain "404 page not
+// found" — the exact answer #74 measured on an unmounted corner — counted the
+// same as a typed error envelope. Now the refusal body is held to the error
+// shape the provider declares: not JSON fails, the bare {} the issue names
+// fails on the missing required field, and only the declared envelope passes.
+func TestARefusedProbeIsReadAgainstTheErrorShape(t *testing.T) {
+	route := contract.MountedRoute{Method: "GET", Path: "/thing", Operation: "stub/v1/API.GetThing"}
+
+	cases := []struct {
+		name    string
+		handler http.HandlerFunc
+		fails   bool
+	}{
+		{"text-plain", plainText404, true},
+		{"bare-object", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{}`))
+		}, true},
+		{"declared-envelope", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"message": "no such thing"}`))
+		}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			report := runStub(t, true, c.handler, route)
+			failures := report.Failures()
+			if c.fails && len(failures) == 0 {
+				t.Fatalf("a refusal off the declared error shape must fail the probe: %s", report)
+			}
+			if !c.fails && len(failures) > 0 {
+				t.Fatalf("a refusal in the declared shape is not a failure: %s", report)
+			}
+			res := report.Results[0]
+			if !res.Refused || res.RefusalUnread {
+				t.Errorf("every case here is a refusal that was read: %+v", res)
+			}
+		})
+	}
+}
+
+// TestAnUnreadRefusalIsNotAValidation pins the honest half of the same rule:
+// with no declared error shape there is nothing to hold a refusal to, and the
+// result must say "unread" rather than dress the silence up as a pass — a
+// single flag covering "validated" and "nobody looked" is the defect #156
+// names, moved one step over.
+func TestAnUnreadRefusalIsNotAValidation(t *testing.T) {
+	route := contract.MountedRoute{Method: "GET", Path: "/thing", Operation: "stub/v1/API.GetThing"}
+	report := runStub(t, false, http.HandlerFunc(plainText404), route)
+
+	if len(report.Failures()) > 0 {
+		t.Fatalf("nothing upstream to disagree with, so nothing may fail: %s", report)
+	}
+	res := report.Results[0]
+	if !res.Refused || !res.RefusalUnread {
+		t.Errorf("a refusal nothing could be checked against must read unread: %+v", res)
+	}
+	if report.Probed() != 0 {
+		t.Error("an unread refusal must not count as probed")
+	}
+}
+
+// TestAnAnswerIgnoringPageSizeIsAViolation exercises the one parameter family
+// the probe sends: an operation declaring per_page is called with per_page=1,
+// and an answer carrying two items has ignored it — which no schema check can
+// see, because the array is still an array.
+func TestAnAnswerIgnoringPageSizeIsAViolation(t *testing.T) {
+	route := contract.MountedRoute{Method: "GET", Path: "/things", Operation: "stub/v1/API.ListThings"}
+
+	deaf := func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"things": ["a", "b"]}`)) // whatever was asked
+	}
+	report := runStub(t, true, http.HandlerFunc(deaf), route)
+	failures := report.Failures()
+	if len(failures) == 0 {
+		t.Fatalf("two items where one was asked is per_page ignored, and must fail: %s", report)
+	}
+	if failures[0].PageSized != "per_page" {
+		t.Errorf("the result names the parameter it exercised, got %q", failures[0].PageSized)
+	}
+
+	paged := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Query().Get("per_page") == "1" {
+			_, _ = w.Write([]byte(`{"things": ["a"]}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"things": ["a", "b"]}`))
+	}
+	report = runStub(t, true, http.HandlerFunc(paged), route)
+	if len(report.Failures()) > 0 {
+		t.Fatalf("an answer within its bound passes: %s", report)
+	}
+	// The plan runs a read twice, so the operation shows up once per pass;
+	// both must have been probed with the parameter exercised.
+	if report.Probed() != len(report.Results) || report.Results[0].PageSized != "per_page" {
+		t.Errorf("the paged operation was probed with its page size exercised: %+v", report.Results[0])
 	}
 }
 

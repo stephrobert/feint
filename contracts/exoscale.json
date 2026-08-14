@@ -4,6 +4,7 @@
  "apiVersion": "2.0.0",
  "pathPrefix": "/v2",
  "closedPolicy": "assumed",
+ "errorSchema": "egoscale.APIError",
  "operations": {
   "add-external-source-to-security-group": {
    "path": "/security-group/{id}:add-source",
@@ -1182,7 +1183,15 @@
    "path": "/ai/deployment/{id}/logs",
    "method": "GET",
    "group": "ai",
-   "response": "get-deployment-logs-response"
+   "response": "get-deployment-logs-response",
+   "query": {
+    "stream": {
+     "type": "boolean"
+    },
+    "tail": {
+     "type": "integer"
+    }
+   }
   },
   "get-dns-domain": {
    "path": "/dns-domain/{id}",
@@ -1235,13 +1244,26 @@
   "get-impact-report": {
    "path": "/environmental-impact/report",
    "method": "GET",
-   "response": "impact-breakdown"
+   "response": "impact-breakdown",
+   "query": {
+    "from": {
+     "type": "string"
+    },
+    "to": {
+     "type": "string"
+    }
+   }
   },
   "get-inference-engine-help": {
    "path": "/ai/help/inference-engine-parameters",
    "method": "GET",
    "group": "ai",
-   "response": "get-inference-engine-help-response"
+   "response": "get-inference-engine-help-response",
+   "query": {
+    "version": {
+     "type": "string"
+    }
+   }
   },
   "get-instance": {
    "path": "/instance/{id}",
@@ -1366,7 +1388,12 @@
    "path": "/sos/{bucket}/presigned-url",
    "method": "GET",
    "group": "sos",
-   "response": "get-sos-presigned-url.Response"
+   "response": "get-sos-presigned-url.Response",
+   "query": {
+    "key": {
+     "type": "string"
+    }
+   }
   },
   "get-ssh-key": {
    "path": "/ssh-key/{name}",
@@ -1390,7 +1417,12 @@
    "path": "/usage-report",
    "method": "GET",
    "group": "organization",
-   "response": "get-usage-report.Response"
+   "response": "get-usage-report.Response",
+   "query": {
+    "period": {
+     "type": "string"
+    }
+   }
   },
   "get-user-org-consumption-quota": {
    "path": "/ai/quota",
@@ -1438,7 +1470,12 @@
    "path": "/block-storage",
    "method": "GET",
    "group": "block-storage",
-   "response": "list-block-storage-volumes.Response"
+   "response": "list-block-storage-volumes.Response",
+   "query": {
+    "instance-id": {
+     "type": "string"
+    }
+   }
   },
   "list-dbaas-clickhouse-roles": {
    "path": "/dbaas-clickhouse/{service-name}/role",
@@ -1510,7 +1547,12 @@
    "path": "/ai/deployment",
    "method": "GET",
    "group": "ai",
-   "response": "list-deployments-response"
+   "response": "list-deployments-response",
+   "query": {
+    "visibility": {
+     "type": "string"
+    }
+   }
   },
   "list-dns-domain-records": {
    "path": "/dns-domain/{domain-id}/record",
@@ -1533,7 +1575,15 @@
   "list-events": {
    "path": "/event",
    "method": "GET",
-   "group": "audit-trail"
+   "group": "audit-trail",
+   "query": {
+    "from": {
+     "type": "string"
+    },
+    "to": {
+     "type": "string"
+    }
+   }
   },
   "list-iam-roles": {
    "path": "/iam-role",
@@ -1557,7 +1607,24 @@
    "path": "/instance",
    "method": "GET",
    "group": "compute",
-   "response": "list-instances.Response"
+   "response": "list-instances.Response",
+   "query": {
+    "manager-id": {
+     "type": "string"
+    },
+    "manager-type": {
+     "type": "string",
+     "enum": [
+      "instance-pool"
+     ]
+    },
+    "ip-address": {
+     "type": "string"
+    },
+    "labels": {
+     "type": "string"
+    }
+   }
   },
   "list-kms-key-rotations": {
    "path": "/kms-key/{id}/list-key-rotations",
@@ -1605,7 +1672,16 @@
    "path": "/security-group",
    "method": "GET",
    "group": "compute",
-   "response": "list-security-groups.Response"
+   "response": "list-security-groups.Response",
+   "query": {
+    "visibility": {
+     "type": "string",
+     "enum": [
+      "private",
+      "public"
+     ]
+    }
+   }
   },
   "list-sks-cluster-deprecated-resources": {
    "path": "/sks-cluster-deprecated-resources/{id}",
@@ -1616,7 +1692,12 @@
    "path": "/sks-cluster-version",
    "method": "GET",
    "group": "sks",
-   "response": "list-sks-cluster-versions.Response"
+   "response": "list-sks-cluster-versions.Response",
+   "query": {
+    "include-deprecated": {
+     "type": "string"
+    }
+   }
   },
   "list-sks-clusters": {
    "path": "/sks-cluster",
@@ -1652,7 +1733,19 @@
    "path": "/template",
    "method": "GET",
    "group": "compute",
-   "response": "list-templates.Response"
+   "response": "list-templates.Response",
+   "query": {
+    "visibility": {
+     "type": "string",
+     "enum": [
+      "private",
+      "public"
+     ]
+    },
+    "family": {
+     "type": "string"
+    }
+   }
   },
   "list-users": {
    "path": "/user",
@@ -6851,6 +6944,29 @@
   "domain-name": {
    "closed": true,
    "type": "string"
+  },
+  "egoscale.APIError": {
+   "closed": false,
+   "required": [
+    "message"
+   ],
+   "properties": {
+    "detail": {
+     "type": "string"
+    },
+    "error": {
+     "type": "string"
+    },
+    "errors": {
+     "type": "array"
+    },
+    "message": {
+     "type": "string"
+    },
+    "title": {
+     "type": "string"
+    }
+   }
   },
   "elastic-ip": {
    "closed": true,

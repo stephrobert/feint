@@ -47,9 +47,17 @@ type Doc struct {
 	// an unknown field is a violation they wrote down. Exoscale closed 7 of 299,
 	// so the same refusal is our call — defensible, since a field their document
 	// does not define is one no client reads, but ours to defend.
-	ClosedPolicy string               `json:"closedPolicy"`
-	Operations   map[string]Operation `json:"operations"`
-	Schemas      map[string]Schema    `json:"schemas"`
+	ClosedPolicy string `json:"closedPolicy"`
+	// ErrorSchema names the shape the provider declares for a refusal — the
+	// body of a 4xx. One name for the whole document because that is how all
+	// three providers publish it: Outscale declares the same ErrorResponse on
+	// every 4xx it lists, Exoscale's SDK decodes every error through one
+	// struct, and Scaleway's scw/errors.go does the same. Empty when nothing
+	// upstream states the shape, and a refusal is then not validatable — which
+	// the probe reports as such rather than passing it.
+	ErrorSchema string               `json:"errorSchema,omitempty"`
+	Operations  map[string]Operation `json:"operations"`
+	Schemas     map[string]Schema    `json:"schemas"`
 
 	// folded indexes the operations by their name lower-cased, so a lookup can
 	// survive the one difference between a document and the SDK generated from
@@ -71,6 +79,11 @@ type Operation struct {
 	Group    string `json:"group,omitempty"`
 	Request  string `json:"request"`
 	Response string `json:"response"`
+	// Query maps each query parameter the document declares to what it may
+	// hold. Scaleway's lists take per_page and their filters here; Outscale
+	// takes nothing (its pagination travels in the request body); Exoscale
+	// declares a handful of filters. Empty when the operation declares none.
+	Query map[string]Property `json:"query,omitempty"`
 }
 
 // Schema is one object shape.
@@ -356,4 +369,88 @@ func join(path, name string) string {
 
 func add(out *Violations, path, reason string) {
 	*out = append(*out, Violation{Path: path, Reason: reason})
+}
+
+// PageSize reports the parameter that bounds how many items a list answer may
+// carry, and where the operation declares it: in its query parameters
+// (Scaleway's per_page) or in its request body (Outscale's ResultsPerPage).
+//
+// The names are each provider's own, read from their documents — per_page and
+// page_size in Scaleway's query parameters, ResultsPerPage in Outscale's
+// Read*Request schemas — plus the two generic spellings (limit, max_results)
+// so a fourth provider's document is recognised without touching this file.
+// The same doctrine as the verb table in internal/probe: all vocabularies live
+// side by side, none is guessed.
+//
+// This lives here rather than in the probe because two consumers need the same
+// answer: the probe, to build the call, and the emulator's observer, to refuse
+// to publish a probe axis for a paged operation whose page size was never
+// exercised (TestPagedOperationNeedsItsPageSizeExercised).
+func (d *Doc) PageSize(op Operation) (name string, inBody bool, ok bool) {
+	for candidate := range op.Query {
+		if isPageSize(candidate) {
+			return candidate, false, true
+		}
+	}
+	if op.Request != "" {
+		for candidate := range d.Schemas[op.Request].Properties {
+			if isPageSize(candidate) {
+				return candidate, true, true
+			}
+		}
+	}
+	return "", false, false
+}
+
+// isPageSize folds a field name to its bare words before comparing, so
+// per_page, PerPage and per-page all read as the same parameter.
+func isPageSize(name string) bool {
+	folded := strings.ToLower(strings.NewReplacer("_", "", "-", "").Replace(name))
+	switch folded {
+	case "perpage", "pagesize", "resultsperpage", "limit", "maxresults":
+		return true
+	}
+	return false
+}
+
+// PageBound reports the response's top-level list fields that overflow the
+// page size the request asked for. An answer that ignores per_page is not a
+// schema violation — the array is still an array — which is exactly why the
+// schema check alone could not see it and this exists
+// (TestAnAnswerIgnoringPageSizeIsAViolation).
+//
+// Shared for the same reason PageSize is: the probe fails its run on it, and
+// the emulator's observer refuses to publish a probe axis on it, and two
+// copies of a bound check drift the first time one is fixed.
+func (d *Doc) PageBound(op Operation, asked int, value any) Violations {
+	obj, ok := value.(map[string]any)
+	if !ok {
+		return nil
+	}
+	var out Violations
+	for _, field := range d.ListFields(op) {
+		if items, ok := obj[field].([]any); ok && len(items) > asked {
+			add(&out, field, fmt.Sprintf("%d items where the request asked for at most %d", len(items), asked))
+		}
+	}
+	return out
+}
+
+// ListFields names the top-level array fields of an operation's response
+// schema — the fields a page size bounds. Scaleway's ListServersResponse
+// declares servers, Outscale's ReadVmsResponse declares Vms; total counts and
+// response contexts are not arrays and stay out. Nil when the operation has no
+// response schema or the schema declares no array at its root.
+func (d *Doc) ListFields(op Operation) []string {
+	if op.Response == "" {
+		return nil
+	}
+	var out []string
+	for name, prop := range d.Schemas[op.Response].Properties {
+		if prop.Type == "array" {
+			out = append(out, name)
+		}
+	}
+	sort.Strings(out)
+	return out
 }

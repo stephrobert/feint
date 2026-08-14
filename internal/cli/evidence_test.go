@@ -106,18 +106,21 @@ func TestJoinEvidenceKeepsTheStrongerAnswerOfTwoFreshLegs(t *testing.T) {
 	off := &evidenceArtefact{Format: evidenceFormat, Version: evidenceVersion,
 		Machines: []string{"none"},
 		Operations: map[string]emulator.Evidence{
-			"op": {Driven: true, Probed: true, Behaviour: true, Contract: emulator.ContractClean, Shape: emulator.ShapeObserved},
+			"op": {Driven: true, Probed: emulator.ProbeResponse, Behaviour: true, Contract: emulator.ContractClean, Shape: emulator.ShapeObserved},
 		}}
 	runtime := &evidenceArtefact{Format: evidenceFormat, Version: evidenceVersion,
 		Machines: []string{"incus"},
 		Operations: map[string]emulator.Evidence{
-			"op": {Driven: true, Dataplane: true, Negative: true, Contract: emulator.ContractViolating, Shape: emulator.ShapeObserved},
+			"op": {Driven: true, Probed: emulator.ProbeRefusal, Dataplane: true, Negative: true, Contract: emulator.ContractViolating, Shape: emulator.ShapeObserved},
 		}}
 
 	joined := joinEvidence(runtime, off)
 	ev := joined.Operations["op"]
-	if !ev.Driven || !ev.Probed || !ev.Dataplane || !ev.Behaviour || !ev.Negative {
+	if !ev.Driven || !ev.Dataplane || !ev.Behaviour || !ev.Negative {
 		t.Errorf("each boolean axis keeps the leg that earned it: %+v", ev)
+	}
+	if ev.Probed != emulator.ProbeResponse {
+		t.Errorf("a validated success in either leg outranks a validated refusal, got %q", ev.Probed)
 	}
 	if ev.Contract != emulator.ContractViolating {
 		t.Errorf("a violation in either leg must survive the join, got %q", ev.Contract)
@@ -148,7 +151,7 @@ func TestReadEvidenceRefusesWhatItCannotAccountFor(t *testing.T) {
 
 func TestEvidenceTokensNameAxesAndNeverCount(t *testing.T) {
 	full := evidenceTokens(emulator.Evidence{
-		Driven: true, Probed: true, Contract: emulator.ContractClean,
+		Driven: true, Probed: emulator.ProbeResponse, Contract: emulator.ContractClean,
 		Dataplane: true, Shape: emulator.ShapeObserved,
 		Behaviour: true, Negative: true,
 	})
@@ -156,6 +159,11 @@ func TestEvidenceTokensNameAxesAndNeverCount(t *testing.T) {
 		if !strings.Contains(full, token) {
 			t.Errorf("missing %s in %q", token, full)
 		}
+	}
+	// A refusal-only probe verdict names itself and never upgrades to `probe`.
+	refusal := evidenceTokens(emulator.Evidence{Probed: emulator.ProbeRefusal, Contract: emulator.ContractUnchecked, Shape: emulator.ShapeUnknown})
+	if refusal != "`probe-refusal`" {
+		t.Errorf("a refusal-only verdict renders its own token, got %q", refusal)
 	}
 	// The doctrine in its falsifiable form: the rendering must never collapse
 	// the axes into a count or a fraction — "5", "5/5" or "of 5" is exactly

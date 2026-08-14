@@ -3,8 +3,11 @@ package emulator
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
+	"net/url"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -50,6 +53,24 @@ type observer struct {
 	// it. The probe never removes work from the backlog; it only refuses to let
 	// a route answer nonsense unnoticed.
 	probed map[string]int
+	// probeResponse marks the operations where a synthetic call's success was
+	// validated clean against the operation's own response schema — and, when
+	// the contract declares a page-size parameter, where one such call carried
+	// it and the answer stayed within the bound it asked.
+	//
+	// This is a verdict, where probed above is an arrival. The published probe
+	// axis reads only the verdict maps: arrival was what let an operation whose
+	// only synthetic answer was an unread text/plain 404 publish probed: true
+	// (#156). Computed here rather than trusted from the client, because
+	// anything can send the probe header; the same doctrine as assert.go.
+	// TestProbedIsAVerdictNotAnArrival fails if the axis reads arrival again.
+	probeResponse map[string]bool
+	// probeRefusal marks the operations where a synthetic call was refused and
+	// the refusal validated clean against the provider's declared error shape.
+	// Kept apart from probeResponse and never merged into it: "it refuses
+	// properly" and "its success answer holds" are different facts, and the
+	// axis publishes which one it has.
+	probeRefusal map[string]bool
 	// violations collects contract failures, first occurrence per operation:
 	// one bad field repeated across a hundred calls is one defect.
 	violations map[string]contract.Violations
@@ -85,17 +106,19 @@ type observer struct {
 
 func newObserver(contracts map[string]*contract.Doc, events *stream) *observer {
 	return &observer{
-		stream:     events,
-		calls:      map[string]int{},
-		probed:     map[string]int{},
-		violations: map[string]contract.Violations{},
-		checked:    map[string]int{},
-		unread:     map[string]map[string]bool{},
-		contracts:  contracts,
-		flight:     map[int64]flightEntry{},
-		spans:      map[string]*assertSpan{},
-		behaviour:  map[string]bool{},
-		negative:   map[string]bool{},
+		stream:        events,
+		calls:         map[string]int{},
+		probed:        map[string]int{},
+		probeResponse: map[string]bool{},
+		probeRefusal:  map[string]bool{},
+		violations:    map[string]contract.Violations{},
+		checked:       map[string]int{},
+		unread:        map[string]map[string]bool{},
+		contracts:     contracts,
+		flight:        map[int64]flightEntry{},
+		spans:         map[string]*assertSpan{},
+		behaviour:     map[string]bool{},
+		negative:      map[string]bool{},
 	}
 }
 
@@ -127,6 +150,15 @@ func (o *observer) wrap(provider string, r Route) http.HandlerFunc {
 			rec.body = &bytes.Buffer{}
 		}
 
+		// A synthetic request's body is kept so the probe verdict below can see
+		// what was asked — Outscale's page size travels in the body. Probe
+		// traffic only: buffering every client body would buy nothing.
+		var probeBody []byte
+		if synthetic && doc != nil && req.Body != nil {
+			probeBody, _ = io.ReadAll(req.Body)
+			req.Body = io.NopCloser(bytes.NewReader(probeBody))
+		}
+
 		started := time.Now()
 		r.Handler(rec, req)
 		elapsed := time.Since(started)
@@ -154,10 +186,15 @@ func (o *observer) wrap(provider string, r Route) http.HandlerFunc {
 		// are causal defects, both were already computed, and showing one
 		// without the other is an odd place to stop.
 		var violations []string
+		var vs contract.Violations
 		if doc != nil {
-			for _, v := range o.check(doc, r.Operation, rec) {
+			vs = o.check(doc, r.Operation, rec)
+			for _, v := range vs {
 				violations = append(violations, v.String())
 			}
+		}
+		if synthetic && doc != nil {
+			o.noteProbe(doc, r.Operation, req.URL.Query(), probeBody, rec, vs)
 		}
 
 		o.stream.publishExchange(trace.Exchange{
@@ -244,6 +281,99 @@ func (o *observer) check(doc *contract.Doc, operation string, rec *recorder) con
 	return nil
 }
 
+// noteProbe turns one synthetic exchange into a probe verdict, or into
+// nothing. The axis it feeds means "the probe validated this", so every path
+// out of here that records nothing is a path where nothing was validated: an
+// empty body, an operation with no response schema, a refusal with no declared
+// error shape or a body that fails it, a paged answer that overflowed what it
+// was asked. Arrival is already counted elsewhere (record), and arrival is not
+// a verdict (#156).
+func (o *observer) noteProbe(doc *contract.Doc, operation string, query url.Values, reqBody []byte, rec *recorder, checked contract.Violations) {
+	if rec.body == nil || rec.body.Len() == 0 {
+		return
+	}
+
+	switch {
+	case rec.status >= 200 && rec.status < 300:
+		if len(checked) > 0 {
+			return
+		}
+		op, _, known := doc.OperationFor(operation)
+		if !known || op.Response == "" {
+			// check() had nothing to hold the answer to, so its silence is not
+			// a validation — the same distinction the contract axis draws
+			// between "clean" and "unchecked".
+			return
+		}
+		name, inBody, declared := doc.PageSize(op)
+		if !declared {
+			o.markProbe(o.probeResponse, operation)
+			return
+		}
+		// A paged operation earns the axis only through the call that carried
+		// its page size and stayed within it. The plain call — the one the
+		// probe harvests identifiers from — proves the schema and not the
+		// parameter, and what was not exercised is not counted
+		// (TestPagedOperationNeedsItsPageSizeExercised).
+		asked, sent := sentPageSize(name, inBody, query, reqBody)
+		if !sent {
+			return
+		}
+		var decoded any
+		if json.Unmarshal(rec.body.Bytes(), &decoded) != nil {
+			return
+		}
+		if len(doc.PageBound(op, asked, decoded)) > 0 {
+			return
+		}
+		o.markProbe(o.probeResponse, operation)
+
+	case rec.status >= 400 && rec.status < 500:
+		if doc.ErrorSchema == "" {
+			return
+		}
+		var decoded any
+		if json.Unmarshal(rec.body.Bytes(), &decoded) != nil {
+			return
+		}
+		if len(doc.Validate(doc.ErrorSchema, decoded)) > 0 {
+			return
+		}
+		o.markProbe(o.probeRefusal, operation)
+	}
+}
+
+func (o *observer) markProbe(into map[string]bool, operation string) {
+	o.mu.Lock()
+	into[operation] = true
+	o.mu.Unlock()
+}
+
+// sentPageSize reads the page size a synthetic request asked for, wherever the
+// contract said it travels: the query string, or the request body.
+func sentPageSize(name string, inBody bool, query url.Values, reqBody []byte) (int, bool) {
+	if inBody {
+		var body map[string]any
+		if json.Unmarshal(reqBody, &body) != nil {
+			return 0, false
+		}
+		asked, ok := body[name].(float64)
+		if !ok {
+			return 0, false
+		}
+		return int(asked), true
+	}
+	raw := query.Get(name)
+	if raw == "" {
+		return 0, false
+	}
+	asked, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, false
+	}
+	return asked, true
+}
+
 func (o *observer) markChecked(operation string) {
 	o.mu.Lock()
 	o.checked[operation]++
@@ -310,8 +440,10 @@ type ConformanceView struct {
 	// Exercised is how many of them a real client drove at least once. The
 	// number in the title, and the only one a probe cannot move.
 	Exercised int `json:"exercised"`
-	// Probed is how many were only reached by the contract-driven probe:
-	// schema-valid, behaviour unproven.
+	// Probed is how many routes no client drove and the contract-driven probe
+	// nonetheless validated — a success against the response schema, or a
+	// refusal against the declared error shape. Reached-but-validated-nothing
+	// does not count; the Probes map below still shows the arrivals.
 	Probed int `json:"probed"`
 	// Calls counts requests per operation, for the ones that were called.
 	Calls map[string]int `json:"calls"`
@@ -369,9 +501,17 @@ type Evidence struct {
 	// It asserts what the suite asserted, nothing more — #116 and #83 were
 	// both driven the whole time they were wrong.
 	Driven bool `json:"driven"`
-	// Probed: the contract-driven probe reached it. Protocol only; a
-	// well-shaped empty object would pass.
-	Probed bool `json:"probed"`
+	// Probed: what the contract-driven probe validated here, never whether it
+	// merely arrived — an arrival whose only answer was an unread text/plain
+	// 404 published probed: true, which was the axis promising more than the
+	// code delivered (#156). "response": a success was validated against the
+	// operation's own response schema, page size exercised and held where the
+	// contract declares one. "refusal": what was validated is that it refuses
+	// in the provider's declared error shape — it does not say the success
+	// shape was ever seen. "none": the probe validated nothing here. All three
+	// are protocol only: a well-shaped empty inventory still passes, cursors
+	// and filters are not exercised.
+	Probed string `json:"probed"`
 	// Contract: "clean" when at least one response was validated against the
 	// provider's own description and none violated it, "violating" when one
 	// did, "unchecked" when no response of this operation was ever validated
@@ -401,11 +541,15 @@ type Evidence struct {
 	Negative bool `json:"negative"`
 }
 
-// Contract verdicts and shape states, named once.
+// Contract verdicts, probe verdicts and shape states, named once.
 const (
 	ContractClean     = "clean"
 	ContractViolating = "violating"
 	ContractUnchecked = "unchecked"
+
+	ProbeResponse = "response"
+	ProbeRefusal  = "refusal"
+	ProbeNone     = "none"
 
 	ShapeObserved   = "observed"
 	ShapeUnobserved = "unobserved"
@@ -439,6 +583,14 @@ func (s *Server) handleConformance(w http.ResponseWriter, _ *http.Request) {
 	probed := make(map[string]int, len(s.observer.probed))
 	for op, n := range s.observer.probed {
 		probed[op] = n
+	}
+	probeResponse := make(map[string]bool, len(s.observer.probeResponse))
+	for op := range s.observer.probeResponse {
+		probeResponse[op] = true
+	}
+	probeRefusal := make(map[string]bool, len(s.observer.probeRefusal))
+	for op := range s.observer.probeRefusal {
+		probeRefusal[op] = true
 	}
 	violations := make(map[string][]string, len(s.observer.violations))
 	for op, vs := range s.observer.violations {
@@ -480,9 +632,11 @@ func (s *Server) handleConformance(w http.ResponseWriter, _ *http.Request) {
 			continue
 		}
 		// Not driven by a client. It goes on the backlog whether or not the
-		// probe reached it.
+		// probe reached it. The probed count next to it takes a verdict, not
+		// an arrival: a route whose synthetic answers validated against
+		// nothing is on the backlog with nothing to its name.
 		untouched = append(untouched, r.Operation)
-		if probed[r.Operation] > 0 {
+		if probeResponse[r.Operation] || probeRefusal[r.Operation] {
 			probedOnly++
 		}
 	}
@@ -512,9 +666,16 @@ func (s *Server) handleConformance(w http.ResponseWriter, _ *http.Request) {
 				shapeState = ShapeObserved
 			}
 		}
+		probeVerdict := ProbeNone
+		switch {
+		case probeResponse[r.Operation]:
+			probeVerdict = ProbeResponse
+		case probeRefusal[r.Operation]:
+			probeVerdict = ProbeRefusal
+		}
 		evidence[r.Operation] = Evidence{
 			Driven:    calls[r.Operation] > 0,
-			Probed:    probed[r.Operation] > 0,
+			Probed:    probeVerdict,
 			Contract:  verdict,
 			Dataplane: calls[r.Operation] > 0 && runtimeOn,
 			Shape:     shapeState,

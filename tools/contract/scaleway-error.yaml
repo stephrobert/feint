@@ -1,0 +1,45 @@
+# The shape a Scaleway refusal must have, transcribed from the SDK that reads
+# it — scaleway-sdk-go/scw/errors.go and scw/custom_errors.go — because the
+# per-product OpenAPI documents declare no error response at all (their
+# responses sections list only 200/201/204).
+#
+# What the SDK does with a 4xx (hasResponseError, scw/errors.go): it requires
+# Content-Type application/json — anything else drops the body and the caller
+# gets the bare HTTP status — then unmarshals into ResponseError{message, type,
+# resource, fields} and hands the body to unmarshalStandardError, which
+# dispatches on `type` into the custom error structs.
+#
+# required carries `type` because it is that dispatch key: without it the SDK
+# can only build an untyped error, errors.As stops matching, and the emulator's
+# own error writers (internal/providers/scaleway/errors.go) exist to prevent
+# exactly that. It does not carry `message`: the SDK marks it optional-in-fact
+# (PreconditionFailedError answers precondition and help_message with no
+# message at all, and writePrecondition mirrors that struct on purpose), so
+# requiring it here would refuse a refusal the SDK decodes fully.
+#
+# The remaining properties are the union of the standard error and the custom
+# structs the dispatch can build (invalid_arguments, unknown_resource,
+# not_found, transient_state, locked, out_of_stock, quotas_exceeded,
+# permissions_denied, precondition_failed, expired). details carries a
+# different item shape per type, so it is constrained to "an array" and no
+# further — narrowing it here would be inventing.
+#
+# additionalProperties stays true because the SDK tolerates fields it does not
+# read (it keeps the RawBody for exactly that reason); refusing one here would
+# be our rule, not theirs.
+name: scw.ResponseError
+schema:
+  type: object
+  additionalProperties: true
+  required: [type]
+  properties:
+    type: {type: string}
+    message: {type: string}
+    resource: {type: string}
+    resource_id: {type: string}
+    current_state: {type: string}
+    precondition: {type: string}
+    help_message: {type: string}
+    expired_since: {type: string}
+    fields: {type: object}
+    details: {type: array}

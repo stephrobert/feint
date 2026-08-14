@@ -4,6 +4,7 @@
  "apiVersion": "1.42.0",
  "pathPrefix": "/api/v1",
  "closedPolicy": "declared",
+ "errorSchema": "ErrorResponse",
  "operations": {
   "AcceptNetPeering": {
    "path": "/AcceptNetPeering",

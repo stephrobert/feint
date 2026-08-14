@@ -178,7 +178,8 @@ func (p *Pack) deleteTags(w http.ResponseWriter, r *http.Request) {
 // is why the API has both.
 func (p *Pack) readTags(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Filters filterSet `json:"Filters"`
+		Filters        filterSet `json:"Filters"`
+		ResultsPerPage int       `json:"ResultsPerPage"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
@@ -214,8 +215,12 @@ func (p *Pack) readTags(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	// Paged like every other Read*. This flat view was one of the two lists of
+	// the pack that ignored ResultsPerPage — found the day the probe started
+	// holding paged answers to the size they asked (#156); the probe run of
+	// `mise run conformance` fails without it.
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Tags":            out,
+		"Tags":            page(out, req.ResultsPerPage),
 		"ResponseContext": p.context(),
 	})
 }

@@ -37,16 +37,30 @@ publishes one per product, so its artefact folds several together and qualifies
 every name with the product: ListImages exists in both instance/v1 and
 marketplace/v2, and its routes already tell them apart.
 
+The error shape
+---------------
+A refusal is half of the protocol — Terraform's retry loop reads
+`transient_state` out of the error body — so the artefact records the shape a
+4xx must have, under `errorSchema`. Where the document declares its error
+responses (Outscale puts the same ErrorResponse on every 4xx it lists), the
+name is derived from those declarations. Where the document declares none, or
+declares a shape its own SDK does not read, `--error-shape` supplies a YAML
+fragment transcribed from the SDK's error structs — rule 4: the shape comes
+from the SDK, never from a guess. The fragment file carries the citation.
+
 Usage:
   tools/contract/extract-openapi.py <output.json> --provider <name>
       --spec <file>                      one document for the whole API
       --spec <namespace>=<file> ...      one per product, names qualified
       [--source <where it came from>] [--assume-closed]
+      [--error-shape <fragment.yaml>]    the refusal shape, when the documents
+                                         declare none or the SDK disagrees
 """
 
 import argparse
 import json
 import sys
+from collections import Counter
 from urllib.parse import urlsplit
 
 import yaml
@@ -184,6 +198,37 @@ def success_body(op: dict) -> dict:
     return {}
 
 
+def declared_error_refs(op: dict) -> list[str]:
+    """The schema names the operation's own 4xx responses reference.
+
+    Only 4xx: a refusal is what the probe validates, and a 500's shape
+    (Exoscale declares a distinct impact-error-response) is not it. Only $refs:
+    an inline error body would get a synthetic per-operation name, which is the
+    opposite of what a document-wide error shape is.
+    """
+    out = []
+    for status, response in (op.get("responses") or {}).items():
+        if not str(status).startswith("4"):
+            continue
+        schema = (response or {}).get("content", {}).get("application/json", {}).get("schema", {})
+        if "$ref" in schema:
+            out.append(ref_name(schema["$ref"]))
+    return out
+
+
+def query_params(item: dict, op: dict) -> dict:
+    """The query parameters an operation declares, path-item level included.
+
+    Reduced with property_shape like any field, so an enum survives (Scaleway's
+    order) and a protobuf wrapper unwraps (its per_page is a UInt32Value).
+    """
+    out = {}
+    for prm in (item.get("parameters") or []) + (op.get("parameters") or []):
+        if isinstance(prm, dict) and prm.get("in") == "query" and "name" in prm:
+            out[prm["name"]] = property_shape(prm.get("schema") or {})
+    return out
+
+
 def tag_roots(spec: dict) -> dict:
     """Map each declared tag to the root of its parent chain.
 
@@ -239,7 +284,9 @@ def path_prefix(spec: dict) -> str:
     return urlsplit(servers[0].get("url", "")).path.rstrip("/")
 
 
-def read_spec(path: str, args, schemas: dict, operations: dict) -> tuple[str, str, int]:
+def read_spec(
+    path: str, args, schemas: dict, operations: dict, error_refs: Counter
+) -> tuple[str, str, int]:
     """Fold one document into the artefact. Returns its API version, its path
     prefix, and how many schemas it closed itself."""
     with open(path) as f:
@@ -267,6 +314,9 @@ def read_spec(path: str, args, schemas: dict, operations: dict) -> tuple[str, st
                 entry["request"] = req
             if resp := json_schema_of(success_body(op), schemas, oid + ".Response", args):
                 entry["response"] = resp
+            if query := query_params(item, op):
+                entry["query"] = query
+            error_refs.update(declared_error_refs(op))
             operations[qualify(oid)] = entry
 
     return spec["info"]["version"], path_prefix(spec), declared_closed
@@ -291,6 +341,12 @@ def main() -> int:
         action="store_true",
         help="treat a schema with no additionalProperties as closed; recorded as an assumed policy",
     )
+    parser.add_argument(
+        "--error-shape",
+        metavar="FILE",
+        help="a YAML fragment {name, schema} stating the refusal shape, transcribed "
+        "from the SDK's error structs; overrides whatever the documents declare",
+    )
     args = parser.parse_args()
 
     schemas: dict = {}
@@ -298,6 +354,7 @@ def main() -> int:
     versions: list[str] = []
     prefixes: set[str] = set()
     declared_closed = 0
+    error_refs: Counter = Counter()
 
     for entry in args.spec:
         namespace, _, path = entry.rpartition("=")
@@ -305,7 +362,7 @@ def main() -> int:
         # qualified: Scaleway defines ListImages twice, in instance/v1 and in
         # marketplace/v2, and its routes already tell them apart.
         NAMESPACE = namespace + "." if namespace else ""
-        version, prefix, closed_here = read_spec(path, args, schemas, operations)
+        version, prefix, closed_here = read_spec(path, args, schemas, operations, error_refs)
         versions.append(namespace or version)
         prefixes.add(prefix)
         declared_closed += closed_here
@@ -317,15 +374,41 @@ def main() -> int:
         print(f"documents disagree on the path prefix: {sorted(prefixes)}", file=sys.stderr)
         return 1
 
+    # The refusal shape. A fragment from the SDK wins over the documents (rule
+    # 4: an error shape is read in the SDK's own structs, and Exoscale's
+    # document declares an RFC 9457 envelope its own egoscale does not require
+    # — egoscale's error tests feed it {"message": ...}). With no fragment, the
+    # shape is what the documents themselves put on their 4xx responses, and a
+    # document declaring several gets the one it declares most, said out loud.
+    error_schema = ""
+    if args.error_shape:
+        with open(args.error_shape) as f:
+            fragment = yaml.safe_load(f)
+        error_schema = fragment["name"]
+        schemas[error_schema] = schema_entry(fragment["schema"], args)
+    elif error_refs:
+        error_schema, _ = error_refs.most_common(1)[0]
+        if others := sorted(set(error_refs) - {error_schema}):
+            print(
+                f"{args.output}: 4xx responses also reference {', '.join(others)}; "
+                f"errorSchema keeps the majority, {error_schema}",
+                file=sys.stderr,
+            )
+    if error_schema and error_schema not in schemas:
+        print(f"errorSchema {error_schema} names no extracted schema", file=sys.stderr)
+        return 1
+
     artefact = {
         "provider": args.provider,
         "source": args.source or ", ".join(args.spec),
         "apiVersion": ", ".join(versions),
         "pathPrefix": prefixes.pop(),
         "closedPolicy": "assumed" if args.assume_closed else "declared",
-        "operations": dict(sorted(operations.items())),
-        "schemas": dict(sorted(schemas.items())),
     }
+    if error_schema:
+        artefact["errorSchema"] = error_schema
+    artefact["operations"] = dict(sorted(operations.items()))
+    artefact["schemas"] = dict(sorted(schemas.items()))
 
     with open(args.output, "w") as f:
         json.dump(artefact, f, indent=1, sort_keys=False)
@@ -346,7 +429,8 @@ def main() -> int:
         f"{args.output}: {args.provider} api {artefact['apiVersion']}, "
         f"prefix {artefact['pathPrefix'] or '/'}, "
         f"{len(operations)} operations, {len(schemas)} schemas "
-        f"({closed} closed, {declared_closed} of them declared)"
+        f"({closed} closed, {declared_closed} of them declared), "
+        f"errorSchema {error_schema or 'none — refusals cannot be validated'}"
     )
     return 0
 

@@ -157,9 +157,22 @@ var runtimeImages = map[string]machine.Image{
 // twelve digits, like AWS's.
 const accountID = "000000000001"
 
-func (p *Pack) readVmTypes(w http.ResponseWriter, _ *http.Request) {
+// readVmTypes pages like every other Read*: the catalogue is fixed, but a
+// client asking for N rows must still not be handed more. This was the one
+// list of the pack that ignored its ResultsPerPage — found the day the probe
+// started holding paged answers to the size they asked, which is the check
+// that fails without this (TestEveryRouteAnswersItsContract, #156).
+func (p *Pack) readVmTypes(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ResultsPerPage int   `json:"ResultsPerPage"`
+		DryRun         *bool `json:"DryRun"`
+	}
+	if err := emulator.DecodeJSON(r, &req); err != nil {
+		p.badRequest(w, err.Error())
+		return
+	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"VmTypes":         vmTypes,
+		"VmTypes":         page(vmTypes, req.ResultsPerPage),
 		"ResponseContext": p.context(),
 	})
 }
