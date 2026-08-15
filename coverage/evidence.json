@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "7dd2353c6a25c3fa",
     "shapes": "c73ca6ca03ceac5b",
-    "suites": "758d1bfa6199deab"
+    "suites": "193823ebf80ff094"
   },
   "operations": {
     "block/v1/API.CreateSnapshot": {
@@ -1289,6 +1289,15 @@
       "behaviour": false,
       "negative": false
     },
+    "osc/Client.CreateDhcpOptions": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "osc/Client.CreateImage": {
       "driven": true,
       "probed": "response",
@@ -1427,6 +1436,15 @@
     "osc/Client.CreateVolume": {
       "driven": true,
       "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "osc/Client.DeleteDhcpOptions": {
+      "driven": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
@@ -1637,7 +1655,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "osc/Client.ReadImages": {
@@ -1988,7 +2006,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "vpc/v2/API.CreateVPC": {
@@ -2015,7 +2033,7 @@
       "contract": "unchecked",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": true,
+      "behaviour": false,
       "negative": false
     },
     "vpc/v2/API.DeleteVPC": {

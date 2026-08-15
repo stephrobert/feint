@@ -192,7 +192,7 @@ disappears from the suite.
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
 | `DELETE` | `/vpc/v2/regions/{region}/private-networks/{pnID}` | `vpc/v2/API.DeletePrivateNetwork` | `client` `runtime` `behaviour` |
-| `DELETE` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.DeleteRoute` | `client` `runtime` `behaviour` |
+| `DELETE` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.DeleteRoute` | `client` `runtime` |
 | `DELETE` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}` | `vpc/v2/API.DeleteVPC` | `client` `runtime` `behaviour` |
 | `GET` | `/vpc/v2/regions/{region}/private-networks/{pnID}` | `vpc/v2/API.GetPrivateNetwork` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/vpc/v2/regions/{region}/private-networks` | `vpc/v2/API.ListPrivateNetworks` | `contract` `shape` `probe` |
@@ -205,7 +205,7 @@ disappears from the suite.
 | `PATCH` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}` | `vpc/v2/API.UpdateVPC` | `contract` `probe` |
 | `POST` | `/vpc/v2/regions/{region}/private-networks/{pnID}/enable-dhcp` | `vpc/v2/API.EnableDHCP` | `contract` `probe` |
 | `POST` | `/vpc/v2/regions/{region}/private-networks` | `vpc/v2/API.CreatePrivateNetwork` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/vpc/v2/regions/{region}/routes` | `vpc/v2/API.CreateRoute` | `client` `contract` `runtime` `probe` |
+| `POST` | `/vpc/v2/regions/{region}/routes` | `vpc/v2/API.CreateRoute` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}/enable-routing` | `vpc/v2/API.EnableRouting` | `contract` `probe` |
 | `POST` | `/vpc/v2/regions/{region}/vpcs` | `vpc/v2/API.CreateVPC` | `client` `contract` `runtime` `probe` `behaviour` |
 
@@ -249,9 +249,9 @@ are in `coverage/`, one artefact per provider.
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `POST` | `/api/v1/CreateDhcpOptions` | `osc/Client.CreateDhcpOptions` | — |
-| `POST` | `/api/v1/DeleteDhcpOptions` | `osc/Client.DeleteDhcpOptions` | — |
-| `POST` | `/api/v1/ReadDhcpOptions` | `osc/Client.ReadDhcpOptions` | `client` `contract` `shape` `runtime` `probe` |
+| `POST` | `/api/v1/CreateDhcpOptions` | `osc/Client.CreateDhcpOptions` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/DeleteDhcpOptions` | `osc/Client.DeleteDhcpOptions` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/api/v1/ReadDhcpOptions` | `osc/Client.ReadDhcpOptions` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 
 ### `Image`
 
