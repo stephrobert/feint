@@ -140,10 +140,11 @@ func (p *Pack) Declined() []emulator.Decline {
 		// connections and their routes, virtual and client gateways, and the
 		// route propagation that depends on them.
 		//
-		// Net peerings and Net access points are deliberately NOT here. An audit
-		// found them swept in, and they belong on the work list: both ends of a
-		// peering are Nets this emulator creates, and machine.PeerNetworks
-		// already exists to back one.
+		// Net peerings are served (netpeerings.go): both ends of a peering are
+		// Nets this emulator creates, and machine.PeerNetworks backs the
+		// reachability an accepted one grants. Net access points are
+		// deliberately NOT here either — an audit found them swept in — and
+		// they stay on the work list (#172).
 		//
 		// Every one of them terminates somewhere this machine is not — a cross
 		// connect in a carrier facility, a tunnel to a remote site, a

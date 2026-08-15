@@ -60,6 +60,7 @@ var taggable = []struct {
 	{"eni-", kindNic, "network-interface"},
 	{"dopt-", kindDhcpOptions, "dhcpoptions"},
 	{"nat-", kindNatService, "natgateway"},
+	{"pcx-", kindNetPeering, "vpc-peering-connection"},
 
 	// An internet service carries Tags in their own schema — the Terraform
 	// provider sets them, which is how #99 was found — but the SDK's enum lists

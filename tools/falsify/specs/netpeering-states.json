@@ -1,0 +1,54 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "accept no longer demands pending-acceptance",
+      "file": "internal/providers/outscale/netpeerings.go",
+      "find": "\tif res.State != statePeeringPending {\n\t\tp.conflict(w, \"the Net peering \"+res.ID+\" is \"+res.State+\n\t\t\t\", only a pending-acceptance one can be accepted\")\n\t\treturn\n\t}",
+      "replace": "\tif res.State != statePeeringPending && false {\n\t\tp.conflict(w, \"the Net peering \"+res.ID+\" is \"+res.State+\n\t\t\t\", only a pending-acceptance one can be accepted\")\n\t\treturn\n\t}",
+      "test": "TestAcceptingANonPendingNetPeeringIsRefused"
+    },
+    {
+      "label": "reject no longer demands pending-acceptance",
+      "file": "internal/providers/outscale/netpeerings.go",
+      "find": "\tif res.State != statePeeringPending {\n\t\tp.conflict(w, \"the Net peering \"+res.ID+\" is \"+res.State+\n\t\t\t\", only a pending-acceptance one can be rejected\")\n\t\treturn\n\t}",
+      "replace": "\tif res.State != statePeeringPending && false {\n\t\tp.conflict(w, \"the Net peering \"+res.ID+\" is \"+res.State+\n\t\t\t\", only a pending-acceptance one can be rejected\")\n\t\treturn\n\t}",
+      "test": "TestRejectingANonPendingNetPeeringIsRefused"
+    },
+    {
+      "label": "delete no longer refuses the undeletable states",
+      "file": "internal/providers/outscale/netpeerings.go",
+      "find": "\tswitch res.State {\n\tcase statePeeringRejected, statePeeringFailed, statePeeringExpired, statePeeringDeleted:",
+      "replace": "\tswitch res.State + \"-never\" {\n\tcase statePeeringRejected, statePeeringFailed, statePeeringExpired, statePeeringDeleted:",
+      "test": "TestDeletingARejectedNetPeeringIsRefused"
+    },
+    {
+      "label": "an overlap no longer lands the peering in failed",
+      "file": "internal/providers/outscale/netpeerings.go",
+      "find": "\tif sourceErr == nil && accepterErr == nil && sourceRange.Overlaps(accepterRange) {",
+      "replace": "\tif sourceErr == nil && accepterErr == nil && sourceRange.Overlaps(accepterRange) && false {",
+      "test": "TestAPeeringOfANetWithItselfIsBornFailed"
+    },
+    {
+      "label": "a foreign AccepterOwnerId is waved through",
+      "file": "internal/providers/outscale/netpeerings.go",
+      "find": "\tif req.AccepterOwnerID != \"\" && req.AccepterOwnerID != accountID {",
+      "replace": "\tif req.AccepterOwnerID != \"\" && req.AccepterOwnerID != accountID && false {",
+      "test": "TestNetPeeringUnknownIdsAreInvalidResource"
+    },
+    {
+      "label": "accepting A-to-B no longer auto-rejects the pending B-to-A",
+      "file": "internal/providers/outscale/netpeerings.go",
+      "find": "\t\tif other.State == statePeeringPending &&\n\t\t\tstringOf(other.Attrs[\"SourceNetId\"]) == accepterID &&\n\t\t\tstringOf(other.Attrs[\"AccepterNetId\"]) == sourceID {",
+      "replace": "\t\tif other.State == statePeeringPending &&\n\t\t\tstringOf(other.Attrs[\"SourceNetId\"]) == accepterID &&\n\t\t\tstringOf(other.Attrs[\"AccepterNetId\"]) == sourceID && false {",
+      "test": "TestAcceptAutoRejectsTheReversePendingPeering"
+    },
+    {
+      "label": "a deleted peering keeps carrying traffic on the runtime",
+      "file": "internal/providers/outscale/netpeerings.go",
+      "find": "\t// Whatever reachability the peering granted goes with it.\n\tp.reconcilePeerings(r.Context())",
+      "replace": "\t// Whatever reachability the peering granted goes with it.\n\tif false {\n\t\tp.reconcilePeerings(r.Context())\n\t}",
+      "test": "TestAnAcceptedPeeringPeersTheBackingNetworks"
+    }
+  ]
+}

@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "7dd2353c6a25c3fa",
     "shapes": "c73ca6ca03ceac5b",
-    "suites": "193823ebf80ff094"
+    "suites": "b4fa8120ee00d133"
   },
   "operations": {
     "block/v1/API.CreateSnapshot": {
@@ -1289,6 +1289,15 @@
       "behaviour": false,
       "negative": false
     },
+    "osc/Client.AcceptNetPeering": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": true
+    },
     "osc/Client.CreateDhcpOptions": {
       "driven": true,
       "probed": "response",
@@ -1342,6 +1351,15 @@
       "shape": "unobserved",
       "behaviour": true,
       "negative": true
+    },
+    "osc/Client.CreateNetPeering": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
     },
     "osc/Client.CreateNic": {
       "driven": true,
@@ -1494,6 +1512,15 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
+      "negative": true
+    },
+    "osc/Client.DeleteNetPeering": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": false,
       "negative": true
     },
     "osc/Client.DeleteNic": {
@@ -1712,6 +1739,15 @@
       "behaviour": false,
       "negative": false
     },
+    "osc/Client.ReadNetPeerings": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "observed",
+      "behaviour": false,
+      "negative": false
+    },
     "osc/Client.ReadNets": {
       "driven": true,
       "probed": "response",
@@ -1854,6 +1890,15 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
+      "negative": false
+    },
+    "osc/Client.RejectNetPeering": {
+      "driven": false,
+      "probed": "refusal",
+      "contract": "unchecked",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
       "negative": false
     },
     "osc/Client.StartVms": {
@@ -2033,7 +2078,7 @@
       "contract": "unchecked",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "vpc/v2/API.DeleteVPC": {

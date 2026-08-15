@@ -1,9 +1,9 @@
 {
   "provider": "outscale",
   "total": 263,
-  "implemented": 78,
+  "implemented": 83,
   "declined": 174,
-  "unknown": 11,
+  "unknown": 6,
   "orphans": null,
   "products": [
     {
@@ -16,9 +16,9 @@
     {
       "product": "osc",
       "total": 236,
-      "implemented": 78,
+      "implemented": 83,
       "declined": 147,
-      "unknown": 11
+      "unknown": 6
     }
   ],
   "groups": [
@@ -193,9 +193,9 @@
     {
       "group": "NetPeering",
       "total": 5,
-      "implemented": 0,
+      "implemented": 5,
       "declined": 0,
-      "unknown": 5
+      "unknown": 0
     },
     {
       "group": "Nic",
@@ -547,7 +547,7 @@
       "operation": "osc/Client.AcceptNetPeering",
       "product": "osc",
       "group": "NetPeering",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.AddUserToUserGroup",
@@ -714,7 +714,7 @@
       "operation": "osc/Client.CreateNetPeering",
       "product": "osc",
       "group": "NetPeering",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateNic",
@@ -1010,7 +1010,7 @@
       "operation": "osc/Client.DeleteNetPeering",
       "product": "osc",
       "group": "NetPeering",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteNic",
@@ -1529,7 +1529,7 @@
       "operation": "osc/Client.ReadNetPeerings",
       "product": "osc",
       "group": "NetPeering",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.ReadNets",
@@ -1813,7 +1813,7 @@
       "operation": "osc/Client.RejectNetPeering",
       "product": "osc",
       "group": "NetPeering",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.RemoveUserFromUserGroup",

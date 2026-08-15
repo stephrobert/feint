@@ -99,11 +99,24 @@ osc() { oapi-cli --config "$WORK/config.json" "$@"; }
 
 net_id=""
 sub_id=""
+vm_a=""
+vm_b=""
+sub_a=""
+sub_b=""
+net_a=""
+net_b=""
 # Delete through the API, which is what removes the backing network. Killing the
 # bridge directly would hide a leak in the emulator behind the cleanup.
 cleanup() {
+  [ -n "$vm_a" ] && osc DeleteVms '--VmIds[]' "$vm_a" >/dev/null 2>&1
+  [ -n "$vm_b" ] && osc DeleteVms '--VmIds[]' "$vm_b" >/dev/null 2>&1
+  sleep 2
   [ -n "$sub_id" ] && osc DeleteSubnet --SubnetId "$sub_id" >/dev/null 2>&1
+  [ -n "$sub_a" ] && osc DeleteSubnet --SubnetId "$sub_a" >/dev/null 2>&1
+  [ -n "$sub_b" ] && osc DeleteSubnet --SubnetId "$sub_b" >/dev/null 2>&1
   [ -n "$net_id" ] && osc DeleteNet --NetId "$net_id" >/dev/null 2>&1
+  [ -n "$net_a" ] && osc DeleteNet --NetId "$net_a" >/dev/null 2>&1
+  [ -n "$net_b" ] && osc DeleteNet --NetId "$net_b" >/dev/null 2>&1
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -195,98 +208,122 @@ ok "deleted, and the host is as it was"
 osc DeleteNet --NetId "$net_id" >/dev/null || fail "DeleteNet rejected"
 net_id=""
 
-# ---- Two Nets do not reach each other -----------------------------------------
+# ---- Net peering: the claim, and the only mode that can carry it -------------
 #
-# The assertion this suite did not have, and its absence is why the leak lived:
-# the pack had no isolation wiring at all and nothing ever asked. Scaleway and
-# Exoscale both hold the equivalent; three suites, one property.
+# docs/roadmap.md's rule for this family: under OVN the claim is asserted,
+# elsewhere it is skipped, and no document says "peered" without naming the
+# mode. The gate is the runtime's *declared* capability, never the mode's name:
+# a suite that compares a mode string has to be edited every time a driver
+# gains a capability, and it lies the day a mode stops delivering one.
 #
-# Measured before the fix, on a station publishing capabilities.isolation: true —
-# two Nets with no peering, one machine in each, reachable in ICMP *and* in TCP,
-# because every OVN subnet is `scope link` on the uplink this emulator creates.
-#
-# The verdict keys on the declared capability, never on a mode name: a runtime
-# that promises isolation and does not deliver it is a hard failure, and one that
-# promises nothing is skipped rather than silently passed.
-ISO="$(curl -sf "$ENDPOINT/_feint/health" | jq -r '.capabilities.isolation // false')"
-
-echo "- two Nets, and a machine in each"
-iso_a="" iso_b="" iso_sub_a="" iso_sub_b="" iso_vm_a="" iso_vm_b=""
-iso_cleanup() {
-  [ -n "$iso_vm_a" ] && osc DeleteVms '--VmIds[]' "$iso_vm_a" >/dev/null 2>&1
-  [ -n "$iso_vm_b" ] && osc DeleteVms '--VmIds[]' "$iso_vm_b" >/dev/null 2>&1
-  sleep 3
-  [ -n "$iso_sub_a" ] && osc DeleteSubnet --SubnetId "$iso_sub_a" >/dev/null 2>&1
-  [ -n "$iso_sub_b" ] && osc DeleteSubnet --SubnetId "$iso_sub_b" >/dev/null 2>&1
-  [ -n "$iso_a" ] && osc DeleteNet --NetId "$iso_a" >/dev/null 2>&1
-  [ -n "$iso_b" ] && osc DeleteNet --NetId "$iso_b" >/dev/null 2>&1
-  return 0
-}
-trap 'iso_cleanup; cleanup' EXIT
-
-ISO_A="${FEINT_TEST_ISO_BLOCK_A:-10.203.0.0/16}"
-ISO_B="${FEINT_TEST_ISO_BLOCK_B:-10.204.0.0/16}"
-iso_a="$(osc CreateNet --IpRange "$ISO_A" | jq -r '.Net.NetId')"
-iso_b="$(osc CreateNet --IpRange "$ISO_B" | jq -r '.Net.NetId')"
-[ -n "$iso_a" ] && [ -n "$iso_b" ] || fail "the two Nets were not created"
-iso_sub_a="$(osc CreateSubnet --NetId "$iso_a" --IpRange "${ISO_A%.0.0/16}.1.0/24" | jq -r '.Subnet.SubnetId')"
-iso_sub_b="$(osc CreateSubnet --NetId "$iso_b" --IpRange "${ISO_B%.0.0/16}.1.0/24" | jq -r '.Subnet.SubnetId')"
-[ -n "$iso_sub_a" ] && [ -n "$iso_sub_b" ] || fail "the two Subnets were not created"
-
-iso_doc_a="$(osc CreateVms --ImageId ami-00000001 --VmType tinav6.c1r1p2 --SubnetId "$iso_sub_a")"
-iso_doc_b="$(osc CreateVms --ImageId ami-00000001 --VmType tinav6.c1r1p2 --SubnetId "$iso_sub_b")"
-iso_vm_a="$(printf '%s' "$iso_doc_a" | jq -r '.Vms[0].VmId')"
-iso_vm_b="$(printf '%s' "$iso_doc_b" | jq -r '.Vms[0].VmId')"
-iso_ip_b="$(printf '%s' "$iso_doc_b" | jq -r '.Vms[0].PrivateIp // empty')"
-[ -n "$iso_ip_b" ] || fail "the target Vm came back with no PrivateIp"
-
-# Both up and carrying their addresses, or absence of reach means "still
-# booting" rather than "isolated".
-booted=""
-for _ in $(seq 1 30); do
-  if incus list -f csv -c n4 2>/dev/null | grep -q "$iso_ip_b"; then booted="yes"; break; fi
-  sleep 2
-done
-[ -n "$booted" ] || fail "no machine carries $iso_ip_b; reachability cannot be measured"
-sleep 3
-ok "$iso_vm_a and $iso_vm_b, in separate Nets"
-
-echo "- a machine of another Net is unreachable"
-if incus exec "feint-osc-$iso_vm_a" -- ping -c 2 -W 2 "$iso_ip_b" >/dev/null 2>&1; then
-  if [ "$ISO" = "true" ]; then
-    fail "$iso_ip_b is reachable from another Net, but $MACHINES declares isolation"
-  fi
-  skip "$iso_ip_b is reachable from another Net: $MACHINES does not isolate subnets (see docs/limits.md)"
-else
-  ok "a machine of another Net is unreachable ($iso_ip_b)"
+# What is asserted, in order: two Nets are unreachable from each other before
+# any peering (the isolation the capability declares), still unreachable while
+# the peering is only pending-acceptance (a request grants nothing), reachable
+# once accepted, and unreachable again once deleted. The control plane's
+# answers are proven by the oapi-cli suite with no runtime at all; this is the
+# other half — the packets.
+ISOLATION="$(curl -sf "$ENDPOINT/_feint/health" | jq -r '.capabilities.isolation')"
+if [ "$ISOLATION" != "true" ]; then
+  skip "this runtime does not declare isolation; two Nets already reach each other, so an accepted peering would prove nothing (bridge mode, docs/limits.md)"
+  echo "conformance: outscale network passed"
+  exit 0
 fi
 
-# And the accepting half. A rule set that kept everything out would pass the
-# check above and separate two Subnets of one Net, which the real cloud routes.
+echo "- two Nets, a machine in each"
+PEER_BLOCK_A="${FEINT_TEST_PEER_BLOCK_A:-10.183.0.0/16}"
+PEER_BLOCK_B="${FEINT_TEST_PEER_BLOCK_B:-10.184.0.0/16}"
+net_a="$(osc CreateNet --IpRange "$PEER_BLOCK_A" | jq -r '.Net.NetId')"
+net_b="$(osc CreateNet --IpRange "$PEER_BLOCK_B" | jq -r '.Net.NetId')"
+[ -n "$net_a" ] && [ -n "$net_b" ] || fail "the two Nets were not created"
+sub_a="$(osc CreateSubnet --NetId "$net_a" --IpRange "${PEER_BLOCK_A%.0.0/16}.1.0/24" | jq -r '.Subnet.SubnetId')"
+sub_b="$(osc CreateSubnet --NetId "$net_b" --IpRange "${PEER_BLOCK_B%.0.0/16}.1.0/24" | jq -r '.Subnet.SubnetId')"
+[ -n "$sub_a" ] && [ -n "$sub_b" ] || fail "the two Subnets were not created"
+
+vm_a_doc="$(osc CreateVms --ImageId ami-00000003 --VmType tinav6.c1r1p2 --SubnetId "$sub_a")" \
+  || fail "CreateVms rejected in $sub_a: $vm_a_doc"
+vm_b_doc="$(osc CreateVms --ImageId ami-00000003 --VmType tinav6.c1r1p2 --SubnetId "$sub_b")" \
+  || fail "CreateVms rejected in $sub_b: $vm_b_doc"
+vm_a="$(printf '%s' "$vm_a_doc" | jq -r '.Vms[0].VmId')"
+vm_b="$(printf '%s' "$vm_b_doc" | jq -r '.Vms[0].VmId')"
+ip_b="$(printf '%s' "$vm_b_doc" | jq -r '.Vms[0].PrivateIp // empty')"
+[ -n "$ip_b" ] || fail "the target Vm came back without a PrivateIp"
+
+# The machine must be up and carrying its address before absence of reach can
+# mean isolation rather than a machine still booting.
+booted=""
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  if incus list -f csv -c n4 2>/dev/null | grep -q "$ip_b"; then booted="yes"; break; fi
+  sleep 2
+done
+[ -n "$booted" ] || fail "no machine carries $ip_b; cannot measure reachability"
+sleep 2
+
+# reach: from the machine in Net A towards the address in Net B. The names are
+# the binding's, prefix feint-osc-.
+reach() { incus exec "feint-osc-$vm_a" -- ping -c 2 -W 2 "$ip_b" >/dev/null 2>&1; }
+
+echo "- before any peering, the Nets do not reach each other"
+if reach; then
+  fail "$vm_a reaches $ip_b across two unpeered Nets; the declared isolation does not hold"
+fi
+ok "unreachable, as the isolation capability declares"
+
+echo "- a pending peering grants nothing"
+pcx_id="$(osc CreateNetPeering --SourceNetId "$net_a" --AccepterNetId "$net_b" \
+          | jq -r '.NetPeering.NetPeeringId')"
+[ -n "$pcx_id" ] || fail "CreateNetPeering answered no id"
+if reach; then
+  fail "a pending-acceptance peering already carries traffic"
+fi
+ok "still unreachable while pending-acceptance"
+
+echo "- an accepted peering carries traffic, both ends knowing it"
+osc AcceptNetPeering --NetPeeringId "$pcx_id" >/dev/null || fail "AcceptNetPeering rejected"
+sleep 2
+reach || fail "the peering is active and $vm_a still cannot reach $ip_b"
+ok "$vm_a reaches $ip_b through the active peering"
+
+echo "- a deleted peering separates them again"
+osc DeleteNetPeering --NetPeeringId "$pcx_id" >/dev/null || fail "DeleteNetPeering rejected"
+sleep 2
+if reach; then
+  fail "the peering is deleted and the Nets still reach each other"
+fi
+ok "unreachable again"
+
+osc DeleteVms '--VmIds[]' "$vm_a" >/dev/null && vm_a=""
+osc DeleteVms '--VmIds[]' "$vm_b" >/dev/null && vm_b=""
+sleep 2
+osc DeleteSubnet --SubnetId "$sub_a" >/dev/null && sub_a=""
+osc DeleteSubnet --SubnetId "$sub_b" >/dev/null && sub_b=""
+osc DeleteNet --NetId "$net_a" >/dev/null && net_a=""
+osc DeleteNet --NetId "$net_b" >/dev/null && net_b=""
+
+# And the accepting half, which the peering lifecycle above does not cover: a
+# rule set that kept everything out would pass every check so far and separate
+# two Subnets of one Net, which the real cloud routes.
 echo "- a second Subnet of the same Net stays reachable"
-iso_sub_a2="$(osc CreateSubnet --NetId "$iso_a" --IpRange "${ISO_A%.0.0/16}.2.0/24" | jq -r '.Subnet.SubnetId')"
-if [ -z "$iso_sub_a2" ]; then
+same_sub="$(osc CreateSubnet --NetId "$net_a" --IpRange "${PEER_BLOCK_A%.0.0/16}.2.0/24" | jq -r '.Subnet.SubnetId')"
+if [ -z "$same_sub" ]; then
   skip "a second Subnet of the same Net was refused; the accepting half is not measured"
 else
-  iso_doc_c="$(osc CreateVms --ImageId ami-00000001 --VmType tinav6.c1r1p2 --SubnetId "$iso_sub_a2")"
-  iso_vm_c="$(printf '%s' "$iso_doc_c" | jq -r '.Vms[0].VmId')"
-  iso_ip_c="$(printf '%s' "$iso_doc_c" | jq -r '.Vms[0].PrivateIp // empty')"
+  same_doc="$(osc CreateVms --ImageId ami-00000003 --VmType tinav6.c1r1p2 --SubnetId "$same_sub")"
+  same_vm="$(printf '%s' "$same_doc" | jq -r '.Vms[0].VmId')"
+  same_ip="$(printf '%s' "$same_doc" | jq -r '.Vms[0].PrivateIp // empty')"
   for _ in $(seq 1 30); do
-    incus list -f csv -c n4 2>/dev/null | grep -q "$iso_ip_c" && break
+    incus list -f csv -c n4 2>/dev/null | grep -q "$same_ip" && break
     sleep 2
   done
   sleep 3
-  if incus exec "feint-osc-$iso_vm_a" -- ping -c 2 -W 3 "$iso_ip_c" >/dev/null 2>&1; then
-    ok "a machine of the same Net is reachable ($iso_ip_c)"
+  if incus exec "feint-osc-$vm_a" -- ping -c 2 -W 3 "$same_ip" >/dev/null 2>&1; then
+    ok "a machine of the same Net is reachable ($same_ip)"
   else
-    fail "$iso_ip_c is unreachable inside one Net; the isolation separates too much"
+    fail "$same_ip is unreachable inside one Net; the isolation separates too much"
   fi
-  osc DeleteVms '--VmIds[]' "$iso_vm_c" >/dev/null 2>&1
+  osc DeleteVms '--VmIds[]' "$same_vm" >/dev/null 2>&1
   sleep 3
-  osc DeleteSubnet --SubnetId "$iso_sub_a2" >/dev/null 2>&1
+  osc DeleteSubnet --SubnetId "$same_sub" >/dev/null 2>&1
 fi
 
-iso_cleanup
-iso_a="" iso_b="" iso_sub_a="" iso_sub_b="" iso_vm_a="" iso_vm_b=""
 
 echo "conformance: outscale network passed"

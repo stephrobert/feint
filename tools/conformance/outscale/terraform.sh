@@ -254,6 +254,30 @@ ok "tags set, stored, and named with the types the SDK declares"
 
 
 
+# The Net peering the provider built and then accepted, asserted against the
+# emulator rather than against the state file. The provider's create is not one
+# call: it pre-reads BOTH Nets through Filters.NetIds and demands exactly two,
+# then polls ReadNetPeerings through Filters.NetPeeringIds until the state is
+# pending-acceptance or active — so an apply that got this far already proves
+# those filters are served. What it does not prove is that the acceptation
+# landed in the store, which is what this reads back.
+echo "- the Net peering is served, active, and carrying its tag"
+pcx_id="$("$TF" output -raw net_peering_id)"
+[ -n "$pcx_id" ] || fail "no net_peering_id in the outputs"
+peerings="$(curl -sf -X POST "$ENDPOINT/api/v1/ReadNetPeerings" -H 'Content-Type: application/json' \
+             -d "{\"Filters\":{\"NetPeeringIds\":[\"$pcx_id\"]}}")" || fail "ReadNetPeerings rejected"
+printf '%s' "$peerings" | jq -e '.NetPeerings | length == 1' >/dev/null \
+  || fail "the peering Terraform created is not served: $peerings"
+printf '%s' "$peerings" | jq -e '.NetPeerings[0].State.Name == "active"' >/dev/null \
+  || fail "after outscale_net_peering_acceptation the peering is not active: $peerings"
+printf '%s' "$peerings" | jq -e --arg n "$net_id" \
+  '.NetPeerings[0].SourceNet.NetId == $n' >/dev/null \
+  || fail "the peering does not name the Net it was requested from: $peerings"
+printf '%s' "$peerings" | jq -e \
+  'any(.NetPeerings[0].Tags[]; .Key == "name" and .Value == "feint-conformance-pcx")' >/dev/null \
+  || fail "the tag the provider set on the peering is not served: $peerings"
+ok "peering $pcx_id active, both ends named, tag stored"
+
 echo "- the volume the provider created is served"
 volume_id="$("$TF" output -raw volume_id)"
 [ -n "$volume_id" ] || fail "no volume id in the outputs"
@@ -398,6 +422,17 @@ if [ -n "${dopt_id:-}" ]; then
   fi
   printf '%s' "$sets_after" | jq -e 'any(.DhcpOptionsSets[]?; .Default == true)' >/dev/null \
     || fail "the account's default DHCP set went with the destroy: $sets_after"
+fi
+
+# The peering after destroy: DeleteNetPeering leaves the record in the
+# `deleted` state — a state the SDK's own StateNames filter enumerates — and
+# the Nets deleted fine right after, which is the destroy-order behaviour the
+# whole fixture exists to hold.
+if [ -n "${pcx_id:-}" ]; then
+  peerings="$(curl -sf -X POST "$ENDPOINT/api/v1/ReadNetPeerings" -H 'Content-Type: application/json' \
+               -d "{\"Filters\":{\"NetPeeringIds\":[\"$pcx_id\"]}}")" || fail "ReadNetPeerings rejected"
+  printf '%s' "$peerings" | jq -e '.NetPeerings[0].State.Name == "deleted"' >/dev/null \
+    || fail "the destroyed peering is not in the deleted state: $peerings"
 fi
 prove_end "$span"
 ok "destroyed, and the API agrees"

@@ -364,7 +364,9 @@ func (p *Pack) createSubnet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// What each subnet may reach changed, so every rule set is reconciled.
+	// What each subnet may reach changed, so every rule set is reconciled. That
+	// includes a subnet born into a Net an active peering already joins: it must
+	// reach the peer's subnets from the start, not from the next transition.
 	p.isolateNetworks(r.Context())
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
@@ -465,8 +467,9 @@ func (p *Pack) deleteSubnet(w http.ResponseWriter, r *http.Request) {
 	// The runtime call is slow and stays outside: the Subnet is already
 	// unreachable to every other handler by this point.
 	p.removeBackingNetwork(r.Context(), subnet)
-	// One fewer subnet is one fewer block its neighbours must keep out, and a
-	// rule set naming a block nothing carries is a rule set nobody can read.
+	// One fewer subnet is one fewer block its neighbours must keep out, and the
+	// peers of the removed network keep a half pointing at nothing: reconciling
+	// now clears both instead of leaving them for the next transition.
 	p.isolateNetworks(r.Context())
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
 }
