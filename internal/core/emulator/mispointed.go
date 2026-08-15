@@ -51,38 +51,26 @@ func missingPrefixHint(path string, routes []Route) (string, []string) {
 	if path == "" || path == "/" {
 		return "", nil
 	}
-	// The answer echoes the path back, so the path is validated before it is
-	// echoed rather than escaped afterwards — the order this repository states
-	// for producing any text from client input, and the reason cloudinit is the
-	// only place a structured format still goes through a template.
-	//
-	// A path outside this set matches no route of any provider here, so refusing
-	// to hint costs nothing: the plain 404 stands, which is the right answer for
-	// a request that was never going to match anyway.
-	if !plainPath(path) {
-		return "", nil
-	}
 	seen := map[string]bool{}
-	var found, prefixes []string
+	var prefixes []string
 	for _, r := range routes {
 		prefix, ok := prefixAnswering(path, r.Path)
 		if !ok || seen[prefix] {
 			continue
 		}
 		seen[prefix] = true
-		found = append(found, strings.TrimSuffix(prefix, "/")+path)
 		prefixes = append(prefixes, prefix)
 	}
-	if len(found) == 0 {
+	if len(prefixes) == 0 {
 		return "", nil
 	}
 	// Sorted so two runs say the same thing, and joined rather than picked:
 	// when two prefixes would both answer, saying so is more honest than
 	// choosing one and sounding certain.
-	sort.Strings(found)
 	sort.Strings(prefixes)
-	return "no route matches " + path + ", but " + strings.Join(found, " and ") +
-		" is served: the endpoint is probably missing that prefix. " +
+	return "no route matches this path, but it is served under " +
+		strings.Join(prefixes, " and ") +
+		": the endpoint is probably missing that prefix. " +
 		"`feint env <provider>` prints the endpoint a client expects, and " +
 		"/_feint/routes lists what is mounted", prefixes
 }
@@ -125,44 +113,19 @@ func prefixAnswering(path, pattern string) (string, bool) {
 // this URL space, so there is no dialect to speak. Inventing one would be the
 // invented format this project never ships.
 //
-// The hint carries the request path, so three things stand between it and a
-// reflected-content defect, and they are listed because the linter cannot see
-// past the first:
+// Nothing of the client's reaches this body. The sentence names the prefix,
+// which is read out of this process's own mounted route table; the request path
+// is not repeated, because the caller already knows what it sent and repeating
+// it was the only reason this function ever needed an allow-list defending it.
 //
-//  1. the path is validated at intake by plainPath, an allow-list of the bytes
-//     a provider's URL space uses — no angle bracket, quote or ampersand can
-//     reach here, and TestAPathOutsideTheAllowListEarnsNoHint holds it;
-//  2. the response is text/plain, which is not a document a browser executes;
-//  3. X-Content-Type-Options: nosniff, so it is not re-typed into one.
-//
-// Removing any of the three reopens the question, which is why the suppression
-// names all three rather than the linter's rule number alone.
+// That was the second lesson of #179 and it cost two rounds of CodeQL to learn:
+// when a tool reports untrusted data reaching an output, the question to ask
+// first is not "is my filter good enough" but "do I need to put it there at
+// all". A filter has to be argued for; a value that never came from the client
+// does not.
 func writeMispointed(w http.ResponseWriter, hint string) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusNotFound)
-	_, _ = w.Write([]byte(hint + "\n")) //nolint:gosec // G705: allow-listed at intake, text/plain, nosniff — see above
-}
-
-// plainPath reports whether every byte of the path is one a provider's own URL
-// space uses. Deliberately narrow: this is an allow-list, so a character nobody
-// thought of is refused rather than accepted, and the failure mode of being too
-// strict is one plain 404 instead of one helpful one.
-//
-// Length is capped for the same reason the character set is narrow: a hint is a
-// sentence a human reads, and a two-kilobyte path echoed into it is not.
-func plainPath(path string) bool {
-	if len(path) > 200 {
-		return false
-	}
-	for i := 0; i < len(path); i++ {
-		c := path[i]
-		switch {
-		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9':
-		case c == '/', c == '-', c == '_', c == '.', c == '~', c == ':':
-		default:
-			return false
-		}
-	}
-	return true
+	_, _ = w.Write([]byte(hint + "\n"))
 }

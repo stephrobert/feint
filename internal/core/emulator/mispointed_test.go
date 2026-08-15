@@ -25,8 +25,8 @@ func TestAnUnclaimedPathNamesThePrefixItIsMissing(t *testing.T) {
 		path string
 		want string // a substring the hint must carry, or "" for silence
 	}{
-		{"the exact trap the README documents", "/instance", "/v2/instance is served"},
-		{"a wildcard in the tail still points", "/instance/i-123", "/v2/instance/i-123 is served"},
+		{"the exact trap the README documents", "/instance", "served under /v2/"},
+		{"a wildcard in the tail still points", "/instance/i-123", "served under /v2/"},
 		{
 			// The defect this test exists to keep out. Before the literal-segment
 			// rule, "/instance" matched every route ending in "{id}" — the
@@ -60,46 +60,8 @@ func TestAmbiguityIsStatedRatherThanResolved(t *testing.T) {
 		{Method: "GET", Path: "/other/instance"},
 	}
 	got, _ := missingPrefixHint("/instance", routes)
-	if !strings.Contains(got, "/v2/instance") || !strings.Contains(got, "/other/instance") {
+	if !strings.Contains(got, "/v2/") || !strings.Contains(got, "/other/") {
 		t.Errorf("both candidates must appear, got %q", got)
-	}
-}
-
-// The allow-list that lets the hint echo a path at all.
-//
-// writeMispointed suppresses a taint warning, and a suppression is only worth
-// what the control behind it is worth. This is that control: a path carrying
-// anything outside the bytes a provider's URL space uses earns no hint, so the
-// plain 404 stands and nothing of the client's is reflected.
-//
-// The accepting half is asserted too. A validator that refused everything would
-// pass every case below and silently remove the feature.
-func TestAPathOutsideTheAllowListEarnsNoHint(t *testing.T) {
-	routes := []Route{{Method: "GET", Path: "/v2/instance/{id}"}}
-
-	for _, bad := range []string{
-		"/instance/<script>alert(1)</script>",
-		"/instance/\"quoted\"",
-		"/instance/a&b",
-		"/instance/" + strings.Repeat("x", 300),
-		"/instance/nul\x00byte",
-		"/instance/new\nline",
-		// The two that matter for a log record rather than for a body:
-		// slog's text handler separates keys with "=" and values with a
-		// space, so neither may reach it. The allow-list is what stops them.
-		"/instance/key=value",
-		"/instance/two words",
-	} {
-		if got, _ := missingPrefixHint(bad, routes); got != "" {
-			t.Errorf("a path outside the allow-list must earn no hint.\n path: %q\n hint: %q", bad, got)
-		}
-	}
-
-	// And the shapes a real client sends are still answered.
-	for _, good := range []string{"/instance/i-123", "/instance/a.b-c_d~e", "/instance/i:1"} {
-		if got, _ := missingPrefixHint(good, routes); got == "" {
-			t.Errorf("an ordinary identifier was refused by the allow-list: %q", good)
-		}
 	}
 }
 
@@ -129,6 +91,33 @@ func TestTheLogCarriesNothingTheClientChose(t *testing.T) {
 				t.Errorf("the logged value must come from the route table and nowhere "+
 					"else; got %q for request %q", p, path)
 			}
+		}
+	}
+}
+
+// The answer never repeats what the client sent.
+//
+// This is the guard the allow-list used to stand in for, and it is stronger
+// because it needs no argument: whatever a client puts in the path, none of it
+// comes back. CodeQL traced the old echo through the response wrappers and
+// reported two high-severity findings on files this change never touched, which
+// is how a data flow announces that it is the source.
+func TestTheAnswerNeverRepeatsWhatTheClientSent(t *testing.T) {
+	routes := []Route{{Method: "GET", Path: "/v2/instance/{id}"}}
+
+	for _, sent := range []string{
+		"i-123",
+		"<script>alert(1)</script>",
+		"\"quoted\"",
+		"a&b",
+		strings.Repeat("x", 400),
+	} {
+		hint, _ := missingPrefixHint("/instance/"+sent, routes)
+		if hint == "" {
+			continue // refusing to hint is its own valid answer
+		}
+		if strings.Contains(hint, sent) {
+			t.Errorf("the answer repeated a value the client chose.\n sent: %.40q\n hint: %s", sent, hint)
 		}
 	}
 }
