@@ -749,47 +749,58 @@ Rien de tout cela ne porte de jalon, et rien ne devrait en porter avant la
 sortie de la 1.0 : une direction avec une date est une promesse, et cette page a
 passé un an à apprendre ce que coûte une promesse intenable.
 
-### Puis le runtime cesse d'être une seule machine
+### Puis le runtime appartient à un autre projet
 
-L'étape suivante n'est pas un émulateur plus gros, c'est le même moteur avec un
-autre runtime en dessous :
+L'étape évidente serait d'apprendre les clusters à ce pilote. C'est la mauvaise,
+et dire pourquoi est la chose la plus utile de cette page.
+
+Feint mélange délibérément deux choses, et pour un émulateur c'est juste :
 
 ```text
-API Scaleway ─┐
-API Outscale  ├──►  le modèle normalisé  ──►  un vrai cluster Incus
-API Exoscale ─┘                               OVN, stockage, placement
+le dialecte d'API d'un fournisseur  +  un runtime local
 ```
 
-`terraform apply` inchangé, `runtime.mode` passé de `incus` à un cluster, et les
-ressources réellement créées sur du matériel que quelqu'un possède. Ce que cela
-vaut la peine de formuler avec soin :
+Matérialiser sur du matériel réel et persistant rend la seconde moitié assez
+importante pour mériter son propre contrat. Un petit IaaS au-dessus d'Incus
+répond à une autre question que celle de ce projet, et répondre aux deux dans un
+seul binaire est la façon dont un dépôt se retrouve avec deux produits et n'en
+réussit aucun.
 
-**Feint matérialise son modèle cloud sur un vrai cluster. Il ne gère pas le
-cluster.** Le premier garde le moteur qui existe (un dialecte, un modèle, un
-runtime) et remplace un hôte par plusieurs. Le second revient à assumer tout le
-cycle de vie opérationnel du matériel de quelqu'un : supervision, sauvegarde,
-PKI, secrets, IAM global, GitOps, catalogue de services. C'est OpenStack plus
-Proxmox plus Backstage à la fois, et ce projet ferait mal les trois.
+D'où la séparation :
 
-La contrainte d'architecture est celle qui existe déjà et qui n'a jamais été
-éprouvée à cette échelle : **aucun code de cluster dans les packs**. Trois
-dialectes atteignent un modèle normalisé, et le runtime ne voit que le modèle.
-`machine.Binding` tient cette ligne aujourd'hui pour un hôte ; un cluster est le
-premier vrai test de savoir si elle a été tracée au bon endroit. Si un pack
-apprend ce qu'est un nœud, l'abstraction était mal placée.
+```text
+API Scaleway ──┐
+API Outscale  ─┼──►  Feint  ──►  une API cloud  ──►  Incus / OVN / stockage
+API Exoscale  ─┘  compatibilité   le projet d'un autre
+```
 
-#195 porte le runtime : placement, capacités qui répondent pour le cluster et
-non pour le membre qui a décroché, et `feint doctor --cluster`.
+Feint garde sa question (*mon code écrit pour ce fournisseur fonctionne-t-il ?*)
+et gagne un backend de runtime de plus, à côté de `off`, `incus` et
+`incus-ovn`. L'autre projet répond à *où cette infrastructure se matérialise-t-elle
+réellement ?*, et s'utilise sans Feint du tout : son propre CLI, son propre SDK,
+son propre provider Terraform.
 
-Et #196 porte la question qui doit être tranchée **avant** que quoi que ce soit
-ne sorte, parce que la prendre implicitement est la façon dont un projet
-contracte une obligation que personne n'a acceptée : **Feint gère-t-il un jour
-une ressource dont la perte compterait ?** Tout ce qu'il crée aujourd'hui est
-jetable par construction, et tout l'argument de sûreté repose là-dessus. Un
-homelab contient les deux sortes. Le mode laboratoire reste dans l'ADN du
-projet ; le mode persistant fait passer le coût d'un `feint clean` malheureux
-d'une réexécution au week-end de quelqu'un, et un audit a déjà transformé un
-snapshot forgé en `delete --force` sur le pont par défaut d'un hôte.
+**Le couplage est le protocole, pas un paquet.** Aucun
+`import github.com/…/feint/internal/…` dans ce projet, et aucun dans l'autre
+sens. Un contrat HTTP est une frontière qui survit à une réécriture dans un
+autre langage ; un paquet Go partagé est une frontière qui se dissout à la
+première fois où quelqu'un a besoin d'un champ de plus. C'est la règle du noyau
+neutre d'`internal/core`, appliquée un cran au-dessus.
+
+Deux conséquences à écrire avant que quiconque ne construise l'un des deux côtés.
+
+**Son API doit être asynchrone dès le premier commit.** Un `POST /instances` qui
+répond `202` avec une opération à interroger n'est pas un raffinement à ajouter
+plus tard : le rétro-adapter revient à changer tous les clients qui ont consommé
+la forme synchrone. Feint peut répondre `running` immédiatement parce qu'il
+émule ; un vrai plan de contrôle ne le peut pas. C'est aussi pourquoi #124
+compte ici : un émulateur qui ne répond jamais qu'instantanément est un
+émulateur contre lequel le code d'attente de personne n'a été testé.
+
+**Ce qui appartient à ce dépôt est un backend et sa frontière.** L'API de
+l'autre projet, son ordonnanceur, son IPAM et son authentification ne sont pas
+des issues d'ici, et les y déposer serait le premier pas vers la refusion des
+deux.
 
 ### L'ordre, si tout cela se fait
 
@@ -797,8 +808,8 @@ snapshot forgé en `delete --force` sur le pont par défaut d'un hôte.
 |---|---|
 | 1.0 | l'émulateur, stable et mesuré |
 | 1.1 | les environnements portables : #189 à #192 |
-| 1.2 | le runtime devient un cluster : #195, après réponse à #196 |
-| 1.3 | le modèle se matérialise sur un homelab |
+| 1.2 | un backend de runtime de plus, parlant un contrat HTTP : #195 |
+| 1.3 | ce contrat a un cloud derrière lui, dans son propre dépôt |
 | 1.4 | dérive, assertions réseau, fautes injectées : #193, #194, #26, #124 |
 
 Écrit comme un ordre et non comme un calendrier. Rien de tout cela n'a de date,

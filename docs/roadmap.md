@@ -715,46 +715,54 @@ None of it carries a milestone, and none should until 1.0 is out: a direction
 with a date is a promise, and this page has spent a year learning what an
 unkeepable promise costs.
 
-### And then the runtime stops being one machine
+### And then the runtime is somebody else's project
 
-The step after that is not a bigger emulator, it is the same engine with a
-different runtime underneath:
+The obvious next step is to teach this driver about clusters. It is the wrong
+one, and saying why is the most useful thing on this page.
+
+Feint deliberately mixes two things, and for an emulator that is correct:
 
 ```text
-Scaleway API ─┐
-Outscale API  ├──►  the normalised model  ──►  a real Incus cluster
-Exoscale API ─┘                                OVN, storage, placement
+a provider's API dialect  +  a local runtime
 ```
 
-`terraform apply` unchanged, `runtime.mode` moved from `incus` to a cluster, and
-the resources are really created on hardware somebody owns. What that is worth
-saying carefully:
+Materialising on real, persistent hardware makes the second half important
+enough to deserve its own contract. A small IaaS above Incus answers a different
+question from the one this project answers, and answering both in one binary is
+how a repository acquires two products and does neither well.
 
-**Feint materialises its cloud model on a real cluster. It does not manage the
-cluster.** The first keeps the engine that exists — a dialect, a model, a
-runtime — and swaps one host for several. The second means owning the
-operational lifecycle of somebody's hardware: monitoring, backup, PKI, secrets,
-global IAM, GitOps, a service catalogue. That is OpenStack and Proxmox and
-Backstage at once, and this project would do all three badly.
+So the split:
 
-The architecture constraint is the one that already exists and has never been
-tested at this scale: **no cluster code in the packs**. Three dialects reach one
-normalised model, and the runtime sees only the model. `machine.Binding` holds
-that line today for one host; a cluster is the first real test of whether it was
-drawn in the right place. If a provider pack learns what a node is, the
-abstraction was wrong.
+```text
+Scaleway API ──┐
+Outscale API  ─┼──►  Feint  ──►  a cloud API  ──►  Incus / OVN / storage
+Exoscale API  ─┘   compatibility   somebody else's project
+```
 
-#195 carries the runtime — placement, capabilities that answer for the cluster
-rather than for whichever member replied, and `feint doctor --cluster`.
+Feint keeps its question — *does my code written for this provider work?* — and
+gains one more runtime backend beside `off`, `incus` and `incus-ovn`. The other
+project answers *where does this infrastructure actually materialise?*, and is
+usable without Feint at all: its own CLI, its own SDK, its own Terraform
+provider.
 
-And #196 carries the question that must be answered *before* any of it ships,
-because taking it implicitly is how a project acquires an obligation nobody
-agreed to: **does Feint ever manage a resource whose loss would matter?**
-Everything it creates today is disposable by construction, and the whole safety
-argument rests on that. A homelab holds both kinds. Lab mode stays inside this
-project's DNA; persistent mode changes what `feint clean` costs from a rerun to
-somebody's weekend, and an audit has already turned a crafted snapshot into a
-`delete --force` on a host's default bridge.
+**The coupling is the protocol, not a package.** No `import
+github.com/…/feint/internal/…` in that project and none the other way. An HTTP
+contract is a boundary that survives a rewrite in another language; a shared Go
+package is a boundary that dissolves the first time somebody needs one more
+field. This is the neutral-core rule of `internal/core`, applied one level up.
+
+Two consequences worth writing down before anybody builds either side.
+
+**Its API should be asynchronous from the first commit.** `POST /instances`
+answering `202` with an operation to poll is not a refinement to add later:
+retrofitting it means changing every client that ever consumed the synchronous
+shape. Feint can answer `running` immediately because it emulates; a real
+control plane cannot. That is also why #124 matters here — an emulator that only
+ever answers instantly is one nobody's waiter code was tested against.
+
+**What belongs to this repository is one backend and its boundary.** The other
+project's API, its scheduler, its IPAM and its authentication are not issues
+here, and filing them here would be the first step in merging the two again.
 
 ### The order, if all of it happens
 
@@ -762,8 +770,8 @@ somebody's weekend, and an audit has already turned a crafted snapshot into a
 |---|---|
 | 1.0 | the emulator, stable and measured |
 | 1.1 | portable environments — #189 to #192 |
-| 1.2 | the runtime is a cluster — #195, after #196 is answered |
-| 1.3 | the model materialises on a homelab |
+| 1.2 | one more runtime backend, speaking an HTTP contract — #195 |
+| 1.3 | that contract has a cloud behind it, in its own repository |
 | 1.4 | drift, network assertions, injected failures — #193, #194, #26, #124 |
 
 Written as an order rather than a schedule. None of it has a date, and the one
