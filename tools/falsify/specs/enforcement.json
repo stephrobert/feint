@@ -1,0 +1,27 @@
+{
+  "package": "./internal/core/emulator/",
+  "mutations": [
+    {
+      "label": "every pack is named, the way the process-global capability did",
+      "file": "internal/core/emulator/enforcement.go",
+      "find": "\t\tfe, ok := p.(FirewallEnforcer)\n\t\tif ok && fe.EnforcesFirewall() {",
+      "replace": "\t\tfe, ok := p.(FirewallEnforcer)\n\t\tif ok && fe != nil {",
+      "test": "TestEnforcementNamesOnlyThePacksThatWireIt"
+    },
+    {
+      "label": "the empty list marshals to null, and a consumer iterating it breaks",
+      "file": "internal/core/emulator/enforcement.go",
+      "find": "\tfirewall := []string{}",
+      "replace": "\tvar firewall []string",
+      "test": "TestEnforcementPublishesAnEmptyListRatherThanNoKey"
+    },
+    {
+      "label": "the pack drops its declaration while still wiring the firewall",
+      "file": "internal/providers/scaleway/firewall.go",
+      "find": "func (p *Pack) EnforcesFirewall() bool { return true }",
+      "replace": "func (p *Pack) EnforcesFirewall() bool { return false }",
+      "test": "TestEveryPackThatWiresTheFirewallSaysSo",
+      "package": "./internal/cli/"
+    }
+  ]
+}

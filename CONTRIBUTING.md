@@ -44,7 +44,7 @@ pull request will refuse without ever depending on a runner's weather.
 |---|---|---|
 | a route, a response shape, an error | `mise run conformance` | that a real client still passes |
 | a gate, a score, a verdict about a run | `mise run conformance:leg -- <leg>` | that it holds on a **partial** run |
-| a guard, a validation, a refusal | remove it in a copy and run the test | that the test fails without it |
+| a guard, a validation, a refusal | `mise run falsify -- <spec.json>` | that the test fails without it |
 | `internal/core/machine`, a network, a firewall | `FEINT_VM=incus-ovn mise run conformance` | that the runtime accepts what the driver sends |
 | an artefact under `coverage/` | `mise run evidence:update` | that the record did not narrow |
 
@@ -64,6 +64,38 @@ The general form, worth carrying elsewhere: **a check whose verdict is about
 "this run" must be exercised on the poorest run that will trigger it, never on
 the richest.** The richest is the one you have in front of you, which is what
 makes the mistake so easy.
+
+### Falsifying a guard
+
+A test that passes proves nothing on its own: it may be asserting something that
+was already true. `mise run falsify -- tools/falsify/specs/<name>.json` removes
+the guard in a copy **outside** the repository and requires the named test to go
+red.
+
+It refuses one mutation shape outright, before copying anything, and the reason
+is measured rather than theoretical. On one day in August 2026 the same mistake
+voided a verdict three times, in three unrelated issues:
+
+```go
+if ok && fe.EnforcesFirewall() {   ->  if ok {        // fe is now unused
+if strings.TrimSpace(s) == "" {    ->  if false {     // s  is now unused
+if err != nil || n == 0 {          ->  if n == 0 {    // err is now unused
+```
+
+Go refuses to compile an unused variable, so each mutation broke the build — and
+a mutation that does not build fails *every* test, which looks exactly like the
+guard being proven. So: **never delete the term that mentions a name.**
+Neutralise the condition with every name still evaluated:
+
+```go
+if ok && fe != nil {
+if strings.TrimSpace(s) == "\x00never" {
+if (err != nil && false) || n == 0 {
+```
+
+`mise run falsify -- --selftest` holds that rule against those four real cases
+and against their fixes, and `mise run prepush` runs it. Both halves matter: a
+rule that refused every mutation would pass the first and make the tool useless.
 
 `mise run conformance` is deliberately **not** in the hook. It needs `scw`,
 `oapi-cli`, `exo` and Terraform installed and takes minutes; as a hook it would

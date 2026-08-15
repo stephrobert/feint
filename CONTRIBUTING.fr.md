@@ -48,7 +48,7 @@ runner.
 |---|---|---|
 | une route, une forme de réponse, une erreur | `mise run conformance` | qu'un vrai client passe encore |
 | un gate, un score, un verdict sur une exécution | `mise run conformance:leg -- <jambe>` | qu'il tient sur une exécution **partielle** |
-| une garde, une validation, un refus | la retirer dans une copie et lancer le test | que le test échoue sans elle |
+| une garde, une validation, un refus | `mise run falsify -- <spec.json>` | que le test échoue sans elle |
 | `internal/core/machine`, un réseau, un pare-feu | `FEINT_VM=incus-ovn mise run conformance` | que le runtime accepte ce que le pilote envoie |
 | un artefact de `coverage/` | `mise run evidence:update` | que le registre n'a pas rétréci |
 
@@ -70,6 +70,39 @@ La forme générale, qui vaut ailleurs : **un contrôle dont le verdict porte su
 « cette exécution » doit être éprouvé sur l'exécution la plus pauvre qui le
 déclenchera, jamais sur la plus riche.** La plus riche est celle qu'on a sous la
 main, et c'est ce qui rend l'erreur si facile.
+
+### Falsifier une garde
+
+Un test qui passe ne prouve rien par lui-même : il peut affirmer quelque chose
+qui était déjà vrai. `mise run falsify -- tools/falsify/specs/<nom>.json` retire
+la garde dans une copie **hors** du dépôt et exige que le test nommé rougisse.
+
+Il refuse une forme de mutation d'emblée, avant toute copie, et la raison est
+mesurée plutôt que théorique. En une seule journée d'août 2026, la même erreur a
+annulé un verdict trois fois, dans trois issues sans rapport :
+
+```go
+if ok && fe.EnforcesFirewall() {   ->  if ok {        // fe devient inutilisée
+if strings.TrimSpace(s) == "" {    ->  if false {     // s  devient inutilisée
+if err != nil || n == 0 {          ->  if n == 0 {    // err devient inutilisée
+```
+
+Go refuse de compiler une variable inutilisée, donc chaque mutation cassait la
+compilation. Or une mutation qui ne compile pas fait échouer **tous** les tests,
+ce qui ressemble exactement à une garde prouvée. Donc : **ne jamais supprimer le
+terme qui mentionne un nom.** Neutralisez la condition en gardant chaque nom
+évalué :
+
+```go
+if ok && fe != nil {
+if strings.TrimSpace(s) == "\x00never" {
+if (err != nil && false) || n == 0 {
+```
+
+`mise run falsify -- --selftest` tient cette règle contre ces quatre cas réels et
+contre leurs corrections, et `mise run prepush` le lance. Les deux moitiés
+comptent : une règle qui refuserait toute mutation passerait la première et
+rendrait l'outil inutile.
 
 `mise run conformance` n'est **délibérément pas** dans le hook. Il réclame `scw`,
 `oapi-cli`, `exo` et Terraform installés, et prend des minutes : en hook, il

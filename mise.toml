@@ -292,9 +292,19 @@ fi
 FEINT_FIELD_GATE=1 tools/conformance/score.sh "http://$FEINT_ADDR"
 """
 
+[tasks.falsify]
+description = "Run a falsification spec, or prove the harness on its own history: mise run falsify -- --selftest"
+# The procedure was followed by hand until the same mistake voided a verdict
+# three times in one day, in three unrelated issues: a mutation that deletes the
+# term mentioning a variable leaves it unused, Go refuses to compile, and every
+# test fails — which looks exactly like the guard being proven. Warning about it
+# was not enough, so the harness refuses it. tools/falsify/falsify.py carries the
+# rule and the three cases it was written for.
+run = "python3 tools/falsify/falsify.py"
+
 [tasks.prepush]
 description = "Everything a pull request will fail on that costs seconds and needs no client"
-depends = ["check", "docs:check", "drift:check", "shapes:check"]
+depends = ["check", "docs:check", "drift:check", "shapes:check", "falsify:selftest"]
 # What this is, and what it deliberately is not.
 #
 # These four are deterministic, offline, and take seconds: they can be a hook
@@ -308,6 +318,13 @@ depends = ["check", "docs:check", "drift:check", "shapes:check"]
 # reproduces one of those partial legs, and it is what to run when a change adds
 # or moves a gate. CLAUDE.md carries the decision table.
 run = "echo 'prepush passed - conformance and conformance:leg are the two it does not cover'"
+
+[tasks."falsify:selftest"]
+description = "Prove the falsification harness refuses the three mutations that voided a verdict"
+# Cheap, offline, no Go build: it holds the rule against the three real mistakes
+# of 2026-08-15 and against the three fixes. Both halves, because a rule that
+# refused every mutation would pass the first half and make the tool useless.
+run = "python3 tools/falsify/falsify.py --selftest"
 
 [tasks."conformance:leg"]
 description = "Reproduce one leg of the CI matrix locally: mise run conformance:leg -- probe"
