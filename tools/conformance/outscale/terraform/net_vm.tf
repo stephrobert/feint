@@ -113,6 +113,13 @@ resource "outscale_public_ip_link" "net_vm" {
 resource "outscale_nic" "net_vm" {
   subnet_id          = outscale_subnet.conformance.subnet_id
   security_group_ids = [outscale_security_group.net_vm.security_group_id]
+
+  # From a variable so the second apply can change it in place: description is
+  # one of the two attributes ResourceOutscaleNicUpdate sends UpdateNic for
+  # (the other is security_group_ids; subnet_id forces a replacement). Set
+  # explicitly from the first apply, so the change the suite makes later is a
+  # change to a value this fixture owns rather than to a computed default.
+  description = var.nic_description
 }
 
 resource "outscale_nic_link" "net_vm" {
@@ -131,6 +138,19 @@ resource "outscale_nat_service" "net_vm" {
   public_ip_id = outscale_public_ip.nat.public_ip_id
 
   depends_on = [outscale_route_table_link.net_vm]
+}
+
+# The one resource that sends UpdateRouteTableLink. `outscale_route_table_link`
+# never does: its Update is empty and both attributes carry RequiresReplace
+# (resource_route_table_link.go, v1.8.0), so re-pointing one is an unlink and a
+# link. This resource re-points the Net's *main* link instead — Create moves it
+# onto this table with UpdateRouteTableLink, and Delete moves it back onto the
+# default table with the same call, so a destroy drives the operation a second
+# time. The destroy also proves the restore worked: the pack refuses to delete
+# a table that still holds the main link.
+resource "outscale_main_route_table_link" "net_vm" {
+  net_id         = outscale_net.conformance.net_id
+  route_table_id = outscale_route_table.net_vm.route_table_id
 }
 
 output "internet_service_id" {

@@ -66,6 +66,29 @@ variable "map_public_ip" {
   description = "Flipped by the suite's second apply, which is what proves UpdateSubnet."
 }
 
+# UpdateNet's one client-reachable shape. On `outscale_net` itself,
+# dhcp_options_set_id is computed-only (provider schema, v1.8.0), so no change
+# to the Net resource ever sends UpdateNet; this dedicated resource does, and on
+# Create as well as Update (resource_net_attributes.go builds the same
+# UpdateNetRequest in both).
+#
+# The value is the Net's own default set, read back from the computed attribute,
+# because it is the only set that can exist here: CreateDhcpOptions belongs to a
+# #172 family still untriaged. So this proves the route is served, driven by the
+# real provider, and answers the shape it decodes — not that the emulator holds
+# a *changed* set. The day the DhcpOptions family lands, point this at a created
+# set and the same resource proves the change too.
+resource "outscale_net_attributes" "conformance" {
+  net_id              = outscale_net.conformance.net_id
+  dhcp_options_set_id = outscale_net.conformance.dhcp_options_set_id
+}
+
+variable "nic_description" {
+  type        = string
+  default     = "feint conformance nic"
+  description = "Changed by the suite's second apply, which is what proves UpdateNic."
+}
+
 # A keypair, because a machine nobody can log into proves nothing — and because
 # the provider addresses it by KeypairId on destroy while creating it by name.
 # The emulator publishes both, and they are the same identity.

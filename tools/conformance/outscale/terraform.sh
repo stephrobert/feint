@@ -163,6 +163,42 @@ printf '%s' "$addresses" | jq -e --arg v "$vm_id" \
   || fail "the public IP is not linked to the Vm: $addresses"
 ok "route, link, rule, group and address all served as built"
 
+# The two updates the apply above has already driven, asserted against the
+# emulator rather than against the state file (#172).
+#
+# UpdateRouteTableLink: `outscale_main_route_table_link` re-pointed the Net's
+# main link onto the fixture's table at create — the only Terraform path to
+# that operation, since `outscale_route_table_link` replaces rather than
+# updates. The provider's own read walks this exact filter and then finds its
+# link by id, so the main table answering with the moved link Main:true is what
+# a successful apply depends on; asking again here is what makes the proof the
+# emulator's rather than the provider's.
+#
+# UpdateNet: `outscale_net_attributes` sent it at create with the Net's own
+# default DHCP set — the only set that can exist until CreateDhcpOptions is
+# triaged — so the value cannot differ from the one the Net was born with. What
+# this asserts is that the operation is served, decoded, and did not corrupt
+# the reference; a *changed* set is a proof the DhcpOptions family still owes.
+echo "- the main link was re-pointed, and the Net still resolves its DHCP set"
+net_id="$("$TF" output -raw net_id)"
+main_now="$(curl -sf -X POST "$ENDPOINT/api/v1/ReadRouteTables" -H 'Content-Type: application/json' \
+             -d "{\"Filters\":{\"NetIds\":[\"$net_id\"],\"LinkRouteTableMain\":true}}")" \
+  || fail "ReadRouteTables rejected the main filter"
+printf '%s' "$main_now" | jq -e --arg r "$rtb_id" '.RouteTables | length == 1 and .[0].RouteTableId == $r' >/dev/null \
+  || fail "the main link is not on the table Terraform moved it to: $main_now"
+printf '%s' "$main_now" | jq -e \
+  'any(.RouteTables[0].LinkRouteTables[]; .Main == true and (has("SubnetId") | not))' >/dev/null \
+  || fail "the moved main link lost its identity (Main gone, or a SubnetId invented): $main_now"
+
+dopt_id="$(curl -sf -X POST "$ENDPOINT/api/v1/ReadDhcpOptions" -H 'Content-Type: application/json' -d '{}' \
+            | jq -r '.DhcpOptionsSets[] | select(.Default == true) | .DhcpOptionsSetId')"
+[ -n "$dopt_id" ] || fail "no default DHCP options set to check UpdateNet against"
+nets_now="$(curl -sf -X POST "$ENDPOINT/api/v1/ReadNets" -H 'Content-Type: application/json' \
+             -d "{\"Filters\":{\"NetIds\":[\"$net_id\"]}}")" || fail "ReadNets rejected"
+printf '%s' "$nets_now" | jq -e --arg d "$dopt_id" '.Nets[0].DhcpOptionsSetId == $d' >/dev/null \
+  || fail "after UpdateNet the Net does not resolve the default DHCP set: $nets_now"
+ok "main table moved by UpdateRouteTableLink, DHCP set held through UpdateNet"
+
 # The tags the provider set on the internet service and the route table, which
 # it applies through CreateTags with the identifier it has just been handed. The
 # apply above already fails without this working — that is issue #99, where the
@@ -258,13 +294,24 @@ esac
 # state file agreeing with itself is not the emulator holding the change.
 echo "- an in-place change is applied, and the emulator holds it"
 subnet_id="$("$TF" output -raw subnet_id)"
-"$TF" apply -no-color -auto-approve -var "endpoint=$ENDPOINT" -var "map_public_ip=true" >/dev/null \
-  || fail "the second apply failed; an in-place change is what UpdateSubnet serves"
+nic_id="$("$TF" output -raw nic_id)"
+"$TF" apply -no-color -auto-approve -var "endpoint=$ENDPOINT" -var "map_public_ip=true" \
+    -var "nic_description=updated by conformance" >/dev/null \
+  || fail "the second apply failed; an in-place change is what UpdateSubnet and UpdateNic serve"
 subnets="$(curl -sf -X POST "$ENDPOINT/api/v1/ReadSubnets" -H 'Content-Type: application/json' \
             -d "{\"Filters\":{\"SubnetIds\":[\"$subnet_id\"]}}")" || fail "ReadSubnets rejected"
 printf '%s' "$subnets" | jq -e '.Subnets[0].MapPublicIpOnLaunch == true' >/dev/null \
   || fail "the emulator did not keep the in-place change: $subnets"
-ok "second apply changed the Subnet, and the emulator answers the new value"
+# The NIC's description changed in the same apply, through UpdateNic — the call
+# ResourceOutscaleNicUpdate makes for exactly this attribute. Asked of the
+# emulator by NicId, not of the state file: an update that answers the new
+# value while storing the old one is invisible to a state that agrees with
+# itself.
+nics="$(curl -sf -X POST "$ENDPOINT/api/v1/ReadNics" -H 'Content-Type: application/json' \
+         -d "{\"Filters\":{\"NicIds\":[\"$nic_id\"]}}")" || fail "ReadNics rejected"
+printf '%s' "$nics" | jq -e '.Nics[0].Description == "updated by conformance"' >/dev/null \
+  || fail "the emulator did not keep the NIC's in-place change: $nics"
+ok "second apply changed the Subnet and the Nic, and the emulator answers both new values"
 
 echo "- destroy"
 # The Net this run created, read before it is destroyed: the check below asks

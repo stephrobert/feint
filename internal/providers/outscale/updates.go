@@ -220,23 +220,37 @@ func (p *Pack) updateRouteTableLink(w http.ResponseWriter, r *http.Request) {
 				})
 				return
 			}
-			subnet := stringOf(link["SubnetId"])
 			if stringOf(target.Attrs["NetId"]) != stringOf(table.Attrs["NetId"]) {
 				p.conflict(w, "route table "+req.RouteTableID+" is in another Net than the link being moved")
 				return
 			}
 
-			table.Attrs["LinkRouteTables"] = append(links[:i], links[i+1:]...)
+			// The link moves whole: only RouteTableId changes, and every other
+			// key — Main, NetId, and the presence or absence of SubnetId —
+			// travels with it. A first version rebuilt the link with Main:false
+			// and an unconditional SubnetId, which left a Net with no main
+			// table the moment its main link was re-pointed: that is the exact
+			// call `outscale_main_route_table_link` makes, and its read filters
+			// on LinkRouteTableMain=true before finding the link back by
+			// LinkRouteTableId. TestUpdateRouteTableLinkMovesTheMainLinkWhole
+			// fails without this.
+			//
+			// Copies, not mutations: nested values inside Attrs are shared with
+			// the store until Commit (resource.Clone documents it), so both the
+			// shrunk list and the moved link are built fresh.
+			rest := make([]any, 0, len(links)-1)
+			rest = append(rest, links[:i]...)
+			rest = append(rest, links[i+1:]...)
+			table.Attrs["LinkRouteTables"] = rest
 			if !p.env.Store.Commit(table, p.env.Now()) {
 				p.notFound(w, "route table", table.ID)
 				return
 			}
-			moved := map[string]any{
-				"LinkRouteTableId": req.LinkRouteTableID,
-				"RouteTableId":     req.RouteTableID,
-				"SubnetId":         subnet,
-				"Main":             false,
+			moved := make(map[string]any, len(link))
+			for k, v := range link {
+				moved[k] = v
 			}
+			moved["RouteTableId"] = req.RouteTableID
 			target.Attrs["LinkRouteTables"] = append(listOf(target.Attrs["LinkRouteTables"]), moved)
 			if !p.env.Store.Commit(target, p.env.Now()) {
 				p.notFound(w, "route table", req.RouteTableID)

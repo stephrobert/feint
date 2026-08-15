@@ -274,6 +274,82 @@ func TestUpdateRouteTableLinkMovesTheLinkAndNothingElse(t *testing.T) {
 	}
 }
 
+// The main link, moved whole. This is the path the Terraform resource
+// `outscale_main_route_table_link` walks: its Create re-points the Net's main
+// link at another table with UpdateRouteTableLink, then reads the main table
+// back through the LinkRouteTableMain=true filter and finds its link by
+// LinkRouteTableId. A move that rebuilt the link with Main:false — which is
+// what this pack first did — leaves the Net with no main table at all, and the
+// provider dies on an empty read right after a call that answered 200.
+func TestUpdateRouteTableLinkMovesTheMainLinkWhole(t *testing.T) {
+	ts := updatesServer(t)
+
+	_, created := doAction(t, ts, "CreateNet", `{"IpRange":"10.34.0.0/16"}`)
+	net, _ := created["Net"].(map[string]any)
+	netID, _ := net["NetId"].(string)
+
+	// The main link every Net is born with, found the way the provider finds
+	// it: on the table the LinkRouteTableMain filter answers.
+	_, read := doAction(t, ts, "ReadRouteTables",
+		`{"Filters":{"NetIds":["`+netID+`"],"LinkRouteTableMain":true}}`)
+	tables := listOrEmpty(read["RouteTables"])
+	if len(tables) != 1 {
+		t.Fatalf("a fresh Net should have exactly one main table, got %v", read)
+	}
+	mainTable, _ := tables[0].(map[string]any)
+	links := listOrEmpty(mainTable["LinkRouteTables"])
+	if len(links) != 1 {
+		t.Fatalf("the main table should carry exactly its main link, got %v", mainTable)
+	}
+	mainLink, _ := links[0].(map[string]any)
+	linkID, _ := mainLink["LinkRouteTableId"].(string)
+
+	_, made := doAction(t, ts, "CreateRouteTable", `{"NetId":"`+netID+`"}`)
+	targetTable, _ := made["RouteTable"].(map[string]any)
+	targetID, _ := targetTable["RouteTableId"].(string)
+
+	status, moved := doAction(t, ts, "UpdateRouteTableLink",
+		`{"LinkRouteTableId":"`+linkID+`","RouteTableId":"`+targetID+`"}`)
+	if status != http.StatusOK {
+		t.Fatalf("move the main link: %d (%v)", status, moved)
+	}
+
+	// The main table is now the target, and the link on it is still the main
+	// link: same identifier, Main still true, NetId still carried, and no
+	// SubnetId key — the measured main link has none, and inventing one on the
+	// move is inventing a subnet.
+	_, after := doAction(t, ts, "ReadRouteTables",
+		`{"Filters":{"NetIds":["`+netID+`"],"LinkRouteTableMain":true}}`)
+	afterTables := listOrEmpty(after["RouteTables"])
+	if len(afterTables) != 1 {
+		t.Fatalf("the Net lost its main table in the move: %v", after)
+	}
+	nowMain, _ := afterTables[0].(map[string]any)
+	if id, _ := nowMain["RouteTableId"].(string); id != targetID {
+		t.Fatalf("the main table is %s, want the move target %s", id, targetID)
+	}
+	movedLinks := listOrEmpty(nowMain["LinkRouteTables"])
+	if len(movedLinks) != 1 {
+		t.Fatalf("the target table should carry exactly the moved link, got %v", nowMain)
+	}
+	got, _ := movedLinks[0].(map[string]any)
+	if id, _ := got["LinkRouteTableId"].(string); id != linkID {
+		t.Errorf("the moved link changed identity: %v, want %s", got["LinkRouteTableId"], linkID)
+	}
+	if main, _ := got["Main"].(bool); !main {
+		t.Error("the moved main link lost Main:true, so the Net has no main table")
+	}
+	if id, _ := got["NetId"].(string); id != netID {
+		t.Errorf("the moved link lost its NetId: %v, want %s", got["NetId"], netID)
+	}
+	if _, present := got["SubnetId"]; present {
+		t.Errorf("the moved main link gained a SubnetId key the real cloud omits: %v", got)
+	}
+	if id, _ := got["RouteTableId"].(string); id != targetID {
+		t.Errorf("the moved link does not name its new table: %v, want %s", got["RouteTableId"], targetID)
+	}
+}
+
 func listOrEmpty(v any) []any {
 	out, _ := v.([]any)
 	return out
