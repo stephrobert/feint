@@ -173,3 +173,47 @@ func TestAnAnswerOverThePageSizeBoundEarnsNothing(t *testing.T) {
 		t.Errorf("an answer over the bound it was asked earns nothing, got %q", got)
 	}
 }
+
+// TestAProbedFieldIsNotAnUnreadField holds the report to its own wording:
+// "fields a real client sent that no handler read". The seeded probe (#163)
+// fills every optional field the schema declares and the run can satisfy, so
+// its bodies name fields no handler reads by design — counting them failed
+// the conformance gate on traffic no client ever sends. The same field from a
+// real client still lands in the report, which is the half that must not be
+// lost by the exclusion.
+func TestAProbedFieldIsNotAnUnreadField(t *testing.T) {
+	ignoring := func(w http.ResponseWriter, r *http.Request) {
+		var narrow struct{}
+		_ = emulator.DecodeJSON(r, &narrow)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok": true}`))
+	}
+	ts := probeServer(t, ignoring, okList(`["a"]`))
+
+	send := func(probe bool) {
+		t.Helper()
+		req, err := http.NewRequest(http.MethodGet, ts.URL+"/stub/plain",
+			strings.NewReader(`{"stray": "value"}`)) //nolint:noctx // a local test server
+		if err != nil {
+			t.Fatal(err)
+		}
+		if probe {
+			req.Header.Set(emulator.ProbeHeader, "1")
+		}
+		resp, err := ts.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+	}
+
+	send(true)
+	if unread := viewOf(t, ts).UnreadRequestFields["stub/v1/API.OpPlain"]; len(unread) != 0 {
+		t.Errorf("a synthetic body must not feed the unread-fields report, got %v", unread)
+	}
+
+	send(false)
+	if unread := viewOf(t, ts).UnreadRequestFields["stub/v1/API.OpPlain"]; len(unread) != 1 {
+		t.Errorf("the same field from a real client is the defect the report exists for, got %v", unread)
+	}
+}

@@ -85,34 +85,34 @@ disappears from the suite.
 | `DELETE` | `/block/v1/zones/{zone}/volumes/{id}` | `block/v1/API.DeleteVolume` | `client` `runtime` `behaviour` |
 | `DELETE` | `/block/v1alpha1/zones/{zone}/snapshots/{id}` | `block/v1alpha1/API.DeleteSnapshot` | `client` `runtime` `behaviour` `negative` |
 | `DELETE` | `/block/v1alpha1/zones/{zone}/volumes/{id}` | `block/v1alpha1/API.DeleteVolume` | `client` `runtime` `behaviour` |
-| `GET` | `/block/v1/zones/{zone}/snapshots/{id}` | `block/v1/API.GetSnapshot` | `probe-refusal` |
+| `GET` | `/block/v1/zones/{zone}/snapshots/{id}` | `block/v1/API.GetSnapshot` | `contract` `probe` |
 | `GET` | `/block/v1/zones/{zone}/snapshots` | `block/v1/API.ListSnapshots` | `contract` `shape` `probe` |
 | `GET` | `/block/v1/zones/{zone}/volume-types` | `block/v1/API.ListVolumeTypes` | `contract` `probe` |
-| `GET` | `/block/v1/zones/{zone}/volumes/{id}` | `block/v1/API.GetVolume` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `GET` | `/block/v1/zones/{zone}/volumes/{id}` | `block/v1/API.GetVolume` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/block/v1/zones/{zone}/volumes` | `block/v1/API.ListVolumes` | `contract` `shape` `probe` |
-| `GET` | `/block/v1alpha1/zones/{zone}/snapshots/{id}` | `block/v1alpha1/API.GetSnapshot` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `GET` | `/block/v1alpha1/zones/{zone}/snapshots/{id}` | `block/v1alpha1/API.GetSnapshot` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/block/v1alpha1/zones/{zone}/snapshots` | `block/v1alpha1/API.ListSnapshots` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/block/v1alpha1/zones/{zone}/volume-types` | `block/v1alpha1/API.ListVolumeTypes` | `client` `contract` `runtime` `probe` |
-| `GET` | `/block/v1alpha1/zones/{zone}/volumes/{id}` | `block/v1alpha1/API.GetVolume` | `client` `runtime` `probe-refusal` |
+| `GET` | `/block/v1alpha1/zones/{zone}/volumes/{id}` | `block/v1alpha1/API.GetVolume` | `client` `contract` `runtime` `probe` |
 | `GET` | `/block/v1alpha1/zones/{zone}/volumes` | `block/v1alpha1/API.ListVolumes` | `client` `contract` `runtime` `probe` `behaviour` |
-| `PATCH` | `/block/v1/zones/{zone}/snapshots/{id}` | `block/v1/API.UpdateSnapshot` | `probe-refusal` |
-| `PATCH` | `/block/v1/zones/{zone}/volumes/{id}` | `block/v1/API.UpdateVolume` | `probe-refusal` |
-| `PATCH` | `/block/v1alpha1/zones/{zone}/snapshots/{id}` | `block/v1alpha1/API.UpdateSnapshot` | `probe-refusal` |
-| `PATCH` | `/block/v1alpha1/zones/{zone}/volumes/{id}` | `block/v1alpha1/API.UpdateVolume` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `POST` | `/block/v1/zones/{zone}/snapshots` | `block/v1/API.CreateSnapshot` | `probe-refusal` |
-| `POST` | `/block/v1/zones/{zone}/volumes` | `block/v1/API.CreateVolume` | `probe-refusal` |
-| `POST` | `/block/v1alpha1/zones/{zone}/snapshots` | `block/v1alpha1/API.CreateSnapshot` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `POST` | `/block/v1alpha1/zones/{zone}/volumes` | `block/v1alpha1/API.CreateVolume` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `PATCH` | `/block/v1/zones/{zone}/snapshots/{id}` | `block/v1/API.UpdateSnapshot` | `contract` `probe` |
+| `PATCH` | `/block/v1/zones/{zone}/volumes/{id}` | `block/v1/API.UpdateVolume` | `contract` `probe` |
+| `PATCH` | `/block/v1alpha1/zones/{zone}/snapshots/{id}` | `block/v1alpha1/API.UpdateSnapshot` | `contract` `probe` |
+| `PATCH` | `/block/v1alpha1/zones/{zone}/volumes/{id}` | `block/v1alpha1/API.UpdateVolume` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/block/v1/zones/{zone}/snapshots` | `block/v1/API.CreateSnapshot` | `contract` `probe` |
+| `POST` | `/block/v1/zones/{zone}/volumes` | `block/v1/API.CreateVolume` | `contract` `probe` |
+| `POST` | `/block/v1alpha1/zones/{zone}/snapshots` | `block/v1alpha1/API.CreateSnapshot` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/block/v1alpha1/zones/{zone}/volumes` | `block/v1alpha1/API.CreateVolume` | `client` `contract` `runtime` `probe` `behaviour` |
 
 ### `iam`
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
 | `DELETE` | `/iam/v1alpha1/ssh-keys/{id}` | `iam/v1alpha1/API.DeleteSSHKey` | — |
-| `GET` | `/iam/v1alpha1/ssh-keys/{id}` | `iam/v1alpha1/API.GetSSHKey` | `probe-refusal` |
+| `GET` | `/iam/v1alpha1/ssh-keys/{id}` | `iam/v1alpha1/API.GetSSHKey` | `contract` `probe` |
 | `GET` | `/iam/v1alpha1/ssh-keys` | `iam/v1alpha1/API.ListSSHKeys` | `contract` `shape` `probe` |
-| `PATCH` | `/iam/v1alpha1/ssh-keys/{id}` | `iam/v1alpha1/API.UpdateSSHKey` | `probe-refusal` |
-| `POST` | `/iam/v1alpha1/ssh-keys` | `iam/v1alpha1/API.CreateSSHKey` | `probe-refusal` |
+| `PATCH` | `/iam/v1alpha1/ssh-keys/{id}` | `iam/v1alpha1/API.UpdateSSHKey` | `contract` `probe` |
+| `POST` | `/iam/v1alpha1/ssh-keys` | `iam/v1alpha1/API.CreateSSHKey` | `contract` `probe` |
 
 ### `instance`
 
@@ -129,57 +129,57 @@ disappears from the suite.
 | `DELETE` | `/instance/v1/zones/{zone}/volumes/{id}` | `instance/v1/API.DeleteVolume` | `client` `runtime` `behaviour` `negative` |
 | `GET` | `/instance/v1/zones/{zone}/images/{id}` | `instance/v1/API.GetImage` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/instance/v1/zones/{zone}/images` | `instance/v1/API.ListImages` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
-| `GET` | `/instance/v1/zones/{zone}/ips/{id}` | `instance/v1/API.GetIP` | `client` `contract` `runtime` `behaviour` `negative` |
+| `GET` | `/instance/v1/zones/{zone}/ips/{id}` | `instance/v1/API.GetIP` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/instance/v1/zones/{zone}/ips` | `instance/v1/API.ListIPs` | `contract` `shape` `probe` |
 | `GET` | `/instance/v1/zones/{zone}/products/servers` | `instance/v1/API.ListServersTypes` | `client` `contract` `shape` `runtime` `probe` |
-| `GET` | `/instance/v1/zones/{zone}/security_groups/{id}/rules/{ruleID}` | `instance/v1/API.GetSecurityGroupRule` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `GET` | `/instance/v1/zones/{zone}/security_groups/{id}/rules` | `instance/v1/API.ListSecurityGroupRules` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `GET` | `/instance/v1/zones/{zone}/security_groups/{id}` | `instance/v1/API.GetSecurityGroup` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `GET` | `/instance/v1/zones/{zone}/security_groups/{id}/rules/{ruleID}` | `instance/v1/API.GetSecurityGroupRule` | `client` `contract` `runtime` `probe` `behaviour` |
+| `GET` | `/instance/v1/zones/{zone}/security_groups/{id}/rules` | `instance/v1/API.ListSecurityGroupRules` | `client` `contract` `runtime` `probe` `behaviour` |
+| `GET` | `/instance/v1/zones/{zone}/security_groups/{id}` | `instance/v1/API.GetSecurityGroup` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/instance/v1/zones/{zone}/security_groups` | `instance/v1/API.ListSecurityGroups` | `client` `contract` `shape` `runtime` `probe` |
-| `GET` | `/instance/v1/zones/{zone}/servers/{id}/private_nics/{nicID}` | `instance/v1/API.GetPrivateNIC` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `GET` | `/instance/v1/zones/{zone}/servers/{id}/private_nics` | `instance/v1/API.ListPrivateNICs` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `GET` | `/instance/v1/zones/{zone}/servers/{id}/private_nics/{nicID}` | `instance/v1/API.GetPrivateNIC` | `client` `contract` `runtime` `probe` `behaviour` |
+| `GET` | `/instance/v1/zones/{zone}/servers/{id}/private_nics` | `instance/v1/API.ListPrivateNICs` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/instance/v1/zones/{zone}/servers/{id}/user_data/{key}` | `instance/v1/API.GetServerUserData` | — |
-| `GET` | `/instance/v1/zones/{zone}/servers/{id}/user_data` | `instance/v1/API.ListServerUserData` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `GET` | `/instance/v1/zones/{zone}/servers/{id}` | `instance/v1/API.GetServer` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
+| `GET` | `/instance/v1/zones/{zone}/servers/{id}/user_data` | `instance/v1/API.ListServerUserData` | `client` `contract` `runtime` `probe` `behaviour` |
+| `GET` | `/instance/v1/zones/{zone}/servers/{id}` | `instance/v1/API.GetServer` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/instance/v1/zones/{zone}/servers` | `instance/v1/API.ListServers` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
-| `GET` | `/instance/v1/zones/{zone}/snapshots/{id}` | `instance/v1/API.GetSnapshot` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `GET` | `/instance/v1/zones/{zone}/snapshots/{id}` | `instance/v1/API.GetSnapshot` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/instance/v1/zones/{zone}/snapshots` | `instance/v1/API.ListSnapshots` | `contract` `shape` `probe` |
-| `GET` | `/instance/v1/zones/{zone}/volumes/{id}` | `instance/v1/API.GetVolume` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
+| `GET` | `/instance/v1/zones/{zone}/volumes/{id}` | `instance/v1/API.GetVolume` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/instance/v1/zones/{zone}/volumes` | `instance/v1/API.ListVolumes` | `contract` `shape` `probe` |
-| `PATCH` | `/instance/v1/zones/{zone}/images/{id}` | `instance/v1/API.UpdateImage` | `probe-refusal` |
-| `PATCH` | `/instance/v1/zones/{zone}/ips/{id}` | `instance/v1/API.UpdateIP` | `client` `contract` `runtime` |
-| `PATCH` | `/instance/v1/zones/{zone}/security_groups/{id}/rules/{ruleID}` | `instance/v1/API.UpdateSecurityGroupRule` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `PATCH` | `/instance/v1/zones/{zone}/security_groups/{id}` | `instance/v1/API.UpdateSecurityGroup` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `PATCH` | `/instance/v1/zones/{zone}/images/{id}` | `instance/v1/API.UpdateImage` | `contract` `probe` |
+| `PATCH` | `/instance/v1/zones/{zone}/ips/{id}` | `instance/v1/API.UpdateIP` | `client` `contract` `runtime` `probe` |
+| `PATCH` | `/instance/v1/zones/{zone}/security_groups/{id}/rules/{ruleID}` | `instance/v1/API.UpdateSecurityGroupRule` | `client` `contract` `runtime` `probe` `behaviour` |
+| `PATCH` | `/instance/v1/zones/{zone}/security_groups/{id}` | `instance/v1/API.UpdateSecurityGroup` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PATCH` | `/instance/v1/zones/{zone}/servers/{id}/user_data/{key}` | `instance/v1/API.SetServerUserData` | — |
-| `PATCH` | `/instance/v1/zones/{zone}/servers/{id}` | `instance/v1/API.UpdateServer` | `probe-refusal` |
-| `PATCH` | `/instance/v1/zones/{zone}/snapshots/{id}` | `instance/v1/API.UpdateSnapshot` | `probe-refusal` |
-| `PATCH` | `/instance/v1/zones/{zone}/volumes/{id}` | `instance/v1/API.UpdateVolume` | `probe-refusal` |
-| `POST` | `/instance/v1/zones/{zone}/images` | `instance/v1/API.CreateImage` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `PATCH` | `/instance/v1/zones/{zone}/servers/{id}` | `instance/v1/API.UpdateServer` | `contract` `probe` |
+| `PATCH` | `/instance/v1/zones/{zone}/snapshots/{id}` | `instance/v1/API.UpdateSnapshot` | `contract` `probe` |
+| `PATCH` | `/instance/v1/zones/{zone}/volumes/{id}` | `instance/v1/API.UpdateVolume` | `contract` `probe` |
+| `POST` | `/instance/v1/zones/{zone}/images` | `instance/v1/API.CreateImage` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/instance/v1/zones/{zone}/ips` | `instance/v1/API.CreateIP` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/instance/v1/zones/{zone}/security_groups/{id}/rules` | `instance/v1/API.CreateSecurityGroupRule` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/instance/v1/zones/{zone}/security_groups/{id}/rules` | `instance/v1/API.CreateSecurityGroupRule` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/instance/v1/zones/{zone}/security_groups` | `instance/v1/API.CreateSecurityGroup` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/instance/v1/zones/{zone}/servers/{id}/action` | `instance/v1/API.ServerAction` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `POST` | `/instance/v1/zones/{zone}/servers/{id}/attach-volume` | `instance/v1/API.AttachServerVolume` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `POST` | `/instance/v1/zones/{zone}/servers/{id}/detach-volume` | `instance/v1/API.DetachServerVolume` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `POST` | `/instance/v1/zones/{zone}/servers/{id}/private_nics` | `instance/v1/API.CreatePrivateNIC` | `client` `contract` `runtime` `behaviour` |
+| `POST` | `/instance/v1/zones/{zone}/servers/{id}/action` | `instance/v1/API.ServerAction` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/instance/v1/zones/{zone}/servers/{id}/attach-volume` | `instance/v1/API.AttachServerVolume` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/instance/v1/zones/{zone}/servers/{id}/detach-volume` | `instance/v1/API.DetachServerVolume` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/instance/v1/zones/{zone}/servers/{id}/private_nics` | `instance/v1/API.CreatePrivateNIC` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/instance/v1/zones/{zone}/servers` | `instance/v1/API.CreateServer` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/instance/v1/zones/{zone}/snapshots` | `instance/v1/API.CreateSnapshot` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `POST` | `/instance/v1/zones/{zone}/volumes` | `instance/v1/API.CreateVolume` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `PUT` | `/instance/v1/zones/{zone}/security_groups/{id}/rules` | `instance/v1/API.SetSecurityGroupRules` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/instance/v1/zones/{zone}/snapshots` | `instance/v1/API.CreateSnapshot` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/instance/v1/zones/{zone}/volumes` | `instance/v1/API.CreateVolume` | `client` `contract` `runtime` `probe` `behaviour` |
+| `PUT` | `/instance/v1/zones/{zone}/security_groups/{id}/rules` | `instance/v1/API.SetSecurityGroupRules` | `client` `contract` `runtime` `probe` `behaviour` |
 
 ### `ipam`
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
 | `DELETE` | `/ipam/v1/regions/{region}/ips/{ipID}` | `ipam/v1/API.ReleaseIP` | `client` `runtime` `behaviour` |
-| `GET` | `/ipam/v1/regions/{region}/ips/{ipID}` | `ipam/v1/API.GetIP` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
+| `GET` | `/ipam/v1/regions/{region}/ips/{ipID}` | `ipam/v1/API.GetIP` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/ipam/v1/regions/{region}/ips` | `ipam/v1/API.ListIPs` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
-| `PATCH` | `/ipam/v1/regions/{region}/ips/{ipID}` | `ipam/v1/API.UpdateIP` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `PATCH` | `/ipam/v1/regions/{region}/ips/{ipID}` | `ipam/v1/API.UpdateIP` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/ipam/v1/regions/{region}/ip-sets/release` | `ipam/v1/API.ReleaseIPSet` | — |
-| `POST` | `/ipam/v1/regions/{region}/ips/{ipID}/attach` | `ipam/v1/API.AttachIP` | `probe-refusal` |
-| `POST` | `/ipam/v1/regions/{region}/ips/{ipID}/detach` | `ipam/v1/API.DetachIP` | `probe-refusal` |
-| `POST` | `/ipam/v1/regions/{region}/ips/{ipID}/move` | `ipam/v1/API.MoveIP` | `probe-refusal` |
-| `POST` | `/ipam/v1/regions/{region}/ips` | `ipam/v1/API.BookIP` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
+| `POST` | `/ipam/v1/regions/{region}/ips/{ipID}/attach` | `ipam/v1/API.AttachIP` | `contract` `probe` |
+| `POST` | `/ipam/v1/regions/{region}/ips/{ipID}/detach` | `ipam/v1/API.DetachIP` | `contract` `probe` |
+| `POST` | `/ipam/v1/regions/{region}/ips/{ipID}/move` | `ipam/v1/API.MoveIP` | `contract` `probe` |
+| `POST` | `/ipam/v1/regions/{region}/ips` | `ipam/v1/API.BookIP` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 
 ### `marketplace`
 
@@ -196,16 +196,16 @@ disappears from the suite.
 | `DELETE` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}` | `vpc/v2/API.DeleteVPC` | `client` `runtime` `behaviour` |
 | `GET` | `/vpc/v2/regions/{region}/private-networks/{pnID}` | `vpc/v2/API.GetPrivateNetwork` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/vpc/v2/regions/{region}/private-networks` | `vpc/v2/API.ListPrivateNetworks` | `contract` `shape` `probe` |
-| `GET` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.GetRoute` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
+| `GET` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.GetRoute` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/vpc/v2/regions/{region}/subnets` | `vpc/v2/API.ListSubnets` | `contract` `probe` |
 | `GET` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}` | `vpc/v2/API.GetVPC` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/vpc/v2/regions/{region}/vpcs` | `vpc/v2/API.ListVPCs` | `contract` `shape` `probe` |
 | `PATCH` | `/vpc/v2/regions/{region}/private-networks/{pnID}` | `vpc/v2/API.UpdatePrivateNetwork` | `contract` `probe` |
-| `PATCH` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.UpdateRoute` | `probe-refusal` |
+| `PATCH` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.UpdateRoute` | `contract` `probe` |
 | `PATCH` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}` | `vpc/v2/API.UpdateVPC` | `contract` `probe` |
 | `POST` | `/vpc/v2/regions/{region}/private-networks/{pnID}/enable-dhcp` | `vpc/v2/API.EnableDHCP` | `contract` `probe` |
 | `POST` | `/vpc/v2/regions/{region}/private-networks` | `vpc/v2/API.CreatePrivateNetwork` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/vpc/v2/regions/{region}/routes` | `vpc/v2/API.CreateRoute` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/vpc/v2/regions/{region}/routes` | `vpc/v2/API.CreateRoute` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}/enable-routing` | `vpc/v2/API.EnableRouting` | `contract` `probe` |
 | `POST` | `/vpc/v2/regions/{region}/vpcs` | `vpc/v2/API.CreateVPC` | `client` `contract` `runtime` `probe` `behaviour` |
 
@@ -255,10 +255,10 @@ are in `coverage/`, one artefact per provider.
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `POST` | `/api/v1/CreateImage` | `osc/Client.CreateImage` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `POST` | `/api/v1/DeleteImage` | `osc/Client.DeleteImage` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/api/v1/CreateImage` | `osc/Client.CreateImage` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/DeleteImage` | `osc/Client.DeleteImage` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/ReadImages` | `osc/Client.ReadImages` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
-| `POST` | `/api/v1/UpdateImage` | `osc/Client.UpdateImage` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
+| `POST` | `/api/v1/UpdateImage` | `osc/Client.UpdateImage` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 
 ### `InternetService`
 
@@ -266,16 +266,16 @@ are in `coverage/`, one artefact per provider.
 |---|---|---|---|
 | `POST` | `/api/v1/CreateInternetService` | `osc/Client.CreateInternetService` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/DeleteInternetService` | `osc/Client.DeleteInternetService` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/api/v1/LinkInternetService` | `osc/Client.LinkInternetService` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/api/v1/LinkInternetService` | `osc/Client.LinkInternetService` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/ReadInternetServices` | `osc/Client.ReadInternetServices` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
-| `POST` | `/api/v1/UnlinkInternetService` | `osc/Client.UnlinkInternetService` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/api/v1/UnlinkInternetService` | `osc/Client.UnlinkInternetService` | `client` `contract` `runtime` `probe` `behaviour` |
 
 ### `Keypair`
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `POST` | `/api/v1/CreateKeypair` | `osc/Client.CreateKeypair` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `POST` | `/api/v1/DeleteKeypair` | `osc/Client.DeleteKeypair` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/api/v1/CreateKeypair` | `osc/Client.CreateKeypair` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/DeleteKeypair` | `osc/Client.DeleteKeypair` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/ReadKeypairs` | `osc/Client.ReadKeypairs` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 
 ### `LoadBalancer`
@@ -288,16 +288,16 @@ are in `coverage/`, one artefact per provider.
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `POST` | `/api/v1/CreateNatService` | `osc/Client.CreateNatService` | `client` `contract` `runtime` `behaviour` |
-| `POST` | `/api/v1/DeleteNatService` | `osc/Client.DeleteNatService` | `client` `contract` `runtime` `behaviour` |
+| `POST` | `/api/v1/CreateNatService` | `osc/Client.CreateNatService` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/DeleteNatService` | `osc/Client.DeleteNatService` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/ReadNatServices` | `osc/Client.ReadNatServices` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 
 ### `Net`
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `POST` | `/api/v1/CreateNet` | `osc/Client.CreateNet` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
-| `POST` | `/api/v1/DeleteNet` | `osc/Client.DeleteNet` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
+| `POST` | `/api/v1/CreateNet` | `osc/Client.CreateNet` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
+| `POST` | `/api/v1/DeleteNet` | `osc/Client.DeleteNet` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/ReadNets` | `osc/Client.ReadNets` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 
 ### `NetAccessPoint`
@@ -310,18 +310,18 @@ are in `coverage/`, one artefact per provider.
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `POST` | `/api/v1/CreateNic` | `osc/Client.CreateNic` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `POST` | `/api/v1/DeleteNic` | `osc/Client.DeleteNic` | `client` `contract` `runtime` `behaviour` |
-| `POST` | `/api/v1/LinkNic` | `osc/Client.LinkNic` | `client` `contract` `runtime` `behaviour` |
+| `POST` | `/api/v1/CreateNic` | `osc/Client.CreateNic` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/DeleteNic` | `osc/Client.DeleteNic` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/LinkNic` | `osc/Client.LinkNic` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/ReadNics` | `osc/Client.ReadNics` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
-| `POST` | `/api/v1/UnlinkNic` | `osc/Client.UnlinkNic` | `client` `contract` `runtime` `behaviour` |
+| `POST` | `/api/v1/UnlinkNic` | `osc/Client.UnlinkNic` | `client` `contract` `runtime` `probe` `behaviour` |
 
 ### `PublicIp`
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
 | `POST` | `/api/v1/CreatePublicIp` | `osc/Client.CreatePublicIp` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/api/v1/DeletePublicIp` | `osc/Client.DeletePublicIp` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
+| `POST` | `/api/v1/DeletePublicIp` | `osc/Client.DeletePublicIp` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/LinkPublicIp` | `osc/Client.LinkPublicIp` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
 | `POST` | `/api/v1/ReadPublicIpRanges` | `osc/Client.ReadPublicIpRanges` | `contract` `shape` `probe` |
 | `POST` | `/api/v1/ReadPublicIps` | `osc/Client.ReadPublicIps` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
@@ -337,49 +337,49 @@ are in `coverage/`, one artefact per provider.
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `POST` | `/api/v1/CreateRoute` | `osc/Client.CreateRoute` | `client` `contract` `runtime` `behaviour` |
-| `POST` | `/api/v1/DeleteRoute` | `osc/Client.DeleteRoute` | `client` `contract` `runtime` `behaviour` |
-| `POST` | `/api/v1/UpdateRoute` | `osc/Client.UpdateRoute` | `client` `contract` `runtime` `behaviour` |
+| `POST` | `/api/v1/CreateRoute` | `osc/Client.CreateRoute` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/DeleteRoute` | `osc/Client.DeleteRoute` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/UpdateRoute` | `osc/Client.UpdateRoute` | `client` `contract` `runtime` `probe` `behaviour` |
 
 ### `RouteTable`
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `POST` | `/api/v1/CreateRouteTable` | `osc/Client.CreateRouteTable` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `POST` | `/api/v1/DeleteRouteTable` | `osc/Client.DeleteRouteTable` | `client` `contract` `runtime` `behaviour` |
-| `POST` | `/api/v1/LinkRouteTable` | `osc/Client.LinkRouteTable` | `client` `contract` `runtime` `behaviour` |
+| `POST` | `/api/v1/CreateRouteTable` | `osc/Client.CreateRouteTable` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/DeleteRouteTable` | `osc/Client.DeleteRouteTable` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/LinkRouteTable` | `osc/Client.LinkRouteTable` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/ReadRouteTables` | `osc/Client.ReadRouteTables` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
-| `POST` | `/api/v1/UnlinkRouteTable` | `osc/Client.UnlinkRouteTable` | `client` `contract` `runtime` `behaviour` |
+| `POST` | `/api/v1/UnlinkRouteTable` | `osc/Client.UnlinkRouteTable` | `client` `contract` `runtime` `probe` `behaviour` |
 
 ### `SecurityGroup`
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
 | `POST` | `/api/v1/CreateSecurityGroup` | `osc/Client.CreateSecurityGroup` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/api/v1/DeleteSecurityGroup` | `osc/Client.DeleteSecurityGroup` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/api/v1/DeleteSecurityGroup` | `osc/Client.DeleteSecurityGroup` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/ReadSecurityGroups` | `osc/Client.ReadSecurityGroups` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 
 ### `SecurityGroupRule`
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `POST` | `/api/v1/CreateSecurityGroupRule` | `osc/Client.CreateSecurityGroupRule` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `POST` | `/api/v1/DeleteSecurityGroupRule` | `osc/Client.DeleteSecurityGroupRule` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/api/v1/CreateSecurityGroupRule` | `osc/Client.CreateSecurityGroupRule` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/DeleteSecurityGroupRule` | `osc/Client.DeleteSecurityGroupRule` | `client` `contract` `runtime` `probe` `behaviour` |
 
 ### `Snapshot`
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `POST` | `/api/v1/CreateSnapshot` | `osc/Client.CreateSnapshot` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `POST` | `/api/v1/DeleteSnapshot` | `osc/Client.DeleteSnapshot` | `client` `contract` `runtime` `behaviour` |
+| `POST` | `/api/v1/CreateSnapshot` | `osc/Client.CreateSnapshot` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/DeleteSnapshot` | `osc/Client.DeleteSnapshot` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/ReadSnapshots` | `osc/Client.ReadSnapshots` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 
 ### `Subnet`
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `POST` | `/api/v1/CreateSubnet` | `osc/Client.CreateSubnet` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
-| `POST` | `/api/v1/DeleteSubnet` | `osc/Client.DeleteSubnet` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/api/v1/CreateSubnet` | `osc/Client.CreateSubnet` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
+| `POST` | `/api/v1/DeleteSubnet` | `osc/Client.DeleteSubnet` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/ReadSubnets` | `osc/Client.ReadSubnets` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 
 ### `Subregion`
@@ -406,7 +406,7 @@ are in `coverage/`, one artefact per provider.
 | `POST` | `/api/v1/ReadVmTypes` | `osc/Client.ReadVmTypes` | `client` `contract` `shape` `runtime` `probe` |
 | `POST` | `/api/v1/ReadVmsState` | `osc/Client.ReadVmsState` | `client` `contract` `shape` `runtime` `probe` |
 | `POST` | `/api/v1/ReadVms` | `osc/Client.ReadVms` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
-| `POST` | `/api/v1/RebootVms` | `osc/Client.RebootVms` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/api/v1/RebootVms` | `osc/Client.RebootVms` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/StartVms` | `osc/Client.StartVms` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/StopVms` | `osc/Client.StopVms` | `client` `contract` `runtime` `probe` |
 | `POST` | `/api/v1/UpdateVm` | `osc/Client.UpdateVm` | `client` `contract` `runtime` `probe` `negative` |
@@ -419,7 +419,7 @@ are in `coverage/`, one artefact per provider.
 | `POST` | `/api/v1/DeleteVolume` | `osc/Client.DeleteVolume` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/LinkVolume` | `osc/Client.LinkVolume` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/ReadVolumes` | `osc/Client.ReadVolumes` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
-| `POST` | `/api/v1/UnlinkVolume` | `osc/Client.UnlinkVolume` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/api/v1/UnlinkVolume` | `osc/Client.UnlinkVolume` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/UpdateVolume` | `osc/Client.UpdateVolume` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 
 ### Declined on purpose (173)
@@ -475,65 +475,65 @@ are in `coverage/`, one artefact per provider.
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `DELETE` | `/v2/anti-affinity-group/{id}` | `exoscale/v2.delete-anti-affinity-group` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `DELETE` | `/v2/elastic-ip/{id}` | `exoscale/v2.delete-elastic-ip` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `DELETE` | `/v2/instance/{id}` | `exoscale/v2.delete-instance` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
+| `DELETE` | `/v2/anti-affinity-group/{id}` | `exoscale/v2.delete-anti-affinity-group` | `client` `contract` `runtime` `probe` `behaviour` |
+| `DELETE` | `/v2/elastic-ip/{id}` | `exoscale/v2.delete-elastic-ip` | `client` `contract` `runtime` `probe` `behaviour` |
+| `DELETE` | `/v2/instance/{id}` | `exoscale/v2.delete-instance` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `DELETE` | `/v2/private-network/{id}/{field}` | `exoscale/v2.reset-private-network-field` | — |
-| `DELETE` | `/v2/private-network/{id}` | `exoscale/v2.delete-private-network` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
-| `DELETE` | `/v2/security-group/{id}/rules/{rule}` | `exoscale/v2.delete-rule-from-security-group` | `probe-refusal` |
-| `DELETE` | `/v2/security-group/{id}` | `exoscale/v2.delete-security-group` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `DELETE` | `/v2/ssh-key/{name}` | `exoscale/v2.delete-ssh-key` | `client` `contract` `runtime` `behaviour` |
-| `GET` | `/v2/anti-affinity-group/{id}` | `exoscale/v2.get-anti-affinity-group` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `DELETE` | `/v2/private-network/{id}` | `exoscale/v2.delete-private-network` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
+| `DELETE` | `/v2/security-group/{id}/rules/{rule}` | `exoscale/v2.delete-rule-from-security-group` | `contract` `probe` |
+| `DELETE` | `/v2/security-group/{id}` | `exoscale/v2.delete-security-group` | `client` `contract` `runtime` `probe` `behaviour` |
+| `DELETE` | `/v2/ssh-key/{name}` | `exoscale/v2.delete-ssh-key` | `client` `contract` `runtime` `probe` `behaviour` |
+| `GET` | `/v2/anti-affinity-group/{id}` | `exoscale/v2.get-anti-affinity-group` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/anti-affinity-group` | `exoscale/v2.list-anti-affinity-groups` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/deploy-target/{id}` | `exoscale/v2.get-deploy-target` | `probe-refusal` |
 | `GET` | `/v2/deploy-target` | `exoscale/v2.list-deploy-targets` | `contract` `shape` `probe` |
-| `GET` | `/v2/elastic-ip/{id}` | `exoscale/v2.get-elastic-ip` | `probe-refusal` |
+| `GET` | `/v2/elastic-ip/{id}` | `exoscale/v2.get-elastic-ip` | `contract` `probe` |
 | `GET` | `/v2/elastic-ip` | `exoscale/v2.list-elastic-ips` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/instance-type/{id}` | `exoscale/v2.get-instance-type` | `client` `contract` `runtime` `probe` |
 | `GET` | `/v2/instance-type` | `exoscale/v2.list-instance-types` | `client` `contract` `shape` `runtime` `probe` |
-| `GET` | `/v2/instance/{id}` | `exoscale/v2.get-instance` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `GET` | `/v2/instance/{id}` | `exoscale/v2.get-instance` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/instance` | `exoscale/v2.list-instances` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
-| `GET` | `/v2/private-network/{id}` | `exoscale/v2.get-private-network` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `GET` | `/v2/private-network/{id}` | `exoscale/v2.get-private-network` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/private-network` | `exoscale/v2.list-private-networks` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
-| `GET` | `/v2/security-group/{id}` | `exoscale/v2.get-security-group` | `probe-refusal` |
+| `GET` | `/v2/security-group/{id}` | `exoscale/v2.get-security-group` | `contract` `probe` |
 | `GET` | `/v2/security-group` | `exoscale/v2.list-security-groups` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
-| `GET` | `/v2/ssh-key/{name}` | `exoscale/v2.get-ssh-key` | `client` `contract` `runtime` `behaviour` |
+| `GET` | `/v2/ssh-key/{name}` | `exoscale/v2.get-ssh-key` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/ssh-key` | `exoscale/v2.list-ssh-keys` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
-| `GET` | `/v2/template/{id}` | `exoscale/v2.get-template` | `client` `contract` `runtime` `probe-refusal` |
+| `GET` | `/v2/template/{id}` | `exoscale/v2.get-template` | `client` `contract` `runtime` `probe` |
 | `GET` | `/v2/template` | `exoscale/v2.list-templates` | `client` `contract` `shape` `runtime` `probe` |
 | `POST` | `/v2/anti-affinity-group` | `exoscale/v2.create-anti-affinity-group` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/v2/elastic-ip` | `exoscale/v2.create-elastic-ip` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/v2/instance` | `exoscale/v2.create-instance` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/v2/instance` | `exoscale/v2.create-instance` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/v2/private-network` | `exoscale/v2.create-private-network` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/v2/security-group/{id}/rules` | `exoscale/v2.add-rule-to-security-group` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/v2/security-group/{id}/rules` | `exoscale/v2.add-rule-to-security-group` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/v2/security-group` | `exoscale/v2.create-security-group` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/v2/ssh-key` | `exoscale/v2.register-ssh-key` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `PUT` | `/v2/elastic-ip/{id}:attach` | `exoscale/v2.attach-instance-to-elastic-ip` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `PUT` | `/v2/elastic-ip/{id}:detach` | `exoscale/v2.detach-instance-from-elastic-ip` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `PUT` | `/v2/elastic-ip/{id}` | `exoscale/v2.update-elastic-ip` | `probe-refusal` |
-| `PUT` | `/v2/instance/{id}:add-protection` | `exoscale/v2.add-instance-protection` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `PUT` | `/v2/instance/{id}:reboot` | `exoscale/v2.reboot-instance` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `PUT` | `/v2/instance/{id}:remove-protection` | `exoscale/v2.remove-instance-protection` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `PUT` | `/v2/instance/{id}:reset` | `exoscale/v2.reset-instance` | `probe-refusal` |
-| `PUT` | `/v2/instance/{id}:resize-disk` | `exoscale/v2.resize-instance-disk` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `PUT` | `/v2/instance/{id}:scale` | `exoscale/v2.scale-instance` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `PUT` | `/v2/instance/{id}:start` | `exoscale/v2.start-instance` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `PUT` | `/v2/instance/{id}:stop` | `exoscale/v2.stop-instance` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `PUT` | `/v2/instance/{id}` | `exoscale/v2.update-instance` | `probe-refusal` |
-| `PUT` | `/v2/private-network/{id}:attach` | `exoscale/v2.attach-instance-to-private-network` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `PUT` | `/v2/private-network/{id}:detach` | `exoscale/v2.detach-instance-from-private-network` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/v2/ssh-key` | `exoscale/v2.register-ssh-key` | `client` `contract` `runtime` `probe` `behaviour` |
+| `PUT` | `/v2/elastic-ip/{id}:attach` | `exoscale/v2.attach-instance-to-elastic-ip` | `client` `contract` `runtime` `probe` `behaviour` |
+| `PUT` | `/v2/elastic-ip/{id}:detach` | `exoscale/v2.detach-instance-from-elastic-ip` | `client` `contract` `runtime` `probe` `behaviour` |
+| `PUT` | `/v2/elastic-ip/{id}` | `exoscale/v2.update-elastic-ip` | `contract` `probe` |
+| `PUT` | `/v2/instance/{id}:add-protection` | `exoscale/v2.add-instance-protection` | `client` `contract` `runtime` `probe` `behaviour` |
+| `PUT` | `/v2/instance/{id}:reboot` | `exoscale/v2.reboot-instance` | `client` `contract` `runtime` `probe` `behaviour` |
+| `PUT` | `/v2/instance/{id}:remove-protection` | `exoscale/v2.remove-instance-protection` | `client` `contract` `runtime` `probe` `behaviour` |
+| `PUT` | `/v2/instance/{id}:reset` | `exoscale/v2.reset-instance` | `contract` `probe` |
+| `PUT` | `/v2/instance/{id}:resize-disk` | `exoscale/v2.resize-instance-disk` | `client` `contract` `runtime` `probe` `behaviour` |
+| `PUT` | `/v2/instance/{id}:scale` | `exoscale/v2.scale-instance` | `client` `contract` `runtime` `probe` `behaviour` |
+| `PUT` | `/v2/instance/{id}:start` | `exoscale/v2.start-instance` | `client` `contract` `runtime` `probe` `behaviour` |
+| `PUT` | `/v2/instance/{id}:stop` | `exoscale/v2.stop-instance` | `client` `contract` `runtime` `probe` `behaviour` |
+| `PUT` | `/v2/instance/{id}` | `exoscale/v2.update-instance` | `contract` `probe` |
+| `PUT` | `/v2/private-network/{id}:attach` | `exoscale/v2.attach-instance-to-private-network` | `client` `contract` `runtime` `probe` `behaviour` |
+| `PUT` | `/v2/private-network/{id}:detach` | `exoscale/v2.detach-instance-from-private-network` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/private-network/{id}:update-ip` | `exoscale/v2.update-private-network-instance-ip` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
-| `PUT` | `/v2/private-network/{id}` | `exoscale/v2.update-private-network` | `probe-refusal` |
-| `PUT` | `/v2/security-group/{id}:add-source` | `exoscale/v2.add-external-source-to-security-group` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `PUT` | `/v2/security-group/{id}:attach` | `exoscale/v2.attach-instance-to-security-group` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `PUT` | `/v2/security-group/{id}:detach` | `exoscale/v2.detach-instance-from-security-group` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `PUT` | `/v2/security-group/{id}:remove-source` | `exoscale/v2.remove-external-source-from-security-group` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `PUT` | `/v2/private-network/{id}` | `exoscale/v2.update-private-network` | `contract` `probe` |
+| `PUT` | `/v2/security-group/{id}:add-source` | `exoscale/v2.add-external-source-to-security-group` | `client` `contract` `runtime` `probe` `behaviour` |
+| `PUT` | `/v2/security-group/{id}:attach` | `exoscale/v2.attach-instance-to-security-group` | `client` `contract` `runtime` `probe` `behaviour` |
+| `PUT` | `/v2/security-group/{id}:detach` | `exoscale/v2.detach-instance-from-security-group` | `client` `contract` `runtime` `probe` `behaviour` |
+| `PUT` | `/v2/security-group/{id}:remove-source` | `exoscale/v2.remove-external-source-from-security-group` | `client` `contract` `runtime` `probe` `behaviour` |
 
 ### `general`
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `GET` | `/v2/operation/{id}` | `exoscale/v2.get-operation` | `probe-refusal` |
+| `GET` | `/v2/operation/{id}` | `exoscale/v2.get-operation` | `contract` `probe` |
 | `GET` | `/v2/zone` | `exoscale/v2.list-zones` | `client` `contract` `shape` `runtime` `probe` |
 
 ### `quotas`

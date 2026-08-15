@@ -32,6 +32,33 @@ what this project is judged on: **a response shape a client can observe**, and
   fixture and version moved together — passing. The procedure for changing a
   frozen surface on purpose is in RELEASING.md ("Frozen surfaces").
 
+- **The probe seeds what it needs, so a refusal is a verdict rather than a
+  shortage** (#163). Before probing an operation, the probe now brings into
+  being what that operation needs, from the contract's own request schema and
+  from resources it created earlier in the same run: creates are ordered
+  producers-first, reads run twice around them, and the teardown mirrors the
+  seeding. No identifier is invented — every one comes from a real create
+  against the emulator, which is how the 404s appeared in the first place.
+  Against the artefact this replaces, both regenerated the same way:
+  `probed: response` **85 → 204**, `refusal` **106 → 4**, `none` **40 → 23**.
+  102 of the refusals and 17 of the operations the probe never reached now
+  validate a success shape; nothing regressed. The contract axis follows,
+  **181 → 207 clean**, because an operation that never got past a refusal had
+  no success body to check. `driven`, `dataplane`, `behaviour` and `negative`
+  are unchanged, which is the expected shape of this: seeding moves synthetic
+  traffic and nothing a client drives.
+
+  What still refuses, named rather than hidden, because the point of #156 was to
+  stop counting arrivals as proof. Four operations: `get-deploy-target` (the
+  pack serves an empty inventory and never creates one, as `catalog.go` says in
+  those words), `update-private-network-instance-ip`, `LinkPublicIp` and
+  `UnlinkPublicIp` (each needs an instance a synthetic prober does not start).
+  Twenty-three are never probed: twenty declare no response schema at all, so
+  there is no success shape to validate and calling them would prove only that
+  they answered, and three take a path parameter that is not an identifier —
+  `{entity}` for a quota, `{field}` for a field reset, `{key}` for a user-data
+  key.
+
 ### Changed
 
 - **`/_feint/conformance` moves to schema version 2.** `evidence.*[].probed`

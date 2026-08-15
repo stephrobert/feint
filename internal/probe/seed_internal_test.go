@@ -231,3 +231,37 @@ func TestTheGenericParameterNeverAnswersWithATenant(t *testing.T) {
 		t.Errorf("takeAny must answer with infrastructure, never a tenant or a request: %v", got)
 	}
 }
+
+// TestTheHintedBranchOfAChoiceIsFilled: block/v1's CreateVolume declares
+// from_empty and from_snapshot, optional both, "precisely one must be set" in
+// prose only. The hint table names from_empty as the branch a fresh run can
+// always satisfy; without the fill the create is a guaranteed refusal and the
+// whole block family stays unreachable — the /falsify hook for the hint
+// family.
+func TestTheHintedBranchOfAChoiceIsFilled(t *testing.T) {
+	doc := docOf(t, `{
+	  "provider": "stub",
+	  "operations": {"CreateVolume": {"method": "POST", "path": "/volumes", "request": "Req", "response": "V"}},
+	  "schemas": {
+	    "Req": {"closed": true, "required": ["name"], "properties": {
+	      "name": {"type": "string"},
+	      "from_empty": {"ref": "FromEmpty"},
+	      "from_snapshot": {"ref": "FromSnapshot"}
+	    }},
+	    "FromEmpty":    {"closed": true, "required": ["size"], "properties": {"size": {"type": "integer"}}},
+	    "FromSnapshot": {"closed": true, "required": ["snapshot_id"], "properties": {"snapshot_id": {"type": "string"}}},
+	    "V": {"closed": false, "properties": {"ok": {"type": "boolean"}}}
+	  }
+	}`)
+	body, err := minimalBody(doc, Step{Kind: kindCreate}, "Req", newPool())
+	if err != nil {
+		t.Fatal(err)
+	}
+	from, ok := body["from_empty"].(map[string]any)
+	if !ok || from["size"] != 1 {
+		t.Errorf("the hinted branch must be filled from its own schema, got %v", body["from_empty"])
+	}
+	if _, present := body["from_snapshot"]; present {
+		t.Errorf("the other branch stays absent — precisely one must be set: %v", body)
+	}
+}

@@ -177,7 +177,16 @@ func (o *observer) wrap(provider string, r Route) http.HandlerFunc {
 		// Before the recorder wrapped every request there was no status to read
 		// without a contract, so this rule applied to half the runs. It applies
 		// to all of them now, which can only remove false positives.
-		if rec.status < 400 {
+		//
+		// And only a request a real client made. The report's question — and
+		// the gate's own wording — is "fields a real client sent that no
+		// handler read": the seeded probe (#163) fills every optional field
+		// the schema declares and the run can satisfy, so its bodies name
+		// fields no handler reads by design, and counting them failed the
+		// gate on traffic no client ever sends. The same boundary as the
+		// score itself: synthetic traffic moves no client-facing number.
+		// TestAProbedFieldIsNotAnUnreadField fails without the condition.
+		if rec.status < 400 && !synthetic {
 			o.recordUnread(r.Operation, unread)
 		}
 		// The contract verdict is carried on the exchange, not only counted per

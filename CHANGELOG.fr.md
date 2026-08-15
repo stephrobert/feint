@@ -36,6 +36,35 @@ change ni l'un ni l'autre a sa place dans `git log`.
   changer une surface gelée à dessein est dans RELEASING.fr.md (« Surfaces
   gelées »).
 
+- **La sonde sème ce dont elle a besoin, si bien qu'un refus est un verdict et
+  non une pénurie** (#163). Avant de sonder une opération, la sonde fait
+  désormais exister ce que cette opération réclame, à partir du schéma de
+  requête du contrat lui-même et des ressources qu'elle a créées plus tôt dans
+  la même exécution : les créations sont ordonnées producteurs d'abord, les
+  lectures passent deux fois autour, et le démontage reflète le semis. Aucun
+  identifiant n'est inventé : chacun vient d'une création réelle contre
+  l'émulateur, ce qui est précisément l'origine des 404 d'avant. Face à
+  l'artefact qu'il remplace, tous deux régénérés de la même façon :
+  `probed: response` **85 → 204**, `refusal` **106 → 4**, `none` **40 → 23**.
+  102 des refus et 17 des opérations que la sonde n'atteignait pas valident
+  désormais une forme de succès ; rien n'a reculé. L'axe contrat suit,
+  **181 → 207 propres**, car une opération qui n'allait jamais au-delà d'un
+  refus n'avait aucun corps de succès à contrôler. `driven`, `dataplane`,
+  `behaviour` et `negative` ne bougent pas, ce qui est la forme attendue : le
+  semis déplace du trafic synthétique, rien de ce qu'un client pilote.
+
+  Ce qui refuse encore est nommé plutôt que caché, puisque tout l'objet de #156
+  était de cesser de compter une arrivée comme une preuve. Quatre opérations :
+  `get-deploy-target` (le pack sert un inventaire vide et n'en crée jamais,
+  `catalog.go` l'écrit en toutes lettres), `update-private-network-instance-ip`,
+  `LinkPublicIp` et `UnlinkPublicIp`, chacune réclamant une instance qu'une
+  sonde synthétique ne démarre pas. Vingt-trois ne sont jamais sondées : vingt
+  ne déclarent aucun schéma de réponse, il n'y a donc aucune forme de succès à
+  valider et les appeler ne prouverait que leur réponse ; les trois dernières
+  prennent un paramètre de chemin qui n'est pas un identifiant, à savoir
+  `{entity}` pour un quota, `{field}` pour la remise à zéro d'un champ et
+  `{key}` pour une clé de user data.
+
 ### Modifié
 
 - **`/_feint/conformance` passe en version de schéma 2.** `evidence.*[].probed`
