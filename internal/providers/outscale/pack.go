@@ -167,9 +167,11 @@ func (p *Pack) Routes() []emulator.Route {
 		p.route("CreateNet", p.createNet),
 		p.route("ReadNets", p.readNets),
 		p.route("DeleteNet", p.deleteNet),
+		p.route("UpdateNet", p.updateNet),
 		p.route("CreateSubnet", p.createSubnet),
 		p.route("ReadSubnets", p.readSubnets),
 		p.route("DeleteSubnet", p.deleteSubnet),
+		p.route("UpdateSubnet", p.updateSubnet),
 
 		// Keypairs, on the critical path to a machine anyone can log into.
 		p.route("CreateKeypair", p.createKeypair),
@@ -191,6 +193,7 @@ func (p *Pack) Routes() []emulator.Route {
 		p.route("DeleteRouteTable", p.deleteRouteTable),
 		p.route("LinkRouteTable", p.linkRouteTable),
 		p.route("UnlinkRouteTable", p.unlinkRouteTable),
+		p.route("UpdateRouteTableLink", p.updateRouteTableLink),
 		p.route("CreateRoute", p.createRoute),
 		p.route("DeleteRoute", p.deleteRoute),
 		p.route("UpdateRoute", p.updateRoute),
@@ -198,6 +201,7 @@ func (p *Pack) Routes() []emulator.Route {
 		p.route("ReadNics", p.readNics),
 		p.route("CreateNic", p.createNic),
 		p.route("DeleteNic", p.deleteNic),
+		p.route("UpdateNic", p.updateNic),
 		p.route("LinkNic", p.linkNic),
 		p.route("UnlinkNic", p.unlinkNic),
 

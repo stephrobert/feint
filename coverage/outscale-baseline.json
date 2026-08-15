@@ -14,10 +14,6 @@
     "osc/Client.ReadNetPeerings",
     "osc/Client.RejectNetPeering",
     "osc/Client.UnlinkPrivateIps",
-    "osc/Client.UpdateNet",
-    "osc/Client.UpdateNetAccessPoint",
-    "osc/Client.UpdateNic",
-    "osc/Client.UpdateRouteTableLink",
-    "osc/Client.UpdateSubnet"
+    "osc/Client.UpdateNetAccessPoint"
   ]
 }

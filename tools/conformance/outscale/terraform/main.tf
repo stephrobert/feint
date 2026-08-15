@@ -49,9 +49,21 @@ resource "outscale_net" "conformance" {
   }
 }
 
+# map_public_ip_on_launch is a variable so the suite can change it and apply
+# again. That second apply is the point: create, read and delete of a Subnet were
+# proven long before the *update* was served, and a plan that modifies a resource
+# this emulator created used to die on an operation nobody had decided about
+# (#172). An in-place change is what a user's second `terraform apply` is.
 resource "outscale_subnet" "conformance" {
-  net_id   = outscale_net.conformance.net_id
-  ip_range = "10.70.1.0/24"
+  net_id                  = outscale_net.conformance.net_id
+  ip_range                = "10.70.1.0/24"
+  map_public_ip_on_launch = var.map_public_ip
+}
+
+variable "map_public_ip" {
+  type        = bool
+  default     = false
+  description = "Flipped by the suite's second apply, which is what proves UpdateSubnet."
 }
 
 # A keypair, because a machine nobody can log into proves nothing — and because
@@ -109,4 +121,10 @@ output "volume_id" {
 
 output "keypair_id" {
   value = outscale_keypair.conformance.keypair_id
+}
+
+# The suite asks the emulator directly whether the in-place change landed, so it
+# needs the identifier the provider assigned rather than the one it asked for.
+output "subnet_id" {
+  value = outscale_subnet.conformance.subnet_id
 }

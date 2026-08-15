@@ -87,6 +87,28 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Changed
 
+- **The in-place half of four Outscale resources is served** (#172, first
+  tranche). Create, read and delete of Nets, Subnets, Nics and route-table links
+  were driven by the provider's own fixture from the first day; the change a
+  *second* `terraform apply` makes was not served at all, so a plan modifying a
+  resource this emulator had created died on an operation nobody had decided
+  about. `UpdateNet`, `UpdateSubnet`, `UpdateNic` and `UpdateRouteTableLink` now
+  answer, and Outscale's untriaged column falls from 18 to 14.
+
+  Every request shape is read from `contracts/outscale.json` rather than
+  recalled. Two rules the tests hold: **absent is not false** —
+  `MapPublicIpOnLaunch` is required, and reading a missing field as `false`
+  would silently turn the flag off on every call that forgot it — and **an
+  update writes only what was sent**, because Terraform sends exactly the
+  attributes that changed and resetting the rest answers a request nobody made.
+
+  Proven unevenly, and the difference is stated rather than smoothed over.
+  `UpdateSubnet` is **driven by a real client**: the Outscale Terraform suite
+  now flips `map_public_ip_on_launch` in a second apply and asks the emulator's
+  own API whether it kept the change — a state file agreeing with itself is not
+  the emulator holding it. The other three are served, probed and
+  contract-clean, with no client driving them yet.
+
 - **The evidence record's freshness rule becomes a control** (#171). *Deleting a
   conformance assertion demotes the operations it proved* was written twice, in
   `internal/cli/evidence.go` and in `mise.toml`, and held by nothing:

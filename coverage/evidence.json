@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "7dd2353c6a25c3fa",
     "shapes": "c73ca6ca03ceac5b",
-    "suites": "d6dd6b22856907d3"
+    "suites": "353b07c58e79d125"
   },
   "operations": {
     "block/v1/API.CreateSnapshot": {
@@ -1484,7 +1484,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": true,
+      "behaviour": false,
       "negative": false
     },
     "osc/Client.DeletePublicIp": {
@@ -1910,7 +1910,43 @@
       "behaviour": true,
       "negative": true
     },
+    "osc/Client.UpdateNet": {
+      "driven": false,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
+    "osc/Client.UpdateNic": {
+      "driven": false,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
     "osc/Client.UpdateRoute": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "osc/Client.UpdateRouteTableLink": {
+      "driven": false,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
+    "osc/Client.UpdateSubnet": {
       "driven": true,
       "probed": "response",
       "contract": "clean",
@@ -1952,7 +1988,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "vpc/v2/API.CreateVPC": {
@@ -1961,7 +1997,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "vpc/v2/API.DeletePrivateNetwork": {
@@ -1988,7 +2024,7 @@
       "contract": "unchecked",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": true,
+      "behaviour": false,
       "negative": false
     },
     "vpc/v2/API.EnableDHCP": {

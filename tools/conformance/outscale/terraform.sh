@@ -191,6 +191,8 @@ printf '%s' "$tags" | jq -e --arg r "$rtb_id" \
   || fail "ReadTags does not name the route table with the SDK's own type: $tags"
 ok "tags set, stored, and named with the types the SDK declares"
 
+
+
 echo "- the volume the provider created is served"
 volume_id="$("$TF" output -raw volume_id)"
 [ -n "$volume_id" ] || fail "no volume id in the outputs"
@@ -246,6 +248,23 @@ case "$plan_status" in
      fail "the emulator does not read back what the provider sent: the applied state still plans a change" ;;
   *) fail "the second plan errored with status $plan_status" ;;
 esac
+
+# The in-place change, which is what a user's second `terraform apply` is and
+# what nothing here proved before #172. Create, read and delete of a Subnet were
+# driven from the first day; the update was not served at all, so a plan that
+# modified a resource this emulator had created died on an untriaged operation.
+#
+# The assertion is against the emulator rather than against Terraform's state: a
+# state file agreeing with itself is not the emulator holding the change.
+echo "- an in-place change is applied, and the emulator holds it"
+subnet_id="$("$TF" output -raw subnet_id)"
+"$TF" apply -no-color -auto-approve -var "endpoint=$ENDPOINT" -var "map_public_ip=true" >/dev/null \
+  || fail "the second apply failed; an in-place change is what UpdateSubnet serves"
+subnets="$(curl -sf -X POST "$ENDPOINT/api/v1/ReadSubnets" -H 'Content-Type: application/json' \
+            -d "{\"Filters\":{\"SubnetIds\":[\"$subnet_id\"]}}")" || fail "ReadSubnets rejected"
+printf '%s' "$subnets" | jq -e '.Subnets[0].MapPublicIpOnLaunch == true' >/dev/null \
+  || fail "the emulator did not keep the in-place change: $subnets"
+ok "second apply changed the Subnet, and the emulator answers the new value"
 
 echo "- destroy"
 # The Net this run created, read before it is destroyed: the check below asks

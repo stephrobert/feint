@@ -96,6 +96,30 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Modifié
 
+- **La moitié « en place » de quatre ressources Outscale est servie** (#172,
+  première tranche). La création, la lecture et la suppression des Nets, Subnets,
+  NIC et liens de table de routage étaient pilotées par la fixture du provider
+  depuis le premier jour ; le changement qu'un **second** `terraform apply`
+  produit n'était pas servi du tout, si bien qu'un plan modifiant une ressource
+  que cet émulateur avait créée mourait sur une opération dont personne n'avait
+  décidé. `UpdateNet`, `UpdateSubnet`, `UpdateNic` et `UpdateRouteTableLink`
+  répondent désormais, et la colonne non triée d'Outscale passe de 18 à 14.
+
+  Chaque forme de requête est lue dans `contracts/outscale.json` plutôt que
+  rappelée de mémoire. Deux règles que les tests tiennent : **absent n'est pas
+  faux** (`MapPublicIpOnLaunch` est requis, et lire un champ manquant comme
+  `false` éteindrait le drapeau à chaque appel qui l'oublie) et **une mise à jour
+  n'écrit que ce qui est envoyé**, puisque Terraform n'envoie que les attributs
+  qui changent et que réinitialiser le reste répond à une requête que personne
+  n'a faite.
+
+  Prouvées inégalement, et l'écart est énoncé plutôt que lissé. `UpdateSubnet`
+  est **pilotée par un vrai client** : la suite Terraform Outscale bascule
+  désormais `map_public_ip_on_launch` dans un second apply et demande à l'API de
+  l'émulateur s'il a retenu le changement, car un fichier d'état qui s'accorde
+  avec lui-même ne prouve pas que l'émulateur le porte. Les trois autres sont
+  servies, sondées et propres au contrat, sans qu'aucun client les pilote encore.
+
 - **La règle de fraîcheur du registre de preuves devient un contrôle** (#171).
   « Supprimer une assertion de conformance rétrograde les opérations qu'elle
   prouvait » était écrit deux fois, dans `internal/cli/evidence.go` et dans
