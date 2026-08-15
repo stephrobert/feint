@@ -71,7 +71,14 @@ func (p *Pack) Declined() []emulator.Decline {
 		// nothing applies — a client could read back a policy denying an action
 		// and then watch the emulator perform it. That gap is worse than a 404,
 		// because a 404 is visible.
+		//
+		// CheckAuthentication is the sharpest case of the same reasoning: it
+		// exists to answer "is this login/password pair valid", and the only
+		// honest answers here are "yes" to everything — a verdict that verifies
+		// nothing — or an invented refusal. Either one describes an
+		// authentication this emulator deliberately does not perform.
 		emulator.Because("the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
+			"osc/Client.CheckAuthentication",
 			"osc/Client.AddUserToUserGroup",
 			"osc/Client.ReadPolicies",
 			"osc/Client.ReadLinkedPolicies",

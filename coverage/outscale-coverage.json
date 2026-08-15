@@ -1,9 +1,9 @@
 {
   "provider": "outscale",
   "total": 263,
-  "implemented": 76,
-  "declined": 173,
-  "unknown": 14,
+  "implemented": 78,
+  "declined": 174,
+  "unknown": 11,
   "orphans": null,
   "products": [
     {
@@ -16,9 +16,9 @@
     {
       "product": "osc",
       "total": 236,
-      "implemented": 76,
-      "declined": 146,
-      "unknown": 14
+      "implemented": 78,
+      "declined": 147,
+      "unknown": 11
     }
   ],
   "groups": [
@@ -33,8 +33,8 @@
       "group": "Account",
       "total": 6,
       "implemented": 0,
-      "declined": 5,
-      "unknown": 1
+      "declined": 6,
+      "unknown": 0
     },
     {
       "group": "ApiAccessPolicy",
@@ -88,9 +88,9 @@
     {
       "group": "DhcpOption",
       "total": 3,
-      "implemented": 1,
+      "implemented": 3,
       "declined": 0,
-      "unknown": 2
+      "unknown": 0
     },
     {
       "group": "DirectLink",
@@ -559,8 +559,9 @@
     {
       "operation": "osc/Client.CheckAuthentication",
       "product": "osc",
+      "reason": "the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies",
       "group": "Account",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "osc/Client.CreateAccessKey",
@@ -608,7 +609,7 @@
       "operation": "osc/Client.CreateDhcpOptions",
       "product": "osc",
       "group": "DhcpOption",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateDirectLink",
@@ -904,7 +905,7 @@
       "operation": "osc/Client.DeleteDhcpOptions",
       "product": "osc",
       "group": "DhcpOption",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteDirectLink",

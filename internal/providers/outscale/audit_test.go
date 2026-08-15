@@ -860,7 +860,11 @@ func TestAnUnsupportedFilterIsRefused(t *testing.T) {
 	for _, probe := range []struct{ action, body string }{
 		{"ReadVms", `{"Filters":{"Architectures":["x86_64"]}}`},
 		{"ReadVms", `{"Filters":{"Tags":["a=b"]}}`},
-		{"ReadNets", `{"Filters":{"DhcpOptionsSetIds":["dopt-1"]}}`},
+		// DhcpOptionsSetIds used to be the probe here; it is served since the
+		// DHCP lifecycle landed (#172) — the provider's own delete path filters
+		// on it — and TestReadNetsFiltersOnTheDhcpOptionsSet now holds the
+		// accepting half.
+		{"ReadNets", `{"Filters":{"Tags":["a=b"]}}`},
 		{"ReadSubnets", `{"Filters":{"SubregionNames":["eu-west-2a"]}}`},
 		{"ReadKeypairs", `{"Filters":{"TagKeys":["env"]}}`},
 	} {

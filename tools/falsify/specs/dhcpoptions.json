@@ -1,0 +1,26 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "an empty create stores a set that configures nothing",
+      "file": "internal/providers/outscale/dhcpoptions.go",
+      "find": "\tif req.DomainName == \"\" && len(req.DomainNameServers) == 0 &&\n\t\tlen(req.LogServers) == 0 && len(req.NtpServers) == 0 {",
+      "replace": "\tif req.DomainName == \"\" && len(req.DomainNameServers) == 0 &&\n\t\tlen(req.LogServers) == 0 && len(req.NtpServers) == 0 && false {",
+      "test": "TestCreateDhcpOptionsRequiresAtLeastOneOption"
+    },
+    {
+      "label": "the account's default set deletes like any other",
+      "file": "internal/providers/outscale/dhcpoptions.go",
+      "find": "\tif isDefault, _ := res.Attrs[\"Default\"].(bool); isDefault {",
+      "replace": "\tif isDefault, _ := res.Attrs[\"Default\"].(bool); isDefault && false {",
+      "test": "TestTheDefaultDhcpOptionsSetDoesNotDelete"
+    },
+    {
+      "label": "a set deletes while a Net still wears it",
+      "file": "internal/providers/outscale/dhcpoptions.go",
+      "find": "\t\tif stringOf(net.Attrs[\"DhcpOptionsSetId\"]) == req.DhcpOptionsSetID {",
+      "replace": "\t\tif stringOf(net.Attrs[\"DhcpOptionsSetId\"]) == req.DhcpOptionsSetID+\"-never\" {",
+      "test": "TestADhcpOptionsSetDoesNotDeleteUnderANet"
+    }
+  ]
+}

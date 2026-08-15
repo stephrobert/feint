@@ -118,6 +118,28 @@ what this project is judged on: **a response shape a client can observe**, and
   the store still shares until `Commit`. The link travels whole now, copied
   rather than rebuilt. Only the real client saw either of them.
 
+- **The Outscale DHCP options lifecycle is served** (#172, second tranche).
+  `CreateDhcpOptions` and `DeleteDhcpOptions` join the already-served read, and
+  the untriaged column falls from 14 to 11 — the third operation of the batch,
+  `CheckAuthentication`, is declined with the IAM family: the emulator accepts
+  every credential on purpose (SECURITY.md), so a validity verdict on a
+  login/password pair would describe an authentication it never performs.
+
+  The delete carries the two refusals their document states: the account's
+  default set cannot be deleted, and neither can a set a Net still wears. The
+  detach their provider performs before a delete drove two more behaviours out
+  of the document and into the pack: `UpdateNet` accepts the **`default`
+  keyword** (resolved to the account's set, since a Net always carries a
+  `dopt-` id), and `ReadNets` answers the **`DhcpOptionsSetIds` filter** its
+  `getAttachedDHCPs` walks — a filter the pack previously refused by design.
+
+  This closes the proof the first tranche recorded as owed:
+  `outscale_net_attributes` could only point a Net at its own default set, so a
+  *different* set retained was asserted by nothing. The fixture now creates a
+  second set with `outscale_dhcp_option`, points the Net at it, and the suite
+  asks the emulator — not the state file — that the Net wears it, that it
+  differs from the default one, and that the destroy's detach-then-delete
+  sequence leaves the default set standing alone.
 - **The evidence record's freshness rule becomes a control** (#171). *Deleting a
   conformance assertion demotes the operations it proved* was written twice, in
   `internal/cli/evidence.go` and in `mise.toml`, and held by nothing:

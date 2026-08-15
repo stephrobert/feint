@@ -131,6 +131,30 @@ change ni l'un ni l'autre a sa place dans `git log`.
   encore jusqu'au `Commit`. Le lien voyage désormais entier, copié plutôt que
   reconstruit. Seul le vrai client a vu l'un comme l'autre.
 
+- **Le cycle de vie des options DHCP d'Outscale est servi** (#172, deuxième
+  tranche). `CreateDhcpOptions` et `DeleteDhcpOptions` rejoignent la lecture
+  déjà servie, et la colonne non triée passe de 14 à 11 ; la troisième
+  opération du lot, `CheckAuthentication`, est déclinée avec la famille IAM :
+  l'émulateur accepte toute crédential à dessein (SECURITY.md), donc un verdict
+  de validité sur un couple login/mot de passe décrirait une authentification
+  qu'il n'effectue jamais.
+
+  La suppression porte les deux refus que leur document énonce : le jeu par
+  défaut du compte ne se supprime pas, pas plus qu'un jeu qu'un Net porte
+  encore. Le détachement que leur provider effectue avant une suppression a
+  fait sortir deux comportements de plus du document vers le pack :
+  `UpdateNet` accepte le **mot-clé `default`** (résolu vers le jeu du compte,
+  puisqu'un Net porte toujours un identifiant `dopt-`), et `ReadNets` répond au
+  **filtre `DhcpOptionsSetIds`** que parcourt son `getAttachedDHCPs`, un filtre
+  que le pack refusait jusque-là à dessein.
+
+  Cela ferme la preuve que la première tranche avait notée comme due :
+  `outscale_net_attributes` ne pouvait pointer un Net que vers son propre jeu
+  par défaut, si bien que rien n'affirmait qu'un jeu *différent* était retenu.
+  La fixture crée désormais un second jeu avec `outscale_dhcp_option`, y pointe
+  le Net, et la suite demande à l'émulateur (jamais au fichier d'état) que le
+  Net le porte, qu'il diffère du jeu par défaut, et que la séquence
+  détacher-puis-supprimer du destroy laisse le jeu par défaut seul debout.
 - **La règle de fraîcheur du registre de preuves devient un contrôle** (#171).
   « Supprimer une assertion de conformance rétrograde les opérations qu'elle
   prouvait » était écrit deux fois, dans `internal/cli/evidence.go` et dans

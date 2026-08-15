@@ -2,11 +2,8 @@
   "provider": "outscale",
   "unknown": [
     "osc/Client.AcceptNetPeering",
-    "osc/Client.CheckAuthentication",
-    "osc/Client.CreateDhcpOptions",
     "osc/Client.CreateNetAccessPoint",
     "osc/Client.CreateNetPeering",
-    "osc/Client.DeleteDhcpOptions",
     "osc/Client.DeleteNetAccessPoint",
     "osc/Client.DeleteNetPeering",
     "osc/Client.LinkPrivateIps",

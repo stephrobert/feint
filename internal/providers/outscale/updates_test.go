@@ -65,20 +65,18 @@ func TestUpdateNetRepointsItsDhcpOptions(t *testing.T) {
 		t.Fatalf("the created Net carries no identifier or no options set: %v", net)
 	}
 
-	// A second set to move to, created the way a client creates one.
+	// A second set to move to, created the way a client creates one. This used
+	// to fall back to the default set while CreateDhcpOptions was untriaged;
+	// now that it is served, the fallback would only hide a regression, so the
+	// create is required — and the move below is to a genuinely different set.
 	status, madeSet := doAction(t, ts, "CreateDhcpOptions", `{"DomainName":"feint.local"}`)
 	if status != http.StatusOK {
-		// The create is not served yet — #172's remaining families. Moving to
-		// the default set is still a real update and still proves the path.
-		t.Logf("CreateDhcpOptions is not served yet (%d), using the default set", status)
-		madeSet = map[string]any{}
+		t.Fatalf("create the second options set: %d (%v)", status, madeSet)
 	}
-
-	target := original
-	if set, ok := madeSet["DhcpOptionsSet"].(map[string]any); ok {
-		if id, _ := set["DhcpOptionsSetId"].(string); id != "" {
-			target = id
-		}
+	set, _ := madeSet["DhcpOptionsSet"].(map[string]any)
+	target, _ := set["DhcpOptionsSetId"].(string)
+	if target == "" || target == original {
+		t.Fatalf("the created set is not a second one: %v (the Net's own is %s)", set, original)
 	}
 
 	status, updated := doAction(t, ts, "UpdateNet",

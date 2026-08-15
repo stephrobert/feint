@@ -180,9 +180,9 @@ func (p *Pack) Routes() []emulator.Route {
 
 		// What a Net is born with — its default security group, its main route
 		// table, the account's DHCP options set — and the interfaces its
-		// machines carry. Read-only: the shapes are measured against a real
-		// account (X-2 sweep, 2026-08-08), and the lifecycle calls are the rest
-		// of OSC-3 (#10).
+		// machines carry. The shapes are measured against a real account
+		// (X-2 sweep, 2026-08-08); the DHCP lifecycle is #172's second tranche,
+		// which is what lets a client create a set and point a Net at it.
 		p.route("ReadSecurityGroups", p.readSecurityGroups),
 		p.route("CreateSecurityGroup", p.createSecurityGroup),
 		p.route("DeleteSecurityGroup", p.deleteSecurityGroup),
@@ -198,6 +198,8 @@ func (p *Pack) Routes() []emulator.Route {
 		p.route("DeleteRoute", p.deleteRoute),
 		p.route("UpdateRoute", p.updateRoute),
 		p.route("ReadDhcpOptions", p.readDhcpOptions),
+		p.route("CreateDhcpOptions", p.createDhcpOptions),
+		p.route("DeleteDhcpOptions", p.deleteDhcpOptions),
 		p.route("ReadNics", p.readNics),
 		p.route("CreateNic", p.createNic),
 		p.route("DeleteNic", p.deleteNic),

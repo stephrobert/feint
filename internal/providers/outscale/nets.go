@@ -75,10 +75,16 @@ type readNetsRequest struct {
 }
 
 // netFilters and subnetFilters are what these resources can answer from what is
-// stored. Tags, DHCP option sets and subregions are not modelled, so they are
-// refused rather than silently matched.
+// stored. Tags and subregions are not modelled on a Net, so they are refused
+// rather than silently matched.
+//
+// DhcpOptionsSetIds is here because the Terraform provider's
+// ResourceOutscaleDHCPOptionDelete walks it: before deleting a set it reads the
+// Nets wearing it (getAttachedDHCPs) and re-points each at the `default`
+// keyword. Refusing the filter fails every `terraform destroy` of an
+// outscale_dhcp_option.
 var (
-	netFilters    = []string{"NetIds", "IpRanges", "States"}
+	netFilters    = []string{"NetIds", "IpRanges", "States", "DhcpOptionsSetIds"}
 	subnetFilters = []string{"SubnetIds", "NetIds", "IpRanges", "States"}
 )
 
@@ -174,7 +180,8 @@ func (p *Pack) readNets(w http.ResponseWriter, r *http.Request) {
 		ipRange, _ := res.Attrs["IpRange"].(string)
 		if !matchesStrings(req.Filters, "NetIds", res.ID) ||
 			!matchesStrings(req.Filters, "IpRanges", ipRange) ||
-			!matchesStrings(req.Filters, "States", res.State) {
+			!matchesStrings(req.Filters, "States", res.State) ||
+			!matchesStrings(req.Filters, "DhcpOptionsSetIds", stringOf(res.Attrs["DhcpOptionsSetId"])) {
 			continue
 		}
 		nets = append(nets, netView(res))

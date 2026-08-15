@@ -7,15 +7,20 @@ import (
 	"github.com/stephrobert/feint/internal/core/resource"
 )
 
-// DHCP options, read-only for now: the default set every account has.
+// DHCP options: the default set every account has, and the sets a client
+// creates (#172).
 //
 // Measured (X-2 sweep, 2026-08-08): the default set carries Default:true, a
 // DomainName of "<region>.compute.internal" and DomainNameServers of exactly
 // ["OutscaleProvidedDNS"] — a keyword, not an address. LogServers and NtpServers
 // are omitted, not empty. Every Net references it through DhcpOptionsSetId.
 //
-// CreateDhcpOptions and DeleteDhcpOptions are backlog: implementable on this
-// store, not yet asked for by anything this project drives.
+// The lifecycle shapes are read from contracts/outscale.json. Their document
+// adds two behaviours the schemas alone do not carry, both quoted from the
+// operation descriptions: a create must name at least one option, and the
+// default set cannot be deleted — nor can any set a Net still wears, which is
+// why the Terraform provider re-points every attached Net at the `default`
+// keyword before it deletes (resource_outscale_dhcp_option.go, detachDHCPs).
 
 const kindDhcpOptions = "dhcpoptions"
 
@@ -80,15 +85,149 @@ func (p *Pack) readDhcpOptions(w http.ResponseWriter, r *http.Request) {
 			!matchesStrings(req.Filters, "DomainNames", domain) {
 			continue
 		}
-		view := make(map[string]any, len(res.Attrs)+1)
-		for k, v := range res.Attrs {
-			view[k] = v
-		}
-		view["DhcpOptionsSetId"] = res.ID
-		out = append(out, view)
+		out = append(out, dhcpOptionsView(res))
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"DhcpOptionsSets": page(out, req.ResultsPerPage),
+		"ResponseContext": p.context(),
+	})
+}
+
+// dhcpOptionsView is the wire shape of a set: the stored attributes plus the
+// identifier the core owns. LogServers and NtpServers appear only when the set
+// carries them, which is how the measured default set behaves — omitted, not
+// empty.
+func dhcpOptionsView(res *resource.Resource) map[string]any {
+	view := make(map[string]any, len(res.Attrs)+1)
+	for k, v := range res.Attrs {
+		view[k] = v
+	}
+	view["DhcpOptionsSetId"] = res.ID
+	return view
+}
+
+type createDhcpOptionsRequest struct {
+	DomainName        string   `json:"DomainName"`
+	DomainNameServers []string `json:"DomainNameServers"`
+	LogServers        []string `json:"LogServers"`
+	NtpServers        []string `json:"NtpServers"`
+	DryRun            *bool    `json:"DryRun"`
+}
+
+func (p *Pack) createDhcpOptions(w http.ResponseWriter, r *http.Request) {
+	var req createDhcpOptionsRequest
+	if err := emulator.DecodeJSON(r, &req); err != nil {
+		p.badRequest(w, err.Error())
+		return
+	}
+	// At least one option. Their document states it on each of the four fields
+	// ("You must specify at least one of the following parameters: DomainName,
+	// DomainNameServers, LogServers, or NtpServers"), and the Terraform
+	// provider refuses the same request client-side. Without this an empty
+	// create stores a set that configures nothing and can never be read back as
+	// anything the real cloud would hold.
+	// TestCreateDhcpOptionsRequiresAtLeastOneOption fails without it.
+	if req.DomainName == "" && len(req.DomainNameServers) == 0 &&
+		len(req.LogServers) == 0 && len(req.NtpServers) == 0 {
+		p.badRequest(w, "you must specify at least one of the following parameters: "+
+			"DomainName, DomainNameServers, LogServers, or NtpServers")
+		return
+	}
+
+	now := p.env.Now()
+	attrs := map[string]any{
+		"Default": false,
+		"Tags":    []any{},
+	}
+	if req.DomainName != "" {
+		attrs["DomainName"] = req.DomainName
+	}
+	// "If no IPs are specified, the OutscaleProvidedDNS value is set by
+	// default" — the keyword, exactly as the default set carries it.
+	servers := req.DomainNameServers
+	if len(servers) == 0 {
+		servers = []string{"OutscaleProvidedDNS"}
+	}
+	attrs["DomainNameServers"] = servers
+	if len(req.LogServers) > 0 {
+		attrs["LogServers"] = req.LogServers
+	}
+	if len(req.NtpServers) > 0 {
+		attrs["NtpServers"] = req.NtpServers
+	}
+
+	res := &resource.Resource{
+		ID:      newID("dopt", p.env.NewID()),
+		Kind:    kindDhcpOptions,
+		Tenant:  resource.Tenant{Provider: Name},
+		State:   "available",
+		Created: now,
+		Updated: now,
+		Attrs:   attrs,
+	}
+	p.env.Store.Put(res)
+
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{
+		"DhcpOptionsSet":  dhcpOptionsView(res),
+		"ResponseContext": p.context(),
+	})
+}
+
+type deleteDhcpOptionsRequest struct {
+	DhcpOptionsSetID string `json:"DhcpOptionsSetId"`
+	DryRun           *bool  `json:"DryRun"`
+}
+
+func (p *Pack) deleteDhcpOptions(w http.ResponseWriter, r *http.Request) {
+	var req deleteDhcpOptionsRequest
+	if err := emulator.DecodeJSON(r, &req); err != nil {
+		p.badRequest(w, err.Error())
+		return
+	}
+	if req.DhcpOptionsSetID == "" {
+		p.badRequest(w, "DhcpOptionsSetId is required")
+		return
+	}
+
+	res, found := p.env.Store.Get(Name, kindDhcpOptions, req.DhcpOptionsSetID)
+	if !found {
+		p.notFound(w, "DHCP options set", req.DhcpOptionsSetID)
+		return
+	}
+	// "You cannot delete the `default` set" — their document, under
+	// DeleteDhcpOptions, in bold. A conflict rather than a bad request: the
+	// argument is well-formed and names a real set, it is the set's own role
+	// that forbids the operation, and osc.IsConflict is the helper a client
+	// branches on for a refused delete.
+	// TestTheDefaultDhcpOptionsSetDoesNotDelete fails without this.
+	if isDefault, _ := res.Attrs["Default"].(bool); isDefault {
+		p.conflict(w, "the DHCP options set "+req.DhcpOptionsSetID+
+			" is the account's default set, which cannot be deleted")
+		return
+	}
+
+	// A set a Net still wears does not go: "Before deleting a DHCP options
+	// set, you must disassociate it from the Nets you associated it with"
+	// (same document). The Terraform provider counts on the order rather than
+	// the refusal — it re-points every attached Net first — but a raw client
+	// deleting an attached set must be refused, or ReadNets would answer an
+	// identifier that resolves to nothing.
+	//
+	// Under the addressing lock, which is what serialises this scan against
+	// updateNet re-pointing a Net between the check and the delete.
+	// TestADhcpOptionsSetDoesNotDeleteUnderANet fails without the guard.
+	p.addresses.Lock()
+	defer p.addresses.Unlock()
+	for _, net := range p.env.Store.List(kindNet, resource.Tenant{Provider: Name}) {
+		if stringOf(net.Attrs["DhcpOptionsSetId"]) == req.DhcpOptionsSetID {
+			p.conflict(w, "the DHCP options set "+req.DhcpOptionsSetID+
+				" is still associated with the Net "+net.ID)
+			return
+		}
+	}
+	p.env.Store.Delete(Name, kindDhcpOptions, req.DhcpOptionsSetID)
+
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"ResponseContext": p.context(),
 	})
 }

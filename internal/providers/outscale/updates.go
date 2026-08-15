@@ -53,7 +53,23 @@ func (p *Pack) updateNet(w http.ResponseWriter, r *http.Request) {
 		p.notFound(w, "net", req.NetID)
 		return
 	}
-	if _, ok := p.env.Store.Get(Name, kindDhcpOptions, req.DhcpOptionsSetID); !ok {
+
+	// Under the addressing lock, paired with the scan in deleteDhcpOptions:
+	// without it a set can be deleted between the existence check below and the
+	// Commit, and the Net ends up wearing an identifier that resolves to
+	// nothing — the exact relation the existence check exists to refuse.
+	p.addresses.Lock()
+	defer p.addresses.Unlock()
+
+	// `default` is a keyword, not an identifier: their document defines it on
+	// this very field ("or `default` if you want to associate the default
+	// one"), and the Terraform provider sends it verbatim when it detaches a
+	// set before deleting it. Resolved here to the account's set, because what
+	// a Net carries — and what every read answers — is always a dopt- id.
+	// TestADhcpOptionsSetDoesNotDeleteUnderANet fails without this.
+	if req.DhcpOptionsSetID == "default" {
+		req.DhcpOptionsSetID = p.defaultDhcpOptions().ID
+	} else if _, ok := p.env.Store.Get(Name, kindDhcpOptions, req.DhcpOptionsSetID); !ok {
 		p.notFound(w, "dhcp options set", req.DhcpOptionsSetID)
 		return
 	}
