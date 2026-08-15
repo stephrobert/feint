@@ -17,6 +17,37 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **The emulator builds its own machine images, which carry an ssh daemon**
+  (#203). No image on the upstream server has one: measured on
+  `images:ubuntu/24.04`, `ubuntu/24.04/cloud`, `debian/12/cloud` and
+  `alpine/3.21/cloud`, each looked at twice — as early as the container answers
+  and again after `cloud-init status --wait` — and all four answered ABSENT with
+  nothing listening on port 22. So a machine installed one at first boot, which
+  is why it needed outbound internet, which is why it needed NAT, which is why
+  every machine was put on a managed bridge — and that bridge is the second,
+  unpublished address a Scaleway server carried here and does not carry on the
+  real cloud (#202, measured against real Scaleway and real Exoscale accounts:
+  one address each, never two). A real cloud image has the daemon in it, so this
+  is the faithful shape rather than a workaround.
+
+  `feint images` builds the five (ubuntu 24.04 and 22.04, debian 12, alpine 3.21,
+  almalinux 9, one per cloud-init template family), `feint images --check`
+  reports what is missing and exits 2, and `feint doctor` names them without ever
+  building — a build launches a container and takes minutes, which is a side
+  effect this project asks about rather than performs. The driver prefers a built
+  image and **announces** its fallback to the upstream one instead of degrading
+  in silence.
+
+  `tools/images/verify.sh` holds what matters, and it is harder than "openssh is
+  installed": each machine is given a routed NIC on 203.0.113.0/24, which nothing
+  routes and nothing masquerades, so it has no path to a package repository at
+  all. Twenty checks over the five images — answers on port 22, no outbound,
+  **exactly one address**, and two machines from one image carrying two different
+  host keys.
+
+  The CLI surface gains a verb, so `cliSurfaceVersion` moves from 1 to 2. Nothing
+  a consumer depended on changed shape.
+
 - **The contract check now looks in the omission direction, and the
   conformance gate fails on what it finds** (#88). The gate caught a field the
   emulator invents and could not see one it forgets: an absent field only

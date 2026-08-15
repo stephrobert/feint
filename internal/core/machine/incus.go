@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/netip"
 	"os"
 	"slices"
@@ -159,13 +160,54 @@ func (d *Incus) imageRef(image string) string {
 	// cloud-init, so it is the only one that can receive the default account and
 	// its keys, and it carries the Incus agent virtual machines need.
 	//
-	// It still ships no ssh daemon. Measured the hard way: the key lands in
-	// /root/.ssh/authorized_keys and nothing answers on port 22. The cloud-config
-	// the pack renders installs openssh-server for that reason. Canonical's own
-	// images would avoid the install, but the `ubuntu:` remote is not configured
-	// on every Incus installation, and depending on it makes the driver fail on
-	// machines where only `images:` exists.
+	// It ships no ssh daemon. Measured on four upstream images, each looked at
+	// twice, and all four answered ABSENT with nothing on port 22. That is why
+	// resolveImage below prefers the emulator's own build when it exists: the
+	// cloud-config still installs openssh-server, and an install at first boot is
+	// what forces a machine to have outbound internet (#203).
 	return fmt.Sprintf("%s:%s/%s/cloud", remote, name, version)
+}
+
+// resolveImage answers the image to boot: the emulator's own build when the host
+// holds it, the upstream one otherwise.
+//
+// The preference is the whole point of #203. An image feint built carries an ssh
+// daemon, so a machine from it answers on port 22 without reaching a package
+// repository — and a machine that needs no outbound needs no NAT, and therefore
+// no interface beyond the ones its provider's API publishes (#202).
+//
+// The fallback is deliberate and it is announced, never silent. Refusing to boot
+// because `feint images` has not been run would turn a first contact into a
+// failure; falling back without a word would reintroduce the boot-time install
+// and hide the reason a machine suddenly needs the network. So it degrades, and
+// says which and why.
+//
+// TestTheBuiltImageIsPreferredWhenTheHostHoldsIt fails without this.
+func (d *Incus) resolveImage(ctx context.Context, image string) string {
+	upstream := d.imageRef(image)
+	// An explicit Incus reference is the caller naming an image; honour it.
+	if strings.Contains(image, "/") {
+		return upstream
+	}
+	name, version, found := strings.Cut(image, ":")
+	if !found {
+		return upstream
+	}
+	alias := ImagePrefix + "/" + name + "/" + version
+
+	held, err := d.LocalImages(ctx)
+	if err != nil {
+		// Cannot tell: boot what has always worked rather than refuse.
+		return upstream
+	}
+	if _, ok := held[alias]; ok {
+		return alias
+	}
+	slog.Default().Warn("no image of ours for this system, booting the upstream one",
+		"image", image, "wanted", alias, "using", upstream,
+		"consequence", "the machine installs an ssh daemon at first boot and needs outbound network to do it",
+		"fix", "feint images")
+	return upstream
 }
 
 // DefaultMachineNetwork is the network a machine with no attachments boots on.
@@ -280,7 +322,7 @@ func (d *Incus) Start(ctx context.Context, spec Spec) (Machine, error) {
 		return Machine{}, fmt.Errorf("invalid network name %q", primary.Network)
 	}
 
-	args := []string{"init", d.imageRef(spec.Image), spec.Name}
+	args := []string{"init", d.resolveImage(ctx, spec.Image), spec.Name}
 	if d.VM {
 		args = append(args, "--vm")
 	}
@@ -302,7 +344,7 @@ func (d *Incus) Start(ctx context.Context, spec Spec) (Machine, error) {
 		args = append(args, "--config", "environment."+e)
 	}
 	if _, err := d.run(ctx, args...); err != nil {
-		return Machine{}, fmt.Errorf("create instance %s from %s: %w", spec.Name, d.imageRef(spec.Image), err)
+		return Machine{}, fmt.Errorf("create instance %s from %s: %w", spec.Name, d.resolveImage(ctx, spec.Image), err)
 	}
 
 	// Device keys, while the instance is cold. The address pin and the public

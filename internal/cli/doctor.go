@@ -192,7 +192,49 @@ func checkRuntime(ctx context.Context, mode string) []check {
 		})
 	}
 	out = append(out, checkIncusVersion(ctx))
+	out = append(out, checkImages(ctx, driver))
 	return out
+}
+
+// checkImages reports the machine images that are not on the host (#203).
+//
+// It diagnoses and never builds, deliberately. A build launches a container,
+// installs a package and publishes an image: minutes, and a side effect on the
+// operator's station. That is the same arbitration `--vm off` already makes,
+// and the reason `mise run serve` does not start machines unless asked. So this
+// names what is missing and the exact command that makes it, and the operator
+// decides.
+//
+// An image set that is complete says so as an ok rather than staying silent: a
+// diagnostic that only speaks when something is wrong leaves the reader unable
+// to tell "checked and fine" from "never looked".
+//
+// TestDoctorNamesTheMissingImagesAndHowToBuildThem fails without this.
+func checkImages(ctx context.Context, driver machine.Driver) check {
+	inventory, err := machine.ImageInventory(ctx, driver)
+	if err != nil {
+		return check{
+			title:  "could not read the machine images",
+			state:  verdictWarn,
+			detail: err.Error(),
+			fix:    "check that the Incus daemon answers, then run `feint images`",
+		}
+	}
+	missing := machine.MissingImages(inventory)
+	if len(missing) == 0 {
+		return check{
+			title:  fmt.Sprintf("%d machine image(s) present", len(inventory)),
+			state:  verdictOK,
+			detail: "each carries an ssh daemon, so a machine answers on port 22 without reaching a package repository",
+		}
+	}
+	return check{
+		title: fmt.Sprintf("%d machine image(s) missing", len(missing)),
+		state: verdictWarn,
+		detail: machine.ImageNames(missing) + " — no upstream image ships an ssh daemon, so " +
+			"a machine built from one installs it at first boot and needs outbound internet to do it",
+		fix: "feint images  (builds them locally; minutes, and it starts a container)",
+	}
 }
 
 // incusMinimum is the version below which NIC ACLs are refused, and the failure

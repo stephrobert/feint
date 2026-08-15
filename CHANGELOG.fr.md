@@ -19,6 +19,37 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **L'émulateur construit ses propres images de machines, et elles portent un
+  démon ssh** (#203). Aucune image du serveur amont n'en a : mesuré sur
+  `images:ubuntu/24.04`, `ubuntu/24.04/cloud`, `debian/12/cloud` et
+  `alpine/3.21/cloud`, chacune regardée deux fois (dès que le conteneur répond,
+  puis après `cloud-init status --wait`), et les quatre ont répondu ABSENT avec
+  rien à l'écoute sur le port 22. Une machine en installait donc un au premier
+  démarrage, ce qui exigeait une sortie internet, donc du NAT, donc de placer
+  toute machine sur un pont géré. Et ce pont est la seconde adresse, publiée par
+  aucune API, qu'un serveur Scaleway portait ici et ne porte pas sur le vrai
+  cloud (#202, mesuré contre de vrais comptes Scaleway et Exoscale : une adresse
+  chacun, jamais deux). Une vraie image cloud embarque le démon : c'est donc la
+  forme fidèle et non un contournement.
+
+  `feint images` construit les cinq (ubuntu 24.04 et 22.04, debian 12, alpine
+  3.21, almalinux 9, une par famille de gabarit cloud-init), `feint images
+  --check` rapporte ce qui manque et rend 2, et `feint doctor` les nomme sans
+  jamais construire : une construction démarre un conteneur et prend des minutes,
+  effet de bord que ce projet demande au lieu de l'exécuter. Le pilote préfère
+  une image construite et **annonce** son repli vers l'amont plutôt que de
+  dégrader en silence.
+
+  `tools/images/verify.sh` tient ce qui compte, et c'est plus dur que « openssh
+  est installé » : chaque machine reçoit une NIC routée sur 203.0.113.0/24, que
+  rien ne route et que rien ne masquerade, donc elle n'a aucun chemin vers un
+  dépôt de paquets. Vingt contrôles sur les cinq images : réponse sur le port 22,
+  aucune sortie, **exactement une adresse**, et deux machines issues d'une même
+  image portant deux clés d'hôte différentes.
+
+  La surface CLI gagne un verbe, donc `cliSurfaceVersion` passe de 1 à 2. Rien de
+  ce dont un consommateur dépendait n'a changé de forme.
+
 - **Le contrôle de contrat regarde désormais dans le sens de l'omission, et le
   gate de conformance échoue sur ce qu'il trouve** (#88). Le gate attrapait un
   champ que l'émulateur invente et ne voyait pas celui qu'il oublie : un champ
