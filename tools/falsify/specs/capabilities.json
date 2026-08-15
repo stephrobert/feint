@@ -1,0 +1,33 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the verified set is never published, so the flag's promise stands",
+      "file": "internal/core/machine/capabilities.go",
+      "find": "\tif d.verified != nil {\n\t\treturn *d.verified\n\t}",
+      "replace": "\tif d.verified != nil && false {\n\t\treturn *d.verified\n\t}",
+      "test": "TestVerifyNarrowsWhatTheHostCannotDeliver"
+    },
+    {
+      "label": "an unset northbound connection counts as wired",
+      "file": "internal/core/machine/verify.go",
+      "find": "\tif strings.TrimSpace(string(out)) == \"\" {",
+      "replace": "\tif strings.TrimSpace(string(out)) == \"\\x00never\" {",
+      "test": "TestVerifyNarrowsWhatTheHostCannotDeliver"
+    },
+    {
+      "label": "the version floor stops applying",
+      "file": "internal/core/machine/verify.go",
+      "find": "\tif olderThan(got, IncusMinimum) {",
+      "replace": "\tif olderThan(got, IncusMinimum) && false {",
+      "test": "TestVerifyRefusesTheFirewallBelowTheFloor"
+    },
+    {
+      "label": "an unreadable version costs the capability, which turns a blind spot into a refusal",
+      "file": "internal/core/machine/verify.go",
+      "find": "\tgot, ok := parseVersion(payload.Environment.ServerVersion)\n\tif !ok {\n\t\treturn true, \"\"\n\t}",
+      "replace": "\tgot, ok := parseVersion(payload.Environment.ServerVersion)\n\tif !ok {\n\t\treturn false, \"unreadable\"\n\t}",
+      "test": "TestAnUnreadableVersionDoesNotCostTheCapability"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "package": "./internal/core/emulator/",
+  "mutations": [
+    {
+      "label": "a wildcard-only tail counts, so every route ending in {id} answers",
+      "file": "internal/core/emulator/mispointed.go",
+      "find": "\tif literals == 0 {\n\t\treturn \"\", false\n\t}",
+      "replace": "\tif literals < 0 {\n\t\treturn \"\", false\n\t}",
+      "test": "TestAnUnclaimedPathNamesThePrefixItIsMissing"
+    },
+    {
+      "label": "the doubled prefix goes back to naming a served operation as unserved",
+      "file": "internal/providers/outscale/pack.go",
+      "find": "\tif doubled := strings.TrimPrefix(pathPrefix, \"/\"); strings.HasPrefix(action, doubled) {",
+      "replace": "\tif doubled := strings.TrimPrefix(pathPrefix, \"/\"); strings.HasPrefix(action, doubled) && false {",
+      "test": "TestAMispointedOutscaleClientIsToldWhichSideIsWrong",
+      "package": "./internal/providers/outscale/"
+    },
+    {
+      "label": "the deprecated prefix is no longer claimed",
+      "file": "internal/providers/outscale/pack.go",
+      "find": "\tif strings.HasPrefix(r.URL.Path, legacyPrefix) {",
+      "replace": "\tif strings.HasPrefix(r.URL.Path, legacyPrefix) && false {",
+      "test": "TestAMispointedOutscaleClientIsToldWhichSideIsWrong",
+      "package": "./internal/providers/outscale/"
+    },
+    {
+      "label": "only the first candidate is named, and the answer sounds certain",
+      "file": "internal/core/emulator/mispointed.go",
+      "find": "\t\tstrings.Join(prefixes, \" and \") +",
+      "replace": "\t\tstrings.Join(prefixes[:1], \" and \") +",
+      "test": "TestAmbiguityIsStatedRatherThanResolved"
+    },
+    {
+      "label": "the prefix the log records carries the path the client chose",
+      "file": "internal/core/emulator/mispointed.go",
+      "find": "\t\tprefixes = append(prefixes, prefix)",
+      "replace": "\t\tprefixes = append(prefixes, prefix+path)",
+      "test": "TestTheLogCarriesNothingTheClientChose"
+    },
+    {
+      "label": "the answer repeats the path back, which is what needed an allow-list defending it",
+      "file": "internal/core/emulator/mispointed.go",
+      "find": "\treturn \"no route matches this path, but it is served under \" +",
+      "replace": "\treturn \"no route matches \" + path + \", but it is served under \" +",
+      "test": "TestTheAnswerNeverRepeatsWhatTheClientSent"
+    }
+  ]
+}

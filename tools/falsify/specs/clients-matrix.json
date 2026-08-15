@@ -1,0 +1,26 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "the provider column becomes a constant again (the original defect)",
+      "file": "internal/cli/docs_clients.go",
+      "find": "\t\tmine := proofs[c.name]",
+      "replace": "\t\tmine := proofs[c.name]\n\t\t_ = mine\n\t\tmine = []clientProof{{provider: \"scaleway\", suite: terraformSuite}}",
+      "test": "TestTheClientMatrixCreditsEveryProviderCIProves"
+    },
+    {
+      "label": "the column stops following the workflow, every client credits every provider",
+      "file": "internal/cli/docs_clients.go",
+      "find": "\t\tmine := proofs[c.name]",
+      "replace": "\t\tmine := proofs[c.name]\n\t\t_ = mine\n\t\tmine = []clientProof{{provider: \"outscale\", suite: terraformSuite}, {provider: \"scaleway\", suite: terraformSuite}}",
+      "test": "TestAClientLosesAProviderCIStopsDriving"
+    },
+    {
+      "label": "an unlisted client is dropped instead of refused",
+      "file": "internal/cli/docs_clients.go",
+      "find": "\tif len(unlisted) > 0 {",
+      "replace": "\tif false && len(unlisted) > 0 {",
+      "test": "TestAnUnlistedClientIsRefusedRatherThanLeftOut"
+    }
+  ]
+}
