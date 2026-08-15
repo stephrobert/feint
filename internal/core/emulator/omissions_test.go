@@ -292,3 +292,35 @@ func TestAnUncomparedOperationIsNotAccused(t *testing.T) {
 		t.Errorf("an operation nobody drove has nothing missing, got %v", view.Fields.Missing)
 	}
 }
+
+// A synthetic answer does not vouch for a served field, and CI is what proved
+// it needed saying.
+//
+// The probe leg of conformance.yml drives no client at all, so every object in
+// it is the minimal one the probe's own seeding builds: no address linked, no
+// tags, no user data. The gate accused ReadVms of omitting PublicIp, Tags and
+// UserData — fields that exist only on a machine a user configured, absent for
+// a reason belonging to the run rather than to the emulator.
+//
+// Both halves are asserted, because a guard that swallowed both would silence
+// the check this file exists for: the same incomplete answer accuses nobody
+// when only the probe asked for it, and is a finding the moment a client does.
+func TestASyntheticAnswerDoesNotVouchForAServedField(t *testing.T) {
+	incomplete := answer(http.StatusOK, "application/json",
+		`{"things": [{"id": "thing-1", "image": {"id": "img-1", "arch": "x86_64"}}]}`)
+
+	ts := omissionsServer(t, incomplete, nil, realThings)
+	driveRoute(t, ts, "/stub/things", true)
+	if missing := viewOf(t, ts).Fields.Missing["stub/v1/API.ListThings"]; len(missing) != 0 {
+		t.Errorf("a synthetic answer must not be held to the document's field list, got %v", missing)
+	}
+
+	// The accepting half, on a second server so the first cannot have recorded
+	// anything for it: the identical answer from a real client is the finding.
+	real := omissionsServer(t, incomplete, nil, realThings)
+	driveRoute(t, real, "/stub/things", false)
+	missing := viewOf(t, real).Fields.Missing["stub/v1/API.ListThings"]
+	if len(missing) != 1 || missing[0] != "things[].name: string" {
+		t.Errorf("the same omission from a client is what the gate exists for, got %v", missing)
+	}
+}

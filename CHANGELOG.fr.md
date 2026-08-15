@@ -39,6 +39,15 @@ change ni l'un ni l'autre a sa place dans `git log`.
   un decline dont le champ est servi dans l'exécution même échoue comme périmé,
   pour que la liste des excuses ne pourrisse pas.
 
+  *Sur les objets qu'un client a pilotés*, et c'est une règle plutôt qu'une
+  tournure : les réponses de la sonde ne cautionnent rien ici. La CI l'a prouvé
+  dès la première exécution, puisque la jambe `probe` ne pilote aucun client :
+  chaque objet y est l'objet minimal que construit le semis, et le gate a
+  accusé `ReadVms` d'omettre `PublicIp`, `Tags` et `UserData`, des champs qui
+  n'existent que sur une machine configurée par un utilisateur. C'est la
+  frontière que #163 avait déjà tracée pour le rapport des champs non lus : le
+  trafic synthétique ne déplace aucun chiffre visible d'un client.
+
 - **Ce dont la CI a le droit de dépendre est gelé par un test, pas par une
   phrase** (#132). Les formes de `/_feint/health`, `/_feint/routes`,
   `/_feint/conformance` et `/_feint/trace`, les verbes et drapeaux du CLI et

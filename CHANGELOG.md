@@ -35,6 +35,14 @@ what this project is judged on: **a response shape a client can observe**, and
   shapes gate reads, printed with its reason; a decline whose field the run
   demonstrably serves fails as stale, so the excused list cannot rot.
 
+  *Over the objects a client drove*, and that is a rule rather than a phrase:
+  the probe's answers vouch for nothing here. CI proved why on the first run —
+  the probe leg drives no client, so every object in it is the minimal one the
+  seeding builds, and the gate accused `ReadVms` of omitting `PublicIp`, `Tags`
+  and `UserData`, fields that exist only on a machine a user configured. Same
+  boundary #163 drew for the unread-fields report: synthetic traffic moves no
+  client-facing number.
+
 - **What CI is allowed to depend on is frozen by a test, not by a sentence**
   (#132). The shapes of `/_feint/health`, `/_feint/routes`,
   `/_feint/conformance` and `/_feint/trace`, the CLI's verbs and flags, and the

@@ -204,7 +204,7 @@ func (o *observer) wrap(provider string, r Route) http.HandlerFunc {
 		var violations []string
 		var vs contract.Violations
 		if doc != nil {
-			vs = o.check(doc, r.Operation, rec)
+			vs = o.check(doc, r.Operation, rec, synthetic)
 			for _, v := range vs {
 				violations = append(violations, v.String())
 			}
@@ -265,7 +265,7 @@ func (o *observer) record(operation string, synthetic bool) {
 // report — one bad field repeated across a hundred calls is one defect — and
 // hands the violations back, because the log needs the verdict on this exchange
 // rather than on the operation.
-func (o *observer) check(doc *contract.Doc, operation string, rec *recorder) contract.Violations {
+func (o *observer) check(doc *contract.Doc, operation string, rec *recorder, synthetic bool) contract.Violations {
 	if rec.body == nil || rec.status < 200 || rec.status >= 300 || rec.body.Len() == 0 {
 		return nil
 	}
@@ -292,7 +292,24 @@ func (o *observer) check(doc *contract.Doc, operation string, rec *recorder) con
 	}
 	// Whatever the verdict below: a violating answer still shows which fields
 	// it serves, and the omission check reads the union of all of them.
-	o.recordServed(operation, decoded)
+	//
+	// A synthetic answer does not count, and CI is what proved it. The probe
+	// leg of conformance.yml drives no client at all, so every object in it is
+	// the minimal one the probe's own seeding builds: no address linked, no
+	// tags, no user data. The gate then accused ReadVms of omitting
+	// PublicIp, Tags and UserData — fields that exist only on a machine a user
+	// configured, absent for a reason that is the run's and not the emulator's.
+	//
+	// So the verdict is over what a client-driven run served, which is the same
+	// boundary #163 drew for the unread-fields report one screen up: synthetic
+	// traffic moves no client-facing number. The contract check itself still
+	// runs on synthetic answers — the probe's whole contract axis depends on
+	// it — and only this record is skipped.
+	//
+	// TestASyntheticAnswerDoesNotVouchForAServedField fails without the guard.
+	if !synthetic {
+		o.recordServed(operation, decoded)
+	}
 	if vs := doc.ValidateResponse(name, decoded); len(vs) > 0 {
 		o.report(operation, vs)
 		return vs
