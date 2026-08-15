@@ -31,9 +31,51 @@ encore aux artefacts qu'elle décrit, qu'une réponse corresponde encore à la
 description d'API du provider. La CI attrape tout cela, mais des heures plus tard
 et devant tout le monde.
 
-Elle installe deux types de hooks, et le second se rate facilement : `pre-commit`
-et `commit-msg`. La configuration déclare les deux via
+Elle installe trois types de hooks, et les deux derniers se ratent facilement :
+`pre-commit`, `commit-msg` et `pre-push`. La configuration déclare les trois via
 `default_install_hook_types`, donc la commande seule suffit.
+
+### Avant de pousser
+
+Le hook `pre-push` lance `mise run prepush` : `check`, `docs:check`,
+`drift:check` et `shapes:check`. Déterministe, hors ligne, quelques secondes.
+C'est ce qu'une pull request refusera, sans jamais dépendre de la météo d'un
+runner.
+
+**Ce n'est pas suffisant**, et ce qui manque dépend de ce que vous avez changé :
+
+| ce que votre changement touche | à lancer en plus | ce que cela prouve |
+|---|---|---|
+| une route, une forme de réponse, une erreur | `mise run conformance` | qu'un vrai client passe encore |
+| un gate, un score, un verdict sur une exécution | `mise run conformance:leg -- <jambe>` | qu'il tient sur une exécution **partielle** |
+| une garde, une validation, un refus | la retirer dans une copie et lancer le test | que le test échoue sans elle |
+| `internal/core/machine`, un réseau, un pare-feu | `FEINT_VM=incus-ovn mise run conformance` | que le runtime accepte ce que le pilote envoie |
+| un artefact de `coverage/` | `mise run evidence:update` | que le registre n'a pas rétréci |
+
+**La deuxième ligne est celle qui a coûté deux pull requests rouges.**
+`mise run conformance` pilote toutes les suites contre un seul émulateur, ce qui
+est exactement la population qu'un verdict du genre *aucune réponse de cette
+exécution n'a porté ce champ* suppose : un gate qui juge une exécution y est vert
+**par construction**. La CI ne fait pas cela. Le workflow de conformance
+répartit les clients en matrice, un émulateur par jambe, si bien que toute jambe
+sauf `fields` est une exécution partielle : la jambe `probe` ne pilote aucun
+client, et la jambe `terraform` ne pilote pas `oapi-cli`.
+
+`mise run conformance:leg -- probe` reproduit une de ces jambes en local, et la
+reproduction est prouvée plutôt que supposée : en remettant la garde qui
+manquait, la jambe nomme localement les mêmes champs que le job en échec avait
+listés.
+
+La forme générale, qui vaut ailleurs : **un contrôle dont le verdict porte sur
+« cette exécution » doit être éprouvé sur l'exécution la plus pauvre qui le
+déclenchera, jamais sur la plus riche.** La plus riche est celle qu'on a sous la
+main, et c'est ce qui rend l'erreur si facile.
+
+`mise run conformance` n'est **délibérément pas** dans le hook. Il réclame `scw`,
+`oapi-cli`, `exo` et Terraform installés, et prend des minutes : en hook, il
+échouerait sur un binaire absent plutôt que sur votre code, et le réflexe qu'il
+enseignerait est `--no-verify`, qui désarme tous les hooks d'un coup. Un gate que
+l'on saute par habitude est pire que pas de gate.
 
 ### Si vous contribuez depuis un fork
 

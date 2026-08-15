@@ -11,7 +11,7 @@
 # would sit in this file doing nothing on every machine, which is the exact
 # failure this repository keeps finding elsewhere: a control that reads as one.
 # Declaring the types here makes the single documented command enough.
-default_install_hook_types: [pre-commit, commit-msg]
+default_install_hook_types: [pre-commit, commit-msg, pre-push]
 
 repos:
   # Conventional Commits, checked by the reference implementation rather than by
@@ -171,6 +171,29 @@ repos:
         entry: bash -c 'mise run contract:update && git diff --exit-code contracts/'
         pass_filenames: false
         files: ^(contracts/.*\.json|tools/contract/.*)$
+
+      # On pre-push, and only this one. The per-file hooks above run on what a
+      # commit touched; this runs the whole gate set on what is about to leave
+      # the machine, which is a different question — a branch can be green
+      # commit by commit and red as a whole, and two pull requests found that out
+      # in CI on 2026-08-15.
+      #
+      # Why these four and not `mise run conformance`: they are deterministic,
+      # offline, and take seconds. Conformance needs `scw`, `oapi-cli`, `exo` and
+      # Terraform installed and takes minutes; as a hook it would fail on a
+      # missing binary rather than on the code, and the reflex it would teach is
+      # `--no-verify`, which turns off every hook in this file at once. That is
+      # the same reasoning that keeps commitizen-branch out, one stage above.
+      #
+      # So conformance stays a deliberate step, and CLAUDE.md says when it is
+      # required. What a hook must never be is a gate somebody routinely skips.
+      - id: prepush
+        name: the gates a pull request will fail on
+        language: system
+        entry: mise run prepush
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
 
       - id: trufflehog
         name: TruffleHog (secret scan)

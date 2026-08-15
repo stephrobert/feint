@@ -292,6 +292,33 @@ fi
 FEINT_FIELD_GATE=1 tools/conformance/score.sh "http://$FEINT_ADDR"
 """
 
+[tasks.prepush]
+description = "Everything a pull request will fail on that costs seconds and needs no client"
+depends = ["check", "docs:check", "drift:check", "shapes:check"]
+# What this is, and what it deliberately is not.
+#
+# These four are deterministic, offline, and take seconds: they can be a hook
+# without ever teaching anybody `--no-verify`, which is the failure mode
+# .pre-commit-config.yaml already documents for the pre-push stage.
+#
+# What they do NOT catch is the class that cost two red pull requests on #88:
+# a gate whose verdict is about "this run" is green under `mise run conformance`
+# by construction, because that task drives every suite against one emulator.
+# CI splits the clients across a matrix. `mise run conformance:leg -- <leg>`
+# reproduces one of those partial legs, and it is what to run when a change adds
+# or moves a gate. CLAUDE.md carries the decision table.
+run = "echo 'prepush passed - conformance and conformance:leg are the two it does not cover'"
+
+[tasks."conformance:leg"]
+description = "Reproduce one leg of the CI matrix locally: mise run conformance:leg -- probe"
+depends = ["build"]
+# The task above drives every suite against one emulator, so a gate whose
+# verdict is about "this run" is green there by construction. CI splits the
+# clients across a matrix and every leg but `fields` is a partial run. That
+# difference cost two red pull requests on #88, neither reproducible locally
+# until this existed. tools/conformance/leg.sh carries the detail.
+run = "tools/conformance/leg.sh"
+
 [tasks."image:build"]
 description = "Build the control-plane container image from a fresh static binary"
 # The image copies a prebuilt binary (see the Dockerfile for why); this builds

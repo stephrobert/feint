@@ -28,9 +28,48 @@ declares its upstream operation, that no external dependency crept into
 describes, that a response still matches the provider's API description. CI
 catches all of it, but hours later and in front of everybody.
 
-It installs two hook types, and the second one is easy to miss: `pre-commit` and
-`commit-msg`. The configuration declares both through
+It installs three hook types, and the last two are easy to miss: `pre-commit`,
+`commit-msg` and `pre-push`. The configuration declares all three through
 `default_install_hook_types`, so the single command is enough.
+
+### Before you push
+
+The `pre-push` hook runs `mise run prepush`: `check`, `docs:check`,
+`drift:check` and `shapes:check`. Deterministic, offline, seconds. It is what a
+pull request will refuse without ever depending on a runner's weather.
+
+**It is not enough**, and what it misses depends on what you changed:
+
+| what your change touches | run as well | what that proves |
+|---|---|---|
+| a route, a response shape, an error | `mise run conformance` | that a real client still passes |
+| a gate, a score, a verdict about a run | `mise run conformance:leg -- <leg>` | that it holds on a **partial** run |
+| a guard, a validation, a refusal | remove it in a copy and run the test | that the test fails without it |
+| `internal/core/machine`, a network, a firewall | `FEINT_VM=incus-ovn mise run conformance` | that the runtime accepts what the driver sends |
+| an artefact under `coverage/` | `mise run evidence:update` | that the record did not narrow |
+
+**The second row is the one that cost two red pull requests.**
+`mise run conformance` drives every suite against a single emulator, which is
+exactly the population a verdict like *no answer of this run carried this field*
+assumes: a whole-run gate is green there **by construction**. CI does not do
+that. The conformance workflow splits the clients across a matrix, one emulator
+per leg, so every leg but `fields` is a partial run — the `probe` leg drives no
+client at all, and the `terraform` leg drives no `oapi-cli`.
+
+`mise run conformance:leg -- probe` reproduces one of those legs locally, and
+the reproduction is proved rather than assumed: put back the guard that was
+missing and the leg names, locally, the same fields the failing CI job listed.
+
+The general form, worth carrying elsewhere: **a check whose verdict is about
+"this run" must be exercised on the poorest run that will trigger it, never on
+the richest.** The richest is the one you have in front of you, which is what
+makes the mistake so easy.
+
+`mise run conformance` is deliberately **not** in the hook. It needs `scw`,
+`oapi-cli`, `exo` and Terraform installed and takes minutes; as a hook it would
+fail on a missing binary rather than on your code, and the reflex it would teach
+is `--no-verify`, which turns off every hook at once. A gate people routinely
+skip is worse than no gate.
 
 ### If you are contributing from a fork
 
