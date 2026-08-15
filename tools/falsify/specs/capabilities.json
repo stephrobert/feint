@@ -9,11 +9,11 @@
       "test": "TestVerifyNarrowsWhatTheHostCannotDeliver"
     },
     {
-      "label": "an unset northbound connection counts as wired",
+      "label": "an absent northbound socket counts as wired",
       "file": "internal/core/machine/verify.go",
-      "find": "\tif strings.TrimSpace(string(out)) == \"\" {",
-      "replace": "\tif strings.TrimSpace(string(out)) == \"\\x00never\" {",
-      "test": "TestVerifyNarrowsWhatTheHostCannotDeliver"
+      "find": "\tinfo, err := d.stat(path)\n\tif err != nil {",
+      "replace": "\tinfo, err := d.stat(path)\n\tif err != nil && false {",
+      "test": "TestAnUnsetNorthboundIsTheDefaultAndNotAnAbsence"
     },
     {
       "label": "the version floor stops applying",
@@ -28,6 +28,13 @@
       "find": "\tgot, ok := parseVersion(payload.Environment.ServerVersion)\n\tif !ok {\n\t\treturn true, \"\"\n\t}",
       "replace": "\tgot, ok := parseVersion(payload.Environment.ServerVersion)\n\tif !ok {\n\t\treturn false, \"unreadable\"\n\t}",
       "test": "TestAnUnreadableVersionDoesNotCostTheCapability"
+    },
+    {
+      "label": "an unset key is read as an absence again, which refuses a healthy host",
+      "file": "internal/core/machine/verify.go",
+      "find": "\tif conn == \"\" {\n\t\tconn = ovnDefaultNorthbound\n\t}",
+      "replace": "\tif conn == \"\" && ovnDefaultNorthbound == \"\" {\n\t\tconn = ovnDefaultNorthbound\n\t}",
+      "test": "TestAnUnsetNorthboundIsTheDefaultAndNotAnAbsence"
     }
   ]
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/netip"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -62,6 +63,13 @@ type Incus struct {
 	// It proves what the driver sends, never what the runtime accepts. That
 	// second half is the conformance suite's job and cannot be faked.
 	runner func(ctx context.Context, args ...string) ([]byte, error)
+
+	// statPath replaces the filesystem lookup Verify uses to decide whether the
+	// OVN northbound socket exists, and is only ever set by a test. Existence,
+	// never a connection: the socket is root-owned (srwxr-x--- root root) and
+	// incusd is what talks to it, so a process running as the operator would be
+	// refused on a host where OVN works perfectly.
+	statPath func(string) (os.FileInfo, error)
 
 	// agentPoll overrides how often a virtual machine is asked whether its
 	// agent answers. Only a test sets it, for the same reason runner exists:
