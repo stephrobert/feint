@@ -82,13 +82,33 @@ fi
 # offline shapes gate cannot either (its store is empty, so it never sees an
 # element of a list). This run's populated objects are where the recording
 # finally bites.
+# It judges a whole run, and only a whole run says so.
+#
+# The verdict asks whether *no answer of this run* carried a declared field, so
+# it is a statement about the run's entire population. CI splits the clients
+# across a matrix, one emulator per leg, and a leg that never exercises a
+# feature legitimately never serves the fields that feature produces: the
+# terraform leg drives no oapi-cli, so ReadVms carries no UserData, ReadVolumes
+# no SnapshotId, and ReadSecurityGroups no rule whose member is another group.
+# Failing there blamed the emulator for the shape of the leg.
+#
+# So the gate is declared rather than assumed, the way a driver capability is:
+# FEINT_FIELD_GATE=1 is set by `mise run conformance`, which drives every suite
+# against one emulator, and by the workflow job that does the same. Everywhere
+# else the findings still print, marked for what they are, and fail nothing.
+# An undeclared whole run counts as partial.
 omissions="$(printf '%s' "$report" | jq -r '
   .fields.missing | to_entries[] | "  \(.key): \(.value | join(", "))"')"
 if [ -n "$omissions" ]; then
-  echo "FAIL: fields the real cloud returns and no answer of this run carried:" >&2
-  echo "$omissions" >&2
-  echo "       Either serve them, or decline them in the pack's DeclinedFields() with a reason." >&2
-  exit 1
+  if [ "${FEINT_FIELD_GATE:-0}" = "1" ]; then
+    echo "FAIL: fields the real cloud returns and no answer of this run carried:" >&2
+    echo "$omissions" >&2
+    echo "       Either serve them, or decline them in the pack's DeclinedFields() with a reason." >&2
+    exit 1
+  fi
+  echo "declared fields no answer of this partial run carried (not judged: this run"
+  echo "drove some clients, not all; the gate runs where every suite does):"
+  echo "$omissions"
 fi
 
 # What the gate subtracts stays visible: each excused field is a pack's

@@ -151,7 +151,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        client: [scw-cli, terraform, opentofu, oapi-cli, exo-cli, probe]
+        # `fields` is not a client: it is the leg that drives every one of
+        # them against a single emulator, which is what the omission gate
+        # (#88) needs to mean anything. Its verdict is that *no answer of
+        # this run* carried a declared field, and every other leg here is a
+        # partial run by construction — the terraform leg drives no
+        # oapi-cli, so ReadVms carries no UserData and the gate would blame
+        # the emulator for the shape of the leg. Only this one sets
+        # FEINT_FIELD_GATE.
+        client: [scw-cli, terraform, opentofu, oapi-cli, exo-cli, probe, fields]
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -198,7 +206,7 @@ jobs:
       # Scaleway publishes SHA256SUMS beside its binaries, so the sums come from
       # upstream rather than from this file.
       - name: Install the Scaleway CLI
-        if: matrix.client == 'scw-cli'
+        if: matrix.client == 'scw-cli' || matrix.client == 'fields'
         run: |
           set -euo pipefail
           workdir="$(mktemp -d)"
@@ -211,7 +219,7 @@ jobs:
           scw version
 
       - name: Run the CLI conformance suite
-        if: matrix.client == 'scw-cli'
+        if: matrix.client == 'scw-cli' || matrix.client == 'fields'
         run: tools/conformance/scaleway/scw-cli.sh http://127.0.0.1:4599
 
       # The AppImage is the only binary Outscale publishes for it. It needs FUSE
@@ -225,7 +233,7 @@ jobs:
       # means recomputing OAPI_SHA256, which is the point: the bump becomes a
       # decision rather than a version string.
       - name: Install the Outscale CLI
-        if: matrix.client == 'oapi-cli'
+        if: matrix.client == 'oapi-cli' || matrix.client == 'fields'
         env:
           OAPI_VERSION: 'v0.15.0'
           OAPI_SHA256: '798b9af7db9da9539303732ba55be71ff0bec58aa9ef51751de41b2eeee8138a'
@@ -254,7 +262,7 @@ jobs:
           oapi-cli --version
 
       - name: Run the Outscale CLI conformance suite
-        if: matrix.client == 'oapi-cli'
+        if: matrix.client == 'oapi-cli' || matrix.client == 'fields'
         run: tools/conformance/outscale/oapi-cli.sh http://127.0.0.1:4599
 
       # The Exoscale CLI cannot be redirected by a flag or an environment
@@ -262,7 +270,7 @@ jobs:
       # that value must carry the /v2 suffix. Both facts were measured with a
       # logging proxy; neither is documented. The suite writes that file itself.
       - name: Install the Exoscale CLI
-        if: matrix.client == 'exo-cli'
+        if: matrix.client == 'exo-cli' || matrix.client == 'fields'
         env:
           EXO_VERSION: 'v1.95.6'
         run: |
@@ -279,7 +287,7 @@ jobs:
           exo version
 
       - name: Run the Exoscale CLI conformance suite
-        if: matrix.client == 'exo-cli'
+        if: matrix.client == 'exo-cli' || matrix.client == 'fields'
         run: tools/conformance/exoscale/exo-cli.sh http://127.0.0.1:4599
 
       # The release zip and its checksum, verified before anything runs — not a
@@ -291,7 +299,7 @@ jobs:
       # The version is pinned rather than floating: a conformance suite whose
       # client changes under it reports a difference nobody made.
       - name: Install Terraform
-        if: matrix.client == 'terraform'
+        if: matrix.client == 'terraform' || matrix.client == 'fields'
         env:
           TERRAFORM_VERSION: '1.13.3'
         run: |
@@ -339,11 +347,11 @@ jobs:
       # Reported by a reader comparing the README with the workflow, which is the
       # only way this is ever found.
       - name: Run the Terraform conformance suite — Scaleway
-        if: matrix.client == 'terraform' || matrix.client == 'opentofu'
+        if: matrix.client == 'terraform' || matrix.client == 'opentofu' || matrix.client == 'fields'
         run: tools/conformance/scaleway/terraform.sh http://127.0.0.1:4599
 
       - name: Run the Terraform conformance suite — Outscale
-        if: matrix.client == 'terraform' || matrix.client == 'opentofu'
+        if: matrix.client == 'terraform' || matrix.client == 'opentofu' || matrix.client == 'fields'
         run: tools/conformance/outscale/terraform.sh http://127.0.0.1:4599
 
       # No client at all: every route driven from its provider's own API
@@ -372,8 +380,17 @@ jobs:
       # /_feint/conformance from the running emulator and exits 1 when nothing
       # answers. Stopping first failed this step, and with it every leg of the
       # matrix, on runs that were otherwise green.
+      #
+      # FEINT_FIELD_GATE on the `fields` leg only, because only that leg drove
+      # every client against this emulator. Everywhere else score.sh still
+      # prints what the omission check found and judges none of it: an absent
+      # field on a partial run says nothing about the emulator. An undeclared
+      # whole run counts as partial, the way an undeclared driver capability
+      # counts as absent.
       - name: Report what was exercised
         if: always()
+        env:
+          FEINT_FIELD_GATE: ${{ matrix.client == 'fields' && '1' || '0' }}
         run: tools/conformance/score.sh http://127.0.0.1:4599
 
       # Always: a job that leaves the emulator running leaves a process holding a

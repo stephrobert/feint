@@ -283,7 +283,13 @@ if [ -n "${FEINT_EVIDENCE_OUT:-}" ]; then
 fi
 # Two numbers rather than one: how much is mounted, and how much of it a real
 # client has actually driven. The gap is the part nobody has proven.
-tools/conformance/score.sh "http://$FEINT_ADDR"
+#
+# FEINT_FIELD_GATE because this task drove every suite against one emulator,
+# which is what the omission check needs to mean anything: its verdict is that
+# *no answer of this run* carried a declared field, and a run that skipped a
+# client never had the chance. Set here, and in the workflow job that does the
+# same; nowhere else, so a partial run reports and judges nothing.
+FEINT_FIELD_GATE=1 tools/conformance/score.sh "http://$FEINT_ADDR"
 """
 
 [tasks."image:build"]
