@@ -32,17 +32,24 @@ import (
 // TestAnUnclaimedPathNamesThePrefixItIsMissing fails without this.
 
 // missingPrefixHint answers the sentence to add to a 404 for a path that would
-// have matched had it carried a prefix this server mounts, or "" when the path
-// is not that shape.
+// have matched had it carried a prefix this server mounts, and the prefixes it
+// named. Both are empty when the path is not that shape.
+//
+// The prefixes are returned separately because they are the half that came from
+// this process rather than from the client: the sentence embeds the request
+// path, the prefixes are read out of the mounted route table. The log takes the
+// second and never the first, so no client-derived value reaches a log record
+// at all — a structural guarantee rather than an argument about what an
+// allow-list keeps out.
 //
 // Matching is on the mounted patterns rather than on their wildcards: a request
 // for "/instance" is compared with "/v2/instance", and a request for
 // "/instance/i-1" with "/v2/instance/{id}" through the same segment count and
 // literal comparison the router itself would use. Anything cleverer would be a
 // second router, and two routers disagreeing is worse than no hint.
-func missingPrefixHint(path string, routes []Route) string {
+func missingPrefixHint(path string, routes []Route) (string, []string) {
 	if path == "" || path == "/" {
-		return ""
+		return "", nil
 	}
 	// The answer echoes the path back, so the path is validated before it is
 	// echoed rather than escaped afterwards — the order this repository states
@@ -53,10 +60,10 @@ func missingPrefixHint(path string, routes []Route) string {
 	// to hint costs nothing: the plain 404 stands, which is the right answer for
 	// a request that was never going to match anyway.
 	if !plainPath(path) {
-		return ""
+		return "", nil
 	}
 	seen := map[string]bool{}
-	var found []string
+	var found, prefixes []string
 	for _, r := range routes {
 		prefix, ok := prefixAnswering(path, r.Path)
 		if !ok || seen[prefix] {
@@ -64,18 +71,20 @@ func missingPrefixHint(path string, routes []Route) string {
 		}
 		seen[prefix] = true
 		found = append(found, strings.TrimSuffix(prefix, "/")+path)
+		prefixes = append(prefixes, prefix)
 	}
 	if len(found) == 0 {
-		return ""
+		return "", nil
 	}
 	// Sorted so two runs say the same thing, and joined rather than picked:
 	// when two prefixes would both answer, saying so is more honest than
 	// choosing one and sounding certain.
 	sort.Strings(found)
+	sort.Strings(prefixes)
 	return "no route matches " + path + ", but " + strings.Join(found, " and ") +
 		" is served: the endpoint is probably missing that prefix. " +
 		"`feint env <provider>` prints the endpoint a client expects, and " +
-		"/_feint/routes lists what is mounted"
+		"/_feint/routes lists what is mounted", prefixes
 }
 
 // prefixAnswering reports the prefix that turns path into pattern, when one

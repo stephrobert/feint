@@ -360,6 +360,7 @@ func (s *Server) handleUnrouted(w http.ResponseWriter, r *http.Request) {
 	rec := &recorder{ResponseWriter: w, status: http.StatusOK}
 	started := time.Now()
 	hint := ""
+	var missing []string
 	switch {
 	case best != nil:
 		best.NotFound(rec, r)
@@ -369,7 +370,7 @@ func (s *Server) handleUnrouted(w http.ResponseWriter, r *http.Request) {
 		// table whether this path would have matched with a prefix in front of
 		// it — the shape a client pointed at the wrong endpoint produces, and
 		// the one thing that page never said (#179).
-		hint = missingPrefixHint(r.URL.Path, s.AllRoutes())
+		hint, missing = missingPrefixHint(r.URL.Path, s.AllRoutes())
 		if hint != "" {
 			writeMispointed(rec, hint)
 		} else {
@@ -380,15 +381,19 @@ func (s *Server) handleUnrouted(w http.ResponseWriter, r *http.Request) {
 	// operator watching the emulator sees the cause even when their client
 	// swallowed it.
 	//
-	// The hint alone, not the path beside it: the hint opens by naming the path,
-	// so logging both wrote the same value twice and gave a reader two things to
-	// reconcile. It is also the narrower claim to defend — this line is reached
-	// only when missingPrefixHint returned something, which happens only after
-	// plainPath allow-listed the path to [A-Za-z0-9/_.~:-] and capped it at 200
-	// bytes. No newline, quote or `=` can reach a log record from here, and
-	// TestAPathOutsideTheAllowListEarnsNoHint is what holds that.
-	if hint != "" {
-		s.env.Log.Warn("mispointed client", "hint", hint)
+	// The prefixes and nothing else. They are read out of this process's own
+	// mounted route table; the sentence in the body embeds the request path, and
+	// that half never reaches a log record.
+	//
+	// The first version logged the path, then the hint that contains it. Both
+	// were defensible — plainPath allow-lists the path before either exists —
+	// but an argument about what an allow-list keeps out is weaker than a value
+	// that never came from the client at all. This is the second kind.
+	//
+	// TestTheLogCarriesNothingTheClientChose fails without it.
+	if len(missing) > 0 {
+		s.env.Log.Warn("a client is pointing without a served prefix",
+			"missing_prefix", strings.Join(missing, " "))
 	}
 	if !internalPath(r.URL.Path) {
 		s.stream.publishExchange(trace.Exchange{

@@ -39,7 +39,7 @@ func TestAnUnclaimedPathNamesThePrefixItIsMissing(t *testing.T) {
 		{"the root", "/", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := missingPrefixHint(tc.path, routes)
+			got, _ := missingPrefixHint(tc.path, routes)
 			switch {
 			case tc.want == "" && got != "":
 				t.Errorf("a path that names no served route must get no hint, got %q", got)
@@ -59,7 +59,7 @@ func TestAmbiguityIsStatedRatherThanResolved(t *testing.T) {
 		{Method: "GET", Path: "/v2/instance"},
 		{Method: "GET", Path: "/other/instance"},
 	}
-	got := missingPrefixHint("/instance", routes)
+	got, _ := missingPrefixHint("/instance", routes)
 	if !strings.Contains(got, "/v2/instance") || !strings.Contains(got, "/other/instance") {
 		t.Errorf("both candidates must appear, got %q", got)
 	}
@@ -90,15 +90,45 @@ func TestAPathOutsideTheAllowListEarnsNoHint(t *testing.T) {
 		"/instance/key=value",
 		"/instance/two words",
 	} {
-		if got := missingPrefixHint(bad, routes); got != "" {
+		if got, _ := missingPrefixHint(bad, routes); got != "" {
 			t.Errorf("a path outside the allow-list must earn no hint.\n path: %q\n hint: %q", bad, got)
 		}
 	}
 
 	// And the shapes a real client sends are still answered.
 	for _, good := range []string{"/instance/i-123", "/instance/a.b-c_d~e", "/instance/i:1"} {
-		if got := missingPrefixHint(good, routes); got == "" {
+		if got, _ := missingPrefixHint(good, routes); got == "" {
 			t.Errorf("an ordinary identifier was refused by the allow-list: %q", good)
+		}
+	}
+}
+
+// The log carries nothing the client chose.
+//
+// CodeQL flagged the hint as a tainted value reaching a log record, and it was
+// right to: the sentence embeds the request path. The first answer narrowed the
+// line to one argument and leaned on plainPath's allow-list, which is a real
+// control and still an argument about what a filter keeps out.
+//
+// This is the stronger form. The prefixes come out of this process's own mounted
+// route table, so the value logged never came from the client at all. The test
+// holds exactly that: whatever the client sends, the second return carries only
+// strings that appear in the route table.
+func TestTheLogCarriesNothingTheClientChose(t *testing.T) {
+	routes := []Route{
+		{Method: "GET", Path: "/v2/instance"},
+		{Method: "GET", Path: "/v2/instance/{id}"},
+	}
+	for _, path := range []string{"/instance", "/instance/i-123", "/instance/anything-at-all"} {
+		_, prefixes := missingPrefixHint(path, routes)
+		if len(prefixes) == 0 {
+			t.Fatalf("no prefix for %q, so this test measures nothing", path)
+		}
+		for _, p := range prefixes {
+			if p != "/v2/" {
+				t.Errorf("the logged value must come from the route table and nowhere "+
+					"else; got %q for request %q", p, path)
+			}
 		}
 	}
 }
