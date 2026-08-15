@@ -322,6 +322,11 @@ donc les recopier ici serait en faire une seconde source qui se périmerait.
 Ce qui est refusé, et pourquoi, est dans [docs/routes.md](docs/routes.md). Ce qui
 n'est délibérément pas émulé est dans [docs/limits.md](docs/limits.md).
 
+Comment tout cela gagne le droit d'être appelé *prouvé*, c'est-à-dire la chaîne
+qui va de la description d'API du fournisseur jusqu'à un pipeline qui lit un
+chiffre dans cet émulateur, ce que chaque maillon prouve, et quels maillons ne
+sont pas encore appliqués : [docs/conformance.fr.md](docs/conformance.fr.md).
+
 ---
 
 ## Commandes

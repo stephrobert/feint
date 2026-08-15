@@ -532,6 +532,11 @@ the protocol is right and a real client drives a real workload, but the surface
 is still thin: see the coverage tables below, and
 [docs/limits.md](docs/limits.md) for what that costs you.
 
+How any of this earns the word *proven* — the chain from the provider's own API
+description down to a pipeline reading a number out of this emulator, what each
+link proves, and which links are not enforced yet — is
+[docs/conformance.md](docs/conformance.md).
+
 Exoscale has no Terraform column, and that is not a gap in this emulator. The
 provider honours `EXOSCALE_API_ENDPOINT` for one of the two clients it builds
 and reaches the real cloud with the other, so an apply splits between here and a

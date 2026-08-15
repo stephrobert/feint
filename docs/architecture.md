@@ -119,6 +119,12 @@ without the second, "not done yet" and "out of scope" become the same thing.
 A change that makes any of the three inoperative is a bad change, even if it
 simplifies the code.
 
+Those three are the first links of a longer chain — the contract, the two
+witnesses that drive it, the recordings that look in the omission direction, the
+seven-axis evidence record, and the versioned surface a pipeline reads.
+[The conformance system](conformance.md) describes the whole of it, what each
+link proves, and which links are stated but not yet enforced.
+
 ## Adding a provider
 
 Nothing outside `internal/providers/<name>/` should need to change. A pack

@@ -502,6 +502,12 @@ routes démontre désormais l'architecture ; ce qu'il ne démontre pas encore,
 c'est ce qu'un run vert prouve.** Dépenser les prochaines versions en preuves
 plutôt qu'en surface est la proposition.
 
+Ce que cette piste a construit est désormais décrit de bout en bout dans
+[docs/conformance.fr.md](conformance.fr.md) : la chaîne qui va de la description
+d'API du fournisseur jusqu'à un pipeline lisant un chiffre dans l'émulateur, ce
+que chaque maillon prouve, et les trois maillons énoncés mais pas encore
+appliqués (#169, #170, #171).
+
 Les issues, chacune portant sa propre preuve :
 
 - **#123** : ce qui est prouvé d'une opération devient un ensemble d'axes de

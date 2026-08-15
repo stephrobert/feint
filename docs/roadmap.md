@@ -481,6 +481,12 @@ already leans towards: **the route count now demonstrates the architecture;
 what it does not yet demonstrate is how much a green run proves.** Spending the
 next versions on proofs rather than surface is the proposal.
 
+What that track has built is now described end to end in
+[docs/conformance.md](conformance.md): the chain from the provider's own API
+description to a pipeline reading a number out of the emulator, what each link
+proves, and the three links that are stated but not yet enforced (#169, #170,
+#171).
+
 The issues, each carrying its own evidence:
 
 - **#123** — what is proven about an operation becomes a set of named proof
