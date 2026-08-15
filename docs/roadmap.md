@@ -31,7 +31,9 @@ archives now, under [history/](history/).
 
 ### The container image, control-plane only, shipped with the release
 
-This is a decision more than a feature, so here it is in writing: **the image
+**Landed with #150**, and first published with 0.8.0.
+
+This was a decision more than a feature, so here it is in writing: **the image
 runs `feint serve` with `--vm off`, and emulates nothing but the control
 plane.** The question that held it back, where machines started inside a
 container would land, is answered the way the rest of the project already
@@ -40,18 +42,17 @@ without one in CI, and `serve` in the foreground is exactly what a container
 entrypoint wants. Anyone who needs real machines runs the binary on a host with
 Incus, which is the documented path and stays so.
 
-Why now: the image is the format an emulator is consumed in. Every adoption
-channel below (testcontainers, a compose file, a `services:` block in GitLab CI)
-waits on it, and each week without one is a week a potential user writes a
-competitor's name into their compose file instead. What the image must never
-become is the nominal mode: the self-detaching static binary is the one thing
-none of the comparable emulators can do, and leading with Docker would erase it.
+Why it came before the adoption channels: the image is the format an emulator is
+consumed in, and every channel below (testcontainers, a compose file, a
+`services:` block in GitLab CI) waits on it. What the image must never become is
+the nominal mode: the self-detaching static binary is the one thing none of the
+comparable emulators can do, and leading with Docker would erase it.
 
-**Evidence:** the release workflow pushes a multi-arch image to ghcr.io, and a
-CI job runs the Scaleway conformance suite from the host against the emulator
-running inside that image.
+**Proven by:** `release.yml` publishes a multi-arch image to ghcr.io, and
+`conformance.yml`'s `image` job runs the Scaleway conformance suite from the
+host against the emulator running inside that image, on every pull request.
 
-### The golden-image workflow on Scaleway: half landed, half in progress
+### The golden-image workflow on Scaleway: both halves landed
 
 The most expensive gap in the served surface was never a percentage, it was a
 scenario: build an image with Packer or a `scw` script, attach a volume with an
@@ -67,15 +68,19 @@ refusal, #115 the decision). The `instance` untriaged column in the generated
 tables reads zero, by decision: what was not served (placement groups among
 them) is declined with its reason in the pack.
 
-**The second half is SW-3 (#8), in progress.** `block/v1` and the `sbs_volume`
-root volume — the measured trap in [limits.md](limits.md) where the provider
-reads a volume back through an API no pack serves, and the apply dies on a 404.
-This item ends when that limit's section ends.
+**The second half landed with SW-3 (#8, merged as #138).** `block/v1` and the
+`sbs_volume` root volume closed the measured trap in [limits.md](limits.md),
+where the provider read a volume back through an API no pack served and the
+apply died on a 404. That page now opens its root-volume section with
+`sbs_volume` working, which is what ending the item meant.
 
-**Evidence:** `terraform apply` with a `scaleway_block_volume` and an
-`sbs_volume` root volume, empty second plan, clean destroy, in conformance —
-and the `b_ssd`/`sbs_volume` section of [limits.md](limits.md) deleted rather
-than updated.
+One detail worth keeping, because it was found by the client rather than by
+reading the SDK: `scw` 2.56.3 calls `/block/v1alpha1` while the Terraform
+provider calls `/block/v1`. Both are served, from the same handlers.
+
+**Proven by:** `terraform apply` with a `scaleway_block_volume` and an
+`sbs_volume` root volume, an empty second plan and a clean destroy, in the
+Scaleway conformance suite.
 
 ### Exoscale was labelled preview, and the label came off at EXO-2
 
@@ -207,12 +212,13 @@ the archived documents explain how each batch was cut.
    Exoscale** — **done.** OSC-2 brought `terraform apply`, an empty second
    plan and a clean destroy into conformance; EXO-2 brought the lifecycle
    under `exo` and took the *preview* label off, as recorded above.
-3. **The Scaleway golden-image scenario** — **half done.** SW-2 (#7) is
-   merged; SW-3 (#8) is in progress. See the "Now" item, which is this wave.
-4. **Networks that route** — **Outscale done, two open.** OSC-3 is merged: the
-   provider's own `examples/net_vm` applies, re-plans empty and destroys.
-   SW-4 (#11, IPAM lifecycle and the rest of vpc) and EXO-3 (#9, private
-   networks) remain, grouped under the network-evidence rule: under OVN the
+3. **The Scaleway golden-image scenario** — **done.** SW-2 (#7) merged as #131,
+   SW-3 (#8) as #138. See the "Now" item, which is this wave.
+4. **Networks that route** — **Outscale and Exoscale done, one open.** OSC-3 is
+   merged: the provider's own `examples/net_vm` applies, re-plans empty and
+   destroys. EXO-3 (#9) merged as #161: a private network is a range, and an
+   attach leases from it. SW-4 (#11, IPAM lifecycle and the rest of vpc)
+   remains, under the network-evidence rule: under OVN the
    claim is asserted, elsewhere it is skipped, and no document says "isolated"
    without naming the mode.
 5. **Storage on the two starters** — **Outscale done, Exoscale open.** OSC-4
@@ -244,10 +250,10 @@ the table carries the state as an issue reference rather than a claim.
 | **OSC-2** | 2 | `ProductCodes`, admin password, tags, root volume — the first Outscale `terraform apply` | done (#6) |
 | **EXO-2** | 2 | instance lifecycle, security groups, elastic IPs — the *preview* label comes off | done (#5) |
 | **SW-2** | 3 | snapshots, images, volume attach | done (#7) |
-| **SW-3** | 3 | `block/v1` and the `sbs_volume` root volume | in progress (#8) |
+| **SW-3** | 3 | `block/v1` and the `sbs_volume` root volume | done (#8) |
 | **OSC-3** | 4 | routable networking — `examples/net_vm` applies | done (#10) |
 | **SW-4** | 4 | IPAM lifecycle and the rest of vpc | open (#11) |
-| **EXO-3** | 4 | private networks and instance attachment | open (#9) |
+| **EXO-3** | 4 | private networks and instance attachment | done (#9) |
 | **OSC-4** | 5 | volumes, snapshots, images | done (#13) |
 | **EXO-4** | 5 | block storage | open (#12) |
 | **SW-5** | 6 | `lb/v1` ZonedAPI | open (#17) |
@@ -672,23 +678,31 @@ needs S3 this month.
 **Evidence:** the page's commands are executed in CI the way the README's are:
 `scw` pointed at MinIO through `SCW_S3_ENDPOINT` puts and gets an object.
 
-### Snapshot compatibility across versions — filed as #133, with the current behaviour measured
+### Snapshot compatibility across versions — settled by #133, merged as #140
 
-`feint snapshot` shipped, so the question stopped being hypothetical, and the
-external review forced the measurement this item was waiting for: today the
-snapshot carries **no version field**, and `store.Restore` decodes with plain
-`encoding/json`, so **a field this version does not know is silently dropped
-and the restore succeeds** — the exact best-effort this project refuses
-everywhere else. #133 carries the rule (*understood or refused*), the format
-(`{"format": "feint-snapshot", "version": 1, ...}`), and the behaviour table
-for every case including a legacy bare-array snapshot. The adjacent case this
-item always named — loading a snapshot while a machine runtime runs, which
-replaces the store without reconciling the real machines — is #135's, where
-crash and restart determinism live.
+`feint snapshot` shipped, so the question stopped being hypothetical, and an
+external review forced the measurement this item was waiting for: the snapshot
+carried **no version field**, and `store.Restore` decoded with plain
+`encoding/json`, so a field that version did not know was silently dropped and
+the restore succeeded — the exact best-effort this project refuses everywhere
+else.
 
-**Evidence:** as #133 states — a fixture snapshot per version restores
-round-trip complete; one carrying an unknown envelope field is refused naming
-the field; a future version is refused naming both versions.
+It is now an envelope, `{"format": "feint-snapshot", "version": 1,
+"resources": [...]}`, and `Restore` refuses what it cannot account for: another
+format, another version, an unknown field. A legacy bare array is recognised as
+such and refused by name rather than through a decoder error nobody can read.
+Bumping `snapshotVersion` is a breaking change under RELEASING.md, which is what
+makes the field worth carrying.
+
+The adjacent case this item always named — loading a snapshot while a machine
+runtime runs, which replaces the store without reconciling the real machines —
+belonged to #135, and that closed too, merged as #141: what survives a dead
+emulator is stated once, noticed at restart, and proven by a kill.
+
+**Proven by:** the behaviour table #133 asked for, one test per row, in
+`internal/core/store`: `TestASnapshotOfThisVersionRoundTrips`,
+`TestASnapshotFromTheFutureIsRefused`, `TestALegacyBareArrayIsRefusedWithARemedy`
+and `TestARestoredResourceKeepsItsIdentity`.
 
 ### A fourth provider
 
