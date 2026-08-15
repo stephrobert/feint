@@ -291,14 +291,6 @@ if reach; then
 fi
 ok "unreachable again"
 
-osc DeleteVms '--VmIds[]' "$vm_a" >/dev/null && vm_a=""
-osc DeleteVms '--VmIds[]' "$vm_b" >/dev/null && vm_b=""
-sleep 2
-osc DeleteSubnet --SubnetId "$sub_a" >/dev/null && sub_a=""
-osc DeleteSubnet --SubnetId "$sub_b" >/dev/null && sub_b=""
-osc DeleteNet --NetId "$net_a" >/dev/null && net_a=""
-osc DeleteNet --NetId "$net_b" >/dev/null && net_b=""
-
 # And the accepting half, which the peering lifecycle above does not cover: a
 # rule set that kept everything out would pass every check so far and separate
 # two Subnets of one Net, which the real cloud routes.
@@ -324,6 +316,15 @@ else
   sleep 3
   osc DeleteSubnet --SubnetId "$same_sub" >/dev/null 2>&1
 fi
+
+osc DeleteVms '--VmIds[]' "$vm_a" >/dev/null && vm_a=""
+osc DeleteVms '--VmIds[]' "$vm_b" >/dev/null && vm_b=""
+sleep 2
+osc DeleteSubnet --SubnetId "$sub_a" >/dev/null && sub_a=""
+osc DeleteSubnet --SubnetId "$sub_b" >/dev/null && sub_b=""
+osc DeleteNet --NetId "$net_a" >/dev/null && net_a=""
+osc DeleteNet --NetId "$net_b" >/dev/null && net_b=""
+
 
 
 echo "conformance: outscale network passed"
