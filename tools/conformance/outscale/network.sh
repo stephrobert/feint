@@ -35,6 +35,11 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 ok()   { echo "  ok: $*"; }
 skip() { echo "  SKIP: $*" >&2; }
 
+# Shared assertions about what a machine carries. See the file for why the
+# comparison is not written three times.
+# shellcheck source=/dev/null
+. "$(dirname "$0")/../shared/addresses.sh"
+
 echo "conformance: outscale network against $ENDPOINT"
 
 MACHINES="$(curl -sf "$ENDPOINT/_feint/health" | jq -r '.machines')"
@@ -166,6 +171,15 @@ done
 [ -n "$carried" ] || fail "no machine on the host carries $private_ip: the address is a number in a store"
 ok "$vm_id carries $private_ip, on $found"
 
+echo "- the machine carries no address the API does not publish"
+# Outscale publishes a Vm's addresses as PrivateIp and, when one is linked,
+# PublicIp. Nothing else on the machine may exist: an address the runtime handed
+# out and no field describes is exactly what #202 removed.
+osc_published="$(osc ReadVms --Filters "{\"VmIds\": [\"$vm_id\"]}" \
+  | jq -r '[.Vms[0].PrivateIp, .Vms[0].PublicIp] | map(select(. != null and . != "")) | join(" ")')"
+# shellcheck disable=SC2086 # the published list is several arguments on purpose
+assert_only_published "feint-osc-$vm_id" $osc_published
+
 osc DeleteVms '--VmIds[]' "$vm_id" >/dev/null || fail "DeleteVms rejected"
 sleep 2
 
@@ -180,5 +194,99 @@ ok "deleted, and the host is as it was"
 
 osc DeleteNet --NetId "$net_id" >/dev/null || fail "DeleteNet rejected"
 net_id=""
+
+# ---- Two Nets do not reach each other -----------------------------------------
+#
+# The assertion this suite did not have, and its absence is why the leak lived:
+# the pack had no isolation wiring at all and nothing ever asked. Scaleway and
+# Exoscale both hold the equivalent; three suites, one property.
+#
+# Measured before the fix, on a station publishing capabilities.isolation: true —
+# two Nets with no peering, one machine in each, reachable in ICMP *and* in TCP,
+# because every OVN subnet is `scope link` on the uplink this emulator creates.
+#
+# The verdict keys on the declared capability, never on a mode name: a runtime
+# that promises isolation and does not deliver it is a hard failure, and one that
+# promises nothing is skipped rather than silently passed.
+ISO="$(curl -sf "$ENDPOINT/_feint/health" | jq -r '.capabilities.isolation // false')"
+
+echo "- two Nets, and a machine in each"
+iso_a="" iso_b="" iso_sub_a="" iso_sub_b="" iso_vm_a="" iso_vm_b=""
+iso_cleanup() {
+  [ -n "$iso_vm_a" ] && osc DeleteVms '--VmIds[]' "$iso_vm_a" >/dev/null 2>&1
+  [ -n "$iso_vm_b" ] && osc DeleteVms '--VmIds[]' "$iso_vm_b" >/dev/null 2>&1
+  sleep 3
+  [ -n "$iso_sub_a" ] && osc DeleteSubnet --SubnetId "$iso_sub_a" >/dev/null 2>&1
+  [ -n "$iso_sub_b" ] && osc DeleteSubnet --SubnetId "$iso_sub_b" >/dev/null 2>&1
+  [ -n "$iso_a" ] && osc DeleteNet --NetId "$iso_a" >/dev/null 2>&1
+  [ -n "$iso_b" ] && osc DeleteNet --NetId "$iso_b" >/dev/null 2>&1
+  return 0
+}
+trap 'iso_cleanup; cleanup' EXIT
+
+ISO_A="${FEINT_TEST_ISO_BLOCK_A:-10.203.0.0/16}"
+ISO_B="${FEINT_TEST_ISO_BLOCK_B:-10.204.0.0/16}"
+iso_a="$(osc CreateNet --IpRange "$ISO_A" | jq -r '.Net.NetId')"
+iso_b="$(osc CreateNet --IpRange "$ISO_B" | jq -r '.Net.NetId')"
+[ -n "$iso_a" ] && [ -n "$iso_b" ] || fail "the two Nets were not created"
+iso_sub_a="$(osc CreateSubnet --NetId "$iso_a" --IpRange "${ISO_A%.0.0/16}.1.0/24" | jq -r '.Subnet.SubnetId')"
+iso_sub_b="$(osc CreateSubnet --NetId "$iso_b" --IpRange "${ISO_B%.0.0/16}.1.0/24" | jq -r '.Subnet.SubnetId')"
+[ -n "$iso_sub_a" ] && [ -n "$iso_sub_b" ] || fail "the two Subnets were not created"
+
+iso_doc_a="$(osc CreateVms --ImageId ami-00000001 --VmType tinav6.c1r1p2 --SubnetId "$iso_sub_a")"
+iso_doc_b="$(osc CreateVms --ImageId ami-00000001 --VmType tinav6.c1r1p2 --SubnetId "$iso_sub_b")"
+iso_vm_a="$(printf '%s' "$iso_doc_a" | jq -r '.Vms[0].VmId')"
+iso_vm_b="$(printf '%s' "$iso_doc_b" | jq -r '.Vms[0].VmId')"
+iso_ip_b="$(printf '%s' "$iso_doc_b" | jq -r '.Vms[0].PrivateIp // empty')"
+[ -n "$iso_ip_b" ] || fail "the target Vm came back with no PrivateIp"
+
+# Both up and carrying their addresses, or absence of reach means "still
+# booting" rather than "isolated".
+booted=""
+for _ in $(seq 1 30); do
+  if incus list -f csv -c n4 2>/dev/null | grep -q "$iso_ip_b"; then booted="yes"; break; fi
+  sleep 2
+done
+[ -n "$booted" ] || fail "no machine carries $iso_ip_b; reachability cannot be measured"
+sleep 3
+ok "$iso_vm_a and $iso_vm_b, in separate Nets"
+
+echo "- a machine of another Net is unreachable"
+if incus exec "feint-osc-$iso_vm_a" -- ping -c 2 -W 2 "$iso_ip_b" >/dev/null 2>&1; then
+  if [ "$ISO" = "true" ]; then
+    fail "$iso_ip_b is reachable from another Net, but $MACHINES declares isolation"
+  fi
+  skip "$iso_ip_b is reachable from another Net: $MACHINES does not isolate subnets (see docs/limits.md)"
+else
+  ok "a machine of another Net is unreachable ($iso_ip_b)"
+fi
+
+# And the accepting half. A rule set that kept everything out would pass the
+# check above and separate two Subnets of one Net, which the real cloud routes.
+echo "- a second Subnet of the same Net stays reachable"
+iso_sub_a2="$(osc CreateSubnet --NetId "$iso_a" --IpRange "${ISO_A%.0.0/16}.2.0/24" | jq -r '.Subnet.SubnetId')"
+if [ -z "$iso_sub_a2" ]; then
+  skip "a second Subnet of the same Net was refused; the accepting half is not measured"
+else
+  iso_doc_c="$(osc CreateVms --ImageId ami-00000001 --VmType tinav6.c1r1p2 --SubnetId "$iso_sub_a2")"
+  iso_vm_c="$(printf '%s' "$iso_doc_c" | jq -r '.Vms[0].VmId')"
+  iso_ip_c="$(printf '%s' "$iso_doc_c" | jq -r '.Vms[0].PrivateIp // empty')"
+  for _ in $(seq 1 30); do
+    incus list -f csv -c n4 2>/dev/null | grep -q "$iso_ip_c" && break
+    sleep 2
+  done
+  sleep 3
+  if incus exec "feint-osc-$iso_vm_a" -- ping -c 2 -W 3 "$iso_ip_c" >/dev/null 2>&1; then
+    ok "a machine of the same Net is reachable ($iso_ip_c)"
+  else
+    fail "$iso_ip_c is unreachable inside one Net; the isolation separates too much"
+  fi
+  osc DeleteVms '--VmIds[]' "$iso_vm_c" >/dev/null 2>&1
+  sleep 3
+  osc DeleteSubnet --SubnetId "$iso_sub_a2" >/dev/null 2>&1
+fi
+
+iso_cleanup
+iso_a="" iso_b="" iso_sub_a="" iso_sub_b="" iso_vm_a="" iso_vm_b=""
 
 echo "conformance: outscale network passed"

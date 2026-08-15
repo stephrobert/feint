@@ -82,7 +82,15 @@ func TestFreeInterfacePicksTheFirstUnusedName(t *testing.T) {
 		devices map[string]map[string]string
 		want    string
 	}{
-		{name: "empty machine starts at eth1, never eth0", devices: nic(), want: "eth1"},
+		// A machine with no device at all takes eth0, and this reversed with
+		// #202. The case used to want eth1, defensively: every machine had a
+		// profile eth0, so an empty map meant the devices could not be read and
+		// assuming eth0 was taken was the safe guess. A machine that publishes
+		// nothing now boots with --no-profiles and genuinely has none, so the
+		// empty map is the truth rather than a blind spot — and naming its first
+		// NIC eth1 gave a guest that had no such device, which failed with
+		// `Cannot find device "eth1"`.
+		{name: "a machine with no device at all takes eth0", devices: nic(), want: "eth0"},
 		{name: "profile eth0 does not block eth1", devices: nic("eth0"), want: "eth1"},
 		{name: "next free after a gap", devices: nic("eth0", "eth1", "eth3"), want: "eth2"},
 		{name: "eth10 does not shadow eth1", devices: nic("eth0", "eth10"), want: "eth1"},

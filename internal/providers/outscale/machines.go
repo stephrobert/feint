@@ -188,7 +188,23 @@ func (p *Pack) addressOf(res *resource.Resource) string {
 func (p *Pack) attachmentOf(res *resource.Resource) []machine.Attachment {
 	subnetID := stringOf(res.Attrs["SubnetId"])
 	address := stringOf(res.Attrs["PrivateIp"])
-	if subnetID == "" || address == "" {
+	// A Vm created with no Subnet is in the public Cloud, and Outscale gives it
+	// a private address there: the schema declares PrivateIp and a real one
+	// carries a value. So it asks for the emulator's own network rather than
+	// nothing, and publishes the address it receives.
+	//
+	// This is the distinction #202 nearly lost. The fallback network was not
+	// wrong in itself; it was wrong when the address it handed out was published
+	// by no API, which was the Scaleway case and not this one. Removing it
+	// outright left a running Vm with no PrivateIp at all, and the conformance
+	// suite said so in as many words: "the machine is running and the API
+	// publishes no PrivateIp".
+	//
+	// TestAVmOutsideANetStillCarriesAPrivateAddress fails without this.
+	if subnetID == "" {
+		return []machine.Attachment{{Network: machine.DefaultMachineNetwork}}
+	}
+	if address == "" {
 		return nil
 	}
 	subnet, found := p.env.Store.Get(Name, kindSubnet, subnetID)

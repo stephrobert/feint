@@ -1,6 +1,7 @@
 package machine
 
 import (
+	"context"
 	"fmt"
 	"net/netip"
 	"strings"
@@ -77,6 +78,18 @@ func routedNetworkConfig(addresses []string) (string, error) {
 	// on-link because the next hop is not inside a /32.
 	fmt.Fprintf(&b, "      routes:\n        - to: 0.0.0.0/0\n          via: %s\n          on-link: true\n",
 		routedNextHop)
+	// Every interface attached afterwards still comes up on its own.
+	//
+	// Without this the Scaleway path breaks, and the conformance suite caught it
+	// on the first run: a server boots with only its public address, a private
+	// NIC is attached later — which is the ordinary Scaleway order, `POST
+	// /servers/{id}/private_nics` comes after the create — and the guest's
+	// config named eth0 alone, so eth1 came up carrying nothing while the API
+	// published an address for it.
+	//
+	// A match rather than a list, because the number of private NICs is the
+	// client's business: a server with two of them is ordinary on Scaleway.
+	b.WriteString("    attached:\n      match:\n        name: \"eth[1-9]\"\n      dhcp4: true\n")
 	return b.String(), nil
 }
 
@@ -107,4 +120,22 @@ func routedDevice(name string, addresses []string) ([]string, error) {
 		"ipv4.address=" + strings.Join(addresses, ","),
 		"ipv4.host_address=" + routedNextHop,
 	}, nil
+}
+
+// rootPool answers the storage pool the operator's own default profile uses for
+// its root disk, because a machine created with --no-profiles has to name one
+// and this driver has no business inventing it.
+//
+// "default" when the profile cannot be read: it is the name `incus admin init
+// --minimal` creates, so it is the right guess on the installation this project
+// documents, and a wrong one fails loudly at create rather than silently later.
+func (d *Incus) rootPool(ctx context.Context) string {
+	out, err := d.run(ctx, "profile", "device", "get", "default", "root", "pool")
+	if err != nil {
+		return "default"
+	}
+	if pool := strings.TrimSpace(string(out)); pool != "" {
+		return pool
+	}
+	return "default"
 }

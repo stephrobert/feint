@@ -43,6 +43,11 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 ok()   { echo "  ok: $*"; }
 skip() { echo "  SKIP: $*" >&2; }
 
+# Shared assertions about what a machine carries. See the file for why the
+# comparison is not written three times.
+# shellcheck source=/dev/null
+. "$(dirname "$0")/../shared/addresses.sh"
+
 command -v exo >/dev/null 2>&1 || { echo "FAIL: exo is not installed" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is not installed" >&2; exit 1; }
 
@@ -105,8 +110,15 @@ ok "conformance-net on $NEAR_START-$NEAR_END"
 
 boot() { # name -> instance id
   local name="$1" id
+  # --public-ip none, because this suite measures a private network and an
+  # instance that also carries a public address carries two, which is faithful
+  # to the cloud and not what is being measured here. The real Exoscale assigns
+  # one unless asked otherwise (public-ip-assignment defaults to inet4, and the
+  # CLI's own default says so), so asking is the client's job rather than the
+  # emulator's to skip.
   exo compute instance create "$name" --zone "$EXOSCALE_ZONE" \
-    --template "Linux Ubuntu 24.04 LTS 64-bit" --instance-type standard.tiny >/dev/null \
+    --template "Linux Ubuntu 24.04 LTS 64-bit" --instance-type standard.tiny \
+    --public-ip none >/dev/null \
     || fail "instance $name was not created"
   id="$(exo -O json compute instance list | jq -r --arg n "$name" '.[] | select(.name == $n) | .id')"
   [ -n "$id" ] || fail "instance $name is not in the list after create"
@@ -152,6 +164,21 @@ case " $carried " in
   *" $guard_ip "*) ok "guard carries $guard_ip" ;;
   *) fail "guard carries '${carried:-nothing}', the API published $guard_ip" ;;
 esac
+
+echo "- the machine carries no address the API does not publish"
+# Exoscale publishes an instance's public address as ip_address and each private
+# network lease under private-networks[].ip. Nothing else may exist on the
+# machine: an instance carrying two addresses where the API named one is what
+# this suite let through until #202.
+# ip_address is the public one; the private-network lease is $guard_ip, which
+# this suite already resolved from the network's own lease list a few lines up.
+# Reading it back out of `instance show` was a detour and a wrong one: the CLI
+# renders private_networks as a list of names, not of objects, so the jq for
+# `.ip` failed with "Cannot index string with string".
+exo_public="$(exo -O json compute instance show "$guard_id" 2>/dev/null \
+  | jq -r '.ip_address // empty' | grep -v '^-$' || true)"
+# shellcheck disable=SC2086 # the published list is several arguments on purpose
+assert_only_published "$(machine "$guard_id")" $exo_public "$guard_ip"
 
 echo "- an instance of the same private network is reachable"
 incus exec "$(machine "$guard_id")" -- sh -c \

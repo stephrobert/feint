@@ -357,6 +357,9 @@ func (p *Pack) createSubnet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// What each subnet may reach changed, so every rule set is reconciled.
+	p.isolateNetworks(r.Context())
+
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"Subnet":          p.subnetView(res),
 		"ResponseContext": p.context(),
@@ -455,6 +458,9 @@ func (p *Pack) deleteSubnet(w http.ResponseWriter, r *http.Request) {
 	// The runtime call is slow and stays outside: the Subnet is already
 	// unreachable to every other handler by this point.
 	p.removeBackingNetwork(r.Context(), subnet)
+	// One fewer subnet is one fewer block its neighbours must keep out, and a
+	// rule set naming a block nothing carries is a rule set nobody can read.
+	p.isolateNetworks(r.Context())
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
 }
 

@@ -229,7 +229,12 @@ func (d *Incus) PeerNetworks(ctx context.Context, network string, peers []string
 			return err
 		}
 	}
-	return nil
+	// And the half a peering does not provide. Peering says what may reach this
+	// network; nothing said what may not, and the uplink this driver creates
+	// routes every one of its OVN subnets to every other. The rule set is
+	// applied here rather than in each pack, because a control copied into three
+	// packs is a control one pack forgets and a fourth never has.
+	return d.isolateOVN(ctx, network, peers)
 }
 
 type peerRow struct {

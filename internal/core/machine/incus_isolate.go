@@ -47,12 +47,12 @@ func isolationOwned(name string) bool {
 
 // IsolateNetwork implements Isolator.
 func (d *Incus) IsolateNetwork(ctx context.Context, network string, foreign []string) error {
-	// An OVN network reaches nothing it is not peered with: there is no shared
-	// L2 to build reject rules against, and attaching them anyway would only
-	// claim credit for a separation the topology already provides.
-	if d.OVN {
-		return nil
-	}
+	// This used to return early under OVN, on the grounds that "an OVN network
+	// reaches nothing it is not peered with". That was false and never asserted:
+	// both networks carry their block on the uplink this driver creates, so the
+	// host routes between them. Measured, ICMP and TCP, on a station publishing
+	// capabilities.isolation: true. See incus_ovn_isolate.go for the measurement
+	// and for what applies this on the OVN path.
 	if !safeName.MatchString(network) {
 		return fmt.Errorf("invalid network name %q", network)
 	}

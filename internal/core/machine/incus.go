@@ -337,6 +337,15 @@ func (d *Incus) Start(ctx context.Context, spec Spec) (Machine, error) {
 		if !safeName.MatchString(primary.Network) {
 			return Machine{}, fmt.Errorf("invalid network name %q", primary.Network)
 		}
+		// A pack may ask for the emulator's own network by name — Outscale does,
+		// for a Vm in the public Cloud, where the address it receives is
+		// published as PrivateIp. Nothing creates it implicitly any more, so the
+		// request has to create it.
+		if primary.Network == DefaultMachineNetwork {
+			if err := d.ensureDefaultNetwork(ctx); err != nil {
+				return Machine{}, err
+			}
+		}
 	}
 
 	args := []string{"init", d.resolveImage(ctx, spec.Image), spec.Name}
@@ -353,16 +362,30 @@ func (d *Incus) Start(ctx context.Context, spec Spec) (Machine, error) {
 		args = append(args, "--network", primary.Network)
 	}
 	if bare {
-		// Masking the profile's own eth0, and this is not tidiness: without it
-		// the machine inherits the operator's default profile and lands on
-		// their bridge — measured, an Exoscale instance came up on incusbr0
-		// (10.76.154.0/24) carrying an address the pack could not publish. That
-		// is the very hazard DefaultMachineNetwork was introduced to close, and
-		// removing the fallback reopened it from the other side.
+		// No profile at all, and the root disk declared by hand.
 		//
-		// A device of type "none" at instance level masks the profile's device
-		// of the same name, which is Incus's own mechanism for exactly this.
-		args = append(args, "-d", "eth0,type=none")
+		// Without this the machine inherits the operator's default profile and
+		// lands on their bridge: measured, an Exoscale instance came up on
+		// incusbr0 (10.76.154.0/24) carrying an address the pack could not
+		// publish. That is the hazard DefaultMachineNetwork was introduced to
+		// close, and removing the fallback reopened it from the other side.
+		//
+		// The first attempt was `-d eth0,type=none`, on the belief that an
+		// instance-level device masks the profile's device of the same name.
+		// It does not: Incus *merges* them, so `network: incusbr0` from the
+		// profile lands on a device declared `type: none` and the create fails
+		// with "Invalid device option network". Every machine of the network
+		// suite failed to start that way, and the suite reported it as a
+		// machine not carrying its address — the symptom two steps from the
+		// cause.
+		//
+		// One key=value per -d, because the flag takes exactly one and
+		// accumulates: `-d root,type=disk,path=/` is read as a device type
+		// called "disk,path=/".
+		args = append(args, "--no-profiles",
+			"-d", "root,type=disk",
+			"-d", "root,path=/",
+			"-d", "root,pool="+d.rootPool(ctx))
 	}
 	if routed {
 		// The guest has to be told. A routed NIC hands the kernel a static
@@ -756,8 +779,17 @@ func (d *Incus) instanceDevices(ctx context.Context, name string) (instanceView,
 // the guest sees, so they have to look like interface names; deriving one from
 // the network name produces something no init script recognises. The match is
 // on the exact name: a substring check would let an existing eth10 shadow eth1.
+//
+// From eth0, not from eth1. It used to start at 1 on the assumption that the
+// boot interface always holds eth0, which stopped being true when a machine
+// with nothing to publish started booting with no interface at all (#202): the
+// first NIC attached afterwards was named eth1, the guest had no such device,
+// and configuring it failed with `Cannot find device "eth1"`. The suite
+// reported that as a machine not carrying its address, two steps from the
+// cause. The loop already skips a name in use, so starting at 0 changes nothing
+// for a machine that does have eth0.
 func freeInterface(devices map[string]map[string]string) string {
-	for i := 1; i < 64; i++ {
+	for i := 0; i < 64; i++ {
 		candidate := fmt.Sprintf("eth%d", i)
 		if _, used := devices[candidate]; !used {
 			return candidate

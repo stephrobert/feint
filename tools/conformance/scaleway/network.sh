@@ -40,6 +40,11 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 ok()   { echo "  ok: $*"; }
 skip() { echo "  SKIP: $*" >&2; }
 
+# Shared assertions about what a machine carries. See the file for why the
+# comparison is not written three times.
+# shellcheck source=/dev/null
+. "$(dirname "$0")/../shared/addresses.sh"
+
 api() { curl -sf -H 'Content-Type: application/json' "$@"; }
 
 # The emulated block. Deliberately obscure: a lab bridge or a VPN holding the same range on the
@@ -204,27 +209,13 @@ fi
 # "deprecated and always null when routed_ip_enabled is True", so a real client
 # reads a private address through ipam/v1 and a public one through public_ips.
 echo "- the machine carries no address the API does not publish"
+# Scaleway publishes a server's addresses in two places: the routed public ones
+# under public_ips, and the private NIC's under IPAM. Both count, and reading
+# only the first is what made this a skip for months.
 published="$(api "$ENDPOINT/instance/v1/zones/$ZONE/servers/$guard_id" \
              | jq -r '[.server.public_ips[]?.address] | map(select(. != null)) | join(" ")')"
-carried_all="$(incus query "/1.0/instances/$(machine "$guard_id")/state" \
-               | jq -r '[.network | to_entries[] | select(.key != "lo")
-                        | .value.addresses[]? | select(.family == "inet") | .address] | join(" ")')"
-unpublished=""
-for address in $carried_all; do
-  case " $published " in
-    *" $address "*) ;;
-    *) unpublished="$unpublished $address" ;;
-  esac
-done
-if [ -z "$unpublished" ]; then
-  ok "every address it carries is published ($carried_all)"
-else
-  # Not a failure yet: a server still gets an interface from the runtime's
-  # default profile, and the API has no field describing it. It is filtered,
-  # which is what stops it from being a hole, and docs/limits.md records the
-  # rest.
-  skip "carried but not published:$unpublished (see docs/limits.md)"
-fi
+# shellcheck disable=SC2086 # the published list is several arguments on purpose
+assert_only_published "$(machine "$guard_id")" $published "$guard_ip"
 
 echo "- the group's drop policy closes a port, for real"
 incus exec "$(machine "$guard_id")" -- sh -c \
