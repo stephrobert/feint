@@ -96,6 +96,22 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Modifié
 
+- **`feint stop` dit ce qu'il s'apprête à jeter** (#182). Le store est en
+  mémoire et `docs/limits.md` l'énonce dans une table de cycle de vie, mais cette
+  phrase vit sur une page qu'un utilisateur lit **après** s'être fait avoir :
+  quatre ressources existaient, `stop` a dit `stopped`, et rien d'autre.
+  `restart` est le cas le plus aigu, puisqu'un opérateur y recourt en pleine
+  session et le paie de tout son jeu d'essai.
+
+  Désormais une ligne sur stderr, avant le signal, qui nomme le compte et la
+  sortie de secours : ``discarding 4 resource(s) (started without --state);
+  `feint snapshot save <name>` before stopping would have kept them``. Jamais une
+  question, jamais un refus, puisque la CI pilote `stop` et que ses codes de
+  sortie sont une surface gelée. Elle se tait quand `--state` est enregistré,
+  quand le store est vide, et quand l'instance ne répond plus : un avertissement
+  à chaque arrêt sain est le motif que l'on apprend à ignorer. Le compte vient de
+  l'endpoint que `status` lit déjà, donc les deux ne peuvent pas diverger.
+
 - **Un client mal pointé s'entend dire de quel côté est l'erreur** (#179). Le
   premier contact est le seul moment où un utilisateur ne peut pas encore
   distinguer un émulateur cassé d'un pointage cassé, et les trois pièges que le

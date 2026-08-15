@@ -271,6 +271,12 @@ func stop(args []string, stdout, stderr io.Writer) int {
 	case Alive:
 	}
 
+	// What this stop is about to throw away, said at the moment it happens
+	// rather than on a page read afterwards (#182).
+	if notice := discardNotice(inst); notice != "" {
+		fmt.Fprint(stderr, notice)
+	}
+
 	if err := syscall.Kill(inst.PID, syscall.SIGTERM); err != nil && !errors.Is(err, syscall.ESRCH) {
 		fmt.Fprintf(stderr, "feint: %v\n", err)
 		return exitError
@@ -426,4 +432,52 @@ func logs(args []string, stdout, stderr io.Writer) int {
 			time.Sleep(200 * time.Millisecond)
 		}
 	}
+}
+
+// discardNotice answers the line to print before a stop that will lose the
+// session's resources, or "" when it will not.
+//
+// The store is memory and `docs/limits.md` says so in its lifecycle table, but
+// that sentence lives on a page a user reads *after* being bitten. At the only
+// moment the information is actionable, the verb that destroys the session was
+// mute (#182). `restart` is the sharper case: an operator reaches for it
+// mid-session and pays with the whole fixture.
+//
+// Three properties, each one a "what must not happen" from that issue:
+//
+//   - it never fires when --state was recorded, because the data is being kept
+//     and a warning on every healthy stop is the pattern people are trained to
+//     ignore. That check comes first, so a --state run pays no request at all;
+//   - the count comes from the endpoint `status` already reads, never from a
+//     second reader that could drift from it;
+//   - it is best-effort. An instance that no longer answers health is stopped
+//     exactly as before, within the same timeout, and the notice is dropped
+//     rather than waited for.
+//
+// One honest note about that last line, because falsifying it is what found it.
+// The `err != nil` half of the condition is **not load-bearing today**: measured
+// on Go 1.26, json.Decoder.Decode buffers the whole value before assigning, so a
+// truncated or refused answer leaves Resources at zero and the second half
+// already returns "". No mutation can distinguish the two, and a guard no test
+// can distinguish is not a control — it is kept as stated insurance against a
+// future encoding/json that assigns as it parses, which would turn a failed read
+// into a false accusation. Stated rather than implied, so nobody later reads it
+// as a proven guard.
+//
+// stderr, one line, never a prompt and never a refusal: CI drives stop, and its
+// exit codes are a frozen surface.
+//
+// TestStopSaysWhatItIsAboutToDiscard fails without this.
+func discardNotice(inst *Instance) string {
+	for _, arg := range inst.Args {
+		if arg == "--state" || strings.HasPrefix(arg, "--state=") {
+			return ""
+		}
+	}
+	health, err := fetchHealth(inst.Addr)
+	if err != nil || health.Resources == 0 {
+		return ""
+	}
+	return fmt.Sprintf("feint: discarding %d resource(s) (started without --state); "+
+		"`feint snapshot save <name>` before stopping would have kept them\n", health.Resources)
 }

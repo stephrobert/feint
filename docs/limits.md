@@ -410,11 +410,19 @@ where a runtime is configured).
 
 | Event | The store | The machines, networks and rule sets |
 |---|---|---|
-| Graceful exit (Ctrl-C, SIGTERM, `feint stop`) | lost (saved first with `--state`) | stay, labelled `user.feint.provider` |
+| Graceful exit (Ctrl-C, SIGTERM, `feint stop`) | lost, and **said out loud**: `feint stop` names the count it is about to discard when no `--state` was recorded (saved first with `--state`) | stay, labelled `user.feint.provider` |
 | Graceful exit with `--cleanup` | lost (saved first with `--state`) | swept before exit, counted out loud |
 | SIGKILL, crash, power loss | lost | stay, labelled — nothing had a chance to run |
-| Restart | starts empty | **named, never adopted**: startup warns "labelled machines from a previous run exist; nothing was adopted, `feint clean` removes them", listing them by name |
+| Restart | starts empty, with the same notice `stop` prints, because `restart` goes through it | **named, never adopted**: startup warns "labelled machines from a previous run exist; nothing was adopted, `feint clean` removes them", listing them by name |
 | `feint clean` | untouched (it is a separate process) | everything labelled is removed; the runtime is queried, and the sweep reports what it could not remove instead of claiming success |
+
+The store's own line was documentation only until #182. The model was right and
+this page stated it, but the sentence was read *after* being bitten: an operator
+reaching for `restart` mid-session paid with the whole fixture and learnt why
+here, later. `stop` now says it at the moment it happens, on stderr, once, and
+only when something is actually lost: with `--state` recorded it stays quiet,
+because a warning on every healthy stop is the pattern people are trained to
+ignore.
 
 Why restart never adopts: the store that gave those machines meaning died with
 the previous process. A machine resurrected from the runtime would be state

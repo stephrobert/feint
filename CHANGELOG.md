@@ -87,6 +87,21 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Changed
 
+- **`feint stop` says what it is about to discard** (#182). The store is memory
+  and `docs/limits.md` states it in a lifecycle table, but that sentence lives on
+  a page a user reads *after* being bitten: four resources existed, `stop` said
+  `stopped`, and nothing else. `restart` is the sharper case, since an operator
+  reaches for it mid-session and pays with the whole fixture.
+
+  One line on stderr now, before the signal, naming the count and the way out:
+  ``discarding 4 resource(s) (started without --state); `feint snapshot save
+  <name>` before stopping would have kept them``. Never a prompt and never a
+  refusal, because CI drives `stop` and its exit codes are a frozen surface. It
+  stays quiet when `--state` was recorded, when the store is empty, and when the
+  instance no longer answers — a warning on every healthy stop is the pattern
+  people are trained to ignore. The count comes from the endpoint `status`
+  already reads, so the two cannot disagree.
+
 - **A mispointed client is told which side is wrong** (#179). First contact is
   the one moment a user cannot yet tell a broken emulator from a broken
   pointing, and the three traps the README documents all answered in a way that
