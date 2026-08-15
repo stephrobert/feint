@@ -75,15 +75,37 @@ var statusRows = []providerRow{
 	{"Exoscale", "REST `/v2/<resource>`, asynchronous operations", "starter"},
 }
 
-// clientsProvenInCI reads the workflow and answers, per provider, the clients it
-// drives. The returned map is keyed by the lowercase provider directory.
-func clientsProvenInCI(workflowPath string) (map[string][]string, error) {
+// suiteRun is one conformance invocation the workflow makes: a provider, the
+// suite script, and the clients that script drives as clientOf spells them.
+//
+// Two tables read this one scan. The status table above asks which clients prove
+// a provider; the client matrix in docs_clients.go asks the transpose, which
+// provider a client proves. Deriving both from the same pass is the point: a
+// second reader of the same workflow would be a second chance for the two tables
+// to disagree, which is the defect each of them was filed for.
+type suiteRun struct {
+	provider string
+	suite    string
+	// clients is the cell clientOf holds, verbatim. One suite can name several
+	// clients — `terraform.sh` is driven by both Terraform and OpenTofu — and the
+	// two consumers want it differently: the status table prints the cell whole,
+	// the client matrix splits it. Splitting here would reorder the status table
+	// for no reason, so each caller splits when it needs to.
+	clients string
+}
+
+// suitesRunInCI scans the workflow for conformance invocations.
+//
+// An unmapped suite is an error rather than a skip: a new client proving a
+// provider must appear in both tables, and silently dropping the one name nobody
+// mapped is how a table understates what is proven.
+func suitesRunInCI(workflowPath string) ([]suiteRun, error) {
 	body, err := os.ReadFile(workflowPath) //nolint:gosec // a path this repository owns
 	if err != nil {
 		return nil, err
 	}
 
-	found := map[string]map[string]bool{}
+	var runs []suiteRun
 	for _, match := range suiteInvocation.FindAllStringSubmatch(string(body), -1) {
 		provider, suite := match[1], match[2]
 		client, known := clientOf[suite]
@@ -97,10 +119,25 @@ func clientsProvenInCI(workflowPath string) (map[string][]string, error) {
 		if client == "" {
 			continue
 		}
-		if found[provider] == nil {
-			found[provider] = map[string]bool{}
+		runs = append(runs, suiteRun{provider: provider, suite: suite, clients: client})
+	}
+	return runs, nil
+}
+
+// clientsProvenInCI reads the workflow and answers, per provider, the clients it
+// drives. The returned map is keyed by the lowercase provider directory.
+func clientsProvenInCI(workflowPath string) (map[string][]string, error) {
+	runs, err := suitesRunInCI(workflowPath)
+	if err != nil {
+		return nil, err
+	}
+
+	found := map[string]map[string]bool{}
+	for _, run := range runs {
+		if found[run.provider] == nil {
+			found[run.provider] = map[string]bool{}
 		}
-		found[provider][client] = true
+		found[run.provider][run.clients] = true
 	}
 
 	out := map[string][]string{}

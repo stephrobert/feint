@@ -3,7 +3,9 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -15,38 +17,69 @@ import (
 // `scw` newer than the last conformance run can reject an answer that passed,
 // and nothing on the page would say so.
 //
-// The versions are not restated here. They are read from the workflow that
-// installs them and from the Terraform fixture that pins the provider, so the
-// table cannot claim a version the CI does not actually run.
+// Nothing in the table is restated here. The versions come from the workflow
+// that installs the clients, the provider constraints from the Terraform
+// fixtures that pin them, and the provider column from the same workflow scan
+// the status table reads.
+//
+// That last one was a constant in this file, under a marker saying "Do not edit
+// by hand", and it was wrong in the way a hand-written claim is always wrong:
+// it credited Terraform to Scaleway alone while `conformance.yml` had been
+// running `tools/conformance/outscale/terraform.sh` on every pull request under
+// both the terraform and the opentofu legs. Generated is not derived. An
+// understated proof costs as much as an overstated one here — an external review
+// recommended deleting Terraform from the README's Outscale row on the strength
+// of this table, which would have erased a suite that applies twenty-one
+// resources.
+//
+// TestTheClientMatrixCreditsEveryProviderCIProves fails without this.
 
 const (
 	clientsStartMarker = "<!-- clients:start -->"
 	clientsEndMarker   = "<!-- clients:end -->"
 
 	conformanceWorkflow = ".github/workflows/conformance.yml"
-	terraformFixture    = "tools/conformance/scaleway/terraform/main.tf"
+	// conformanceRoot holds one directory per provider, each with the fixtures
+	// its suites run. The Terraform provider pins are read from under here.
+	conformanceRoot = "tools/conformance"
+	// terraformSuite is the suite whose clients answer through a Terraform
+	// provider, and therefore the only rows that carry a provider constraint.
+	terraformSuite = "terraform"
 )
 
-// clientSource ties a client to where its version is pinned and to the pack it
-// exercises. Adding a client to the suite means adding a line here; a line whose
-// variable the workflow does not set renders as "unpinned", which is visible
-// rather than silent.
+// clientSources ties a client to the workflow variable that pins its version.
+//
+// It deliberately no longer says which provider the client proves: that is the
+// column this file exists to derive. A client the workflow drives and this list
+// does not name is an error in renderClients, not a silent omission.
 var clientSources = []struct {
 	name     string
 	variable string
-	provider string
 }{
-	{"`scw`", "SCW_VERSION", "Scaleway"},
-	{"Terraform", "TERRAFORM_VERSION", "Scaleway"},
-	{"OpenTofu", "TOFU_VERSION", "Scaleway"},
-	{"`oapi-cli`", "OAPI_VERSION", "Outscale"},
-	{"`exo`", "EXO_VERSION", "Exoscale"},
+	{"`scw`", "SCW_VERSION"},
+	{"Terraform", "TERRAFORM_VERSION"},
+	{"OpenTofu", "TOFU_VERSION"},
+	{"`oapi-cli`", "OAPI_VERSION"},
+	{"`exo`", "EXO_VERSION"},
 }
 
 var (
-	versionPattern  = regexp.MustCompile(`(?m)^\s*([A-Z0-9_]+_VERSION):\s*'([^']+)'`)
-	providerPattern = regexp.MustCompile(`(?s)scaleway\s*=\s*\{.*?version\s*=\s*"([^"]+)"`)
+	versionPattern = regexp.MustCompile(`(?m)^\s*([A-Z0-9_]+_VERSION):\s*'([^']+)'`)
+	// providerPattern reads one entry of a fixture's required_providers block.
+	// It is anchored on `required_providers` rather than on a provider's name so
+	// that a fourth pack's fixture is read the day it lands, without this file
+	// learning the provider's spelling.
+	providerPattern = regexp.MustCompile(
+		`(?s)required_providers\s*\{.*?source\s*=\s*"([^"]+)".*?version\s*=\s*"([^"]+)"`)
 )
+
+// clientProof is one thing CI proves about one client: the provider it drove,
+// and through which suite. The suite is kept because only the Terraform one
+// carries a provider constraint.
+type clientProof struct {
+	provider string // the lowercase directory under tools/conformance
+	suite    string
+}
 
 // pinnedVersions reads the versions the conformance workflow installs.
 func pinnedVersions(workflow string) (map[string]string, error) {
@@ -61,24 +94,122 @@ func pinnedVersions(workflow string) (map[string]string, error) {
 	return out, nil
 }
 
-// terraformProvider reads the provider constraint the Terraform fixture pins.
-// The Terraform version alone proves nothing: what answers the emulator is the
-// provider, and it is pinned in a different file from every other client.
-func terraformProvider(fixture string) string {
-	body, err := os.ReadFile(fixture) //nolint:gosec // a path this repository owns
+// proofsPerClient transposes the workflow scan: for each client, the providers
+// it drives and the suite it drives them through.
+func proofsPerClient(workflow string) (map[string][]clientProof, error) {
+	runs, err := suitesRunInCI(workflow)
+	if err != nil {
+		return nil, err
+	}
+
+	seen := map[string]map[clientProof]bool{}
+	for _, run := range runs {
+		for _, name := range strings.Split(run.clients, ", ") {
+			name = strings.TrimSpace(name)
+			if name == "" {
+				continue
+			}
+			if seen[name] == nil {
+				seen[name] = map[clientProof]bool{}
+			}
+			seen[name][clientProof{provider: run.provider, suite: run.suite}] = true
+		}
+	}
+
+	out := map[string][]clientProof{}
+	for name, proofs := range seen {
+		list := make([]clientProof, 0, len(proofs))
+		for proof := range proofs {
+			list = append(list, proof)
+		}
+		sort.Slice(list, func(i, j int) bool {
+			if list[i].provider != list[j].provider {
+				return list[i].provider < list[j].provider
+			}
+			return list[i].suite < list[j].suite
+		})
+		out[name] = list
+	}
+	return out, nil
+}
+
+// providerName spells a conformance directory the way the page names the
+// provider. Derived rather than mapped: a table of three names would be one more
+// hand-written thing to disagree with the directory it describes.
+func providerName(dir string) string {
+	if dir == "" {
+		return dir
+	}
+	return strings.ToUpper(dir[:1]) + dir[1:]
+}
+
+// terraformProviderPin reads the provider constraint a provider's Terraform
+// fixture pins. The Terraform version alone proves nothing: what answers the
+// emulator is the provider, and it is pinned in a different file from every
+// other client — one file per provider.
+func terraformProviderPin(root, provider string) string {
+	body, err := os.ReadFile(filepath.Join(root, provider, terraformSuite, "main.tf")) //nolint:gosec // a path this repository owns
 	if err != nil {
 		return ""
 	}
 	if m := providerPattern.FindStringSubmatch(string(body)); m != nil {
-		return m[1]
+		return fmt.Sprintf("`%s %s`", m[1], m[2])
 	}
 	return ""
 }
 
-func renderClients(workflow, fixture string) (string, error) {
+// versionCell renders what CI installs for one client, plus the provider
+// constraints when the client answers through a Terraform provider.
+func versionCell(version string, proofs []clientProof, root string) string {
+	var pins []string
+	for _, proof := range proofs {
+		if proof.suite != terraformSuite {
+			continue
+		}
+		if pin := terraformProviderPin(root, proof.provider); pin != "" {
+			pins = append(pins, pin)
+		}
+	}
+	switch len(pins) {
+	case 0:
+		return version
+	case 1:
+		return version + " with provider " + pins[0]
+	default:
+		return version + " with providers " + strings.Join(pins, ", ")
+	}
+}
+
+func renderClients(workflow, root string) (string, error) {
 	versions, err := pinnedVersions(workflow)
 	if err != nil {
 		return "", err
+	}
+	proofs, err := proofsPerClient(workflow)
+	if err != nil {
+		return "", err
+	}
+
+	// A client CI drives and this file does not list would be proven and
+	// invisible, which is the exact shape of the defect that produced this
+	// change. Refuse rather than print a table that is short by one row.
+	listed := map[string]bool{}
+	for _, c := range clientSources {
+		listed[c.name] = true
+	}
+	unlisted := make([]string, 0, len(proofs))
+	for name := range proofs {
+		if !listed[name] {
+			unlisted = append(unlisted, name)
+		}
+	}
+	if len(unlisted) > 0 {
+		sort.Strings(unlisted)
+		return "", fmt.Errorf(
+			"%s drives %s and clientSources in internal/cli/docs_clients.go does not "+
+				"list it: the table would leave out a client CI proves, which is what "+
+				"this generator exists to stop",
+			workflow, strings.Join(unlisted, ", "))
 	}
 
 	var b strings.Builder
@@ -89,12 +220,23 @@ func renderClients(workflow, fixture string) (string, error) {
 		if !ok {
 			version = "unpinned"
 		}
-		if c.name == "Terraform" {
-			if p := terraformProvider(fixture); p != "" {
-				version = fmt.Sprintf("%s with provider `scaleway/scaleway %s`", version, p)
+
+		mine := proofs[c.name]
+		names := make([]string, 0, len(mine))
+		for _, proof := range mine {
+			name := providerName(proof.provider)
+			if len(names) == 0 || names[len(names)-1] != name {
+				names = append(names, name)
 			}
 		}
-		fmt.Fprintf(&b, "| %s | %s | %s |\n", c.name, version, c.provider)
+		// A listed client no workflow drives is the mirror of the case refused
+		// above, and it says so in the cell rather than reading as a proof.
+		providers := "not run in CI"
+		if len(names) > 0 {
+			providers = strings.Join(names, ", ")
+		}
+
+		fmt.Fprintf(&b, "| %s | %s | %s |\n", c.name, versionCell(version, mine, root), providers)
 	}
 	b.WriteString("\nThese are the versions the conformance workflow installs and runs on every\n")
 	b.WriteString("pull request and nightly. A newer client is not known to work until the pin\n")

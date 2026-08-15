@@ -15,7 +15,7 @@ parce que c'est là-dessus que ce projet est jugé : **une forme de réponse qu'
 client peut observer**, et **une limite qui a bougé**. Une refactorisation qui ne
 change ni l'un ni l'autre a sa place dans `git log`.
 
-## [Unreleased]
+## [Non publié]
 
 ### Ajouté
 
@@ -36,8 +36,6 @@ change ni l'un ni l'autre a sa place dans `git log`.
   changer une surface gelée à dessein est dans RELEASING.fr.md (« Surfaces
   gelées »).
 
-## [Non publié]
-
 ### Modifié
 
 - **`/_feint/conformance` passe en version de schéma 2.** `evidence.*[].probed`
@@ -46,6 +44,26 @@ change ni l'un ni l'autre a sa place dans `git log`.
   compterait chaque refus comme un succès — la surestimation que #156 supprime,
   réapparue une couche plus loin. Le changement de version est ce qui lui permet
   de s'en apercevoir.
+
+### Corrigé
+
+- **La matrice des clients crédite chaque fournisseur contre lequel la CI pilote
+  un client** (#155). La colonne « Emulated provider » du tableau du README
+  était une constante du générateur, sous un marqueur disant « Généré … ne pas
+  modifier à la main », et elle attribuait Terraform au seul Scaleway alors que
+  `conformance.yml` lançait `tools/conformance/outscale/terraform.sh` sur chaque
+  pull request, sous les deux branches terraform et opentofu. Généré n'est pas
+  dérivé : la colonne est désormais lue par le même balayage du workflow que la
+  table de statut, et chaque ligne qui répond au travers d'un provider Terraform
+  affiche la contrainte que la fixture de ce fournisseur épingle
+  (`scaleway/scaleway ~> 2.79` et `outscale/outscale ~> 1.7`), aucune des deux
+  n'étant redite ici. Sous-estimer une preuve coûte autant que la surestimer :
+  un audit externe a recommandé de retirer Terraform de la ligne Outscale du
+  README sur la foi de cette colonne, ce qui aurait effacé une suite qui
+  applique vingt et une ressources. Un client que la CI pilote et que le
+  générateur ne liste pas est maintenant refusé au lieu d'être omis. Trois
+  mutations falsifiées dans une copie hors dépôt, trois tests nommés qui
+  mordent.
 
 ## [0.8.0]
 

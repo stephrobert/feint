@@ -555,8 +555,8 @@ argument is that the upstream moves:
 | Client | Version proven in CI | Emulated provider |
 |---|---|---|
 | `scw` | 2.56.3 | Scaleway |
-| Terraform | 1.13.3 with provider `scaleway/scaleway ~> 2.79` | Scaleway |
-| OpenTofu | 1.12.5 | Scaleway |
+| Terraform | 1.13.3 with providers `outscale/outscale ~> 1.7`, `scaleway/scaleway ~> 2.79` | Outscale, Scaleway |
+| OpenTofu | 1.12.5 with providers `outscale/outscale ~> 1.7`, `scaleway/scaleway ~> 2.79` | Outscale, Scaleway |
 | `oapi-cli` | 0.15.0 | Outscale |
 | `exo` | 1.95.6 | Exoscale |
 

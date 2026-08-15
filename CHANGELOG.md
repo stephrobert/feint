@@ -40,6 +40,24 @@ what this project is judged on: **a response shape a client can observe**, and
   every refusal as a success — the overstatement #156 removed, reappearing one
   layer out. The version bump is what lets it notice.
 
+### Fixed
+
+- **The client matrix credits every provider CI drives a client against**
+  (#155). The `Emulated provider` column of the README table was a constant in
+  the generator, under a marker reading "Generated … Do not edit by hand", and
+  it credited Terraform to Scaleway alone while `conformance.yml` had been
+  running `tools/conformance/outscale/terraform.sh` on every pull request, under
+  both the terraform and the opentofu legs. Generated is not derived: the column
+  is now read from the same workflow scan the status table uses, and each row
+  answering through a Terraform provider states the constraint that provider's
+  own fixture pins — `scaleway/scaleway ~> 2.79` and `outscale/outscale ~> 1.7`,
+  neither of them restated here. Understating a proof costs as much as
+  overstating one: an external review recommended deleting Terraform from the
+  README's Outscale row on the strength of that column, which would have erased
+  a suite that applies twenty-one resources. A client CI drives and the
+  generator does not list is now refused rather than left out. Three mutations
+  falsified in a copy outside the repository, three named tests biting.
+
 ## [0.8.0]
 
 ### Fixed

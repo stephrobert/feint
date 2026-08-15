@@ -136,7 +136,7 @@ func docs(args []string, stdout, stderr io.Writer) int {
 	// that installs the clients, so the versions on the page and the versions the
 	// suite runs cannot drift apart.
 	if strings.Contains(updated, clientsStartMarker) {
-		rendered, cErr := renderClients(*workflow, terraformFixture)
+		rendered, cErr := renderClients(*workflow, conformanceRoot)
 		if cErr != nil {
 			// The likeliest cause is a document that claims the marker outside
 			// this repository, where the workflow it reads does not exist. Say
