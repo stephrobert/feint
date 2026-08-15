@@ -332,9 +332,38 @@ Every one of these is also a mise task: run "mise tasks" to list them.
 func machineDriver(mode string, stdout io.Writer) (machine.Driver, error) {
 	ctx := context.Background()
 
+	// verify asks the host what it delivers, once, before anything is published.
+	//
+	// Before #181 a mode's capabilities were a function of the flag: NewIncusOVN
+	// set OVN and `isolation: true` followed, on a host with no OVN wiring at
+	// all. Measured on 2026-08-15: `--vm auto` chose incus-ovn on an ordinary
+	// Incus 7.2 host and /_feint/health published isolation until the first
+	// network creation failed and blamed the address block.
+	//
+	// The narrowing is announced rather than silent, because a capability that
+	// quietly drops is how a suite starts skipping what it used to assert.
+	verify := func(d machine.Driver) []string {
+		v, ok := d.(interface {
+			Verify(context.Context) (machine.Capabilities, []string)
+		})
+		if !ok {
+			return nil
+		}
+		_, unmet := v.Verify(ctx)
+		return unmet
+	}
+
 	requested := func(d machine.Driver) (machine.Driver, error) {
 		if !d.Available(ctx) {
 			return nil, fmt.Errorf("--vm %s requested but the Incus daemon does not answer", mode)
+		}
+		// Asked for by name, and the host cannot serve it: refuse at startup
+		// naming the missing half, the same shape as the line above. Accepting
+		// it would publish a capability the first create disproves, and blame
+		// the client for it.
+		if unmet := verify(d); len(unmet) > 0 {
+			return nil, fmt.Errorf("--vm %s requested but this host cannot deliver it:\n  %s",
+				mode, strings.Join(unmet, "\n  "))
 		}
 		return d, nil
 	}
@@ -356,8 +385,27 @@ func machineDriver(mode string, stdout io.Writer) (machine.Driver, error) {
 			if !d.Available(ctx) {
 				continue
 			}
+			// The fall-through the comment above always claimed. It could never
+			// trigger while Available was one `incus list` for all three modes:
+			// a mode whose defining capability the host cannot deliver is passed
+			// over, so the ordinary host that never installed OVN lands on the
+			// bridge that works instead of on a promise that does not.
+			declared := machine.CapabilitiesOf(d)
+			unmet := verify(d)
 			caps := machine.CapabilitiesOf(d)
+			if declared.Isolation && !caps.Isolation {
+				// Isolation is the only reason this mode is tried first, so a
+				// host that cannot deliver it gets the next mode rather than
+				// this one with its reason removed. Said out loud: a runtime
+				// chosen differently from what the operator would expect is
+				// exactly the kind of decision that must not be silent.
+				fmt.Fprintf(stdout, "%s passed over: %s\n", d.Name(), strings.Join(unmet, "; "))
+				continue
+			}
 			fmt.Fprintf(stdout, "machine runtime: %s (isolation: %v)\n", d.Name(), caps.Isolation)
+			for _, why := range unmet {
+				fmt.Fprintf(stdout, "  the host narrowed this: %s\n", why)
+			}
 			if !caps.Isolation {
 				fmt.Fprintln(stdout,
 					"  subnets of different VPCs will reach each other; install ovn-central and ovn-host for isolation")

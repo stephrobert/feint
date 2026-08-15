@@ -198,7 +198,12 @@ func checkRuntime(ctx context.Context, mode string) []check {
 // incusMinimum is the version below which NIC ACLs are refused, and the failure
 // looks like a bug in this emulator rather than a version floor: a security
 // group is created, attached, and enforces nothing.
-var incusMinimum = [3]int{6, 0, 4}
+//
+// Read from the runtime rather than declared here since #181: `serve` checks the
+// same floor before publishing `firewall: true`, and two copies is how the two
+// drift — the diagnostic saying one thing and the capability another, which is
+// exactly the shape of defect that issue was filed for.
+var incusMinimum = machine.IncusMinimum
 
 // incusRecommended is the series every measurement in docs/limits.md was taken
 // on, and the one docs/install.md installs. It is not a floor: a 6.0.4 host runs
@@ -213,13 +218,11 @@ var incusRecommended = [2]int{7, 2}
 // diagnostics both cite it. Written once: the two strings below used to spell
 // "6.0.4" out beside incusMinimum, so a change to the floor would have moved the
 // check without moving what it tells the operator to install.
-func versionText(parts []int) string {
-	out := make([]string, len(parts))
-	for i, p := range parts {
-		out[i] = strconv.Itoa(p)
-	}
-	return strings.Join(out, ".")
-}
+//
+// It forwards to the runtime's copy for the same reason the floor does: the
+// startup line that narrows a capability cites the same version, in the same
+// spelling.
+func versionText(parts []int) string { return machine.VersionText(parts) }
 
 func checkIncusVersion(ctx context.Context) check {
 	cmd := exec.CommandContext(ctx, "incus", "version") //nolint:gosec // a fixed binary name

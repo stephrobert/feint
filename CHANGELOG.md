@@ -87,6 +87,35 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Changed
 
+- **A capability is verified against the host before it is published** (#181).
+  `NewIncusOVN` set `OVN = true` and `isolation: true` followed, whatever the
+  host could do: there was one `Available` for all three Incus modes and it ran
+  `incus list`, so on any host whose daemon answers the OVN driver reported
+  available. `internal/cli/cli.go` carried a comment vouching for a fall-through
+  that could therefore never trigger — the defect class CLAUDE.md names, sitting
+  on the line that chooses what runs on the operator's host.
+
+  Measured on an Incus 7.2 host with no OVN wiring: `--vm auto` chose
+  `incus-ovn` and `/_feint/health` published `isolation: true`, until the first
+  network creation failed and told the client the address block was already in
+  use. A false capability is strictly worse than none, because this project
+  sends every consumer to `capabilities.isolation` rather than to a mode name.
+
+  `Verify` now asks the host, once, at startup, with two reads that create
+  nothing: `network.ovn.northbound_connection` for isolation, and the daemon
+  version against the 6.0.4 floor for the firewall — the same floor
+  `feint doctor` cites, moved to `internal/core/machine` so the two cannot
+  drift. On the same host, `auto` now prints `incus-ovn passed over` with the
+  reason and lands on the bridge that works; `--vm incus-ovn` asked for by name
+  refuses at startup naming the missing half, exit 1. An unreadable version
+  keeps the capability rather than losing it: a diagnostic gap must not become a
+  lost capability.
+
+  The bound is stated rather than glossed: a wired northbound is necessary and
+  not sufficient, so a host whose *uplink* is misconfigured still publishes
+  isolation and still fails at the first create. `docs/install.md` says so, and
+  says why its own proof is a real `CreateSubnet` rather than the endpoint.
+
 - **`/_feint/health` moves to schema version 2, and says which packs deliver a
   capability** (#180). `(*Incus).Capabilities()` declared `firewall: true` in
   every mode, one set for the whole process, and this project tells a consumer

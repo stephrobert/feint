@@ -203,13 +203,22 @@ the same 6.0.4, and says what to install, which is the point of having it.
 
 Every command below was executed on a fresh virtual machine of the release
 named, by `tools/install/ansible/site.yml`. The check is not "the packages
-installed", and it is not the health endpoint on its own either:
-`capabilities.isolation` follows the *mode*, so a host whose OVN uplink is
-misconfigured reports `true` while being unable to create a single subnet. What
-the play asserts is a real `CreateNet` followed by a real `CreateSubnet` through
-the emulated API — the second is the call that needs OVN actually wired — and
-only then the isolation capability, which is the claim the whole setup exists
-for: two subnets of two different VPCs unable to reach each other.
+installed", and it is not the health endpoint on its own either.
+
+`capabilities.isolation` used to follow the *mode* alone, so a host with no OVN
+at all reported `true` and failed at the first network creation. Since #181 the
+capability is verified against the host before it is published: an OVN mode
+whose `network.ovn.northbound_connection` is unset refuses at startup when it
+was asked for by name, and is passed over by `--vm auto` with its reason
+printed. **That probe is necessary and not sufficient**, and the difference is
+this section's whole point: a host whose northbound is wired and whose *uplink*
+is misconfigured still reports `true` and still cannot create a subnet.
+
+So what the play asserts is a real `CreateNet` followed by a real `CreateSubnet`
+through the emulated API — the second is the call that needs OVN actually wired,
+uplink included — and only then the isolation capability, which is the claim the
+whole setup exists for: two subnets of two different VPCs unable to reach each
+other.
 
 | Release | Incus from | OVN from | Verdict |
 |---|---|---|---|

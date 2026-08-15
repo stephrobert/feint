@@ -111,6 +111,12 @@ func (Noop) Capabilities() Capabilities { return Capabilities{} }
 // separates two VPC's subnets by construction NATs the host away from their
 // insides, so the two claims cannot both be true of one Incus mode.
 func (d *Incus) Capabilities() Capabilities {
+	// What the host answered wins over what the flag promised (#181). Verify
+	// narrows this set once at startup; before that, and in a test that builds a
+	// driver directly, the declaration below is what there is.
+	if d.verified != nil {
+		return *d.verified
+	}
 	return Capabilities{
 		Machines:        true,
 		Addresses:       true,

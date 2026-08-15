@@ -69,6 +69,12 @@ type Incus struct {
 	// can hold in milliseconds.
 	agentPoll time.Duration
 
+	// verified is what the host answered when Verify ran, and it is what
+	// Capabilities publishes once it is set. Nil means nobody asked, which is
+	// the case in a test that builds a driver directly: the declared set is then
+	// the honest answer, because no host was consulted to contradict it.
+	verified *Capabilities
+
 	// attachMu serialises interface allocation. Attach reads the device list and
 	// then adds a device under a name it believes free; two concurrent calls
 	// without the lock pick the same name, and the loser's attachment silently

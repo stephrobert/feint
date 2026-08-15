@@ -96,6 +96,39 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Modifié
 
+- **Une capacité est vérifiée contre l'hôte avant d'être publiée** (#181).
+  `NewIncusOVN` posait `OVN = true` et `isolation: true` suivait, quoi que
+  l'hôte sache faire : il n'existait qu'un seul `Available` pour les trois modes
+  Incus, et il lançait `incus list`, si bien que sur tout hôte dont le démon
+  répond, le pilote OVN se déclarait disponible. `internal/cli/cli.go` portait
+  un commentaire garantissant un repli qui ne pouvait donc jamais se déclencher :
+  la classe de défaut que CLAUDE.md nomme, posée sur la ligne qui choisit ce qui
+  tourne sur la machine de l'opérateur.
+
+  Mesuré sur un hôte Incus 7.2 sans aucun câblage OVN : `--vm auto` choisissait
+  `incus-ovn` et `/_feint/health` publiait `isolation: true`, jusqu'à ce que la
+  première création de réseau échoue en disant au client que le bloc d'adresses
+  était déjà pris. Une capacité fausse est strictement pire qu'aucune, puisque
+  ce projet envoie tout consommateur vers `capabilities.isolation` plutôt que
+  vers un nom de mode.
+
+  `Verify` interroge désormais l'hôte, une fois, au démarrage, par deux lectures
+  qui ne créent rien : `network.ovn.northbound_connection` pour l'isolation, et
+  la version du démon contre le plancher 6.0.4 pour le pare-feu, ce même
+  plancher que cite `feint doctor`, déplacé dans `internal/core/machine` pour
+  que les deux ne puissent plus diverger. Sur ce même hôte, `auto` affiche
+  maintenant `incus-ovn passed over` avec la raison et retombe sur le pont qui
+  fonctionne ; `--vm incus-ovn` demandé par son nom refuse au démarrage en
+  nommant la moitié manquante, code 1. Une version illisible conserve la
+  capacité au lieu de la perdre : un manque de diagnostic ne doit pas devenir
+  une capacité perdue.
+
+  La limite est énoncée plutôt que passée sous silence : un northbound câblé est
+  nécessaire et non suffisant, donc un hôte dont l'**uplink** est mal configuré
+  publie encore l'isolation et échoue encore à la première création.
+  `docs/install.md` le dit, et dit pourquoi sa propre preuve est un vrai
+  `CreateSubnet` plutôt que l'endpoint.
+
 - **`/_feint/health` passe en version de schéma 2 et dit quels packs livrent
   réellement une capacité** (#180). `(*Incus).Capabilities()` déclarait
   `firewall: true` dans tous les modes, un seul jeu pour tout le processus, et
