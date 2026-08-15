@@ -2,8 +2,8 @@
   "provider": "outscale",
   "total": 263,
   "implemented": 83,
-  "declined": 174,
-  "unknown": 6,
+  "declined": 178,
+  "unknown": 2,
   "orphans": null,
   "products": [
     {
@@ -17,8 +17,8 @@
       "product": "osc",
       "total": 236,
       "implemented": 83,
-      "declined": 147,
-      "unknown": 6
+      "declined": 151,
+      "unknown": 2
     }
   ],
   "groups": [
@@ -187,8 +187,8 @@
       "group": "NetAccessPoint",
       "total": 5,
       "implemented": 1,
-      "declined": 0,
-      "unknown": 4
+      "declined": 4,
+      "unknown": 0
     },
     {
       "group": "NetPeering",
@@ -707,8 +707,9 @@
     {
       "operation": "osc/Client.CreateNetAccessPoint",
       "product": "osc",
+      "reason": "a Net access point is a private route to a managed service this emulator does not run, so it would point at nothing",
       "group": "NetAccessPoint",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "osc/Client.CreateNetPeering",
@@ -1003,8 +1004,9 @@
     {
       "operation": "osc/Client.DeleteNetAccessPoint",
       "product": "osc",
+      "reason": "a Net access point is a private route to a managed service this emulator does not run, so it would point at nothing",
       "group": "NetAccessPoint",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteNetPeering",
@@ -1522,8 +1524,9 @@
     {
       "operation": "osc/Client.ReadNetAccessPoints",
       "product": "osc",
+      "reason": "a Net access point is a private route to a managed service this emulator does not run, so it would point at nothing",
       "group": "NetAccessPoint",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "osc/Client.ReadNetPeerings",
@@ -2011,8 +2014,9 @@
     {
       "operation": "osc/Client.UpdateNetAccessPoint",
       "product": "osc",
+      "reason": "a Net access point is a private route to a managed service this emulator does not run, so it would point at nothing",
       "group": "NetAccessPoint",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateNic",

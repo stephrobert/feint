@@ -438,7 +438,7 @@ are in `coverage/`, one artefact per provider.
 | `POST` | `/api/v1/UnlinkVolume` | `osc/Client.UnlinkVolume` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/UpdateVolume` | `osc/Client.UpdateVolume` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 
-### Declined on purpose (174)
+### Declined on purpose (178)
 
 Operations this pack knowingly does not serve, and why. Declining is a
 decision the drift gate records, which is what separates it from having
@@ -468,6 +468,7 @@ are in `coverage/`, one artefact per provider.
 - `LoadBalancer` — 11 operations — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
 - `LoadBalancerPolicy` — 2 operations — a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured
 - `Location` — 1 operation — each of these belongs to a link terminating on a network this machine is not on — a cross connect, a tunnel to a remote site — and the facility list and route propagation exist only to serve one
+- `NetAccessPoint` — 4 operations — a Net access point is a private route to a managed service this emulator does not run, so it would point at nothing
 - `Policy` — 24 operations — the emulator accepts every credential on purpose, so serving user and policy management would describe an access control that nothing here applies
 - `ProductType` — 3 operations — the emulator has one implicit account with no consumption and no price list, so anything here would be a figure it invented and somebody acted on
 - `PublicCatalog` — 1 operation — no client this project drives reads a price on its way to creating anything, which is the whole of it: where a catalogue is on a client's path the emulator does serve a fictional one, and docs/limits.md says so

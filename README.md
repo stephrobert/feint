@@ -615,7 +615,7 @@ what this emulator serves, declines on purpose, or has not triaged yet.
 #### Outscale
 
 83 routes mounted. Of the 263 operations upstream declares: 31% served,
-66% declined on purpose, 2% untriaged.
+67% declined on purpose, 0% untriaged.
 
 | Group | Served | Declined | Untriaged | Upstream |
 |---|--:|--:|--:|--:|
@@ -637,8 +637,8 @@ what this emulator serves, declines on purpose, or has not triaged yet.
 | `VirtualGateway` | 0 | 6 | 0 | 6 |
 | `VmGroup` | 0 | 6 | 0 | 6 |
 | `VpnConnection` | 0 | 6 | 0 | 6 |
-| *… 33 smaller groups* | 41 | 53 | 4 | 98 |
-| **Total** | **83** | **174** | **6** | **263** |
+| *… 33 smaller groups* | 41 | 57 | 0 | 98 |
+| **Total** | **83** | **178** | **2** | **263** |
 
 #### Exoscale
 

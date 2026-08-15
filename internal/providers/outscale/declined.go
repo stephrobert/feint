@@ -302,5 +302,26 @@ func (p *Pack) Declined() []emulator.Decline {
 			"oks/Client.UpdateCluster",
 			"oks/Client.UpdateProject",
 			"oks/Client.UpgradeCluster"),
+
+		// A Net access point is a private route from a Net to one of Outscale's
+		// own managed services — object storage above all — so that traffic
+		// reaches it without leaving the Net.
+		//
+		// This emulator runs none of those services. There is nothing on the
+		// other end of the endpoint, so a created access point would name a
+		// destination that does not exist, and `ReadNetAccessPointServices`
+		// would have to answer a catalogue of services nobody can call. That is
+		// the same refusal the managed Kubernetes control plane gets one entry
+		// up, for the same reason: describing a service the emulator does not
+		// run is worse than answering nothing.
+		//
+		// Revisitable, and the condition is stated rather than implied: the day
+		// a pack here serves one of those services, its access point becomes a
+		// route to something real and this entry should go.
+		emulator.Because("a Net access point is a private route to a managed service this emulator does not run, so it would point at nothing",
+			"osc/Client.CreateNetAccessPoint",
+			"osc/Client.DeleteNetAccessPoint",
+			"osc/Client.ReadNetAccessPoints",
+			"osc/Client.UpdateNetAccessPoint"),
 	)
 }
