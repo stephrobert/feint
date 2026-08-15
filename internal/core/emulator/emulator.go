@@ -379,8 +379,16 @@ func (s *Server) handleUnrouted(w http.ResponseWriter, r *http.Request) {
 	// And in the log too, because some CLIs never surface a 404 body: the
 	// operator watching the emulator sees the cause even when their client
 	// swallowed it.
+	//
+	// The hint alone, not the path beside it: the hint opens by naming the path,
+	// so logging both wrote the same value twice and gave a reader two things to
+	// reconcile. It is also the narrower claim to defend — this line is reached
+	// only when missingPrefixHint returned something, which happens only after
+	// plainPath allow-listed the path to [A-Za-z0-9/_.~:-] and capped it at 200
+	// bytes. No newline, quote or `=` can reach a log record from here, and
+	// TestAPathOutsideTheAllowListEarnsNoHint is what holds that.
 	if hint != "" {
-		s.env.Log.Warn("mispointed client", "path", r.URL.Path, "hint", hint)
+		s.env.Log.Warn("mispointed client", "hint", hint)
 	}
 	if !internalPath(r.URL.Path) {
 		s.stream.publishExchange(trace.Exchange{

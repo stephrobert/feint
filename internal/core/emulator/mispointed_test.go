@@ -84,6 +84,11 @@ func TestAPathOutsideTheAllowListEarnsNoHint(t *testing.T) {
 		"/instance/" + strings.Repeat("x", 300),
 		"/instance/nul\x00byte",
 		"/instance/new\nline",
+		// The two that matter for a log record rather than for a body:
+		// slog's text handler separates keys with "=" and values with a
+		// space, so neither may reach it. The allow-list is what stops them.
+		"/instance/key=value",
+		"/instance/two words",
 	} {
 		if got := missingPrefixHint(bad, routes); got != "" {
 			t.Errorf("a path outside the allow-list must earn no hint.\n path: %q\n hint: %q", bad, got)
