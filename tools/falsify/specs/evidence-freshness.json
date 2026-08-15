@@ -1,0 +1,34 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "the digest ignores what a file contains, so removing an assertion moves nothing",
+      "file": "internal/cli/provenance.go",
+      "find": "\t\tsum.Write([]byte(rel))\n\t\tsum.Write([]byte{0})\n\t\tsum.Write(body)",
+      "replace": "\t\tsum.Write([]byte(rel))\n\t\tsum.Write([]byte{0})\n\t\t_ = body",
+      "test": "TestTheDigestMovesWithTheInputsAndNotOtherwise"
+    },
+    {
+      "label": "a moved input is no longer named, so a join is refused without a reason",
+      "file": "internal/cli/provenance.go",
+      "find": "\tif p.Suites != other.Suites {\n\t\tmoved = append(moved, \"suites\")\n\t}",
+      "replace": "\tif p.Suites != other.Suites && false {\n\t\tmoved = append(moved, \"suites\")\n\t}",
+      "test": "TestAJoinRefusesAnArtefactFromOtherInputs"
+    },
+    {
+      "label": "the join keeps only part of the provenance, so the gate compares less than it says",
+      "file": "internal/cli/evidence.go",
+      "find": "\t\tGeneratedFrom: a.GeneratedFrom,\n\t\tOperations:    ops,",
+      "replace": "\t\tGeneratedFrom: provenance{Suites: a.GeneratedFrom.Suites},\n\t\tOperations:    ops,",
+      "test": "TestTheJoinedRecordKeepsItsProvenance"
+    },
+    {
+      "label": "an unreadable record is treated as an absent one again",
+      "file": "internal/cli/evidence.go",
+      "find": "\tcase err != nil:\n\t\treturn nil, err",
+      "replace": "\tcase err != nil:\n\t\treturn nil, nil",
+      "test": "TestAnUnreadableRecordIsNotAnAbsentOne"
+    }
+  ],
+  "note": "The sort in digestTree carries no mutation: any deterministic reordering still makes two runs agree, so the determinism test cannot distinguish it. It guards against filesystem walk order varying between runs, which no test here can induce. Recorded rather than faked, the way #182's error branch is."
+}

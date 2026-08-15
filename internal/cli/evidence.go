@@ -39,7 +39,7 @@ import (
 // its probed: true is precisely the value this version exists not to carry.
 const (
 	evidenceFormat  = "feint-evidence"
-	evidenceVersion = 2
+	evidenceVersion = 3
 )
 
 // evidenceArtefact is coverage/evidence.json.
@@ -49,20 +49,37 @@ type evidenceArtefact struct {
 	// Machines lists the runtime behind each contributing run, sorted. The
 	// dataplane axis only means something next to this list.
 	Machines []string `json:"machines"`
+	// GeneratedFrom digests what this record was produced from (#171). It is
+	// not decoration: --join refuses an artefact whose inputs differ, so a
+	// suite that loses an assertion makes the previous record unjoinable and
+	// the level it carried cannot survive. See provenance.go.
+	GeneratedFrom provenance `json:"generated_from"`
 	// Operations maps every mounted operation to its evidence.
 	Operations map[string]emulator.Evidence `json:"operations"`
 }
 
 // runtimesLost reads the record already at path and answers the runtimes it was
-// earned under that this one does not reach. A missing or unreadable file loses
-// nothing: the first write of an artefact is not a narrowing.
+// earned under that this one does not reach.
+//
+// A file that is not there loses nothing: the first write of an artefact is not
+// a narrowing. A file that *is* there and cannot be read is a different answer
+// and now says so, because the two were the same for as long as this guard
+// existed and that is how a guard stops working in silence: bumping
+// evidenceVersion makes the committed record unreadable to the new binary, so
+// "unreadable means nothing lost" would disarm the check on the one
+// regeneration where it matters most. Found while bumping it, for #171.
 //
 // "none" is not a runtime. A record earned with machines off and rewritten with
 // machines off narrows nothing, and one that gains a runtime is a widening.
-func runtimesLost(path string, next *evidenceArtefact) []string {
+func runtimesLost(path string, next *evidenceArtefact) ([]string, error) {
 	existing, err := readEvidence(path)
-	if err != nil || existing == nil {
-		return nil
+	switch {
+	case os.IsNotExist(err):
+		return nil, nil
+	case err != nil:
+		return nil, err
+	case existing == nil:
+		return nil, nil
 	}
 	reached := map[string]bool{}
 	for _, m := range next.Machines {
@@ -76,7 +93,7 @@ func runtimesLost(path string, next *evidenceArtefact) []string {
 		lost = append(lost, m)
 	}
 	sort.Strings(lost)
-	return lost
+	return lost, nil
 }
 
 func evidence(args []string, stdout, stderr io.Writer) int {
@@ -84,6 +101,8 @@ func evidence(args []string, stdout, stderr io.Writer) int {
 	endpoint := fs.String("endpoint", "http://"+DefaultAddr, "the running emulator to read /_feint/conformance from")
 	shapesDir := fs.String("shapes", "shapes", "directory of observed real-cloud shapes; the shape axis is resolved from it (empty to leave the run's answer)")
 	out := fs.String("out", filepath.Join("coverage", "evidence.json"), "where to write the artefact")
+	contractsDir := fs.String("contracts", "contracts", "directory of API descriptions, digested into the record's provenance")
+	suitesDir := fs.String("suites", filepath.Join("tools", "conformance"), "directory of conformance suites, digested into the record's provenance")
 	join := fs.String("join", "", "an artefact from another leg of the same regeneration, merged in (fresh runs only; see the header comment)")
 	allowNarrowing := fs.Bool("allow-narrowing", false,
 		"write even when this run reaches fewer runtimes than the record it replaces; "+
@@ -102,11 +121,18 @@ func evidence(args []string, stdout, stderr io.Writer) int {
 		return exitError
 	}
 
+	from, err := provenanceOf(*contractsDir, *shapesDir, *suitesDir)
+	if err != nil {
+		fmt.Fprintf(stderr, "feint: %v\n", err)
+		return exitError
+	}
+
 	art := &evidenceArtefact{
-		Format:     evidenceFormat,
-		Version:    evidenceVersion,
-		Machines:   []string{view.Machines},
-		Operations: view.Evidence,
+		Format:        evidenceFormat,
+		Version:       evidenceVersion,
+		Machines:      []string{view.Machines},
+		GeneratedFrom: from,
+		Operations:    view.Evidence,
 	}
 
 	// The shape axis is static — a property of the catalogue, not of the run —
@@ -136,6 +162,17 @@ func evidence(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "feint: %v\n", err)
 			return exitError
 		}
+		// The gate the criterion always named and nothing enforced. Joining
+		// takes the stronger answer per axis, which is safe only while both
+		// legs read the same inputs; an artefact produced from others would let
+		// a level survive the evidence that earned it.
+		if moved := from.differsFrom(other.GeneratedFrom); len(moved) > 0 {
+			fmt.Fprintf(stderr,
+				"feint: %s was produced from different %s, so joining it would carry a "+
+					"level this run did not earn; regenerate both legs together\n",
+				*join, strings.Join(moved, " and "))
+			return exitError
+		}
 		art = joinEvidence(art, other)
 	}
 
@@ -158,7 +195,19 @@ func evidence(args []string, stdout, stderr io.Writer) int {
 	// file before joining the runtime one.
 	// TestEvidenceRefusesToNarrowTheRuntimesItWasEarnedUnder fails without this.
 	if !*allowNarrowing {
-		if lost := runtimesLost(*out, art); len(lost) > 0 {
+		lost, err := runtimesLost(*out, art)
+		if err != nil {
+			// The comparison could not be made, so this write is unchecked. Said
+			// out loud rather than treated as "nothing lost", which is what it
+			// used to be: a record that cannot be compared is not a record that
+			// proves nothing was dropped.
+			fmt.Fprintf(stderr, "feint: %s cannot be compared with this run (%v), so "+
+				"nothing checks whether this write narrows the record.\n"+
+				"Pass --allow-narrowing if replacing it wholesale is what you meant.\n",
+				*out, err)
+			return exitError
+		}
+		if len(lost) > 0 {
 			fmt.Fprintf(stderr, "feint: %s was earned under %s and this run only reaches %s, "+
 				"so writing it would drop every proof taken under %s.\n"+
 				"Run `mise run evidence:update` on a host that can start machines, or pass "+
@@ -238,7 +287,19 @@ func joinEvidence(a, b *evidenceArtefact) *evidenceArtefact {
 		ev.Shape = strongerShape(ev.Shape, other.Shape)
 		ops[op] = ev
 	}
-	return &evidenceArtefact{Format: evidenceFormat, Version: evidenceVersion, Machines: names, Operations: ops}
+	// The provenance of the run doing the joining, carried rather than rebuilt.
+	// Dropping it was the first version of this function under #171, and the
+	// consequence was worse than a missing field: three empty digests compare
+	// equal to three empty digests, so the gate that refuses a stale leg would
+	// have accepted everything while looking like a control. Found by reading
+	// the regenerated artefact instead of trusting the tests, which passed.
+	return &evidenceArtefact{
+		Format:        evidenceFormat,
+		Version:       evidenceVersion,
+		Machines:      names,
+		GeneratedFrom: a.GeneratedFrom,
+		Operations:    ops,
+	}
 }
 
 // strongerProbe keeps the fuller validation: a validated success over a

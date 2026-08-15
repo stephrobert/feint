@@ -205,9 +205,9 @@ disappears from the suite.
 | `PATCH` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}` | `vpc/v2/API.UpdateVPC` | `contract` `probe` |
 | `POST` | `/vpc/v2/regions/{region}/private-networks/{pnID}/enable-dhcp` | `vpc/v2/API.EnableDHCP` | `contract` `probe` |
 | `POST` | `/vpc/v2/regions/{region}/private-networks` | `vpc/v2/API.CreatePrivateNetwork` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/vpc/v2/regions/{region}/routes` | `vpc/v2/API.CreateRoute` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/vpc/v2/regions/{region}/routes` | `vpc/v2/API.CreateRoute` | `client` `contract` `runtime` `probe` |
 | `POST` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}/enable-routing` | `vpc/v2/API.EnableRouting` | `contract` `probe` |
-| `POST` | `/vpc/v2/regions/{region}/vpcs` | `vpc/v2/API.CreateVPC` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/vpc/v2/regions/{region}/vpcs` | `vpc/v2/API.CreateVPC` | `client` `contract` `runtime` `probe` |
 
 ### Declined on purpose (213)
 

@@ -1,10 +1,15 @@
 {
   "format": "feint-evidence",
-  "version": 2,
+  "version": 3,
   "machines": [
     "incus",
     "none"
   ],
+  "generated_from": {
+    "contracts": "7dd2353c6a25c3fa",
+    "shapes": "c73ca6ca03ceac5b",
+    "suites": "d6dd6b22856907d3"
+  },
   "operations": {
     "block/v1/API.CreateSnapshot": {
       "driven": false,
@@ -1947,7 +1952,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": true,
+      "behaviour": false,
       "negative": false
     },
     "vpc/v2/API.CreateVPC": {
@@ -1956,7 +1961,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": true,
+      "behaviour": false,
       "negative": false
     },
     "vpc/v2/API.DeletePrivateNetwork": {

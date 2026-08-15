@@ -126,22 +126,30 @@ def identifiers(text):
 DECLARED = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_,\s]*?)\s*:=", re.MULTILINE)
 
 
-def orphaned_by_declaration(replace):
-    """Names the replacement declares and then never uses again.
+def uses_of(name, text):
+    return len(re.findall(r"(?<![.\w])" + re.escape(name) + r"\b", text))
 
-    Presence alone is not enough, and an end-to-end run is what proved it: a
-    fragment that carries its own `fe, ok := p.(FirewallEnforcer)` line keeps the
-    word `fe` on both sides of any rewrite, so the set difference below saw
-    nothing lost while Go saw an unused variable. This models the rule Go
-    actually applies — declared, then used somewhere other than its declaration.
+
+def orphaned_by_declaration(find, replace):
+    """Names the replacement declares and stops using, which the original used.
+
+    Presence alone is not enough, and an end-to-end run proved it: a fragment
+    carrying its own `fe, ok := p.(FirewallEnforcer)` line keeps the word `fe` on
+    both sides of any rewrite, so a set difference sees nothing lost while Go
+    sees an unused variable.
+
+    Comparative rather than absolute, and a second end-to-end run proved that
+    too: a fragment can declare a name it uses *after* the fragment ends, as
+    `sum := sha256.New()` does, and judging the replacement alone refused a
+    perfectly good mutation. What matters is whether the mutation made it worse —
+    the count falling to its declaration alone, from more than that.
     """
     orphans = []
     for match in DECLARED.finditer(replace):
         for name in (n.strip() for n in match.group(1).split(",")):
             if not name or name == "_" or name in RESERVED:
                 continue
-            uses = len(re.findall(r"(?<![.\w])" + re.escape(name) + r"\b", replace))
-            if uses <= 1:
+            if uses_of(name, replace) <= 1 < uses_of(name, find):
                 orphans.append(name)
     return sorted(set(orphans))
 
@@ -154,7 +162,7 @@ def dropped_identifiers(find, replace):
     fragment carries.
     """
     lost = identifiers(find) - identifiers(replace)
-    return sorted(lost | set(orphaned_by_declaration(replace)))
+    return sorted(lost | set(orphaned_by_declaration(find, replace)))
 
 
 def copy_tree(src, dst):

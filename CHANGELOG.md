@@ -87,6 +87,33 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Changed
 
+- **The evidence record's freshness rule becomes a control** (#171). *Deleting a
+  conformance assertion demotes the operations it proved* was written twice, in
+  `internal/cli/evidence.go` and in `mise.toml`, and held by nothing:
+  `grep -rn demotes --include='*_test.go'` answered nothing. That criterion is
+  what separates a record from a high-water mark, and every figure this project
+  publishes rests on it.
+
+  `coverage/evidence.json` moves to **version 3** and gains `generated_from`:
+  digests of the contracts, the recordings and the conformance suites. Not
+  metadata beside the record — it gates the join. Two legs merge by taking the
+  stronger answer per axis, which is safe only while both read the same inputs,
+  so a leg produced from others is now refused by name. Remove an assertion from
+  a suite and the suite digest moves, which makes the previous record unjoinable,
+  which is the sentence above, enforced. Digests of the inputs rather than a git
+  SHA: reproducible from a checkout, still an answer on a dirty tree, and they
+  answer *did the inputs move?* instead of *which commit was checked out?*.
+
+  Two defects were found while fixing that one, both the same family. `runtimesLost`
+  answered "nothing lost" to every read failure, so bumping the version would
+  have disarmed the narrowing guard on the one regeneration where it matters
+  most; an absent file and an unreadable one are now different answers. And the
+  join built a fresh record without carrying the provenance, so every regenerated
+  artefact held three empty digests — which compare equal to three empty digests,
+  making the new gate accept everything while reading like a control. The unit
+  tests passed throughout; reading the file the tool had just written is what
+  found it.
+
 - **`feint stop` says what it is about to discard** (#182). The store is memory
   and `docs/limits.md` states it in a lifecycle table, but that sentence lives on
   a page a user reads *after* being bitten: four resources existed, `stop` said

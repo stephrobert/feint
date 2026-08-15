@@ -96,6 +96,36 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Modifié
 
+- **La règle de fraîcheur du registre de preuves devient un contrôle** (#171).
+  « Supprimer une assertion de conformance rétrograde les opérations qu'elle
+  prouvait » était écrit deux fois, dans `internal/cli/evidence.go` et dans
+  `mise.toml`, et tenu par rien : `grep -rn demotes --include='*_test.go'` ne
+  rendait rien. Ce critère est ce qui sépare un registre d'un record absolu, et
+  tous les chiffres publiés par ce projet reposent dessus.
+
+  `coverage/evidence.json` passe en **version 3** et gagne `generated_from` : les
+  empreintes des contrats, des enregistrements et des suites de conformance. Ce
+  ne sont pas des métadonnées posées à côté du registre, elles **gardent la
+  jointure**. Deux passes fusionnent en prenant la réponse la plus forte sur
+  chaque axe, ce qui n'est sûr que tant que les deux lisent les mêmes entrées :
+  une passe produite depuis d'autres est désormais refusée en nommant lesquelles.
+  Retirez une assertion d'une suite et l'empreinte des suites bouge, ce qui rend
+  le registre précédent injoignable, ce qui est la phrase ci-dessus, appliquée.
+  Des empreintes des entrées plutôt qu'un SHA git : reproductibles depuis un
+  checkout, encore une réponse sur un arbre sale, et elles répondent à « les
+  entrées ont-elles bougé ? » plutôt qu'à « quel commit était sorti ? ».
+
+  Deux défauts ont été trouvés en corrigeant celui-là, de la même famille.
+  `runtimesLost` répondait « rien de perdu » à toute erreur de lecture, si bien
+  que le changement de version aurait désarmé le garde de non-régression au
+  moment précis où il compte le plus ; un fichier absent et un fichier illisible
+  sont désormais deux réponses distinctes. Et la jointure construisait un
+  registre neuf sans reporter la provenance, si bien que tout artefact régénéré
+  portait trois empreintes vides, qui se comparent égales à trois empreintes
+  vides : le nouveau gate aurait tout accepté en ayant l'apparence d'un contrôle.
+  Les tests unitaires passaient d'un bout à l'autre ; c'est la lecture du fichier
+  que l'outil venait d'écrire qui l'a trouvé.
+
 - **`feint stop` dit ce qu'il s'apprête à jeter** (#182). Le store est en
   mémoire et `docs/limits.md` l'énonce dans une table de cycle de vie, mais cette
   phrase vit sur une page qu'un utilisateur lit **après** s'être fait avoir :

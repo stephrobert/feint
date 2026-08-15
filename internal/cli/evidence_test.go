@@ -272,14 +272,14 @@ func TestEvidenceRefusesToNarrowTheRuntimesItWasEarnedUnder(t *testing.T) {
 		Machines:   []string{"none"},
 		Operations: map[string]emulator.Evidence{"instance/v1/API.ListServers": {}},
 	}
-	lost := runtimesLost(path, offOnly)
+	lost, _ := runtimesLost(path, offOnly)
 	if len(lost) != 1 || lost[0] != "incus" {
 		t.Fatalf("narrowing to machines-off reported %v as lost, want [incus]", lost)
 	}
 
 	// The accepting halves, because a guard that refuses every write would pass
 	// the assertion above and stop the tool working.
-	if lost := runtimesLost(path, earned); len(lost) != 0 {
+	if lost, _ := runtimesLost(path, earned); len(lost) != 0 {
 		t.Errorf("rewriting the same runtimes reported %v as lost", lost)
 	}
 	wider := &evidenceArtefact{
@@ -287,11 +287,11 @@ func TestEvidenceRefusesToNarrowTheRuntimesItWasEarnedUnder(t *testing.T) {
 		Machines:   []string{"incus", "incus-ovn", "none"},
 		Operations: earned.Operations,
 	}
-	if lost := runtimesLost(path, wider); len(lost) != 0 {
+	if lost, _ := runtimesLost(path, wider); len(lost) != 0 {
 		t.Errorf("gaining a runtime reported %v as lost", lost)
 	}
 	// And the first write of an artefact narrows nothing.
-	if lost := runtimesLost(filepath.Join(dir, "absent.json"), offOnly); len(lost) != 0 {
+	if lost, _ := runtimesLost(filepath.Join(dir, "absent.json"), offOnly); len(lost) != 0 {
 		t.Errorf("writing where no record exists reported %v as lost", lost)
 	}
 }
