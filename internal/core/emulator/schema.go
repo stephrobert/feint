@@ -22,7 +22,15 @@ package emulator
 // what moved. The procedure lives in RELEASING.md ("Frozen surfaces").
 const (
 	// HealthSchemaVersion is the shape of GET /_feint/health.
-	HealthSchemaVersion = 1
+	//
+	// 2 since #180: the payload gained `enforced`, an object keyed by capability
+	// naming the packs that hand work to it. Additive, but it changes what the
+	// endpoint *means*: `capabilities.firewall` alone said the runtime can
+	// enforce rules, and a consumer read it as "my security groups are
+	// enforced". One pack of three handed a rule over. The honest check is both
+	// keys, so a consumer that branches on the version can tell whether it is
+	// talking to a build that can answer the second question at all.
+	HealthSchemaVersion = 2
 	// RoutesSchemaVersion is the shape of GET /_feint/routes.
 	//
 	// This one is not on the wire: the endpoint answers a bare JSON array — the

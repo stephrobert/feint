@@ -417,6 +417,11 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	// it matters. A conformance suite gating on `capabilities.isolation` asserts
 	// what this process can actually prove instead of hardcoding a mode name,
 	// and an operator can see what they have without reading a file.
+	// And which packs hand work to those capabilities (#180). The driver's set
+	// is one for the whole process; wiring is per pack, and publishing only the
+	// first told a user the firewall was delivered for three packs when one
+	// delivered it. The honest check is both: capabilities.firewall says the
+	// runtime can, enforced.firewall says who asks it to.
 	writeJSON(w, http.StatusOK, map[string]any{
 		"schema_version": HealthSchemaVersion,
 		"status":         "ok",
@@ -424,6 +429,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 		"resources":      s.env.Store.Len(),
 		"machines":       driver,
 		"capabilities":   capabilities,
+		"enforced":       enforcement(s.packs),
 	})
 }
 

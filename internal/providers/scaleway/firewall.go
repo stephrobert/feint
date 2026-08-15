@@ -329,3 +329,17 @@ func (p *Pack) removeFirewall(ctx context.Context, group *resource.Resource) {
 			"security_group", group.ID, "error", err)
 	}
 }
+
+// EnforcesFirewall implements emulator.FirewallEnforcer: this pack reconciles a
+// security group onto the machines that carry it, so a runtime able to enforce
+// rules is handed them.
+//
+// It answers about the pack and not about the process, which is why it is a
+// constant rather than a look at p.env.Machines. `/_feint/health` publishes the
+// driver's capabilities beside this, and a consumer needs both: what the runtime
+// can do, and who asks it to. Reading the first alone is what told a user the
+// firewall was delivered for three packs when only this one delivered it (#180).
+//
+// The day this pack stops handing rules over, this line is what has to change,
+// and TestEnforcementNamesOnlyThePacksThatWireIt is what notices if it does not.
+func (p *Pack) EnforcesFirewall() bool { return true }

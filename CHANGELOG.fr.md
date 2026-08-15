@@ -96,6 +96,33 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Modifié
 
+- **`/_feint/health` passe en version de schéma 2 et dit quels packs livrent
+  réellement une capacité** (#180). `(*Incus).Capabilities()` déclarait
+  `firewall: true` dans tous les modes, un seul jeu pour tout le processus, et
+  ce projet demande à un consommateur de se brancher sur cette capacité plutôt
+  que sur un nom de mode. Or seul `internal/providers/scaleway/firewall.go`
+  remettait une règle au runtime : un groupe de sécurité Outscale ou Exoscale
+  était créé, renvoyé, puis réconcilié sur rien, pendant que le même processus
+  répondait `firewall: true`. Un utilisateur suivant ce conseil sondait un port
+  qu'un groupe en refus par défaut aurait dû fermer, le trouvait ouvert, et on
+  lui avait dit que le pare-feu était livré. Un 200 qui ment.
+
+  La charge utile gagne `enforced`, indexée par capacité, nommant les packs qui
+  lui confient du travail : `capabilities.firewall` dit ce que le runtime **peut**
+  faire, `enforced.firewall` dit qui le lui demande, et le contrôle honnête est
+  la conjonction des deux. Un pack le déclare en implémentant
+  `emulator.FirewallEnforcer` ; celui qui ne le fait pas n'apparaît nulle part,
+  suivant la règle constante voulant qu'une capacité non déclarée vaille absente.
+  La documentation seule ne pouvait pas refermer cela : l'affirmation est lue
+  depuis un endpoint, par un programme, au moment où elle compte.
+
+  `TestEveryPackThatWiresTheFirewallSaysSo` compare chaque déclaration à la
+  présence de `machine.Firewaller` dans les sources non-test du pack, si bien que
+  l'affirmation ne peut plus diverger du code, dans un sens comme dans l'autre.
+  Le README nomme Scaleway là où il ne nommait aucun fournisseur, et
+  `docs/limits.md` énonce le manque pour les deux packs qui ne le livrent pas,
+  dont l'un n'avait aucune phrase nulle part.
+
 - **`/_feint/conformance` passe en version de schéma 2.** `evidence.*[].probed`
   était un booléen et vaut désormais `response`, `refusal` ou `none` (#156). Un
   consommateur testant `probed === true` lirait une chaîne toujours vraie et

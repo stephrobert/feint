@@ -87,6 +87,32 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Changed
 
+- **`/_feint/health` moves to schema version 2, and says which packs deliver a
+  capability** (#180). `(*Incus).Capabilities()` declared `firewall: true` in
+  every mode, one set for the whole process, and this project tells a consumer
+  to key on that capability rather than on a mode name. Only
+  `internal/providers/scaleway/firewall.go` ever handed a rule to the runtime:
+  an Outscale or Exoscale security group was created, echoed back and
+  reconciled onto nothing, while the same process answered `firewall: true`. A
+  user following the advice probed a port a deny-default group should have
+  closed, found it open, and had been told the firewall was delivered — a 200
+  that lies.
+
+  The payload gains `enforced`, keyed by capability, naming the packs that hand
+  work to it: `capabilities.firewall` is what the runtime *can* do,
+  `enforced.firewall` is who asks it to, and the honest check is both. A pack
+  declares it by implementing `emulator.FirewallEnforcer`; one that does not
+  appears nowhere, the standing rule that an undeclared capability counts as
+  absent. Documentation alone could not have closed this: the claim is read from
+  an endpoint, by a program, at the moment it matters.
+
+  `TestEveryPackThatWiresTheFirewallSaysSo` compares each declaration with
+  whether the pack's own non-test source references `machine.Firewaller`, so
+  the claim cannot drift from the code in either direction. The README names
+  Scaleway where it used to name no provider, and `docs/limits.md` states the
+  gap for the two packs that do not deliver it — one of which had no sentence
+  anywhere.
+
 - **`/_feint/conformance` moves to schema version 2.** `evidence.*[].probed`
   was a boolean and is now one of `response`, `refusal` or `none` (#156). A
   consumer branching on `probed === true` would read a truthy string and count

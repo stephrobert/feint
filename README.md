@@ -452,9 +452,22 @@ by the install play yet.
 
 This is what separates Feint from a mock server, and it is measured rather than
 claimed: the block a client asks for is the block it gets, the address the API
-publishes is the address the machine carries, a security group's default policy
-closes a port for real, and authorising it afterwards opens it without restarting
-anything.
+publishes is the address the machine carries, **a Scaleway** security group's
+default policy closes a port for real, and authorising it afterwards opens it
+without restarting anything.
+
+That provider name is load-bearing. Only Scaleway hands its rules to the
+runtime; an Outscale or Exoscale security group is served, echoed back and
+enforced on nothing (#180). `/_feint/health` answers which packs deliver it, so
+a program can ask rather than assume:
+
+```bash
+curl -s localhost:4599/_feint/health | jq '{capabilities, enforced}'
+```
+
+`capabilities.firewall` says the runtime *can* enforce rules;
+`enforced.firewall` says who asks it to. Reading only the first is what this
+page used to invite.
 
 ### The modes are not equivalent, and one difference matters
 

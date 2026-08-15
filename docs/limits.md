@@ -1195,12 +1195,43 @@ shape of a plan, never to test where traffic goes. The day a nexthop is worth
 programming for real, it will arrive as a declared driver capability, measured
 under OVN, not as a silent upgrade of these records.
 
-## Whether a security group filters is not measured
+## Only Scaleway hands a security group to the runtime
+
+`internal/providers/scaleway/firewall.go` is the only file in any pack that
+references `machine.Firewaller`. An **Outscale** or **Exoscale** security group
+is served as a control plane, echoed back, and reconciled onto nothing: with a
+runtime configured, every port of the machine stays open whatever the group
+says, and the API answers success on every rule.
+
+That was published as the opposite until #180. `(*Incus).Capabilities()`
+declares `firewall: true` in every mode, one set for the whole process, and this
+repository tells a consumer to key on the capability rather than on a mode name.
+Following that advice, a user probed a port a deny-default group should have
+closed and found it answering.
+
+`/_feint/health` now carries both halves, and the honest check is their
+conjunction:
+
+```console
+$ curl -s localhost:4599/_feint/health | jq '{capabilities: .capabilities.firewall, enforced: .enforced.firewall}'
+{
+  "capabilities": true,
+  "enforced": ["scaleway"]
+}
+```
+
+`capabilities.firewall` is what the runtime can do. `enforced.firewall` is who
+asks it to. A pack absent from that list either does not wire it or has not
+said, and a consumer cannot tell those apart — which is intended, because both
+mean the same thing to whoever is about to open a socket.
+
+## Whether a Scaleway security group filters is not measured under every mode
 
 The security-group family — `CreateSecurityGroup`, its rules, and the groups a
-machine and its interfaces wear — is served as a control plane. Whether those
-rules are *enforced* on traffic under `FEINT_VM=incus-ovn` has **not been
-measured**, and this section says so rather than claiming a limit.
+machine and its interfaces wear — is served as a control plane by all three
+packs. For Scaleway the rules reach the runtime; whether they are *enforced* on
+traffic under `FEINT_VM=incus-ovn` has **not been measured**, and this section
+says so rather than claiming a limit.
 
 The distinction is the one the firewall section above makes for Scaleway, where
 enforcement is measured within stated bounds. Nothing equivalent has been run
