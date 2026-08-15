@@ -606,6 +606,151 @@ passent.
 
 ---
 
+## Après la 1.0 : c'est l'environnement qui devient portable
+
+C'est la direction produit, écrite avant qu'une ligne n'en soit construite pour
+que la frontière soit sur la page plutôt que dans la tête de quelqu'un. **Rien
+ici n'est planifié**, et rien n'appartient à une version 0.x.
+
+### La phrase
+
+**Feint n'est pas un Devbox généraliste. Feint est le Devbox de votre
+environnement cloud.**
+
+Devbox rend les **outils** d'un développeur reproductibles : paquets, versions,
+shell. Ce problème est résolu, par Devbox, Nix, mise et les dev containers, et
+ce projet n'a rien à faire à le résoudre une seconde fois. Ce qui ne l'est pas,
+c'est l'autre moitié : deux développeurs sur un même dépôt n'obtiennent pas le
+même **cloud** contre lequel travailler, et la CI non plus.
+
+Feint tient déjà l'essentiel des pièces. Un plan de contrôle que trois clients
+officiels pilotent, un runtime de machines avec de vrais réseaux et pare-feu, un
+format de snapshot conçu pour survivre à son instance, une image conteneur, des
+capacités de runtime déclarées, et un registre de preuves qui dit lesquelles
+sont prouvées. Ce qui manque, c'est ce qui relie tout cela à un dépôt.
+
+### La forme
+
+Un fichier qui décrit comment **lever l'environnement**, jamais ce qu'est
+l'infrastructure, jamais quels outils installer :
+
+```yaml
+# feint.yaml
+version: 1
+
+cloud:
+  provider: scaleway
+
+runtime:
+  mode: incus-ovn
+
+iac:
+  engine: opentofu
+  directory: terraform
+
+ready:
+  - ssh:web-01
+  - tcp:web-01:80
+```
+
+Puis `feint up`, et un collègue qui a cloné le dépôt obtient le même petit
+cloud : plan de contrôle démarré, client configuré, IaC appliquée, machines
+joignables, points d'entrée affichés.
+
+### Trois choses à ne jamais confondre
+
+C'est la contrainte de conception, et s'y tromper ferait de Feint un mauvais
+Terraform :
+
+| quoi | dit | où cela vit |
+|---|---|---|
+| `feint.yaml` | comment lever l'environnement | ce projet |
+| Terraform / OpenTofu | ce qu'est l'infrastructure | le dépôt de l'utilisateur |
+| un snapshot | quel est l'état courant | un artefact, partagé comme un fichier |
+
+`feint.yaml` ne doit jamais gagner un bloc de ressource. Le jour où il décrit un
+subnet, ce projet a commencé à réécrire Terraform, en moins bien.
+
+### Ce que cela ne doit pas devenir
+
+Le risque n'est pas technique, il est de périmètre. Ce dépôt s'est construit sur
+une discipline (émulation mesurée, refus explicites, un registre qui dit ce qui
+n'est pas prouvé) et une liste de fonctionnalités que personne n'a mesurées la
+dissoudrait plus vite que n'importe quel défaut.
+
+Donc, explicitement dehors : gestion de paquets, gestion de secrets, gestion de
+shell, développement distant, intégration IDE, registre d'environnements,
+synchronisation collaborative. Devbox se **compose** avec Feint, il n'est pas
+absorbé par lui.
+
+La première étape tient en **quatre primitives, pas une de plus** : le fichier,
+`up`, `down`, et l'export d'un environnement qu'un tiers peut reproduire.
+
+### Pourquoi cela vaut la peine
+
+Deux choses que ce projet possède déjà le rendent plus fort ici que les outils
+comparables.
+
+**Un vrai plan de données.** Les Cloud Pods de LocalStack partagent l'état, et
+leur intégration aux dev containers en fait un composant d'environnement
+reproductible : la direction est juste et ils y sont arrivés les premiers. Ce
+qu'ils n'ont pas, ce sont des machines dans lesquelles un développeur entre en
+`ssh`, sur des subnets réellement séparés. Feint les a, sous OVN, et c'est
+`capabilities.isolation` qui le dit plutôt qu'une affirmation.
+
+**La même déclaration en CI.** `feint up` sur un portable et `feint up` dans un
+workflow lisent un seul fichier, et la différence de runtime est **déclarée**
+plutôt que découverte : le plan de contrôle seul là où aucun runtime n'existe,
+des machines là où il y en a un. C'est la forme honnête du « ça marche chez
+moi », et c'est la pièce qui colle exactement à la doctrine existante du projet.
+
+### Le critère, qui est ce qui empêche la dilution
+
+**Une fonctionnalité appartient à Feint si elle aide à créer, reproduire,
+observer ou éprouver un environnement cloud local.** La gouvernance, la posture
+de conformité, l'identité d'entreprise et un catalogue de plateforme généraliste
+sont d'autres produits, et le dire ici coûte moins cher que de le découvrir
+trois fonctionnalités plus tard.
+
+Ce critère nomme aussi mieux le positionnement que « plateforme cloud locale » :
+ce que cela devient est un **laboratoire cloud**, et ces mots conservent le test,
+l'expérimentation et la preuve, c'est-à-dire ce que ce dépôt a réellement
+construit.
+
+### Les axes, et ceux qui existaient déjà
+
+Quatre primitives d'abord, pas une de plus :
+
+| # | primitive |
+|---|---|
+| #189 | la déclaration d'environnement |
+| #190 | `feint up` et `feint down` |
+| #191 | un environnement qu'un tiers peut reproduire |
+| #192 | la même déclaration sur un portable et en CI |
+
+Puis les axes qui exploitent ce que ce projet possède et que les outils
+comparables n'ont pas : de vraies machines, de vrais réseaux, et un registre qui
+dit ce qui est prouvé.
+
+| # | axe | pourquoi il est nôtre |
+|---|---|---|
+| #193 | simulation de dérive | modifier le cloud **derrière** Terraform est la seule situation qu'aucun test ici n'a jamais produite |
+| #194 | assertions réseau | OVN sait répondre à « la base est-elle joignable » plutôt qu'à « la règle est-elle déclarée » |
+| #26 | injection de fautes | déjà déposée ; les retries, le backoff et l'idempotence n'ont jamais été testés contre un refus |
+| #124 | cohérence éventuelle | déjà déposée ; un waiter que personne n'attend est un waiter que personne n'a testé |
+| #73 | enregistrer et rejouer | déjà déposée ; un transcript attaché à une issue est un bug que n'importe qui reproduit |
+
+Trois de ces cinq étaient ouvertes avant que cette direction ne soit écrite.
+Cela mérite d'être relevé plutôt que passé sous silence : elles ont été déposées
+une à une, pour des raisons locales, et elles se révèlent être la même idée.
+Nommer la direction est ce qui en fait un plan plutôt qu'un arriéré.
+
+Rien de tout cela ne porte de jalon, et rien ne devrait en porter avant la
+sortie de la 1.0 : une direction avec une date est une promesse, et cette page a
+passé un an à apprendre ce que coûte une promesse intenable.
+
+---
+
 ## Plus tard : décidé, pas planifié
 
 ### `--vm` se fait prouver par la CI, sur un runner que personne ne possède : suivi par #125

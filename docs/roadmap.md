@@ -577,6 +577,146 @@ surface cannot keep growing if the suite that proves it becomes the bottleneck.
 
 ---
 
+## After 1.0: the environment becomes the thing that travels
+
+This is the product direction, written down before any of it is built so that
+the boundary is on the page rather than in somebody's head. **Nothing here is
+scheduled**, and none of it belongs to a 0.x release.
+
+### The sentence
+
+**Feint is not a general-purpose Devbox. Feint is the Devbox of your cloud
+environment.**
+
+Devbox makes a developer's *tools* reproducible — packages, versions, shell.
+That problem is solved, by Devbox, Nix, mise and dev containers, and this project
+has no business re-solving it. What is not solved is the other half: two
+developers on the same repository do not get the same *cloud* to develop
+against, and neither does CI.
+
+Feint already holds most of the pieces. A control plane three official clients
+drive, a machine runtime with real networks and firewalls, a snapshot format
+designed to outlive its instance, a container image, declared runtime
+capabilities, and an evidence record that says which of all that is proven. What
+is missing is the thing that ties them to a repository.
+
+### The shape
+
+One file describing how to *bring the environment up* — never what the
+infrastructure is, and never which tools to install:
+
+```yaml
+# feint.yaml
+version: 1
+
+cloud:
+  provider: scaleway
+
+runtime:
+  mode: incus-ovn
+
+iac:
+  engine: opentofu
+  directory: terraform
+
+ready:
+  - ssh:web-01
+  - tcp:web-01:80
+```
+
+Then `feint up`, and a colleague who cloned the repository gets the same small
+cloud: the control plane started, the client configured, the IaC applied, the
+machines reachable, and the endpoints printed.
+
+### Three things that must not be confused
+
+This is the design constraint, and getting it wrong would turn Feint into a
+worse Terraform:
+
+| what | says | where it lives |
+|---|---|---|
+| `feint.yaml` | how to bring the environment up | this project |
+| Terraform / OpenTofu | what the infrastructure is | the user's repository |
+| a snapshot | what the state currently is | an artefact, shared as a file |
+
+`feint.yaml` must never grow a resource block. The moment it describes a subnet,
+this project has started rewriting Terraform badly.
+
+### What it must not become
+
+The risk here is not technical, it is scope. This repository was built with a
+discipline — measured emulation, explicit refusals, a record that says what is
+unproven — and a list of features nobody measured would dissolve it faster than
+any bug.
+
+So, explicitly out: package management, secret management, shell management,
+remote development, IDE integration, an environment registry, collaborative
+sync. Devbox composes with Feint; it is not absorbed by it.
+
+The first step is **four primitives and no more**: the file, `up`, `down`, and
+exporting an environment somebody else can reproduce.
+
+### Why it is worth doing at all
+
+Two things this project already has make it stronger here than the comparable
+tools.
+
+**A real dataplane.** LocalStack's Cloud Pods share state, and its dev-container
+integration makes it a component of a reproducible environment — the direction
+is right and they got there first. What they do not have is machines a
+developer can `ssh` into, on subnets that are actually separate. Feint does,
+under OVN, and `capabilities.isolation` is what says so rather than a claim.
+
+**The same declaration in CI.** `feint up` on a laptop and `feint up` in a
+workflow read one file, and the runtime difference is *declared* rather than
+discovered: the control plane alone where no runtime exists, machines where one
+does. That is the honest form of "it works on my machine", and it is the one
+piece of this that fits the project's existing doctrine exactly.
+
+### The criterion, which is what keeps this from dissolving
+
+**A feature belongs to Feint if it helps create, reproduce, observe or test a
+local cloud environment.** Governance, compliance posture, enterprise identity
+and a general platform catalogue are other products, and saying so here is
+cheaper than discovering it three features in.
+
+That criterion also names the positioning better than "local cloud platform"
+does: what this becomes is a **cloud lab** — the words keep the testing, the
+experimenting and the proving, which is what this repository has actually built.
+
+### The axes, and the ones that already existed
+
+Four primitives first, and no more:
+
+| # | primitive |
+|---|---|
+| #189 | the environment declaration |
+| #190 | `feint up` and `feint down` |
+| #191 | an environment somebody else can reproduce |
+| #192 | the same declaration on a laptop and in CI |
+
+Then the axes that exploit what this project has and the comparable tools do
+not — real machines, real networks, and a record that says what is proven:
+
+| # | axis | why it is ours |
+|---|---|---|
+| #193 | drift simulation | changing the cloud *behind* Terraform is the one situation no test here has ever produced |
+| #194 | network assertions | OVN can answer "is the database reachable" instead of "is the rule declared" |
+| #26 | fault injection | already filed; retries, backoff and idempotence have never been tested against a refusal |
+| #124 | eventual consistency | already filed; a waiter nobody waits for is a waiter nobody tested |
+| #73 | record and replay | already filed; a transcript attached to an issue is a bug anybody can reproduce |
+
+Three of those five were open before this direction was written down. That is
+worth noticing rather than glossing: they were filed one at a time, for local
+reasons, and they turn out to be the same idea. Naming the direction is what
+makes them a plan instead of a backlog.
+
+None of it carries a milestone, and none should until 1.0 is out: a direction
+with a date is a promise, and this page has spent a year learning what an
+unkeepable promise costs.
+
+---
+
 ## Later, decided, not scheduled
 
 ### `--vm` gets proven by CI, on a runner nobody owns — tracked by #125
