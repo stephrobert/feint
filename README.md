@@ -13,6 +13,7 @@
 [![Conformance](https://github.com/stephrobert/feint/actions/workflows/conformance.yml/badge.svg)](https://github.com/stephrobert/feint/actions/workflows/conformance.yml)
 [![Drift](https://github.com/stephrobert/feint/actions/workflows/drift.yml/badge.svg)](https://github.com/stephrobert/feint/actions/workflows/drift.yml)
 [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/stephrobert/feint?label=OpenSSF%20Scorecard)](https://securityscorecards.dev/viewer/?uri=github.com/stephrobert/feint)
+[![Plumber compliance](https://score.getplumber.io/github.com/stephrobert/feint.svg)](https://score.getplumber.io/github.com/stephrobert/feint)
 [![Zero dependencies](https://img.shields.io/badge/dependencies-0-success)](./go.mod)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 
