@@ -208,9 +208,20 @@ installed", and it is not the health endpoint on its own either.
 `capabilities.isolation` used to follow the *mode* alone, so a host with no OVN
 at all reported `true` and failed at the first network creation. Since #181 the
 capability is verified against the host before it is published: an OVN mode
-whose `network.ovn.northbound_connection` is unset refuses at startup when it
-was asked for by name, and is passed over by `--vm auto` with its reason
-printed. **That probe is necessary and not sufficient**, and the difference is
+whose northbound database is absent refuses at startup when it was asked for by
+name, and is passed over by `--vm auto` with its reason printed.
+
+The probe asks the right question in the right order, and getting that wrong
+cost an afternoon on this project's own station: **an unset
+`network.ovn.northbound_connection` is the default applying, never an absence.**
+Incus does not store a key at its documented default, so `incus config get`
+answers empty on a perfectly wired host, and the first version of the probe read
+that as "no OVN" and refused a station where `ovn-nbctl show` answered. Setting
+the key by hand changes nothing, for the same reason. So the probe resolves the
+effective connection string, falling back to the documented default
+`unix:/run/ovn/ovnnb_db.sock`, and asks whether that socket **exists** — never
+whether this process can connect to it, because the socket is root-owned and
+`incusd` is what talks to it. **That probe is necessary and not sufficient**, and the difference is
 this section's whole point: a host whose northbound is wired and whose *uplink*
 is misconfigured still reports `true` and still cannot create a subnet.
 
@@ -356,8 +367,11 @@ ovs-vsctl set open_vswitch . \
 
 incus admin init --minimal
 
-# And Incus needs to know where the northbound one is.
-incus config set network.ovn.northbound_connection unix:/run/ovn/ovnnb_db.sock
+# Incus finds the northbound database on its own: network.ovn.northbound_connection
+# defaults to unix:/run/ovn/ovnnb_db.sock, which is where ovn-central puts it.
+# Setting it explicitly is a no-op — Incus does not store a key at its default —
+# so it is left out here rather than shown as a step that appears to do nothing.
+# Only a northbound on another host or another path needs the line.
 
 # An OVN network needs an uplink, and the uplink must be a managed bridge
 # carrying ipv4.ovn.ranges. `incus admin init --minimal` creates incusbr0
