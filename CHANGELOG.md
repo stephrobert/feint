@@ -87,6 +87,31 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Changed
 
+- **A mispointed client is told which side is wrong** (#179). First contact is
+  the one moment a user cannot yet tell a broken emulator from a broken
+  pointing, and the three traps the README documents all answered in a way that
+  pushed them toward the wrong conclusion. The worst was confident and wrong:
+  `POST /api/v1/api/v1/CreateVms` replied *"feint does not serve
+  api/v1/CreateVms"*, and `CreateVms` **is** served — a team's first `oapi-cli`
+  call concluded the coverage table lied, when their endpoint carried the prefix
+  and the CLI appended it again. The other two answered `404 page not found`,
+  `net/http`'s page, which says nothing about either side.
+
+  All three stay 404: the request is still refused, only the refusal starts
+  telling the truth. The doubled prefix and the deprecated `/api/latest/` are
+  answered by the Outscale pack, in its own error envelope so clients still
+  decode an API error. The third is answered by the core and is **derived, not
+  declared**: the mounted route table already knows every prefix this process
+  serves, so a path that becomes a mounted route once a prefix is put back in
+  front of it is a pointing mistake, and the emulator names the prefix. No
+  provider is named in that code, which is why it will work for a fourth pack
+  nobody has written.
+
+  The hint also reaches the log, because some CLIs never surface a 404 body. The
+  path it echoes is allow-listed at intake rather than escaped at render — the
+  order this repository states for producing text from client input — and a path
+  outside that list earns the plain 404 instead.
+
 - **A capability is verified against the host before it is published** (#181).
   `NewIncusOVN` set `OVN = true` and `isolation: true` followed, whatever the
   host could do: there was one `Available` for all three Incus modes and it ran

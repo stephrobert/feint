@@ -96,6 +96,35 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Modifié
 
+- **Un client mal pointé s'entend dire de quel côté est l'erreur** (#179). Le
+  premier contact est le seul moment où un utilisateur ne peut pas encore
+  distinguer un émulateur cassé d'un pointage cassé, et les trois pièges que le
+  README documente répondaient tous d'une façon qui le poussait vers la mauvaise
+  conclusion. Le pire était confiant et faux : `POST /api/v1/api/v1/CreateVms`
+  répondait « feint does not serve api/v1/CreateVms », alors que `CreateVms`
+  **est** servie. Une équipe dont le premier appel `oapi-cli` lit cela en conclut
+  que la table de couverture ment, alors que son endpoint portait le préfixe et
+  que le CLI l'a ajouté une seconde fois. Les deux autres répondaient
+  `404 page not found`, la page de `net/http`, qui ne dit rien d'aucun des deux
+  côtés.
+
+  Les trois restent en 404 : la requête est toujours refusée, seul le refus se
+  met à dire la vérité. Le préfixe doublé et le `/api/latest/` déprécié sont
+  traités par le pack Outscale, dans son enveloppe d'erreur, pour qu'un client
+  décode toujours une erreur d'API. Le troisième est traité par le noyau et il
+  est **dérivé, pas déclaré** : la table des routes montées connaît déjà chaque
+  préfixe que ce processus sert, donc un chemin qui redevient une route montée
+  une fois un préfixe remis devant est une erreur de pointage, et l'émulateur
+  nomme ce préfixe. Aucun fournisseur n'est nommé dans ce code, ce qui est
+  précisément pourquoi il marchera pour un quatrième pack que personne n'a
+  écrit.
+
+  L'indice atteint aussi le journal, parce que certains CLI ne font jamais
+  remonter un corps de 404. Le chemin qu'il répète est filtré par liste blanche
+  à l'entrée plutôt qu'échappé au rendu, l'ordre que ce dépôt énonce pour
+  produire du texte depuis une entrée client, et un chemin hors de cette liste
+  reçoit le 404 nu.
+
 - **Une capacité est vérifiée contre l'hôte avant d'être publiée** (#181).
   `NewIncusOVN` posait `OVN = true` et `isolation: true` suivait, quoi que
   l'hôte sache faire : il n'existait qu'un seul `Available` pour les trois modes

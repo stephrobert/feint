@@ -359,10 +359,28 @@ func (s *Server) handleUnrouted(w http.ResponseWriter, r *http.Request) {
 	// watching itself would drown the client traffic.
 	rec := &recorder{ResponseWriter: w, status: http.StatusOK}
 	started := time.Now()
-	if best == nil {
-		http.NotFound(rec, r)
-	} else {
+	hint := ""
+	switch {
+	case best != nil:
 		best.NotFound(rec, r)
+	default:
+		// Nobody claimed this URL space, so there is no dialect to answer in.
+		// Before falling back to net/http's one-line page, ask the mounted route
+		// table whether this path would have matched with a prefix in front of
+		// it — the shape a client pointed at the wrong endpoint produces, and
+		// the one thing that page never said (#179).
+		hint = missingPrefixHint(r.URL.Path, s.AllRoutes())
+		if hint != "" {
+			writeMispointed(rec, hint)
+		} else {
+			http.NotFound(rec, r)
+		}
+	}
+	// And in the log too, because some CLIs never surface a 404 body: the
+	// operator watching the emulator sees the cause even when their client
+	// swallowed it.
+	if hint != "" {
+		s.env.Log.Warn("mispointed client", "path", r.URL.Path, "hint", hint)
 	}
 	if !internalPath(r.URL.Path) {
 		s.stream.publishExchange(trace.Exchange{

@@ -244,7 +244,13 @@ func (p *Pack) Routes() []emulator.Route {
 const pathPrefix = "/api/v1/"
 
 // Prefixes implements emulator.Unrouted.
-func (p *Pack) Prefixes() []string { return []string{pathPrefix} }
+// legacyPrefix is what the deprecated osc-cli addresses. Nothing is served
+// under it and nothing ever will be, but claiming it is what lets this pack
+// answer in its own dialect instead of letting net/http's one-line page tell a
+// user nothing about which side is wrong (#179).
+const legacyPrefix = "/api/latest/"
+
+func (p *Pack) Prefixes() []string { return []string{pathPrefix, legacyPrefix} }
 
 // NotFound implements emulator.Unrouted.
 //
@@ -265,7 +271,34 @@ func (p *Pack) Prefixes() []string { return []string{pathPrefix} }
 // whose default policy excludes 501 by name. Two official clients, two
 // behaviours, and only the one that was run said anything.
 func (p *Pack) NotFound(w http.ResponseWriter, r *http.Request) {
+	// First contact is the one moment a user cannot yet tell a broken emulator
+	// from a broken pointing, and the two shapes below are the ones the README
+	// documents. Answering them with "feint does not serve X" was worse than
+	// unhelpful: for a doubled prefix it names an operation that *is* served, so
+	// a team's first oapi-cli call concludes the coverage table lied (#179).
+	//
+	// Still 404 in every case. The request stays refused; only the refusal
+	// starts telling the truth.
+	if strings.HasPrefix(r.URL.Path, legacyPrefix) {
+		p.writeError(w, http.StatusNotFound, "", "OperationNotEmulated",
+			"feint serves "+strings.TrimSuffix(pathPrefix, "/")+" and not "+
+				strings.TrimSuffix(legacyPrefix, "/")+": osc-cli is deprecated and addresses "+
+				"an API version this emulator does not serve. oapi-cli is the client the "+
+				"conformance suite drives; `feint env outscale` prints its configuration")
+		return
+	}
+
 	action := strings.TrimPrefix(r.URL.Path, pathPrefix)
+	if doubled := strings.TrimPrefix(pathPrefix, "/"); strings.HasPrefix(action, doubled) {
+		// The endpoint already carries the prefix and the client appended it
+		// again. Naming the operation here would be the confident, wrong answer.
+		p.writeError(w, http.StatusNotFound, "", "OperationNotEmulated",
+			"the endpoint carries "+strings.TrimSuffix(pathPrefix, "/")+" twice: point the "+
+				"client at the bare host, oapi-cli appends "+strings.TrimSuffix(pathPrefix, "/")+
+				"/<Call> itself. `feint env outscale` prints the endpoint to use")
+		return
+	}
+
 	p.writeError(w, http.StatusNotFound, "", "OperationNotEmulated",
 		"feint does not serve "+action+"; see /_feint/routes for what it does")
 }
