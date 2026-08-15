@@ -749,6 +749,62 @@ Rien de tout cela ne porte de jalon, et rien ne devrait en porter avant la
 sortie de la 1.0 : une direction avec une date est une promesse, et cette page a
 passé un an à apprendre ce que coûte une promesse intenable.
 
+### Puis le runtime cesse d'être une seule machine
+
+L'étape suivante n'est pas un émulateur plus gros, c'est le même moteur avec un
+autre runtime en dessous :
+
+```text
+API Scaleway ─┐
+API Outscale  ├──►  le modèle normalisé  ──►  un vrai cluster Incus
+API Exoscale ─┘                               OVN, stockage, placement
+```
+
+`terraform apply` inchangé, `runtime.mode` passé de `incus` à un cluster, et les
+ressources réellement créées sur du matériel que quelqu'un possède. Ce que cela
+vaut la peine de formuler avec soin :
+
+**Feint matérialise son modèle cloud sur un vrai cluster. Il ne gère pas le
+cluster.** Le premier garde le moteur qui existe (un dialecte, un modèle, un
+runtime) et remplace un hôte par plusieurs. Le second revient à assumer tout le
+cycle de vie opérationnel du matériel de quelqu'un : supervision, sauvegarde,
+PKI, secrets, IAM global, GitOps, catalogue de services. C'est OpenStack plus
+Proxmox plus Backstage à la fois, et ce projet ferait mal les trois.
+
+La contrainte d'architecture est celle qui existe déjà et qui n'a jamais été
+éprouvée à cette échelle : **aucun code de cluster dans les packs**. Trois
+dialectes atteignent un modèle normalisé, et le runtime ne voit que le modèle.
+`machine.Binding` tient cette ligne aujourd'hui pour un hôte ; un cluster est le
+premier vrai test de savoir si elle a été tracée au bon endroit. Si un pack
+apprend ce qu'est un nœud, l'abstraction était mal placée.
+
+#195 porte le runtime : placement, capacités qui répondent pour le cluster et
+non pour le membre qui a décroché, et `feint doctor --cluster`.
+
+Et #196 porte la question qui doit être tranchée **avant** que quoi que ce soit
+ne sorte, parce que la prendre implicitement est la façon dont un projet
+contracte une obligation que personne n'a acceptée : **Feint gère-t-il un jour
+une ressource dont la perte compterait ?** Tout ce qu'il crée aujourd'hui est
+jetable par construction, et tout l'argument de sûreté repose là-dessus. Un
+homelab contient les deux sortes. Le mode laboratoire reste dans l'ADN du
+projet ; le mode persistant fait passer le coût d'un `feint clean` malheureux
+d'une réexécution au week-end de quelqu'un, et un audit a déjà transformé un
+snapshot forgé en `delete --force` sur le pont par défaut d'un hôte.
+
+### L'ordre, si tout cela se fait
+
+| | |
+|---|---|
+| 1.0 | l'émulateur, stable et mesuré |
+| 1.1 | les environnements portables : #189 à #192 |
+| 1.2 | le runtime devient un cluster : #195, après réponse à #196 |
+| 1.3 | le modèle se matérialise sur un homelab |
+| 1.4 | dérive, assertions réseau, fautes injectées : #193, #194, #26, #124 |
+
+Écrit comme un ordre et non comme un calendrier. Rien de tout cela n'a de date,
+et la seule chose que cette page ait appris à éviter est une promesse dont
+quelqu'un d'autre tient la condition.
+
 ---
 
 ## Plus tard : décidé, pas planifié

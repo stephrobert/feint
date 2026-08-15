@@ -715,6 +715,61 @@ None of it carries a milestone, and none should until 1.0 is out: a direction
 with a date is a promise, and this page has spent a year learning what an
 unkeepable promise costs.
 
+### And then the runtime stops being one machine
+
+The step after that is not a bigger emulator, it is the same engine with a
+different runtime underneath:
+
+```text
+Scaleway API ─┐
+Outscale API  ├──►  the normalised model  ──►  a real Incus cluster
+Exoscale API ─┘                                OVN, storage, placement
+```
+
+`terraform apply` unchanged, `runtime.mode` moved from `incus` to a cluster, and
+the resources are really created on hardware somebody owns. What that is worth
+saying carefully:
+
+**Feint materialises its cloud model on a real cluster. It does not manage the
+cluster.** The first keeps the engine that exists — a dialect, a model, a
+runtime — and swaps one host for several. The second means owning the
+operational lifecycle of somebody's hardware: monitoring, backup, PKI, secrets,
+global IAM, GitOps, a service catalogue. That is OpenStack and Proxmox and
+Backstage at once, and this project would do all three badly.
+
+The architecture constraint is the one that already exists and has never been
+tested at this scale: **no cluster code in the packs**. Three dialects reach one
+normalised model, and the runtime sees only the model. `machine.Binding` holds
+that line today for one host; a cluster is the first real test of whether it was
+drawn in the right place. If a provider pack learns what a node is, the
+abstraction was wrong.
+
+#195 carries the runtime — placement, capabilities that answer for the cluster
+rather than for whichever member replied, and `feint doctor --cluster`.
+
+And #196 carries the question that must be answered *before* any of it ships,
+because taking it implicitly is how a project acquires an obligation nobody
+agreed to: **does Feint ever manage a resource whose loss would matter?**
+Everything it creates today is disposable by construction, and the whole safety
+argument rests on that. A homelab holds both kinds. Lab mode stays inside this
+project's DNA; persistent mode changes what `feint clean` costs from a rerun to
+somebody's weekend, and an audit has already turned a crafted snapshot into a
+`delete --force` on a host's default bridge.
+
+### The order, if all of it happens
+
+| | |
+|---|---|
+| 1.0 | the emulator, stable and measured |
+| 1.1 | portable environments — #189 to #192 |
+| 1.2 | the runtime is a cluster — #195, after #196 is answered |
+| 1.3 | the model materialises on a homelab |
+| 1.4 | drift, network assertions, injected failures — #193, #194, #26, #124 |
+
+Written as an order rather than a schedule. None of it has a date, and the one
+thing this page has learned to avoid is a promise whose condition somebody else
+controls.
+
 ---
 
 ## Later, decided, not scheduled
