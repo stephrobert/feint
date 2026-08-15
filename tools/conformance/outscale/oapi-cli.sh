@@ -268,6 +268,82 @@ printf '%s' "$nets" | jq -e '.Nets | length == 0' >/dev/null \
 prove_end "$span"
 ok "deleted in the order the dependency requires"
 
+# The Net peering state machine. The states and their spellings are the SDK's
+# (pending-acceptance, active, rejected, failed, deleted); what each operation
+# accepts as a starting state is its documentation's. Mono-tenancy makes the
+# two owners one account, so the identity rules (who may accept, who may
+# delete a pending one) are satisfied by construction and only the states are
+# measurable — netpeerings.go says so in the same words.
+echo "- a Net peering moves through the states the SDK names"
+span="$(prove_begin behaviour)"
+net_a_doc="$(osc CreateNet --IpRange 10.191.0.0/16)" || fail "CreateNet rejected: $net_a_doc"
+net_b_doc="$(osc CreateNet --IpRange 10.192.0.0/16)" || fail "CreateNet rejected: $net_b_doc"
+net_a="$(printf '%s' "$net_a_doc" | jq -r '.Net.NetId // empty')"
+net_b="$(printf '%s' "$net_b_doc" | jq -r '.Net.NetId // empty')"
+[ -n "$net_a" ] && [ -n "$net_b" ] || fail "the peering Nets were not created"
+
+pcx="$(osc CreateNetPeering --SourceNetId "$net_a" --AccepterNetId "$net_b")" \
+  || fail "CreateNetPeering rejected: $pcx"
+pcx_id="$(printf '%s' "$pcx" | jq -r '.NetPeering.NetPeeringId // empty')"
+[ -n "$pcx_id" ] || fail "no NetPeeringId in the create response: $pcx"
+printf '%s' "$pcx" | jq -e '.NetPeering.State.Name == "pending-acceptance"' >/dev/null \
+  || fail "a fresh peering is not pending-acceptance: $pcx"
+printf '%s' "$pcx" | jq -e --arg a "$net_a" --arg b "$net_b" \
+  '.NetPeering.SourceNet.NetId == $a and .NetPeering.AccepterNet.NetId == $b
+   and .NetPeering.SourceNet.IpRange == "10.191.0.0/16"' >/dev/null \
+  || fail "the peering does not carry its two ends: $pcx"
+
+read_back="$(osc ReadNetPeerings '--Filters.NetPeeringIds[]' "$pcx_id")" \
+  || fail "ReadNetPeerings rejected the provider's own filter: $read_back"
+printf '%s' "$read_back" | jq -e '.NetPeerings | length == 1' >/dev/null \
+  || fail "the peering did not read back: $read_back"
+
+# The reverse request, pending while the forward one is accepted: the SDK
+# documents that accepting A-to-B auto-rejects a pending B-to-A as redundant.
+rev_doc="$(osc CreateNetPeering --SourceNetId "$net_b" --AccepterNetId "$net_a")" \
+  || fail "CreateNetPeering rejected the reverse request: $rev_doc"
+rev_id="$(printf '%s' "$rev_doc" | jq -r '.NetPeering.NetPeeringId // empty')"
+[ -n "$rev_id" ] || fail "no NetPeeringId in the reverse create response: $rev_doc"
+accepted="$(osc AcceptNetPeering --NetPeeringId "$pcx_id")" \
+  || fail "AcceptNetPeering rejected a pending peering: $accepted"
+printf '%s' "$accepted" | jq -e '.NetPeering.State.Name == "active"' >/dev/null \
+  || fail "an accepted peering is not active: $accepted"
+osc ReadNetPeerings '--Filters.NetPeeringIds[]' "$rev_id" \
+  | jq -e '.NetPeerings[0].State.Name == "rejected"' >/dev/null \
+  || fail "the reverse pending peering was not auto-rejected on accept"
+
+osc DeleteNetPeering --NetPeeringId "$pcx_id" >/dev/null \
+  || fail "DeleteNetPeering rejected an active peering"
+osc ReadNetPeerings '--Filters.NetPeeringIds[]' "$pcx_id" \
+  | jq -e '.NetPeerings[0].State.Name == "deleted"' >/dev/null \
+  || fail "a deleted peering must stay readable in the deleted state"
+# The Nets go inside the span: a deleted peering is a state transition, not a
+# store removal — the record stays readable on purpose — so the create-then-
+# destroy the behaviour bracket demands is the Nets', and a deleted-state
+# peering naming them must not block it.
+osc DeleteNet --NetId "$net_a" >/dev/null || fail "DeleteNet rejected $net_a after its peerings ended"
+osc DeleteNet --NetId "$net_b" >/dev/null || fail "DeleteNet rejected $net_b after its peerings ended"
+prove_end "$span"
+ok "pending-acceptance, active, rejected, deleted — by the SDK's spellings"
+
+echo "- the transitions the state machine forbids are refused"
+neg="$(prove_begin negative)"
+# A rejected peering can be neither accepted nor deleted, per the SDK docs.
+if osc AcceptNetPeering --NetPeeringId "$rev_id" >/dev/null 2>&1; then
+  fail "a rejected peering was accepted"
+fi
+if osc DeleteNetPeering --NetPeeringId "$rev_id" >/dev/null 2>&1; then
+  fail "a rejected peering was deleted"
+fi
+# The refusal speaks the API's dialect: 409, typed ResourceConflict. The
+# non-zero exit is captured, not piped: with pipefail, a pipeline that starts
+# with an expected failure reads as the failure it expects.
+refusal="$(osc AcceptNetPeering --NetPeeringId "$rev_id" 2>&1 || true)"
+printf '%s' "$refusal" | grep -q "ResourceConflict" \
+  || fail "the state refusal is not typed ResourceConflict: $refusal"
+prove_end "$neg"
+ok "accept and delete of a rejected peering refused, as ResourceConflict"
+
 # Snapshots as control-plane records, and the conditional key that was measured
 # on a real account: a volume with no provenance has NO SnapshotId key — the
 # real cloud never sends "".

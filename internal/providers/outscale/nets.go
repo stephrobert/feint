@@ -357,6 +357,10 @@ func (p *Pack) createSubnet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A subnet born into a Net an active peering already joins must reach the
+	// peer's subnets from the start, not from the next peering transition.
+	p.reconcilePeerings(r.Context())
+
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"Subnet":          p.subnetView(res),
 		"ResponseContext": p.context(),
@@ -455,6 +459,10 @@ func (p *Pack) deleteSubnet(w http.ResponseWriter, r *http.Request) {
 	// The runtime call is slow and stays outside: the Subnet is already
 	// unreachable to every other handler by this point.
 	p.removeBackingNetwork(r.Context(), subnet)
+	// The peers of the removed network keep a half pointing at nothing;
+	// reconciling now clears the wreck instead of leaving it for the next
+	// peering transition to trip over.
+	p.reconcilePeerings(r.Context())
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
 }
 

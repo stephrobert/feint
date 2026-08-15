@@ -1180,6 +1180,49 @@ So: a plan that builds a routable topology applies, reads back and destroys
 correctly. A machine inside it still cannot reach the internet. Use the emulator
 to test the shape of your infrastructure, never its connectivity.
 
+## An Outscale Net peering carries traffic under OVN, and only there
+
+The `NetPeering` family is served — create, accept, reject, delete, read, with
+the SDK's own states (`pending-acceptance`, `active`, `rejected`, `failed`,
+`deleted`) and its refusals (accepting or rejecting anything but a pending
+one, deleting a rejected or failed one). Three of the upstream behaviours
+cannot exist here, and each is stated rather than approximated:
+
+- **One account.** Upstream, the owner of the accepter Net accepts, and a
+  pending peering is deletable only by the requester. The emulator's single
+  account owns both ends of every peering, so the identity rules are satisfied
+  by construction and only the state machine is measurable. An
+  `AccepterOwnerId` naming any other account is answered as an unknown Net,
+  because in a one-account world that is what it is.
+- **`expired` is unreachable.** Upstream it is what seven days of silence
+  produce; no clock here advances a state on its own.
+- **`failed` has one reachable door.** Upstream it is what overlapping IP
+  ranges produce, but this emulator refuses to *create* two overlapping Nets
+  in the first place — every Net backs a real block on the host — so the only
+  overlap left is a Net peered with itself.
+
+What an **accepted** peering does depends on the runtime mode, same rule as
+"Subnet isolation depends on the runtime mode" above:
+
+- **Under `--vm incus-ovn`**, accepting the peering peers the backing networks
+  of the two Nets the runtime's own way (`network peer`), and deleting it
+  separates them again. The outscale network suite asserts the whole cycle —
+  unreachable before, unreachable while pending, reachable once active,
+  unreachable after delete — gated on the declared `capabilities.isolation`,
+  never on a mode name.
+- **Under `--vm incus` (bridges)**, two Nets already reach each other, so an
+  accepted peering grants nothing a measurement could see, and the suite skips
+  and says so.
+- **With `--vm off`**, the whole lifecycle is control plane, proven by
+  `oapi-cli` and the Terraform provider.
+
+One deliberate simplification either way: upstream, traffic flows only once
+both Nets' route tables carry a route through the peering. Here the acceptance
+alone grants reachability, and the route stays a record — the same limit as
+"Outscale's gateways and NAT move records, not packets" one section up. Do not
+use the emulator to prove a peering's routing configuration; use it to prove
+the plan's shape and the state machine.
+
 ## A Scaleway VPC route is a record, and the reachability is the peering's
 
 Scaleway's custom routes (`scaleway_vpc_route`, `vpc/v2/API.CreateRoute` and

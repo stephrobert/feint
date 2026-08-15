@@ -70,11 +70,14 @@ func TestAMispointedOutscaleClientIsToldWhichSideIsWrong(t *testing.T) {
 // A hint that fired on everything would bury the two cases above.
 func TestAnActionThatIsGenuinelyUnservedStillSaysSo(t *testing.T) {
 	ts := outscaleServer(t)
-	status, body := postText(t, ts, "/api/v1/CreateNetPeering")
+	// CreateNetAccessPoint rather than CreateNetPeering, which this test used
+	// while the peering family was untriaged: it is served now, and the
+	// specimen has to move to something that stays on the work list (#172).
+	status, body := postText(t, ts, "/api/v1/CreateNetAccessPoint")
 	if status != http.StatusNotFound {
 		t.Errorf("got %d, want 404", status)
 	}
-	if !strings.Contains(body, "does not serve CreateNetPeering") {
+	if !strings.Contains(body, "does not serve CreateNetAccessPoint") {
 		t.Errorf("an unserved action must still be named as unserved:\n%s", body)
 	}
 }
