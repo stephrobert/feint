@@ -3,6 +3,7 @@ package exoscale_test
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -204,5 +205,58 @@ func TestTwoLifecycleActionsOnOneInstanceDoNotRace(t *testing.T) {
 	// never a half-transition.
 	if got := instanceState(t, h, id); got != "running" && got != "stopped" {
 		t.Fatalf("state after concurrent actions is %q", got)
+	}
+}
+
+// An instance is given a public address at creation, the way the real cloud
+// does (#202).
+//
+// Measured on a real Exoscale account: an instance created with nothing but a
+// type and a template answers `ip_address: 151.145.198.51` on the first read,
+// with no private network and no elastic IP attached. This pack recorded the
+// intent — `public-ip-assignment` defaults to `inet4` — and never honoured it,
+// so an emulated instance published nothing, and the machine took whatever the
+// runtime's default profile handed it, on the operator's own bridge.
+//
+// Both halves. A pack that always assigned one would pass the first check and
+// break `public-ip-assignment: none`, which is a real client asking for a
+// machine nobody can reach from outside.
+func TestAnInstanceIsGivenAPublicAddressAtCreation(t *testing.T) {
+	h := serve(t)
+
+	id := createDemo(t, h)
+	_, doc := call(t, h, "GET", "/v2/instance/"+id, "")
+	address, _ := doc["public-ip"].(string)
+	if address == "" {
+		t.Fatalf("an instance created with the default assignment publishes no address: %v", doc)
+	}
+	if !strings.HasPrefix(address, "192.0.2.") {
+		t.Errorf("the address is outside the pack's own RFC 5737 block: %s", address)
+	}
+
+	// A second instance must not be handed the same one, or the driver routes a
+	// single /32 to two machines.
+	other := createDemo(t, h)
+	_, doc2 := call(t, h, "GET", "/v2/instance/"+other, "")
+	if second, _ := doc2["public-ip"].(string); second == address {
+		t.Errorf("two instances were handed %s", address)
+	}
+
+	// And the refusing half: a client that asks for none gets none.
+	rec, _ := call(t, h, "POST", "/v2/instance", `{
+		"name": "no-address",
+		"instance-type": {"id": "21624abb-764e-4def-81d7-9fc54b5957fb"},
+		"template": {"id": "11111111-1111-4111-8111-111111111111"},
+		"disk-size": 10,
+		"public-ip-assignment": "none"
+	}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create with no assignment answered %d: %s", rec.Code, rec.Body.String())
+	}
+	_, listed := call(t, h, "GET", "/v2/instance", "")
+	instances, _ := listed["instances"].([]any)
+	last, _ := instances[len(instances)-1].(map[string]any)
+	if got, _ := last["public-ip"].(string); got != "" {
+		t.Errorf("public-ip-assignment none was given %s anyway", got)
 	}
 }

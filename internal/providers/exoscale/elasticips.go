@@ -96,7 +96,13 @@ func (p *Pack) unrouteElasticIP(ctx context.Context, address string, inst *resou
 // routed afterwards, because editing a live OVN NIC re-plugs it.
 func (p *Pack) elasticBootAddresses(res *resource.Resource) []string {
 	ids := stringList(res.Attrs[attrElasticIPIDs])
-	out := make([]string, 0, len(ids))
+	out := make([]string, 0, len(ids)+1)
+	// The instance's own address comes first: it is the one `public-ip`
+	// publishes and the one a client ssh's into, so it is the machine's primary
+	// address rather than an extra routed onto it.
+	if own, _ := res.Attrs["public-ip"].(string); emulatedElasticIP(own) {
+		out = append(out, own)
+	}
 	for _, id := range ids {
 		eip, found := p.env.Store.Get(Name, kindElasticIP, id)
 		if !found {
@@ -171,6 +177,15 @@ func (p *Pack) freeElasticAddress() (string, bool) {
 	used := map[string]bool{}
 	for _, res := range p.env.Store.List(kindElasticIP, resource.Tenant{Provider: Name}) {
 		if ip, _ := res.Attrs["ip"].(string); ip != "" {
+			used[ip] = true
+		}
+	}
+	// Instances draw from the same block since they assign their own public
+	// address at creation, the way the real cloud does. Scanning only elastic
+	// IPs would hand one address to two resources, and the driver would then
+	// route a single /32 to two machines.
+	for _, res := range p.env.Store.List(kindInstance, resource.Tenant{Provider: Name}) {
+		if ip, _ := res.Attrs["public-ip"].(string); ip != "" {
 			used[ip] = true
 		}
 	}

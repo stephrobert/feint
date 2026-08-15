@@ -728,6 +728,26 @@ func (p *Pack) createInstance(w http.ResponseWriter, r *http.Request) {
 	if req.UserData != "" {
 		res.Attrs["user-data"] = req.UserData
 	}
+	// A public address, assigned at creation, because that is what the real
+	// cloud does: an instance created with nothing but a type and a template
+	// answers `ip_address` on the first read — measured on a real account,
+	// 151.145.198.51, with no private network and no elastic IP.
+	//
+	// The pack recorded the intent above and never honoured it, so an emulated
+	// instance published nothing and the machine took whatever the runtime's
+	// default profile gave it, on the operator's own bridge. A machine carries
+	// the addresses its provider's API publishes and no others (#202), and
+	// "none published" was not the honest half of that rule, it was the pack
+	// failing to be its own cloud.
+	//
+	// TestAnInstanceIsGivenAPublicAddressAtCreation fails without this.
+	if assignment, _ := res.Attrs["public-ip-assignment"].(string); assignment != "none" {
+		p.addresses.Lock()
+		if ip, ok := p.freeElasticAddress(); ok {
+			res.Attrs["public-ip"] = ip
+		}
+		p.addresses.Unlock()
+	}
 	if ids := refIDs(req.AntiAffinityGroups); len(ids) > 0 {
 		res.Attrs[attrAntiAffinityGroupIDs] = ids
 	}
@@ -973,7 +993,17 @@ func (p *Pack) view(res *resource.Resource) map[string]any {
 	}
 	// Exoscale's instance schema declares public-ip, so the address the machine
 	// answers on is published there rather than invented.
-	if address := p.addressOf(res); address != "" {
+	//
+	// The stored one wins over the runtime's reading, and the order matters. The
+	// pack allocates the address at creation, the way the real cloud does, so it
+	// is a fact about the instance from the moment it exists — before any machine
+	// boots, and with no runtime configured at all, which is the CI case. The
+	// runtime's reading is how the machine ends up carrying it, not how it is
+	// decided; reading it first published nothing on every control-plane-only
+	// run.
+	if address, _ := res.Attrs["public-ip"].(string); address != "" {
+		out["public-ip"] = address
+	} else if address := p.addressOf(res); address != "" {
 		out["public-ip"] = address
 	}
 	return out

@@ -40,7 +40,74 @@ func startScript(f *fakeRuntime) {
 	}
 }
 
-func TestAMachineWithNoAttachmentBootsOnTheEmulatorsOwnNetwork(t *testing.T) {
+// A machine carries the addresses its provider's API publishes, and no others
+// (#202).
+//
+// This replaces the test that required a machine with no attachment to boot on
+// the emulator's own bridge. That test asserted the behaviour being removed, and
+// its own comment named the assumption that made it necessary: "NATed, or the
+// guest cannot install its ssh daemon". #203 built images that already carry
+// one, so the guest installs nothing and the bridge has no job left.
+//
+// Measured against real accounts, empty before and after: a Scaleway server has
+// one routed public address and `private_ip: none`; an Exoscale instance has one
+// address. This emulator gave two or three, and the extra came from here.
+func TestAMachineWithNoNetworkCarriesOnlyItsPublicAddress(t *testing.T) {
+	f := &fakeRuntime{}
+	startScript(f)
+	d := newFakeDriver(f)
+
+	_, err := d.Start(context.Background(), Spec{
+		Name:            "srv",
+		Image:           "alpine:3.21",
+		PublicAddresses: []string{"203.0.113.7"},
+	})
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+
+	if creates := f.matching("network create " + DefaultMachineNetwork); len(creates) != 0 {
+		t.Errorf("a network was created for a machine that publishes no address on one:\n%s",
+			strings.Join(creates, "\n"))
+	}
+
+	inits := f.matching("init ")
+	if len(inits) != 1 {
+		t.Fatalf("expected one init, got:\n%s", strings.Join(f.commands(), "\n"))
+	}
+	if strings.Contains(inits[0], "--network") {
+		t.Errorf("the machine joined a network nothing publishes: %s", inits[0])
+	}
+	// The guest has to be told, or the routed address lands on the device and
+	// the interface comes up carrying nothing.
+	if !strings.Contains(inits[0], "cloud-init.network-config=") {
+		t.Errorf("no network-config was rendered, so the guest configures nothing: %s", inits[0])
+	}
+
+	devices := f.matching("config device add srv eth0 nic")
+	if len(devices) != 1 {
+		t.Fatalf("expected one routed interface, got:\n%s", strings.Join(f.commands(), "\n"))
+	}
+	for _, want := range []string{"nictype=routed", "ipv4.address=203.0.113.7"} {
+		if !strings.Contains(devices[0], want) {
+			t.Errorf("the interface is missing %q: %s", want, devices[0])
+		}
+	}
+	// A routed NIC carries the address itself; the route key belongs to a NIC
+	// that sits on a network, and setting it here would be a second mechanism
+	// for one address.
+	if routes := f.matching("ipv4.routes"); len(routes) != 0 {
+		t.Errorf("a routed interface was also given route keys:\n%s", strings.Join(routes, "\n"))
+	}
+}
+
+// And the machine a real cloud gives nothing: no address asked for, no private
+// network. It boots, and it carries no interface at all.
+//
+// The refusing half of the case above. Without it, a driver that always added a
+// routed NIC would pass that test and invent an address here, which is the exact
+// defect being removed.
+func TestAMachineWithNothingPublishedCarriesNoInterface(t *testing.T) {
 	f := &fakeRuntime{}
 	startScript(f)
 	d := newFakeDriver(f)
@@ -49,23 +116,17 @@ func TestAMachineWithNoAttachmentBootsOnTheEmulatorsOwnNetwork(t *testing.T) {
 		t.Fatalf("start: %v", err)
 	}
 
-	creates := f.matching("network create " + DefaultMachineNetwork)
-	if len(creates) != 1 {
-		t.Fatalf("expected the default machine network to be created once, got:\n%s",
-			strings.Join(f.commands(), "\n"))
+	if creates := f.matching("network create"); len(creates) != 0 {
+		t.Errorf("a network was created for a machine with no address:\n%s",
+			strings.Join(creates, "\n"))
 	}
-	// Labelled, or mustOwn refuses to route public addresses through it and the
-	// sweep cannot remove it; NATed, or the guest cannot install its ssh daemon.
-	for _, want := range []string{"user." + LabelKey + "=", "ipv4.nat=true"} {
-		if !strings.Contains(creates[0], want) {
-			t.Errorf("the default network is missing %q: %s", want, creates[0])
-		}
+	if devices := f.matching("config device add srv eth0"); len(devices) != 0 {
+		t.Errorf("an interface was added for a machine with no address:\n%s",
+			strings.Join(devices, "\n"))
 	}
-
 	inits := f.matching("init ")
-	if len(inits) != 1 || !strings.Contains(inits[0], "--network "+DefaultMachineNetwork) {
-		t.Fatalf("the machine did not boot on %s:\n%s",
-			DefaultMachineNetwork, strings.Join(f.commands(), "\n"))
+	if len(inits) != 1 || strings.Contains(inits[0], "--network") {
+		t.Errorf("the machine joined a network anyway:\n%s", strings.Join(f.commands(), "\n"))
 	}
 }
 
