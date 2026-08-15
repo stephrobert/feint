@@ -23,5 +23,13 @@ func (p *Pack) DeclinedFields() []emulator.FieldDecline {
 			Path:      "servers.*.per_volume_constraint.l_ssd",
 			Reason:    "a bound for local volumes this catalogue never attaches, which would enter the client's size arithmetic with nothing behind it",
 		},
+		// The live field gate (#88) joins on the mounted operation name, which
+		// is why this entry is spelled differently from the one above: each
+		// gate reads the declines it can resolve.
+		{
+			Operation: "ipam/v1/API.ListIPs",
+			Path:      "ips[].source.zonal",
+			Reason:    "zonal is the source of a flexible address, and this IPAM registers private-network addresses only, whose source is the network trio; writing zonal on them would mislabel every address served",
+		},
 	}
 }

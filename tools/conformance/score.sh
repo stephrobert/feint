@@ -73,8 +73,57 @@ if [ -n "$unread" ]; then
   exit 1
 fi
 
+# The omission half of the same check (#88). A violation above is a field the
+# emulator invented; an entry here is a field both upstream sources vouch for —
+# declared by the provider's document, observed in a real cloud's recorded
+# answer — that no answer of this run ever carried, though its container was
+# served. The contract gate cannot see these (an absent field only violates a
+# schema when it is required, and the providers declare almost none), and the
+# offline shapes gate cannot either (its store is empty, so it never sees an
+# element of a list). This run's populated objects are where the recording
+# finally bites.
+omissions="$(printf '%s' "$report" | jq -r '
+  .fields.missing | to_entries[] | "  \(.key): \(.value | join(", "))"')"
+if [ -n "$omissions" ]; then
+  echo "FAIL: fields the real cloud returns and no answer of this run carried:" >&2
+  echo "$omissions" >&2
+  echo "       Either serve them, or decline them in the pack's DeclinedFields() with a reason." >&2
+  exit 1
+fi
+
+# What the gate subtracts stays visible: each excused field is a pack's
+# decision, printed with its reason, never failed on.
+excused="$(printf '%s' "$report" | jq -r '
+  .fields.excused | to_entries[] | "  \(.key): \(.value | join("; "))"')"
+if [ -n "$excused" ]; then
+  echo "declared fields knowingly not served, each with its reason:"
+  echo "$excused"
+fi
+
+# And a decision that outlived its subject fails: a decline for a field this
+# very run served is arguing about an omission the emulator does not have.
+stale="$(printf '%s' "$report" | jq -r '.fields.stale_declines[]? | "  \(.)"')"
+if [ -n "$stale" ]; then
+  echo "FAIL: field declines whose field the emulator now serves:" >&2
+  echo "$stale" >&2
+  echo "       Remove them, or the excused list rots into fiction." >&2
+  exit 1
+fi
+
 checked="$(printf '%s' "$report" | jq -r '.contracts | join(", ")')"
 [ -z "$checked" ] || echo "  responses checked against the API description of: $checked"
+
+# Coverage, then the blind spot, both counted out loud. Unconfirmed fields are
+# the ones only the document declares: no recording proves the real cloud
+# serves them — and where a recording could arbitrate, four of five such
+# fields turned out to be absent from the real answer too, which is why they
+# are a list to record, not a failure. Each entry is one recording away from
+# becoming either a finding or nothing.
+compared="$(printf '%s' "$report" | jq -r '.fields.compared | length')"
+[ "$compared" = "0" ] || echo "  field completeness: $compared operation(s) compared against what their document declares"
+unconfirmed_fields="$(printf '%s' "$report" | jq -r '[.fields.unconfirmed[] | length] | add // 0')"
+unconfirmed_ops="$(printf '%s' "$report" | jq -r '.fields.unconfirmed | length')"
+[ "$unconfirmed_fields" = "0" ] || echo "  blind spot: $unconfirmed_fields declared field(s) on $unconfirmed_ops operation(s) that no recording arbitrates (fields.unconfirmed on /_feint/conformance)"
 
 printf '%s' "$report" | jq -r '
   .untouched

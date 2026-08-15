@@ -153,10 +153,15 @@ const productsServersOp = "GET /instance/v1/zones/fr-par-1/products/servers"
 // writeShapeFile commits a hand-built catalogue for the gate to read.
 func writeShapeFile(t *testing.T, dir string, fields ...transcript.Field) {
 	t.Helper()
+	writeShapeFileFor(t, dir, productsServersOp, fields...)
+}
+
+func writeShapeFileFor(t *testing.T, dir, key string, fields ...transcript.Field) {
+	t.Helper()
 	cat := shape.New("scaleway")
-	cat.Operations[productsServersOp] = &shape.Operation{
+	cat.Operations[key] = &shape.Operation{
 		Method:   "GET",
-		Path:     "/instance/v1/zones/fr-par-1/products/servers",
+		Path:     strings.TrimPrefix(key, "GET "),
 		Fields:   fields,
 		Statuses: []int{200},
 	}
@@ -236,6 +241,59 @@ func TestAStaleFieldDeclineFailsTheGate(t *testing.T) {
 	if !strings.Contains(errOut.String(), "stale") ||
 		!strings.Contains(errOut.String(), "servers.*.per_volume_constraint.l_ssd") {
 		t.Errorf("the stale decline was not named:\n%s", errOut.String())
+	}
+}
+
+// A decline for a field the comparison could not reach is not stale.
+//
+// Offline, the store is empty: ListServers answers no element, so a field
+// under servers[] is skipped rather than compared, and a decline for it
+// excuses nothing without being wrong — it is the live field gate's to judge.
+// Before this rule, the first element-level decline (Outscale's
+// Nics[].PrivateIps[].LinkPublicIp) turned this gate red as stale while the
+// decision it records was alive.
+func TestAnUnevaluableElementDeclineIsNotStale(t *testing.T) {
+	const listServersOp = "GET /instance/v1/zones/fr-par-1/servers"
+	declineScaleway(t, emulator.FieldDecline{
+		Operation: listServersOp,
+		Path:      "servers[].invented_for_this_test",
+		Reason:    aReason,
+	})
+	dir := t.TempDir()
+	writeShapeFileFor(t, dir, listServersOp,
+		transcript.Field{Path: "servers", Type: "array"},
+		transcript.Field{Path: "servers[]", Type: "object"},
+		transcript.Field{Path: "servers[].invented_for_this_test", Type: "string"},
+	)
+
+	var out, errOut strings.Builder
+	if rc := checkShapes(dir, nil, &out, &errOut); rc != exitOK {
+		t.Fatalf("an unevaluable element decline exited %d, want %d\n%s%s", rc, exitOK, out.String(), errOut.String())
+	}
+}
+
+// A decline spelled for the live field gate — the mounted operation name,
+// "ipam/v1/API.ListIPs" — is not this gate's to judge: it joins on catalogue
+// keys, and an entry it cannot resolve excuses nothing here by construction.
+// Before this rule, the first decline written for the live gate turned this
+// gate red as "stale" on a decision that was alive and doing its job one gate
+// over.
+func TestADeclineSpelledForTheLiveGateIsNotStaleHere(t *testing.T) {
+	declineScaleway(t, emulator.FieldDecline{
+		Operation: "ipam/v1/API.ListIPs",
+		Path:      "ips[].source.zonal",
+		Reason:    aReason,
+	})
+	dir := t.TempDir()
+	writeShapeFile(t, dir,
+		transcript.Field{Path: "servers", Type: "object"},
+		transcript.Field{Path: "servers.DEV1-S", Type: "object"},
+		transcript.Field{Path: "servers.DEV1-S.ncpus", Type: "number"},
+	)
+
+	var out, errOut strings.Builder
+	if rc := checkShapes(dir, nil, &out, &errOut); rc != exitOK {
+		t.Fatalf("a live-gate decline exited %d here, want %d\n%s%s", rc, exitOK, out.String(), errOut.String())
 	}
 }
 

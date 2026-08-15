@@ -19,6 +19,26 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Le contrôle de contrat regarde désormais dans le sens de l'omission, et le
+  gate de conformance échoue sur ce qu'il trouve** (#88). Le gate attrapait un
+  champ que l'émulateur invente et ne voyait pas celui qu'il oublie : un champ
+  absent ne viole un schéma que si le fournisseur l'a déclaré `required`, ce
+  que Scaleway fait sur 9 % de ses schémas. Les vingt champs manquants de
+  ReadVms, et l'omission de ReadImages qui faisait s'effondrer le provider
+  Terraform (#86), sont donc restés verts jusqu'à ce qu'un enregistrement d'un
+  vrai compte les couvre par hasard, et 45 opérations sur 231 seulement ont un
+  tel enregistrement. Chaque réponse provoquée par une exécution de conformance
+  est désormais aussi tenue à la *présence* de chaque champ que la description
+  d'API du fournisseur déclare (le document même dont les SDK sont générés,
+  `contract.ResponseFields`), sur les objets peuplés que créent les vrais
+  clients. `/_feint/conformance` publie le verdict sous `fields` (la charge
+  utile passe en version de schéma 3, additive) et
+  `tools/conformance/score.sh` échoue sur un champ manquant comme il échoue sur
+  un champ inventé. Un champ qu'un pack ne sert sciemment pas s'excuse par le
+  même `DeclinedFields()` que lit le gate de formes, imprimé avec sa raison ;
+  un decline dont le champ est servi dans l'exécution même échoue comme périmé,
+  pour que la liste des excuses ne pourrisse pas.
+
 - **Ce dont la CI a le droit de dépendre est gelé par un test, pas par une
   phrase** (#132). Les formes de `/_feint/health`, `/_feint/routes`,
   `/_feint/conformance` et `/_feint/trace`, les verbes et drapeaux du CLI et

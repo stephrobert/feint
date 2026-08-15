@@ -39,7 +39,12 @@ const (
 	// truthy string now and would count every refusal as a success — which is
 	// the exact overstatement #156 removed, reappearing one layer out. The bump
 	// is what lets it notice.
-	ConformanceSchemaVersion = 2
+	//
+	// 3 since #88: the payload gained `fields`, the omission check's verdict —
+	// the declared response fields a run's answers never carried, next to the
+	// operations the comparison reached. Additive, but a consumer parsing the
+	// whole object should know the shape moved.
+	ConformanceSchemaVersion = 3
 	// TraceSchemaVersion is the shape of GET /_feint/trace.
 	TraceSchemaVersion = 1
 )

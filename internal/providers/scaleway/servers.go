@@ -722,7 +722,63 @@ func (p *Pack) view(res *resource.Resource) map[string]any {
 	if len(publicIPs) > 0 {
 		out["public_ip"] = publicIPs[0]
 	}
+
+	// What follows was found missing by the field gate (#88): every field here
+	// is declared by Scaleway's own document and present in a real account's
+	// recorded answer (shapes/scaleway.json), and this view served none of
+	// them. The Server struct in the SDK marks none of these omitempty, which
+	// is why the real API serves the key on every server, null included.
+	//
+	// The values follow the vms.go doctrine on the Outscale side: fixed,
+	// stable between two reads, describing the platform being emulated rather
+	// than the local runtime. What matters to a client is that the field is
+	// there, well-formed, and does not move.
+	out["mac_address"] = serverMAC(res.ID)
+	out["end_of_service"] = false
+	out["filesystems"] = []any{}
+	// Deprecated upstream and always null in routed IP mode, which is this
+	// emulator's default; the real API still serves the key.
+	out["ipv6"] = nil
+	out["placement_group"] = nil
+	nics := make([]any, 0)
+	for _, nic := range p.privateNICsOf(res.ID) {
+		nics = append(nics, p.privateNICView(nic))
+	}
+	out["private_nics"] = nics
+	// A placed machine has a location, a stopped one has none — the null is
+	// the real API's answer for a server that sits nowhere.
+	out["location"] = nil
+	out["dns"] = nil
+	if res.State == "running" {
+		out["location"] = map[string]any{
+			"cluster_id":    "19",
+			"hypervisor_id": "1201",
+			"node_id":       "24",
+			"platform_id":   "14",
+			"zone_id":       res.Tenant.Zone,
+		}
+	}
+	if len(publicIPs) > 0 {
+		out["dns"] = res.ID + ".pub.instances.scw.cloud"
+	}
 	return out
+}
+
+// serverMAC derives a stable MAC from the server id. de:00:00 is the prefix
+// Scaleway's own instances carry; the suffix reuses the id's leading hex so
+// two reads — and two runs over a restored snapshot — agree.
+func serverMAC(id string) string {
+	hex := make([]byte, 0, 6)
+	for i := 0; i < len(id) && len(hex) < 6; i++ {
+		c := id[i]
+		if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') {
+			hex = append(hex, c)
+		}
+	}
+	for len(hex) < 6 {
+		hex = append(hex, '0')
+	}
+	return "de:00:00:" + string(hex[0:2]) + ":" + string(hex[2:4]) + ":" + string(hex[4:6])
 }
 
 // publicIPsOf lists a server's public addresses in the ServerIP shape the SDK
@@ -757,6 +813,15 @@ func serverIPView(id, address string, dynamic bool) map[string]any {
 		"family":            "inet",
 		"dynamic":           dynamic,
 		"provisioning_mode": "dhcp",
+		// The three fields below are declared on ServerIp and served by the
+		// real API on every attached address (#88). An entry here is attached
+		// by construction — that is what puts it on the server. ipam_id reuses
+		// the address's own id: the emulated IPAM does not register flexible
+		// addresses, and what a client needs is a stable, well-formed
+		// identifier, not a second inventory.
+		"ipam_id": id,
+		"state":   "attached",
+		"tags":    []any{},
 	}
 }
 

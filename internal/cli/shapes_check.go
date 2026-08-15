@@ -118,7 +118,7 @@ func checkShapes(dir string, providers []string, stdout, stderr io.Writer) int {
 		// the orphan-route check on Route.Operation.
 		// TestAStaleFieldDeclineFailsTheGate fails without this.
 		for _, d := range unused {
-			fmt.Fprintf(stderr, "feint: %s declines %s %s, and the emulator does not omit it: the decline is stale, remove it\n", name, d.Operation, d.Path)
+			fmt.Fprintf(stderr, "feint: %s declines %s %s, and either the emulator serves it or the recording no longer carries it: the decline is stale, remove it\n", name, d.Operation, d.Path)
 			stale++
 		}
 	}
@@ -149,7 +149,38 @@ func checkShapes(dir string, providers []string, stdout, stderr io.Writer) int {
 // caller to refuse: whether a decline is stale is only known once every
 // operation of its provider has been compared.
 func checkProvider(p upstream.Provider, cat *shape.Catalogue, declines []emulator.FieldDecline, ts *httptest.Server, stdout io.Writer) (checked, missing, excused int, unused []emulator.FieldDecline) {
+	// Two gates read DeclinedFields(), each joining on its own spelling: this
+	// one on the catalogue key ("GET /path", or the operation name where the
+	// recording carried one), the live field gate on the mounted operation
+	// name ("ipam/v1/API.ListIPs"). A decline addressed to the other gate is
+	// not stale here — it is simply not this gate's to judge — so only the
+	// declines this gate can resolve are held to the staleness rule.
+	// TestADeclineSpelledForTheLiveGateIsNotStaleHere fails without this.
+	keys := map[string]bool{}
+	for _, call := range upstream.Reads[p] {
+		key, _, _ := callIdentity(p, call)
+		keys[key] = true
+	}
+	mine := make([]emulator.FieldDecline, 0, len(declines))
+	for _, d := range declines {
+		if keys[d.Operation] {
+			mine = append(mine, d)
+		}
+	}
+	declines = mine
+
 	used := make([]bool, len(declines))
+	// A decline can be judged stale only where this gate could judge it at
+	// all. Offline, the store is empty: a list answers no element, and every
+	// field under one is skipped rather than compared (absentFrom). A decline
+	// for such a field excuses nothing here without being wrong — the live
+	// field gate is where it works — so staleness needs two more facts per
+	// decline: does the recording still carry a matching field, and does the
+	// emulator demonstrably serve one. Stale is "served now" or "nothing in
+	// the recording to excuse"; recorded-but-unreachable is silence.
+	// TestAnUnevaluableElementDeclineIsNotStale fails without this.
+	wantMatched := make([]bool, len(declines))
+	servedMatched := make([]bool, len(declines))
 	for _, call := range upstream.Reads[p] {
 		key, method, path := callIdentity(p, call)
 		want, known := cat.Operations[key]
@@ -165,6 +196,24 @@ func checkProvider(p upstream.Provider, cat *shape.Catalogue, declines []emulato
 			continue
 		}
 		checked++
+
+		for i, d := range declines {
+			if d.Operation != key {
+				continue
+			}
+			for _, f := range want.Fields {
+				if d.Matches(key, f.Path) {
+					wantMatched[i] = true
+					break
+				}
+			}
+			for served := range got {
+				if d.Matches(key, served) {
+					servedMatched[i] = true
+					break
+				}
+			}
+		}
 
 		var lines []string
 		for _, g := range absentFrom(want.Fields, got) {
@@ -185,9 +234,16 @@ func checkProvider(p upstream.Provider, cat *shape.Catalogue, declines []emulato
 		}
 	}
 	for i, ok := range used {
-		if !ok {
-			unused = append(unused, declines[i])
+		if ok {
+			continue
 		}
+		// Recorded, not served, and yet never excused: the comparison could
+		// not reach the field (an element of a list the offline store leaves
+		// empty). Not stale — the live gate is where this decline works.
+		if wantMatched[i] && !servedMatched[i] {
+			continue
+		}
+		unused = append(unused, declines[i])
 	}
 	return checked, missing, excused, unused
 }

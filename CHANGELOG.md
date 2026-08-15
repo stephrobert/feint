@@ -17,6 +17,24 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **The contract check now looks in the omission direction, and the
+  conformance gate fails on what it finds** (#88). The gate caught a field the
+  emulator invents and could not see one it forgets: an absent field only
+  violates a schema when the provider marked it `required`, which Scaleway does
+  on 9% of its schemas — so the twenty fields missing from ReadVms, and the
+  ReadImages omission that segfaulted the Terraform provider (#86), were all
+  green until a recording of a real account happened to cover them, and only 45
+  of 231 operations have such a recording. Every answer a conformance run
+  provokes is now also held to the *presence* of every field the provider's own
+  API description declares (the same document the SDKs are generated from —
+  `contract.ResponseFields`), over the populated objects the real clients
+  create. `/_feint/conformance` publishes the verdict under `fields` — moving
+  the payload to schema version 3, additive — and `tools/conformance/score.sh`
+  fails on a missing field the way it fails on an invented one. A field a pack
+  knowingly does not serve is excused through the same `DeclinedFields()` the
+  shapes gate reads, printed with its reason; a decline whose field the run
+  demonstrably serves fails as stale, so the excused list cannot rot.
+
 - **What CI is allowed to depend on is frozen by a test, not by a sentence**
   (#132). The shapes of `/_feint/health`, `/_feint/routes`,
   `/_feint/conformance` and `/_feint/trace`, the CLI's verbs and flags, and the

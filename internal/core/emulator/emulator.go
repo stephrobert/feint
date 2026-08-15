@@ -170,6 +170,12 @@ type Server struct {
 	// covers, handed in by SetShapeCovered. nil means no catalogue was given,
 	// which the evidence record reports as "unknown" rather than "unobserved".
 	shapeCovered map[string]bool
+	// observedFields maps an operation to the field paths a real cloud's
+	// recorded answer carried, handed in by SetObservedFields the way
+	// shapeCovered is: the core knows neither providers nor where recordings
+	// live. It is the corroboration the omission check fails on (omissions.go);
+	// nil narrows that check to nothing rather than inventing a proof.
+	observedFields map[string]map[string]bool
 }
 
 // NewServer mounts the packs. It fails when two packs claim the same route,

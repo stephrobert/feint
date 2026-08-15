@@ -84,6 +84,12 @@ type observer struct {
 	// operation. Deduplicated, because a client repeating a call repeats the
 	// field and one defect must read as one.
 	unread map[string]map[string]bool
+	// served accumulates, per operation, the union of field paths its decoded
+	// 2xx answers carried across the run, each with the most container-like
+	// type seen there. The other side of the omission check (#88): what the
+	// contract declares and this union never shows is a field the emulator
+	// forgot, or a decision a pack must argue. See omissions.go.
+	served map[string]map[string]string
 	// contracts maps a provider to its API description, when one was loaded.
 	contracts map[string]*contract.Doc
 	// stream is where each answered request is published, in order. The counters
@@ -114,6 +120,7 @@ func newObserver(contracts map[string]*contract.Doc, events *stream) *observer {
 		violations:    map[string]contract.Violations{},
 		checked:       map[string]int{},
 		unread:        map[string]map[string]bool{},
+		served:        map[string]map[string]string{},
 		contracts:     contracts,
 		flight:        map[int64]flightEntry{},
 		spans:         map[string]*assertSpan{},
@@ -283,6 +290,9 @@ func (o *observer) check(doc *contract.Doc, operation string, rec *recorder) con
 		o.report(operation, vs)
 		return vs
 	}
+	// Whatever the verdict below: a violating answer still shows which fields
+	// it serves, and the omission check reads the union of all of them.
+	o.recordServed(operation, decoded)
 	if vs := doc.ValidateResponse(name, decoded); len(vs) > 0 {
 		o.report(operation, vs)
 		return vs
@@ -479,6 +489,11 @@ type ConformanceView struct {
 	// the handler does not declare. Each one is an argument the API accepted and
 	// then ignored, which is the failure nothing else here can see.
 	UnreadRequestFields map[string][]string `json:"unread_request_fields"`
+	// Fields is the omission check (#88): the declared response fields this
+	// run's answers never carried, per operation, next to how many operations
+	// the comparison could reach. The mirror of Violations, which only sees
+	// what an answer invents.
+	Fields FieldGaps `json:"fields"`
 	// Machines names the runtime behind this run ("none" when machines are
 	// metadata-only). Copied here because the dataplane axis below is defined
 	// by it, and a record that depends on a fact must carry the fact.
@@ -577,6 +592,25 @@ func (s *Server) SetShapeCovered(operations []string) {
 		covered[op] = true
 	}
 	s.shapeCovered = covered
+}
+
+// SetObservedFields hands the server, per operation, the field paths a real
+// cloud's recorded answer carried — the corroboration half of the omission
+// check (omissions.go). Computed by the caller from the shapes catalogues for
+// the same reason SetShapeCovered is: mapping a catalogue entry to a mounted
+// operation is not the core's business. Never called, the check publishes
+// every declared-but-absent field as unconfirmed and fails on none, because a
+// proof nobody handed in is not a proof.
+func (s *Server) SetObservedFields(observed map[string][]string) {
+	fields := make(map[string]map[string]bool, len(observed))
+	for op, paths := range observed {
+		set := make(map[string]bool, len(paths))
+		for _, p := range paths {
+			set[p] = true
+		}
+		fields[op] = set
+	}
+	s.observedFields = fields
 }
 
 func (s *Server) handleConformance(w http.ResponseWriter, _ *http.Request) {
@@ -693,6 +727,8 @@ func (s *Server) handleConformance(w http.ResponseWriter, _ *http.Request) {
 		}
 	}
 
+	gaps := s.fieldGaps(s.observer.servedCopy())
+
 	writeJSON(w, http.StatusOK, ConformanceView{
 		SchemaVersion:       ConformanceSchemaVersion,
 		Served:              len(routes),
@@ -704,6 +740,7 @@ func (s *Server) handleConformance(w http.ResponseWriter, _ *http.Request) {
 		Contracts:           providers,
 		Violations:          violations,
 		UnreadRequestFields: unread,
+		Fields:              gaps,
 		Machines:            machines,
 		Evidence:            evidence,
 	})

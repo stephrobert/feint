@@ -282,7 +282,7 @@ func (p *Pack) deleteSecurityGroup(w http.ResponseWriter, r *http.Request) {
 	}
 	if servers := p.serversUsing(res); len(servers) > 0 {
 		writePrecondition(w, "security_group", res.ID,
-			"the security group is still attached to "+servers[0]+" and cannot be deleted")
+			"the security group is still attached to "+servers[0].name+" and cannot be deleted")
 		return
 	}
 
@@ -665,18 +665,26 @@ func (p *Pack) rulesOf(groupID string) []*resource.Resource {
 	return rules
 }
 
+// serverSummary is what the group's servers list carries per entry: the
+// ServerSummary pair the SDK declares. The id was missing until the field gate
+// measured it against a real account's answer (#88).
+type serverSummary struct {
+	id   string
+	name string
+}
+
 // serversUsing names the servers still attached to a group, so a delete can
 // refuse with the same precondition the API enforces.
-func (p *Pack) serversUsing(group *resource.Resource) []string {
-	var names []string
+func (p *Pack) serversUsing(group *resource.Resource) []serverSummary {
+	var out []serverSummary
 	for _, res := range p.env.Store.List(kindServer, p.tenant(group.Tenant.Zone)) {
 		summary, _ := res.Attrs["security_group"].(map[string]any)
 		if summary != nil && summary["id"] == group.ID {
 			name, _ := res.Attrs["name"].(string)
-			names = append(names, name)
+			out = append(out, serverSummary{id: res.ID, name: name})
 		}
 	}
-	return names
+	return out
 }
 
 func (p *Pack) clearProjectDefault(zone, project string) {
@@ -733,8 +741,8 @@ func (p *Pack) securityGroupView(res *resource.Resource) map[string]any {
 	// servers is computed rather than stored: a server attached after the group
 	// was created would otherwise never show up here.
 	servers := make([]any, 0)
-	for _, name := range p.serversUsing(res) {
-		servers = append(servers, map[string]any{"name": name})
+	for _, srv := range p.serversUsing(res) {
+		servers = append(servers, map[string]any{"id": srv.id, "name": srv.name})
 	}
 	out["servers"] = servers
 	return out

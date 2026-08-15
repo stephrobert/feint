@@ -939,6 +939,32 @@ produced a worse number still — 464 of 468 — which measured the extractor's 
 counts your own assumption and reads like evidence is the exact failure this
 project exists to avoid.
 
+### What a green contract run does and does not prove
+
+The schema check is one-directional: it catches a field a response *invents*,
+and it can only catch an *omitted* field where the provider declared it
+`required` — which Scaleway does on 9% of its schemas, Outscale on 27%,
+Exoscale on 35%. On the rest, an omission never violates anything.
+
+Since #88 the other direction has its own control, and its precision was
+measured before its semantics were chosen. Every answer a conformance run
+provokes is compared with the full property list the provider's document
+declares; an absence fails the run (`fields.missing` on `/_feint/conformance`,
+gated by `tools/conformance/score.sh`) **only when a recorded real-cloud answer
+carries the field too**. The corroboration is not caution, it is arithmetic:
+on the first instrumented run, of the 106 declared-but-absent fields a
+recording could arbitrate, 83 were absent from the real cloud's answer as well
+— pagination tokens that only exist when a further page does, client tokens
+echoed only when sent. A gate that failed on all of that would be red on
+purpose, and a gate that is red on purpose is a gate somebody turns off.
+
+What no source can arbitrate is published rather than failed on:
+`fields.unconfirmed` lists, per operation, every field only the document
+vouches for — 317 fields across 97 operations at the time of writing. Each
+entry is one recording away (`feint shapes --record`) from becoming either a
+failure or nothing. That list is this page's kind of sentence: it names
+exactly what nobody has proven.
+
 ## `feint start` detaches on Linux, and not on macOS
 
 `start` backgrounds the emulator itself, with no `&` and no container runtime,

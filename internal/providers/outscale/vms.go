@@ -385,6 +385,29 @@ func (p *Pack) validVmFields(w http.ResponseWriter, keypair, userData string) bo
 	return true
 }
 
+// blockDeviceMappingsOf lists a Vm's device mappings from the volumes linked
+// to it — the link lives on the volume (linkVolume), so this is the other side
+// of the same single fact. The shape is BlockDeviceMappingCreated: DeviceName
+// beside a Bsu naming the volume, its link date and state.
+func (p *Pack) blockDeviceMappingsOf(vmID string) []any {
+	out := make([]any, 0)
+	for _, vol := range p.env.Store.List(kindVolume, resource.Tenant{Provider: Name}) {
+		if stringOf(vol.Attrs["LinkedVmId"]) != vmID {
+			continue
+		}
+		out = append(out, map[string]any{
+			"DeviceName": orDefault(stringOf(vol.Attrs["DeviceName"]), defaultRootDevice),
+			"Bsu": map[string]any{
+				"DeleteOnVmDeletion": false,
+				"LinkDate":           vol.Updated.Format(time.RFC3339),
+				"State":              "attached",
+				"VolumeId":           vol.ID,
+			},
+		})
+	}
+	return out
+}
+
 // readAdminPassword answers the call the Terraform provider makes on every Vm
 // it reads back, Linux included.
 //
@@ -782,7 +805,16 @@ func (p *Pack) vmView(res *resource.Resource) map[string]any {
 	// Derived from the machine's own id so it cannot move between two reads:
 	// anything Terraform stores has to be stable or it plans a change for ever.
 	out["ReservationId"] = "r-" + hexOf(strings.TrimPrefix(res.ID, "i-")+res.ID, idLen)
-	if dns := privateDNSName(p.addressOf(res)); dns != "" {
+	// From the same address the view publishes as PrivateIp, wherever it came
+	// from — the runtime when a machine backs the Vm, the stored plan address
+	// otherwise. Reading the runtime alone left PrivateDnsName absent on every
+	// machines-off run while PrivateIp was served, which the field gate (#88)
+	// measured against the real cloud: it writes the name on every Vm.
+	dnsAddress := p.addressOf(res)
+	if dnsAddress == "" {
+		dnsAddress = stringOf(res.Attrs["PrivateIp"])
+	}
+	if dns := privateDNSName(dnsAddress); dns != "" {
 		out["PrivateDnsName"] = dns
 	}
 	// The interfaces, in the Light shape the Vm schema declares. The provider
@@ -790,11 +822,23 @@ func (p *Pack) vmView(res *resource.Resource) map[string]any {
 	if nics := p.nicsOfVM(res); len(nics) > 0 {
 		out["Nics"] = nics
 	}
-	// ShutdownBehaviorConfiguration is deliberately NOT emitted, and the reason
-	// is a finding rather than an omission: the real cloud returns it, and the
-	// API description this pack is checked against does not declare it. Serving
-	// it would fail the contract gate against Outscale's own document. It is
-	// upstream running ahead of its published description — recorded here so
-	// the next reader does not "fix" it.
+	// The device mappings, on every Vm — the real cloud writes the key on
+	// each machine (measured in shapes/outscale.json, held by the field gate,
+	// #88). Derived from the volumes actually linked to this Vm, never
+	// invented: a first version wrote a fictional root VolumeId here, and the
+	// Terraform provider promptly resolved it — "volume vol-rooti149 not
+	// found" killed the whole suite. A mapping must name a volume ReadVolumes
+	// can answer for, and a Vm with no linked volume has an empty list, which
+	// this emulator's machines truthfully have (they model no root volume,
+	// docs/limits.md).
+	out["BlockDeviceMappings"] = p.blockDeviceMappingsOf(res.ID)
+	// Declared by Outscale's document since the 1.42 contract refresh — an
+	// earlier note here recorded the opposite, and the note aged while the
+	// document moved. Both actions sit on their platform defaults, matching
+	// VmInitiatedShutdownBehavior above.
+	out["ShutdownBehaviorConfiguration"] = map[string]any{
+		"GuestAction": "stop",
+		"HostAction":  "stop",
+	}
 	return out
 }

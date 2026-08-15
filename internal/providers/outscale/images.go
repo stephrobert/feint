@@ -94,6 +94,15 @@ func (p *Pack) createImage(w http.ResponseWriter, r *http.Request) {
 		if asked := int(numOf(bsu["VolumeSize"])); asked > 0 {
 			size = asked
 		}
+		// Iops mirrors what the client declared, with the platform's floor as
+		// the default: the real cloud writes Iops on every image Bsu it
+		// returns — measured in shapes/outscale.json, and the field gate (#88)
+		// holds ReadImages to it — so omitting it here served a mapping no
+		// real answer has.
+		iops := int(numOf(bsu["Iops"]))
+		if iops == 0 {
+			iops = 100
+		}
 		mappings = append(mappings, map[string]any{
 			"DeviceName": orDefault(stringOf(raw["DeviceName"]), defaultRootDevice),
 			"Bsu": map[string]any{
@@ -101,6 +110,7 @@ func (p *Pack) createImage(w http.ResponseWriter, r *http.Request) {
 				"VolumeSize":         size,
 				"VolumeType":         orDefault(stringOf(bsu["VolumeType"]), defaultVolumeType),
 				"DeleteOnVmDeletion": true,
+				"Iops":               iops,
 			},
 		})
 	}

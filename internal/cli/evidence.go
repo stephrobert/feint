@@ -315,6 +315,70 @@ func shapeCoveredOperations(dir string) (map[string]bool, error) {
 	return covered, nil
 }
 
+// observedFieldsByOperation maps every recorded real-cloud answer onto the
+// mounted operation that serves the same call: operation name to the field
+// paths the real cloud was seen to return. This is the corroboration half of
+// the omission check (emulator.SetObservedFields) — computed here for the same
+// reason shapeCoveredOperations is: the core knows neither providers nor where
+// recordings live.
+//
+// Unlike shapeCoveredOperations it walks the whole catalogue rather than the
+// curated read list: a recording keyed by an operation name (Outscale's
+// osc/Client.ReadVms) corroborates that operation directly, and one keyed by
+// "METHOD path" resolves through the mounted routes. An entry nothing mounts is
+// skipped — an operation no pack claims is the drift gate's business, not this
+// check's.
+//
+// nil with no error means no catalogue exists at all, and the check then fails
+// on nothing rather than treating "no recording" as "nothing to prove".
+func observedFieldsByOperation(dir string, srv *emulator.Server) (map[string][]string, error) {
+	routes := srv.AllRoutes()
+	mounted := map[string]bool{}
+	for _, r := range routes {
+		mounted[r.Operation] = true
+	}
+
+	observed := map[string][]string{}
+	found := false
+	for _, p := range srv.Packs() {
+		cat, err := readCatalogue(filepath.Join(dir, p.Name()+".json"), p.Name())
+		if err != nil {
+			return nil, err
+		}
+		if cat == nil {
+			continue
+		}
+		found = true
+		for key, rec := range cat.Operations {
+			if len(rec.Fields) == 0 {
+				continue
+			}
+			op := ""
+			switch {
+			case mounted[key]:
+				op = key
+			case rec.Method != "" && rec.Path != "":
+				op, err = operationForCall(routes, rec.Method, rec.Path)
+				if err != nil {
+					return nil, fmt.Errorf("%s: %w", key, err)
+				}
+			}
+			if op == "" {
+				continue
+			}
+			paths := make([]string, 0, len(rec.Fields))
+			for _, f := range rec.Fields {
+				paths = append(paths, f.Path)
+			}
+			observed[op] = append(observed[op], paths...)
+		}
+	}
+	if !found {
+		return nil, nil
+	}
+	return observed, nil
+}
+
 // operationForCall resolves the mounted route a concrete request would reach.
 // Among the patterns that match, the one with the fewest wildcards wins — the
 // same specificity rule the mux applies — and a tie is refused out loud

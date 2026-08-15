@@ -296,6 +296,14 @@ restored="$(osc CreateVolume --SubregionName eu-west-2a --SnapshotId "$snap_id")
 printf '%s' "$restored" | jq -e --arg s "$snap_id" '.Volume.SnapshotId == $s and .Volume.Size == 7' >/dev/null \
   || fail "the restored volume does not carry its provenance and size: $restored"
 restored_id="$(printf '%s' "$restored" | jq -r '.Volume.VolumeId')"
+# Read the provenance back through the list, while the restored volume exists.
+# This is what makes the field gate (#88) protect Volumes[].SnapshotId: without
+# a ReadVolumes in this window, no listed volume ever carries the key, and
+# deleting it from volumeView would stay green — the exact example issue #88
+# names as what a fix must catch.
+listed="$(osc ReadVolumes --Filters.VolumeIds[] "$restored_id")" || fail "ReadVolumes rejected: $listed"
+printf '%s' "$listed" | jq -e --arg s "$snap_id" '.Volumes[0].SnapshotId == $s' >/dev/null \
+  || fail "the listed restored volume does not carry its provenance: $listed"
 osc DeleteSnapshot --SnapshotId "$snap_id" >/dev/null || fail "DeleteSnapshot rejected"
 osc DeleteVolume --VolumeId "$restored_id" >/dev/null || fail "DeleteVolume rejected"
 ok "record, restore, and the key only when it means something"
@@ -413,10 +421,18 @@ fi
 ok "filters apply, and an unserved one is refused"
 
 echo "- create, from the catalogue the emulator just published"
-created="$(osc CreateVms --ImageId "$image_id" --VmType "$default_type" --KeypairName conformance)" \
+# UserData travels base64, as the API defines it. Sent so the read-back below
+# means something: without a Vm that carries one, the field gate (#88) has no
+# populated answer to hold ReadVms.Vms[].UserData to, and deleting the field
+# from the view would stay green.
+user_data="$(printf '#!/bin/sh\necho conformance' | base64 | tr -d '\n')"
+created="$(osc CreateVms --ImageId "$image_id" --VmType "$default_type" --KeypairName conformance \
+  --UserData "$user_data")" \
   || fail "CreateVms rejected: $created"
 vm_id="$(printf '%s' "$created" | jq -r '.Vms[0].VmId // empty')"
 [ -n "$vm_id" ] || fail "no VmId in the create response: $created"
+printf '%s' "$created" | jq -e --arg u "$user_data" '.Vms[0].UserData == $u' >/dev/null \
+  || fail "the machine does not carry the UserData it was created with: $created"
 # Outscale identifiers are a prefix and eight hexadecimal characters, not UUIDs.
 # Their own API description says so in sixty-three places, and a client
 # filtering on the shape would drop what the emulator returns.

@@ -208,11 +208,20 @@ func (p *Pack) authorizedKeys(name string) []string {
 }
 
 func keypairView(res *resource.Resource) map[string]any {
-	out := make(map[string]any, len(res.Attrs)+1)
+	out := make(map[string]any, len(res.Attrs)+2)
 	for k, v := range res.Attrs {
 		out[k] = v
 	}
 	out["KeypairId"] = res.ID
+	// Empty, never absent: the real cloud writes Tags on every keypair it
+	// returns — measured in shapes/outscale.json, and the field gate (#88)
+	// holds ReadKeypairs to it. Tag *filters* stay refused (keypairFilters),
+	// which is a different claim: serving the field is shape, filtering on it
+	// would be behaviour this pack does not model. Guarded so a stored list,
+	// should tagging ever reach keypairs, wins over the empty default.
+	if _, ok := out["Tags"]; !ok {
+		out["Tags"] = []any{}
+	}
 	return out
 }
 

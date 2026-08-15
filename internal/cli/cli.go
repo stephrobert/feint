@@ -497,6 +497,18 @@ func serve(args []string, stdout io.Writer) error {
 		if covered != nil {
 			srv.SetShapeCovered(sortedKeys(covered))
 		}
+		// The corroboration half of the omission check (#88): which fields a
+		// real cloud's recorded answers carried, per mounted operation. Without
+		// it the check publishes every declared-but-absent field as unconfirmed
+		// and fails on none — an installed binary without shapes/ loses the
+		// verdict, never invents one.
+		observed, err := observedFieldsByOperation(*shapesDir, srv)
+		if err != nil {
+			return err
+		}
+		if observed != nil {
+			srv.SetObservedFields(observed)
+		}
 	}
 
 	driver, err := machineDriver(*vm, stdout)
