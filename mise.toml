@@ -319,6 +319,39 @@ depends = ["check", "docs:check", "drift:check", "shapes:check", "falsify:selfte
 # or moves a gate. CLAUDE.md carries the decision table.
 run = "echo 'prepush passed - conformance and conformance:leg are the two it does not cover'"
 
+[tasks."falsify:all"]
+description = "Replay every declared falsification, so a guard whose test stopped biting fails a run"
+# #169. A falsification proves a test bites on the day it is run, and every
+# verdict of the 0.9 train was taken once, by hand, in a script deleted with its
+# branch. That makes each of them a claim about the past, and this repository has
+# already published one that was false: the 0.8.0 CHANGELOG says "neutralise any
+# of the three locks and the barrage goes red on the first attempt", and thirty
+# runs later stayed green with a lock removed.
+#
+# Minutes, not seconds — one tree copy and one `go test` per mutation — so this
+# is deliberately out of `prepush` and out of the pull-request path, the same
+# arbitration runtime-proof.yml makes for #125. It runs nightly
+# (.github/workflows/falsify.yml) and on demand here.
+#
+# The first replay was worth its cost immediately: of eight specs, four did not
+# hold. Three were refused by the harness's own conservative rule and had to be
+# rewritten in the neutralising style; the fourth named two guards that #179's
+# final form had removed, so two mutations had been describing code that no
+# longer existed anywhere.
+run = "python3 tools/falsify/falsify.py --all tools/falsify/specs"
+
+[tasks."falsify:proof"]
+description = "Weaken a test so it cannot fail, and require the replay to name it"
+# #169's acceptance criterion, tooled instead of demonstrated once. The replay
+# above is only worth its minutes if it catches a test that has stopped biting,
+# and `go test` is precisely what cannot see one: an assertion loosened while
+# chasing an unrelated red still passes, forever.
+#
+# So this weakens one, in a copy outside the tree, and asserts both halves — the
+# suite green, the replay red and naming the test. Writing that proof as a script
+# beside a pull request would have reproduced the fault it closes.
+run = "python3 tools/falsify/proof.py"
+
 [tasks."falsify:selftest"]
 description = "Prove the falsification harness refuses the three mutations that voided a verdict"
 # Cheap, offline, no Go build: it holds the rule against the three real mistakes

@@ -1,0 +1,110 @@
+# Replaying the falsifications (#169).
+#
+# A falsification proves a test bites on the day it is run. Every guard of the
+# 0.9 train was falsified by hand, once, in a throwaway script that was deleted
+# with the branch — so each of those verdicts was a claim about the past, and
+# this repository has already shipped one that was false. The 0.8.0 CHANGELOG
+# says "neutralise any of the three locks and the barrage goes red on the first
+# attempt"; the lock was later removed and thirty runs stayed green.
+#
+# So the mutations are declared beside the guards they neutralise
+# (tools/falsify/specs/) and replayed here. A guard whose test has stopped
+# biting fails this run, naming the pair, instead of ageing quietly.
+#
+# Why this can be a hard red where runtime-proof.yml cannot: this workflow
+# builds nothing but Go and talks to nothing. No Incus, no OVN, no third-party
+# release server, no network weather. Its verdict is a property of the tree, and
+# the same input gives the same answer every night.
+#
+# Why it is still not on pull_request: it copies the tree and runs `go test` once
+# per mutation, twenty-three times as of this commit, and that cost grows with
+# every guard the project adds — which is the direction we want it to grow in.
+# Nightly plus dispatch keeps the incentive pointing the right way: declaring one
+# more mutation must never be the thing that makes pull requests slower.
+name: Falsify
+
+on:
+  schedule:
+    # Offset from conformance.yml (03:43) and runtime-proof.yml (02:31): three
+    # nightly workflows that never contend for the same minute.
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  replay:
+    name: Every declared falsification still holds
+    runs-on: ubuntu-24.04
+    # Each mutation is a fresh copy plus a package build and one test run. The
+    # first copy pays for the whole module's compilation; the rest hit the cache.
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.6'
+          # No go.sum to key a cache on: the zero-dependency rule keeps this
+          # module dependency-free.
+          cache: false
+
+      # The harness against its own history first. It refuses a mutation that
+      # does not compile, because that mistake voided three verdicts in one day
+      # and looks exactly like success — every test fails, including the one
+      # being falsified. If the rule itself has rotted, the replay below would
+      # report on a rule nobody checked.
+      - name: The harness, against the mistakes it was written for
+        run: python3 tools/falsify/falsify.py --selftest
+
+      # The tree must be green before anything is mutated. A copy that is already
+      # red makes every verdict void: the test would fail for a reason that has
+      # nothing to do with the guard. falsify.py checks this per package, but a
+      # whole-tree run here says so in one line rather than eight.
+      - name: The tree is green before it is broken
+        run: go test ./...
+
+      - name: Replay every declared falsification
+        run: python3 tools/falsify/falsify.py --all tools/falsify/specs
+
+      # And the replay's own claim, measured rather than asserted: a test whose
+      # assertion has been loosened until it cannot fail must fail this workflow
+      # and not `go test`. Without this step the job above proves that eight
+      # specs are green, which is what it would also print if it had stopped
+      # measuring anything.
+      - name: The replay catches a test that stopped biting
+        run: python3 tools/falsify/proof.py
+
+      # The replay's own inventory, in the run summary: which guards are covered
+      # and which are not. A list that only ever grows by somebody remembering to
+      # add to it is a list that stops matching the code, which is the failure
+      # mode #88 paid for with its stale check.
+      - name: What is covered
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo "## Declared falsifications"
+            echo
+            echo "| spec | mutations |"
+            echo "|---|--:|"
+            for spec in tools/falsify/specs/*.json; do
+              count="$(jq '.mutations | length' "${spec}")"
+              echo "| \`$(basename "${spec}" .json)\` | ${count} |"
+            done
+            echo
+            echo "Each row is a guard whose test was required to fail without it,"
+            echo "on this tree, tonight. A guard that is not listed has never been"
+            echo "falsified, or was falsified once in a branch that no longer exists."
+          } >> "$GITHUB_STEP_SUMMARY"

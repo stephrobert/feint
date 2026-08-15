@@ -48,7 +48,7 @@ runner.
 |---|---|---|
 | une route, une forme de réponse, une erreur | `mise run conformance` | qu'un vrai client passe encore |
 | un gate, un score, un verdict sur une exécution | `mise run conformance:leg -- <jambe>` | qu'il tient sur une exécution **partielle** |
-| une garde, une validation, un refus | `mise run falsify -- <spec.json>` | que le test échoue sans elle |
+| une garde, une validation, un refus | `mise run falsify -- <spec.json>`, puis la déclarer dans `tools/falsify/specs/` | que le test échoue sans elle, les jours suivants aussi |
 | `internal/core/machine`, un réseau, un pare-feu | `FEINT_VM=incus-ovn mise run conformance` | que le runtime accepte ce que le pilote envoie |
 | un artefact de `coverage/` | `mise run evidence:update` | que le registre n'a pas rétréci |
 
@@ -103,6 +103,25 @@ if (err != nil && false) || n == 0 {
 contre leurs corrections, et `mise run prepush` le lance. Les deux moitiés
 comptent : une règle qui refuserait toute mutation passerait la première et
 rendrait l'outil inutile.
+
+**Déclarer la mutation, pas seulement la lancer.** Une falsification prouve qu'un
+test mord *le jour où on la lance*, et une exécution unique dans une branche qui
+disparaît ensuite ne laisse qu'une affirmation sur le passé. Ce dépôt en a déjà
+publié une qui était fausse : le CHANGELOG de 0.8.0 dit que neutraliser
+n'importe lequel des trois verrous fait rougir le barrage, et trente exécutions
+sont ensuite restées vertes avec un verrou retiré. La mutation va donc dans
+`tools/falsify/specs/`, à côté de la garde, et `mise run falsify:all` les rejoue
+toutes chaque nuit (`.github/workflows/falsify.yml`).
+
+Le premier rejeu complet a trouvé quatre specs sur huit qui ne tenaient plus, et
+rien de tout cela n'était une pourriture de l'émulateur : trois mutations étaient
+écrites dans le style suppressif, une nommait deux gardes qu'une réécriture
+ultérieure avait retirées, et une déclarait un test qui ne correspondait pas à la
+garde placée dessous. Ce dernier cas a compilé et a laissé le test nommé vert,
+c'est celui pour lequel le rejeu existe, et aucun `go test` ne peut le voir.
+`mise run falsify:proof` est cette affirmation mesurée : il desserre une
+assertion jusqu'à ce qu'elle ne puisse plus échouer, puis exige que le rejeu
+rougisse en la nommant pendant que la suite reste verte.
 
 `mise run conformance` n'est **délibérément pas** dans le hook. Il réclame `scw`,
 `oapi-cli`, `exo` et Terraform installés, et prend des minutes : en hook, il

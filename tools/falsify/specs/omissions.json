@@ -1,0 +1,12 @@
+{
+  "package": "./internal/core/emulator/",
+  "mutations": [
+    {
+      "label": "a synthetic answer vouches for a served field, and the omission gate reads its own probe",
+      "file": "internal/core/emulator/conformance.go",
+      "find": "\tif !synthetic {\n\t\to.recordServed(operation, decoded)",
+      "replace": "\tif !synthetic || true {\n\t\to.recordServed(operation, decoded)",
+      "test": "TestASyntheticAnswerDoesNotVouchForAServedField"
+    }
+  ]
+}

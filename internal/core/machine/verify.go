@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -46,6 +47,17 @@ var IncusMinimum = [3]int{6, 0, 4}
 // Reading it creates nothing and leaves nothing, which `auto` requires: it runs
 // at every startup, on hosts that are perfectly healthy.
 const ovnNorthbound = "network.ovn.northbound_connection"
+
+// ovnDefaultNorthbound is what Incus uses when nothing is configured, quoted
+// from the server settings reference rather than guessed. It is why a `config
+// get` on a healthy host answers nothing: Incus does not store a key at its
+// default, so the empty answer says "the default applies", not "OVN is absent".
+//
+// If this ever drifts, the failure is a refusal on a working host rather than a
+// false capability, which is the safe direction: the mode is declined with the
+// socket path named, so the operator can see immediately which path was looked
+// for.
+const ovnDefaultNorthbound = "unix:/run/ovn/ovnnb_db.sock"
 
 // serverVersion matches what `incus query /1.0` reports. The patch component is
 // optional because 7.2 is a real answer — an earlier version of the equivalent
@@ -96,11 +108,53 @@ func (d *Incus) ovnWired(ctx context.Context) (bool, string) {
 	if err != nil {
 		return false, "the daemon did not answer for " + ovnNorthbound
 	}
-	if strings.TrimSpace(string(out)) == "" {
-		return false, ovnNorthbound + " is unset, so no OVN network can be created " +
-			"(install ovn-central and ovn-host, and wire the northbound)"
+	// An empty answer is the default applying, not the setting being absent, and
+	// reading it as absence is the defect this branch was written to fix. Incus
+	// never stores a key at its documented default, so `config get` answers
+	// empty on a host where OVN is perfectly wired — measured on this project's
+	// own station on 2026-08-15, where `doctor --vm incus-ovn` refused the mode
+	// while ovn-central, ovn-host and openvswitch were all active and the
+	// northbound socket answered `ovn-nbctl show`.
+	//
+	// That is the same shape as the defect this file exists for, one turn later:
+	// #181 replaced a capability nobody measured with a check of a *form* (is the
+	// key set) where the question is a *property* (does the northbound answer).
+	// The test agreed with the code because it encoded the same wrong model —
+	// hostSaying("", …) was commented "no OVN wiring at all: the ordinary one".
+	conn := strings.TrimSpace(string(out))
+	if conn == "" {
+		conn = ovnDefaultNorthbound
 	}
+	path, isUnix := strings.CutPrefix(conn, "unix:")
+	if !isUnix {
+		// tcp: or ssl:, reachable from incusd and not necessarily from here.
+		// An undeclared property counts as absent, never as a refusal: this
+		// process cannot answer the question, so it does not get to fail it.
+		// The same policy the version check applies to an unreadable version.
+		return true, ""
+	}
+	info, err := d.stat(path)
+	if err != nil {
+		return false, ovnNorthbound + " is " + conn + " and that socket is absent, " +
+			"so no OVN network can be created (install ovn-central and ovn-host, " +
+			"and check that ovnnb_db is running)"
+	}
+	if info.Mode()&os.ModeSocket == 0 {
+		return false, ovnNorthbound + " is " + conn + " and " + path +
+			" is not a socket, so no OVN network can be created"
+	}
+	// Existence and nothing more. The socket is root-owned and incusd is what
+	// connects to it; dialling it from this process would refuse a working host
+	// on a permission this driver never needed.
 	return true, ""
+}
+
+// stat answers the filesystem, or the seam a test installed.
+func (d *Incus) stat(path string) (os.FileInfo, error) {
+	if d.statPath != nil {
+		return d.statPath(path)
+	}
+	return os.Stat(path)
 }
 
 // firewallAge reports whether the daemon is new enough to accept NIC ACLs.

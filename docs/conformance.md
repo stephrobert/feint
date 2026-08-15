@@ -192,6 +192,7 @@ those would go red on routine runs and be disarmed within the week.
 | the real clients, per client | | ✔ | ✔ | asked of CI |
 | the omission gate (whole run) | | ✔ (`fields` leg) | ✔ | asked of CI |
 | the machine runtime, both modes | | | ✔ | |
+| every declared falsification still bites | | | ✔ | |
 | frozen surfaces and their versions | ✔ | ✔ | | ✔ |
 
 The machine-runtime proof is deliberately not on the pull-request path. A gate
@@ -208,7 +209,8 @@ Four sentences govern every link above. Each was paid for.
   fix written in prose and never asserted survives for months because it reads
   like evidence. `/falsify` is the executable form: remove the guard in a copy
   outside the repository, and require the named test to go red — the mutation
-  must compile, or every test fails and that looks exactly like success.
+  must compile, or every test fails and that looks exactly like success. The
+  mutations are declared and replayed, which is the section below.
 - **Generated is not derived.** A block under a "do not edit by hand" marker
   whose content is a constant one file away is a hand-written claim wearing a
   generator's clothes. It happened, twice.
@@ -219,30 +221,70 @@ Four sentences govern every link above. Each was paid for.
   once recommended deleting a Terraform suite from the README because a table
   did not credit it. The suite applied twenty-one resources and passed.
 
+## The guards, replayed
+
+Everything above is held by tests, and a test can stop biting without anybody
+noticing. That is not a hypothetical here: the 0.8.0 CHANGELOG states that
+*neutralising any of the three locks makes the barrage go red on the first
+attempt*, and thirty consecutive runs later stayed green with a lock removed. A
+falsification proves a test bites **on the day it is run**, and every falsification
+of the 0.9 train was run once, by hand, in a script deleted with its branch.
+
+So the mutations are declared next to the guards they neutralise, in
+`tools/falsify/specs/*.json` — file, exact edit, and the test that must go red —
+and replayed nightly:
+
+```bash
+mise run falsify:all           # every declared falsification
+mise run falsify -- tools/falsify/specs/mispointed.json   # one of them
+mise run falsify:selftest      # the harness against its own history
+```
+
+Each mutation is applied in a copy outside the working tree, one at a time, and
+three verdicts are distinguished rather than merged:
+
+| verdict | what it means |
+|---|---|
+| the test bit | the guard is measured, today |
+| **test still passed** | the guard is not measured, and the test is what to fix |
+| **did not compile** | void, not favourable: every test fails, which reads like success |
+| **did not apply** | the code moved out from under the declaration |
+
+The last two are the ones that make this worth running. Warning about them was
+not enough — the compile mistake voided three verdicts in one day, in three
+unrelated issues — so the harness refuses a mutation that drops a name the
+original expression used, and demands the neutralising form (`… && false`,
+`(… || true)`) instead.
+
+The first full replay was worth its cost immediately, and not by finding rot in
+the emulator. Of eight specs, four did not hold: three had been written in the
+deleting style the rule refuses, one named two guards that #179's final form had
+removed, and one declared a test that did not correspond to the guard beneath it
+— two `synthetic` conditions one screen apart in the same file, one belonging to
+#88 and the other to #163. That last one is the case the replay exists for: the
+mutation compiled, and the named test stayed green.
+
 ## What is not closed yet
 
-Three links in the chain above are stated but not enforced. They are open
-issues, and they are named here because a page describing only the finished half
-would be the defect this project removes.
+One link in the chain above is stated but not enforced. It is an open issue, and
+it is named here because a page describing only the finished half would be the
+defect this project removes.
 
-- **A falsification proves a test bites on the day it is run, and nothing runs
-  it again** ([#169](https://github.com/stephrobert/feint/issues/169)). Each
-  mechanism was falsified at its pull request; nothing replays those mutations.
-  A falsification claim in this repository has already been false — thirty green
-  runs with a lock removed, recorded in the 0.8.0 CHANGELOG.
 - **Nothing measures what a release does to a consumer**
   ([#170](https://github.com/stephrobert/feint/issues/170)). `schema_version` is
   the signal that lets a pipeline notice a break; nothing checks that a pipeline
   *can* notice. `probed` went from boolean to string, and a consumer reading it
   as truthy counts every refusal as a success.
-- **The evidence record's freshness rule is written twice and enforced nowhere**
-  ([#171](https://github.com/stephrobert/feint/issues/171)). *Deleting a
-  conformance assertion must demote the operations it proved* appears in
-  `internal/cli/evidence.go` and in `mise.toml`, and no test holds either
-  sentence.
 
-Until those close, the honest statement is the one this page opens with: the
-chain is measured, link by link, and these three links are measured by prose.
+Until it closes, the honest statement is the one this page opens with: the chain
+is measured, link by link, and this link is measured by prose.
+
+The other two this section listed are now closed and folded into the page above.
+[#171](https://github.com/stephrobert/feint/issues/171) gave the evidence record
+a provenance the join compares, so deleting a conformance assertion demotes what
+it proved instead of being a sentence written twice;
+[#169](https://github.com/stephrobert/feint/issues/169) is the replay described
+one section up.
 
 ## Reading the numbers yourself
 

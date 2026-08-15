@@ -116,10 +116,23 @@ RESERVED = {
 # the same class of mistake.
 IDENT = re.compile(r"(?<![.\w])[A-Za-z_][A-Za-z0-9_]*")
 
+# Go's three literal forms, so their contents never look like code. Interpreted
+# strings and runes admit backslash escapes; a raw string runs to its closing
+# backquote and holds no escapes at all.
+LITERAL = re.compile(r'"(?:[^"\\\n]|\\.)*"' r"|`[^`]*`" r"|'(?:[^'\\\n]|\\.)*'", re.S)
+
 
 def identifiers(text):
-    """The identifiers a fragment of Go uses, minus keywords and builtins."""
-    return {name for name in IDENT.findall(text) if name not in RESERVED}
+    """The identifiers a fragment of Go uses, minus keywords and builtins.
+
+    String contents are removed first, and that is not tidiness. Without it the
+    rule read `no route matches this path` as code and refused the mutation for
+    dropping `this` — a word in a sentence, in the one guard of #179 whose whole
+    subject is what the answer says. A tool that refuses a valid falsification
+    is worse than no tool: it teaches the author to stop declaring the awkward
+    ones, which are the guards most worth replaying.
+    """
+    return {name for name in IDENT.findall(LITERAL.sub('""', text)) if name not in RESERVED}
 
 
 # A short declaration inside the fragment: `x := ...` or `x, ok := ...`.
@@ -155,11 +168,29 @@ def orphaned_by_declaration(find, replace):
 
 
 def dropped_identifiers(find, replace):
-    """Names the mutation would leave unused, which Go refuses to compile.
+    """Names the mutation removes from the fragment, whether or not Go minds.
 
-    Two ways that happens, and both have cost a verdict here: a term is deleted
-    and the name goes with it, or the name survives only in a declaration the
-    fragment carries.
+    Two ways a removal costs a verdict, and both have happened here: a term is
+    deleted and the name goes with it, or the name survives only in a
+    declaration the fragment carries. Either leaves an unused name, Go refuses
+    to compile, every test in the package fails, and that reads exactly like the
+    guard being proven.
+
+    This is deliberately conservative and says so where it refuses: it cannot
+    see the rest of the file, so it flags every name that leaves the fragment,
+    including the many that would still compile. Replaying the 0.9 train against
+    it found three such: `IncusMinimum` is a package-level var used at four
+    other sites, `synthetic` and `health` are locals used further down their own
+    functions. All three mutations would have built.
+
+    Refusing them anyway is the trade this tool makes, and the reason is that
+    the alternative is worse. The check that would let them through is the
+    compiler, which the harness already runs — but by then the copy exists, the
+    package is built, and a void verdict has cost what a real one costs. The
+    rewrite it demands takes one operator (`&& false`, `|| true`) and produces a
+    strictly better mutation: one that changes a truth value and nothing else,
+    so the test that goes red is answering about the guard rather than about
+    whatever else the deleted term was doing.
     """
     lost = identifiers(find) - identifiers(replace)
     return sorted(lost | set(orphaned_by_declaration(find, replace)))
@@ -228,9 +259,46 @@ HISTORY = [
 ]
 
 
+# Valid mutations the rule must not refuse. The first is the one that made this
+# list necessary: the rule read the contents of a Go string as code, so changing
+# a sentence looked like dropping a name. The rest are the neutralising rewrites
+# the 0.9 specs now carry, kept here so the accepted style is asserted and not
+# only demonstrated.
+ACCEPTED = [
+    (
+        'return "no route matches this path, but it is served under " +',
+        'return "no route matches " + path + ", but it is served under " +',
+        "a word inside a string is not an identifier",
+    ),
+    (
+        "if olderThan(got, IncusMinimum) {",
+        "if olderThan(got, IncusMinimum) && false {",
+        "a condition made never true, every name still evaluated",
+    ),
+    (
+        "if rec.status < 400 && !synthetic {",
+        "if rec.status < 400 && (!synthetic || true) {",
+        "a term neutralised by disjunction rather than deleted",
+    ),
+    (
+        "if err != nil || health.Resources == 0 {",
+        "if err != nil || (health.Resources == 0 && false) {",
+        "one branch of a disjunction disarmed, both still read",
+    ),
+]
+
+
 def selftest():
     """Prove the rule on the three mistakes it was written for."""
     failures = 0
+    for find, replace, why in ACCEPTED:
+        lost = dropped_identifiers(find, replace)
+        if lost:
+            print(f"!! the rule refuses a valid mutation, losing {lost}: {why}")
+            failures += 1
+        else:
+            print(f"ok  accepted, {why}")
+    print()
     for find, broken, safe, orphan in HISTORY:
         lost = dropped_identifiers(find, broken)
         if orphan not in lost:
@@ -251,17 +319,69 @@ def selftest():
         print(f"{failures} failure(s): the rule does not hold its own history")
         return 1
     print(
-        f"the rule refuses all {len(HISTORY)} historical mistakes and accepts "
-        f"all {len(HISTORY)} fixes"
+        f"the rule refuses all {len(HISTORY)} historical mistakes, accepts all "
+        f"{len(HISTORY)} fixes, and accepts {len(ACCEPTED)} valid mutations it "
+        f"has refused at some point"
     )
     return 0
+
+
+def every_spec(directory):
+    """Every spec in the directory, sorted, so two runs report the same order."""
+    return sorted(
+        os.path.join(directory, name) for name in os.listdir(directory) if name.endswith(".json")
+    )
+
+
+def replay_all(directory):
+    """Run every declared falsification (#169).
+
+    A falsification proves a test bites on the day it is run. Nothing ran them
+    again, so each one was a claim about the past — and this repository has
+    already shipped a falsification claim that was false: "neutralise any of the
+    three locks and the barrage goes red on the first attempt", thirty green runs
+    with the lock removed, recorded in the 0.8.0 CHANGELOG.
+
+    Every spec, one after another. A spec whose fragment no longer applies is a
+    failure and not a skip: code moved under it, so it has silently stopped
+    measuring, which is the exact thing this replay exists to catch.
+    """
+    specs = every_spec(directory)
+    if not specs:
+        return refuse(f"{directory} holds no spec, so a replay would measure nothing")
+
+    print(f"replaying {len(specs)} falsification(s)\n")
+    failed = []
+    for spec in specs:
+        print("=" * 72)
+        print(f"== {os.path.basename(spec)}")
+        print("=" * 72)
+        if main([argv0, spec]) != 0:
+            failed.append(os.path.basename(spec))
+        print()
+
+    print("#" * 72)
+    if failed:
+        print(f"{len(failed)} of {len(specs)} falsifications no longer hold: {', '.join(failed)}")
+        print(
+            "A guard whose test stopped biting is a guard that stopped working, "
+            "and the test is what has to be fixed rather than the spec."
+        )
+        return 1
+    print(f"all {len(specs)} falsifications still hold")
+    return 0
+
+
+argv0 = "falsify.py"
 
 
 def main(argv):
     if len(argv) == 2 and argv[1] == "--selftest":
         return selftest()
+    if len(argv) == 3 and argv[1] == "--all":
+        return replay_all(argv[2])
     if len(argv) != 2:
-        return refuse("usage: falsify.py <spec.json> | --selftest")
+        return refuse("usage: falsify.py <spec.json> | --all <dir> | --selftest")
     spec_path = argv[1]
     with open(spec_path, encoding="utf-8") as fh:
         spec = json.load(fh)
@@ -281,11 +401,16 @@ def main(argv):
         lost = dropped_identifiers(m["find"], m["replace"])
         if lost:
             return refuse(
-                f"{m['label']!r} drops {', '.join(lost)}, which Go will refuse to "
-                f"compile as an unused variable — and a mutation that does not build "
-                f"fails every test, which looks exactly like the guard being proven.\n"
+                f"{m['label']!r} drops {', '.join(lost)} from the fragment.\n"
+                f"        This harness requires every name in `find` to survive into "
+                f"`replace`. It has not checked whether Go would mind here — it cannot "
+                f"see the rest of the file — and the rule is conservative on purpose: "
+                f"a deleted term that orphans a name fails every test in the package, "
+                f"which reads exactly like the guard being proven.\n"
                 f"        Neutralise the condition instead of deleting the term: keep "
-                f"every name evaluated and make the expression never true."
+                f"every name evaluated and make the expression never true "
+                f"(`… && false`, `(… || true)`). The mutation then changes a truth "
+                f"value and nothing else."
             )
 
     src = os.getcwd()

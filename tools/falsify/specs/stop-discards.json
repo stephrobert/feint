@@ -1,0 +1,26 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "the notice never fires, which is the silence #182 was filed for",
+      "file": "internal/cli/lifecycle.go",
+      "find": "\thealth, err := fetchHealth(inst.Addr)\n\tif err != nil || health.Resources == 0 {\n\t\treturn \"\"\n\t}",
+      "replace": "\thealth, err := fetchHealth(inst.Addr)\n\tif err != nil || health.Resources >= 0 {\n\t\treturn \"\"\n\t}",
+      "test": "TestStopSaysWhatItIsAboutToDiscard"
+    },
+    {
+      "label": "it fires on a --state run too, the warning people learn to ignore",
+      "file": "internal/cli/lifecycle.go",
+      "find": "\t\tif arg == \"--state\" || strings.HasPrefix(arg, \"--state=\") {\n\t\t\treturn \"\"\n\t\t}",
+      "replace": "\t\tif arg == \"--state\\x00never\" || strings.HasPrefix(arg, \"--state\\x00never=\") {\n\t\t\treturn \"\"\n\t\t}",
+      "test": "TestStopSaysWhatItIsAboutToDiscard"
+    },
+    {
+      "label": "it fires on an empty store, where there is nothing to discard",
+      "file": "internal/cli/lifecycle.go",
+      "find": "\tif err != nil || health.Resources == 0 {",
+      "replace": "\tif err != nil || (health.Resources == 0 && false) {",
+      "test": "TestStopSaysWhatItIsAboutToDiscard"
+    }
+  ]
+}

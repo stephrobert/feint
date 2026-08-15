@@ -209,6 +209,7 @@ dans la semaine.
 | les vrais clients, un par un | | ✔ | ✔ | demandé à la CI |
 | le gate d'omission (exécution entière) | | ✔ (jambe `fields`) | ✔ | demandé à la CI |
 | le runtime de machines, dans les deux modes | | | ✔ | |
+| chaque falsification déclarée mord encore | | | ✔ | |
 | les surfaces gelées et leurs versions | ✔ | ✔ | | ✔ |
 
 La preuve adossée au runtime n'est délibérément pas sur le chemin des pull
@@ -227,7 +228,8 @@ Quatre phrases gouvernent chaque maillon ci-dessus. Chacune a été payée.
   survit des mois parce qu'il se lit comme une preuve. `/falsify` en est la forme
   exécutable : retirer la garde dans une copie hors du dépôt, et exiger que le
   test nommé rougisse. La mutation doit compiler, sans quoi tous les tests
-  échouent et cela ressemble exactement à une réussite.
+  échouent et cela ressemble exactement à une réussite. Ces mutations sont
+  déclarées et rejouées, c'est la section ci-dessous.
 - **Généré n'est pas dérivé.** Un bloc sous un marqueur « ne pas modifier à la
   main » dont le contenu est une constante un fichier plus loin est une
   affirmation écrite à la main déguisée en générateur. C'est arrivé deux fois.
@@ -239,34 +241,75 @@ Quatre phrases gouvernent chaque maillon ci-dessus. Chacune a été payée.
   recommandé de retirer une suite Terraform du README parce qu'un tableau ne la
   créditait pas. Cette suite appliquait vingt et une ressources et passait.
 
+## Les gardes, rejouées
+
+Tout ce qui précède est tenu par des tests, et un test peut cesser de mordre sans
+que personne s'en aperçoive. Ce n'est pas une hypothèse ici : le CHANGELOG de
+0.8.0 affirme que *neutraliser n'importe lequel des trois verrous fait rougir le
+barrage dès la première tentative*, et trente exécutions consécutives sont
+ensuite restées vertes avec un verrou retiré. Une falsification prouve qu'un test
+mord **le jour où on la lance**, et chaque falsification du train 0.9 a été lancée
+une fois, à la main, dans un script supprimé avec sa branche.
+
+Les mutations sont donc déclarées à côté de la garde qu'elles neutralisent, dans
+`tools/falsify/specs/*.json` (le fichier, la modification exacte, et le test qui
+doit rougir), et rejouées chaque nuit :
+
+```bash
+mise run falsify:all           # toutes les falsifications déclarées
+mise run falsify -- tools/falsify/specs/mispointed.json   # une seule
+mise run falsify:selftest      # le harnais contre sa propre histoire
+```
+
+Chaque mutation s'applique dans une copie hors de l'arbre de travail, une à la
+fois, et quatre verdicts sont distingués plutôt que confondus :
+
+| verdict | ce que cela veut dire |
+|---|---|
+| le test a mordu | la garde est mesurée, aujourd'hui |
+| **le test est resté vert** | la garde n'est pas mesurée, et c'est le test qu'il faut corriger |
+| **n'a pas compilé** | verdict nul, pas favorable : tous les tests échouent, ce qui se lit comme un succès |
+| **ne s'applique pas** | le code a bougé sous la déclaration |
+
+Ce sont les deux derniers qui justifient de lancer tout cela. Avertir n'a pas
+suffi (l'erreur de compilation a annulé trois verdicts en une journée, dans trois
+issues sans rapport), donc le harnais refuse une mutation qui perd un nom que
+l'expression d'origine utilisait, et exige la forme neutralisante (`… && false`,
+`(… || true)`).
+
+Le premier rejeu complet a payé son coût immédiatement, et pas en trouvant une
+pourriture dans l'émulateur. Sur huit specs, quatre ne tenaient plus : trois
+étaient écrites dans le style suppressif que la règle refuse, une nommait deux
+gardes que la forme finale de #179 avait retirées, et une déclarait un test qui
+ne correspondait pas à la garde placée dessous, deux conditions `synthetic`
+distantes d'un écran dans le même fichier, l'une relevant de #88 et l'autre de
+#163. Ce dernier cas est celui pour lequel le rejeu existe : la mutation a
+compilé, et le test nommé est resté vert.
+
 ## Ce qui n'est pas encore fermé
 
-Trois maillons de la chaîne ci-dessus sont énoncés sans être appliqués. Ce sont
-des issues ouvertes, et elles sont nommées ici parce qu'une page qui ne
-décrirait que la moitié terminée serait le défaut que ce projet supprime.
+Un maillon de la chaîne ci-dessus est énoncé sans être appliqué. C'est une issue
+ouverte, et elle est nommée ici parce qu'une page qui ne décrirait que la moitié
+terminée serait le défaut que ce projet supprime.
 
-- **Une falsification prouve qu'un test mord le jour où on la lance, et rien ne
-  la relance** ([#169](https://github.com/stephrobert/feint/issues/169)). Chaque
-  mécanisme a été falsifié à sa pull request ; rien ne rejoue ces mutations. Une
-  affirmation de falsification a déjà été fausse dans ce dépôt : trente
-  exécutions vertes avec un verrou retiré, consignées dans le CHANGELOG de
-  0.8.0.
 - **Rien ne mesure ce qu'une release fait à un consommateur**
   ([#170](https://github.com/stephrobert/feint/issues/170)). `schema_version` est
   le signal qui permet à un pipeline de s'apercevoir d'une cassure ; rien ne
   vérifie qu'un pipeline **puisse** s'en apercevoir. `probed` est passé de
   booléen à chaîne, et un consommateur qui le lit comme vrai compte chaque refus
   comme un succès.
-- **La règle de fraîcheur du registre de preuves est écrite deux fois et
-  appliquée nulle part**
-  ([#171](https://github.com/stephrobert/feint/issues/171)). *Supprimer une
-  assertion de conformance doit rétrograder les opérations qu'elle prouvait*
-  figure dans `internal/cli/evidence.go` et dans `mise.toml`, et aucun test ne
-  tient l'une ou l'autre phrase.
 
-Tant que ces trois-là ne sont pas fermées, l'énoncé honnête est celui par lequel
-cette page commence : la chaîne est mesurée, maillon par maillon, et ces trois
-maillons-là sont mesurés par de la prose.
+Tant qu'elle n'est pas fermée, l'énoncé honnête est celui par lequel cette page
+commence : la chaîne est mesurée, maillon par maillon, et ce maillon-là est
+mesuré par de la prose.
+
+Les deux autres que cette section listait sont fermées et repliées dans la page
+ci-dessus. [#171](https://github.com/stephrobert/feint/issues/171) a donné au
+registre de preuves une provenance que la jointure compare, de sorte que
+supprimer une assertion de conformance rétrograde ce qu'elle prouvait au lieu de
+rester une phrase écrite deux fois ;
+[#169](https://github.com/stephrobert/feint/issues/169) est le rejeu décrit une
+section plus haut.
 
 ## Lire les chiffres soi-même
 

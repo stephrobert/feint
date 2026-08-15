@@ -92,7 +92,7 @@ const (
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 1
+const cliSurfaceVersion = 2
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -145,6 +145,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return envCommand(args[2:], stdout, stderr)
 	case "doctor":
 		return doctor(args[2:], stdout, stderr)
+	case "images":
+		return images(args[2:], stdout, stderr)
 	case "snapshot":
 		return snapshot(args[2:], stdout, stderr)
 	case "version", "--version", "-v":
@@ -216,6 +218,12 @@ Usage:
                     Diagnose the host: the port, the machine runtime and what it
                     can prove, the clients, and the ssh trap. A warning never
                     fails; only a broken thing does.
+
+  feint images     [--vm auto] [--only ubuntu/24.04] [--check]
+                    Build the machine images, which carry an ssh daemon so a
+                    machine answers on port 22 without reaching a package
+                    repository. No upstream image ships one. --check reports
+                    what is missing and exits 2, building nothing.
 
   feint env <provider> [--shell bash|fish|powershell] [--endpoint <url>] [--unset]
                     The environment a real client of that provider needs.
