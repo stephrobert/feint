@@ -102,12 +102,21 @@ what this project is judged on: **a response shape a client can observe**, and
   update writes only what was sent**, because Terraform sends exactly the
   attributes that changed and resetting the rest answers a request nobody made.
 
-  Proven unevenly, and the difference is stated rather than smoothed over.
-  `UpdateSubnet` is **driven by a real client**: the Outscale Terraform suite
-  now flips `map_public_ip_on_launch` in a second apply and asks the emulator's
-  own API whether it kept the change — a state file agreeing with itself is not
-  the emulator holding it. The other three are served, probed and
-  contract-clean, with no client driving them yet.
+  All four are **driven by the real Terraform provider**, which took reading its
+  schema rather than guessing: `outscale_net.dhcp_options_set_id` is computed
+  and never sends `UpdateNet` — `outscale_net_attributes` does — and
+  `outscale_route_table_link` cannot be re-pointed at all, its attributes force
+  a replacement, so the call comes from `outscale_main_route_table_link`. Two
+  guesses, both wrong, both corrected by the provider's own source.
+
+  Driving them found two defects in the handlers that four unit tests and a
+  four-mutation falsification had all passed over. A moved link was rebuilt with
+  `Main: false` and an invented `SubnetId`, leaving a Net with **no main route
+  table** — the provider reads it back filtering on `LinkRouteTableMain=true`
+  and found nothing, immediately after a 200. And the list it was removed from
+  was shortened with `append(links[:i], links[i+1:]...)`, which mutates an array
+  the store still shares until `Commit`. The link travels whole now, copied
+  rather than rebuilt. Only the real client saw either of them.
 
 - **The evidence record's freshness rule becomes a control** (#171). *Deleting a
   conformance assertion demotes the operations it proved* was written twice, in

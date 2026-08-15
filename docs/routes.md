@@ -193,7 +193,7 @@ disappears from the suite.
 |---|---|---|---|
 | `DELETE` | `/vpc/v2/regions/{region}/private-networks/{pnID}` | `vpc/v2/API.DeletePrivateNetwork` | `client` `runtime` `behaviour` |
 | `DELETE` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.DeleteRoute` | `client` `runtime` `behaviour` |
-| `DELETE` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}` | `vpc/v2/API.DeleteVPC` | `client` `runtime` |
+| `DELETE` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}` | `vpc/v2/API.DeleteVPC` | `client` `runtime` `behaviour` |
 | `GET` | `/vpc/v2/regions/{region}/private-networks/{pnID}` | `vpc/v2/API.GetPrivateNetwork` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/vpc/v2/regions/{region}/private-networks` | `vpc/v2/API.ListPrivateNetworks` | `contract` `shape` `probe` |
 | `GET` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.GetRoute` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
@@ -205,7 +205,7 @@ disappears from the suite.
 | `PATCH` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}` | `vpc/v2/API.UpdateVPC` | `contract` `probe` |
 | `POST` | `/vpc/v2/regions/{region}/private-networks/{pnID}/enable-dhcp` | `vpc/v2/API.EnableDHCP` | `contract` `probe` |
 | `POST` | `/vpc/v2/regions/{region}/private-networks` | `vpc/v2/API.CreatePrivateNetwork` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/vpc/v2/regions/{region}/routes` | `vpc/v2/API.CreateRoute` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/vpc/v2/regions/{region}/routes` | `vpc/v2/API.CreateRoute` | `client` `contract` `runtime` `probe` |
 | `POST` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}/enable-routing` | `vpc/v2/API.EnableRouting` | `contract` `probe` |
 | `POST` | `/vpc/v2/regions/{region}/vpcs` | `vpc/v2/API.CreateVPC` | `client` `contract` `runtime` `probe` `behaviour` |
 
@@ -299,7 +299,7 @@ are in `coverage/`, one artefact per provider.
 | `POST` | `/api/v1/CreateNet` | `osc/Client.CreateNet` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/DeleteNet` | `osc/Client.DeleteNet` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/ReadNets` | `osc/Client.ReadNets` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
-| `POST` | `/api/v1/UpdateNet` | `osc/Client.UpdateNet` | `contract` `probe` |
+| `POST` | `/api/v1/UpdateNet` | `osc/Client.UpdateNet` | `client` `contract` `runtime` `probe` `behaviour` |
 
 ### `NetAccessPoint`
 
@@ -312,11 +312,11 @@ are in `coverage/`, one artefact per provider.
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
 | `POST` | `/api/v1/CreateNic` | `osc/Client.CreateNic` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/api/v1/DeleteNic` | `osc/Client.DeleteNic` | `client` `contract` `runtime` `probe` |
+| `POST` | `/api/v1/DeleteNic` | `osc/Client.DeleteNic` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/LinkNic` | `osc/Client.LinkNic` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/ReadNics` | `osc/Client.ReadNics` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/UnlinkNic` | `osc/Client.UnlinkNic` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/api/v1/UpdateNic` | `osc/Client.UpdateNic` | `contract` `probe` |
+| `POST` | `/api/v1/UpdateNic` | `osc/Client.UpdateNic` | `client` `contract` `runtime` `probe` `behaviour` |
 
 ### `PublicIp`
 
@@ -352,7 +352,7 @@ are in `coverage/`, one artefact per provider.
 | `POST` | `/api/v1/LinkRouteTable` | `osc/Client.LinkRouteTable` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/ReadRouteTables` | `osc/Client.ReadRouteTables` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/UnlinkRouteTable` | `osc/Client.UnlinkRouteTable` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/api/v1/UpdateRouteTableLink` | `osc/Client.UpdateRouteTableLink` | `contract` `probe` |
+| `POST` | `/api/v1/UpdateRouteTableLink` | `osc/Client.UpdateRouteTableLink` | `client` `contract` `runtime` `probe` `behaviour` |
 
 ### `SecurityGroup`
 

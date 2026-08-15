@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "7dd2353c6a25c3fa",
     "shapes": "c73ca6ca03ceac5b",
-    "suites": "353b07c58e79d125"
+    "suites": "758d1bfa6199deab"
   },
   "operations": {
     "block/v1/API.CreateSnapshot": {
@@ -1484,7 +1484,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "osc/Client.DeletePublicIp": {
@@ -1911,21 +1911,21 @@
       "negative": true
     },
     "osc/Client.UpdateNet": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "osc/Client.UpdateNic": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "osc/Client.UpdateRoute": {
@@ -1938,12 +1938,12 @@
       "negative": false
     },
     "osc/Client.UpdateRouteTableLink": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "osc/Client.UpdateSubnet": {
@@ -1988,7 +1988,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": true,
+      "behaviour": false,
       "negative": false
     },
     "vpc/v2/API.CreateVPC": {
@@ -2024,7 +2024,7 @@
       "contract": "unchecked",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "vpc/v2/API.EnableDHCP": {

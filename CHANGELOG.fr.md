@@ -113,12 +113,23 @@ change ni l'un ni l'autre a sa place dans `git log`.
   qui changent et que réinitialiser le reste répond à une requête que personne
   n'a faite.
 
-  Prouvées inégalement, et l'écart est énoncé plutôt que lissé. `UpdateSubnet`
-  est **pilotée par un vrai client** : la suite Terraform Outscale bascule
-  désormais `map_public_ip_on_launch` dans un second apply et demande à l'API de
-  l'émulateur s'il a retenu le changement, car un fichier d'état qui s'accorde
-  avec lui-même ne prouve pas que l'émulateur le porte. Les trois autres sont
-  servies, sondées et propres au contrat, sans qu'aucun client les pilote encore.
+  Les quatre sont **pilotées par le vrai provider Terraform**, ce qui a demandé
+  de lire son schéma plutôt que de deviner : `outscale_net.dhcp_options_set_id`
+  est *computed* et n'envoie jamais `UpdateNet` (c'est `outscale_net_attributes`
+  qui le fait), et `outscale_route_table_link` ne peut pas être re-pointée du
+  tout, ses attributs forçant un remplacement, si bien que l'appel vient de
+  `outscale_main_route_table_link`. Deux suppositions, deux fois fausses, toutes
+  deux corrigées par la source du provider.
+
+  Les piloter a révélé deux défauts dans les handlers, que quatre tests
+  unitaires et une falsification à quatre mutations avaient tous laissés passer.
+  Un lien déplacé était reconstruit avec `Main: false` et un `SubnetId` inventé,
+  laissant un Net **sans table de routage principale** : le provider le relit en
+  filtrant sur `LinkRouteTableMain=true` et ne trouvait rien, juste après un 200.
+  Et la liste dont il était retiré était raccourcie par
+  `append(links[:i], links[i+1:]...)`, qui mute un tableau que le store partage
+  encore jusqu'au `Commit`. Le lien voyage désormais entier, copié plutôt que
+  reconstruit. Seul le vrai client a vu l'un comme l'autre.
 
 - **La règle de fraîcheur du registre de preuves devient un contrôle** (#171).
   « Supprimer une assertion de conformance rétrograde les opérations qu'elle
