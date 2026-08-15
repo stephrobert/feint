@@ -1,0 +1,34 @@
+{
+  "package": "./internal/probe/",
+  "mutations": [
+    {
+      "label": "the pool hands back nothing, so every identifier is invented again",
+      "file": "internal/probe/values.go",
+      "find": "func (p *pool) take(product, typeFold string) (string, bool) {\n\tp.mu.Lock()",
+      "replace": "func (p *pool) take(product, typeFold string) (string, bool) {\n\tif true {\n\t\treturn \"\", false\n\t}\n\tp.mu.Lock()",
+      "test": "TestAGetIsProbedAgainstAnIdentifierThatExists"
+    },
+    {
+      "label": "a create no longer contributes what it made",
+      "file": "internal/probe/values.go",
+      "find": "func (p *pool) record(step Step, typeFold, id string, depth int) {",
+      "replace": "func (p *pool) record(step Step, typeFold, id string, depth int) {\n\tif true {\n\t\treturn\n\t}",
+      "test": "TestASeededCreateFillsWhatTheRunHolds"
+    },
+    {
+      "label": "the hinted branch of a choice is left empty",
+      "file": "internal/probe/values.go",
+      "find": "func optionalValue(doc *contract.Doc, step Step, schemaName, field string, prop contract.Property, pool *pool, top bool) (any, bool) {",
+      "replace": "func optionalValue(doc *contract.Doc, step Step, schemaName, field string, prop contract.Property, pool *pool, top bool) (any, bool) {\n\tif true {\n\t\treturn nil, false\n\t}",
+      "test": "TestTheHintedBranchOfAChoiceIsFilled"
+    },
+    {
+      "label": "a seeded body feeds the unread-fields report, which then accuses the probe",
+      "file": "internal/core/emulator/conformance.go",
+      "find": "\t\tif rec.status < 400 && !synthetic {",
+      "replace": "\t\tif rec.status < 400 && (!synthetic || true) {",
+      "test": "TestAProbedFieldIsNotAnUnreadField",
+      "package": "./internal/core/emulator/"
+    }
+  ]
+}

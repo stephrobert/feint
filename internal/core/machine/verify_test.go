@@ -2,16 +2,46 @@ package machine
 
 import (
 	"context"
+	"io/fs"
+	"os"
 	"strings"
 	"testing"
+	"time"
 )
+
+// socketInfo is a FileInfo whose only interesting answer is that it is a socket.
+type socketInfo struct{}
+
+func (socketInfo) Name() string       { return "ovnnb_db.sock" }
+func (socketInfo) Size() int64        { return 0 }
+func (socketInfo) Mode() os.FileMode  { return os.ModeSocket | 0o750 }
+func (socketInfo) ModTime() time.Time { return time.Time{} }
+func (socketInfo) IsDir() bool        { return false }
+func (socketInfo) Sys() any           { return nil }
 
 // hostSaying builds an Incus driver whose CLI answers are dictated, so a test
 // can stand on a host it does not have. The runner is the same seam the
 // argument-level tests use; here it stands in for the host's answers rather
 // than recording the driver's questions.
 func hostSaying(ovnNB, version string) *Incus {
+	// The northbound socket exists unless a test says otherwise. That is the
+	// ordinary host: ovn-central running, nothing configured, because the
+	// setting is already at its default.
+	return hostSayingWithSocket(ovnNB, version, true)
+}
+
+// hostSayingWithSocket adds the half hostSaying assumes: whether the northbound
+// socket the connection string names is actually there. Existence is what the
+// driver checks and it is checked here, rather than a connection, because the
+// socket is root-owned and this process is not incusd.
+func hostSayingWithSocket(ovnNB, version string, socketExists bool) *Incus {
 	d := NewIncusOVN()
+	d.statPath = func(string) (os.FileInfo, error) {
+		if !socketExists {
+			return nil, fs.ErrNotExist
+		}
+		return socketInfo{}, nil
+	}
 	d.runner = func(_ context.Context, args ...string) ([]byte, error) {
 		joined := strings.Join(args, " ")
 		switch {
@@ -35,8 +65,11 @@ func hostSaying(ovnNB, version string) *Incus {
 // auto chose incus-ovn and /_feint/health published isolation until the first
 // network creation failed, blaming the address block.
 func TestVerifyNarrowsWhatTheHostCannotDeliver(t *testing.T) {
-	// A host with Incus and no OVN wiring at all: the ordinary one.
-	d := hostSaying("", "7.2")
+	// A host with Incus and no OVN at all: nothing configured, and no northbound
+	// socket either. Both halves matter, and the second is the whole correction —
+	// an unset key alone is the *default* applying, and this check read it as
+	// absence until it refused a station where OVN was running.
+	d := hostSayingWithSocket("", "7.2", false)
 	caps, unmet := d.Verify(context.Background())
 
 	if caps.Isolation {
@@ -56,6 +89,51 @@ func TestVerifyNarrowsWhatTheHostCannotDeliver(t *testing.T) {
 	if d.Capabilities().Isolation {
 		t.Error("Capabilities still publishes the flag's promise after Verify narrowed it")
 	}
+}
+
+// An unset northbound is the default applying, never an absence.
+//
+// This is the test that was missing, and its absence is why the guard shipped
+// wrong: `incus config get` answers empty for a key at its documented default,
+// and the default is `unix:/run/ovn/ovnnb_db.sock`. So the ordinary healthy
+// host — ovn-central running, nothing configured, because nothing needs to be —
+// answered empty and had its isolation taken away.
+//
+// Measured on this project's station on 2026-08-15: openvswitch-switch,
+// ovn-central and ovn-host all active, `ovn-nbctl show` answering on the
+// socket, and `feint doctor --vm incus-ovn` refusing the mode with
+// "network.ovn.northbound_connection is unset, so no OVN network can be
+// created". Setting the key by hand changed nothing, because Incus does not
+// store a value equal to the default — which is the observation that found the
+// bug.
+//
+// Both halves, because a probe that accepted everything would pass the first.
+func TestAnUnsetNorthboundIsTheDefaultAndNotAnAbsence(t *testing.T) {
+	// Nothing configured, socket there: the ordinary OVN host.
+	caps, unmet := mustVerifyBoth(t, hostSayingWithSocket("", "7.2", true))
+	if !caps.Isolation {
+		t.Errorf("a host with the northbound at its default lost isolation: %v", unmet)
+	}
+
+	// Nothing configured, socket absent: OVN is genuinely not there.
+	caps, unmet = mustVerifyBoth(t, hostSayingWithSocket("", "7.2", false))
+	if caps.Isolation {
+		t.Error("isolation survived a host with no northbound socket at all")
+	}
+	if len(unmet) != 1 || !strings.Contains(unmet[0], ovnDefaultNorthbound) {
+		t.Errorf("the refusal must name the socket it looked for, got %v", unmet)
+	}
+
+	// A remote northbound this process cannot reach: unknown is not a refusal,
+	// the same policy an unreadable version gets. incusd connects to it, not us.
+	if caps, _ := mustVerifyBoth(t, hostSayingWithSocket("tcp:10.0.0.1:6641", "7.2", false)); !caps.Isolation {
+		t.Error("a tcp northbound was refused on a filesystem check that cannot apply to it")
+	}
+}
+
+func mustVerifyBoth(t *testing.T, d *Incus) (Capabilities, []string) {
+	t.Helper()
+	return d.Verify(context.Background())
 }
 
 // The accepting half, on the same seam: a host that delivers keeps everything.

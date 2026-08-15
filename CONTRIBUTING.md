@@ -44,7 +44,7 @@ pull request will refuse without ever depending on a runner's weather.
 |---|---|---|
 | a route, a response shape, an error | `mise run conformance` | that a real client still passes |
 | a gate, a score, a verdict about a run | `mise run conformance:leg -- <leg>` | that it holds on a **partial** run |
-| a guard, a validation, a refusal | `mise run falsify -- <spec.json>` | that the test fails without it |
+| a guard, a validation, a refusal | `mise run falsify -- <spec.json>`, then declare it in `tools/falsify/specs/` | that the test fails without it, on every later day too |
 | `internal/core/machine`, a network, a firewall | `FEINT_VM=incus-ovn mise run conformance` | that the runtime accepts what the driver sends |
 | an artefact under `coverage/` | `mise run evidence:update` | that the record did not narrow |
 
@@ -96,6 +96,23 @@ if (err != nil && false) || n == 0 {
 `mise run falsify -- --selftest` holds that rule against those four real cases
 and against their fixes, and `mise run prepush` runs it. Both halves matter: a
 rule that refused every mutation would pass the first and make the tool useless.
+
+**Declare the mutation, do not just run it.** A falsification proves a test bites
+*on the day it is run*, and one run in a branch that later disappears leaves a
+claim about the past. This repository has already published one that was false —
+the 0.8.0 CHANGELOG says neutralising any of three locks reds the barrage, and
+thirty runs later stayed green with a lock removed. So the mutation goes in
+`tools/falsify/specs/`, beside the guard, and `mise run falsify:all` replays
+every one of them nightly (`.github/workflows/falsify.yml`).
+
+The first full replay found four of eight specs no longer holding, and none of
+it was rot in the emulator: three mutations were written in the deleting style,
+one named two guards a later rewrite had removed, and one declared a test that
+did not match the guard under it. That last one compiled and left the named test
+green, which is the case the replay exists for, and which no amount of `go test`
+can see. `mise run falsify:proof` is that claim measured: it loosens an assertion
+until it cannot fail, then requires the replay to go red naming it while the
+suite stays green.
 
 `mise run conformance` is deliberately **not** in the hook. It needs `scw`,
 `oapi-cli`, `exo` and Terraform installed and takes minutes; as a hook it would
