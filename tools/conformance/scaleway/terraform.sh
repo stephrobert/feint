@@ -66,6 +66,11 @@ export TF_INPUT=0
 
 echo "conformance: $TF against $ENDPOINT"
 
+# The fixture's phase, carried in the environment rather than on each command
+# line: the destroy in cleanup() runs on the error path too, and a -var it did
+# not know about would make it plan a change while tearing down.
+export TF_VAR_phase=one
+
 "$TF" init -no-color -upgrade
 "$TF" validate -no-color
 "$TF" plan -no-color -var "endpoint=$ENDPOINT" -out tfplan
@@ -132,6 +137,64 @@ volume_id="$("$TF" output -raw volume_id)"
 volume_uuid="${volume_id##*/}"
 [ -n "$volume_uuid" ] || fail "no volume id in the outputs"
 
+# Block Storage v1, the product `scw` cannot reach: its block commands are all
+# on block/v1alpha1 and this provider is on v1 (both measured). The volume and
+# the snapshot are asked of the emulator directly, so a state file agreeing with
+# itself cannot pass for a resource that exists.
+echo "- the block volume and its snapshot are served by block/v1"
+block_volume_id="$("$TF" output -raw block_volume_id)"
+block_volume_uuid="${block_volume_id##*/}"
+block_snapshot_id="$("$TF" output -raw block_snapshot_id)"
+block_snapshot_uuid="${block_snapshot_id##*/}"
+body="$(curl -s "$ENDPOINT/block/v1/zones/$ZONE/volumes/$block_volume_uuid")"
+printf '%s' "$body" | jq -e '.size == 10000000000' >/dev/null \
+  || fail "the block volume does not carry the size the provider asked for: $body"
+body="$(curl -s "$ENDPOINT/block/v1/zones/$ZONE/snapshots/$block_snapshot_uuid")"
+printf '%s' "$body" | jq -e --arg v "$block_volume_uuid" '.parent_volume.id == $v' >/dev/null \
+  || fail "the snapshot does not name the volume it was taken from: $body"
+ok "volume $block_volume_uuid, snapshot $block_snapshot_uuid"
+
+# The read by name went through ListVolumes and ListSnapshots rather than a Get,
+# and it must have found the same objects: a list that answers a different id is
+# a filter that does not filter.
+echo "- the same objects are findable by name"
+[ "$("$TF" output -raw block_volume_id_by_name)" = "$block_volume_id" ] \
+  || fail "the volume found by name is not the one that was created"
+[ "$("$TF" output -raw block_snapshot_id_by_name)" = "$block_snapshot_id" ] \
+  || fail "the snapshot found by name is not the one that was created"
+ok "found by name, and the same"
+
+# The edit path, which create-and-destroy never walks. One changed tag makes the
+# provider PATCH every resource that supports it rather than replace it, and the
+# assertion is on what the emulator serves afterwards: an update that answers 200
+# and stores nothing would pass a plan and fail here.
+echo "- a second apply, with one tag changed"
+export TF_VAR_phase=two
+"$TF" apply -no-color -auto-approve -var "endpoint=$ENDPOINT"
+body="$(curl -s "$ENDPOINT/block/v1/zones/$ZONE/volumes/$block_volume_uuid")"
+printf '%s' "$body" | jq -e '.tags | index("two")' >/dev/null \
+  || fail "the volume update did not reach the emulator: $body"
+body="$(curl -s "$ENDPOINT/block/v1/zones/$ZONE/snapshots/$block_snapshot_uuid")"
+printf '%s' "$body" | jq -e '.tags | index("two")' >/dev/null \
+  || fail "the snapshot update did not reach the emulator: $body"
+# And the same id: a provider that replaced the resource rather than updating it
+# would satisfy the assertion above while having driven Create and Delete again.
+[ "$("$TF" output -raw block_volume_id)" = "$block_volume_id" ] \
+  || fail "the volume was replaced rather than updated: the update path is still unproven"
+[ "$("$TF" output -raw block_snapshot_id)" = "$block_snapshot_id" ] \
+  || fail "the snapshot was replaced rather than updated: the update path is still unproven"
+ok "updated in place, and read back"
+
+echo "- the plan after the update is empty too"
+plan_status=0
+"$TF" plan -no-color -detailed-exitcode -var "endpoint=$ENDPOINT" >/dev/null 2>&1 || plan_status=$?
+case "$plan_status" in
+  0) ok "the update reads back as it was sent" ;;
+  2) "$TF" plan -no-color -var "endpoint=$ENDPOINT" || true
+     fail "the emulator does not read back what the update sent" ;;
+  *) fail "the plan after the update errored with status $plan_status" ;;
+esac
+
 echo "- destroy"
 "$TF" destroy -no-color -auto-approve -var "endpoint=$ENDPOINT"
 DESTROYED=1
@@ -156,6 +219,13 @@ code="$(curl -s -o /dev/null -w '%{http_code}' "$ENDPOINT/ipam/v1/regions/fr-par
 [ "$code" = "404" ] || fail "the released address still answers $code"
 code="$(curl -s -o /dev/null -w '%{http_code}' "$ENDPOINT/vpc/v2/regions/fr-par/routes/$route_uuid")"
 [ "$code" = "404" ] || fail "the destroyed route still answers $code"
+# The block pair goes too. The snapshot is the one worth asking about: a volume
+# deleted while a snapshot still refers to it is the relation this product is
+# built on, and the destroy order is the provider's, not ours.
+code="$(curl -s -o /dev/null -w '%{http_code}' "$ENDPOINT/block/v1/zones/$ZONE/snapshots/$block_snapshot_uuid")"
+[ "$code" = "404" ] || fail "the destroyed block snapshot still answers $code"
+code="$(curl -s -o /dev/null -w '%{http_code}' "$ENDPOINT/block/v1/zones/$ZONE/volumes/$block_volume_uuid")"
+[ "$code" = "404" ] || fail "the destroyed block volume still answers $code"
 prove_end "$neg"
 prove_end "$span"
 ok "destroyed, and gone from the API"

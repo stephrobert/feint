@@ -81,26 +81,26 @@ disappears from the suite.
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `DELETE` | `/block/v1/zones/{zone}/snapshots/{id}` | `block/v1/API.DeleteSnapshot` | — |
+| `DELETE` | `/block/v1/zones/{zone}/snapshots/{id}` | `block/v1/API.DeleteSnapshot` | `client` `runtime` `behaviour` |
 | `DELETE` | `/block/v1/zones/{zone}/volumes/{id}` | `block/v1/API.DeleteVolume` | `client` `runtime` `behaviour` |
 | `DELETE` | `/block/v1alpha1/zones/{zone}/snapshots/{id}` | `block/v1alpha1/API.DeleteSnapshot` | `client` `runtime` `behaviour` `negative` |
 | `DELETE` | `/block/v1alpha1/zones/{zone}/volumes/{id}` | `block/v1alpha1/API.DeleteVolume` | `client` `runtime` `behaviour` |
-| `GET` | `/block/v1/zones/{zone}/snapshots/{id}` | `block/v1/API.GetSnapshot` | `contract` `probe` |
-| `GET` | `/block/v1/zones/{zone}/snapshots` | `block/v1/API.ListSnapshots` | `contract` `shape` `probe` |
-| `GET` | `/block/v1/zones/{zone}/volume-types` | `block/v1/API.ListVolumeTypes` | `contract` `probe` |
-| `GET` | `/block/v1/zones/{zone}/volumes/{id}` | `block/v1/API.GetVolume` | `client` `contract` `runtime` `probe` `behaviour` |
-| `GET` | `/block/v1/zones/{zone}/volumes` | `block/v1/API.ListVolumes` | `contract` `shape` `probe` |
+| `GET` | `/block/v1/zones/{zone}/snapshots/{id}` | `block/v1/API.GetSnapshot` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
+| `GET` | `/block/v1/zones/{zone}/snapshots` | `block/v1/API.ListSnapshots` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `GET` | `/block/v1/zones/{zone}/volume-types` | `block/v1/API.ListVolumeTypes` | `no-client` `contract` `probe` |
+| `GET` | `/block/v1/zones/{zone}/volumes/{id}` | `block/v1/API.GetVolume` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
+| `GET` | `/block/v1/zones/{zone}/volumes` | `block/v1/API.ListVolumes` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/block/v1alpha1/zones/{zone}/snapshots/{id}` | `block/v1alpha1/API.GetSnapshot` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/block/v1alpha1/zones/{zone}/snapshots` | `block/v1alpha1/API.ListSnapshots` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/block/v1alpha1/zones/{zone}/volume-types` | `block/v1alpha1/API.ListVolumeTypes` | `client` `contract` `runtime` `probe` |
 | `GET` | `/block/v1alpha1/zones/{zone}/volumes/{id}` | `block/v1alpha1/API.GetVolume` | `client` `contract` `runtime` `probe` |
 | `GET` | `/block/v1alpha1/zones/{zone}/volumes` | `block/v1alpha1/API.ListVolumes` | `client` `contract` `runtime` `probe` `behaviour` |
-| `PATCH` | `/block/v1/zones/{zone}/snapshots/{id}` | `block/v1/API.UpdateSnapshot` | `contract` `probe` |
-| `PATCH` | `/block/v1/zones/{zone}/volumes/{id}` | `block/v1/API.UpdateVolume` | `contract` `probe` |
+| `PATCH` | `/block/v1/zones/{zone}/snapshots/{id}` | `block/v1/API.UpdateSnapshot` | `client` `contract` `runtime` `probe` `behaviour` |
+| `PATCH` | `/block/v1/zones/{zone}/volumes/{id}` | `block/v1/API.UpdateVolume` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PATCH` | `/block/v1alpha1/zones/{zone}/snapshots/{id}` | `block/v1alpha1/API.UpdateSnapshot` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PATCH` | `/block/v1alpha1/zones/{zone}/volumes/{id}` | `block/v1alpha1/API.UpdateVolume` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/block/v1/zones/{zone}/snapshots` | `block/v1/API.CreateSnapshot` | `contract` `probe` |
-| `POST` | `/block/v1/zones/{zone}/volumes` | `block/v1/API.CreateVolume` | `contract` `probe` |
+| `POST` | `/block/v1/zones/{zone}/snapshots` | `block/v1/API.CreateSnapshot` | `client` `contract` `runtime` `probe` |
+| `POST` | `/block/v1/zones/{zone}/volumes` | `block/v1/API.CreateVolume` | `client` `contract` `runtime` `probe` |
 | `POST` | `/block/v1alpha1/zones/{zone}/snapshots` | `block/v1alpha1/API.CreateSnapshot` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/block/v1alpha1/zones/{zone}/volumes` | `block/v1alpha1/API.CreateVolume` | `client` `contract` `runtime` `probe` `behaviour` |
 
@@ -175,10 +175,10 @@ disappears from the suite.
 | `GET` | `/ipam/v1/regions/{region}/ips/{ipID}` | `ipam/v1/API.GetIP` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/ipam/v1/regions/{region}/ips` | `ipam/v1/API.ListIPs` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `PATCH` | `/ipam/v1/regions/{region}/ips/{ipID}` | `ipam/v1/API.UpdateIP` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/ipam/v1/regions/{region}/ip-sets/release` | `ipam/v1/API.ReleaseIPSet` | — |
-| `POST` | `/ipam/v1/regions/{region}/ips/{ipID}/attach` | `ipam/v1/API.AttachIP` | `contract` `probe` |
-| `POST` | `/ipam/v1/regions/{region}/ips/{ipID}/detach` | `ipam/v1/API.DetachIP` | `contract` `probe` |
-| `POST` | `/ipam/v1/regions/{region}/ips/{ipID}/move` | `ipam/v1/API.MoveIP` | `contract` `probe` |
+| `POST` | `/ipam/v1/regions/{region}/ip-sets/release` | `ipam/v1/API.ReleaseIPSet` | `client` `runtime` `behaviour` |
+| `POST` | `/ipam/v1/regions/{region}/ips/{ipID}/attach` | `ipam/v1/API.AttachIP` | `no-client` `contract` `probe` |
+| `POST` | `/ipam/v1/regions/{region}/ips/{ipID}/detach` | `ipam/v1/API.DetachIP` | `no-client` `contract` `probe` |
+| `POST` | `/ipam/v1/regions/{region}/ips/{ipID}/move` | `ipam/v1/API.MoveIP` | `no-client` `contract` `probe` |
 | `POST` | `/ipam/v1/regions/{region}/ips` | `ipam/v1/API.BookIP` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 
 ### `marketplace`
@@ -197,17 +197,33 @@ disappears from the suite.
 | `GET` | `/vpc/v2/regions/{region}/private-networks/{pnID}` | `vpc/v2/API.GetPrivateNetwork` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/vpc/v2/regions/{region}/private-networks` | `vpc/v2/API.ListPrivateNetworks` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.GetRoute` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
-| `GET` | `/vpc/v2/regions/{region}/subnets` | `vpc/v2/API.ListSubnets` | `contract` `probe` |
+| `GET` | `/vpc/v2/regions/{region}/subnets` | `vpc/v2/API.ListSubnets` | `no-client` `contract` `probe` |
 | `GET` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}` | `vpc/v2/API.GetVPC` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/vpc/v2/regions/{region}/vpcs` | `vpc/v2/API.ListVPCs` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `PATCH` | `/vpc/v2/regions/{region}/private-networks/{pnID}` | `vpc/v2/API.UpdatePrivateNetwork` | `client` `contract` `runtime` `probe` `behaviour` |
-| `PATCH` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.UpdateRoute` | `contract` `probe` |
+| `PATCH` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.UpdateRoute` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PATCH` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}` | `vpc/v2/API.UpdateVPC` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/vpc/v2/regions/{region}/private-networks/{pnID}/enable-dhcp` | `vpc/v2/API.EnableDHCP` | `contract` `probe` |
+| `POST` | `/vpc/v2/regions/{region}/private-networks/{pnID}/enable-dhcp` | `vpc/v2/API.EnableDHCP` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/vpc/v2/regions/{region}/private-networks` | `vpc/v2/API.CreatePrivateNetwork` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/vpc/v2/regions/{region}/routes` | `vpc/v2/API.CreateRoute` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}/enable-routing` | `vpc/v2/API.EnableRouting` | `contract` `probe` |
+| `POST` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}/enable-routing` | `vpc/v2/API.EnableRouting` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/vpc/v2/regions/{region}/vpcs` | `vpc/v2/API.CreateVPC` | `client` `contract` `runtime` `probe` `behaviour` |
+
+### Served, and driven by no client (5)
+
+Mounted operations no official client reaches, each with the reason. They
+are not refusals: they answer, and the probe validates them against the
+provider's own description. What they have never had is a real client, which
+is the only proof this project counts — so the reason is here rather than
+left for a reader to infer from an absent token. A line disappears from
+this list the day a client drives its operation, and a test refuses a
+reason that outlived its cause.
+
+- `block` — 1 operation — no official client reads it in v1: `scw block volume-type list` is pinned to block/v1alpha1, and the Terraform provider sends the iops the configuration declares instead of reading the catalogue
+- `ipam` — 1 operation — no official client calls it: `scw ipam ip` has no attach subcommand, and the Terraform provider attaches an address by passing ipam_ip_ids to CreatePrivateNIC
+- `ipam` — 1 operation — no official client calls it: moving a booked address between resources is an SDK call with no CLI subcommand and no Terraform attribute that would produce it
+- `ipam` — 1 operation — no official client calls it: the CLI has no detach subcommand, and the provider detaches by deleting the NIC that carries the address
+- `vpc` — 1 operation — no official client asks for the flat list: `scw vpc` has no subnet subcommand, and the Terraform provider reads the subnets a private network publishes inline through GetPrivateNetwork
 
 ### Declined on purpose (213)
 
@@ -307,7 +323,7 @@ are in `coverage/`, one artefact per provider.
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `POST` | `/api/v1/ReadNetAccessPointServices` | `osc/Client.ReadNetAccessPointServices` | `contract` `shape` `probe` |
+| `POST` | `/api/v1/ReadNetAccessPointServices` | `osc/Client.ReadNetAccessPointServices` | `client` `contract` `shape` `runtime` `probe` |
 
 ### `NetPeering`
 
@@ -317,7 +333,7 @@ are in `coverage/`, one artefact per provider.
 | `POST` | `/api/v1/CreateNetPeering` | `osc/Client.CreateNetPeering` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
 | `POST` | `/api/v1/DeleteNetPeering` | `osc/Client.DeleteNetPeering` | `client` `contract` `runtime` `probe-refusal` `negative` |
 | `POST` | `/api/v1/ReadNetPeerings` | `osc/Client.ReadNetPeerings` | `client` `contract` `shape` `runtime` `probe` |
-| `POST` | `/api/v1/RejectNetPeering` | `osc/Client.RejectNetPeering` | `probe-refusal` |
+| `POST` | `/api/v1/RejectNetPeering` | `osc/Client.RejectNetPeering` | `client` `contract` `runtime` `probe-refusal` `negative` |
 
 ### `Nic`
 
@@ -326,10 +342,10 @@ are in `coverage/`, one artefact per provider.
 | `POST` | `/api/v1/CreateNic` | `osc/Client.CreateNic` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/DeleteNic` | `osc/Client.DeleteNic` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/LinkNic` | `osc/Client.LinkNic` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/api/v1/LinkPrivateIps` | `osc/Client.LinkPrivateIps` | `probe-refusal` |
+| `POST` | `/api/v1/LinkPrivateIps` | `osc/Client.LinkPrivateIps` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
 | `POST` | `/api/v1/ReadNics` | `osc/Client.ReadNics` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/UnlinkNic` | `osc/Client.UnlinkNic` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/api/v1/UnlinkPrivateIps` | `osc/Client.UnlinkPrivateIps` | `probe-refusal` |
+| `POST` | `/api/v1/UnlinkPrivateIps` | `osc/Client.UnlinkPrivateIps` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
 | `POST` | `/api/v1/UpdateNic` | `osc/Client.UpdateNic` | `client` `contract` `runtime` `probe` `behaviour` |
 
 ### `PublicIp`
@@ -339,7 +355,7 @@ are in `coverage/`, one artefact per provider.
 | `POST` | `/api/v1/CreatePublicIp` | `osc/Client.CreatePublicIp` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/DeletePublicIp` | `osc/Client.DeletePublicIp` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/LinkPublicIp` | `osc/Client.LinkPublicIp` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `POST` | `/api/v1/ReadPublicIpRanges` | `osc/Client.ReadPublicIpRanges` | `contract` `shape` `probe` |
+| `POST` | `/api/v1/ReadPublicIpRanges` | `osc/Client.ReadPublicIpRanges` | `client` `contract` `shape` `runtime` `probe` |
 | `POST` | `/api/v1/ReadPublicIps` | `osc/Client.ReadPublicIps` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/UnlinkPublicIp` | `osc/Client.UnlinkPublicIp` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
 
@@ -411,7 +427,7 @@ are in `coverage/`, one artefact per provider.
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
 | `POST` | `/api/v1/CreateTags` | `osc/Client.CreateTags` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/api/v1/DeleteTags` | `osc/Client.DeleteTags` | `contract` `probe` |
+| `POST` | `/api/v1/DeleteTags` | `osc/Client.DeleteTags` | `client` `contract` `runtime` `probe` |
 | `POST` | `/api/v1/ReadTags` | `osc/Client.ReadTags` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 
 ### `Vm`
@@ -420,7 +436,7 @@ are in `coverage/`, one artefact per provider.
 |---|---|---|---|
 | `POST` | `/api/v1/CreateVms` | `osc/Client.CreateVms` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/DeleteVms` | `osc/Client.DeleteVms` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/api/v1/ReadAdminPassword` | `osc/Client.ReadAdminPassword` | `contract` `probe` |
+| `POST` | `/api/v1/ReadAdminPassword` | `osc/Client.ReadAdminPassword` | `client` `contract` `runtime` `probe` |
 | `POST` | `/api/v1/ReadVmTypes` | `osc/Client.ReadVmTypes` | `client` `contract` `shape` `runtime` `probe` |
 | `POST` | `/api/v1/ReadVmsState` | `osc/Client.ReadVmsState` | `client` `contract` `shape` `runtime` `probe` |
 | `POST` | `/api/v1/ReadVms` | `osc/Client.ReadVms` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
@@ -502,22 +518,22 @@ are in `coverage/`, one artefact per provider.
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
 | `DELETE` | `/v2/anti-affinity-group/{id}` | `exoscale/v2.delete-anti-affinity-group` | `client` `contract` `runtime` `probe` `behaviour` |
-| `DELETE` | `/v2/elastic-ip/{id}/{field}` | `exoscale/v2.reset-elastic-ip-field` | — |
+| `DELETE` | `/v2/elastic-ip/{id}/{field}` | `exoscale/v2.reset-elastic-ip-field` | `no-client` |
 | `DELETE` | `/v2/elastic-ip/{id}` | `exoscale/v2.delete-elastic-ip` | `client` `contract` `runtime` `probe` `behaviour` |
-| `DELETE` | `/v2/instance/{id}/{field}` | `exoscale/v2.reset-instance-field` | — |
+| `DELETE` | `/v2/instance/{id}/{field}` | `exoscale/v2.reset-instance-field` | `no-client` |
 | `DELETE` | `/v2/instance/{id}` | `exoscale/v2.delete-instance` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
-| `DELETE` | `/v2/private-network/{id}/{field}` | `exoscale/v2.reset-private-network-field` | — |
+| `DELETE` | `/v2/private-network/{id}/{field}` | `exoscale/v2.reset-private-network-field` | `no-client` |
 | `DELETE` | `/v2/private-network/{id}` | `exoscale/v2.delete-private-network` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
-| `DELETE` | `/v2/security-group/{id}/rules/{rule}` | `exoscale/v2.delete-rule-from-security-group` | `contract` `probe` |
+| `DELETE` | `/v2/security-group/{id}/rules/{rule}` | `exoscale/v2.delete-rule-from-security-group` | `client` `contract` `runtime` `probe` `behaviour` |
 | `DELETE` | `/v2/security-group/{id}` | `exoscale/v2.delete-security-group` | `client` `contract` `runtime` `probe` `behaviour` |
 | `DELETE` | `/v2/snapshot/{id}` | `exoscale/v2.delete-snapshot` | `client` `contract` `runtime` `probe` `behaviour` |
 | `DELETE` | `/v2/ssh-key/{name}` | `exoscale/v2.delete-ssh-key` | `client` `contract` `runtime` `probe` `behaviour` |
-| `DELETE` | `/v2/template/{id}` | `exoscale/v2.delete-template` | `contract` `probe` |
+| `DELETE` | `/v2/template/{id}` | `exoscale/v2.delete-template` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/anti-affinity-group/{id}` | `exoscale/v2.get-anti-affinity-group` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/anti-affinity-group` | `exoscale/v2.list-anti-affinity-groups` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
-| `GET` | `/v2/deploy-target/{id}` | `exoscale/v2.get-deploy-target` | `probe-refusal` |
+| `GET` | `/v2/deploy-target/{id}` | `exoscale/v2.get-deploy-target` | `no-client` `probe-refusal` |
 | `GET` | `/v2/deploy-target` | `exoscale/v2.list-deploy-targets` | `client` `contract` `shape` `runtime` `probe` |
-| `GET` | `/v2/elastic-ip/{id}` | `exoscale/v2.get-elastic-ip` | `contract` `probe` |
+| `GET` | `/v2/elastic-ip/{id}` | `exoscale/v2.get-elastic-ip` | `no-client` `contract` `probe` |
 | `GET` | `/v2/elastic-ip` | `exoscale/v2.list-elastic-ips` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/instance-type/{id}` | `exoscale/v2.get-instance-type` | `client` `contract` `runtime` `probe` |
 | `GET` | `/v2/instance-type` | `exoscale/v2.list-instance-types` | `client` `contract` `shape` `runtime` `probe` |
@@ -525,34 +541,34 @@ are in `coverage/`, one artefact per provider.
 | `GET` | `/v2/instance` | `exoscale/v2.list-instances` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/private-network/{id}` | `exoscale/v2.get-private-network` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/private-network` | `exoscale/v2.list-private-networks` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
-| `GET` | `/v2/security-group/{id}` | `exoscale/v2.get-security-group` | `contract` `probe` |
+| `GET` | `/v2/security-group/{id}` | `exoscale/v2.get-security-group` | `no-client` `contract` `probe` |
 | `GET` | `/v2/security-group` | `exoscale/v2.list-security-groups` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
-| `GET` | `/v2/snapshot/{id}` | `exoscale/v2.get-snapshot` | `contract` `probe` |
+| `GET` | `/v2/snapshot/{id}` | `exoscale/v2.get-snapshot` | `no-client` `contract` `probe` |
 | `GET` | `/v2/snapshot` | `exoscale/v2.list-snapshots` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/ssh-key/{name}` | `exoscale/v2.get-ssh-key` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/ssh-key` | `exoscale/v2.list-ssh-keys` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
-| `GET` | `/v2/template/{id}` | `exoscale/v2.get-template` | `client` `contract` `runtime` `probe` |
-| `GET` | `/v2/template` | `exoscale/v2.list-templates` | `client` `contract` `shape` `runtime` `probe` |
+| `GET` | `/v2/template/{id}` | `exoscale/v2.get-template` | `client` `contract` `runtime` `probe` `behaviour` |
+| `GET` | `/v2/template` | `exoscale/v2.list-templates` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `POST` | `/v2/anti-affinity-group` | `exoscale/v2.create-anti-affinity-group` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/v2/elastic-ip` | `exoscale/v2.create-elastic-ip` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/v2/instance/{id}:create-snapshot` | `exoscale/v2.create-snapshot` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/v2/instance/{id}:enable-tpm` | `exoscale/v2.enable-tpm` | `contract` `probe` |
+| `POST` | `/v2/instance/{id}:enable-tpm` | `exoscale/v2.enable-tpm` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/v2/instance/{id}:revert-snapshot` | `exoscale/v2.revert-instance-to-snapshot` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
 | `POST` | `/v2/instance` | `exoscale/v2.create-instance` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/v2/private-network` | `exoscale/v2.create-private-network` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/v2/security-group/{id}/rules` | `exoscale/v2.add-rule-to-security-group` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/v2/security-group` | `exoscale/v2.create-security-group` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/v2/snapshot/{id}:promote` | `exoscale/v2.promote-snapshot-to-template` | `contract` `probe` |
+| `POST` | `/v2/snapshot/{id}:promote` | `exoscale/v2.promote-snapshot-to-template` | `no-client` `contract` `probe` |
 | `POST` | `/v2/ssh-key` | `exoscale/v2.register-ssh-key` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/v2/template/{id}` | `exoscale/v2.copy-template` | `contract` `probe` |
-| `POST` | `/v2/template` | `exoscale/v2.register-template` | `contract` `probe` |
+| `POST` | `/v2/template/{id}` | `exoscale/v2.copy-template` | `no-client` `contract` `probe` |
+| `POST` | `/v2/template` | `exoscale/v2.register-template` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/elastic-ip/{id}:attach` | `exoscale/v2.attach-instance-to-elastic-ip` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/elastic-ip/{id}:detach` | `exoscale/v2.detach-instance-from-elastic-ip` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/elastic-ip/{id}` | `exoscale/v2.update-elastic-ip` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/instance/{id}:add-protection` | `exoscale/v2.add-instance-protection` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/instance/{id}:reboot` | `exoscale/v2.reboot-instance` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/instance/{id}:remove-protection` | `exoscale/v2.remove-instance-protection` | `client` `contract` `runtime` `probe` `behaviour` |
-| `PUT` | `/v2/instance/{id}:reset` | `exoscale/v2.reset-instance` | `contract` `probe` |
+| `PUT` | `/v2/instance/{id}:reset` | `exoscale/v2.reset-instance` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/instance/{id}:resize-disk` | `exoscale/v2.resize-instance-disk` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/instance/{id}:scale` | `exoscale/v2.scale-instance` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/instance/{id}:start` | `exoscale/v2.start-instance` | `client` `contract` `runtime` `probe` `behaviour` |
@@ -561,18 +577,18 @@ are in `coverage/`, one artefact per provider.
 | `PUT` | `/v2/private-network/{id}:attach` | `exoscale/v2.attach-instance-to-private-network` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/private-network/{id}:detach` | `exoscale/v2.detach-instance-from-private-network` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/private-network/{id}:update-ip` | `exoscale/v2.update-private-network-instance-ip` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
-| `PUT` | `/v2/private-network/{id}` | `exoscale/v2.update-private-network` | `contract` `probe` |
+| `PUT` | `/v2/private-network/{id}` | `exoscale/v2.update-private-network` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/security-group/{id}:add-source` | `exoscale/v2.add-external-source-to-security-group` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/security-group/{id}:attach` | `exoscale/v2.attach-instance-to-security-group` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/security-group/{id}:detach` | `exoscale/v2.detach-instance-from-security-group` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/security-group/{id}:remove-source` | `exoscale/v2.remove-external-source-from-security-group` | `client` `contract` `runtime` `probe` `behaviour` |
-| `PUT` | `/v2/template/{id}` | `exoscale/v2.update-template` | `contract` `probe` |
+| `PUT` | `/v2/template/{id}` | `exoscale/v2.update-template` | `no-client` `contract` `probe` |
 
 ### `general`
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `GET` | `/v2/operation/{id}` | `exoscale/v2.get-operation` | `contract` `probe` |
+| `GET` | `/v2/operation/{id}` | `exoscale/v2.get-operation` | `no-client` `contract` `probe` |
 | `GET` | `/v2/zone` | `exoscale/v2.list-zones` | `client` `contract` `shape` `runtime` `probe` |
 
 ### `organization`
@@ -585,8 +601,29 @@ are in `coverage/`, one artefact per provider.
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `GET` | `/v2/quota/{name}` | `exoscale/v2.get-quota` | — |
+| `GET` | `/v2/quota/{name}` | `exoscale/v2.get-quota` | `no-client` |
 | `GET` | `/v2/quota` | `exoscale/v2.list-quotas` | `client` `contract` `runtime` `probe` |
+
+### Served, and driven by no client (12)
+
+Mounted operations no official client reaches, each with the reason. They
+are not refusals: they answer, and the probe validates them against the
+provider's own description. What they have never had is a real client, which
+is the only proof this project counts — so the reason is here rather than
+left for a reader to infer from an absent token. A line disappears from
+this list the day a client drives its operation, and a test refuses a
+reason that outlived its cause.
+
+- `compute` — 3 operations — the CLI clears a field by sending the update with an empty value, so the per-field DELETE the API declares is never issued
+- `compute` — 1 operation — `exo compute elastic-ip show` takes the address a user reads off a list, so it filters the list it already has rather than reading by id
+- `compute` — 1 operation — `exo compute instance snapshot show` lists the snapshots and picks the one it wants in the client, so the per-id read is never called
+- `compute` — 1 operation — `exo compute instance-template` offers register, list, show and delete, and no update, so a client cannot rename a template it owns
+- `compute` — 1 operation — `exo compute security-group show` resolves a group by name, which it does by listing and filtering in the client, so the per-id read is never called
+- `compute` — 1 operation — copying a template targets another zone, and this emulator serves exactly one, so the CLI has nothing to copy to and no subcommand that would ask
+- `compute` — 1 operation — the CLI's --from-snapshot promotes through export-snapshot and a URL, which this pack declines, so it never issues the promote call the SDK declares
+- `compute` — 1 operation — the list this pack serves is empty, because an emulated account owns no dedicated hardware, so no client ever holds an id to read
+- `general` — 1 operation — every operation this pack answers is already terminal, so no client has anything to poll for; it stays served for the client that polls anyway
+- `quotas` — 1 operation — `exo limits` reads the whole quota list and prints it, so the per-name read has no client path even though the SDK declares one
 
 ### Declined on purpose (254)
 

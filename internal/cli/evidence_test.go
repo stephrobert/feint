@@ -155,14 +155,14 @@ func TestEvidenceTokensNameAxesAndNeverCount(t *testing.T) {
 		Driven: true, Probed: emulator.ProbeResponse, Contract: emulator.ContractClean,
 		Dataplane: true, Shape: emulator.ShapeObserved,
 		Behaviour: true, Negative: true,
-	})
+	}, "")
 	for _, token := range []string{"`client`", "`contract`", "`shape`", "`runtime`", "`probe`", "`behaviour`", "`negative`"} {
 		if !strings.Contains(full, token) {
 			t.Errorf("missing %s in %q", token, full)
 		}
 	}
 	// A refusal-only probe verdict names itself and never upgrades to `probe`.
-	refusal := evidenceTokens(emulator.Evidence{Probed: emulator.ProbeRefusal, Contract: emulator.ContractUnchecked, Shape: emulator.ShapeUnknown})
+	refusal := evidenceTokens(emulator.Evidence{Probed: emulator.ProbeRefusal, Contract: emulator.ContractUnchecked, Shape: emulator.ShapeUnknown}, "")
 	if refusal != "`probe-refusal`" {
 		t.Errorf("a refusal-only verdict renders its own token, got %q", refusal)
 	}
@@ -175,12 +175,23 @@ func TestEvidenceTokensNameAxesAndNeverCount(t *testing.T) {
 		}
 	}
 
-	if got := evidenceTokens(emulator.Evidence{Contract: emulator.ContractUnchecked, Shape: emulator.ShapeUnknown}); got != "—" {
+	if got := evidenceTokens(emulator.Evidence{Contract: emulator.ContractUnchecked, Shape: emulator.ShapeUnknown}, ""); got != "—" {
 		t.Errorf("no proof reads as a dash, got %q", got)
 	}
-	violated := evidenceTokens(emulator.Evidence{Driven: true, Contract: emulator.ContractViolating})
+	violated := evidenceTokens(emulator.Evidence{Driven: true, Contract: emulator.ContractViolating}, "")
 	if !strings.Contains(violated, "contract-violated") {
 		t.Errorf("a violation must be printed loudly, got %q", violated)
+	}
+
+	// A declared reason renders as its own token, and only where the `client`
+	// one is absent: an operation a client drives is proven, whatever a stale
+	// sentence at the route might still say.
+	explained := evidenceTokens(emulator.Evidence{Probed: emulator.ProbeResponse}, "no CLI subcommand maps to it")
+	if !strings.Contains(explained, "`no-client`") {
+		t.Errorf("a declared reason must be visible in the column, got %q", explained)
+	}
+	if driven := evidenceTokens(emulator.Evidence{Driven: true}, "no CLI subcommand maps to it"); strings.Contains(driven, "no-client") {
+		t.Errorf("an operation a client drives must not be printed as unreachable, got %q", driven)
 	}
 }
 

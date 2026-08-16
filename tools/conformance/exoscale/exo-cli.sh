@@ -182,6 +182,23 @@ rules="$(exoc -O json compute security-group show conformance-sg | jq '.ingress_
   || fail "security-group show rejected"
 printf '%s' "$rules" | jq -e 'length == 1 and .[0].network == "203.0.113.0/24"' >/dev/null \
   || fail "the rule did not come back: $rules"
+
+# A second rule, removed again: the deletion path had never been driven, because
+# every group this suite made was dropped whole and taking a group away takes its
+# rules with it. Two rules rather than one is what makes the assertion mean
+# something — a delete that removed the wrong rule, or all of them, would satisfy
+# a check that only counted zero afterwards.
+exoc compute security-group rule add conformance-sg --flow ingress --protocol tcp --port 8080 \
+  --network 198.51.100.0/24 >/dev/null || fail "the second rule was rejected"
+doomed="$(exoc -O json compute security-group show conformance-sg \
+  | jq -r '.ingress_rules[] | select(.network == "198.51.100.0/24") | .id')"
+[ -n "$doomed" ] || fail "the second rule is not readable, so nothing can be deleted"
+exoc -Q compute security-group rule delete conformance-sg "$doomed" --force >/dev/null \
+  || fail "rule delete rejected"
+rules="$(exoc -O json compute security-group show conformance-sg | jq '.ingress_rules')" \
+  || fail "security-group show rejected"
+printf '%s' "$rules" | jq -e 'length == 1 and .[0].network == "203.0.113.0/24"' >/dev/null \
+  || fail "the delete did not take exactly the rule it was given: $rules"
 exoc compute instance security-group add "$id" conformance-sg >/dev/null || fail "sg attach rejected"
 exoc compute instance security-group remove "$id" conformance-sg >/dev/null || fail "sg detach rejected"
 ok "default present, rule round-trips, attach and detach pass"
@@ -219,6 +236,17 @@ pn="$(exoc -O json compute private-network show conformance-pn)" || fail "privat
 printf '%s' "$pn" | jq -e '.start_ip == "10.90.0.20" and .end_ip == "10.90.0.200"
   and .netmask == "255.255.255.0" and .type == "managed"' >/dev/null \
   || fail "the declared range did not come back: $pn"
+# The network's own edit path, which nothing had walked: this suite created
+# networks, attached to them and deleted them, so the one call that changes a
+# declared range had never been driven. The description is the field the CLI
+# will send on its own, and the read-back is what separates an endpoint that
+# stores from one that answers 200.
+exoc compute private-network update conformance-pn --description 'conformance renamed' >/dev/null \
+  || fail "private-network update rejected"
+exoc -O json compute private-network show conformance-pn \
+  | jq -e '.description == "conformance renamed"' >/dev/null \
+  || fail "the private network update did not survive the write"
+
 exoc compute instance private-network attach "$id" conformance-pn >/dev/null \
   || fail "private-network attach rejected"
 pn="$(exoc -O json compute private-network show conformance-pn)" || fail "show after attach rejected"
@@ -341,8 +369,47 @@ exoc -Q compute instance snapshot delete "$snap_id" --force >/dev/null \
 after_snap="$(exoc -O json compute instance snapshot list)" || fail "snapshot list rejected"
 printf '%s' "$after_snap" | jq -e --arg s "$snap_id" 'all(.[]; .id != $s)' >/dev/null \
   || fail "the snapshot survived its delete: $after_snap"
+# Two verbs the API only accepts on a stopped instance, which is why they sit
+# here rather than anywhere else: a TPM is attached hardware, and a reset
+# reinstalls the disk from the template. Both were mounted by #173's triage and
+# neither had ever been driven, so their refusal on a running instance was the
+# only thing anybody had seen.
+exoc -Q compute instance enable-tpm "$id" --force >/dev/null \
+  || fail "enable-tpm rejected on a stopped instance"
+exoc -Q compute instance reset "$id" --force >/dev/null \
+  || fail "reset rejected on a stopped instance"
+# A reset keeps the instance and its identifier: an emulator that recreated it
+# would answer every assertion above and hand the client a machine it never
+# asked for.
+exoc -O json compute instance show "$id" | jq -e --arg i "$id" '.id == $i' >/dev/null \
+  || fail "the reset instance is not the one that was reset"
+
 exoc -Q compute instance start "$id" --force >/dev/null || fail "instance start rejected"
-ok "snapshotted, reverted, removed"
+ok "snapshotted, reverted, removed, TPM enabled and reset while stopped"
+
+# A template of one's own, which is the other half of the template surface: the
+# catalogue this emulator publishes is fixed, and registering one is what a
+# client does when it builds its own image. Neither call had been driven — the
+# suite only ever listed the catalogue.
+echo "- a template is registered and removed"
+span_tmpl="$(prove_begin behaviour)"
+exoc -Q compute instance-template register conformance-tmpl \
+  https://example.invalid/conformance.qcow2 \
+  0000000000000000000000000000000000000000000000000000000000000000 \
+  --description 'conformance' --disable-password --disable-ssh-key --username conformance \
+  >/dev/null || fail "instance-template register rejected"
+# Registered means listed: the CLI resolves a template by name against the
+# catalogue, so a registration nothing lists is a registration no client can use.
+exoc -O json compute instance-template list --family custom \
+  | jq -e 'any(.[]; .name == "conformance-tmpl")' >/dev/null \
+  || fail "the registered template is not in the custom list"
+exoc -Q compute instance-template delete conformance-tmpl --force >/dev/null \
+  || fail "instance-template delete rejected"
+exoc -O json compute instance-template list --family custom \
+  | jq -e 'all(.[]; .name != "conformance-tmpl")' >/dev/null \
+  || fail "the template survived its delete"
+prove_end "$span_tmpl"
+ok "registered, listed, removed"
 
 echo "- delete, and it is gone"
 exoc -Q compute instance delete "$id" --force >/dev/null || fail "instance delete rejected"

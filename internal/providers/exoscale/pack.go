@@ -93,7 +93,15 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "POST", Path: "/v2/instance", Operation: operation("create-instance"), Handler: p.createInstance},
 		{Method: "GET", Path: "/v2/instance/{id}", Operation: operation("get-instance"), Handler: p.getInstance},
 		{Method: "DELETE", Path: "/v2/instance/{id}", Operation: operation("delete-instance"), Handler: p.deleteInstance},
-		{Method: "GET", Path: "/v2/operation/{id}", Operation: operation("get-operation"), Handler: p.getOperation},
+		// The polling read of this pack's own async model, and the one operation
+		// that is undriven *because* the emulator is fast (#174): every
+		// operation this pack returns is already in its terminal state, so a
+		// client with nothing to wait for never asks again. It stays mounted
+		// because the day an operation is not instantaneous — a machine
+		// runtime taking seconds to start a container — a client that polls
+		// must find it served rather than 404.
+		{Method: "GET", Path: "/v2/operation/{id}", Operation: operation("get-operation"), Handler: p.getOperation,
+			Undriven: "every operation this pack answers is already terminal, so no client has anything to poll for; it stays served for the client that polls anyway"},
 
 		// The lifecycle, batch 2 of docs/roadmap-exoscale-iaas.md. The verbs live
 		// in the same path segment as the identifier — PUT /instance/{id}:stop —
@@ -111,7 +119,12 @@ func (p *Pack) Routes() []emulator.Route {
 		// Security groups and their rules.
 		{Method: "POST", Path: "/v2/security-group", Operation: operation("create-security-group"), Handler: p.createSecurityGroup},
 		{Method: "GET", Path: "/v2/security-group", Operation: operation("list-security-groups"), Handler: p.listSecurityGroups},
-		{Method: "GET", Path: "/v2/security-group/{id}", Operation: operation("get-security-group"), Handler: p.getSecurityGroup},
+		// `exo compute security-group show` reads the list and filters it in the
+		// client, because a user names a group and the API keys it by id. The
+		// same holds for the elastic IP and the snapshot below: three reads
+		// served, and three the CLI has no reason to make (measured, #174).
+		{Method: "GET", Path: "/v2/security-group/{id}", Operation: operation("get-security-group"), Handler: p.getSecurityGroup,
+			Undriven: "`exo compute security-group show` resolves a group by name, which it does by listing and filtering in the client, so the per-id read is never called"},
 		{Method: "DELETE", Path: "/v2/security-group/{id}", Operation: operation("delete-security-group"), Handler: p.deleteSecurityGroup},
 		{Method: "POST", Path: "/v2/security-group/{id}/rules", Operation: operation("add-rule-to-security-group"), Handler: p.addRuleToSecurityGroup},
 		{Method: "DELETE", Path: "/v2/security-group/{id}/rules/{rule}", Operation: operation("delete-rule-from-security-group"), Handler: p.deleteRuleFromSecurityGroup},
@@ -127,7 +140,8 @@ func (p *Pack) Routes() []emulator.Route {
 		// Elastic IPs, attachment included.
 		{Method: "POST", Path: "/v2/elastic-ip", Operation: operation("create-elastic-ip"), Handler: p.createElasticIP},
 		{Method: "GET", Path: "/v2/elastic-ip", Operation: operation("list-elastic-ips"), Handler: p.listElasticIPs},
-		{Method: "GET", Path: "/v2/elastic-ip/{id}", Operation: operation("get-elastic-ip"), Handler: p.getElasticIP},
+		{Method: "GET", Path: "/v2/elastic-ip/{id}", Operation: operation("get-elastic-ip"), Handler: p.getElasticIP,
+			Undriven: "`exo compute elastic-ip show` takes the address a user reads off a list, so it filters the list it already has rather than reading by id"},
 		{Method: "PUT", Path: "/v2/elastic-ip/{id}", Operation: operation("update-elastic-ip"), Handler: p.updateElasticIP},
 		{Method: "DELETE", Path: "/v2/elastic-ip/{id}", Operation: operation("delete-elastic-ip"), Handler: p.deleteElasticIP},
 		{Method: "PUT", Path: "/v2/elastic-ip/{id}:attach", Operation: operation("attach-instance-to-elastic-ip"), Handler: p.attachInstanceToElasticIP},
@@ -141,7 +155,12 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "GET", Path: "/v2/private-network/{id}", Operation: operation("get-private-network"), Handler: p.getPrivateNetwork},
 		{Method: "PUT", Path: "/v2/private-network/{id}", Operation: operation("update-private-network"), Handler: p.updatePrivateNetwork},
 		{Method: "DELETE", Path: "/v2/private-network/{id}", Operation: operation("delete-private-network"), Handler: p.deletePrivateNetwork},
-		{Method: "DELETE", Path: "/v2/private-network/{id}/{field}", Operation: operation("reset-private-network-field"), Handler: p.resetPrivateNetworkField},
+		// The three field resets share one reason, measured on all three: the CLI
+		// clears a field by sending the update with an empty value, never by
+		// deleting the field. `exo compute elastic-ip update --description ""`
+		// issues a PUT and no DELETE, and so does the private network one.
+		{Method: "DELETE", Path: "/v2/private-network/{id}/{field}", Operation: operation("reset-private-network-field"), Handler: p.resetPrivateNetworkField,
+			Undriven: "the CLI clears a field by sending the update with an empty value, so the per-field DELETE the API declares is never issued"},
 		{Method: "PUT", Path: "/v2/private-network/{id}:attach", Operation: operation("attach-instance-to-private-network"), Handler: p.attachInstanceToPrivateNetwork},
 		{Method: "PUT", Path: "/v2/private-network/{id}:detach", Operation: operation("detach-instance-from-private-network"), Handler: p.detachInstanceFromPrivateNetwork},
 		{Method: "PUT", Path: "/v2/private-network/{id}:update-ip", Operation: operation("update-private-network-instance-ip"), Handler: p.updatePrivateNetworkInstanceIP},
@@ -153,7 +172,13 @@ func (p *Pack) Routes() []emulator.Route {
 		// Deploy targets: a read the CLI makes while resolving a create. An
 		// emulated account has none, and an empty list is the honest inventory.
 		{Method: "GET", Path: "/v2/deploy-target", Operation: operation("list-deploy-targets"), Handler: p.listDeployTargets},
-		{Method: "GET", Path: "/v2/deploy-target/{id}", Operation: operation("get-deploy-target"), Handler: p.getDeployTarget},
+		{Method: "GET", Path: "/v2/deploy-target/{id}", Operation: operation("get-deploy-target"), Handler: p.getDeployTarget,
+			// The list is driven and answers empty, which is the honest
+			// inventory of an emulated account: deploy targets are dedicated
+			// hardware Exoscale assigns, not something a client creates. With
+			// nothing in the list there is no id to read, and seeding a fake one
+			// would be inventing inventory — the thing docs/limits.md refuses.
+			Undriven: "the list this pack serves is empty, because an emulated account owns no dedicated hardware, so no client ever holds an id to read"},
 
 		// The first call the official CLI makes, and the address every call
 		// after it uses. Measured, not assumed: see catalog.go.
@@ -166,20 +191,32 @@ func (p *Pack) Routes() []emulator.Route {
 		// answer, and only one of them may be silent.
 		{Method: "POST", Path: "/v2/instance/{id}:create-snapshot", Operation: operation("create-snapshot"), Handler: p.createSnapshot},
 		{Method: "GET", Path: "/v2/snapshot", Operation: operation("list-snapshots"), Handler: p.listSnapshots},
-		{Method: "GET", Path: "/v2/snapshot/{id}", Operation: operation("get-snapshot"), Handler: p.getSnapshot},
+		{Method: "GET", Path: "/v2/snapshot/{id}", Operation: operation("get-snapshot"), Handler: p.getSnapshot,
+			Undriven: "`exo compute instance snapshot show` lists the snapshots and picks the one it wants in the client, so the per-id read is never called"},
 		{Method: "DELETE", Path: "/v2/snapshot/{id}", Operation: operation("delete-snapshot"), Handler: p.deleteSnapshot},
 		{Method: "POST", Path: "/v2/instance/{id}:revert-snapshot", Operation: operation("revert-instance-to-snapshot"), Handler: p.revertInstanceToSnapshot},
-		{Method: "POST", Path: "/v2/snapshot/{id}:promote", Operation: operation("promote-snapshot-to-template"), Handler: p.promoteSnapshotToTemplate},
+		// The CLI has a flag for this — `instance-template register
+		// --from-snapshot` — and it does not use this route: measured, it calls
+		// export-snapshot first to obtain a pre-signed URL, then registers a
+		// template from that URL. export-snapshot is declined here (it hands
+		// back an object-storage address this emulator does not serve), so the
+		// whole path stops before anything could reach :promote.
+		{Method: "POST", Path: "/v2/snapshot/{id}:promote", Operation: operation("promote-snapshot-to-template"), Handler: p.promoteSnapshotToTemplate,
+			Undriven: "the CLI's --from-snapshot promotes through export-snapshot and a URL, which this pack declines, so it never issues the promote call the SDK declares"},
 		{Method: "POST", Path: "/v2/template", Operation: operation("register-template"), Handler: p.registerTemplate},
-		{Method: "POST", Path: "/v2/template/{id}", Operation: operation("copy-template"), Handler: p.copyTemplate},
-		{Method: "PUT", Path: "/v2/template/{id}", Operation: operation("update-template"), Handler: p.updateTemplate},
+		{Method: "POST", Path: "/v2/template/{id}", Operation: operation("copy-template"), Handler: p.copyTemplate,
+			Undriven: "copying a template targets another zone, and this emulator serves exactly one, so the CLI has nothing to copy to and no subcommand that would ask"},
+		{Method: "PUT", Path: "/v2/template/{id}", Operation: operation("update-template"), Handler: p.updateTemplate,
+			Undriven: "`exo compute instance-template` offers register, list, show and delete, and no update, so a client cannot rename a template it owns"},
 		{Method: "DELETE", Path: "/v2/template/{id}", Operation: operation("delete-template"), Handler: p.deleteTemplate},
 		// The account-level reads and the two field resets, same triage (#173).
 		{Method: "GET", Path: "/v2/organization", Operation: operation("get-organization"), Handler: p.getOrganization},
 		{Method: "GET", Path: "/v2/event", Operation: operation("list-events"), Handler: p.listEvents},
 		{Method: "POST", Path: "/v2/instance/{id}:enable-tpm", Operation: operation("enable-tpm"), Handler: p.enableTPM},
-		{Method: "DELETE", Path: "/v2/instance/{id}/{field}", Operation: operation("reset-instance-field"), Handler: p.resetInstanceField},
-		{Method: "DELETE", Path: "/v2/elastic-ip/{id}/{field}", Operation: operation("reset-elastic-ip-field"), Handler: p.resetElasticIPField},
+		{Method: "DELETE", Path: "/v2/instance/{id}/{field}", Operation: operation("reset-instance-field"), Handler: p.resetInstanceField,
+			Undriven: "the CLI clears a field by sending the update with an empty value, so the per-field DELETE the API declares is never issued"},
+		{Method: "DELETE", Path: "/v2/elastic-ip/{id}/{field}", Operation: operation("reset-elastic-ip-field"), Handler: p.resetElasticIPField,
+			Undriven: "the CLI clears a field by sending the update with an empty value, so the per-field DELETE the API declares is never issued"},
 		{Method: "GET", Path: "/v2/instance-type", Operation: operation("list-instance-types"), Handler: p.listInstanceTypes},
 		{Method: "GET", Path: "/v2/instance-type/{id}", Operation: operation("get-instance-type"), Handler: p.getInstanceType},
 
@@ -191,7 +228,8 @@ func (p *Pack) Routes() []emulator.Route {
 		// Quotas, which `exo limits` reads. See catalog.go for why they are
 		// counted rather than invented.
 		{Method: "GET", Path: "/v2/quota", Operation: operation("list-quotas"), Handler: p.listQuotas},
-		{Method: "GET", Path: "/v2/quota/{name}", Operation: operation("get-quota"), Handler: p.getQuota},
+		{Method: "GET", Path: "/v2/quota/{name}", Operation: operation("get-quota"), Handler: p.getQuota,
+			Undriven: "`exo limits` reads the whole quota list and prints it, so the per-name read has no client path even though the SDK declares one"},
 		{Method: "GET", Path: "/v2/ssh-key/{name}", Operation: operation("get-ssh-key"), Handler: p.getSSHKey},
 		{Method: "DELETE", Path: "/v2/ssh-key/{name}", Operation: operation("delete-ssh-key"), Handler: p.deleteSSHKey},
 	})

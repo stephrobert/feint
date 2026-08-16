@@ -8,34 +8,34 @@
   "generated_from": {
     "contracts": "7dd2353c6a25c3fa",
     "shapes": "c73ca6ca03ceac5b",
-    "suites": "26e4a94251e734c8"
+    "suites": "694264a54162c10b"
   },
   "operations": {
     "block/v1/API.CreateSnapshot": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
       "behaviour": false,
       "negative": false
     },
     "block/v1/API.CreateVolume": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
       "behaviour": false,
       "negative": false
     },
     "block/v1/API.DeleteSnapshot": {
-      "driven": false,
+      "driven": true,
       "probed": "none",
       "contract": "unchecked",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "block/v1/API.DeleteVolume": {
@@ -48,13 +48,13 @@
       "negative": false
     },
     "block/v1/API.GetSnapshot": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
-      "negative": false
+      "behaviour": true,
+      "negative": true
     },
     "block/v1/API.GetVolume": {
       "driven": true,
@@ -63,15 +63,15 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "block/v1/API.ListSnapshots": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "observed",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "block/v1/API.ListVolumeTypes": {
@@ -84,30 +84,30 @@
       "negative": false
     },
     "block/v1/API.ListVolumes": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "observed",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "block/v1/API.UpdateSnapshot": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "block/v1/API.UpdateVolume": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "block/v1alpha1/API.CreateSnapshot": {
@@ -363,12 +363,12 @@
       "negative": true
     },
     "exoscale/v2.delete-rule-from-security-group": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "exoscale/v2.delete-security-group": {
@@ -399,12 +399,12 @@
       "negative": false
     },
     "exoscale/v2.delete-template": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "exoscale/v2.detach-instance-from-elastic-ip": {
@@ -435,12 +435,12 @@
       "negative": false
     },
     "exoscale/v2.enable-tpm": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "exoscale/v2.get-anti-affinity-group": {
@@ -557,7 +557,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "exoscale/v2.list-anti-affinity-groups": {
@@ -665,7 +665,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "exoscale/v2.list-zones": {
@@ -705,12 +705,12 @@
       "negative": false
     },
     "exoscale/v2.register-template": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "exoscale/v2.remove-external-source-from-security-group": {
@@ -741,12 +741,12 @@
       "negative": false
     },
     "exoscale/v2.reset-instance": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "exoscale/v2.reset-instance-field": {
@@ -831,12 +831,12 @@
       "negative": false
     },
     "exoscale/v2.update-private-network": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "exoscale/v2.update-private-network-instance-ip": {
@@ -1398,12 +1398,12 @@
       "negative": false
     },
     "ipam/v1/API.ReleaseIPSet": {
-      "driven": false,
+      "driven": true,
       "probed": "none",
       "contract": "unchecked",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "ipam/v1/API.UpdateIP": {
@@ -1731,10 +1731,10 @@
       "negative": false
     },
     "osc/Client.DeleteTags": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
       "behaviour": false,
       "negative": false
@@ -1776,12 +1776,12 @@
       "negative": false
     },
     "osc/Client.LinkPrivateIps": {
-      "driven": false,
+      "driven": true,
       "probed": "refusal",
-      "contract": "unchecked",
-      "dataplane": false,
+      "contract": "clean",
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "osc/Client.LinkPublicIp": {
@@ -1812,10 +1812,10 @@
       "negative": false
     },
     "osc/Client.ReadAdminPassword": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
       "behaviour": false,
       "negative": false
@@ -1875,10 +1875,10 @@
       "negative": false
     },
     "osc/Client.ReadNetAccessPointServices": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "observed",
       "behaviour": false,
       "negative": false
@@ -1911,10 +1911,10 @@
       "negative": false
     },
     "osc/Client.ReadPublicIpRanges": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "observed",
       "behaviour": false,
       "negative": false
@@ -2037,13 +2037,13 @@
       "negative": false
     },
     "osc/Client.RejectNetPeering": {
-      "driven": false,
+      "driven": true,
       "probed": "refusal",
-      "contract": "unchecked",
-      "dataplane": false,
+      "contract": "clean",
+      "dataplane": true,
       "shape": "unobserved",
       "behaviour": false,
-      "negative": false
+      "negative": true
     },
     "osc/Client.StartVms": {
       "driven": true,
@@ -2082,12 +2082,12 @@
       "negative": false
     },
     "osc/Client.UnlinkPrivateIps": {
-      "driven": false,
+      "driven": true,
       "probed": "refusal",
-      "contract": "unchecked",
-      "dataplane": false,
+      "contract": "clean",
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "osc/Client.UnlinkPublicIp": {
@@ -2244,21 +2244,21 @@
       "negative": false
     },
     "vpc/v2/API.EnableDHCP": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "vpc/v2/API.EnableRouting": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "vpc/v2/API.GetPrivateNetwork": {
@@ -2325,12 +2325,12 @@
       "negative": false
     },
     "vpc/v2/API.UpdateRoute": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "vpc/v2/API.UpdateVPC": {

@@ -51,6 +51,12 @@ type templateRequest struct {
 	PasswordEnabled *bool  `json:"password-enabled"`
 	SSHKeyEnabled   *bool  `json:"ssh-key-enabled"`
 	BootMode        string `json:"boot-mode"`
+	// Sent by `exo compute instance-template register` on every call, declared
+	// by register-template.Request and by the template schema itself, and read
+	// by nothing here until a real client drove the route (#174): the field gate
+	// named it the moment the suite registered its first template. A field a
+	// client sends and a handler drops is a setting the client believes it made.
+	ApplicationConsistentSnapshotEnabled *bool `json:"application-consistent-snapshot-enabled"`
 }
 
 func (r templateRequest) invalid() string {
@@ -107,6 +113,11 @@ func templateAttrs(req templateRequest) map[string]any {
 		"default-user":     orDefaultUser(req.DefaultUser),
 		"password-enabled": boolOrTrue(req.PasswordEnabled),
 		"ssh-key-enabled":  boolOrTrue(req.SSHKeyEnabled),
+		// False when the client says nothing, unlike the two above: upstream
+		// declares application-consistent snapshots as something a template opts
+		// into, and defaulting it to true would promise a guarantee no emulated
+		// snapshot can keep.
+		"application-consistent-snapshot-enabled": boolOrFalse(req.ApplicationConsistentSnapshotEnabled),
 	}
 	if req.BootMode != "" {
 		attrs["boot-mode"] = req.BootMode
@@ -126,6 +137,10 @@ func boolOrTrue(value *bool) bool {
 		return true
 	}
 	return *value
+}
+
+func boolOrFalse(value *bool) bool {
+	return value != nil && *value
 }
 
 // copyTemplate and updateTemplate act on a stored template only. The catalogue is

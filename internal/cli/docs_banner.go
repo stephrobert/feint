@@ -48,6 +48,13 @@ type safetyFacts struct {
 	// the file rather than listing them: a list here would be the second source
 	// this generator exists to avoid.
 	Limits int
+	// Explained is how many of the undriven operations say why no client
+	// reaches them (Route.Undriven). Counted here because "unknown" was one
+	// number for two facts (#174): an operation nobody has got to yet and one
+	// no client path exists for read the same in a total, and only the first is
+	// work. The banner prints both, so the figure a reader meets first is the
+	// one the artefact can defend.
+	Explained int
 }
 
 // readBannerFacts gathers the counts from the evidence record and the limits
@@ -77,6 +84,22 @@ func readSafetyFacts(evidencePath, limitsPath string) (safetyFacts, error) {
 		}
 	}
 
+	// The reasons come from the packs mounted in this process, joined onto the
+	// record: the same rule as everywhere else here, the binary that serves the
+	// routes is what says what they are.
+	srv, _, err := newServer(nil)
+	if err != nil {
+		return safetyFacts{}, err
+	}
+	for _, route := range srv.AllRoutes() {
+		if route.Undriven == "" {
+			continue
+		}
+		if row, recorded := record.Operations[route.Operation]; recorded && !row.Driven {
+			facts.Explained++
+		}
+	}
+
 	limits, err := os.ReadFile(limitsPath) //nolint:gosec // a path this repository owns
 	if err != nil {
 		return safetyFacts{}, fmt.Errorf("read the limits page: %w", err)
@@ -90,6 +113,43 @@ func readSafetyFacts(evidencePath, limitsPath string) (safetyFacts, error) {
 		return safetyFacts{}, fmt.Errorf("the artefacts report nothing to describe")
 	}
 	return facts, nil
+}
+
+// explainedClause says how the undriven operations divide, and says nothing
+// about a remainder when there is none.
+//
+// The first version printed "N of them state why …; the rest are waiting for a
+// scenario" unconditionally, and the day every one of them carried a reason it
+// read "17 … 17 of them … the rest are waiting" — a remainder of zero described
+// as if it existed. That is the half-truth this repository keeps catching in its
+// own prose, and it is generated text, so nobody would have edited it.
+//
+// nolint:misspell // the French half is French.
+func explainedClause(facts safetyFacts, french bool) string {
+	undriven := facts.Mounted - facts.Driven
+	waiting := undriven - facts.Explained
+	switch {
+	case undriven == 0:
+		if french {
+			return "Il n'en reste aucune."
+		}
+		return "There are none left."
+	case waiting == 0:
+		if french {
+			return "Chacune dit pourquoi aucun client officiel ne l'atteint, à la route et dans " +
+				"[docs/routes.md](docs/routes.md)."
+		}
+		return "Every one of them states why no official client reaches it, at the route and in " +
+			"[docs/routes.md](docs/routes.md)."
+	case french:
+		return fmt.Sprintf("%d d'entre elles disent pourquoi aucun client officiel ne les atteint, à la "+
+			"route et dans [docs/routes.md](docs/routes.md) ; les %d autres attendent un scénario.",
+			facts.Explained, waiting)
+	default:
+		return fmt.Sprintf("%d of them state why no official client reaches them, at the route and in "+
+			"[docs/routes.md](docs/routes.md); the other %d are waiting for a scenario.",
+			facts.Explained, waiting)
+	}
 }
 
 // bannerAnchors are the links the banner makes, and they are checked.
@@ -123,8 +183,9 @@ func renderSafety(facts safetyFacts, french bool) string {
 			"seul compte implicite et aucune grille tarifaire devrait inventer ces chiffres, et "+
 			"quelqu'un agirait dessus.\n>\n", facts.Limits)
 		fmt.Fprintf(&b, "> **Inconnu** : %d opérations sont montées et n'ont jamais été pilotées par un "+
-			"client. Elles sont comptées plutôt qu'escamotées, une par une, dans "+
-			"[coverage/evidence.json](coverage/evidence.json).\n>\n", facts.Mounted-facts.Driven)
+			"client. %s Elles sont comptées plutôt qu'escamotées, une par une, dans "+
+			"[coverage/evidence.json](coverage/evidence.json).\n>\n",
+			facts.Mounted-facts.Driven, explainedClause(facts, true))
 		b.WriteString("> L'avertissement qui reste, parce qu'il est mesuré et non compté : **ce que la " +
 			"suite de conformance ne parcourt pas n'est pas prouvé**. Deux audits adverses complets, " +
 			"un par provider, ont trouvé des défauts sur chacun de ces chemins, y compris dans les " +
@@ -145,8 +206,9 @@ func renderSafety(facts safetyFacts, french bool) string {
 		"account and no price list would have to invent those figures, and somebody would act on "+
 		"them.\n>\n", facts.Limits)
 	fmt.Fprintf(&b, "> **Unknown**: %d operations are mounted and have never been driven by a client. "+
-		"They are counted rather than glossed, one by one, in "+
-		"[coverage/evidence.json](coverage/evidence.json).\n>\n", facts.Mounted-facts.Driven)
+		"%s They are counted rather than glossed, one by one, in "+
+		"[coverage/evidence.json](coverage/evidence.json).\n>\n",
+		facts.Mounted-facts.Driven, explainedClause(facts, false))
 	b.WriteString("> The warning that stays, because it is measured rather than counted: **what the " +
 		"conformance suite does not walk is unproven**. Two whole-pack adversarial audits, one per " +
 		"provider, found defects on every such path — including in the fixes of the previous round. " +

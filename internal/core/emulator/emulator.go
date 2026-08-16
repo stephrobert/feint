@@ -85,6 +85,24 @@ type Route struct {
 	Path      string
 	Operation string
 	Handler   http.HandlerFunc
+	// Undriven says why no official client reaches this operation, in one line
+	// and in the present tense. It is empty for every route a client drives, and
+	// a route that gains a client must lose it.
+	//
+	// Mounted is a protocol promise; driven by a real client is the only proof
+	// this project accepts. Fifty-three operations sat between the two with
+	// nothing to tell them apart (#174), so a reader could not distinguish
+	// UpdateServer — a day-one client path nobody had exercised — from
+	// ReadPublicIpRanges, which no fixture has a reason to call. That flatness
+	// was the debt, and this field is what removes it: the ones a client can
+	// reach were driven, and the rest say why they cannot be.
+	//
+	// It is data rather than a comment for the reason Decline.Reason is: a
+	// control reads it. TestEveryUndrivenOperationSaysWhy fails when an
+	// operation the recorded run left undriven carries no reason, and fails
+	// again when a reason survives the client that came to drive it — a stale
+	// excuse reads exactly like a considered one.
+	Undriven string
 }
 
 // Pack is one provider implementation.

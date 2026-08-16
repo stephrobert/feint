@@ -118,9 +118,19 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "DELETE", Path: ipamRegions + "/ips/{ipID}", Operation: "ipam/v1/API.ReleaseIP", Handler: p.releaseIPAMIP},
 		{Method: "POST", Path: ipamRegions + "/ip-sets/release", Operation: "ipam/v1/API.ReleaseIPSet", Handler: p.releaseIPAMIPSet},
 		{Method: "PATCH", Path: ipamRegions + "/ips/{ipID}", Operation: "ipam/v1/API.UpdateIP", Handler: p.updateIPAMIP},
-		{Method: "POST", Path: ipamRegions + "/ips/{ipID}/attach", Operation: "ipam/v1/API.AttachIP", Handler: p.attachIPAMIP},
-		{Method: "POST", Path: ipamRegions + "/ips/{ipID}/detach", Operation: "ipam/v1/API.DetachIP", Handler: p.detachIPAMIP},
-		{Method: "POST", Path: ipamRegions + "/ips/{ipID}/move", Operation: "ipam/v1/API.MoveIP", Handler: p.moveIPAMIP},
+		// The three no client asks for, measured rather than assumed (#174):
+		// `scw ipam ip` offers create, delete, get, list and update and nothing
+		// else, and the Terraform provider's scaleway_ipam_ip walks BookIP,
+		// GetIP and ReleaseIP on create-update-destroy — the attach and the
+		// detach happen inside CreatePrivateNIC, which carries ipam_ip_ids and
+		// never calls these. They stay mounted because the SDK exposes them and
+		// a client written against it would find them served.
+		{Method: "POST", Path: ipamRegions + "/ips/{ipID}/attach", Operation: "ipam/v1/API.AttachIP", Handler: p.attachIPAMIP,
+			Undriven: "no official client calls it: `scw ipam ip` has no attach subcommand, and the Terraform provider attaches an address by passing ipam_ip_ids to CreatePrivateNIC"},
+		{Method: "POST", Path: ipamRegions + "/ips/{ipID}/detach", Operation: "ipam/v1/API.DetachIP", Handler: p.detachIPAMIP,
+			Undriven: "no official client calls it: the CLI has no detach subcommand, and the provider detaches by deleting the NIC that carries the address"},
+		{Method: "POST", Path: ipamRegions + "/ips/{ipID}/move", Operation: "ipam/v1/API.MoveIP", Handler: p.moveIPAMIP,
+			Undriven: "no official client calls it: moving a booked address between resources is an SDK call with no CLI subcommand and no Terraform attribute that would produce it"},
 
 		// User data: how a boot script reaches a server. The value is a raw body
 		// both ways, never a JSON envelope, and "cloud-init" is the key the
@@ -161,7 +171,15 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "DELETE", Path: blockZones + "/snapshots/{id}", Operation: "block/v1/API.DeleteSnapshot", Handler: p.deleteBlockSnapshot},
 		// The catalogue of this product, for the reason the instance one exists:
 		// a client reads the stock before it creates, and gives up on a 404.
-		{Method: "GET", Path: blockZones + "/volume-types", Operation: "block/v1/API.ListVolumeTypes", Handler: p.listBlockVolumeTypes},
+		{Method: "GET", Path: blockZones + "/volume-types", Operation: "block/v1/API.ListVolumeTypes", Handler: p.listBlockVolumeTypes,
+			// The one block/v1 route with no client, and the reason is the split
+			// this product lives with: `scw block volume-type list` reads the
+			// alpha spelling, which is driven, and the Terraform provider never
+			// reads the type catalogue at all — it sends the iops the
+			// configuration names. Mounted anyway, because a client that does
+			// read it must not meet a 404 before it creates anything, which is
+			// the trap the Scaleway catalogue exists for.
+			Undriven: "no official client reads it in v1: `scw block volume-type list` is pinned to block/v1alpha1, and the Terraform provider sends the iops the configuration declares instead of reading the catalogue"},
 
 		// The same product under the spelling the CLI uses.
 		//
@@ -213,7 +231,14 @@ func (p *Pack) Routes() []emulator.Route {
 		// manages — records docs/limits.md owns. Two operations of this family
 		// stay declined below because the portal's API document does not
 		// describe them yet and every route mounted here is checked against it.
-		{Method: "GET", Path: regions + "/subnets", Operation: "vpc/v2/API.ListSubnets", Handler: p.listSubnets},
+		{Method: "GET", Path: regions + "/subnets", Operation: "vpc/v2/API.ListSubnets", Handler: p.listSubnets,
+			// Served because a client written against the SDK would find it, and
+			// undriven because neither official client asks the flat list:
+			// `scw vpc` has no subnet subcommand at all, and the Terraform
+			// provider reads a network's subnets from GetPrivateNetwork, which
+			// publishes them inline — that is the door the ipam fixture proves
+			// (terraform.sh reads the booked address's subnet_id back through it).
+			Undriven: "no official client asks for the flat list: `scw vpc` has no subnet subcommand, and the Terraform provider reads the subnets a private network publishes inline through GetPrivateNetwork"},
 		{Method: "POST", Path: regions + "/vpcs/{vpc_id}/enable-routing", Operation: "vpc/v2/API.EnableRouting", Handler: p.enableRouting},
 		{Method: "POST", Path: regions + "/private-networks/{pnID}/enable-dhcp", Operation: "vpc/v2/API.EnableDHCP", Handler: p.enableDHCP},
 		{Method: "POST", Path: regions + "/routes", Operation: "vpc/v2/API.CreateRoute", Handler: p.createRoute},

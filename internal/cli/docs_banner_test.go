@@ -67,6 +67,85 @@ func TestTheBannerCountsComeFromTheArtefacts(t *testing.T) {
 	}
 }
 
+// The banner splits "unknown" into what is explained and what is not (#174).
+//
+// One number for two facts is what the issue measured as the debt: an operation
+// nobody has written a scenario for and one no client path exists for read
+// identically in a total, and only the first is work anybody can do. The split
+// is read from the routes the binary mounts joined onto the record — never
+// typed — so an operation that gains a client moves between the two figures on
+// its own.
+func TestTheBannerSeparatesExplainedFromUnknown(t *testing.T) {
+	root := t.TempDir()
+	write := func(rel, body string) {
+		t.Helper()
+		path := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// One real operation that declares why no client reaches it, one real
+	// operation that does not, and one driven. Real names on purpose: the count
+	// is a join against the mounted routes, so invented ones would measure the
+	// join rather than the rule.
+	write("coverage/evidence.json", `{"operations":{
+		"ipam/v1/API.MoveIP":       {"driven": false},
+		"ipam/v1/API.BookIP":       {"driven": false},
+		"instance/v1/API.ListServers": {"driven": true}
+	}}`)
+	write("docs/limits.md", "# Limits\n\n## One\n")
+	write("README.md", "# feint\n\n<!-- safety:start -->\n<!-- safety:end -->\n\nrest\n")
+
+	if err := writeSplicedSafety(root); err != nil {
+		t.Fatalf("write the banner: %v", err)
+	}
+	rendered, err := os.ReadFile(filepath.Join(root, "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := string(rendered)
+
+	if !strings.Contains(page, "2 operations are mounted and have never been driven") {
+		t.Errorf("the banner lost the total it always printed:\n%s", page)
+	}
+	// MoveIP declares its reason; BookIP does not, and is driven by the fixture
+	// in the real record — here it stands for the operation still waiting for a
+	// scenario.
+	if !strings.Contains(page, "1 of them state why") {
+		t.Errorf("the banner does not separate the explained ones:\n%s", page)
+	}
+	if !strings.Contains(page, "the other 1 are waiting") {
+		t.Errorf("the banner does not say what is left to do:\n%s", page)
+	}
+
+	// And when nothing is left waiting, it must not describe a remainder that
+	// does not exist. The first version printed "17 … 17 of them … the rest are
+	// waiting", which is a sentence about zero operations written as if they
+	// were there.
+	write("coverage/evidence.json", `{"operations":{
+		"ipam/v1/API.MoveIP":          {"driven": false},
+		"instance/v1/API.ListServers": {"driven": true}
+	}}`)
+	if err := writeSplicedSafety(root); err != nil {
+		t.Fatalf("rewrite the banner: %v", err)
+	}
+	rendered, err = os.ReadFile(filepath.Join(root, "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	page = string(rendered)
+	if strings.Contains(page, "are waiting") {
+		t.Errorf("every undriven operation is explained and the banner still promises a remainder:\n%s", page)
+	}
+	if !strings.Contains(page, "Every one of them states why") {
+		t.Errorf("the banner does not say that all of them are accounted for:\n%s", page)
+	}
+}
+
 // An artefact that cannot be read is an error, never a zero.
 //
 // A banner announcing "0 of 0 operations are proven" because a file moved would

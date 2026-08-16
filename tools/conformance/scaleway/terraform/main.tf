@@ -21,6 +21,19 @@ variable "endpoint" {
   default     = "http://127.0.0.1:4599"
 }
 
+# The value the second apply changes, and the only reason this fixture applies
+# twice. Create-and-destroy was how every edit path in this repository stayed
+# unproven: `block/v1` shipped with GetVolume and DeleteVolume alone, and the
+# three instance renames were driven for the first time nine months after they
+# were mounted (#174). A tag is the cheapest attribute a provider will PATCH
+# rather than replace, so one changed tag is one PATCH per resource that
+# supports one.
+variable "phase" {
+  type        = string
+  description = "Marks which apply this is: the second one changes it, so the provider issues its update calls."
+  default     = "one"
+}
+
 provider "scaleway" {
   api_url         = var.endpoint
   access_key      = "SCWXXXXXXXXXXXXXXXXX"
@@ -118,6 +131,48 @@ resource "scaleway_instance_volume" "conformance" {
   zone       = "fr-par-1"
 }
 
+# Block Storage as a product a client declares, rather than as the fallback the
+# server's root volume lands on.
+#
+# `scw` cannot drive this: every one of its block commands is pinned to
+# block/v1alpha1, and the Terraform provider is pinned to v1 (measured, both
+# ways). So the alpha was fully driven and v1 had GetVolume and DeleteVolume to
+# its name — the two calls the root volume happens to make — while the nine
+# operations a client uses to manage a volume of its own had never been driven
+# by anything (#174).
+resource "scaleway_block_volume" "conformance" {
+  name       = "conformance-tf-block"
+  iops       = 5000
+  size_in_gb = 10
+  zone       = "fr-par-1"
+  tags       = ["feint", "conformance", var.phase]
+}
+
+# A snapshot of it, which is the second half of the product: the provider reads
+# the snapshot back by id right after creating it, and refuses to finish while
+# the state is not one it knows.
+resource "scaleway_block_snapshot" "conformance" {
+  name      = "conformance-tf-block-snap"
+  volume_id = scaleway_block_volume.conformance.id
+  zone      = "fr-par-1"
+  tags      = ["feint", "conformance", var.phase]
+}
+
+# Reading by name rather than by id, which is a different call: the provider
+# lists and filters, so these two lines are what drive ListVolumes and
+# ListSnapshots. They also assert something a Get cannot — that a volume and a
+# snapshot are findable by the name the client gave them, which is how a human
+# looks for one.
+data "scaleway_block_volume" "by_name" {
+  name = scaleway_block_volume.conformance.name
+  zone = "fr-par-1"
+}
+
+data "scaleway_block_snapshot" "by_name" {
+  name = scaleway_block_snapshot.conformance.name
+  zone = "fr-par-1"
+}
+
 resource "scaleway_instance_server" "conformance" {
   name = "conformance-tf"
   type = "DEV1-S"
@@ -187,4 +242,22 @@ output "ipam_ip_id" {
 
 output "route_id" {
   value = scaleway_vpc_route.conformance.id
+}
+
+output "block_volume_id" {
+  value = scaleway_block_volume.conformance.id
+}
+
+output "block_snapshot_id" {
+  value = scaleway_block_snapshot.conformance.id
+}
+
+# What the data sources found, so the suite asserts on the answer of the list
+# call rather than on the state file agreeing with itself.
+output "block_volume_id_by_name" {
+  value = data.scaleway_block_volume.by_name.id
+}
+
+output "block_snapshot_id_by_name" {
+  value = data.scaleway_block_snapshot.by_name.id
 }

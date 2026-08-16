@@ -234,6 +234,62 @@ func TestARegisteredTemplateJoinsTheCatalogue(t *testing.T) {
 	}
 }
 
+// The setting a client makes when it registers a template, kept rather than
+// dropped.
+//
+// `exo compute instance-template register` sends
+// application-consistent-snapshot-enabled on every call, and the handler read
+// every other field of the request and not that one. Nothing was red: the
+// register answered 200, the template read back, and the client believed it had
+// set something the emulator had thrown away. The omission gate found it the
+// first time a real client drove the route (#174) — this test is the same
+// verdict without a CLI, so a future edit of templateAttrs cannot lose it again.
+func TestARegisteredTemplateKeepsItsSnapshotSetting(t *testing.T) {
+	h, _ := newExoscaleBarrageServer(t)
+
+	register := func(t *testing.T, body string) map[string]any {
+		t.Helper()
+		status, out := callRaw(h, "POST", "/v2/template", body)
+		if status != http.StatusOK {
+			t.Fatalf("register: status %d (%v)", status, out)
+		}
+		ref, _ := out["reference"].(map[string]any)
+		id, _ := ref["id"].(string)
+		status, template := callRaw(h, "GET", "/v2/template/"+id, "")
+		if status != http.StatusOK {
+			t.Fatalf("get: status %d", status)
+		}
+		return template
+	}
+
+	asked := register(t, `{
+		"name": "consistent",
+		"url": "https://example.invalid/disk.qcow2",
+		"checksum": "0123456789abcdef0123456789abcdef",
+		"application-consistent-snapshot-enabled": true
+	}`)
+	if enabled, _ := asked["application-consistent-snapshot-enabled"].(bool); !enabled {
+		t.Errorf("the template dropped the setting it was registered with: %v", asked)
+	}
+
+	// And the default is off rather than absent: a client reading the field on a
+	// template that never asked for it must find false, not nothing — upstream
+	// declares it on every template, so an absent key is a shape a client can
+	// trip on.
+	silent := register(t, `{
+		"name": "plain",
+		"url": "https://example.invalid/disk.qcow2",
+		"checksum": "0123456789abcdef0123456789abcdef"
+	}`)
+	enabled, present := silent["application-consistent-snapshot-enabled"].(bool)
+	if !present {
+		t.Errorf("the template does not publish the field at all: %v", silent)
+	}
+	if enabled {
+		t.Errorf("a template that asked for nothing promises application-consistent snapshots")
+	}
+}
+
 // Control characters are refused at the door, before the store, which is this
 // repository's stated order of preference for anything that may reach a
 // structured format later.

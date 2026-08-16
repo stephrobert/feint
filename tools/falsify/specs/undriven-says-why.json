@@ -1,0 +1,34 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "an operation no client drives loses its reason, and the flat list #174 measured comes back",
+      "file": "internal/providers/scaleway/pack.go",
+      "find": "\t\t\tUndriven: \"no official client calls it: `scw ipam ip` has no attach subcommand, and the Terraform provider attaches an address by passing ipam_ip_ids to CreatePrivateNIC\"},",
+      "replace": "\t\t\tUndriven: \"\"},",
+      "test": "TestEveryUndrivenOperationSaysWhy"
+    },
+    {
+      "label": "a reason is written on an operation a real client drives, and outlives nothing because it was never true",
+      "file": "internal/providers/scaleway/pack.go",
+      "find": "\t\t{Method: \"GET\", Path: zones + \"/servers\", Operation: \"instance/v1/API.ListServers\", Handler: p.listServers},",
+      "replace": "\t\t{Method: \"GET\", Path: zones + \"/servers\", Operation: \"instance/v1/API.ListServers\", Handler: p.listServers,\n\t\t\tUndriven: \"a sentence that was true once and is not any more, which is what this half of the rule refuses\"},",
+      "test": "TestEveryUndrivenOperationSaysWhy"
+    },
+    {
+      "label": "the column stops distinguishing an unreachable operation from one nobody has got to",
+      "file": "internal/cli/docs_routes.go",
+      "find": "\t} else if undriven != \"\" {\n\t\tt = append(t, \"`no-client`\")",
+      "replace": "\t} else if undriven != \"\" && false {\n\t\tt = append(t, \"`no-client`\")",
+      "test": "TestEvidenceTokensNameAxesAndNeverCount"
+    },
+    {
+      "label": "the banner counts no reason at all, so \"unknown\" is one number for two facts again",
+      "file": "internal/cli/docs_banner.go",
+      "find": "\t\tif row, recorded := record.Operations[route.Operation]; recorded && !row.Driven {\n\t\t\tfacts.Explained++\n\t\t}",
+      "replace": "\t\tif row, recorded := record.Operations[route.Operation]; recorded && !row.Driven && false {\n\t\t\tfacts.Explained++\n\t\t}",
+      "test": "TestTheBannerSeparatesExplainedFromUnknown"
+    }
+  ],
+  "note": "The first two mutations move a pack declaration rather than the test that reads it, and that distinction was itself measured: an earlier version of this spec neutralised the two branches inside undriven_test.go and both stayed green, because a test whose detection is switched off passes by construction. It proved nothing about the rule and looked exactly like proof. The two halves are mutated separately because they fail differently — without the first, an operation nobody explains passes; without the second, a reason survives the client that came to drive it."
+}

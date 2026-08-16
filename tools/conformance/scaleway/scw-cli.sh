@@ -601,10 +601,65 @@ scw vpc private-network list region=fr-par -o json \
 scw vpc private-network update "$vpn_id" name=conformance-vpc-pn-2 region=fr-par -o json \
   | jq -e '.name == "conformance-vpc-pn-2"' >/dev/null || fail "private network update did not carry the name"
 
+# The two switches a VPC carries, and the route table under them. All three are
+# CLI subcommands (`enable-dhcp`, `enable-routing`, `route update`) and none had
+# ever been driven: SW-4 mounted them and the suite only ever created and
+# deleted. The assertion is on the flag the emulator serves back, because an
+# endpoint that answers 200 and stores nothing would satisfy the command.
+scw vpc private-network enable-dhcp private-network-id="$vpn_id" region=fr-par -o json >/dev/null \
+  || fail "enable-dhcp rejected"
+scw vpc private-network get "$vpn_id" region=fr-par -o json \
+  | jq -e '.dhcp_enabled == true' >/dev/null || fail "DHCP did not stay enabled on the private network"
+
+scw vpc route enable-routing "$vpc_id" region=fr-par -o json \
+  | jq -e '.routing_enabled == true' >/dev/null || fail "enable-routing did not come back on the VPC"
+
+route="$(scw vpc route create vpc-id="$vpc_id" destination=192.168.77.0/24 \
+          nexthop-private-network-id="$vpn_id" region=fr-par -o json 2>&1)" \
+  || fail "route create rejected: $route"
+route_id="$(printf '%s' "$route" | jq -r '.id // empty')"
+[ -n "$route_id" ] || fail "no id in the route response: $route"
+scw vpc route update "$route_id" description="conformance route" region=fr-par -o json \
+  | jq -e '.description == "conformance route"' >/dev/null || fail "route update did not carry the description"
+scw vpc route delete "$route_id" region=fr-par >/dev/null || fail "route delete rejected"
+
 scw vpc private-network delete "$vpn_id" region=fr-par >/dev/null || fail "private network delete rejected"
 scw vpc vpc delete "$vpc_id" region=fr-par >/dev/null || fail "vpc delete rejected"
 prove_end "$span"
-ok "VPC and private network created, listed, renamed, deleted"
+ok "VPC and private network created, listed, renamed, switched on, routed, deleted"
+
+# Releasing a set rather than an address: the one IPAM call `scw ipam ip delete`
+# does not make, and the only reason it was never driven. A client reaches it
+# through `scw ipam ip-set release`, which is what a user runs when a whole
+# network's addresses have to go at once.
+echo "- a whole set of addresses is released in one call"
+span="$(prove_begin behaviour)"
+set_pn="$(scw vpc private-network create name=conformance-ipset subnets.0=10.186.0.0/24 \
+           region=fr-par -o json 2>&1)" || fail "private network create rejected: $set_pn"
+set_pn_id="$(printf '%s' "$set_pn" | jq -r '.id // empty')"
+[ -n "$set_pn_id" ] || fail "no id in the private network response: $set_pn"
+
+set_ip="$(scw ipam ip create source.private-network-id="$set_pn_id" region=fr-par -o json 2>&1)" \
+  || fail "ipam ip create rejected: $set_ip"
+set_ip_id="$(printf '%s' "$set_ip" | jq -r '.id // empty')"
+[ -n "$set_ip_id" ] || fail "no id in the book response: $set_ip"
+
+# ip-ids is what makes this a set: released with no id, the call is a no-op that
+# answers 204, and an assertion written without one passes on an emulator that
+# releases nothing (measured, on the first version of this block).
+scw ipam ip-set release ip-ids.0="$set_ip_id" region=fr-par >/dev/null \
+  || fail "ip-set release rejected"
+# Released means gone, not merely accepted. The address the set carried must
+# stop answering, and the read is what says so.
+neg="$(prove_begin negative)"
+if scw ipam ip get "$set_ip_id" region=fr-par -o json >/dev/null 2>&1; then
+  fail "an address released with its set still answers"
+fi
+prove_end "$neg"
+scw vpc private-network delete "$set_pn_id" region=fr-par >/dev/null \
+  || fail "cleanup: private network delete rejected"
+prove_end "$span"
+ok "the set released, and its address gone"
 
 # The instance/v1 reads and updates left over (#174): the three lists a client
 # pages through, and the three updates a rename goes through. One call each, and

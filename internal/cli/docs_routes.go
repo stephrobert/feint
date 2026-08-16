@@ -76,7 +76,7 @@ func renderRoutes(evidence *evidenceArtefact, groups map[string]string) (string,
 		for _, r := range p.Routes() {
 			row := fmt.Sprintf("| `%s` | `%s` | `%s` |", r.Method, r.Path, r.Operation)
 			if evidence != nil {
-				row += fmt.Sprintf(" %s |", evidenceTokens(evidence.Operations[r.Operation]))
+				row += fmt.Sprintf(" %s |", evidenceTokens(evidence.Operations[r.Operation], r.Undriven))
 			}
 			bySection[sectionOf(r.Operation)] = append(bySection[sectionOf(r.Operation)], row)
 		}
@@ -98,6 +98,25 @@ func renderRoutes(evidence *evidenceArtefact, groups map[string]string) (string,
 			for _, row := range rows {
 				b.WriteString(row)
 				b.WriteString("\n")
+			}
+			b.WriteString("\n")
+		}
+
+		// What no client reaches, and why. Printed before the refusals because
+		// it is a weaker statement about stronger routes: these are served,
+		// answer, and are validated by the probe — what they lack is a client
+		// path, which is the one proof this project counts (#174).
+		if undriven := undrivenBlocks(p.Routes(), sectionOf); len(undriven) > 0 {
+			fmt.Fprintf(&b, "### Served, and driven by no client (%d)\n\n", undrivenCount(p.Routes()))
+			b.WriteString("Mounted operations no official client reaches, each with the reason. They\n")
+			b.WriteString("are not refusals: they answer, and the probe validates them against the\n")
+			b.WriteString("provider's own description. What they have never had is a real client, which\n")
+			b.WriteString("is the only proof this project counts — so the reason is here rather than\n")
+			b.WriteString("left for a reader to infer from an absent token. A line disappears from\n")
+			b.WriteString("this list the day a client drives its operation, and a test refuses a\n")
+			b.WriteString("reason that outlived its cause.\n\n")
+			for _, block := range undriven {
+				fmt.Fprintf(&b, "- `%s` — %s — %s\n", block.group, countNoun(block.n, "operation"), block.reason)
 			}
 			b.WriteString("\n")
 		}
@@ -162,6 +181,30 @@ func declineBlocks(declined []emulator.Decline, sectionOf func(string) string) [
 		return out[i].reason < out[j].reason
 	})
 	return out
+}
+
+// undrivenBlocks folds a pack's undriven routes into decisions, exactly as
+// declineBlocks folds its refusals: a group, how many of its operations share
+// one reason, and the reason. Written twice would be two shapes for one idea,
+// and the page would say so.
+func undrivenBlocks(routes []emulator.Route, sectionOf func(string) string) []declineBlock {
+	declines := make([]emulator.Decline, 0, len(routes))
+	for _, r := range routes {
+		if r.Undriven != "" {
+			declines = append(declines, emulator.Decline{Operation: r.Operation, Reason: r.Undriven})
+		}
+	}
+	return declineBlocks(declines, sectionOf)
+}
+
+func undrivenCount(routes []emulator.Route) int {
+	n := 0
+	for _, r := range routes {
+		if r.Undriven != "" {
+			n++
+		}
+	}
+	return n
 }
 
 // countNoun renders "1 operation" or "146 operations", because "operation(s)"
@@ -236,10 +279,19 @@ func evidenceLegend(evidence *evidenceArtefact) string {
 // evidenceTokens renders one operation's axes. A fixed order, never a count:
 // a reader must be able to see which proofs exist and must never be handed
 // "3 of 5".
-func evidenceTokens(ev emulator.Evidence) string {
+//
+// undriven is the route's own declaration (Route.Undriven), which is not an
+// axis: it says why the `client` token is absent rather than adding a proof.
+// It renders as `no-client` so a reader scanning the column can tell an
+// operation nobody has got to yet from one no client path reaches — the
+// distinction #174 measured as missing — and the sentence itself is printed
+// once per reason under the table.
+func evidenceTokens(ev emulator.Evidence, undriven string) string {
 	var t []string
 	if ev.Driven {
 		t = append(t, "`client`")
+	} else if undriven != "" {
+		t = append(t, "`no-client`")
 	}
 	switch ev.Contract {
 	case emulator.ContractClean:

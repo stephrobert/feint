@@ -312,6 +312,27 @@ osc ReadNetPeerings '--Filters.NetPeeringIds[]' "$rev_id" \
   | jq -e '.NetPeerings[0].State.Name == "rejected"' >/dev/null \
   || fail "the reverse pending peering was not auto-rejected on accept"
 
+# The rejection a human makes, as opposed to the automatic one above. Both
+# reach the same state and they are not the same call: the auto-rejection is a
+# side effect of AcceptNetPeering, and RejectNetPeering is what the owner of the
+# accepter Net runs to refuse an offer. Only the first had ever been driven
+# (#174), so the endpoint could have answered anything.
+third_doc="$(osc CreateNetPeering --SourceNetId "$net_a" --AccepterNetId "$net_b")" \
+  || fail "CreateNetPeering rejected a third request: $third_doc"
+third_id="$(printf '%s' "$third_doc" | jq -r '.NetPeering.NetPeeringId // empty')"
+[ -n "$third_id" ] || fail "no NetPeeringId in the third create response: $third_doc"
+osc RejectNetPeering --NetPeeringId "$third_id" >/dev/null \
+  || fail "RejectNetPeering rejected a pending peering"
+osc ReadNetPeerings '--Filters.NetPeeringIds[]' "$third_id" \
+  | jq -e '.NetPeerings[0].State.Name == "rejected"' >/dev/null \
+  || fail "an explicitly rejected peering did not reach the rejected state"
+# And it stays refused: rejecting twice is not a second transition.
+neg="$(prove_begin negative)"
+if osc RejectNetPeering --NetPeeringId "$third_id" >/dev/null 2>&1; then
+  fail "a peering already rejected was rejected again"
+fi
+prove_end "$neg"
+
 osc DeleteNetPeering --NetPeeringId "$pcx_id" >/dev/null \
   || fail "DeleteNetPeering rejected an active peering"
 osc ReadNetPeerings '--Filters.NetPeeringIds[]' "$pcx_id" \
@@ -585,6 +606,80 @@ if refused="$(osc UpdateVm --VmId "$vm_id" --VmType tinav6.c4r8p2 2>&1)"; then
 fi
 prove_end "$neg"
 ok "refused while running"
+
+# The four reads and the three writes no scenario reached (#174). They are here
+# rather than in the Terraform fixture because no provider resource maps to
+# them: they are what a client calls directly, and an operation nothing calls is
+# an operation whose answer nobody has ever read.
+echo "- the reads and links a client makes outside any resource"
+reads_span="$(prove_begin behaviour)"
+
+# The public ranges the cloud routes, which a client reads to size a firewall
+# rule. A range that is not a CIDR would be worse than an empty list: it reads
+# as data.
+ranges="$(osc ReadPublicIpRanges)" || fail "ReadPublicIpRanges rejected: $ranges"
+printf '%s' "$ranges" | jq -e '.PublicIps | length > 0 and all(.[]; test("^[0-9.]+/[0-9]+$"))' >/dev/null \
+  || fail "ReadPublicIpRanges did not answer routable ranges: $ranges"
+
+# The service names a Net access point can target. The emulator serves none, and
+# that is an answer: the shape has to be the one the API declares, so a client
+# iterating it finds an empty list rather than a missing key.
+services="$(osc ReadNetAccessPointServices)" || fail "ReadNetAccessPointServices rejected: $services"
+printf '%s' "$services" | jq -e 'has("ResponseContext")' >/dev/null \
+  || fail "ReadNetAccessPointServices answered outside the Outscale envelope: $services"
+
+# The administrator password of a Linux machine, which is empty on the real
+# cloud too: the field exists for Windows images. Answering a 404 here would
+# make a client believe the machine is gone.
+admin="$(osc ReadAdminPassword --VmId "$vm_id")" || fail "ReadAdminPassword rejected: $admin"
+printf '%s' "$admin" | jq -e 'has("AdminPassword") and has("ResponseContext")' >/dev/null \
+  || fail "ReadAdminPassword did not answer the shape the API declares: $admin"
+
+# A tag put on and taken off again. CreateTags was driven by the Terraform
+# fixture from the first apply; DeleteTags needed a second apply that drops one,
+# which no fixture did, so the emulator's removal path had never run.
+osc CreateTags --ResourceIds "[\"$vm_id\"]" --Tags '[{"Key":"conformance","Value":"one"}]' >/dev/null \
+  || fail "CreateTags rejected"
+osc ReadTags '--Filters.ResourceIds[]' "$vm_id" \
+  | jq -e 'any(.Tags[]; .Key == "conformance" and .Value == "one")' >/dev/null \
+  || fail "the tag was accepted and is not readable"
+osc DeleteTags --ResourceIds "[\"$vm_id\"]" --Tags '[{"Key":"conformance","Value":"one"}]' >/dev/null \
+  || fail "DeleteTags rejected"
+osc ReadTags '--Filters.ResourceIds[]' "$vm_id" \
+  | jq -e 'any(.Tags[]; .Key == "conformance") | not' >/dev/null \
+  || fail "the tag survived DeleteTags"
+
+# Secondary addresses on an interface, which is how a client runs two services
+# on one machine. The NIC gets a Net and a Subnet of its own: the ones this
+# suite opened with are deleted long before here, and the Vm's own interface is
+# published inside its answer rather than stored, so LinkPrivateIps against the
+# published NicId answers 5063 — the emulator being right, and the first version
+# of this block being wrong.
+nic_net="$(osc CreateNet --IpRange 10.193.0.0/16)" || fail "CreateNet rejected: $nic_net"
+nic_net_id="$(printf '%s' "$nic_net" | jq -r '.Net.NetId // empty')"
+[ -n "$nic_net_id" ] || fail "no NetId for the NIC's Net: $nic_net"
+nic_sub="$(osc CreateSubnet --NetId "$nic_net_id" --IpRange 10.193.1.0/24)" \
+  || fail "CreateSubnet rejected: $nic_sub"
+nic_sub_id="$(printf '%s' "$nic_sub" | jq -r '.Subnet.SubnetId // empty')"
+[ -n "$nic_sub_id" ] || fail "no SubnetId for the NIC's Subnet: $nic_sub"
+nic="$(osc CreateNic --SubnetId "$nic_sub_id")" || fail "CreateNic rejected: $nic"
+nic_id="$(printf '%s' "$nic" | jq -r '.Nic.NicId // empty')"
+[ -n "$nic_id" ] || fail "no NicId in the create response: $nic"
+osc LinkPrivateIps --NicId "$nic_id" --PrivateIps '["10.193.1.42"]' >/dev/null \
+  || fail "LinkPrivateIps rejected"
+osc ReadNics '--Filters.NicIds[]' "$nic_id" \
+  | jq -e 'any(.Nics[0].PrivateIps[]; .PrivateIp == "10.193.1.42")' >/dev/null \
+  || fail "the secondary address was accepted and is not carried by the NIC"
+osc UnlinkPrivateIps --NicId "$nic_id" --PrivateIps '["10.193.1.42"]' >/dev/null \
+  || fail "UnlinkPrivateIps rejected"
+osc ReadNics '--Filters.NicIds[]' "$nic_id" \
+  | jq -e 'any(.Nics[0].PrivateIps[]; .PrivateIp == "10.193.1.42") | not' >/dev/null \
+  || fail "the secondary address survived its unlink"
+osc DeleteNic --NicId "$nic_id" >/dev/null || fail "DeleteNic rejected"
+osc DeleteSubnet --SubnetId "$nic_sub_id" >/dev/null || fail "DeleteSubnet rejected"
+osc DeleteNet --NetId "$nic_net_id" >/dev/null || fail "DeleteNet rejected once empty"
+prove_end "$reads_span"
+ok "ranges, services, admin password, a tag removed, a secondary address linked and unlinked"
 
 echo "- delete"
 deleted="$(osc DeleteVms '--VmIds[]' "$vm_id")" || fail "DeleteVms rejected: $deleted"
