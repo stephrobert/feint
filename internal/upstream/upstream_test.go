@@ -267,3 +267,22 @@ func TestTomlValueReadsEveryQuotingTheFileMayUse(t *testing.T) {
 		t.Errorf("a missing key read as %q", got)
 	}
 }
+
+// The Outscale call identity — key prefix, method, path — is one exported
+// function with two consumers: the recorder here and the shapes gate in
+// internal/cli. The values are pinned because artefacts on disk depend on
+// them: shapes/outscale.json keys its operations "osc/Client.<Action>", and a
+// silent change would orphan every recorded catalogue while both consumers
+// kept agreeing with each other.
+func TestTheOutscaleCallIdentityIsPinned(t *testing.T) {
+	key, method, path := OutscaleCall("ReadVms")
+	if key != "osc/Client.ReadVms" {
+		t.Errorf("key = %q, want osc/Client.ReadVms", key)
+	}
+	if method != http.MethodPost {
+		t.Errorf("method = %q, want POST", method)
+	}
+	if path != "/api/v1/ReadVms" {
+		t.Errorf("path = %q, want /api/v1/ReadVms", path)
+	}
+}

@@ -1,0 +1,26 @@
+{
+  "package": "./internal/upstream/",
+  "mutations": [
+    {
+      "label": "the catalogue key prefix drifts, and every recorded shape file is orphaned in silence",
+      "file": "internal/upstream/upstream.go",
+      "find": "\treturn \"osc/Client.\" + action, http.MethodPost, \"/api/v1/\" + action",
+      "replace": "\treturn \"osc/Client2.\" + action, http.MethodPost, \"/api/v1/\" + action",
+      "test": "TestTheOutscaleCallIdentityIsPinned"
+    },
+    {
+      "label": "the path drifts, and both consumers agree on a request the API does not serve",
+      "file": "internal/upstream/upstream.go",
+      "find": "\treturn \"osc/Client.\" + action, http.MethodPost, \"/api/v1/\" + action",
+      "replace": "\treturn \"osc/Client.\" + action, http.MethodPost, \"/api/v2/\" + action",
+      "test": "TestTheOutscaleCallIdentityIsPinned"
+    },
+    {
+      "label": "the method drifts, and the gate probes with a verb the emulator routes nowhere",
+      "file": "internal/upstream/upstream.go",
+      "find": "\treturn \"osc/Client.\" + action, http.MethodPost, \"/api/v1/\" + action",
+      "replace": "\treturn \"osc/Client.\" + action, http.MethodGet, \"/api/v1/\" + action",
+      "test": "TestTheOutscaleCallIdentityIsPinned"
+    }
+  ]
+}

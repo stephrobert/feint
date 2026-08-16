@@ -318,10 +318,13 @@ func parentPath(path string) string {
 
 // callIdentity turns a read-list entry into the key the catalogue uses and the
 // request that produces it. The two must agree or the check compares an
-// operation with itself under another name and finds nothing.
+// operation with itself under another name and finds nothing — which is why
+// the Outscale identity comes from upstream.OutscaleCall, the same function
+// the recorder writes the catalogue with, rather than from a second copy here
+// that a fix in one would leave broken in the other.
 func callIdentity(p upstream.Provider, call string) (key, method, path string) {
 	if p == upstream.Outscale {
-		return "osc/Client." + call, http.MethodPost, "/api/v1/" + call
+		return upstream.OutscaleCall(call)
 	}
 	return http.MethodGet + " " + call, http.MethodGet, call
 }

@@ -246,10 +246,27 @@ func (c *Client) once(ctx context.Context, call string) (trace.Exchange, error) 
 	return ex, nil
 }
 
+// OutscaleCall is the one place the Outscale dialect is written: the key the
+// shapes catalogue records an action under, and the request that produces it.
+// The key carries the SDK's own qualifier so a shape file and a route table
+// agree; the request is a POST on /api/v1/<Action>, which is the whole of
+// Outscale's URL structure.
+//
+// Exported because the shapes gate replays the same identity against the
+// emulator: written twice — here and in the gate — a fix in one survived
+// broken in the other, which is this repository's named failure pattern
+// (docs/fourth-pack.md measured it). Both callers consume this function, and
+// TestTheOutscaleCallIdentityIsPinned holds the values the recorded catalogues
+// on disk depend on.
+func OutscaleCall(action string) (key, method, path string) {
+	return "osc/Client." + action, http.MethodPost, "/api/v1/" + action
+}
+
 // request turns a call into a request, in the provider's own dialect.
 func (c *Client) request(call string) (method, path string, body []byte) {
 	if c.Provider == Outscale {
-		return http.MethodPost, "/api/v1/" + call, []byte("{}")
+		_, method, path := OutscaleCall(call)
+		return method, path, []byte("{}")
 	}
 	return http.MethodGet, call, nil
 }
@@ -259,7 +276,8 @@ func (c *Client) request(call string) (method, path string, body []byte) {
 // two are named by their path, which is what their operations are.
 func (c *Client) operationName(call string) string {
 	if c.Provider == Outscale {
-		return "osc/Client." + call
+		key, _, _ := OutscaleCall(call)
+		return key
 	}
 	return ""
 }
