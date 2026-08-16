@@ -1,0 +1,221 @@
+package cli
+
+import (
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"testing"
+)
+
+// The shared layer is enforced, not merely offered (#220).
+//
+// The first factorisation pass moved real invariants into the core —
+// core/serialise, Binding.Transition, Binding.Observe, the conditional
+// write-back, storetest's barrage — and none of them was enforced. A pack could
+// write its own mutex, its own read-modify-write and its own isolation loop, and
+// every gate in the repository stayed green. That is not a hypothesis: it is how
+// the divergences this milestone spent itself on arrived. updateVm was
+// serialised, updateServer was not, and nothing failed for months.
+//
+// Three controls were on the table. The strongest — the Pack interface carrying
+// the mutation path, so bypassing it is a compile error — was not taken, and the
+// reason is worth writing down rather than leaving as an omission: the three
+// packs' mutations have genuinely different shapes (an Outscale action names a
+// batch of Vms, an Exoscale one answers an operation object, a Scaleway one a
+// task), and one signature over all three would either be so wide it enforces
+// nothing or would force a fourth provider to lie about its API. The issue calls
+// that option the most invasive, and it is also the one that would push provider
+// vocabulary into the core, which rule 5 forbids.
+//
+// What is taken instead is mechanical and cannot be skipped by omission, which
+// was the whole complaint: the two checks below read the packs' own source. A
+// pack that forgets does not simply lack a test — it fails one it never had to
+// remember to write.
+
+func packDirs(t *testing.T) []string {
+	t.Helper()
+	root := repoRoot(t)
+	base := filepath.Join(root, "internal", "providers")
+	entries, err := os.ReadDir(base)
+	if err != nil {
+		t.Fatalf("read the providers directory: %v", err)
+	}
+	var dirs []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			dirs = append(dirs, filepath.Join(base, entry.Name()))
+		}
+	}
+	if len(dirs) == 0 {
+		t.Fatal("no provider pack found: this control would pass by finding nothing")
+	}
+	return dirs
+}
+
+// ownExclusion lists the places a pack may hold its own exclusion primitive, each
+// with the reason — the discipline Declined() applies to a refusal, applied to an
+// exemption. An empty list is the honest state today.
+//
+// Keyed by "<pack>/<file>" so an exemption cannot quietly widen to a whole pack.
+var ownExclusion = map[string]string{}
+
+// A pack does not build its own exclusion.
+//
+// Named exclusion lives in core/serialise, and it lives there because the copy
+// each pack used to carry is how a fixed race stayed alive elsewhere — the
+// comment on machine.Serialise says so, and this is the control that comment
+// never had. A pack importing sync is reaching for a mutex, a once or a map that
+// the core already keys by provider and target.
+//
+// Import-level rather than a scan for sync.Mutex declarations: it catches the
+// variants too (RWMutex, Map, Once, WaitGroup used as a gate), it cannot be
+// worked around by aliasing a type, and a pack that genuinely needs one says so
+// in ownExclusion with its reason.
+func TestNoPackBuildsItsOwnExclusion(t *testing.T) {
+	for _, dir := range packDirs(t) {
+		pack := filepath.Base(dir)
+		files, err := filepath.Glob(filepath.Join(dir, "*.go"))
+		if err != nil {
+			t.Fatalf("list %s: %v", pack, err)
+		}
+		for _, file := range files {
+			if strings.HasSuffix(file, "_test.go") {
+				// Test files are allowed theirs: a barrage needs a WaitGroup, and
+				// what is being protected there is the test, not the emulator.
+				continue
+			}
+			parsed, err := parser.ParseFile(token.NewFileSet(), file, nil, parser.ImportsOnly)
+			if err != nil {
+				t.Fatalf("parse %s: %v", file, err)
+			}
+			for _, imported := range parsed.Imports {
+				if imported.Path.Value != `"sync"` {
+					continue
+				}
+				key := pack + "/" + filepath.Base(file)
+				if reason := ownExclusion[key]; reason != "" {
+					continue
+				}
+				t.Errorf("%s imports sync: named exclusion lives in core/serialise, keyed by "+
+					"provider and target, because the copy each pack used to carry is how a "+
+					"fixed race stayed alive elsewhere. If this one is genuinely different, "+
+					"add %q to ownExclusion with the reason", key, key)
+			}
+		}
+	}
+}
+
+// notInTheBarrage lists the shared controls a pack legitimately does not run,
+// with the reason. Same shape and same discipline as Declined().
+var notInTheBarrage = map[string]string{
+	"exoscale/Orphans": "this pack keeps its references on the owner rather than on the dependent — " +
+		"an instance carries the ids of its elastic IPs and the networks it joined, so deleting it " +
+		"takes the reference with it and no record is left naming something gone",
+}
+
+// Every pack registers in the shared barrage.
+//
+// The controls exist (storetest.Sweep, NoLostUpdate, Orphans) and all three packs
+// run them today. Nothing made that true, which is the complaint: a fourth pack
+// that never writes the test has no failure to notice, only an absence — and an
+// absence is what this milestone kept finding months late.
+//
+// So the registration is discovered from the pack's own test sources rather than
+// declared by its author. A pack that skips one names it in notInTheBarrage with
+// a reason, which is a line somebody has to write and a reviewer can read.
+func TestEveryPackRunsTheSharedBarrage(t *testing.T) {
+	controls := []string{"Sweep", "NoLostUpdate", "Orphans"}
+
+	for _, dir := range packDirs(t) {
+		pack := filepath.Base(dir)
+		files, err := filepath.Glob(filepath.Join(dir, "*_test.go"))
+		if err != nil {
+			t.Fatalf("list %s: %v", pack, err)
+		}
+		if len(files) == 0 {
+			t.Errorf("%s has no test files at all", pack)
+			continue
+		}
+
+		found := map[string]bool{}
+		for _, file := range files {
+			source, err := os.ReadFile(file)
+			if err != nil {
+				t.Fatalf("read %s: %v", file, err)
+			}
+			for _, control := range controls {
+				if strings.Contains(string(source), "storetest."+control+"(") {
+					found[control] = true
+				}
+			}
+		}
+
+		var missing []string
+		for _, control := range controls {
+			if found[control] {
+				continue
+			}
+			if reason := notInTheBarrage[pack+"/"+control]; reason != "" {
+				continue
+			}
+			missing = append(missing, control)
+		}
+		sort.Strings(missing)
+		if len(missing) > 0 {
+			t.Errorf("%s runs none of storetest.%s: the invariant is shared and the traffic is "+
+				"the pack's, so a pack that does not drive it is a pack the invariant does not "+
+				"cover. Add the barrage, or name it in notInTheBarrage with the reason",
+				pack, strings.Join(missing, ", storetest."))
+		}
+	}
+}
+
+// A reason that says nothing is not a reason, which is the lesson the declines
+// guard already paid for: the exemption maps above would otherwise let a pack out
+// with an empty string.
+func TestEveryBarrageExemptionSaysWhy(t *testing.T) {
+	for _, exemptions := range []map[string]string{ownExclusion, notInTheBarrage} {
+		for key, reason := range exemptions {
+			if len(strings.Fields(reason)) < 5 {
+				t.Errorf("the exemption for %s says %q, which is not a reason a reviewer can weigh",
+					key, reason)
+			}
+		}
+	}
+}
+
+// And the detectors work, because a control that finds nothing looks exactly like
+// a clean repository. Both are exercised against a source that must trip them.
+func TestTheDisciplineDetectorsFindWhatTheyLookFor(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "pack.go")
+	if err := os.WriteFile(file, []byte("package p\n\nimport \"sync\"\n\nvar mu sync.Mutex\n"), 0o600); err != nil {
+		t.Fatalf("write the fixture: %v", err)
+	}
+	parsed, err := parser.ParseFile(token.NewFileSet(), file, nil, parser.ImportsOnly)
+	if err != nil {
+		t.Fatalf("parse the fixture: %v", err)
+	}
+	imports := 0
+	ast.Inspect(parsed, func(node ast.Node) bool {
+		if spec, ok := node.(*ast.ImportSpec); ok && spec.Path.Value == `"sync"` {
+			imports++
+		}
+		return true
+	})
+	if imports != 1 {
+		t.Errorf("the import scan found %d sync imports in a file that has one", imports)
+	}
+
+	source := "storetest.Sweep(st.All(), nil, nil)"
+	if !strings.Contains(source, "storetest.Sweep(") {
+		t.Error("the registration scan does not recognise a call it is looking for")
+	}
+	if strings.Contains(source, "storetest.NoLostUpdate(") {
+		t.Error("the registration scan reports a call that is not there")
+	}
+}

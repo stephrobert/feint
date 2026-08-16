@@ -1,0 +1,26 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "a pack builds its own exclusion instead of using core/serialise",
+      "file": "internal/providers/exoscale/antiaffinity.go",
+      "find": "import (\n\t\"net/http\"\n\t\"sort\"\n\t\"strings\"\n\n\t\"github.com/stephrobert/feint/internal/core/emulator\"\n\t\"github.com/stephrobert/feint/internal/core/resource\"\n)",
+      "replace": "import (\n\t\"net/http\"\n\t\"sort\"\n\t\"strings\"\n\t\"sync\"\n\n\t\"github.com/stephrobert/feint/internal/core/emulator\"\n\t\"github.com/stephrobert/feint/internal/core/resource\"\n)\n\n// The copy of the shared mechanism this control exists to refuse.\nvar packLocalExclusion sync.Mutex\n\nfunc init() { packLocalExclusion.Lock(); packLocalExclusion.Unlock() }",
+      "test": "TestNoPackBuildsItsOwnExclusion"
+    },
+    {
+      "label": "a pack drops out of the shared barrage",
+      "file": "internal/providers/exoscale/lostupdate_test.go",
+      "find": "\tfound := storetest.NoLostUpdate(40, func(trial int) []storetest.Write {",
+      "replace": "\tfound := storetest.NoLostUpdateRenamed(40, func(trial int) []storetest.Write {",
+      "test": "TestEveryPackRunsTheSharedBarrage"
+    },
+    {
+      "label": "an exemption is granted with a reason nobody can weigh",
+      "file": "internal/cli/discipline_test.go",
+      "find": "\t\"exoscale/Orphans\": \"this pack keeps its references on the owner rather than on the dependent — \" +\n\t\t\"an instance carries the ids of its elastic IPs and the networks it joined, so deleting it \" +\n\t\t\"takes the reference with it and no record is left naming something gone\",",
+      "replace": "\t\"exoscale/Orphans\": \"not needed\",",
+      "test": "TestEveryBarrageExemptionSaysWhy"
+    }
+  ]
+}
