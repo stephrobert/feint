@@ -1,0 +1,19 @@
+{
+  "package": "./internal/core/store/storetest/",
+  "mutations": [
+    {
+      "label": "the invariant is scoped by kind again, and a cross-kind collision goes unseen",
+      "file": "internal/core/store/storetest/sweep.go",
+      "find": "\t\t\tif clash && first.ID != res.ID && (shared == nil || !shared(first, res)) {",
+      "replace": "\t\t\tif clash && first.ID != res.ID && first.Kind == res.Kind && (shared == nil || !shared(first, res)) {",
+      "test": "TestAnAddressSharedAcrossKindsIsReported"
+    },
+    {
+      "label": "every pair is exempt, so the control reports nothing at all",
+      "file": "internal/core/store/storetest/sweep.go",
+      "find": "\t\t\tif clash && first.ID != res.ID && (shared == nil || !shared(first, res)) {",
+      "replace": "\t\t\tif clash && first.ID != res.ID && (shared == nil || !shared(first, res)) && false {",
+      "test": "TestAnAddressSharedAcrossKindsIsReported"
+    }
+  ]
+}

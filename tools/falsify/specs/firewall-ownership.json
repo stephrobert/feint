@@ -1,0 +1,12 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the ownership question is no longer asked before a firewall is applied",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\tif err := d.mustOwnInstance(ctx, machine); err != nil {\n\t\treturn err\n\t}",
+      "replace": "\tif err := d.mustOwnInstance(ctx, machine); err != nil && false {\n\t\treturn err\n\t}",
+      "test": "TestApplyFirewallRefusesAnInstanceTheEmulatorDidNotCreate"
+    }
+  ]
+}

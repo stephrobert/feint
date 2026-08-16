@@ -76,7 +76,7 @@ func TestATerminatedVmsAddressReturnsToItsSubnet(t *testing.T) {
 
 	// And the invariant agrees, with the pack's own word on liveness: the
 	// terminated record still carries the address string, and holds nothing.
-	if found := storetest.Sweep(st.All(), outscale.Gone); len(found) != 0 {
+	if found := storetest.Sweep(st.All(), outscale.Gone, nil); len(found) != 0 {
 		t.Errorf("the sweep convicts the legitimate reuse:\n%s", strings.Join(found, "\n"))
 	}
 }

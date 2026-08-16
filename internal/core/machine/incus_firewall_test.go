@@ -45,6 +45,16 @@ func (f *fakeRuntime) run(_ context.Context, args ...string) ([]byte, error) {
 			return []byte(answer), nil
 		}
 	}
+	// The ownership probe answers "ours" unless a test says otherwise.
+	//
+	// Every machine in these tests is one the emulator created, so that is the
+	// case a fixture should not have to restate; a test about the *refusal*
+	// declares the empty label explicitly, which is the half worth spelling out.
+	// Without this default, adding the guard to ApplyFirewall turned four
+	// unrelated tests red for a reason none of them is about.
+	if strings.HasPrefix(key, "config get ") && strings.Contains(key, "user."+LabelKey) {
+		return []byte("feint\n"), nil
+	}
 	return nil, nil
 }
 
@@ -350,5 +360,78 @@ func TestFirewallNameIsStableAndFitsAnInterface(t *testing.T) {
 	// A second pack uses another prefix, and the two must not collide on one id.
 	if other := FirewallName("osc", id); other == first {
 		t.Fatalf("two providers produced the same name %q for one id", first)
+	}
+}
+
+// ApplyFirewall refuses an instance the emulator did not create (#209).
+//
+// safeName answers "could this become a command argument safely" and accepts
+// `production-database` like every other name on the host. The machine name
+// arrives from Resource.Runtime, which PUT /_feint/state and `feint snapshot
+// load` restore verbatim, so a crafted snapshot named any instance and this
+// call edited its network devices.
+//
+// RemoveFirewall already asked the question. The guarded list forgot that
+// installing a rule set on somebody else's NIC is as much a change as removing
+// one — a reconfiguring path, not only a destructive one.
+//
+// The assertion is on the arguments, not on the error: what matters is that no
+// command carrying the foreign name is ever emitted, which is what the runner
+// seam exists to measure.
+func TestApplyFirewallRefusesAnInstanceTheEmulatorDidNotCreate(t *testing.T) {
+	const foreign = "production-database"
+	f := &fakeRuntime{answers: map[string]string{
+		// The label is absent: this instance is the operator's, not ours.
+		"config get " + foreign: "",
+		"/1.0/instances/":       twoNICs,
+		"/1.0/networks/":        `{"type": "bridge"}`,
+	}}
+	d := newFakeDriver(f)
+
+	err := d.ApplyFirewall(context.Background(), foreign, FirewallBinding{
+		Names:          []string{"sg-one"},
+		DefaultIngress: "drop",
+		DefaultEgress:  "allow",
+	})
+	if err == nil {
+		t.Fatal("a firewall was applied to an instance the emulator never created")
+	}
+
+	for _, command := range f.commands() {
+		if !strings.Contains(command, foreign) {
+			continue
+		}
+		// Reading the label is the question itself, so it is allowed to name it.
+		if strings.HasPrefix(command, "config get ") {
+			continue
+		}
+		t.Errorf("a command reached the operator's own instance: %s", command)
+	}
+}
+
+// And the accepting half. A guard that refused everything would pass the test
+// above and leave the product unable to attach a security group at all.
+func TestApplyFirewallStillWorksOnOurOwnInstance(t *testing.T) {
+	f := &fakeRuntime{answers: map[string]string{
+		"/1.0/instances/srv": twoNICs,
+		"/1.0/networks/":     `{"type": "bridge"}`,
+	}}
+	d := newFakeDriver(f)
+
+	if err := d.ApplyFirewall(context.Background(), "srv", FirewallBinding{
+		Names:          []string{"sg-one"},
+		DefaultIngress: "drop",
+		DefaultEgress:  "allow",
+	}); err != nil {
+		t.Fatalf("the guard refused an instance the emulator created: %v", err)
+	}
+	var applied bool
+	for _, command := range f.commands() {
+		if strings.Contains(command, "security.acls") {
+			applied = true
+		}
+	}
+	if !applied {
+		t.Errorf("no rule set was applied:\n%s", strings.Join(f.commands(), "\n"))
 	}
 }

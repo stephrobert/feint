@@ -42,6 +42,12 @@ import (
 // stricter, never blinder.
 type Gone func(*resource.Resource) bool
 
+// Shared reports two resources that may hold one address without it being a
+// defect — a record that *is* an address and the machine it is attached to, for
+// instance. The relation is the pack's knowledge, so the pack declares it; nil
+// means no pair is exempt, which is the strict reading.
+type Shared func(a, b *resource.Resource) bool
+
 // Sweep reports every invariant the store broke, one line each, sorted so two
 // runs of the same failure read the same.
 //
@@ -52,10 +58,15 @@ type Gone func(*resource.Resource) bool
 // gone is the pack's word on which resources no longer exist; nil means all of
 // them do. Only the address invariant reads it — an identifier is issued once
 // forever, and a runtime object claimed by a dead record is still an orphan.
-func Sweep(resources []*resource.Resource, gone Gone) []string {
+//
+// shared is the pack's word on which pairs may hold one address without it being
+// a defect; nil means none may. Both are the pack's knowledge rather than the
+// core's, for the reason CLAUDE.md's rule 5 gives: this package must not learn
+// three providers' vocabularies to do its job.
+func Sweep(resources []*resource.Resource, gone Gone, shared Shared) []string {
 	var found []string
 	found = append(found, duplicateIdentifiers(resources)...)
-	found = append(found, sharedAddresses(resources, gone)...)
+	found = append(found, sharedAddresses(resources, gone, shared)...)
 	found = append(found, sharedRuntimeObjects(resources)...)
 	sort.Strings(found)
 	return found
@@ -107,9 +118,27 @@ func duplicateIdentifiers(resources []*resource.Resource) []string {
 // keyed on them is a sweep the fourth pack escapes. Anything that parses as an
 // IP is an address; a prefix like 10.0.0.0/24 is not, and is skipped, since a
 // subnet legitimately appears on the network and on everything placed in it.
-func sharedAddresses(resources []*resource.Resource, gone Gone) []string {
-	// kind -> address -> the first resource holding it
-	byKind := map[string]map[string]string{}
+func sharedAddresses(resources []*resource.Resource, gone Gone, shared Shared) []string {
+	// address -> the first resource holding it, across every kind (#210).
+	//
+	// This used to be keyed by kind, so it only compared machines with machines
+	// and NICs with NICs. Its own header promises one address handed to two
+	// resources, and the cross-kind case — the one that actually happens, since
+	// a pool is shared by everything placed in it — was invisible. Proven by a
+	// probe: two live resources of different kinds carrying one address, zero
+	// findings.
+	//
+	// Some pairs share an address legitimately, and pretending otherwise would
+	// only move the false control rather than remove it: a Scaleway server and
+	// the instance/ip record that *is* its flexible address both carry it, and
+	// widening the comparison made TestAHealthyStoreSweepsClean red on exactly
+	// that pair. Measured, not foreseen — a probe over the three barrages had
+	// shown nothing, because their workload does not build that pair.
+	//
+	// So the exemption is declared by the pack that knows the relation, through
+	// Shared, and nil means the strict reading: a pack that forgets gets a loud
+	// false positive naming both resources, never a silent blind spot.
+	held := map[string]*resource.Resource{}
 	var found []string
 
 	for _, res := range resources {
@@ -119,19 +148,19 @@ func sharedAddresses(resources []*resource.Resource, gone Gone) []string {
 		if gone != nil && gone(res) {
 			continue
 		}
-		held := byKind[res.Kind]
-		if held == nil {
-			held = map[string]string{}
-			byKind[res.Kind] = held
-		}
 		for _, addr := range addressesIn(res.Attrs) {
-			if first, clash := held[addr]; clash && first != res.ID {
+			first, clash := held[addr]
+			// The exemption is asked only once there is something to exempt:
+			// computing it first passed a nil `first` to the pack's predicate,
+			// which dereferenced it. The harness caught that by refusing to
+			// measure on a red tree, which is what that refusal is for.
+			if clash && first.ID != res.ID && (shared == nil || !shared(first, res)) {
 				found = append(found, fmt.Sprintf(
-					"address %s is held by two %s resources: %s and %s",
-					addr, res.Kind, first, res.ID))
+					"address %s is held by two live resources: %s (%s) and %s (%s)",
+					addr, first.ID, first.Kind, res.ID, res.Kind))
 				continue
 			}
-			held[addr] = res.ID
+			held[addr] = res
 		}
 	}
 	return found

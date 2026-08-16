@@ -138,6 +138,23 @@ func (d *Incus) ApplyFirewall(ctx context.Context, machine string, binding Firew
 	if !safeName.MatchString(machine) {
 		return fmt.Errorf("invalid machine name %q", machine)
 	}
+	// Well formed is not authorised, and this path had only the first half.
+	//
+	// safeName answers "could this become a command argument safely". It accepts
+	// `production-database` and every other name on the host. The name arrives
+	// from Resource.Runtime, which `PUT /_feint/state` and `feint snapshot load`
+	// restore verbatim — snapshot.go documents the format as meant to outlive its
+	// instance and be loaded into another one — so a crafted snapshot named any
+	// instance and this call edited its network devices.
+	//
+	// RemoveFirewall already asks the question. The list of guarded paths forgot
+	// that *installing* a rule set on somebody else's NIC is as much a change as
+	// removing one: reconfiguring paths belong in it, not only destructive ones.
+	//
+	// TestApplyFirewallRefusesAnInstanceTheEmulatorDidNotCreate fails without this.
+	if err := d.mustOwnInstance(ctx, machine); err != nil {
+		return err
+	}
 	devices, err := d.networkDevices(ctx, machine)
 	if err != nil {
 		return err

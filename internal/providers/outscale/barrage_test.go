@@ -121,7 +121,7 @@ func TestAnOutscaleBarrageLeavesTheStoreCoherent(t *testing.T) {
 
 	// The pack's own word on liveness: a terminated Vm keeps its record for
 	// ReadVms polling and holds nothing, so the sweep must not count it.
-	if found := storetest.Sweep(st.All(), outscale.Gone); len(found) != 0 {
+	if found := storetest.Sweep(st.All(), outscale.Gone, nil); len(found) != 0 {
 		t.Errorf("the store is incoherent after the barrage:\n%s", strings.Join(found, "\n"))
 	}
 }

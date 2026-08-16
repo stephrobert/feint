@@ -175,9 +175,11 @@ func TestPeerNetworksRefusesForeignNetworksOnEitherEnd(t *testing.T) {
 }
 
 func TestUnrouteAddressRefusesAnInstanceWithoutTheEmulatorsLabel(t *testing.T) {
-	// The fake answers nothing for `config get`, which is what an unlabelled
-	// instance looks like: it exists, and it is not ours.
-	f := &fakeRuntime{}
+	// The empty label is what an unlabelled instance looks like: it exists, and
+	// it is not ours. Declared rather than left to the fake's silence — since
+	// #209 the fake answers "ours" by default, because that is the case every
+	// other test is about, and the refusal is the half worth spelling out.
+	f := &fakeRuntime{answers: map[string]string{"config get production-database": ""}}
 	d := newFakeDriver(f)
 
 	err := d.UnrouteAddress(context.Background(), "production-database", "10.0.0.5")

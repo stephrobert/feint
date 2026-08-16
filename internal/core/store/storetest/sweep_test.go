@@ -45,9 +45,25 @@ func TestAHealthyStoreSweepsClean(t *testing.T) {
 
 	server.Runtime = map[string]string{"machine": "feint-scw-s1"}
 
-	if found := storetest.Sweep([]*resource.Resource{server, address, network, volA, volB}, nil); len(found) != 0 {
+	// The server and the address record hold one address, legitimately: the
+	// record *is* the flexible IP, the server carries it. Since the invariant
+	// compares across kinds (#210), that pair has to be declared — and declaring
+	// it is the point, because the alternative is a control that stays silent
+	// about every collision in order to stay silent about this one.
+	attached := func(a, b *resource.Resource) bool {
+		kinds := map[string]bool{a.Kind: true, b.Kind: true}
+		return kinds["instance/server"] && kinds["instance/ip"]
+	}
+	if found := storetest.Sweep([]*resource.Resource{server, address, network, volA, volB},
+		nil, attached); len(found) != 0 {
 		t.Errorf("a healthy store produced findings, so the sweep would cry wolf on every run:\n%s",
 			strings.Join(found, "\n"))
+	}
+
+	// And without the declaration the pair is reported, which is what makes the
+	// exemption a decision rather than a default.
+	if found := storetest.Sweep([]*resource.Resource{server, address}, nil, nil); len(found) == 0 {
+		t.Error("an undeclared pair sharing an address was not reported; the strict reading is the default")
 	}
 }
 
@@ -55,7 +71,7 @@ func TestTheSweepSeesAnIdentifierIssuedTwice(t *testing.T) {
 	found := storetest.Sweep([]*resource.Resource{
 		res("same", "instance/server", map[string]any{"name": "a"}),
 		res("same", "instance/ip", map[string]any{"address": "203.0.113.1"}),
-	}, nil)
+	}, nil, nil)
 	if len(found) == 0 {
 		t.Fatal("two resources sharing an identifier swept clean, and the store keys on it")
 	}
@@ -68,7 +84,7 @@ func TestTheSweepSeesOneAddressAllocatedTwice(t *testing.T) {
 	found := storetest.Sweep([]*resource.Resource{
 		res("ip1", "instance/ip", map[string]any{"address": "203.0.113.9"}),
 		res("ip2", "instance/ip", map[string]any{"address": "203.0.113.9"}),
-	}, nil)
+	}, nil, nil)
 	if len(found) == 0 {
 		t.Fatal("one address held by two resources of one kind swept clean")
 	}
@@ -83,7 +99,7 @@ func TestTheSweepSeesOneAddressAllocatedTwice(t *testing.T) {
 			"public_ips": []any{map[string]any{"address": "198.51.100.4"}}}),
 		res("s2", "instance/server", map[string]any{
 			"public_ips": []any{map[string]any{"address": "198.51.100.4"}}}),
-	}, nil)
+	}, nil, nil)
 	if len(nested) == 0 {
 		t.Error("a duplicated address nested inside a list swept clean")
 	}
@@ -95,7 +111,7 @@ func TestTheSweepSeesTwoResourcesClaimingOneMachine(t *testing.T) {
 	b := res("s2", "instance/server", map[string]any{"name": "b"})
 	b.Runtime = map[string]string{"machine": "feint-scw-orphan"}
 
-	found := storetest.Sweep([]*resource.Resource{a, b}, nil)
+	found := storetest.Sweep([]*resource.Resource{a, b}, nil, nil)
 	if len(found) == 0 {
 		t.Fatal("two resources naming one runtime machine swept clean: deleting either destroys the other's")
 	}
@@ -110,7 +126,7 @@ func TestTheSweepSurvivesANilResource(t *testing.T) {
 	found := storetest.Sweep([]*resource.Resource{
 		nil,
 		res("s1", "instance/server", map[string]any{"name": "a"}),
-	}, nil)
+	}, nil, nil)
 	if len(found) != 0 {
 		t.Errorf("a nil element produced findings: %v", found)
 	}
@@ -131,18 +147,55 @@ func TestAGoneResourcesAddressIsNotShared(t *testing.T) {
 	both := []*resource.Resource{dead, live}
 	gone := func(r *resource.Resource) bool { return r.State == "terminated" }
 
-	if found := storetest.Sweep(both, gone); len(found) != 0 {
+	if found := storetest.Sweep(both, gone, nil); len(found) != 0 {
 		t.Errorf("an address inherited from a gone resource was reported shared:\n%s",
 			strings.Join(found, "\n"))
 	}
 
 	// Both halves: without the pack's word, the strict reading still bites —
 	// and two living holders stay a breach whatever predicate is passed.
-	if found := storetest.Sweep(both, nil); len(found) == 0 {
+	if found := storetest.Sweep(both, nil, nil); len(found) == 0 {
 		t.Error("with no liveness predicate the sweep stopped seeing the shared address at all")
 	}
 	dead.State = "running"
-	if found := storetest.Sweep(both, gone); len(found) == 0 {
+	if found := storetest.Sweep(both, gone, nil); len(found) == 0 {
 		t.Error("two living resources share an address and the predicate excused one of them")
+	}
+}
+
+// One address handed to two resources is a finding whatever their kinds (#210).
+//
+// The invariant used to be keyed by kind, so it compared machines with machines
+// and never a machine with anything else — while its own header promised the
+// general case. A probe proved the blindness: two live resources of different
+// kinds carrying one address, zero findings.
+//
+// That is worse than a missing control. This sweep is the barrage's invariant on
+// all three packs, and a green barrage was being read as "no address is shared".
+// The same file's liveness blindness had already produced a false verdict that
+// got a correct fix reverted (#208).
+func TestAnAddressSharedAcrossKindsIsReported(t *testing.T) {
+	resources := []*resource.Resource{
+		{ID: "i-1", Kind: "vm", Attrs: map[string]any{"PrivateIp": "10.0.0.4"}},
+		{ID: "lb-1", Kind: "load-balancer", Attrs: map[string]any{"address": "10.0.0.4"}},
+	}
+	found := storetest.Sweep(resources, nil, nil)
+	if len(found) == 0 {
+		t.Fatal("two live resources of different kinds hold 10.0.0.4 and the sweep said nothing")
+	}
+	if !strings.Contains(found[0], "10.0.0.4") ||
+		!strings.Contains(found[0], "i-1") || !strings.Contains(found[0], "lb-1") {
+		t.Errorf("the finding must name the address and both holders, got %q", found[0])
+	}
+
+	// The accepting half: one resource carrying an address twice is not a
+	// collision with itself, and two resources on different addresses are fine.
+	clean := []*resource.Resource{
+		{ID: "i-1", Kind: "vm", Attrs: map[string]any{
+			"PrivateIp": "10.0.0.4", "PublicIp": "203.0.113.4"}},
+		{ID: "i-2", Kind: "vm", Attrs: map[string]any{"PrivateIp": "10.0.0.5"}},
+	}
+	if found := storetest.Sweep(clean, nil, nil); len(found) != 0 {
+		t.Errorf("a clean set was reported as sharing: %v", found)
 	}
 }

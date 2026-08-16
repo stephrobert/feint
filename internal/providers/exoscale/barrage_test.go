@@ -110,7 +110,7 @@ func TestAnExoscaleBarrageLeavesTheStoreCoherent(t *testing.T) {
 			len(refused), strings.Join(refused, "\n"))
 	}
 
-	if found := storetest.Sweep(st.All(), nil); len(found) != 0 {
+	if found := storetest.Sweep(st.All(), nil, nil); len(found) != 0 {
 		t.Errorf("the store is incoherent after the barrage:\n%s", strings.Join(found, "\n"))
 	}
 }
