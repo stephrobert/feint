@@ -233,3 +233,93 @@ func countPrimary(entries []map[string]any) int {
 	}
 	return n
 }
+
+// The count a client reads before it creates must be the count the create will
+// honour (#217).
+//
+// AvailableIpsCount rebuilt its own reservation loop instead of asking
+// subnetAllocator, and the two drifted exactly where a second computation of one
+// truth always drifts: at the corner the first one learned about later. The
+// allocator reserves machines, primary NIC addresses and secondary ones, and
+// reads liveness through Gone; the view's loop reserved machines only, and
+// compared a state.
+//
+// Measured before the fix, on the subnet below: 11 published, 8 creates
+// accepted. A Terraform count sized on that figure plans against three addresses
+// the emulator refuses to hand out — and a plan that cannot apply is worse than a
+// smaller number, because nothing says which of the two was wrong.
+//
+// The assertion is the agreement itself rather than a figure: hard-coding 8 would
+// pass just as well against a second wrong computation.
+func TestAvailableIpsCountAgreesWithWhatACreateWillDo(t *testing.T) {
+	ts := newServer(t)
+	_, subnet := netWithSubnet(t, ts, "10.51.0.0/16", "10.51.1.0/28")
+
+	available := func() int {
+		t.Helper()
+		_, doc := doAction(t, ts, "ReadSubnets", `{"Filters":{"SubnetIds":["`+subnet+`"]}}`)
+		subnets, _ := doc["Subnets"].([]any)
+		if len(subnets) == 0 {
+			t.Fatalf("no subnet in %v", doc)
+		}
+		first, _ := subnets[0].(map[string]any)
+		count, ok := first["AvailableIpsCount"].(float64)
+		if !ok {
+			t.Fatalf("the subnet publishes no AvailableIpsCount: %v", first)
+		}
+		return int(count)
+	}
+
+	// The three holders the view's own loop could not see: a NIC's primary
+	// address and two secondary ones.
+	nic := createNic(t, ts, subnet)
+	if status, doc := doAction(t, ts, "LinkPrivateIps",
+		`{"NicId":"`+nic+`","SecondaryPrivateIpCount":2}`); status != http.StatusOK {
+		t.Fatalf("LinkPrivateIps answered %d: %v", status, doc)
+	}
+
+	published := available()
+	if published < 1 {
+		t.Fatalf("the subnet publishes %d available, so this test measures nothing", published)
+	}
+
+	made := 0
+	for range published + 5 {
+		status, _ := doAction(t, ts, "CreateVms",
+			`{"ImageId":"ami-12345678","VmType":"tinav4.c1r1p2","SubnetId":"`+subnet+`"}`)
+		if status != http.StatusOK {
+			break
+		}
+		made++
+	}
+	if made != published {
+		t.Errorf("the subnet published %d available addresses and accepted %d creates: "+
+			"a client sizing a pool on that figure plans against addresses the emulator refuses",
+			published, made)
+	}
+	if left := available(); left != 0 {
+		t.Errorf("every address is taken and the subnet still publishes %d available", left)
+	}
+
+	// And the count comes back when a machine dies, which is the half a stale
+	// second computation would also get wrong — the allocator reads Gone, so the
+	// view now does too.
+	_, doc := doAction(t, ts, "ReadVms", `{"Filters":{"SubnetIds":["`+subnet+`"]}}`)
+	vms, _ := doc["Vms"].([]any)
+	if len(vms) == 0 {
+		t.Fatalf("no Vm to terminate: %v", doc)
+	}
+	first, _ := vms[0].(map[string]any)
+	vmID, _ := first["VmId"].(string)
+	doAction(t, ts, "StopVms", `{"VmIds":["`+vmID+`"]}`)
+	if status, doc := doAction(t, ts, "DeleteVms", `{"VmIds":["`+vmID+`"]}`); status != http.StatusOK {
+		t.Fatalf("DeleteVms answered %d: %v", status, doc)
+	}
+	if back := available(); back != 1 {
+		t.Errorf("a terminated Vm gave back %d addresses, want 1", back)
+	}
+	if status, doc := doAction(t, ts, "CreateVms",
+		`{"ImageId":"ami-12345678","VmType":"tinav4.c1r1p2","SubnetId":"`+subnet+`"}`); status != http.StatusOK {
+		t.Errorf("the address a terminated Vm gave back cannot be used: %d %v", status, doc)
+	}
+}

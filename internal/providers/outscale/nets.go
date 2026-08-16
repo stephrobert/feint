@@ -483,33 +483,25 @@ func (p *Pack) subnetView(res *resource.Resource) map[string]any {
 	out["SubnetId"] = res.ID
 	out["State"] = res.State
 
-	// Computed from the mask *and* from what is allocated, which is what the
-	// comment on this view has always claimed and what it did not do: a fresh
-	// allocator was built and nothing reserved, so a /24 with three machines in
-	// it still answered 251. The conformance suite only ever read empty subnets,
-	// so it proved the mask half and the comment asserted the rest.
+	// From the allocator that hands the addresses out, and from nothing else.
+	//
+	// This used to rebuild its own reservation loop, and the two drifted exactly
+	// where a second computation of one truth always drifts: at the corner the
+	// first one learned about later. subnetAllocator reserves machines, primary
+	// NIC addresses and the secondary ones; this loop reserved machines only, and
+	// read liveness as a state comparison where the allocator asks Gone.
+	//
+	// Measured before it was changed, on a /28 holding one NIC with two secondary
+	// addresses: the subnet published 11 available and 8 creates succeeded. A
+	// client sizing a pool on that figure — a Terraform count, a loop — plans
+	// against three addresses the emulator will refuse to hand out.
 	//
 	// A stored count would go stale the moment an address is taken; this one
-	// cannot, because it is derived on every read.
+	// cannot, because it is derived on every read from the one pool.
 	//
-	// TestAvailableIpsCountFollowsTheMachines fails without the reservation loop.
-	if prefix, err := prefixOf(res, "IpRange"); err == nil {
-		if allocator, err := network.NewAllocator(prefix, reservedPerSubnet); err == nil {
-			for _, vm := range p.env.Store.List(kindVM, resource.Tenant{Provider: Name}) {
-				// Same reason as the delete guard above: a terminated machine
-				// occupies no address.
-				if vm.State == stateTerminated {
-					continue
-				}
-				if stringOf(vm.Attrs["SubnetId"]) != res.ID {
-					continue
-				}
-				if taken, parseErr := netip.ParseAddr(stringOf(vm.Attrs["PrivateIp"])); parseErr == nil {
-					_ = allocator.Reserve(taken)
-				}
-			}
-			out["AvailableIpsCount"] = allocator.Available()
-		}
+	// TestAvailableIpsCountAgreesWithWhatACreateWillDo fails without this.
+	if allocator, err := p.subnetAllocator(res.ID); err == nil {
+		out["AvailableIpsCount"] = allocator.Available()
 	}
 	return out
 }

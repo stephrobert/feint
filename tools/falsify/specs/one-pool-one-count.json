@@ -1,0 +1,12 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "the published count rebuilds its own reservation loop instead of asking the allocator",
+      "file": "internal/providers/outscale/nets.go",
+      "find": "\tif allocator, err := p.subnetAllocator(res.ID); err == nil {\n\t\tout[\"AvailableIpsCount\"] = allocator.Available()\n\t}",
+      "replace": "\tif allocator, err := p.subnetAllocator(res.ID); err == nil {\n\t\t_ = allocator\n\t\tif prefix, prefixErr := prefixOf(res, \"IpRange\"); prefixErr == nil {\n\t\t\tif own, allocErr := network.NewAllocator(prefix, reservedPerSubnet); allocErr == nil {\n\t\t\t\tfor _, vm := range p.env.Store.List(kindVM, resource.Tenant{Provider: Name}) {\n\t\t\t\t\tif vm.State == stateTerminated || stringOf(vm.Attrs[\"SubnetId\"]) != res.ID {\n\t\t\t\t\t\tcontinue\n\t\t\t\t\t}\n\t\t\t\t\tif taken, parseErr := netip.ParseAddr(stringOf(vm.Attrs[\"PrivateIp\"])); parseErr == nil {\n\t\t\t\t\t\t_ = own.Reserve(taken)\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\tout[\"AvailableIpsCount\"] = own.Available()\n\t\t\t}\n\t\t}\n\t}",
+      "test": "TestAvailableIpsCountAgreesWithWhatACreateWillDo"
+    }
+  ]
+}
