@@ -118,6 +118,68 @@ cosign verify-blob --bundle checksums.txt.cosign.bundle \
 sha256sum -c checksums.txt --ignore-missing
 ```
 
+## Ce sur quoi vous pouvez compter, et pour combien de temps
+
+Les surfaces ci-dessous sont tout ce qui est couvert. **Ce qui n'y figure pas ne
+porte aucune promesse**, et le dire franchement est le sujet : un émulateur qui
+promettrait tout son comportement promettrait une copie mouvante de trois clouds.
+
+| surface | signal | gelée dans |
+|---|---|---|
+| `/_feint/health` | `schema_version` | `internal/cli/testdata/frozen/health.json` |
+| `/_feint/routes` | `schema_version` | `internal/cli/testdata/frozen/routes.json` |
+| `/_feint/conformance` | `schema_version` | `internal/cli/testdata/frozen/conformance.json` |
+| `/_feint/trace` | `schema_version` | `internal/cli/testdata/frozen/trace.json` |
+| les verbes, drapeaux et codes de sortie du CLI | `cliSurfaceVersion` | `internal/cli/testdata/frozen/cli.json` |
+| les formats d'état et de snapshot | la version du document | `internal/cli/snapshot.go` |
+
+**Servir davantage de l'API d'un provider n'est jamais cassant**, quelle que soit
+l'ampleur du changement. C'est cette asymétrie qui rend la fenêtre tenable : la
+surface qui peut casser est petite et énumérée ci-dessus, et tout ce qu'un pack
+gagne atterrit en dehors.
+
+### Le préavis
+
+**Une version mineure.** Un champ ou un verbe qui disparaît est déprécié dans une
+version et retiré au plus tôt dans la suivante, et les deux événements sont des
+lignes du `CHANGELOG.md`. Une dépréciation qui apparaît et disparaît dans la même
+version n'en est pas une.
+
+Une version plutôt qu'un nombre généreux, délibérément. C'est un projet 0.x tenu
+par une personne, et ce dépôt a déjà mesuré ce que coûte une condition
+intenable : l'étiquette *preview* d'Exoscale attendait le tracker de quelqu'un
+d'autre et est restée fausse pendant des mois. Une promesse d'une version
+mineure, tenue, vaut mieux qu'une plus longue qui sera rompue.
+
+### Le signal
+
+Chaque charge utile ci-dessus porte `schema_version`, et il bouge quand la forme
+bouge, ajouts compris, parce que le nombre veut dire *la surface a changé* et non
+*la surface a cassé*. `cliSurfaceVersion` fait la même chose pour les verbes, les
+drapeaux et les codes de sortie. Un fixture régénéré sans que sa constante suive
+fait échouer la CI.
+
+### La sortie de secours
+
+Un consommateur qui lit une version qu'il ne connaît pas doit **s'arrêter plutôt
+que deviner**. Les formes sont additives à l'intérieur d'une version, donc une
+version inconnue **supérieure** se lit sans risque pour les champs déjà connus ;
+une version inconnue **inférieure** signifie que l'émulateur est plus ancien que
+ce que le pipeline attend, et que les champs espérés peuvent ne pas exister
+encore.
+
+Concrètement, et c'est toute la recette :
+
+```bash
+version="$(curl -sf localhost:4599/_feint/conformance | jq -r '.schema_version')"
+[ "$version" -ge 3 ] || { echo "feint est plus ancien que ce pipeline n'attend"; exit 1; }
+```
+
+Lire un champ sans vérifier est ce qui casse en silence : `probed` est passé de
+booléen à chaîne, et un pipeline qui le traitait comme vrai comptait chaque refus
+comme un succès. C'est ce chemin que #170 mesure ; cette section est ce contre
+quoi il le mesure.
+
 ## Versionnage
 
 [Semantic Versioning](https://semver.org/lang/fr/). Avant 1.0, la version mineure
