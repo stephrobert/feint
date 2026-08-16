@@ -218,3 +218,35 @@ func (p *Pack) listLocalImages(w http.ResponseWriter, r *http.Request) {
 		"total_count": 1,
 	})
 }
+
+// Catalogue is what a client reads here before it can create anything, declared
+// so the cross-pack guard can drive it (#218).
+//
+// The list is the sequence `scw instance server create` actually walks, measured
+// with `scw -D`: the server types it sizes from, the marketplace image it
+// defaults to, and the image endpoint it resolves that default through. A 404 on
+// any one of them fails the command before it posts a server, with an error that
+// names none of this.
+func (p *Pack) Catalogue() []emulator.CatalogueEntry {
+	const zones = "/instance/v1/zones/{zone}"
+	return []emulator.CatalogueEntry{
+		{
+			Method:     "GET",
+			Path:       zones + "/products/servers",
+			Reads:      "the server types `scw instance server create` sizes a machine from",
+			Collection: "servers",
+		},
+		{
+			Method:     "GET",
+			Path:       "/marketplace/v2/local-images",
+			Reads:      "the image the CLI defaults to when the caller names none",
+			Collection: "local_images",
+		},
+		{
+			Method:     "GET",
+			Path:       zones + "/images",
+			Reads:      "the images a client lists, and resolves a named one through",
+			Collection: "images",
+		},
+	}
+}

@@ -317,3 +317,26 @@ func (p *Pack) readPublicIPRanges(w http.ResponseWriter, r *http.Request) {
 		"ResponseContext": p.context(),
 	})
 }
+
+// Catalogue is what a client reads here before it can create anything, declared
+// so the cross-pack guard can drive it (#218).
+//
+// Same trap as the Scaleway pack, which learned it the hard way and left the
+// warning in this file: decline the inventory and the client fails on its first
+// create, on a route nobody thought about.
+func (p *Pack) Catalogue() []emulator.CatalogueEntry {
+	return []emulator.CatalogueEntry{
+		{
+			Method:     "POST",
+			Path:       pathPrefix + "ReadVmTypes",
+			Reads:      "the Vm types a client sizes a machine from",
+			Collection: "VmTypes",
+		},
+		{
+			Method:     "POST",
+			Path:       pathPrefix + "ReadImages",
+			Reads:      "the images a create names, and Terraform resolves through a filter",
+			Collection: "Images",
+		},
+	}
+}

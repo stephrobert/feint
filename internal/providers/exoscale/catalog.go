@@ -221,3 +221,26 @@ func (p *Pack) quotaOf(name string, limit int, kind string) map[string]any {
 	}
 	return map[string]any{"resource": name, "limit": limit, "usage": usage}
 }
+
+// Catalogue is what a client reads here before it can create anything, declared
+// so the cross-pack guard can drive it (#218).
+//
+// A create names both by id, and `exo compute instance create` resolves both by
+// name through these lists first — so a declined inventory here fails the client
+// before it posts anything, exactly as it does in the two other packs.
+func (p *Pack) Catalogue() []emulator.CatalogueEntry {
+	return []emulator.CatalogueEntry{
+		{
+			Method:     "GET",
+			Path:       "/v2/instance-type",
+			Reads:      "the instance types a create sizes a machine from",
+			Collection: "instance-types",
+		},
+		{
+			Method:     "GET",
+			Path:       "/v2/template",
+			Reads:      "the templates a create boots from, and which carry the login",
+			Collection: "templates",
+		},
+	}
+}

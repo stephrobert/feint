@@ -1,0 +1,28 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "a pack declines its server types, which is trap #1 of CLAUDE.md",
+      "file": "internal/providers/scaleway/pack.go",
+      "find": "\t\t{Method: \"GET\", Path: zones + \"/products/servers\", Operation: \"instance/v1/API.ListServersTypes\", Handler: p.listServerTypes},",
+      "replace": "\t\t{Method: \"GET\", Path: zones + \"/products/servers-declined\", Operation: \"instance/v1/API.ListServersTypes\", Handler: p.listServerTypes},",
+      "test": "TestEveryPackDeclaresTheCatalogueItsClientReads"
+    },
+    {
+      "label": "the inventory is mounted and empty, which fails a client exactly as a 404 does",
+      "package": "./internal/cli/",
+      "file": "internal/providers/exoscale/catalog.go",
+      "find": "\temulator.WriteJSON(w, http.StatusOK, map[string]any{\"instance-types\": instanceTypes})",
+      "replace": "\temulator.WriteJSON(w, http.StatusOK, map[string]any{\"instance-types\": instanceTypes[:0]})",
+      "test": "TestEveryDeclaredCatalogueAnswersSomething"
+    },
+    {
+      "label": "a catalogue entry says nothing about what a client reads it for",
+      "package": "./internal/cli/",
+      "file": "internal/providers/outscale/catalog.go",
+      "find": "\t\t\tReads:      \"the Vm types a client sizes a machine from\",",
+      "replace": "\t\t\tReads:      \"\",",
+      "test": "TestEveryPackDeclaresTheCatalogueItsClientReads"
+    }
+  ]
+}
