@@ -22,16 +22,18 @@
 [Commandes](#commandes) • [Ce qu'il ne fait pas](docs/limits.md) •
 [Contribuer](CONTRIBUTING.md)
 
-> [!WARNING]
-> **En développement actif, version 0.x, et pas exempt de bugs.** Deux audits
-> adverses par pack, un par provider, ont trouvé des défauts sur tous les
-> chemins que la suite de conformance ne parcourt pas — y compris dans les
-> correctifs du tour précédent. Ce qu'un vrai client est prouvé piloter est
-> compté dans *[État](#état)* et dans `/_feint/conformance` ; ce qui est refusé,
-> et pourquoi, est dans [docs/routes.md](docs/routes.md). Tout le reste n'est pas
-> prouvé tant que ce n'est pas mesuré. Ne pointez rien qui compte vers lui, et ne
-> lisez pas une commande qui passe comme une garantie : signalez ce qui casse,
-> c'est ce qui fait bouger les chiffres.
+<!-- safety:start -->
+> [!IMPORTANT]
+> **Ce qu'on peut pointer vers cet émulateur, et ce qu'on ne peut pas.**
+>
+> **Prouvé** : 188 des 244 opérations montées sont pilotées par un vrai client, à chaque pull request. `scw`, `oapi-cli`, `exo`, Terraform et OpenTofu tournent contre l'émulateur en CI, et les machines démarrent réellement : connexion ssh sur le compte par défaut de chaque provider, subnets isolés, pare-feu qui filtre. La chaîne complète est décrite dans [docs/conformance.md](docs/conformance.md).
+>
+> **Pas prouvé** : quotas, prix, capacité réelle, validation des identifiants, authentification, cohérence à terme. Les 29 sections de [docs/limits.md](docs/limits.md) disent chacune ce qu'elle coûte. Un émulateur avec un seul compte implicite et aucune grille tarifaire devrait inventer ces chiffres, et quelqu'un agirait dessus.
+>
+> **Inconnu** : 56 opérations sont montées et n'ont jamais été pilotées par un client. Elles sont comptées plutôt qu'escamotées, une par une, dans [coverage/evidence.json](coverage/evidence.json).
+>
+> L'avertissement qui reste, parce qu'il est mesuré et non compté : **ce que la suite de conformance ne parcourt pas n'est pas prouvé**. Deux audits adverses complets, un par provider, ont trouvé des défauts sur chacun de ces chemins, y compris dans les correctifs du tour précédent. Signalez ce qui casse, c'est ce qui fait bouger les chiffres ci-dessus.
+<!-- safety:end -->
 
 > [!NOTE]
 > L'anglais est la source. Cette page est une traduction, et elle peut avoir

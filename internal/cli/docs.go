@@ -212,6 +212,11 @@ func docs(args []string, stdout, stderr io.Writer) int {
 	// conformance workflow rather than maintained. It said Outscale was proven
 	// by Terraform, which was true of the fixture and false of CI — a claim a
 	// reader had to compare two files to falsify (#147's family).
+	safetyChanged, safetyErr := spliceSafety(filepath.Dir(*target))
+	if safetyErr != nil {
+		fmt.Fprintf(stderr, "feint: %v\n", safetyErr)
+		return exitError
+	}
 	statusChanged, statusErr := spliceStatus(*target, conformanceWorkflow)
 	if statusErr != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", statusErr)
@@ -272,6 +277,10 @@ func docs(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "feint: the status table in %s is behind the conformance workflow; run `feint docs`\n", *target)
 			return exitDrift
 		}
+		if safetyChanged {
+			fmt.Fprintf(stderr, "feint: the safety banner is behind the artefacts it counts; run `feint docs`\n")
+			return exitDrift
+		}
 		if limitsChanged {
 			fmt.Fprintf(stderr, "feint: %s is out of date; run `mise run docs:coverage`\n", *limits)
 			return exitDrift
@@ -295,6 +304,13 @@ func docs(args []string, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintf(stdout, "%s is up to date\n", *target)
 		return exitOK
+	}
+	if safetyChanged {
+		if err := writeSplicedSafety(filepath.Dir(*target)); err != nil {
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
+		fmt.Fprintf(stdout, "the safety banner now matches the artefacts it counts\n")
 	}
 	if statusChanged {
 		if err := writeSplicedStatus(*target, conformanceWorkflow); err != nil {

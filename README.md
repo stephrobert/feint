@@ -23,16 +23,18 @@
 [Commands](#commands) • [What it does not do](docs/limits.md) •
 [Contributing](CONTRIBUTING.md)
 
-> [!WARNING]
-> **Under active development, version 0.x, and not free of bugs.** Two
-> whole-pack adversarial audits, one per provider, found defects on every path
-> the conformance suite does not walk — including in the fixes of the previous
-> round. What a real client is proven to drive is counted in *What is proven*
-> below and in `/_feint/conformance`; what is refused, and why, is in
-> [docs/routes.md](docs/routes.md). Everything else is unproven until it is
-> measured. Do not point anything you care about at it, and do not read a
-> passing command as a guarantee: report what breaks, that is what moves the
-> numbers.
+<!-- safety:start -->
+> [!IMPORTANT]
+> **What is safe to point at this emulator, and what is not.**
+>
+> **Proven**: 188 of the 244 mounted operations are driven by a real client, on every pull request. `scw`, `oapi-cli`, `exo`, Terraform and OpenTofu run against the emulator in CI, and machines really boot: an ssh login on each provider's own default account, isolated subnets, a firewall that filters. The whole chain is described in [docs/conformance.md](docs/conformance.md).
+>
+> **Not proven**: quotas, prices, real capacity, identifier validation, authentication, eventual consistency. The 29 sections of [docs/limits.md](docs/limits.md) each say what one costs. An emulator with a single implicit account and no price list would have to invent those figures, and somebody would act on them.
+>
+> **Unknown**: 56 operations are mounted and have never been driven by a client. They are counted rather than glossed, one by one, in [coverage/evidence.json](coverage/evidence.json).
+>
+> The warning that stays, because it is measured rather than counted: **what the conformance suite does not walk is unproven**. Two whole-pack adversarial audits, one per provider, found defects on every such path — including in the fixes of the previous round. Report what breaks; that is what moves the figures above.
+<!-- safety:end -->
 
 ## Quick start
 
