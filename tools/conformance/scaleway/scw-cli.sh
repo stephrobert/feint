@@ -75,6 +75,44 @@ prove_end "$neg"
 prove_end "$span"
 ok "deleted, and gone"
 
+# The protection flag, whose behaviour was measured against fr-par-1 rather than assumed (#212):
+# it closes the action endpoint, not the DELETE verb. Both halves are driven here, because the
+# surprising half is the one a future reader will want to "fix".
+echo "- protection: the flag closes the actions and not the delete"
+span="$(prove_begin behaviour)"
+prot="$(scw instance server create name=conformance-protected type=DEV1-S zone="$ZONE" -o json 2>&1)" \
+  || fail "create rejected by the CLI: $prot"
+prot_id="$(printf '%s' "$prot" | jq -r '.id // empty')"
+[ -n "$prot_id" ] || fail "no id in the create response: $prot"
+
+scw instance server update "$prot_id" protected=true zone="$ZONE" -o json \
+  | jq -e '.protected == true' >/dev/null || fail "the flag did not come back from the update"
+
+neg="$(prove_begin negative)"
+if scw instance server stop "$prot_id" zone="$ZONE" >/dev/null 2>&1; then
+  fail "stop accepted on a protected server; fr-par-1 answers precondition_failed"
+fi
+prove_end "$neg"
+
+# The client is told before it tries, which is what allowed_actions is for.
+scw instance server get "$prot_id" zone="$ZONE" -o json \
+  | jq -e '(.allowed_actions | index("poweroff")) == null and (.allowed_actions | index("backup")) != null' \
+    >/dev/null || fail "a protected server still advertises poweroff"
+
+scw instance server update "$prot_id" protected=false zone="$ZONE" -o json >/dev/null \
+  || fail "clearing the flag rejected"
+scw instance server stop "$prot_id" zone="$ZONE" >/dev/null \
+  || fail "poweroff rejected once the protection was cleared"
+
+# And the half that reverses the intuition: a protected server deletes. Two runs against
+# fr-par-1, each confirming the flag with a fresh GET first, answered 204.
+scw instance server update "$prot_id" protected=true zone="$ZONE" -o json >/dev/null \
+  || fail "setting the flag back rejected"
+scw instance server delete "$prot_id" zone="$ZONE" >/dev/null \
+  || fail "delete refused a protected server, which fr-par-1 does not"
+prove_end "$span"
+ok "stop refused, delete allowed, flag cleared and honoured again"
+
 # Security groups. A fresh project already owns one, so the first list must return it: every
 # client reads the existing groups before it creates anything.
 echo "- security groups: the project default exists"

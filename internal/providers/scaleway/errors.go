@@ -18,6 +18,8 @@ type APIError struct {
 	Resource     string          `json:"resource,omitempty"`
 	ResourceID   string          `json:"resource_id,omitempty"`
 	CurrentState string          `json:"current_state,omitempty"`
+	Precondition string          `json:"precondition,omitempty"`
+	HelpMessage  string          `json:"help_message,omitempty"`
 	Details      []ArgumentError `json:"details,omitempty"`
 }
 
@@ -73,5 +75,26 @@ func writeTransientState(w http.ResponseWriter, kind, id, state string) {
 		Resource:     kind,
 		ResourceID:   id,
 		CurrentState: state,
+	})
+}
+
+// writePreconditionFailed answers an action the server's own condition forbids.
+//
+// Body and status are copied from a measurement against fr-par-1 rather than
+// derived from the SDK, which gives the shape of the error but never says which
+// one an endpoint picks. Four actions on a protected server answered, verbatim:
+//
+//	400 {"type": "precondition_failed", "message": "precondition is not
+//	     respected", "precondition": "protected_resource",
+//	     "help_message": "server is protected"}
+//
+// 400 and not 412, which is the status the name would suggest and the reason
+// this is worth a comment.
+func writePreconditionFailed(w http.ResponseWriter, precondition, help string) {
+	emulator.WriteJSON(w, http.StatusBadRequest, APIError{
+		Type:         "precondition_failed",
+		Message:      "precondition is not respected",
+		Precondition: precondition,
+		HelpMessage:  help,
 	})
 }

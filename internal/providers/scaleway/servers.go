@@ -319,7 +319,7 @@ func (p *Pack) createServer(w http.ResponseWriter, r *http.Request) {
 		"enable_ipv6":         deref(req.EnableIPv6, false),
 		"state_detail":        "",
 		"security_group":      securityGroup,
-		"allowed_actions":     []any{"poweron", "backup"},
+		"allowed_actions":     allowedActions(res.State, deref(req.Protected, false)),
 		"maintenances":        []any{},
 		// Kept so the machine driver knows which catalogue image stands in for
 		// the requested cloud image. Empty when the identifier resolved to
@@ -432,6 +432,11 @@ func (p *Pack) updateServer(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Protected != nil {
 		res.Attrs["protected"] = *req.Protected
+		// The list travels with the flag. On fr-par-1, a PATCH that protects a
+		// running server makes the next GET answer ["backup"] alone, and the
+		// client that reads it to decide what to offer must see that without
+		// waiting for an action to be refused.
+		res.Attrs["allowed_actions"] = allowedActions(res.State, *req.Protected)
 	}
 	// The restriction is the SDK's own, quoted in UpdateServerRequest:
 	// "Cannot be changed if the Instance is not in `stopped` state." Refusing it
@@ -490,6 +495,18 @@ func (p *Pack) deleteServer(w http.ResponseWriter, r *http.Request) {
 		writeTransientState(w, "server", id, res.State)
 		return
 	}
+	// No protection check here, and that is measured rather than overlooked.
+	//
+	// #212 asked for one, on the reasonable-sounding ground that a stored flag
+	// named `protected` should protect. Two runs against fr-par-1, each setting
+	// the flag and confirming it with a fresh GET before deleting, answered 204
+	// and left a 404 behind. The flag guards the action endpoint — poweroff,
+	// stop_in_place, reboot, terminate all answer precondition_failed — and this
+	// verb is not one of them.
+	//
+	// Written down because the intuition is strong enough that somebody will come
+	// back to add the check. TestProtectionDoesNotBlockTheDeleteVerb fails if they
+	// do.
 	// A stopped server should hold no dynamic address; a restored snapshot may
 	// claim otherwise, and the OVN uplink route would outlive the machine.
 	p.releaseDynamicAddress(r.Context(), res)
@@ -557,6 +574,23 @@ func (p *Pack) serverAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The protection flag was stored at create and at update, published on every
+	// read, and consulted nowhere (#212). A field that round-trips perfectly and
+	// governs nothing reads as a feature, which is the *un commentaire n'est pas
+	// un contrôle* family arriving through data rather than prose.
+	//
+	// Which door it closes was measured on fr-par-1, and the measurement reversed
+	// the issue: DELETE removes a protected server with 204, twice over. It is the
+	// action endpoint that refuses, for every action that stops or destroys the
+	// machine. Implementing the intuition would have made this emulator diverge
+	// from the cloud it imitates.
+	//
+	// TestProtectionRefusesEveryStoppingAction fails without this.
+	if stopsTheMachine(req.Action) && protectedServer(res) {
+		writePreconditionFailed(w, "protected_resource", "server is protected")
+		return
+	}
+
 	now := p.env.Now()
 	switch req.Action {
 	case "poweron", "reboot":
@@ -589,7 +623,7 @@ func (p *Pack) serverAction(w http.ResponseWriter, r *http.Request) {
 			// and never routed (#116).
 			p.routeServerAddresses(r.Context(), res)
 		}
-		res.Attrs["allowed_actions"] = allowedActions(res.State)
+		res.Attrs["allowed_actions"] = allowedActions(res.State, protectedServer(res))
 	case "poweroff", "stop_in_place":
 		// Two actions, two states, and the difference is not cosmetic: the SDK
 		// declares `stopped in place` alongside `stopped`
@@ -604,7 +638,7 @@ func (p *Pack) serverAction(w http.ResponseWriter, r *http.Request) {
 		if req.Action == "stop_in_place" {
 			res.State = "stopped in place"
 		}
-		res.Attrs["allowed_actions"] = allowedActions(res.State)
+		res.Attrs["allowed_actions"] = allowedActions(res.State, protectedServer(res))
 		// Stopping withdraws the address: one the API publishes and nothing
 		// answers on is the defect this project exists to avoid. The dynamic
 		// address goes entirely — upstream releases it on stop, and that is
@@ -653,22 +687,73 @@ func (p *Pack) serverAction(w http.ResponseWriter, r *http.Request) {
 	emulator.WriteJSON(w, http.StatusAccepted, map[string]any{"task": task(p.env.NewID(), "server_"+req.Action, now)})
 }
 
+// stopsTheMachine names the actions protection refuses.
+//
+// The four were measured one by one against fr-par-1 on a protected running
+// server, and every one answered precondition_failed / protected_resource. The
+// two that do not appear were measured on the same server and are allowed:
+// backup, and poweron on a stopped one. So the flag guards the machine's
+// running state, not the record — which is also why DELETE goes through.
+func stopsTheMachine(action string) bool {
+	switch action {
+	case "poweroff", "stop_in_place", "reboot", "terminate":
+		return true
+	}
+	return false
+}
+
+// protectedServer reads the flag off a stored server.
+//
+// Through a type assertion because Attrs is map[string]any and a restored
+// snapshot decodes JSON into it: whatever the pack wrote as a bool comes back a
+// bool, but a hand-written snapshot may carry anything at all, and the zero
+// value of a failed assertion is the safe reading of "not protected" — refusing
+// an action nobody protected would be the worse failure.
+func protectedServer(res *resource.Resource) bool {
+	protected, _ := res.Attrs["protected"].(bool)
+	return protected
+}
+
 // allowedActions is what a client may do next, which follows from the state
 // rather than from the action that was asked for. Deriving it is what keeps a
 // failed start from advertising poweroff on a server that never came up.
-func allowedActions(state string) []any {
+//
+// Protection subtracts from that list rather than replacing it, which is the
+// only reading consistent with what fr-par-1 answered: a protected running
+// server lists ["backup"] alone, a protected stopped one ["poweron", "backup"],
+// and those are exactly the lists left once the four refused actions are
+// removed. Standby was not measured — no client this suite drives reaches it
+// protected — so it is derived the same way rather than guessed at separately.
+func allowedActions(state string, protected bool) []any {
+	var actions []any
 	switch state {
 	case "running":
-		return []any{"poweroff", "reboot", "stop_in_place", "backup"}
+		// terminate belongs here and was missing until the same measurement
+		// listed it: an unprotected running server answers ["poweroff",
+		// "terminate", "reboot", "stop_in_place", "backup"]. A client reading
+		// the list to decide whether it may destroy the server was being told
+		// no.
+		actions = []any{"poweroff", "terminate", "reboot", "stop_in_place", "backup"}
 	case "stopped in place":
 		// Standby keeps the machine and its local storage, so powering it fully
 		// off is the operation that follows from here as much as starting it
 		// again. Listed rather than omitted: a client reading allowed_actions to
 		// decide would otherwise have no way out of standby but a boot.
-		return []any{"poweron", "poweroff", "backup"}
+		actions = []any{"poweron", "poweroff", "backup"}
 	default:
-		return []any{"poweron", "backup"}
+		actions = []any{"poweron", "backup"}
 	}
+	if !protected {
+		return actions
+	}
+	kept := make([]any, 0, len(actions))
+	for _, action := range actions {
+		if name, ok := action.(string); ok && stopsTheMachine(name) {
+			continue
+		}
+		kept = append(kept, action)
+	}
+	return kept
 }
 
 // task mirrors the Task object the API returns for asynchronous actions. The

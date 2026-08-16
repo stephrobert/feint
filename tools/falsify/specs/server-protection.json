@@ -1,0 +1,33 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the protection flag is stored and published again, and governs nothing",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\tif stopsTheMachine(req.Action) && protectedServer(res) {",
+      "replace": "\tif stopsTheMachine(req.Action) && protectedServer(res) && false {",
+      "test": "TestProtectionRefusesEveryStoppingAction"
+    },
+    {
+      "label": "protection refuses every action instead of the four that stop the machine",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\tif stopsTheMachine(req.Action) && protectedServer(res) {",
+      "replace": "\tif (stopsTheMachine(req.Action) || true) && protectedServer(res) {",
+      "test": "TestProtectionLeavesTheOtherActionsAlone"
+    },
+    {
+      "label": "the DELETE verb refuses a protected server, which fr-par-1 does not",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\tp.releaseDynamicAddress(r.Context(), res)\n\tp.removeMachine(r.Context(), res)\n\tp.env.Store.Delete(Name, kindServer, id)\n\tp.releaseServerResources(r.Context(), id, zone)\n\tw.WriteHeader(http.StatusNoContent)",
+      "replace": "\tif protectedServer(res) {\n\t\twritePreconditionFailed(w, \"protected_resource\", \"server is protected\")\n\t\treturn\n\t}\n\tp.releaseDynamicAddress(r.Context(), res)\n\tp.removeMachine(r.Context(), res)\n\tp.env.Store.Delete(Name, kindServer, id)\n\tp.releaseServerResources(r.Context(), id, zone)\n\tw.WriteHeader(http.StatusNoContent)",
+      "test": "TestProtectionDoesNotBlockTheDeleteVerb"
+    },
+    {
+      "label": "allowed_actions keeps advertising what protection refuses",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\tif !protected {\n\t\treturn actions\n\t}",
+      "replace": "\tif !protected || true {\n\t\treturn actions\n\t}",
+      "test": "TestProtectionShrinksTheAllowedActions"
+    }
+  ]
+}
