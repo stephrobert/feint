@@ -468,3 +468,24 @@ func (p *Pack) privateNICView(res *resource.Resource) map[string]any {
 	out["ipam_ip_ids"] = ids
 	return out
 }
+
+// Owns is this pack's half of the shared orphan sweep: which of its resources
+// belong to another, and to which one.
+//
+// Two links, both of them exclusive and both of them found the hard way — a
+// volume that named a deleted server, then a NIC that did (#214). The vocabulary
+// is Scaleway's, so it is declared here; the invariant is everyone's, so it lives
+// in storetest.
+func Owns(res *resource.Resource) (kind, id string, ok bool) {
+	switch res.Kind {
+	case kindPrivateNIC, kindVolume:
+		if serverID := res.Runtime[runtimeServerKey]; serverID != "" {
+			return kindServer, serverID, true
+		}
+	case kindIPAMIP:
+		if nicID := res.Runtime[runtimeNICKey]; nicID != "" {
+			return kindPrivateNIC, nicID, true
+		}
+	}
+	return "", "", false
+}

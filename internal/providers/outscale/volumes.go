@@ -392,3 +392,32 @@ func (p *Pack) readVmsState(w http.ResponseWriter, r *http.Request) {
 		"ResponseContext": p.context(),
 	})
 }
+
+// detachVolumesOf releases the volumes a terminated Vm held, the way
+// detachNicsOf releases its interfaces.
+//
+// Same invariant as the NICs and the same reason it was missed: an exclusive
+// resource has one live owner, and the pack re-checked that on every link and on
+// no death. A volume left carrying LinkedVmId names a machine that is gone, so
+// LinkVolume refuses to attach it anywhere else and UnlinkVolume is the only way
+// out — a call no client makes, because from the client's side the Vm is
+// terminated and the volume is supposed to be free. The emulator has to be
+// restarted.
+//
+// Unlinked and not deleted: this pack publishes DeleteOnVmDeletion false on every
+// volume link, and upstream is explicit that false means "the volume is not
+// deleted when terminating the VM". Deleting here would contradict what the same
+// pack tells the client one field earlier.
+//
+// TestTerminatingAVmFreesItsVolumes fails without this.
+func (p *Pack) detachVolumesOf(vmID string) {
+	for _, vol := range p.env.Store.List(kindVolume, resource.Tenant{Provider: Name}) {
+		if stringOf(vol.Attrs["LinkedVmId"]) != vmID {
+			continue
+		}
+		delete(vol.Attrs, "LinkedVmId")
+		delete(vol.Attrs, "DeviceName")
+		vol.State = volumeStateAvailable
+		p.env.Store.Commit(vol, p.env.Now())
+	}
+}

@@ -128,3 +128,58 @@ func TestDeletionProtectionCanBeClearedByAnUpdate(t *testing.T) {
 		t.Fatalf("the Vm is still protected after the flag was cleared: %d %v", status, out)
 	}
 }
+
+// A terminated Vm released its interfaces and kept its volumes (#215).
+//
+// The volume then names a machine that is gone, so LinkVolume refuses to attach
+// it anywhere else and UnlinkVolume is the only way out — a call no client makes,
+// because from where the client stands the Vm is terminated and the volume is
+// supposed to be free. The emulator has to be restarted.
+//
+// The test drives the way out rather than reading the store: attach, kill the Vm,
+// attach the same volume to another one. That is the sequence a user is stuck in.
+func TestTerminatingAVmFreesItsVolumes(t *testing.T) {
+	ts, _ := newOutscaleBarrageServer(t)
+
+	vm := func(name string) string {
+		t.Helper()
+		_, out := post(t, ts, "CreateVms", `{"ImageId":"ami-12345678","VmType":"tinav4.c1r1p2"}`)
+		vms, _ := out["Vms"].([]any)
+		if len(vms) == 0 {
+			t.Fatalf("%s: no Vm in %v", name, out)
+		}
+		first, _ := vms[0].(map[string]any)
+		id, _ := first["VmId"].(string)
+		return id
+	}
+
+	doomed, survivor := vm("doomed"), vm("survivor")
+
+	_, out := post(t, ts, "CreateVolume", `{"SubregionName":"eu-west-2a","Size":10}`)
+	volume, _ := out["Volume"].(map[string]any)
+	volID, _ := volume["VolumeId"].(string)
+	if volID == "" {
+		t.Fatalf("no VolumeId in %v", out)
+	}
+
+	if status, out := post(t, ts, "LinkVolume",
+		`{"VolumeId":"`+volID+`","VmId":"`+doomed+`","DeviceName":"/dev/xvdb"}`); status != http.StatusOK {
+		t.Fatalf("link: status %d (%v)", status, out)
+	}
+	// The exclusivity is real before the Vm dies, or the assertion after it would
+	// pass on a volume nothing was holding.
+	if status, _ := post(t, ts, "LinkVolume",
+		`{"VolumeId":"`+volID+`","VmId":"`+survivor+`","DeviceName":"/dev/xvdb"}`); status == http.StatusOK {
+		t.Fatal("a linked volume was attached to a second Vm, so this test measures nothing")
+	}
+
+	post(t, ts, "StopVms", `{"VmIds":["`+doomed+`"]}`)
+	if status, out := post(t, ts, "DeleteVms", `{"VmIds":["`+doomed+`"]}`); status != http.StatusOK {
+		t.Fatalf("delete: status %d (%v)", status, out)
+	}
+
+	if status, out := post(t, ts, "LinkVolume",
+		`{"VolumeId":"`+volID+`","VmId":"`+survivor+`","DeviceName":"/dev/xvdb"}`); status != http.StatusOK {
+		t.Fatalf("the volume is still held by a terminated Vm: status %d (%v)", status, out)
+	}
+}

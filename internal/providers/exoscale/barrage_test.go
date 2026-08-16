@@ -110,6 +110,13 @@ func TestAnExoscaleBarrageLeavesTheStoreCoherent(t *testing.T) {
 			len(refused), strings.Join(refused, "\n"))
 	}
 
+	// storetest.Orphans is not called here, and the reason belongs in the file
+	// rather than in a reader's head: this pack keeps its references on the owner
+	// and not on the dependent. An instance carries the ids of its elastic IPs
+	// and the networks it joined, so deleting the instance takes the reference
+	// with it and there is no record left naming something gone. The day a
+	// resource here names an instance, it declares Owns and joins the sweep the
+	// two other packs run (#215).
 	if found := storetest.Sweep(st.All(), nil, nil); len(found) != 0 {
 		t.Errorf("the store is incoherent after the barrage:\n%s", strings.Join(found, "\n"))
 	}

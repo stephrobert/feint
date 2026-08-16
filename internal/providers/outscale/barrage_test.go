@@ -121,6 +121,14 @@ func TestAnOutscaleBarrageLeavesTheStoreCoherent(t *testing.T) {
 
 	// The pack's own word on liveness: a terminated Vm keeps its record for
 	// ReadVms polling and holds nothing, so the sweep must not count it.
+	// An exclusive resource has one live owner, and a terminated Vm owns nothing:
+	// Gone says so, and the sweep below reads it for the owner rather than for the
+	// dependent, which is exactly the case #215 was filed for.
+	if found := storetest.Orphans(st.All(), outscale.Owns, outscale.Gone); len(found) != 0 {
+		t.Errorf("the barrage left resources naming an owner that is gone:\n%s",
+			strings.Join(found, "\n"))
+	}
+
 	if found := storetest.Sweep(st.All(), outscale.Gone, nil); len(found) != 0 {
 		t.Errorf("the store is incoherent after the barrage:\n%s", strings.Join(found, "\n"))
 	}

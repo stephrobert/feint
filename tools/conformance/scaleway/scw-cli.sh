@@ -430,4 +430,54 @@ scw vpc private-network delete "$ipam_pn_id" region=fr-par >/dev/null \
 prove_end "$span"
 ok "booked, pinned, refused twice, listed, updated, released"
 
+# A server dies with its private NICs, and the network it was on becomes
+# deletable (#214). Driven by the CLI rather than read from the store, because
+# the failure this closes is a destroy that never converges: the NIC survived its
+# server, the network refused to go while something referenced it, and no call was
+# left that could remove the reference.
+echo "- a server dies with its private NICs, and the network goes after it"
+span="$(prove_begin behaviour)"
+nic_pn="$(scw vpc private-network create name=conformance-nic subnets.0=10.184.0.0/24 \
+            region=fr-par -o json)" || fail "private network create rejected: $nic_pn"
+nic_pn_id="$(printf '%s' "$nic_pn" | jq -r '.id')"
+[ -n "$nic_pn_id" ] && [ "$nic_pn_id" != null ] || fail "no id in the private network response: $nic_pn"
+
+nic_server="$(scw instance server create name=conformance-nic type=DEV1-S zone="$ZONE" -o json 2>&1)" \
+  || fail "create rejected by the CLI: $nic_server"
+nic_server_id="$(printf '%s' "$nic_server" | jq -r '.id // empty')"
+[ -n "$nic_server_id" ] || fail "no id in the create response: $nic_server"
+
+nic="$(scw instance private-nic create server-id="$nic_server_id" \
+         private-network-id="$nic_pn_id" zone="$ZONE" -o json 2>&1)" \
+  || fail "private nic create rejected: $nic"
+nic_id="$(printf '%s' "$nic" | jq -r '.id // .private_nic.id // empty')"
+[ -n "$nic_id" ] || fail "no id in the private nic response: $nic"
+
+# The address is booked before the delete, so the release after it is a change
+# and not the absence of anything.
+scw ipam ip list private-network-id="$nic_pn_id" region=fr-par -o json \
+  | jq -e 'length > 0' >/dev/null || fail "the attach booked no address: nothing to measure"
+
+scw instance server stop "$nic_server_id" zone="$ZONE" >/dev/null || fail "poweroff rejected"
+scw instance server delete "$nic_server_id" zone="$ZONE" >/dev/null || fail "delete rejected"
+
+neg="$(prove_begin negative)"
+if scw instance private-nic list server-id="$nic_server_id" zone="$ZONE" -o json >/dev/null 2>&1; then
+  fail "the NIC listing still answers for a deleted server"
+fi
+prove_end "$neg"
+
+# The address went back to the pool. Left behind it would be booked for ever:
+# the allocator is rebuilt from what IPAM holds.
+scw ipam ip list private-network-id="$nic_pn_id" region=fr-par -o json \
+  | jq -e 'length == 0' >/dev/null \
+  || fail "the network still holds an address after its only server was deleted"
+
+# And the network goes, which is the whole point: this is where a destroy used
+# to stop converging.
+scw vpc private-network delete "$nic_pn_id" region=fr-par >/dev/null \
+  || fail "the private network refuses to be deleted after its only server was removed"
+prove_end "$span"
+ok "NIC gone with its server, address released, network deleted"
+
 echo "conformance: scw CLI passed"

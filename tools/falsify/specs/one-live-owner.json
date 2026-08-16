@@ -1,0 +1,28 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "a terminated Vm keeps its volumes, so they can never be attached anywhere else",
+      "file": "internal/providers/outscale/vms.go",
+      "find": "\t\t\tp.detachVolumesOf(res.ID)",
+      "replace": "\t\t\tif false {\n\t\t\t\tp.detachVolumesOf(res.ID)\n\t\t\t}",
+      "test": "TestTerminatingAVmFreesItsVolumes"
+    },
+    {
+      "label": "the orphan sweep reports a resource whose owner is alive",
+      "package": "./internal/core/store/storetest/",
+      "file": "internal/core/store/storetest/orphans.go",
+      "find": "\t\tif alive[kind+\"/\"+id] {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif alive[kind+\"/\"+id] && false {\n\t\t\tcontinue\n\t\t}",
+      "test": "TestOrphansReportsWhatOutlivedItsOwnerAndNothingElse"
+    },
+    {
+      "label": "the orphan sweep reads presence instead of asking the pack about liveness",
+      "package": "./internal/core/store/storetest/",
+      "file": "internal/core/store/storetest/orphans.go",
+      "find": "\t\tif gone != nil && gone(res) {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif gone != nil && gone(res) && false {\n\t\t\tcontinue\n\t\t}",
+      "test": "TestOrphansAsksThePackWhetherTheOwnerIsStillAlive"
+    }
+  ]
+}

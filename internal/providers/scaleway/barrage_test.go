@@ -220,6 +220,14 @@ func TestABarrageLeavesTheStoreCoherent(t *testing.T) {
 		t.Errorf("the store is incoherent after the barrage:\n%s", strings.Join(found, "\n"))
 	}
 
+	// An exclusive resource has one live owner. Sweep cannot ask that on its own
+	// — it does not know which key names an owner — so the pack declares it and
+	// the invariant lives in the core (#214, #215).
+	if found := storetest.Orphans(st.All(), scaleway.Owns, nil); len(found) != 0 {
+		t.Errorf("the barrage left resources naming an owner that is gone:\n%s",
+			strings.Join(found, "\n"))
+	}
+
 	// The other half of the same invariant, and the one the store cannot answer
 	// on its own: the API describes nothing, so nothing must be running. An
 	// orphan here is a machine on the operator's host that no client can find,

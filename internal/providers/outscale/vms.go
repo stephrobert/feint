@@ -703,6 +703,9 @@ func (p *Pack) deleteVms(w http.ResponseWriter, r *http.Request) {
 			// what stops a NIC from naming a terminated Vm for ever. The primary
 			// is derived and needs nothing.
 			p.detachNicsOf(res.ID)
+			// And its volumes, for the same reason and by the same rule: an
+			// exclusive resource has one live owner, and the owner just died.
+			p.detachVolumesOf(res.ID)
 			deleted = append(deleted, map[string]any{
 				"VmId":          res.ID,
 				"CurrentState":  stateTerminated,
@@ -840,4 +843,25 @@ func (p *Pack) vmView(res *resource.Resource) map[string]any {
 		"HostAction":  "stop",
 	}
 	return out
+}
+
+// Owns tells the shared orphan sweep which resources of this pack belong to
+// another, and to which one.
+//
+// The vocabulary is the provider's — LinkedVmId on a volume, LinkVmId on a NIC —
+// so it is declared here and the invariant lives in the core, the same split as
+// Gone above. What it catches is the defect #215 named: a volume that outlived
+// its Vm goes on refusing to attach anywhere else, and no client call frees it.
+func Owns(res *resource.Resource) (kind, id string, ok bool) {
+	switch res.Kind {
+	case kindVolume:
+		if vmID := stringOf(res.Attrs["LinkedVmId"]); vmID != "" {
+			return kindVM, vmID, true
+		}
+	case kindNic:
+		if vmID := stringOf(res.Attrs["LinkVmId"]); vmID != "" {
+			return kindVM, vmID, true
+		}
+	}
+	return "", "", false
 }
