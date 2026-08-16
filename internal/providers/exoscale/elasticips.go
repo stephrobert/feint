@@ -151,18 +151,11 @@ func (p *Pack) createElasticIP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      p.env.NewID(),
-		Kind:    kindElasticIP,
-		Tenant:  resource.Tenant{Provider: Name},
-		State:   "present",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"ip":            ip,
-			"addressfamily": "inet4",
-			"description":   req.Description,
-		},
+	res := resource.New(p.env.NewID(), kindElasticIP, resource.Tenant{Provider: Name}, "present", now)
+	res.Attrs = map[string]any{
+		"ip":            ip,
+		"addressfamily": "inet4",
+		"description":   req.Description,
 	}
 	if req.Healthcheck != nil {
 		res.Attrs["healthcheck"] = req.Healthcheck

@@ -319,19 +319,12 @@ func (p *Pack) allocateVms(req createVmsRequest, count int, now time.Time) ([]*r
 
 	created := make([]*resource.Resource, 0, count)
 	for range count {
-		res := &resource.Resource{
-			ID:      newVMID(p.env.NewID()),
-			Kind:    kindVM,
-			Tenant:  resource.Tenant{Provider: Name},
-			State:   stateStopped,
-			Created: now,
-			Updated: now,
-			Attrs: map[string]any{
-				"ImageId":              req.ImageID,
-				"VmType":               orDefault(req.VMType, defaultVMType),
-				"DeletionProtection":   boolOr(req.DeletionProtection, false),
-				"NestedVirtualization": boolOr(req.NestedVirtualization, false),
-			},
+		res := resource.New(newVMID(p.env.NewID()), kindVM, resource.Tenant{Provider: Name}, stateStopped, now)
+		res.Attrs = map[string]any{
+			"ImageId":              req.ImageID,
+			"VmType":               orDefault(req.VMType, defaultVMType),
+			"DeletionProtection":   boolOr(req.DeletionProtection, false),
+			"NestedVirtualization": boolOr(req.NestedVirtualization, false),
 		}
 		// The Subnet the client asked for, resolved before anything is stored: a
 		// Vm placed nowhere is not a Vm the client asked for. Reading it here,

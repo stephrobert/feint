@@ -160,23 +160,16 @@ func (p *Pack) createNetPeering(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      newID("pcx", p.env.NewID()),
-		Kind:    kindNetPeering,
-		Tenant:  resource.Tenant{Provider: Name},
-		State:   state,
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"SourceNetId":     req.SourceNetID,
-			"SourceIpRange":   stringOf(source.Attrs["IpRange"]),
-			"AccepterNetId":   req.AccepterNetID,
-			"AccepterIpRange": stringOf(accepter.Attrs["IpRange"]),
-			// Stored once at create, so every read answers the same date:
-			// a timestamp recomputed per read is a permanent Terraform diff.
-			"ExpirationDate": now.UTC().Add(peeringExpiry).Format(expirationFormat),
-			"Tags":           []any{},
-		},
+	res := resource.New(newID("pcx", p.env.NewID()), kindNetPeering, resource.Tenant{Provider: Name}, state, now)
+	res.Attrs = map[string]any{
+		"SourceNetId":     req.SourceNetID,
+		"SourceIpRange":   stringOf(source.Attrs["IpRange"]),
+		"AccepterNetId":   req.AccepterNetID,
+		"AccepterIpRange": stringOf(accepter.Attrs["IpRange"]),
+		// Stored once at create, so every read answers the same date:
+		// a timestamp recomputed per read is a permanent Terraform diff.
+		"ExpirationDate": now.UTC().Add(peeringExpiry).Format(expirationFormat),
+		"Tags":           []any{},
 	}
 	p.env.Store.Put(res)
 

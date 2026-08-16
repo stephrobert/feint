@@ -77,26 +77,19 @@ func (p *Pack) createKeypair(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      newKeypairID(p.env.NewID()),
-		Kind:    kindKeypair,
-		Tenant:  resource.Tenant{Provider: Name},
-		State:   "available",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"KeypairName": req.KeypairName,
-			// The algorithm the client sent, not a constant. Hardcoding
-			// "ssh-rsa" made every key answer that, ed25519 ones included, and
-			// KeypairType is a declared schema field a client can filter on.
-			"KeypairType":        parsed.Algorithm,
-			"KeypairFingerprint": parsed.FingerprintMD5(),
-			// The material itself never leaves through the API: no Outscale
-			// response carries a PublicKey field, so it lives out of Attrs, in
-			// Runtime, where a view cannot pick it up by accident.
-		},
-		Runtime: map[string]string{runtimePublicKey: strings.TrimSpace(req.PublicKey)},
+	res := resource.New(newKeypairID(p.env.NewID()), kindKeypair, resource.Tenant{Provider: Name}, "available", now)
+	res.Attrs = map[string]any{
+		"KeypairName": req.KeypairName,
+		// The algorithm the client sent, not a constant. Hardcoding
+		// "ssh-rsa" made every key answer that, ed25519 ones included, and
+		// KeypairType is a declared schema field a client can filter on.
+		"KeypairType":        parsed.Algorithm,
+		"KeypairFingerprint": parsed.FingerprintMD5(),
+		// The material itself never leaves through the API: no Outscale
+		// response carries a PublicKey field, so it lives out of Attrs, in
+		// Runtime, where a view cannot pick it up by accident.
 	}
+	res.Runtime = map[string]string{runtimePublicKey: strings.TrimSpace(req.PublicKey)}
 	p.env.Store.Put(res)
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{

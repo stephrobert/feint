@@ -87,19 +87,12 @@ func (p *Pack) createRoute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      p.env.NewID(),
-		Kind:    kindVPCRoute,
-		Tenant:  vpc.Tenant,
-		State:   "available",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"description": req.Description,
-			"tags":        orEmpty(req.Tags),
-			"vpc_id":      vpc.ID,
-			"destination": destination.String(),
-		},
+	res := resource.New(p.env.NewID(), kindVPCRoute, vpc.Tenant, "available", now)
+	res.Attrs = map[string]any{
+		"description": req.Description,
+		"tags":        orEmpty(req.Tags),
+		"vpc_id":      vpc.ID,
+		"destination": destination.String(),
 	}
 	if req.NexthopResourceID != nil && *req.NexthopResourceID != "" {
 		res.Attrs["nexthop_resource_id"] = *req.NexthopResourceID

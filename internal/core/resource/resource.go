@@ -37,6 +37,28 @@ type Resource struct {
 	Runtime map[string]string
 }
 
+// New returns a resource stamped at now, with Created and Updated aligned and
+// an empty attribute map ready to fill.
+//
+// It exists because every pack opened every create with the same seven-line
+// literal, and the next pack would have copied it again. Only the invariant
+// part is taken: the identifier, the kind, the tenant, the state and the two
+// clocks — set from one moment, because a resource whose Created and Updated
+// disagree at birth reads as already modified. Attrs stays the caller's to
+// fill, since its keys are the provider's wire shape and no helper may know
+// them (rule 5).
+func New(id, kind string, t Tenant, state string, now time.Time) *Resource {
+	return &Resource{
+		ID:      id,
+		Kind:    kind,
+		Tenant:  t,
+		State:   state,
+		Created: now,
+		Updated: now,
+		Attrs:   map[string]any{},
+	}
+}
+
 // Clone returns a deep-enough copy: callers mutate the result without racing
 // against the store. Nested values inside Attrs are shared, so packs must treat
 // them as immutable once stored.

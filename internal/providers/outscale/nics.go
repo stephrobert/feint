@@ -286,20 +286,13 @@ func (p *Pack) createNic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := p.env.Now()
-	nic := &resource.Resource{
-		ID:      newID("eni", p.env.NewID()),
-		Kind:    kindNic,
-		Tenant:  resource.Tenant{Provider: Name},
-		State:   "available",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"SubnetId":    place.SubnetID,
-			"NetId":       place.NetID,
-			"PrivateIp":   place.Address.String(),
-			"Description": req.Description,
-			"State":       "available",
-		},
+	nic := resource.New(newID("eni", p.env.NewID()), kindNic, resource.Tenant{Provider: Name}, "available", now)
+	nic.Attrs = map[string]any{
+		"SubnetId":    place.SubnetID,
+		"NetId":       place.NetID,
+		"PrivateIp":   place.Address.String(),
+		"Description": req.Description,
+		"State":       "available",
 	}
 	if len(req.SecurityGroupIDs) > 0 {
 		nic.Attrs["SecurityGroupIds"] = req.SecurityGroupIDs

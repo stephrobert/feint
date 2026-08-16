@@ -151,22 +151,15 @@ func (p *Pack) createBlockVolume(w http.ResponseWriter, r *http.Request) {
 
 	project, _ := projectOf(textPtr(req.ProjectID))
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      p.env.NewID(),
-		Kind:    kindBlockVolume,
-		Tenant:  resource.Tenant{Provider: Name, Project: project, Zone: zone},
-		State:   "available",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"name":               req.Name,
-			"project":            project,
-			"tags":               orEmpty(slicePtr(req.Tags)),
-			"size":               size,
-			"zone":               zone,
-			"parent_snapshot_id": parent,
-			"perf_iops":          iopsOf(req.PerfIops),
-		},
+	res := resource.New(p.env.NewID(), kindBlockVolume, resource.Tenant{Provider: Name, Project: project, Zone: zone}, "available", now)
+	res.Attrs = map[string]any{
+		"name":               req.Name,
+		"project":            project,
+		"tags":               orEmpty(slicePtr(req.Tags)),
+		"size":               size,
+		"zone":               zone,
+		"parent_snapshot_id": parent,
+		"perf_iops":          iopsOf(req.PerfIops),
 	}
 	p.env.Store.Put(res)
 	emulator.WriteJSON(w, http.StatusCreated, p.blockVolumeView(res))
@@ -440,26 +433,19 @@ func (p *Pack) createBlockSnapshot(w http.ResponseWriter, r *http.Request) {
 
 	project, _ := projectOf(textPtr(req.ProjectID))
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      p.env.NewID(),
-		Kind:    kindBlockSnapshot,
-		Tenant:  resource.Tenant{Provider: Name, Project: project, Zone: zone},
-		State:   "available",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"name":    req.Name,
-			"project": project,
-			"tags":    orEmpty(slicePtr(req.Tags)),
-			"size":    volume.Attrs["size"],
-			"zone":    zone,
-			"public":  req.Public,
-			"parent_volume": map[string]any{
-				"id":     volume.ID,
-				"name":   textOf(volume.Attrs["name"]),
-				"type":   blockStorageClass,
-				"status": volume.State,
-			},
+	res := resource.New(p.env.NewID(), kindBlockSnapshot, resource.Tenant{Provider: Name, Project: project, Zone: zone}, "available", now)
+	res.Attrs = map[string]any{
+		"name":    req.Name,
+		"project": project,
+		"tags":    orEmpty(slicePtr(req.Tags)),
+		"size":    volume.Attrs["size"],
+		"zone":    zone,
+		"public":  req.Public,
+		"parent_volume": map[string]any{
+			"id":     volume.ID,
+			"name":   textOf(volume.Attrs["name"]),
+			"type":   blockStorageClass,
+			"status": volume.State,
 		},
 	}
 	p.env.Store.Put(res)

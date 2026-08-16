@@ -1,0 +1,19 @@
+{
+  "package": "./internal/core/resource/",
+  "mutations": [
+    {
+      "label": "New stops readying Attrs, and the first pack write into it panics",
+      "file": "internal/core/resource/resource.go",
+      "find": "\t\tAttrs:   map[string]any{},",
+      "replace": "\t\tAttrs:   map[string]any(nil),",
+      "test": "TestNewAlignsTheClocksAndReadiesAttrs"
+    },
+    {
+      "label": "the clocks stop agreeing at birth, and every created resource reads as already modified",
+      "file": "internal/core/resource/resource.go",
+      "find": "\t\tCreated: now,\n\t\tUpdated: now,",
+      "replace": "\t\tCreated: now,\n\t\tUpdated: now.Add(time.Second),",
+      "test": "TestNewAlignsTheClocksAndReadiesAttrs"
+    }
+  ]
+}

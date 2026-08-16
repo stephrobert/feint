@@ -73,17 +73,10 @@ func (p *Pack) createSecurityGroup(w http.ResponseWriter, r *http.Request) {
 	p.ensureDefaultSecurityGroup()
 
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      p.env.NewID(),
-		Kind:    kindSecurityGroup,
-		Tenant:  resource.Tenant{Provider: Name},
-		State:   "present",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"name":        req.Name,
-			"description": req.Description,
-		},
+	res := resource.New(p.env.NewID(), kindSecurityGroup, resource.Tenant{Provider: Name}, "present", now)
+	res.Attrs = map[string]any{
+		"name":        req.Name,
+		"description": req.Description,
 	}
 	p.env.Store.Put(res)
 	p.writeOperation(w, p.operationReferring(nounSecurityGroup, res.ID))

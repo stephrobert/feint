@@ -181,26 +181,19 @@ func (p *Pack) createSecurityGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      newID("sg", p.env.NewID()),
-		Kind:    kindSecurityGroup,
-		Tenant:  resource.Tenant{Provider: Name},
-		State:   "available",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"SecurityGroupName": req.SecurityGroupName,
-			"Description":       req.Description,
-			"InboundRules":      []any{},
-			"OutboundRules": []any{map[string]any{
-				"FromPortRange":       -1,
-				"ToPortRange":         -1,
-				"IpProtocol":          "-1",
-				"SecurityGroupRuleId": newID("sgr", p.env.NewID()),
-				"IpRanges":            []any{"0.0.0.0/0"},
-			}},
-			"Tags": []any{},
-		},
+	res := resource.New(newID("sg", p.env.NewID()), kindSecurityGroup, resource.Tenant{Provider: Name}, "available", now)
+	res.Attrs = map[string]any{
+		"SecurityGroupName": req.SecurityGroupName,
+		"Description":       req.Description,
+		"InboundRules":      []any{},
+		"OutboundRules": []any{map[string]any{
+			"FromPortRange":       -1,
+			"ToPortRange":         -1,
+			"IpProtocol":          "-1",
+			"SecurityGroupRuleId": newID("sgr", p.env.NewID()),
+			"IpRanges":            []any{"0.0.0.0/0"},
+		}},
+		"Tags": []any{},
 	}
 	if req.NetID != "" {
 		res.Attrs["NetId"] = req.NetID

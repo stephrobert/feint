@@ -276,23 +276,16 @@ func (p *Pack) createPrivateNetwork(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      p.env.NewID(),
-		Kind:    kindPrivateNetwork,
-		Tenant:  resource.Tenant{Provider: Name, Project: project, Zone: region},
-		State:   "available",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"name":                              orDefault(req.Name, "pn-"+prefix.Addr().String()),
-			"project_id":                        project,
-			"organization_id":                   defaultOrganization,
-			"vpc_id":                            vpc.ID,
-			"tags":                              orEmpty(req.Tags),
-			"dhcp_enabled":                      true,
-			"default_route_propagation_enabled": deref(req.DefaultRoutePropagationEnabled, false),
-			"subnet":                            prefix.String(),
-		},
+	res := resource.New(p.env.NewID(), kindPrivateNetwork, resource.Tenant{Provider: Name, Project: project, Zone: region}, "available", now)
+	res.Attrs = map[string]any{
+		"name":                              orDefault(req.Name, "pn-"+prefix.Addr().String()),
+		"project_id":                        project,
+		"organization_id":                   defaultOrganization,
+		"vpc_id":                            vpc.ID,
+		"tags":                              orEmpty(req.Tags),
+		"dhcp_enabled":                      true,
+		"default_route_propagation_enabled": deref(req.DefaultRoutePropagationEnabled, false),
+		"subnet":                            prefix.String(),
 	}
 	// The backing network is created before the resource is stored, and a
 	// failure is fatal to the request rather than logged.

@@ -701,32 +701,25 @@ func (p *Pack) createInstance(w http.ResponseWriter, r *http.Request) {
 
 	now := p.env.Now()
 	id := p.env.NewID()
-	res := &resource.Resource{
-		ID:      id,
-		Kind:    kindInstance,
-		Tenant:  resource.Tenant{Provider: Name},
-		State:   stoppedState,
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"name":          req.Name,
-			"instance-type": map[string]any{"id": req.InstanceType.ID},
-			"template":      map[string]any{"id": req.Template.ID},
-			"disk-size":     req.DiskSize,
-			// Echoed back because a client that attached them expects to read
-			// them, and because their absence is not "no keys" to a client, it
-			// is a missing field.
-			"ssh-keys":             p.sshKeyRefs(req.keyNames()),
-			"public-ip-assignment": orDefault(req.PublicIPAssignment, "inet4"),
-			"secureboot-enabled":   boolOr(req.SecurebootEnabled, false),
-			"tpm-enabled":          boolOr(req.TPMEnabled, false),
-			// Present even when empty — {} was measured on an instance created
-			// with no label, and an absent key is a different claim.
-			"labels": labelsToAttr(req.Labels),
-			// A stable address derived from the identifier: the real API
-			// publishes one per instance, and two runs must answer the same.
-			"mac-address": macAddressOf(id),
-		},
+	res := resource.New(id, kindInstance, resource.Tenant{Provider: Name}, stoppedState, now)
+	res.Attrs = map[string]any{
+		"name":          req.Name,
+		"instance-type": map[string]any{"id": req.InstanceType.ID},
+		"template":      map[string]any{"id": req.Template.ID},
+		"disk-size":     req.DiskSize,
+		// Echoed back because a client that attached them expects to read
+		// them, and because their absence is not "no keys" to a client, it
+		// is a missing field.
+		"ssh-keys":             p.sshKeyRefs(req.keyNames()),
+		"public-ip-assignment": orDefault(req.PublicIPAssignment, "inet4"),
+		"secureboot-enabled":   boolOr(req.SecurebootEnabled, false),
+		"tpm-enabled":          boolOr(req.TPMEnabled, false),
+		// Present even when empty — {} was measured on an instance created
+		// with no label, and an absent key is a different claim.
+		"labels": labelsToAttr(req.Labels),
+		// A stable address derived from the identifier: the real API
+		// publishes one per instance, and two runs must answer the same.
+		"mac-address": macAddressOf(id),
 	}
 	if req.UserData != "" {
 		res.Attrs["user-data"] = req.UserData

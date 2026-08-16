@@ -160,22 +160,15 @@ func (p *Pack) createPrivateNIC(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      p.env.NewID(),
-		Kind:    kindPrivateNIC,
-		Tenant:  server.Tenant,
-		State:   "available",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"private_network_id": pn.ID,
-			"mac_address":        macAddressOf(address),
-			"tags":               orEmpty(req.Tags),
-		},
-		Runtime: map[string]string{
-			runtimeServerKey:         server.ID,
-			runtimePrivateNetworkKey: pn.ID,
-		},
+	res := resource.New(p.env.NewID(), kindPrivateNIC, server.Tenant, "available", now)
+	res.Attrs = map[string]any{
+		"private_network_id": pn.ID,
+		"mac_address":        macAddressOf(address),
+		"tags":               orEmpty(req.Tags),
+	}
+	res.Runtime = map[string]string{
+		runtimeServerKey:         server.ID,
+		runtimePrivateNetworkKey: pn.ID,
 	}
 	p.env.Store.Put(res)
 

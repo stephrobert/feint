@@ -34,16 +34,9 @@ func (p *Pack) createInternetService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      newID("igw", p.env.NewID()),
-		Kind:    kindInternetService,
-		Tenant:  resource.Tenant{Provider: Name},
-		State:   "available",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"Tags": []any{},
-		},
+	res := resource.New(newID("igw", p.env.NewID()), kindInternetService, resource.Tenant{Provider: Name}, "available", now)
+	res.Attrs = map[string]any{
+		"Tags": []any{},
 	}
 	p.env.Store.Put(res)
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{

@@ -130,32 +130,25 @@ func (p *Pack) createImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      newID("ami", p.env.NewID()),
-		Kind:    kindImage,
-		Tenant:  resource.Tenant{Provider: Name},
-		State:   "available",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"ImageName":           req.ImageName,
-			"Description":         req.Description,
-			"Architecture":        orDefault(req.Architecture, "x86_64"),
-			"RootDeviceName":      orDefault(req.RootDeviceName, defaultRootDevice),
-			"RootDeviceType":      "bsu",
-			"ImageType":           "machine",
-			"BootModes":           bootModesOr(req.BootModes),
-			"ProductCodes":        productCodesOr(req.ProductCodes),
-			"SecureBoot":          false,
-			"TpmMandatory":        boolOr(req.TpmMandatory, false),
-			"StateComment":        map[string]any{},
-			"BlockDeviceMappings": mappings,
-			"PermissionsToLaunch": map[string]any{
-				"AccountIds":       []any{},
-				"GlobalPermission": false,
-			},
-			"Tags": []any{},
+	res := resource.New(newID("ami", p.env.NewID()), kindImage, resource.Tenant{Provider: Name}, "available", now)
+	res.Attrs = map[string]any{
+		"ImageName":           req.ImageName,
+		"Description":         req.Description,
+		"Architecture":        orDefault(req.Architecture, "x86_64"),
+		"RootDeviceName":      orDefault(req.RootDeviceName, defaultRootDevice),
+		"RootDeviceType":      "bsu",
+		"ImageType":           "machine",
+		"BootModes":           bootModesOr(req.BootModes),
+		"ProductCodes":        productCodesOr(req.ProductCodes),
+		"SecureBoot":          false,
+		"TpmMandatory":        boolOr(req.TpmMandatory, false),
+		"StateComment":        map[string]any{},
+		"BlockDeviceMappings": mappings,
+		"PermissionsToLaunch": map[string]any{
+			"AccountIds":       []any{},
+			"GlobalPermission": false,
 		},
+		"Tags": []any{},
 	}
 	p.env.Store.Put(res)
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{

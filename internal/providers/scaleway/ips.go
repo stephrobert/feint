@@ -90,27 +90,20 @@ func (p *Pack) createIP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      p.env.NewID(),
-		Kind:    kindIP,
-		Tenant:  resource.Tenant{Provider: Name, Project: project, Zone: zone},
-		State:   "detached",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"address":      address.String(),
-			"reverse":      nil,
-			"server":       nil,
-			"organization": organization,
-			"project":      project,
-			"tags":         orEmpty(req.Tags),
-			"type":         orDefault(req.Type, "routed_ipv4"),
-			"prefix":       nil,
-			// A flexible IP is an IPAM address upstream, and the SDK carries the
-			// link. Serving an empty one would send a client looking for an
-			// address that does not exist there.
-			"ipam_id": "",
-		},
+	res := resource.New(p.env.NewID(), kindIP, resource.Tenant{Provider: Name, Project: project, Zone: zone}, "detached", now)
+	res.Attrs = map[string]any{
+		"address":      address.String(),
+		"reverse":      nil,
+		"server":       nil,
+		"organization": organization,
+		"project":      project,
+		"tags":         orEmpty(req.Tags),
+		"type":         orDefault(req.Type, "routed_ipv4"),
+		"prefix":       nil,
+		// A flexible IP is an IPAM address upstream, and the SDK carries the
+		// link. Serving an empty one would send a client looking for an
+		// address that does not exist there.
+		"ipam_id": "",
 	}
 	p.env.Store.Put(res)
 

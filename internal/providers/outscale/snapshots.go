@@ -60,24 +60,17 @@ func (p *Pack) createSnapshot(w http.ResponseWriter, r *http.Request) {
 	size, _ := volume.Attrs["Size"].(int)
 
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      newID("snap", p.env.NewID()),
-		Kind:    kindSnapshot,
-		Tenant:  resource.Tenant{Provider: Name},
-		State:   "completed",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"VolumeId":    req.VolumeID,
-			"VolumeSize":  size,
-			"Description": req.Description,
-			"Progress":    100,
-			"PermissionsToCreateVolume": map[string]any{
-				"AccountIds":       []any{},
-				"GlobalPermission": false,
-			},
-			"Tags": []any{},
+	res := resource.New(newID("snap", p.env.NewID()), kindSnapshot, resource.Tenant{Provider: Name}, "completed", now)
+	res.Attrs = map[string]any{
+		"VolumeId":    req.VolumeID,
+		"VolumeSize":  size,
+		"Description": req.Description,
+		"Progress":    100,
+		"PermissionsToCreateVolume": map[string]any{
+			"AccountIds":       []any{},
+			"GlobalPermission": false,
 		},
+		"Tags": []any{},
 	}
 	p.env.Store.Put(res)
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{

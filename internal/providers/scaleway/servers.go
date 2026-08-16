@@ -295,14 +295,7 @@ func (p *Pack) createServer(w http.ResponseWriter, r *http.Request) {
 
 	resolvedImageID, imageDisplay, imageLabel := resolveImage(req.Image)
 
-	res := &resource.Resource{
-		ID:      p.env.NewID(),
-		Kind:    kindServer,
-		Tenant:  resource.Tenant{Provider: Name, Project: project, Zone: zone},
-		State:   "stopped",
-		Created: now,
-		Updated: now,
-	}
+	res := resource.New(p.env.NewID(), kindServer, resource.Tenant{Provider: Name, Project: project, Zone: zone}, "stopped", now)
 	rootVol := p.rootVolume(res, req.Name, project, organization, req.Volumes["0"])
 
 	res.Attrs = map[string]any{

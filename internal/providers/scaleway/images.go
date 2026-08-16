@@ -240,30 +240,23 @@ func (p *Pack) createImage(w http.ResponseWriter, r *http.Request) {
 
 	project, organization := projectOf(textPtr(req.Project))
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      p.env.NewID(),
-		Kind:    kindImage,
-		Tenant:  resource.Tenant{Provider: Name, Project: project, Zone: zone},
-		State:   "available",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"name":         req.Name,
-			"arch":         orDefault(req.Arch, "x86_64"),
-			"organization": organization,
-			"project":      project,
-			"tags":         orEmpty(slicePtr(req.Tags)),
-			"zone":         zone,
-			"snapshot_id":  snapshot.ID,
-			// The server the snapshot's volume came from, when there was one.
-			// A string rather than null, which is what a real account returns.
-			"from_server": textOf(snapshot.Attrs["from_server"]),
-			"root_volume": map[string]any{
-				"id":          snapshot.ID,
-				"name":        textOf(snapshot.Attrs["name"]),
-				"size":        snapshot.Attrs["size"],
-				"volume_type": textOf(snapshot.Attrs["volume_type"]),
-			},
+	res := resource.New(p.env.NewID(), kindImage, resource.Tenant{Provider: Name, Project: project, Zone: zone}, "available", now)
+	res.Attrs = map[string]any{
+		"name":         req.Name,
+		"arch":         orDefault(req.Arch, "x86_64"),
+		"organization": organization,
+		"project":      project,
+		"tags":         orEmpty(slicePtr(req.Tags)),
+		"zone":         zone,
+		"snapshot_id":  snapshot.ID,
+		// The server the snapshot's volume came from, when there was one.
+		// A string rather than null, which is what a real account returns.
+		"from_server": textOf(snapshot.Attrs["from_server"]),
+		"root_volume": map[string]any{
+			"id":          snapshot.ID,
+			"name":        textOf(snapshot.Attrs["name"]),
+			"size":        snapshot.Attrs["size"],
+			"volume_type": textOf(snapshot.Attrs["volume_type"]),
 		},
 	}
 	p.env.Store.Put(res)

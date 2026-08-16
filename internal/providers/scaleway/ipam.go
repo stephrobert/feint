@@ -280,23 +280,16 @@ func (p *Pack) bookIP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      p.env.NewID(),
-		Kind:    kindIPAMIP,
-		Tenant:  resource.Tenant{Provider: Name, Project: project, Zone: region},
-		State:   "available",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"address":            netip.PrefixFrom(addr, alloc.Prefix().Bits()).String(),
-			"project_id":         project,
-			"is_ipv6":            false,
-			"tags":               orEmpty(req.Tags),
-			"private_network_id": pn.ID,
-			"vpc_id":             pn.Attrs["vpc_id"],
-			"subnet_id":          subnetIDOf(pn.ID),
-			attrBooked:           true,
-		},
+	res := resource.New(p.env.NewID(), kindIPAMIP, resource.Tenant{Provider: Name, Project: project, Zone: region}, "available", now)
+	res.Attrs = map[string]any{
+		"address":            netip.PrefixFrom(addr, alloc.Prefix().Bits()).String(),
+		"project_id":         project,
+		"is_ipv6":            false,
+		"tags":               orEmpty(req.Tags),
+		"private_network_id": pn.ID,
+		"vpc_id":             pn.Attrs["vpc_id"],
+		"subnet_id":          subnetIDOf(pn.ID),
+		attrBooked:           true,
 	}
 	if custom != nil {
 		res.Attrs[attrCustomMAC] = custom.MacAddress

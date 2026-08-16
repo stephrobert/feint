@@ -42,17 +42,10 @@ func (p *Pack) createAntiAffinityGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      p.env.NewID(),
-		Kind:    kindAntiAffinityGroup,
-		Tenant:  resource.Tenant{Provider: Name},
-		State:   "present",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"name":        req.Name,
-			"description": req.Description,
-		},
+	res := resource.New(p.env.NewID(), kindAntiAffinityGroup, resource.Tenant{Provider: Name}, "present", now)
+	res.Attrs = map[string]any{
+		"name":        req.Name,
+		"description": req.Description,
 	}
 	p.env.Store.Put(res)
 	p.writeOperation(w, p.operationReferring(nounAntiAffinityGroup, res.ID))

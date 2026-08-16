@@ -168,17 +168,10 @@ func (p *Pack) createPublicIP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      newID("eipalloc", p.env.NewID()),
-		Kind:    kindPublicIP,
-		Tenant:  resource.Tenant{Provider: Name},
-		State:   "available",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"PublicIp": address,
-			"Tags":     []any{},
-		},
+	res := resource.New(newID("eipalloc", p.env.NewID()), kindPublicIP, resource.Tenant{Provider: Name}, "available", now)
+	res.Attrs = map[string]any{
+		"PublicIp": address,
+		"Tags":     []any{},
 	}
 	p.env.Store.Put(res)
 	unlock()

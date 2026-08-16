@@ -75,21 +75,14 @@ func (p *Pack) createSSHKey(w http.ResponseWriter, r *http.Request) {
 	project, organization := projectOf(req.ProjectID)
 	now := p.env.Now()
 
-	res := &resource.Resource{
-		ID:      p.env.NewID(),
-		Kind:    kindSSHKey,
-		Tenant:  resource.Tenant{Provider: Name, Project: project},
-		State:   "enabled",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"name":            orDefault(req.Name, "key"),
-			"public_key":      strings.TrimSpace(req.PublicKey),
-			"fingerprint":     sshkey.FingerprintMD5(req.PublicKey),
-			"project_id":      project,
-			"organization_id": organization,
-			"disabled":        false,
-		},
+	res := resource.New(p.env.NewID(), kindSSHKey, resource.Tenant{Provider: Name, Project: project}, "enabled", now)
+	res.Attrs = map[string]any{
+		"name":            orDefault(req.Name, "key"),
+		"public_key":      strings.TrimSpace(req.PublicKey),
+		"fingerprint":     sshkey.FingerprintMD5(req.PublicKey),
+		"project_id":      project,
+		"organization_id": organization,
+		"disabled":        false,
 	}
 	p.env.Store.Put(res)
 

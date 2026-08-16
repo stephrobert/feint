@@ -132,23 +132,16 @@ func (p *Pack) createNet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      newID("vpc", p.env.NewID()),
-		Kind:    kindNet,
-		Tenant:  resource.Tenant{Provider: Name},
-		State:   "available",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"IpRange": prefix.String(),
-			"Tenancy": orDefault(req.Tenancy, "default"),
-			// The account's default set, which every real Net references. Its
-			// absence from this view was found by `feint transcript --against`
-			// on a real account, not by reading the SDK: the schema declares
-			// the field, but no required list would ever have flagged it.
-			"DhcpOptionsSetId": p.defaultDhcpOptions().ID,
-			"Tags":             []any{},
-		},
+	res := resource.New(newID("vpc", p.env.NewID()), kindNet, resource.Tenant{Provider: Name}, "available", now)
+	res.Attrs = map[string]any{
+		"IpRange": prefix.String(),
+		"Tenancy": orDefault(req.Tenancy, "default"),
+		// The account's default set, which every real Net references. Its
+		// absence from this view was found by `feint transcript --against`
+		// on a real account, not by reading the SDK: the schema declares
+		// the field, but no required list would ever have flagged it.
+		"DhcpOptionsSetId": p.defaultDhcpOptions().ID,
+		"Tags":             []any{},
 	}
 	p.env.Store.Put(res)
 
@@ -318,20 +311,13 @@ func (p *Pack) createSubnet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      newID("subnet", p.env.NewID()),
-		Kind:    kindSubnet,
-		Tenant:  resource.Tenant{Provider: Name},
-		State:   "available",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"IpRange":             prefix.String(),
-			"NetId":               req.NetID,
-			"SubregionName":       orDefault(req.SubregionName, subregionName),
-			"MapPublicIpOnLaunch": false,
-			"Tags":                []any{},
-		},
+	res := resource.New(newID("subnet", p.env.NewID()), kindSubnet, resource.Tenant{Provider: Name}, "available", now)
+	res.Attrs = map[string]any{
+		"IpRange":             prefix.String(),
+		"NetId":               req.NetID,
+		"SubregionName":       orDefault(req.SubregionName, subregionName),
+		"MapPublicIpOnLaunch": false,
+		"Tags":                []any{},
 	}
 
 	// Stored before the runtime call and before the lock is released: this is the

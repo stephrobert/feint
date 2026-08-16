@@ -596,27 +596,20 @@ func (p *Pack) newRule(w http.ResponseWriter, group *resource.Resource, req rule
 	}
 
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      p.env.NewID(),
-		Kind:    kindSecurityGroupRule,
-		Tenant:  group.Tenant,
-		State:   "available",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"protocol":  protocol,
-			"direction": direction,
-			"action":    action,
-			// The SDK decodes ip_range into scw.IPNet, which requires a CIDR:
-			// a bare address makes the client fail on the response it just got.
-			"ip_range":       ipRange,
-			"dest_port_from": portOrNil(req.DestPortFrom),
-			"dest_port_to":   portOrNil(req.DestPortTo),
-			"position":       position,
-			"editable":       deref(req.Editable, true),
-		},
-		Runtime: map[string]string{runtimeGroupKey: group.ID},
+	res := resource.New(p.env.NewID(), kindSecurityGroupRule, group.Tenant, "available", now)
+	res.Attrs = map[string]any{
+		"protocol":  protocol,
+		"direction": direction,
+		"action":    action,
+		// The SDK decodes ip_range into scw.IPNet, which requires a CIDR:
+		// a bare address makes the client fail on the response it just got.
+		"ip_range":       ipRange,
+		"dest_port_from": portOrNil(req.DestPortFrom),
+		"dest_port_to":   portOrNil(req.DestPortTo),
+		"position":       position,
+		"editable":       deref(req.Editable, true),
 	}
+	res.Runtime = map[string]string{runtimeGroupKey: group.ID}
 	return res, true
 }
 

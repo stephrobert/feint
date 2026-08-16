@@ -68,21 +68,14 @@ func (p *Pack) createVolume(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      newID("vol", p.env.NewID()),
-		Kind:    kindVolume,
-		Tenant:  resource.Tenant{Provider: Name},
-		State:   volumeStateAvailable,
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"SubregionName": req.SubregionName,
-			"Size":          size,
-			"VolumeType":    orDefault(req.VolumeType, defaultVolumeType),
-			"Iops":          req.Iops,
-			"ClientToken":   req.ClientToken,
-			"Tags":          []any{},
-		},
+	res := resource.New(newID("vol", p.env.NewID()), kindVolume, resource.Tenant{Provider: Name}, volumeStateAvailable, now)
+	res.Attrs = map[string]any{
+		"SubregionName": req.SubregionName,
+		"Size":          size,
+		"VolumeType":    orDefault(req.VolumeType, defaultVolumeType),
+		"Iops":          req.Iops,
+		"ClientToken":   req.ClientToken,
+		"Tags":          []any{},
 	}
 	if req.SnapshotID != "" {
 		// Stored only when there is one: the view copies Attrs verbatim, and the

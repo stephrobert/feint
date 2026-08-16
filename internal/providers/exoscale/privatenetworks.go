@@ -207,20 +207,13 @@ func (p *Pack) createPrivateNetwork(w http.ResponseWriter, r *http.Request) {
 	defer unlock()
 
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      p.env.NewID(),
-		Kind:    kindPrivateNetwork,
-		Tenant:  resource.Tenant{Provider: Name},
-		State:   "present",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"name": name,
-			// The VXLAN id their schema declares on every network. Lowest free,
-			// so it is stable for a client that stored it and returns to the
-			// pool when the network goes.
-			"vni": p.freeVNI(),
-		},
+	res := resource.New(p.env.NewID(), kindPrivateNetwork, resource.Tenant{Provider: Name}, "present", now)
+	res.Attrs = map[string]any{
+		"name": name,
+		// The VXLAN id their schema declares on every network. Lowest free,
+		// so it is stable for a client that stored it and returns to the
+		// pool when the network goes.
+		"vni": p.freeVNI(),
 	}
 	if d := stringOf(req.Description); d != "" {
 		res.Attrs["description"] = d

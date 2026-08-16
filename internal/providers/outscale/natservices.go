@@ -54,22 +54,15 @@ func (p *Pack) createNatService(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      newID("nat", p.env.NewID()),
-		Kind:    kindNatService,
-		Tenant:  resource.Tenant{Provider: Name},
-		State:   "available",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"NetId":    stringOf(subnet.Attrs["NetId"]),
-			"SubnetId": req.SubnetID,
-			"PublicIps": []any{map[string]any{
-				"PublicIp":   stringOf(address.Attrs["PublicIp"]),
-				"PublicIpId": address.ID,
-			}},
-			"Tags": []any{},
-		},
+	res := resource.New(newID("nat", p.env.NewID()), kindNatService, resource.Tenant{Provider: Name}, "available", now)
+	res.Attrs = map[string]any{
+		"NetId":    stringOf(subnet.Attrs["NetId"]),
+		"SubnetId": req.SubnetID,
+		"PublicIps": []any{map[string]any{
+			"PublicIp":   stringOf(address.Attrs["PublicIp"]),
+			"PublicIpId": address.ID,
+		}},
+		"Tags": []any{},
 	}
 	p.env.Store.Put(res)
 

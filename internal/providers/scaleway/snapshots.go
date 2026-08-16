@@ -105,23 +105,16 @@ func (p *Pack) createSnapshot(w http.ResponseWriter, r *http.Request) {
 
 	project, organization := projectOf(textPtr(req.Project))
 	now := p.env.Now()
-	res := &resource.Resource{
-		ID:      p.env.NewID(),
-		Kind:    kindSnapshot,
-		Tenant:  resource.Tenant{Provider: Name, Project: project, Zone: zone},
-		State:   "available",
-		Created: now,
-		Updated: now,
-		Attrs: map[string]any{
-			"name":         req.Name,
-			"organization": organization,
-			"project":      project,
-			"tags":         orEmpty(slicePtr(req.Tags)),
-			"volume_type":  volumeType,
-			"size":         size,
-			"zone":         zone,
-			"base_volume":  base,
-		},
+	res := resource.New(p.env.NewID(), kindSnapshot, resource.Tenant{Provider: Name, Project: project, Zone: zone}, "available", now)
+	res.Attrs = map[string]any{
+		"name":         req.Name,
+		"organization": organization,
+		"project":      project,
+		"tags":         orEmpty(slicePtr(req.Tags)),
+		"volume_type":  volumeType,
+		"size":         size,
+		"zone":         zone,
+		"base_volume":  base,
 	}
 	p.env.Store.Put(res)
 	emulator.WriteJSON(w, http.StatusCreated, map[string]any{"snapshot": p.snapshotView(res)})
