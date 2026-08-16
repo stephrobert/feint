@@ -160,6 +160,26 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "GET", Path: "/v2/zone", Operation: operation("list-zones"), Handler: p.listZones},
 		{Method: "GET", Path: "/v2/template", Operation: operation("list-templates"), Handler: p.listTemplates},
 		{Method: "GET", Path: "/v2/template/{id}", Operation: operation("get-template"), Handler: p.getTemplate},
+		// Snapshots and the templates they promote into (#173). Twenty-four
+		// operations belonged to no open batch, which is the state Declined()
+		// refuses to hold: "not triaged yet" and "out of scope" are not the same
+		// answer, and only one of them may be silent.
+		{Method: "POST", Path: "/v2/instance/{id}:create-snapshot", Operation: operation("create-snapshot"), Handler: p.createSnapshot},
+		{Method: "GET", Path: "/v2/snapshot", Operation: operation("list-snapshots"), Handler: p.listSnapshots},
+		{Method: "GET", Path: "/v2/snapshot/{id}", Operation: operation("get-snapshot"), Handler: p.getSnapshot},
+		{Method: "DELETE", Path: "/v2/snapshot/{id}", Operation: operation("delete-snapshot"), Handler: p.deleteSnapshot},
+		{Method: "POST", Path: "/v2/instance/{id}:revert-snapshot", Operation: operation("revert-instance-to-snapshot"), Handler: p.revertInstanceToSnapshot},
+		{Method: "POST", Path: "/v2/snapshot/{id}:promote", Operation: operation("promote-snapshot-to-template"), Handler: p.promoteSnapshotToTemplate},
+		{Method: "POST", Path: "/v2/template", Operation: operation("register-template"), Handler: p.registerTemplate},
+		{Method: "POST", Path: "/v2/template/{id}", Operation: operation("copy-template"), Handler: p.copyTemplate},
+		{Method: "PUT", Path: "/v2/template/{id}", Operation: operation("update-template"), Handler: p.updateTemplate},
+		{Method: "DELETE", Path: "/v2/template/{id}", Operation: operation("delete-template"), Handler: p.deleteTemplate},
+		// The account-level reads and the two field resets, same triage (#173).
+		{Method: "GET", Path: "/v2/organization", Operation: operation("get-organization"), Handler: p.getOrganization},
+		{Method: "GET", Path: "/v2/event", Operation: operation("list-events"), Handler: p.listEvents},
+		{Method: "POST", Path: "/v2/instance/{id}:enable-tpm", Operation: operation("enable-tpm"), Handler: p.enableTPM},
+		{Method: "DELETE", Path: "/v2/instance/{id}/{field}", Operation: operation("reset-instance-field"), Handler: p.resetInstanceField},
+		{Method: "DELETE", Path: "/v2/elastic-ip/{id}/{field}", Operation: operation("reset-elastic-ip-field"), Handler: p.resetElasticIPField},
 		{Method: "GET", Path: "/v2/instance-type", Operation: operation("list-instance-types"), Handler: p.listInstanceTypes},
 		{Method: "GET", Path: "/v2/instance-type/{id}", Operation: operation("get-instance-type"), Handler: p.getInstanceType},
 
@@ -380,6 +400,18 @@ func (p *Pack) Declined() []emulator.Decline {
 			"exoscale/v2.update-sks-nodepool",
 			"exoscale/v2.upgrade-sks-cluster",
 			"exoscale/v2.upgrade-sks-cluster-service-level"),
+
+		// The one refusal of the snapshot family (#173). Every other operation in
+		// it is served; this one hands back a pre-signed URL into an object
+		// store, and this project does not emulate Object Storage
+		// (docs/limits.md).
+		//
+		// Refused rather than answered with an empty export object, because the
+		// difference is what a client does next: an empty object says the export
+		// happened and produced nothing, and a URL that resolves to nothing gets
+		// followed. A refusal is read.
+		emulator.Because("it answers a pre-signed URL into Object Storage, which this project does not emulate, and a URL resolving to nothing is worse than a refusal because a client follows it",
+			"exoscale/v2.export-snapshot"),
 
 		// The AI surface: models, deployments, the inference engine.
 		emulator.Because("inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station",

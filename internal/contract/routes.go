@@ -92,6 +92,27 @@ func samePath(want, got string) bool {
 		if isParam(w) && isParam(g) {
 			continue
 		}
+		// A segment may be a parameter followed by an ":action" suffix, which is
+		// how these APIs spell a verb on a resource — /instance/{id}:start. The
+		// name is still the pack's business and the action is still the
+		// contract's, so they are compared apart.
+		//
+		// Whole-segment comparison worked here only by coincidence, while both
+		// documents happened to name the parameter the same way. It stopped the
+		// day a route had to be mounted as {id}:revert-snapshot against a
+		// document writing {instance-id}:revert-snapshot — one mux group carries
+		// one wildcard name, so the pack cannot always match the document's.
+		//
+		// TestAnActionOnAParameterComparesTheActionAndNotTheName fails without
+		// this.
+		wantParam, wantAction, wantSplit := splitAction(w)
+		gotParam, gotAction, gotSplit := splitAction(g)
+		if wantSplit && gotSplit && isParam(wantParam) && isParam(gotParam) {
+			if wantAction != gotAction {
+				return false
+			}
+			continue
+		}
 		if w != g {
 			return false
 		}
@@ -102,3 +123,21 @@ func samePath(want, got string) bool {
 func isParam(segment string) bool {
 	return strings.HasPrefix(segment, "{") && strings.HasSuffix(segment, "}")
 }
+
+// splitAction cuts "{name}:action" into its two halves. It reports false for
+// anything else, including a bare parameter, so a caller cannot mistake "no
+// action" for "an empty action".
+func splitAction(segment string) (param, action string, ok bool) {
+	param, action, ok = strings.Cut(segment, ":")
+	if !ok || action == "" {
+		return "", "", false
+	}
+	return param, action, true
+}
+
+// SamePathForTest exposes the path comparison to the package's external test.
+//
+// Exported for a test rather than the test moved inside the package, because
+// every other test of this package is external and reads the API as a caller
+// does; one internal file would be the odd one out and would drift.
+func SamePathForTest(want, got string) bool { return samePath(want, got) }

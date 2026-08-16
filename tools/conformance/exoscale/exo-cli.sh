@@ -288,6 +288,32 @@ printf '%s' "$sg" | jq -e '(.external_sources // []) | length == 0' >/dev/null \
   || fail "the source survived its removal: $sg"
 ok "source added, published, removed"
 
+# Snapshots and the template a snapshot promotes into (#173). Driven by the CLI
+# rather than by curl, because the point of the triage was that `exo compute
+# instance snapshot create/list/revert` are first-class client paths, and a route
+# no client walks is a route this project counts as unproven.
+echo "- an instance is snapshotted, reverted to, and the snapshot removed"
+exoc -Q compute instance stop "$id" --force >/dev/null || fail "instance stop rejected"
+snap="$(exoc -O json compute instance snapshot create "$id" 2>&1)" \
+  || fail "snapshot create rejected: $snap"
+snaps="$(exoc -O json compute instance snapshot list)" || fail "snapshot list rejected: $snaps"
+snap_id="$(printf '%s' "$snaps" | jq -r --arg i "$id" '.[] | select(.instance == $i or .instance_id == $i) | .id' | head -1)"
+[ -z "$snap_id" ] && snap_id="$(printf '%s' "$snaps" | jq -r '.[0].id // empty')"
+[ -n "$snap_id" ] || fail "the snapshot is not in the list: $snaps"
+
+# Revert is the one lifecycle verb the served instance surface was missing, and
+# the API refuses it on a running machine because the disk is replaced underneath.
+exoc -Q compute instance snapshot revert "$id" "$snap_id" --force >/dev/null \
+  || fail "revert rejected on a stopped instance"
+
+exoc -Q compute instance snapshot delete "$snap_id" --force >/dev/null \
+  || fail "snapshot delete rejected"
+after_snap="$(exoc -O json compute instance snapshot list)" || fail "snapshot list rejected"
+printf '%s' "$after_snap" | jq -e --arg s "$snap_id" 'all(.[]; .id != $s)' >/dev/null \
+  || fail "the snapshot survived its delete: $after_snap"
+exoc -Q compute instance start "$id" --force >/dev/null || fail "instance start rejected"
+ok "snapshotted, reverted, removed"
+
 echo "- delete, and it is gone"
 exoc -Q compute instance delete "$id" --force >/dev/null || fail "instance delete rejected"
 after="$(exoc -O json compute instance list)" || fail "instance list rejected: $after"

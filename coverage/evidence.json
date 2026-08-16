@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "7dd2353c6a25c3fa",
     "shapes": "c73ca6ca03ceac5b",
-    "suites": "000a544e9503ac23"
+    "suites": "607f3ccf6fc006f7"
   },
   "operations": {
     "block/v1/API.CreateSnapshot": {
@@ -263,6 +263,15 @@
       "behaviour": true,
       "negative": false
     },
+    "exoscale/v2.copy-template": {
+      "driven": false,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
     "exoscale/v2.create-anti-affinity-group": {
       "driven": true,
       "probed": "response",
@@ -306,6 +315,15 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
+      "negative": false
+    },
+    "exoscale/v2.create-snapshot": {
+      "driven": false,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
       "negative": false
     },
     "exoscale/v2.delete-anti-affinity-group": {
@@ -362,6 +380,15 @@
       "behaviour": true,
       "negative": false
     },
+    "exoscale/v2.delete-snapshot": {
+      "driven": false,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
     "exoscale/v2.delete-ssh-key": {
       "driven": true,
       "probed": "response",
@@ -369,6 +396,15 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
+      "negative": false
+    },
+    "exoscale/v2.delete-template": {
+      "driven": false,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
       "negative": false
     },
     "exoscale/v2.detach-instance-from-elastic-ip": {
@@ -396,6 +432,15 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
+      "negative": false
+    },
+    "exoscale/v2.enable-tpm": {
+      "driven": false,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
       "negative": false
     },
     "exoscale/v2.get-anti-affinity-group": {
@@ -452,6 +497,15 @@
       "behaviour": false,
       "negative": false
     },
+    "exoscale/v2.get-organization": {
+      "driven": false,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
     "exoscale/v2.get-private-network": {
       "driven": true,
       "probed": "response",
@@ -471,6 +525,15 @@
       "negative": false
     },
     "exoscale/v2.get-security-group": {
+      "driven": false,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
+    "exoscale/v2.get-snapshot": {
       "driven": false,
       "probed": "response",
       "contract": "clean",
@@ -524,6 +587,15 @@
       "behaviour": true,
       "negative": false
     },
+    "exoscale/v2.list-events": {
+      "driven": false,
+      "probed": "none",
+      "contract": "unchecked",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
     "exoscale/v2.list-instance-types": {
       "driven": true,
       "probed": "response",
@@ -569,6 +641,15 @@
       "behaviour": true,
       "negative": false
     },
+    "exoscale/v2.list-snapshots": {
+      "driven": false,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "observed",
+      "behaviour": false,
+      "negative": false
+    },
     "exoscale/v2.list-ssh-keys": {
       "driven": true,
       "probed": "response",
@@ -596,6 +677,15 @@
       "behaviour": false,
       "negative": false
     },
+    "exoscale/v2.promote-snapshot-to-template": {
+      "driven": false,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
     "exoscale/v2.reboot-instance": {
       "driven": true,
       "probed": "response",
@@ -612,6 +702,15 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
+      "negative": false
+    },
+    "exoscale/v2.register-template": {
+      "driven": false,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
       "negative": false
     },
     "exoscale/v2.remove-external-source-from-security-group": {
@@ -632,10 +731,28 @@
       "behaviour": true,
       "negative": false
     },
+    "exoscale/v2.reset-elastic-ip-field": {
+      "driven": false,
+      "probed": "none",
+      "contract": "unchecked",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
     "exoscale/v2.reset-instance": {
       "driven": false,
       "probed": "response",
       "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
+    "exoscale/v2.reset-instance-field": {
+      "driven": false,
+      "probed": "none",
+      "contract": "unchecked",
       "dataplane": false,
       "shape": "unobserved",
       "behaviour": false,
@@ -657,6 +774,15 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
+      "negative": false
+    },
+    "exoscale/v2.revert-instance-to-snapshot": {
+      "driven": false,
+      "probed": "none",
+      "contract": "unchecked",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
       "negative": false
     },
     "exoscale/v2.scale-instance": {
@@ -721,6 +847,15 @@
       "shape": "unobserved",
       "behaviour": true,
       "negative": true
+    },
+    "exoscale/v2.update-template": {
+      "driven": false,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
     },
     "iam/v1alpha1/API.CreateSSHKey": {
       "driven": false,
@@ -1044,7 +1179,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.ListSecurityGroupRules": {
       "driven": true,
@@ -1116,7 +1251,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.SetSecurityGroupRules": {
       "driven": true,
@@ -1173,12 +1308,12 @@
       "negative": false
     },
     "instance/v1/API.UpdateServer": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "instance/v1/API.UpdateSnapshot": {
@@ -2105,7 +2240,7 @@
       "contract": "unchecked",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "vpc/v2/API.EnableDHCP": {

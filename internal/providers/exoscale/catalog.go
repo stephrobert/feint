@@ -2,6 +2,7 @@ package exoscale
 
 import (
 	"net/http"
+	"sort"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/resource"
@@ -125,8 +126,28 @@ var instanceTypes = []map[string]any{
 // listTemplates serves the same table the machine driver boots from, so what a
 // client can choose and what the emulator can start cannot drift apart. Holding
 // two lists is how a client ends up picking a template that boots nothing.
+// listTemplates answers the fixed catalogue and whatever the tenant registered or
+// promoted, in one list (#173).
+//
+// One list because a client resolving a template by name has no idea which of the
+// two it is asking for. Serving them apart would be an emulator detail surfacing
+// in an API the client reads as a single inventory — and `exo compute instance
+// create --template <name>` walks exactly this list.
 func (p *Pack) listTemplates(w http.ResponseWriter, _ *http.Request) {
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{"templates": templates})
+	out := make([]map[string]any, 0, len(templates))
+	out = append(out, templates...)
+	for _, res := range p.storedTemplates() {
+		out = append(out, p.templateView(res))
+	}
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{"templates": out})
+}
+
+// storedTemplates is the tenant's own, ordered so two reads agree: an order that
+// changes between reads is a permanent diff to anything that stores the list.
+func (p *Pack) storedTemplates() []*resource.Resource {
+	list := p.env.Store.List(kindTemplate, resource.Tenant{Provider: Name})
+	sort.Slice(list, func(i, j int) bool { return list[i].ID < list[j].ID })
+	return list
 }
 
 func (p *Pack) listInstanceTypes(w http.ResponseWriter, _ *http.Request) {
@@ -138,13 +159,20 @@ func (p *Pack) listInstanceTypes(w http.ResponseWriter, _ *http.Request) {
 // the Scaleway lesson: the inventory is not one route, it is every route the
 // client walks before it posts anything.
 func (p *Pack) getTemplate(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
 	for _, t := range templates {
-		if t["id"] == r.PathValue("id") {
+		if t["id"] == id {
 			emulator.WriteJSON(w, http.StatusOK, t)
 			return
 		}
 	}
-	writeError(w, http.StatusNotFound, "no template "+r.PathValue("id"))
+	// Then the tenant's own, for the reason the list joins them: a client that
+	// picked a registered template out of the list reads it back here.
+	if res, found := p.env.Store.Get(Name, kindTemplate, id); found {
+		emulator.WriteJSON(w, http.StatusOK, p.templateView(res))
+		return
+	}
+	writeError(w, http.StatusNotFound, "no template "+id)
 }
 
 func (p *Pack) getInstanceType(w http.ResponseWriter, r *http.Request) {

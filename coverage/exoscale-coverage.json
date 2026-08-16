@@ -1,24 +1,24 @@
 {
   "provider": "exoscale",
   "total": 374,
-  "implemented": 57,
-  "declined": 253,
-  "unknown": 64,
+  "implemented": 72,
+  "declined": 254,
+  "unknown": 48,
   "orphans": null,
   "products": [
     {
       "product": "exoscale",
       "total": 374,
-      "implemented": 57,
-      "declined": 253,
-      "unknown": 64,
+      "implemented": 72,
+      "declined": 254,
+      "unknown": 48,
       "versions": [
         {
           "version": "2.0.0",
           "total": 374,
-          "implemented": 57,
-          "declined": 253,
-          "unknown": 64
+          "implemented": 72,
+          "declined": 254,
+          "unknown": 48
         }
       ]
     }
@@ -34,9 +34,9 @@
     {
       "group": "audit-trail",
       "total": 1,
-      "implemented": 0,
+      "implemented": 1,
       "declined": 0,
-      "unknown": 1
+      "unknown": 0
     },
     {
       "group": "block-storage",
@@ -48,9 +48,9 @@
     {
       "group": "compute",
       "total": 111,
-      "implemented": 53,
-      "declined": 9,
-      "unknown": 49
+      "implemented": 66,
+      "declined": 10,
+      "unknown": 35
     },
     {
       "group": "dbaas",
@@ -97,9 +97,9 @@
     {
       "group": "organization",
       "total": 4,
-      "implemented": 0,
+      "implemented": 1,
       "declined": 3,
-      "unknown": 1
+      "unknown": 0
     },
     {
       "group": "quotas",
@@ -216,7 +216,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.create-ai-api-key",
@@ -589,7 +589,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.create-subnet",
@@ -1014,7 +1014,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.delete-ssh-key",
@@ -1035,7 +1035,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.delete-user",
@@ -1140,7 +1140,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.encrypt",
@@ -1168,9 +1168,10 @@
     {
       "operation": "exoscale/v2.export-snapshot",
       "product": "exoscale",
+      "reason": "it answers a pre-signed URL into Object Storage, which this project does not emulate, and a URL resolving to nothing is worse than a refusal because a client follows it",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.generate-data-key",
@@ -1692,7 +1693,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "organization",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.get-private-network",
@@ -1768,7 +1769,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.get-sos-presigned-url",
@@ -1990,7 +1991,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "audit-trail",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.list-iam-roles",
@@ -2109,7 +2110,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.list-sos-buckets-usage",
@@ -2174,7 +2175,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.re-encrypt",
@@ -2203,7 +2204,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.remove-external-source-from-security-group",
@@ -2288,7 +2289,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.reset-iam-organization-policy",
@@ -2310,7 +2311,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.reset-instance-password",
@@ -2463,7 +2464,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.rotate-ai-api-key",
@@ -2960,7 +2961,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.update-user-role",
