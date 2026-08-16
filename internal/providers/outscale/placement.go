@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/netip"
 
-	"github.com/stephrobert/feint/internal/core/network"
 	"github.com/stephrobert/feint/internal/core/resource"
 )
 
@@ -43,10 +42,19 @@ type placement struct {
 //
 // The address is allocated rather than invented, from the same allocator the
 // Subnet's own count is computed with, so what the API publishes as available
-// and what it hands out cannot disagree. Addresses already taken by other Vms in
-// the same Subnet are reserved first — the allocator is rebuilt per call because
-// the store is the state, and holding a long-lived allocator beside it is how
-// the two drift apart across a snapshot restore.
+// and what it hands out cannot disagree. The allocator is subnetAllocator's —
+// one constructor, not two. This function used to carry its own reservation
+// loops, and the copy differed from subnetAllocator on exactly one point: it
+// reserved the addresses of terminated Vms forever, so a Subnet slowly filled
+// with ghosts nothing could release, while deleteVms itself says upstream
+// frees the private address at termination. A first unification was reverted
+// on the verdict of the then state-blind sweep invariant, which reported the
+// legitimate reuse as a double allocation — the false verdict sweep.go now
+// records. The allocator is rebuilt per call because the store is the state,
+// and holding a long-lived allocator beside it is how the two drift apart
+// across a snapshot restore.
+//
+// TestATerminatedVmsAddressReturnsToItsSubnet fails without the release.
 func (p *Pack) placeInSubnet(subnetID string) (placement, error) {
 	subnet, found := p.env.Store.Get(Name, kindSubnet, subnetID)
 	if !found {
@@ -56,41 +64,9 @@ func (p *Pack) placeInSubnet(subnetID string) (placement, error) {
 	if err != nil {
 		return placement{}, err
 	}
-
-	allocator, err := network.NewAllocator(prefix, reservedPerSubnet)
+	allocator, err := p.subnetAllocator(subnetID)
 	if err != nil {
 		return placement{}, err
-	}
-	for _, vm := range p.env.Store.List(kindVM, resource.Tenant{Provider: Name}) {
-		if vm.Attrs["SubnetId"] != subnetID {
-			continue
-		}
-		taken, parseErr := netip.ParseAddr(stringOf(vm.Attrs["PrivateIp"]))
-		if parseErr == nil {
-			// A duplicate here is not worth failing a create over: the address
-			// is already out of the pool, which is the only thing that matters.
-			_ = allocator.Reserve(taken)
-		}
-	}
-	// Secondary interfaces hold an address in the same Subnet, so they are
-	// reserved too: without this a created NIC and a Vm could be handed the
-	// same address, which on a runtime is two interfaces fighting for one IP.
-	for _, nic := range p.env.Store.List(kindNic, resource.Tenant{Provider: Name}) {
-		if nic.Attrs["SubnetId"] != subnetID {
-			continue
-		}
-		if taken, parseErr := netip.ParseAddr(stringOf(nic.Attrs["PrivateIp"])); parseErr == nil {
-			_ = allocator.Reserve(taken)
-		}
-		// And the secondary addresses LinkPrivateIps assigned (#172). Without
-		// them a Vm created after a link is handed an address the NIC already
-		// holds, which is the very case the comment above warns about, one
-		// field further along. TestALinkedAddressIsNotHandedToTheNextVm.
-		for _, address := range secondaryAddresses(nic) {
-			if taken, parseErr := netip.ParseAddr(address); parseErr == nil {
-				_ = allocator.Reserve(taken)
-			}
-		}
 	}
 
 	address, err := allocator.Allocate()

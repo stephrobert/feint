@@ -211,7 +211,10 @@ func (p *Pack) subnetAllocator(subnetID string) (*network.Allocator, error) {
 		return nil, err
 	}
 	for _, vm := range p.env.Store.List(kindVM, resource.Tenant{Provider: Name}) {
-		if vm.State == stateTerminated || stringOf(vm.Attrs["SubnetId"]) != subnetID {
+		// Gone, not a state comparison: the same answer the sweep invariant
+		// reads, so what the invariant excuses and what this pool reuses
+		// cannot disagree.
+		if Gone(vm) || stringOf(vm.Attrs["SubnetId"]) != subnetID {
 			continue
 		}
 		if taken, parseErr := netip.ParseAddr(stringOf(vm.Attrs["PrivateIp"])); parseErr == nil {

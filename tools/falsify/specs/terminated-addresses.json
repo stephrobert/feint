@@ -1,0 +1,19 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "the dead reservation returns, and a Subnet fills with ghosts nothing can release",
+      "file": "internal/providers/outscale/privateips.go",
+      "find": "\t\tif Gone(vm) || stringOf(vm.Attrs[\"SubnetId\"]) != subnetID {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif (Gone(vm) && false) || stringOf(vm.Attrs[\"SubnetId\"]) != subnetID {\n\t\t\tcontinue\n\t\t}",
+      "test": "TestATerminatedVmsAddressReturnsToItsSubnet"
+    },
+    {
+      "label": "the state-blind invariant returns, and convicts the legitimate reuse it once got reverted",
+      "file": "internal/core/store/storetest/sweep.go",
+      "find": "\t\tif gone != nil && gone(res) {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif gone != nil && gone(res) && false {\n\t\t\tcontinue\n\t\t}",
+      "test": "TestATerminatedVmsAddressReturnsToItsSubnet"
+    }
+  ]
+}
