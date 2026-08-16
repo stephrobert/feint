@@ -1,0 +1,73 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the update path stops ordering its target, and concurrent updates lose each other's fields",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\t// TestConcurrentUpdatesKeepEveryAcknowledgedField fails without this line.\n\tunlock := p.binding().Serialise(id)\n\tdefer unlock()\n\n\tres, found := p.env.Store.Get(Name, kindServer, id)",
+      "replace": "\t// TestConcurrentUpdatesKeepEveryAcknowledgedField fails without this line.\n\tunlock := p.binding().Serialise(id)\n\tunlock()\n\n\tres, found := p.env.Store.Get(Name, kindServer, id)",
+      "test": "TestConcurrentUpdatesKeepEveryAcknowledgedField"
+    },
+    {
+      "label": "a NIC create stops holding the server, so a delete lands between its NIC and its write-back",
+      "file": "internal/providers/scaleway/privatenics.go",
+      "find": "\tunlock := p.binding().Serialise(server.ID)\n\tdefer unlock()",
+      "replace": "\tunlock := p.binding().Serialise(server.ID)\n\tunlock()",
+      "test": "TestAttachingANICDoesNotResurrectADeletedServer"
+    },
+    {
+      "label": "a NIC create trusts the copy it read before the hold, so a finished delete goes unseen",
+      "file": "internal/providers/scaleway/privatenics.go",
+      "find": "\tserver, found := p.env.Store.Get(Name, kindServer, server.ID)\n\tif !found {\n\t\twriteNotFound(w, \"server\", r.PathValue(\"id\"))\n\t\treturn\n\t}",
+      "replace": "\tif fresh, found := p.env.Store.Get(Name, kindServer, server.ID); found {\n\t\tserver = fresh\n\t} else if false {\n\t\twriteNotFound(w, \"server\", r.PathValue(\"id\"))\n\t\treturn\n\t}",
+      "test": "TestAttachingANICDoesNotResurrectADeletedServer"
+    },
+    {
+      "label": "Observe hands the look a copy read before the hold",
+      "package": "./internal/core/machine/",
+      "file": "internal/core/machine/observe.go",
+      "find": "\tunlock := b.Serialise(id)\n\tdefer unlock()\n\n\tres, found := st.Get(b.Provider, kind, id)",
+      "replace": "\tres, found := st.Get(b.Provider, kind, id)\n\tunlock := b.Serialise(id)\n\tdefer unlock()",
+      "test": "TestObserveReadsInsideTheHold"
+    },
+    {
+      "label": "Observe writes back on every read, stamping Updated where nothing changed",
+      "package": "./internal/core/machine/",
+      "file": "internal/core/machine/observe.go",
+      "find": "\tif !look(res) {\n\t\treturn res, nil\n\t}",
+      "replace": "\tif !look(res) && false {\n\t\treturn res, nil\n\t}",
+      "test": "TestObserveWritesNothingWhenNothingChanged"
+    },
+    {
+      "label": "Observe reinserts unconditionally, so a read resurrects a deleted resource",
+      "package": "./internal/core/machine/",
+      "file": "internal/core/machine/observe.go",
+      "find": "\tif err := st.Update(b.Provider, kind, id, func(stored *resource.Resource) error {",
+      "replace": "\tst.Put(res)\n\tif err := st.Update(b.Provider, kind, id, func(stored *resource.Resource) error {",
+      "test": "TestObserveDoesNotResurrectADeletedTarget"
+    },
+    {
+      "label": "Observe asks the runtime about a resource that does not exist",
+      "package": "./internal/core/machine/",
+      "file": "internal/core/machine/observe.go",
+      "find": "\tres, found := st.Get(b.Provider, kind, id)\n\tif !found {\n\t\treturn nil, store.ErrNotFound\n\t}",
+      "replace": "\tres, found := st.Get(b.Provider, kind, id)\n\tif !found {\n\t\tres = &resource.Resource{ID: id, Kind: kind}\n\t\tdefer func() { _ = store.ErrNotFound }()\n\t}",
+      "test": "TestObserveRefusesAMissingTargetBeforeTheLook"
+    },
+    {
+      "label": "a deleted server leaves its private NICs and their addresses behind",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\tfor _, nic := range p.privateNICsOf(id) {\n\t\tp.releaseNIC(nic)\n\t}",
+      "replace": "\tfor _, nic := range p.privateNICsOf(id) {\n\t\tif false {\n\t\t\tp.releaseNIC(nic)\n\t\t}\n\t}",
+      "test": "TestDeletingAServerReleasesItsPrivateNICs"
+    },
+    {
+      "label": "UpdateVm goes back to dropping DeletionProtection, so protection cannot be cleared",
+      "package": "./internal/providers/outscale/",
+      "file": "internal/providers/outscale/vms.go",
+      "find": "\tif req.DeletionProtection != nil {\n\t\tres.Attrs[\"DeletionProtection\"] = *req.DeletionProtection\n\t}",
+      "replace": "\tif req.DeletionProtection != nil && false {\n\t\tres.Attrs[\"DeletionProtection\"] = *req.DeletionProtection\n\t}",
+      "test": "TestDeletionProtectionCanBeClearedByAnUpdate"
+    }
+  ]
+}

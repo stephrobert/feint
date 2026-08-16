@@ -93,6 +93,15 @@ type updateVMRequest struct {
 	KeypairName      string   `json:"KeypairName"`
 	UserData         string   `json:"UserData"`
 	SecurityGroupIDs []string `json:"SecurityGroupIds"`
+	// DeletionProtection was declared by UpdateVmRequest upstream and read by
+	// nobody here, so the flag could be set at create and never cleared: the
+	// delete honoured it, the update silently dropped it, and a client that had
+	// protected a machine had no way left to remove it. Answering 200 to that
+	// request is the worse half — the client is told the change landed.
+	//
+	// A pointer because false is the value that matters: a plain bool cannot
+	// tell "clear the protection" from "this request says nothing about it".
+	DeletionProtection *bool `json:"DeletionProtection"`
 }
 
 func (p *Pack) readVms(w http.ResponseWriter, r *http.Request) {
@@ -113,27 +122,22 @@ func (p *Pack) readVms(w http.ResponseWriter, r *http.Request) {
 		}
 		// A virtual machine gets its address tens of seconds after it starts,
 		// so a create cannot wait for one. It is filled in here instead, on the
-		// read a client is making anyway.
-		// This read writes: a virtual machine gets its address late, and the
-		// refresh publishes it. So it is serialised like every other writer —
-		// an audit noted that a read could otherwise lose a concurrent write,
-		// which is the same defect as UpdateVm's, through a door nobody thinks
-		// of as mutating.
-		refreshed := func() bool {
-			unlock := p.binding().Serialise(res.ID)
-			defer unlock()
-			if !p.refreshMachine(r.Context(), res) {
-				return true
-			}
-			// Committed, not Put: this read ran outside the store lock and a
-			// delete may have landed since. A false return means it did, and
-			// the Vm belongs in nobody's answer.
-			return p.env.Store.Commit(res, p.env.Now())
-		}()
-		if !refreshed {
+		// read a client is making anyway. That makes this read a writer, through
+		// a door nobody thinks of as mutating.
+		//
+		// This pack was the only one that had noticed, and it still wrote back a
+		// copy List had handed out *before* the lock was taken. Observe re-reads
+		// inside the hold, which is the half a per-pack version keeps missing —
+		// and the reason the transactional shape lives in the shared layer now
+		// rather than in whichever pack an audit reached first (#211).
+		fresh, err := p.binding().Observe(p.env.Store, p.env.Now, kindVM, res.ID,
+			func(res *resource.Resource) bool { return p.refreshMachine(r.Context(), res) })
+		if err != nil {
+			// Deleted while its address was being discovered: the Vm belongs in
+			// nobody's answer.
 			continue
 		}
-		vms = append(vms, p.vmView(res))
+		vms = append(vms, p.vmView(fresh))
 	}
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
@@ -482,6 +486,10 @@ func (p *Pack) updateVm(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.UserData != "" {
 		res.Attrs["UserData"] = req.UserData
+	}
+	// TestDeletionProtectionCanBeClearedByAnUpdate fails without this.
+	if req.DeletionProtection != nil {
+		res.Attrs["DeletionProtection"] = *req.DeletionProtection
 	}
 	if !p.env.Store.Commit(res, p.env.Now()) {
 		p.notFound(w, "Vm", res.ID)

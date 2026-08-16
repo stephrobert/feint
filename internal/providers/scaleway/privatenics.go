@@ -84,6 +84,40 @@ func (p *Pack) createPrivateNIC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Held for the whole handler. p.lockAddresses() below serialises NIC creates
+	// against each other, but it is not the lock deleteServer takes, so nothing
+	// ordered this handler against a delete of the server it is attaching to.
+	//
+	// What that costs is not the resurrection it looks like — Commit answers that
+	// — but a NIC and an IPAM address stored beside a server that is gone by the
+	// time the handler reaches its write-back. The address then stays booked
+	// forever: the allocator is rebuilt from what IPAM holds, and the NIC is
+	// invisible to every client, since NIC listings are scoped by server.
+	//
+	// Taken before p.lockAddresses() because serverAction already establishes
+	// that order — it holds the server, then allocates an address — and one
+	// direction everywhere is what keeps two callers from meeting head on.
+	//
+	// TestAttachingANICDoesNotResurrectADeletedServer fails without this.
+	unlock := p.binding().Serialise(server.ID)
+	defer unlock()
+
+	// And the target is read again inside the hold, because the hold alone is not
+	// enough: serverOf answered before the lock existed, so a delete that had
+	// already finished by then leaves this handler working from a copy of
+	// something that no longer exists. Measured, not assumed — with only the hold,
+	// the barrage below still stranded a NIC on trial 10.
+	//
+	// The two together close it from both sides: the re-read rules out a delete
+	// that landed before the lock, the hold rules out one landing after.
+	//
+	// TestAttachingANICDoesNotResurrectADeletedServer fails without this too.
+	server, found := p.env.Store.Get(Name, kindServer, server.ID)
+	if !found {
+		writeNotFound(w, "server", r.PathValue("id"))
+		return
+	}
+
 	var req createPrivateNICRequest
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
@@ -114,8 +148,8 @@ func (p *Pack) createPrivateNIC(w http.ResponseWriter, r *http.Request) {
 	// this address, and hand out the same one. The booked path holds it too:
 	// checking an address is unattached and attaching it is the same
 	// read-modify-write.
-	unlock := p.lockAddresses()
-	defer unlock()
+	unlockAddresses := p.lockAddresses()
+	defer unlockAddresses()
 
 	// The client either names addresses it booked through ipam/v1, or receives
 	// one from the network's own block. Same pool both ways: the allocator is
@@ -204,8 +238,18 @@ func (p *Pack) createPrivateNIC(w http.ResponseWriter, r *http.Request) {
 	// server.private_ip is deliberately not set: the SDK marks it deprecated and
 	// "always null when routed_ip_enabled is True", which every server here is.
 	// A client reads the address through this NIC and ipam/v1.
-	server.Updated = p.env.Now()
-	p.env.Store.Put(server)
+	//
+	// Commit, not Put, and it is the rule the repository already states: Put
+	// reinserts unconditionally, so attaching a NIC to a server a concurrent
+	// DELETE had just removed brought the server back — with its address, its
+	// volumes and a machine nobody would think to stop. The server is also held
+	// above, so this write cannot be built on a copy older than the lock.
+	//
+	// TestAttachingANICDoesNotResurrectADeletedServer fails without this.
+	if !p.env.Store.Commit(server, p.env.Now()) {
+		writeNotFound(w, "server", server.ID)
+		return
+	}
 
 	// The machine follows the control plane, not the other way round: the
 	// address published here is the one it must carry. A running machine has to
@@ -268,6 +312,28 @@ func (p *Pack) deletePrivateNIC(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	p.releaseNIC(res)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// releaseNIC gives back what a gone NIC held, and both doors to that state call
+// it: DELETE on the NIC itself, and the delete of the server carrying it.
+//
+// Two doors, one function, for the reason releaseServerResources already states
+// about volumes and addresses — written twice, they came to disagree twice. This
+// one was not written twice, it was written once: deleting a server left its
+// NICs and their addresses in the store, with no concurrency needed to see it.
+// The NIC then named a server answering 404, invisible to a client because every
+// NIC listing is scoped by server, while the address it held stayed booked and
+// the network's allocator never handed it out again — so a subnet emptied over
+// repeated create-attach-delete cycles.
+//
+// Measured on fr-par-1 before it was changed: attaching a server to a private
+// network booked two IPAM addresses, and deleting the server left the network
+// with none. The real API takes the NIC and its addresses with the server.
+//
+// TestDeletingAServerReleasesItsPrivateNICs fails without this.
+func (p *Pack) releaseNIC(res *resource.Resource) {
 	// An allocated address goes back to the pool by disappearing from the
 	// store: the allocator is rebuilt from what IPAM holds, so nothing to
 	// release here. A booked one is the client's — it was reserved through
@@ -288,7 +354,6 @@ func (p *Pack) deletePrivateNIC(w http.ResponseWriter, r *http.Request) {
 		p.env.Store.Delete(Name, kindIPAMIP, ip.ID)
 	}
 	p.env.Store.Delete(Name, kindPrivateNIC, res.ID)
-	w.WriteHeader(http.StatusNoContent)
 }
 
 // nicsOnNetwork lists the NICs sitting on a Private Network. The VPC product

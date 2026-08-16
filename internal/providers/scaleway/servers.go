@@ -385,20 +385,32 @@ func (p *Pack) getServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
-	res, found := p.env.Store.Get(Name, kindServer, id)
-	if !found || res.Tenant.Zone != zone {
+
+	// The zone is answered before anything else, and from a plain read: a server
+	// of another zone does not exist for this caller, and asking a runtime about
+	// it would be work done for a 404.
+	if res, found := p.env.Store.Get(Name, kindServer, id); !found || res.Tenant.Zone != zone {
 		writeNotFound(w, "server", id)
 		return
 	}
+
 	// A virtual machine gets its address after it boots, so a read is where it
-	// becomes visible.
-	if p.refreshMachine(r.Context(), res) {
-		if !p.env.Store.Commit(res, p.env.Now()) {
-			// Deleted while its address was being discovered. Answering the copy
-			// we hold would hand the client a server the next read denies.
-			writeNotFound(w, "server", id)
-			return
-		}
+	// becomes visible — which makes this GET a writer, and it was the only one of
+	// the three packs' reads that held nothing while it wrote (#211). Observe
+	// holds the server across the runtime call and writes back conditionally, so
+	// a poweroff landing in that window is not undone by the read that started
+	// before it.
+	refreshed := false
+	res, err := p.binding().Observe(p.env.Store, p.env.Now, kindServer, id,
+		func(res *resource.Resource) bool {
+			refreshed = p.refreshMachine(r.Context(), res)
+			return refreshed
+		})
+	if err != nil {
+		writeNotFound(w, "server", id)
+		return
+	}
+	if refreshed {
 		// The machine just proved reachable, so the guest half of its public
 		// addresses can finally land — a virtual machine's agent answers long
 		// after poweron returned. Idempotent for a machine already served.
@@ -413,6 +425,26 @@ func (p *Pack) updateServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
+
+	// The read, the change and the write-back are one operation, so the target is
+	// held across all three.
+	//
+	// Commit was already conditional here, so a delete landing mid-update wins.
+	// Conditional is not ordered, though, and the store says so about itself:
+	// Commit "does not merge — State, Runtime and Attrs are taken from the copy
+	// wholesale, so a concurrent write to a *different* field of the same
+	// resource is still lost". Two updates, one naming the server and the other
+	// tagging it, each committed a whole Attrs map built from its own stale read,
+	// and the loser's field vanished with a 200 in hand.
+	//
+	// This is also the only one of the three packs' update paths that had no
+	// ordering: Outscale holds the same lock, and Exoscale mutates inside
+	// store.Update, which is read-modify-write under the store's own write lock.
+	//
+	// TestConcurrentUpdatesKeepEveryAcknowledgedField fails without this line.
+	unlock := p.binding().Serialise(id)
+	defer unlock()
+
 	res, found := p.env.Store.Get(Name, kindServer, id)
 	if !found || res.Tenant.Zone != zone {
 		writeNotFound(w, "server", id)
@@ -533,10 +565,23 @@ func (p *Pack) deleteServer(w http.ResponseWriter, r *http.Request) {
 // had just been destroyed.
 //
 // TestTerminateReleasesWhatDeleteReleases fails without this.
+// Private NICs go with the server, and that is the third thing this function had
+// to learn rather than the first: volumes, then addresses, then these. Each time
+// the shape was the same — something the server held stayed in the store naming a
+// server that answers 404 — and each time it took a different symptom to notice.
+//
+// Here the symptom is an address nobody can reach and nobody can reclaim: a NIC
+// listing is scoped by server, so a client cannot see the NIC, while its IPAM
+// address stays booked and the network's allocator, rebuilt from what IPAM holds,
+// never offers it again. Measured against fr-par-1, which releases both with the
+// server.
 func (p *Pack) releaseServerResources(ctx context.Context, id, zone string) {
 	for _, vol := range p.volumesOf(id) {
 		p.detachVolume(vol)
 		p.env.Store.Put(vol)
+	}
+	for _, nic := range p.privateNICsOf(id) {
+		p.releaseNIC(nic)
 	}
 	p.releaseAddressesOf(ctx, id, zone)
 }

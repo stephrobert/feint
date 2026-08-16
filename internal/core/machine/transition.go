@@ -24,29 +24,23 @@ import (
 // store.ErrNotFound, whether the resource was never there or was deleted
 // while its machine was transitioning — to the caller that asked for a state
 // the resource no longer has, the two are the same answer.
+// A lifecycle action always writes back — the client asked for a state change,
+// and the answer is whatever the runtime produced. So this is Observe with the
+// question already answered, and the two share one implementation: the
+// transactional half written twice is how a fixed defect survives in the copy,
+// which is the history of this very function.
 func (b Binding) Transition(st *store.Store, now func() time.Time, kind, id string, change func(*resource.Resource)) error {
-	unlock := b.Serialise(id)
-	defer unlock()
-
-	res, found := st.Get(b.Provider, kind, id)
-	if !found {
-		return store.ErrNotFound
-	}
-
-	// The runtime work runs outside the store lock, on the copy Get handed
-	// out. Holding the write lock across a launch would queue every other
-	// request behind one machine starting.
-	change(res)
-
-	// The result is applied conditionally. Put replaces the whole resource,
-	// so it silently discarded anything another request had written in the
-	// meantime — a delete racing a lifecycle loop used to be undone, and the
-	// VM came back, address included.
-	return st.Update(b.Provider, kind, id, func(stored *resource.Resource) error {
-		stored.State = res.State
-		stored.Runtime = res.Runtime
-		stored.Attrs = res.Attrs
-		stored.Updated = now()
-		return nil
+	_, err := b.Observe(st, now, kind, id, func(res *resource.Resource) bool {
+		// The runtime work runs outside the store lock, on the copy Get handed
+		// out. Holding the write lock across a launch would queue every other
+		// request behind one machine starting.
+		//
+		// The result is then applied conditionally. Put replaces the whole
+		// resource, so it silently discarded anything another request had
+		// written in the meantime — a delete racing a lifecycle loop used to be
+		// undone, and the VM came back, address included.
+		change(res)
+		return true
 	})
+	return err
 }

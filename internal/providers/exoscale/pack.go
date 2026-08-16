@@ -651,12 +651,20 @@ func (p *Pack) listInstances(w http.ResponseWriter, r *http.Request) {
 	for _, res := range list {
 		// A virtual machine gets its address tens of seconds after it starts,
 		// so a create cannot wait for one. It is filled in here instead, on the
-		// read a client is making anyway.
-		if p.refresh(r.Context(), res) && !p.env.Store.Commit(res, p.env.Now()) {
-			// Deleted while its address was being discovered.
+		// read a client is making anyway — which makes a list a writer too, and
+		// it is held per instance rather than across the whole listing: one lock
+		// for the loop would queue every instance behind the slowest runtime
+		// answer, and the exclusion this needs is per target (#211).
+		//
+		// Observe re-reads inside the hold, so the copy rendered here cannot
+		// predate the lock. A resource deleted meanwhile drops out of the
+		// answer rather than being resurrected by the read.
+		fresh, err := p.binding().Observe(p.env.Store, p.env.Now, kindInstance, res.ID,
+			func(res *resource.Resource) bool { return p.refresh(r.Context(), res) })
+		if err != nil {
 			continue
 		}
-		instances = append(instances, p.view(res))
+		instances = append(instances, p.view(fresh))
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"instances": instances})
 }
@@ -796,12 +804,13 @@ func macAddressOf(id string) string {
 
 func (p *Pack) getInstance(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	res, ok := p.env.Store.Get(Name, kindInstance, id)
-	if !ok {
-		writeError(w, http.StatusNotFound, "resource not found")
-		return
-	}
-	if p.refresh(r.Context(), res) && !p.env.Store.Commit(res, p.env.Now()) {
+	// This read writes: the address arrives tens of seconds after the start, and
+	// the refresh is what publishes it. Held through the shared Observe, so a
+	// stop landing while the runtime answers is not undone by a GET that began
+	// before it (#211).
+	res, err := p.binding().Observe(p.env.Store, p.env.Now, kindInstance, id,
+		func(res *resource.Resource) bool { return p.refresh(r.Context(), res) })
+	if err != nil {
 		writeError(w, http.StatusNotFound, "resource not found")
 		return
 	}
