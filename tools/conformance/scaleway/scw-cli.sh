@@ -537,4 +537,110 @@ rm -f "$ud_file"
 prove_end "$span"
 ok "set, read, removed"
 
+# The block/v1 write path (#174). SW-3 closed with v1 proven on GetVolume and
+# DeleteVolume alone: scw 2.56.3 drives the alpha, and the Terraform fixture uses
+# scaleway_instance_volume, so nine v1 operations were mounted and never walked.
+#
+# `scw block` drives v1 directly, which makes this the cheapest of the gaps the
+# issue lists and the one that had been open longest.
+echo "- a block volume and its snapshot go through their whole v1 life"
+span="$(prove_begin behaviour)"
+scw block volume-type list zone="$ZONE" -o json | jq -e 'length > 0' >/dev/null \
+  || fail "no block volume type on offer"
+
+bvol="$(scw block volume create name=conformance-b1 from-empty.size=10GB \
+         perf-iops=5000 zone="$ZONE" -o json 2>&1)" || fail "block volume create rejected: $bvol"
+bvol_id="$(printf '%s' "$bvol" | jq -r '.id // empty')"
+[ -n "$bvol_id" ] || fail "no id in the block volume response: $bvol"
+
+scw block volume list zone="$ZONE" -o json | jq -e --arg i "$bvol_id" 'any(.[]; .id == $i)' >/dev/null \
+  || fail "the block volume is missing from the list"
+scw block volume update volume-id="$bvol_id" name=conformance-b1-renamed zone="$ZONE" -o json \
+  | jq -e '.name == "conformance-b1-renamed"' >/dev/null || fail "block volume update did not carry the name"
+
+bsnap="$(scw block snapshot create volume-id="$bvol_id" name=conformance-bs1 zone="$ZONE" -o json 2>&1)" \
+  || fail "block snapshot create rejected: $bsnap"
+bsnap_id="$(printf '%s' "$bsnap" | jq -r '.id // empty')"
+[ -n "$bsnap_id" ] || fail "no id in the block snapshot response: $bsnap"
+
+scw block snapshot get "$bsnap_id" zone="$ZONE" -o json | jq -e --arg i "$bsnap_id" '.id == $i' >/dev/null \
+  || fail "get did not read the block snapshot back"
+scw block snapshot list zone="$ZONE" -o json | jq -e --arg i "$bsnap_id" 'any(.[]; .id == $i)' >/dev/null \
+  || fail "the block snapshot is missing from the list"
+scw block snapshot update snapshot-id="$bsnap_id" name=conformance-bs1-renamed zone="$ZONE" -o json \
+  | jq -e '.name == "conformance-bs1-renamed"' >/dev/null || fail "block snapshot update did not carry the name"
+
+scw block snapshot delete snapshot-id="$bsnap_id" zone="$ZONE" >/dev/null || fail "block snapshot delete rejected"
+scw block volume delete volume-id="$bvol_id" zone="$ZONE" >/dev/null || fail "block volume delete rejected"
+prove_end "$span"
+ok "types listed, volume and snapshot created, listed, renamed, deleted"
+
+# The VPC reads and updates SW-4 landed with no scenario (#174). Each is one
+# `scw vpc` call, and the lists are what a Terraform data source reads.
+echo "- the VPC surface is listed and updated"
+span="$(prove_begin behaviour)"
+vpc="$(scw vpc vpc create name=conformance-vpc region=fr-par -o json 2>&1)" \
+  || fail "vpc create rejected: $vpc"
+vpc_id="$(printf '%s' "$vpc" | jq -r '.id // empty')"
+[ -n "$vpc_id" ] || fail "no id in the vpc response: $vpc"
+
+scw vpc vpc list region=fr-par -o json | jq -e --arg i "$vpc_id" 'any(.[]; .id == $i)' >/dev/null \
+  || fail "the VPC is missing from the list"
+scw vpc vpc update "$vpc_id" name=conformance-vpc-2 region=fr-par -o json \
+  | jq -e '.name == "conformance-vpc-2"' >/dev/null || fail "vpc update did not carry the name"
+
+vpn="$(scw vpc private-network create name=conformance-vpc-pn vpc-id="$vpc_id" \
+        subnets.0=10.185.0.0/24 region=fr-par -o json 2>&1)" \
+  || fail "private network create rejected: $vpn"
+vpn_id="$(printf '%s' "$vpn" | jq -r '.id // empty')"
+[ -n "$vpn_id" ] || fail "no id in the private network response: $vpn"
+
+scw vpc private-network list region=fr-par -o json \
+  | jq -e --arg i "$vpn_id" 'any(.[]; .id == $i)' >/dev/null \
+  || fail "the private network is missing from the list"
+scw vpc private-network update "$vpn_id" name=conformance-vpc-pn-2 region=fr-par -o json \
+  | jq -e '.name == "conformance-vpc-pn-2"' >/dev/null || fail "private network update did not carry the name"
+
+scw vpc private-network delete "$vpn_id" region=fr-par >/dev/null || fail "private network delete rejected"
+scw vpc vpc delete "$vpc_id" region=fr-par >/dev/null || fail "vpc delete rejected"
+prove_end "$span"
+ok "VPC and private network created, listed, renamed, deleted"
+
+# The instance/v1 reads and updates left over (#174): the three lists a client
+# pages through, and the three updates a rename goes through. One call each, and
+# the reason they were missed is that the suite drove the create-and-delete path
+# and never the edit one.
+echo "- the instance lists and the three renames"
+span="$(prove_begin behaviour)"
+scw instance ip list zone="$ZONE" -o json >/dev/null || fail "instance ip list rejected"
+scw instance volume list zone="$ZONE" -o json >/dev/null || fail "instance volume list rejected"
+scw instance snapshot list zone="$ZONE" -o json >/dev/null || fail "instance snapshot list rejected"
+
+ivol="$(scw instance volume create name=conformance-iv size=10GB volume-type=b_ssd \
+         zone="$ZONE" -o json 2>&1)" || fail "instance volume create rejected: $ivol"
+ivol_id="$(printf '%s' "$ivol" | jq -r '.volume.id // .id // empty')"
+[ -n "$ivol_id" ] || fail "no id in the instance volume response: $ivol"
+scw instance volume update "$ivol_id" name=conformance-iv-2 zone="$ZONE" -o json \
+  | jq -e '(.volume.name // .name) == "conformance-iv-2"' >/dev/null || fail "instance volume update did not carry the name"
+
+isnap="$(scw instance snapshot create name=conformance-is volume-id="$ivol_id" \
+          zone="$ZONE" -o json 2>&1)" || fail "instance snapshot create rejected: $isnap"
+isnap_id="$(printf '%s' "$isnap" | jq -r '.snapshot.id // .id // empty')"
+[ -n "$isnap_id" ] || fail "no id in the instance snapshot response: $isnap"
+scw instance snapshot update "$isnap_id" name=conformance-is-2 zone="$ZONE" -o json \
+  | jq -e '(.snapshot.name // .name) == "conformance-is-2"' >/dev/null || fail "instance snapshot update did not carry the name"
+
+iimg="$(scw instance image create name=conformance-ii snapshot-id="$isnap_id" arch=x86_64 \
+         zone="$ZONE" -o json 2>&1)" || fail "instance image create rejected: $iimg"
+iimg_id="$(printf '%s' "$iimg" | jq -r '.image.id // .id // empty')"
+[ -n "$iimg_id" ] || fail "no id in the instance image response: $iimg"
+scw instance image update "$iimg_id" name=conformance-ii-2 zone="$ZONE" -o json \
+  | jq -e '(.image.name // .name) == "conformance-ii-2"' >/dev/null || fail "instance image update did not carry the name"
+
+scw instance image delete "$iimg_id" zone="$ZONE" >/dev/null || fail "instance image delete rejected"
+scw instance snapshot delete "$isnap_id" zone="$ZONE" >/dev/null || fail "instance snapshot delete rejected"
+scw instance volume delete "$ivol_id" zone="$ZONE" >/dev/null || fail "instance volume delete rejected"
+prove_end "$span"
+ok "three lists paged, three renames carried back"
+
 echo "conformance: scw CLI passed"

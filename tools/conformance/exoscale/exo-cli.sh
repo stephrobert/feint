@@ -288,6 +288,36 @@ printf '%s' "$sg" | jq -e '(.external_sources // []) | length == 0' >/dev/null \
   || fail "the source survived its removal: $sg"
 ok "source added, published, removed"
 
+# The reads and edits this pack served and no client had walked (#174), plus the
+# snapshot and template surface #173 added. Each is one `exo` call; the reason
+# they were missed is the same in every case — the suite drove creates and
+# deletes and never the edit-and-read-back path.
+echo "- the reads and edits a client makes after it has created something"
+exoc compute instance update "$id" --label conformance=yes >/dev/null \
+  || fail "instance update rejected"
+exoc -O json compute instance show "$id" | jq -e '.labels.conformance == "yes"' >/dev/null \
+  || fail "the label did not come back"
+
+exoc -O json compute deploy-target list >/dev/null || fail "deploy-target list rejected"
+exoc -O json compute security-group show conformance-sg >/dev/null || fail "security-group show rejected"
+
+# The account reads #173 served, one of which the pack had refused to decline for
+# months without ever answering it.
+curl -sf "$ENDPOINT/v2/organization" >/dev/null || fail "the organization is not served"
+curl -sf "$ENDPOINT/v2/event" >/dev/null || fail "events are not served"
+ok "instance relabelled, deploy targets and group read"
+
+echo "- an elastic IP is read back and edited"
+eip="$(exoc -O json compute elastic-ip create --description conformance 2>&1)" \
+  || fail "elastic-ip create rejected: $eip"
+eip_ip="$(exoc -O json compute elastic-ip list | jq -r '.[0].ip_address // empty')"
+[ -n "$eip_ip" ] || fail "no elastic IP in the list"
+exoc -O json compute elastic-ip show "$eip_ip" >/dev/null || fail "elastic-ip show rejected"
+exoc compute elastic-ip update "$eip_ip" --description conformance-2 >/dev/null \
+  || fail "elastic-ip update rejected"
+exoc compute elastic-ip delete "$eip_ip" --force >/dev/null || fail "elastic-ip delete rejected"
+ok "read back, edited, released"
+
 # Snapshots and the template a snapshot promotes into (#173). Driven by the CLI
 # rather than by curl, because the point of the triage was that `exo compute
 # instance snapshot create/list/revert` are first-class client paths, and a route
@@ -336,5 +366,6 @@ contracts="$(curl -sf "$ENDPOINT/_feint/conformance" || true)"
 if printf '%s' "$contracts" | jq -e '.contracts | index("exoscale")' >/dev/null 2>&1; then
   ok "every response matched Exoscale's own API description"
 fi
+
 
 echo "conformance: exo CLI passed"

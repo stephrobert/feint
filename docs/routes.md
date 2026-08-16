@@ -97,7 +97,7 @@ disappears from the suite.
 | `GET` | `/block/v1alpha1/zones/{zone}/volumes` | `block/v1alpha1/API.ListVolumes` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PATCH` | `/block/v1/zones/{zone}/snapshots/{id}` | `block/v1/API.UpdateSnapshot` | `contract` `probe` |
 | `PATCH` | `/block/v1/zones/{zone}/volumes/{id}` | `block/v1/API.UpdateVolume` | `contract` `probe` |
-| `PATCH` | `/block/v1alpha1/zones/{zone}/snapshots/{id}` | `block/v1alpha1/API.UpdateSnapshot` | `contract` `probe` |
+| `PATCH` | `/block/v1alpha1/zones/{zone}/snapshots/{id}` | `block/v1alpha1/API.UpdateSnapshot` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PATCH` | `/block/v1alpha1/zones/{zone}/volumes/{id}` | `block/v1alpha1/API.UpdateVolume` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/block/v1/zones/{zone}/snapshots` | `block/v1/API.CreateSnapshot` | `contract` `probe` |
 | `POST` | `/block/v1/zones/{zone}/volumes` | `block/v1/API.CreateVolume` | `contract` `probe` |
@@ -130,7 +130,7 @@ disappears from the suite.
 | `GET` | `/instance/v1/zones/{zone}/images/{id}` | `instance/v1/API.GetImage` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/instance/v1/zones/{zone}/images` | `instance/v1/API.ListImages` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/instance/v1/zones/{zone}/ips/{id}` | `instance/v1/API.GetIP` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
-| `GET` | `/instance/v1/zones/{zone}/ips` | `instance/v1/API.ListIPs` | `contract` `shape` `probe` |
+| `GET` | `/instance/v1/zones/{zone}/ips` | `instance/v1/API.ListIPs` | `client` `contract` `shape` `runtime` `probe` |
 | `GET` | `/instance/v1/zones/{zone}/products/servers` | `instance/v1/API.ListServersTypes` | `client` `contract` `shape` `runtime` `probe` |
 | `GET` | `/instance/v1/zones/{zone}/security_groups/{id}/rules/{ruleID}` | `instance/v1/API.GetSecurityGroupRule` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/instance/v1/zones/{zone}/security_groups/{id}/rules` | `instance/v1/API.ListSecurityGroupRules` | `client` `contract` `runtime` `probe` `behaviour` |
@@ -143,17 +143,17 @@ disappears from the suite.
 | `GET` | `/instance/v1/zones/{zone}/servers/{id}` | `instance/v1/API.GetServer` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/instance/v1/zones/{zone}/servers` | `instance/v1/API.ListServers` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/instance/v1/zones/{zone}/snapshots/{id}` | `instance/v1/API.GetSnapshot` | `client` `contract` `runtime` `probe` `behaviour` |
-| `GET` | `/instance/v1/zones/{zone}/snapshots` | `instance/v1/API.ListSnapshots` | `contract` `shape` `probe` |
+| `GET` | `/instance/v1/zones/{zone}/snapshots` | `instance/v1/API.ListSnapshots` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/instance/v1/zones/{zone}/volumes/{id}` | `instance/v1/API.GetVolume` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
-| `GET` | `/instance/v1/zones/{zone}/volumes` | `instance/v1/API.ListVolumes` | `contract` `shape` `probe` |
-| `PATCH` | `/instance/v1/zones/{zone}/images/{id}` | `instance/v1/API.UpdateImage` | `contract` `probe` |
+| `GET` | `/instance/v1/zones/{zone}/volumes` | `instance/v1/API.ListVolumes` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `PATCH` | `/instance/v1/zones/{zone}/images/{id}` | `instance/v1/API.UpdateImage` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PATCH` | `/instance/v1/zones/{zone}/ips/{id}` | `instance/v1/API.UpdateIP` | `client` `contract` `runtime` `probe` |
 | `PATCH` | `/instance/v1/zones/{zone}/security_groups/{id}/rules/{ruleID}` | `instance/v1/API.UpdateSecurityGroupRule` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PATCH` | `/instance/v1/zones/{zone}/security_groups/{id}` | `instance/v1/API.UpdateSecurityGroup` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PATCH` | `/instance/v1/zones/{zone}/servers/{id}/user_data/{key}` | `instance/v1/API.SetServerUserData` | `client` `runtime` `behaviour` |
 | `PATCH` | `/instance/v1/zones/{zone}/servers/{id}` | `instance/v1/API.UpdateServer` | `client` `contract` `runtime` `probe` `behaviour` |
-| `PATCH` | `/instance/v1/zones/{zone}/snapshots/{id}` | `instance/v1/API.UpdateSnapshot` | `contract` `probe` |
-| `PATCH` | `/instance/v1/zones/{zone}/volumes/{id}` | `instance/v1/API.UpdateVolume` | `contract` `probe` |
+| `PATCH` | `/instance/v1/zones/{zone}/snapshots/{id}` | `instance/v1/API.UpdateSnapshot` | `client` `contract` `runtime` `probe` `behaviour` |
+| `PATCH` | `/instance/v1/zones/{zone}/volumes/{id}` | `instance/v1/API.UpdateVolume` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/instance/v1/zones/{zone}/images` | `instance/v1/API.CreateImage` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/instance/v1/zones/{zone}/ips` | `instance/v1/API.CreateIP` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/instance/v1/zones/{zone}/security_groups/{id}/rules` | `instance/v1/API.CreateSecurityGroupRule` | `client` `contract` `runtime` `probe` `behaviour` |
@@ -195,19 +195,19 @@ disappears from the suite.
 | `DELETE` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.DeleteRoute` | `client` `runtime` `behaviour` |
 | `DELETE` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}` | `vpc/v2/API.DeleteVPC` | `client` `runtime` `behaviour` |
 | `GET` | `/vpc/v2/regions/{region}/private-networks/{pnID}` | `vpc/v2/API.GetPrivateNetwork` | `client` `contract` `runtime` `probe` `behaviour` |
-| `GET` | `/vpc/v2/regions/{region}/private-networks` | `vpc/v2/API.ListPrivateNetworks` | `contract` `shape` `probe` |
+| `GET` | `/vpc/v2/regions/{region}/private-networks` | `vpc/v2/API.ListPrivateNetworks` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.GetRoute` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/vpc/v2/regions/{region}/subnets` | `vpc/v2/API.ListSubnets` | `contract` `probe` |
 | `GET` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}` | `vpc/v2/API.GetVPC` | `client` `contract` `runtime` `probe` `behaviour` |
-| `GET` | `/vpc/v2/regions/{region}/vpcs` | `vpc/v2/API.ListVPCs` | `contract` `shape` `probe` |
-| `PATCH` | `/vpc/v2/regions/{region}/private-networks/{pnID}` | `vpc/v2/API.UpdatePrivateNetwork` | `contract` `probe` |
+| `GET` | `/vpc/v2/regions/{region}/vpcs` | `vpc/v2/API.ListVPCs` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `PATCH` | `/vpc/v2/regions/{region}/private-networks/{pnID}` | `vpc/v2/API.UpdatePrivateNetwork` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PATCH` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.UpdateRoute` | `contract` `probe` |
-| `PATCH` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}` | `vpc/v2/API.UpdateVPC` | `contract` `probe` |
+| `PATCH` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}` | `vpc/v2/API.UpdateVPC` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/vpc/v2/regions/{region}/private-networks/{pnID}/enable-dhcp` | `vpc/v2/API.EnableDHCP` | `contract` `probe` |
 | `POST` | `/vpc/v2/regions/{region}/private-networks` | `vpc/v2/API.CreatePrivateNetwork` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/vpc/v2/regions/{region}/routes` | `vpc/v2/API.CreateRoute` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}/enable-routing` | `vpc/v2/API.EnableRouting` | `contract` `probe` |
-| `POST` | `/vpc/v2/regions/{region}/vpcs` | `vpc/v2/API.CreateVPC` | `client` `contract` `runtime` `probe` |
+| `POST` | `/vpc/v2/regions/{region}/vpcs` | `vpc/v2/API.CreateVPC` | `client` `contract` `runtime` `probe` `behaviour` |
 
 ### Declined on purpose (213)
 
@@ -495,7 +495,7 @@ are in `coverage/`, one artefact per provider.
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `GET` | `/v2/event` | `exoscale/v2.list-events` | — |
+| `GET` | `/v2/event` | `exoscale/v2.list-events` | `client` `contract` `runtime` |
 
 ### `compute`
 
@@ -516,7 +516,7 @@ are in `coverage/`, one artefact per provider.
 | `GET` | `/v2/anti-affinity-group/{id}` | `exoscale/v2.get-anti-affinity-group` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/anti-affinity-group` | `exoscale/v2.list-anti-affinity-groups` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/deploy-target/{id}` | `exoscale/v2.get-deploy-target` | `probe-refusal` |
-| `GET` | `/v2/deploy-target` | `exoscale/v2.list-deploy-targets` | `contract` `shape` `probe` |
+| `GET` | `/v2/deploy-target` | `exoscale/v2.list-deploy-targets` | `client` `contract` `shape` `runtime` `probe` |
 | `GET` | `/v2/elastic-ip/{id}` | `exoscale/v2.get-elastic-ip` | `contract` `probe` |
 | `GET` | `/v2/elastic-ip` | `exoscale/v2.list-elastic-ips` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/instance-type/{id}` | `exoscale/v2.get-instance-type` | `client` `contract` `runtime` `probe` |
@@ -548,7 +548,7 @@ are in `coverage/`, one artefact per provider.
 | `POST` | `/v2/template` | `exoscale/v2.register-template` | `contract` `probe` |
 | `PUT` | `/v2/elastic-ip/{id}:attach` | `exoscale/v2.attach-instance-to-elastic-ip` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/elastic-ip/{id}:detach` | `exoscale/v2.detach-instance-from-elastic-ip` | `client` `contract` `runtime` `probe` `behaviour` |
-| `PUT` | `/v2/elastic-ip/{id}` | `exoscale/v2.update-elastic-ip` | `contract` `probe` |
+| `PUT` | `/v2/elastic-ip/{id}` | `exoscale/v2.update-elastic-ip` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/instance/{id}:add-protection` | `exoscale/v2.add-instance-protection` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/instance/{id}:reboot` | `exoscale/v2.reboot-instance` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/instance/{id}:remove-protection` | `exoscale/v2.remove-instance-protection` | `client` `contract` `runtime` `probe` `behaviour` |
@@ -557,7 +557,7 @@ are in `coverage/`, one artefact per provider.
 | `PUT` | `/v2/instance/{id}:scale` | `exoscale/v2.scale-instance` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/instance/{id}:start` | `exoscale/v2.start-instance` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/instance/{id}:stop` | `exoscale/v2.stop-instance` | `client` `contract` `runtime` `probe` `behaviour` |
-| `PUT` | `/v2/instance/{id}` | `exoscale/v2.update-instance` | `contract` `probe` |
+| `PUT` | `/v2/instance/{id}` | `exoscale/v2.update-instance` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/private-network/{id}:attach` | `exoscale/v2.attach-instance-to-private-network` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/private-network/{id}:detach` | `exoscale/v2.detach-instance-from-private-network` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/v2/private-network/{id}:update-ip` | `exoscale/v2.update-private-network-instance-ip` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
@@ -579,7 +579,7 @@ are in `coverage/`, one artefact per provider.
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `GET` | `/v2/organization` | `exoscale/v2.get-organization` | `contract` `probe` |
+| `GET` | `/v2/organization` | `exoscale/v2.get-organization` | `client` `contract` `runtime` `probe` |
 
 ### `quotas`
 

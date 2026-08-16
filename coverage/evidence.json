@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "7dd2353c6a25c3fa",
     "shapes": "c73ca6ca03ceac5b",
-    "suites": "27dd432d79a87c59"
+    "suites": "26e4a94251e734c8"
   },
   "operations": {
     "block/v1/API.CreateSnapshot": {
@@ -192,12 +192,12 @@
       "negative": false
     },
     "block/v1alpha1/API.UpdateSnapshot": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "block/v1alpha1/API.UpdateVolume": {
@@ -498,10 +498,10 @@
       "negative": false
     },
     "exoscale/v2.get-organization": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
       "behaviour": false,
       "negative": false
@@ -570,10 +570,10 @@
       "negative": false
     },
     "exoscale/v2.list-deploy-targets": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "observed",
       "behaviour": false,
       "negative": false
@@ -588,10 +588,10 @@
       "negative": false
     },
     "exoscale/v2.list-events": {
-      "driven": false,
+      "driven": true,
       "probed": "none",
-      "contract": "unchecked",
-      "dataplane": false,
+      "contract": "clean",
+      "dataplane": true,
       "shape": "unobserved",
       "behaviour": false,
       "negative": false
@@ -813,21 +813,21 @@
       "negative": false
     },
     "exoscale/v2.update-elastic-ip": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "exoscale/v2.update-instance": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "exoscale/v2.update-private-network": {
@@ -1155,10 +1155,10 @@
       "negative": true
     },
     "instance/v1/API.ListIPs": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "observed",
       "behaviour": false,
       "negative": false
@@ -1227,21 +1227,21 @@
       "negative": false
     },
     "instance/v1/API.ListSnapshots": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "observed",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "instance/v1/API.ListVolumes": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "observed",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "instance/v1/API.ServerAction": {
@@ -1281,12 +1281,12 @@
       "negative": false
     },
     "instance/v1/API.UpdateImage": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "instance/v1/API.UpdateSecurityGroup": {
@@ -1317,21 +1317,21 @@
       "negative": false
     },
     "instance/v1/API.UpdateSnapshot": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "instance/v1/API.UpdateVolume": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "ipam/v1/API.AttachIP": {
@@ -2213,7 +2213,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "vpc/v2/API.DeletePrivateNetwork": {
@@ -2289,12 +2289,12 @@
       "negative": false
     },
     "vpc/v2/API.ListPrivateNetworks": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "observed",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "vpc/v2/API.ListSubnets": {
@@ -2307,21 +2307,21 @@
       "negative": false
     },
     "vpc/v2/API.ListVPCs": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "observed",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "vpc/v2/API.UpdatePrivateNetwork": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "vpc/v2/API.UpdateRoute": {
@@ -2334,12 +2334,12 @@
       "negative": false
     },
     "vpc/v2/API.UpdateVPC": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     }
   }
