@@ -1,0 +1,97 @@
+{
+  "comment": [
+    "What a consumer could legitimately have written against an older release,",
+    "taken from the README and docs/ as a user reads them rather than from the",
+    "frozen fixtures — a harness that only knows the shapes we already froze",
+    "agrees with itself (#170).",
+    "",
+    "Nothing here compares a count, and that is a hard rule rather than a style:",
+    "a count goes red the week somebody mounts a route, and a gate that reddens",
+    "for the wrong reason is disarmed within the week. The first draft of this",
+    "file did compare counts, and reported 'operations with no evidence' as",
+    "silently wrong purely because the emulator had grown by 24 operations.",
+    "",
+    "A selector is therefore reduced to what it still discriminates — none, some",
+    "or all of its population — which is invariant to growth and is exactly what",
+    "the consumer's intent was. A scalar is compared as it stands."
+  ],
+  "expressions": [
+    {
+      "name": "probed operations, compared to true",
+      "surface": "conformance",
+      "kind": "selector",
+      "means": "the operations the protocol probe drove",
+      "expr": "[.evidence[] | select(.probed == true)] | length",
+      "population": ".evidence | length"
+    },
+    {
+      "name": "probed operations, read as truthy",
+      "surface": "conformance",
+      "kind": "selector",
+      "means": "the operations the protocol probe drove",
+      "expr": "[.evidence[] | select(.probed)] | length",
+      "population": ".evidence | length"
+    },
+    {
+      "name": "operations a real client drove",
+      "surface": "conformance",
+      "kind": "selector",
+      "means": "the driven axis, the one the score is built from",
+      "expr": "[.evidence[] | select(.driven)] | length",
+      "population": ".evidence | length"
+    },
+    {
+      "name": "operations whose contract was checked",
+      "surface": "conformance",
+      "kind": "selector",
+      "means": "responses compared against their own API description",
+      "expr": "[.evidence[] | select(.contract != \"unchecked\")] | length",
+      "population": ".evidence | length"
+    },
+    {
+      "name": "operations with a shape observed",
+      "surface": "conformance",
+      "kind": "selector",
+      "means": "the shape axis, read as a field that is not the unobserved marker",
+      "expr": "[.evidence[] | select(.shape != \"unobserved\")] | length",
+      "population": ".evidence | length"
+    },
+    {
+      "name": "contract violations",
+      "surface": "conformance",
+      "kind": "scalar",
+      "means": "whether any response failed its own API description",
+      "expr": "(.violations | length) > 0"
+    },
+    {
+      "name": "routes that declare no upstream operation",
+      "surface": "routes",
+      "kind": "selector",
+      "means": "the coverage blind spot rule 2 forbids",
+      "expr": "[.routes[] | select(.operation == null or .operation == \"\")] | length",
+      "population": ".routes | length"
+    },
+    {
+      "name": "routes carry a method and a path",
+      "surface": "routes",
+      "kind": "selector",
+      "means": "the two fields a client needs to call anything",
+      "expr": "[.routes[] | select(.method != null and .path != null)] | length",
+      "population": ".routes | length"
+    },
+    {
+      "name": "the emulator is up",
+      "surface": "health",
+      "kind": "scalar",
+      "means": "the readiness check a script waits on",
+      "expr": ".status"
+    },
+    {
+      "name": "providers mounted",
+      "surface": "health",
+      "kind": "scalar",
+      "means": "which clouds this instance answers for",
+      "expr": "[.providers[]? // empty] | sort | join(\",\")"
+    }
+  ]
+}

@@ -89,6 +89,22 @@ case $? in
   *) ko "docs --check could not run" "build the binary: mise run build" ;;
 esac
 
+# The consumer half of the versioning policy (#170). #132 made a shape change
+# fail CI unless schema_version moves, which is the producer's half; this takes
+# expressions a user could legitimately have written against the last release and
+# runs them against this one.
+#
+# A single silently-wrong verdict refuses the tag. Not because a shape may not
+# change — it may, that is what the version is for — but because a change that
+# runs, answers, and answers something false, with nothing in the payload for the
+# consumer to notice, is the one outcome a version cannot repair after the fact.
+if mise run compat:check >/dev/null 2>&1; then
+  ok "no consumer expression is silently wrong against the last release"
+else
+  ko "a consumer expression is silently wrong" \
+     "mise run compat:check — bump the surface's schema_version, or record the finding in tools/compat/accepted.json with its reason"
+fi
+
 # --- the number the commits imply -------------------------------------------
 #
 # The version is not a preference. Conventional Commits say what the increment

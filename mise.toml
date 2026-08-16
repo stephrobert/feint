@@ -179,6 +179,17 @@ run = "tools/conformance/outscale/oapi-cli.sh http://$FEINT_ADDR"
 description = "shellcheck every script in the repository"
 run = "git ls-files -z '*.sh' | xargs -0 shellcheck --severity=style"
 
+[tasks."compat:check"]
+description = "Run an older release's consumer expressions against this one, and refuse a silently-wrong verdict"
+# The consumer half of the versioning policy (#170). #132 froze the shapes and
+# made a change fail CI unless schema_version moves; nothing took something a
+# user could legitimately have written against an older release and ran it
+# against this one.
+#
+# Offline: it builds the older binary out of the repository's own history. Exit 1
+# on a silently-wrong expression that is not recorded in tools/compat/accepted.json.
+run = "bash --noprofile --norc tools/compat/compat.sh"
+
 [tasks."release:check"]
 description = "Everything that must be true before a tag exists: mise run release:check -- v0.1.0"
 depends = ["build"]

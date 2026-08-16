@@ -172,6 +172,37 @@ boolean to a string, and a pipeline treating it as truthy counted every refusal
 as a success. That path is what #170 measures; this section is what it measures
 against.
 
+### What the measurement found, and the one boundary it cannot protect
+
+`mise run compat:check` builds the previous release out of this repository's own
+history, starts both binaries offline, seeds them identically, and runs a set of
+expressions a consumer could legitimately have written. Each lands in exactly one
+bucket: compatible, explicitly broken, or **silently wrong**. A single unaccepted
+silently-wrong verdict refuses the tag, and `tools/release/preflight.sh` enforces
+that.
+
+Against 0.8 it found two, both of them the `probed` expression in its two natural
+forms:
+
+| the consumer wrote | 0.8 | 0.9 |
+|---|---|---|
+| `select(.probed == true)` | some operations | **none** |
+| `select(.probed)` | some operations | **all of them** |
+
+The second is the worse one: every operation now reads as probed, refusals
+included, which is the exact overstatement #156 existed to remove reappearing in
+somebody else's pipeline.
+
+**Neither is fixable retroactively**, and that is worth stating plainly rather
+than leaving as a green gate. `schema_version` arrived with #132, *after* 0.8
+shipped. A consumer of 0.8 could not have checked a signal that did not exist, so
+the recipe above protects from 0.9 onward and not before. The two findings are
+recorded in `tools/compat/accepted.json` with that reason, and they still print on
+every run — recorded, never hidden.
+
+The gate is about what happens next: from here on, a shape change either moves the
+surface's `schema_version` or refuses the release.
+
 ## Versioning
 
 [Semantic Versioning](https://semver.org/). Before 1.0, the minor version moves

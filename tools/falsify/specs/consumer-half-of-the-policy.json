@@ -1,0 +1,33 @@
+{
+  "package": "./internal/compat/",
+  "mutations": [
+    {
+      "label": "a changed answer with no version bump is called compatible",
+      "file": "internal/compat/compat.go",
+      "find": "\tcase expr.Before == expr.After:",
+      "replace": "\tcase expr.Before == expr.After || true:",
+      "test": "TestAChangedAnswerWithAStillVersionIsSilentlyWrong"
+    },
+    {
+      "label": "an absent version on the older side is read as a signal the consumer had",
+      "file": "internal/compat/compat.go",
+      "find": "\tif !v.BeforeKnown {\n\t\treturn false\n\t}",
+      "replace": "\tif !v.BeforeKnown {\n\t\treturn true\n\t}",
+      "test": "TestAnAbsentVersionOnTheOlderSideIsNoSignalAtAll"
+    },
+    {
+      "label": "the gate lets a silently-wrong finding through",
+      "file": "internal/compat/compat.go",
+      "find": "\t\tif finding.Verdict != SilentlyWrong {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif finding.Verdict != SilentlyWrong || true {\n\t\t\tcontinue\n\t\t}",
+      "test": "TestTheGateFailsOnSilentlyWrongUnlessItIsAccepted"
+    },
+    {
+      "label": "a stale acceptance is no longer reported",
+      "file": "internal/compat/compat.go",
+      "find": "\t\tif !matched[entry.Name] {\n\t\t\tstale = append(stale, entry.Name)\n\t\t}",
+      "replace": "\t\tif !matched[entry.Name] && false {\n\t\t\tstale = append(stale, entry.Name)\n\t\t}",
+      "test": "TestAnAcceptanceThatMatchesNothingIsReported"
+    }
+  ]
+}
