@@ -112,6 +112,66 @@ cosign verify-blob --bundle checksums.txt.cosign.bundle \
 sha256sum -c checksums.txt --ignore-missing
 ```
 
+## What you may depend on, and for how long
+
+The surfaces below are the whole of it. **Anything not on this list carries no
+promise at all**, and saying so plainly is the point: an emulator that promised
+its whole behaviour would be promising a moving copy of three clouds.
+
+| surface | signal | frozen as |
+|---|---|---|
+| `/_feint/health` | `schema_version` | `internal/cli/testdata/frozen/health.json` |
+| `/_feint/routes` | `schema_version` | `internal/cli/testdata/frozen/routes.json` |
+| `/_feint/conformance` | `schema_version` | `internal/cli/testdata/frozen/conformance.json` |
+| `/_feint/trace` | `schema_version` | `internal/cli/testdata/frozen/trace.json` |
+| the CLI's verbs, flags and exit codes | `cliSurfaceVersion` | `internal/cli/testdata/frozen/cli.json` |
+| the state and snapshot formats | the document's own version | `internal/cli/snapshot.go` |
+
+**Serving more of a provider's API is never breaking**, however much it changes.
+That asymmetry is what makes this window affordable: the surface that can break
+is small and enumerated above, and everything a provider pack gains lands outside
+it.
+
+### The notice
+
+**One minor release.** A field or a verb that is going away is deprecated in one
+release and removed no earlier than the next, and both events are lines in
+`CHANGELOG.md` — a deprecation that appears and disappears in the same release is
+not one.
+
+One release rather than a generous number, deliberately. This is a 0.x project
+with one maintainer, and this repository has already measured what an unkeepable
+condition costs: the Exoscale *preview* label waited on somebody else's tracker
+and stayed wrong for months. A promise of one minor version, kept, is worth more
+than a longer one that is broken.
+
+### The signal
+
+Every payload above carries `schema_version`, and it moves when the shape moves —
+additions included, because the number means *the surface changed*, not *the
+surface broke*. `cliSurfaceVersion` does the same for the verbs, the flags and
+the exit codes. A fixture regenerated without its constant moving fails CI.
+
+### The escape
+
+A consumer that reads a version it does not know should **stop rather than
+guess**. The shapes are additive within a version, so an unknown *higher* version
+is safe to read for the fields you already know; an unknown *lower* one means the
+emulator is older than your pipeline expects and the fields you rely on may not
+be there yet.
+
+Concretely, and this is the whole recipe:
+
+```bash
+version="$(curl -sf localhost:4599/_feint/conformance | jq -r '.schema_version')"
+[ "$version" -ge 3 ] || { echo "feint is older than this pipeline expects"; exit 1; }
+```
+
+Reading a field without checking is what breaks silently: `probed` went from a
+boolean to a string, and a pipeline treating it as truthy counted every refusal
+as a success. That path is what #170 measures; this section is what it measures
+against.
+
 ## Versioning
 
 [Semantic Versioning](https://semver.org/). Before 1.0, the minor version moves

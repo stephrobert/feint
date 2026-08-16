@@ -128,13 +128,24 @@ func TestEveryBannerAnchorResolves(t *testing.T) {
 	}
 }
 
+// between answers what lies between two markers, searching for the second one
+// *after* the first.
+//
+// Searching the whole document for the end marker was the first version, and it
+// returned an empty section every time the end marker also occurred earlier —
+// which for a heading like "\n## " it always does. The section then read as
+// absent and the test blamed the document.
 func between(s, start, end string) string {
 	from := strings.Index(s, start)
-	to := strings.Index(s, end)
-	if from < 0 || to < 0 || to < from {
+	if from < 0 {
 		return ""
 	}
-	return s[from+len(start) : to]
+	rest := s[from+len(start):]
+	to := strings.Index(rest, end)
+	if to < 0 {
+		return rest
+	}
+	return rest[:to]
 }
 
 func repoRoot(t *testing.T) string {
