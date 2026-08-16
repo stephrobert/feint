@@ -29,34 +29,17 @@ import (
 // transitionInstance applies one change to one instance, holding that target
 // for the read, the runtime work and the write.
 //
-// Same discipline as the Outscale pack's transitionOne, through the shared
-// binding's per-target lock: the runtime call runs outside the store lock, and
-// the write-back is conditional so a delete landing mid-transition wins.
+// The mechanics — target serialised, existence before, runtime work outside
+// the store lock, conditional write-back so a delete landing mid-transition
+// wins — are machine.Binding.Transition, shared with the Outscale pack's
+// transitionOne rather than written a second time. What stays here is this
+// pack's dialect: a missing instance and one deleted mid-transition are the
+// same bare-message 404.
 // TestTwoLifecycleActionsOnOneInstanceDoNotRace fails without the lock.
 func (p *Pack) transitionInstance(w http.ResponseWriter, r *http.Request, change func(*resource.Resource)) (id string, ok bool) {
 	id = r.PathValue("id")
 
-	unlock := p.binding().Serialise(id)
-	defer unlock()
-
-	res, found := p.env.Store.Get(Name, kindInstance, id)
-	if !found {
-		writeError(w, http.StatusNotFound, "resource not found")
-		return id, false
-	}
-
-	change(res)
-
-	err := p.env.Store.Update(Name, kindInstance, id, func(stored *resource.Resource) error {
-		stored.State = res.State
-		stored.Runtime = res.Runtime
-		stored.Attrs = res.Attrs
-		stored.Updated = p.env.Now()
-		return nil
-	})
-	if err != nil {
-		// Deleted while its machine was transitioning: the caller asked for a
-		// state this resource no longer has.
+	if err := p.binding().Transition(p.env.Store, p.env.Now, kindInstance, id, change); err != nil {
 		writeError(w, http.StatusNotFound, "resource not found")
 		return id, false
 	}

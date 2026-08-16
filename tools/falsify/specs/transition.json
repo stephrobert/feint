@@ -1,0 +1,26 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the target releases before the change, and two actions run on one machine at once",
+      "file": "internal/core/machine/transition.go",
+      "find": "\tunlock := b.Serialise(id)\n\tdefer unlock()",
+      "replace": "\tunlock := b.Serialise(id)\n\tunlock()",
+      "test": "TestTransitionExcludesASecondActionOnTheTarget"
+    },
+    {
+      "label": "a failed write-back is retried unconditionally, and a deleted resource comes back",
+      "file": "internal/core/machine/transition.go",
+      "find": "\treturn st.Update(b.Provider, kind, id, func(stored *resource.Resource) error {\n\t\tstored.State = res.State\n\t\tstored.Runtime = res.Runtime\n\t\tstored.Attrs = res.Attrs\n\t\tstored.Updated = now()\n\t\treturn nil\n\t})",
+      "replace": "\terr := st.Update(b.Provider, kind, id, func(stored *resource.Resource) error {\n\t\tstored.State = res.State\n\t\tstored.Runtime = res.Runtime\n\t\tstored.Attrs = res.Attrs\n\t\tstored.Updated = now()\n\t\treturn nil\n\t})\n\tif err != nil {\n\t\tst.Put(res)\n\t}\n\treturn nil",
+      "test": "TestADeleteLandingMidTransitionWins"
+    },
+    {
+      "label": "a missing target no longer stops the change, and the runtime works for a resource nobody stores",
+      "file": "internal/core/machine/transition.go",
+      "find": "\tif !found {\n\t\treturn store.ErrNotFound\n\t}",
+      "replace": "\tif !found {\n\t\tres = &resource.Resource{Attrs: map[string]any{}}\n\t\t_ = store.ErrNotFound\n\t}",
+      "test": "TestTransitionRefusesAMissingTargetBeforeTheChange"
+    }
+  ]
+}
