@@ -128,6 +128,17 @@ func (p *Pack) linkPrivateIps(w http.ResponseWriter, r *http.Request) {
 		p.notFound(w, "network interface", req.NicID)
 		return
 	}
+
+	// Released before the runtime is touched, and this line is the fix for a
+	// comment that described the opposite of what the code did (#216).
+	// carrySecondary reconfigures an interface on a live machine, which takes
+	// seconds; the lock it was holding is the one every address allocation in this
+	// pack needs, so one link blocked the whole pack for the length of an
+	// incus exec. The release is sync.Once-guarded, so the defer above is still
+	// correct on every error path.
+	//
+	// TestAnAddressLinkDoesNotHoldTheAddressLockAcrossTheRuntime fails without it.
+	unlock()
 	p.carrySecondary(r.Context(), nic)
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
@@ -184,6 +195,8 @@ func (p *Pack) unlinkPrivateIps(w http.ResponseWriter, r *http.Request) {
 		p.notFound(w, "network interface", req.NicID)
 		return
 	}
+	// Same release as the link path, and for the same reason.
+	unlock()
 	p.carrySecondary(r.Context(), nic)
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
@@ -295,10 +308,15 @@ func contains(list []string, want string) bool {
 // carrySecondary tells the runtime what the NIC now carries.
 //
 // Best effort and logged, never fatal: the control plane must keep answering
-// when no runtime is configured, which is the default and what CI uses. And the
-// call is made outside the store lock for the reason every runtime call in this
-// pack is — launching or reconfiguring a machine takes seconds where the lock
-// takes microseconds.
+// when no runtime is configured, which is the default and what CI uses.
+//
+// Its callers release the pack's address lock before calling it, and that had to
+// be made true rather than merely written: this comment used to claim the call
+// ran outside the lock while both callers held it across the whole handler
+// (#216). Reconfiguring an interface takes seconds, the lock is the one every
+// address allocation in this pack needs, so one link serialised the pack behind
+// one incus exec — the shape CLAUDE.md documents under *un effet de bord lent ne
+// tient pas dans le verrou*, written into the very function that denied it.
 func (p *Pack) carrySecondary(ctx context.Context, nic *resource.Resource) {
 	if p.env.Machines == nil {
 		return

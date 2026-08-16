@@ -1,0 +1,12 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "the address link holds the pack's address lock across the runtime call again",
+      "file": "internal/providers/outscale/privateips.go",
+      "find": "\tunlock()\n\tp.carrySecondary(r.Context(), nic)\n\n\temulator.WriteJSON(w, http.StatusOK, map[string]any{\"ResponseContext\": p.context()})\n}\n\n// unlinkPrivateIps",
+      "replace": "\tdefer unlock()\n\tp.carrySecondary(r.Context(), nic)\n\n\temulator.WriteJSON(w, http.StatusOK, map[string]any{\"ResponseContext\": p.context()})\n}\n\n// unlinkPrivateIps",
+      "test": "TestAnAddressLinkDoesNotHoldTheAddressLockAcrossTheRuntime"
+    }
+  ]
+}

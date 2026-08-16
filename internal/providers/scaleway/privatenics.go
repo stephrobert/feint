@@ -251,6 +251,19 @@ func (p *Pack) createPrivateNIC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The address lock is done once the allocation is written, and it is released
+	// here rather than at the return: everything below reaches the runtime, which
+	// takes seconds, and this lock is the one every address this pack hands out
+	// waits on. Holding it across an attach serialised the whole pack behind one
+	// interface reconfiguration — the same defect #216 named in the Outscale pack,
+	// in the pack that was not audited for it.
+	//
+	// What still orders this handler against a concurrent delete of the same
+	// server is the per-server hold taken at the top, which is a different lock
+	// and stays held. The release is sync.Once-guarded, so the defer is still
+	// correct on every path above.
+	unlockAddresses()
+
 	// The machine follows the control plane, not the other way round: the
 	// address published here is the one it must carry. A running machine has to
 	// be restarted to pick up a new interface, which is also true upstream.
