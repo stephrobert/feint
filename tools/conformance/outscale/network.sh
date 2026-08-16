@@ -39,6 +39,8 @@ skip() { echo "  SKIP: $*" >&2; }
 # comparison is not written three times.
 # shellcheck source=/dev/null
 . "$(dirname "$0")/../shared/addresses.sh"
+# shellcheck source=/dev/null
+. "$(dirname "$0")/../shared/verdicts.sh"
 
 echo "conformance: outscale network against $ENDPOINT"
 
@@ -175,13 +177,13 @@ esac
 # container gets its address a few seconds after it starts.
 carried=""
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-  if incus list -f csv -c n4 2>/dev/null | grep -q "$private_ip"; then
+  if machine_carries "feint-osc-$vm_id" "$private_ip"; then
     carried="yes"
     break
   fi
   sleep 2
 done
-[ -n "$carried" ] || fail "no machine on the host carries $private_ip: the address is a number in a store"
+[ -n "$carried" ] || fail "feint-osc-$vm_id does not carry $private_ip: the address is a number in a store"
 ok "$vm_id carries $private_ip, on $found"
 
 echo "- the machine carries no address the API does not publish"
@@ -252,15 +254,21 @@ ip_b="$(printf '%s' "$vm_b_doc" | jq -r '.Vms[0].PrivateIp // empty')"
 # mean isolation rather than a machine still booting.
 booted=""
 for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
-  if incus list -f csv -c n4 2>/dev/null | grep -q "$ip_b"; then booted="yes"; break; fi
+  if machine_carries "feint-osc-$vm_b" "$ip_b"; then booted="yes"; break; fi
   sleep 2
 done
-[ -n "$booted" ] || fail "no machine carries $ip_b; cannot measure reachability"
+[ -n "$booted" ] || fail "feint-osc-$vm_b does not carry $ip_b; cannot measure reachability"
 sleep 2
 
 # reach: from the machine in Net A towards the address in Net B. The names are
 # the binding's, prefix feint-osc-.
 reach() { incus exec "feint-osc-$vm_a" -- ping -c 2 -W 2 "$ip_b" >/dev/null 2>&1; }
+
+# The positive control, before four negative verdicts in a row: the target answers
+# on its own address. A machine whose stack never came up refuses a ping exactly
+# as an unpeered Net does, and this suite draws its strongest conclusion from that
+# refusal (#219).
+assert_answers_itself "feint-osc-$vm_b" "$ip_b" "the Vm of the second Net"
 
 echo "- before any peering, the Nets do not reach each other"
 if reach; then
@@ -303,7 +311,7 @@ else
   same_vm="$(printf '%s' "$same_doc" | jq -r '.Vms[0].VmId')"
   same_ip="$(printf '%s' "$same_doc" | jq -r '.Vms[0].PrivateIp // empty')"
   for _ in $(seq 1 30); do
-    incus list -f csv -c n4 2>/dev/null | grep -q "$same_ip" && break
+    machine_carries "feint-osc-$same_vm" "$same_ip" && break
     sleep 2
   done
   sleep 3

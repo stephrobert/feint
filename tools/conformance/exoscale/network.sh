@@ -47,6 +47,8 @@ skip() { echo "  SKIP: $*" >&2; }
 # comparison is not written three times.
 # shellcheck source=/dev/null
 . "$(dirname "$0")/../shared/addresses.sh"
+# shellcheck source=/dev/null
+. "$(dirname "$0")/../shared/verdicts.sh"
 
 command -v exo >/dev/null 2>&1 || { echo "FAIL: exo is not installed" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is not installed" >&2; exit 1; }
@@ -84,12 +86,19 @@ sweep_runtime() {
   printf '  sweep: %s\n' "${out%%$'\n'*}"
 }
 
-cleanup_ids=()
+# The list lives in a file rather than in an array, and that is the fix for a
+# sweep that swept nothing (#219): boot() ends with `echo "$id"` and every caller
+# writes `id="$(boot …)"`, which is a subshell — so `cleanup_ids+=("$id")` inside
+# it updated a copy that died with the subshell, and the trap ran on an empty
+# list. Every machine the suite created stayed on the operator's host, and the
+# suite reported a clean exit.
+cleanup_init
 cleanup() {
-  for id in "${cleanup_ids[@]:-}"; do
+  while read -r id; do
     [ -n "$id" ] || continue
     curl -sf -X DELETE "$ENDPOINT/v2/instance/$id" >/dev/null 2>&1 || true
-  done
+  done < <(cleanup_list)
+  cleanup_done
   sweep_runtime || return
   if ! "$FEINT_BIN" clean --vm "${FEINT_VM:-incus}" 2>&1 | grep -q "nothing was left behind"; then
     echo "FAIL: the runtime is still not clean after the sweep" >&2
@@ -122,7 +131,7 @@ boot() { # name -> instance id
     || fail "instance $name was not created"
   id="$(exo -O json compute instance list | jq -r --arg n "$name" '.[] | select(.name == $n) | .id')"
   [ -n "$id" ] || fail "instance $name is not in the list after create"
-  cleanup_ids+=("$id")
+  cleanup_add "$id"
   echo "$id"
 }
 
@@ -211,6 +220,11 @@ sleep 2
 # isolation it is hard: a declared capability that does not deliver is worse
 # than an absent one. On any other it is a skip that names the mode, never a
 # silent pass — docs/limits.md records why bridges cannot deliver it.
+# The positive control, before the negative verdict: see the Scaleway suite and
+# #219. A listener that never started refuses a connection exactly as isolation
+# does, so it is proved live on its own loopback first.
+assert_listening "$(machine "$far_id")" 80 "the instance of the other private network"
+
 if incus exec "$(machine "$probe_id")" -- timeout 3 nc -z -w 2 "$far_ip" 80 >/dev/null 2>&1; then
   if [ "$ISOLATION" = "true" ]; then
     fail "$far_ip is reachable from another private network, but $MACHINES declares isolation"

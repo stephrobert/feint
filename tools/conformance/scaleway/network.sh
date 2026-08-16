@@ -44,6 +44,8 @@ skip() { echo "  SKIP: $*" >&2; }
 # comparison is not written three times.
 # shellcheck source=/dev/null
 . "$(dirname "$0")/../shared/addresses.sh"
+# shellcheck source=/dev/null
+. "$(dirname "$0")/../shared/verdicts.sh"
 
 api() { curl -sf -H 'Content-Type: application/json' "$@"; }
 
@@ -77,7 +79,13 @@ fi
 # not, and it fails honestly when a mode claims something it stops delivering.
 ISOLATION="$(printf '%s' "$health" | jq -r '.capabilities.isolation')"
 
-cleanup_ids=()
+# The list lives in a file rather than in an array, and that is the fix for a
+# sweep that swept nothing (#219): boot() ends with `echo "$id"` and every caller
+# writes `id="$(boot …)"`, which is a subshell — so `cleanup_ids+=("$id")` inside
+# it updated a copy that died with the subshell, and the trap ran on an empty
+# list. Every machine the suite created stayed on the operator's host, and the
+# suite reported a clean exit.
+cleanup_init
 
 # The emulator removes its own leftovers: it labels everything it creates, so the
 # sweep is exact where matching names would be a guess. Running it before as well
@@ -99,11 +107,12 @@ sweep_runtime() {
 }
 
 cleanup() {
-  for id in "${cleanup_ids[@]:-}"; do
+  while read -r id; do
     [ -n "$id" ] || continue
     curl -sf -X POST "$ENDPOINT/instance/v1/zones/$ZONE/servers/$id/action" \
       -H 'Content-Type: application/json' -d '{"action":"terminate"}' >/dev/null 2>&1 || true
-  done
+  done < <(cleanup_list)
+  cleanup_done
   sweep_runtime || return
   # A sweep that ran and still left work behind is the same problem as one that
   # never ran, so the end state is asserted rather than assumed.
@@ -145,7 +154,7 @@ boot() { # name [security-group-id] -> "id ip"
   body="$body}"
   id="$(api -X POST "$ENDPOINT/instance/v1/zones/$ZONE/servers" -d "$body" | jq -r '.server.id')"
   [ -n "$id" ] && [ "$id" != null ] || fail "server $1 was not created"
-  cleanup_ids+=("$id")
+  cleanup_add "$id"
   api -X POST "$ENDPOINT/instance/v1/zones/$ZONE/servers/$id/action" -d '{"action":"poweron"}' >/dev/null
   # The address is resolved the way a client resolves it: instance/v1.PrivateNIC
   # carries no address, only ipam_ip_ids, and ipam/v1 holds the addresses. A
@@ -175,8 +184,7 @@ esac
 # control plane is not a witness for itself.
 machine() { echo "feint-scw-$1"; }
 if ! command -v incus >/dev/null 2>&1; then
-  skip "incus client not available; cannot verify what the machines carry"
-  exit 0
+  stop_here "$LINENO" "incus client not available; cannot verify what the machines carry"
 fi
 sleep 3
 
@@ -224,8 +232,7 @@ sleep 2
 reach() { incus exec "$(machine "$probe_id")" -- timeout 3 nc -z -w 2 "$guard_ip" 80 >/dev/null 2>&1; }
 
 if reach; then
-  skip "port 80 is open although the group drops by default; the runtime enforces nothing (Incus < 6.0.4?)"
-  exit 0
+  stop_here "$LINENO" "port 80 is open although the group drops by default; the runtime enforces nothing (Incus < 6.0.4?)"
 fi
 ok "port 80 refused"
 
@@ -317,7 +324,7 @@ far_pn="$(api -X POST "$ENDPOINT/vpc/v2/regions/$REGION/private-networks" \
 
 far_id="$(api -X POST "$ENDPOINT/instance/v1/zones/$ZONE/servers" \
            -d '{"name":"conformance-far","commercial_type":"DEV1-S","image":"alpine"}' | jq -r '.server.id')"
-cleanup_ids+=("$far_id")
+cleanup_add "$far_id"
 far_nic="$(api -X POST "$ENDPOINT/instance/v1/zones/$ZONE/servers/$far_id/private_nics" \
             -d "{\"private_network_id\":\"$far_pn\"}")"
 far_ipam="$(echo "$far_nic" | jq -r '.private_nic.ipam_ip_ids[0] // empty')"
@@ -335,6 +342,13 @@ sleep 2
 # not silence: two managed bridges of one host are routed together, the
 # emulator tries to separate them, and the separation does not hold once the
 # NICs carry a security group. docs/limits.md records both.
+# The positive control, before the negative verdict: the listener on the far
+# machine answers on its own loopback. Without it a machine that never booted and
+# a machine correctly isolated are the same observation, and the suite read the
+# first as a pass — on the assertion that carries the product's strongest claim
+# (#219).
+assert_listening "$(machine "$far_id")" 80 "the server of the other VPC"
+
 if incus exec "$(machine "$probe_id")" -- timeout 3 nc -z -w 2 "$far_ip" 80 >/dev/null 2>&1; then
   # A runtime that declares isolation and does not deliver it is a hard failure:
   # that claim is the product's strongest, and an unproven claim is worse than
@@ -352,7 +366,7 @@ near_pn="$(api -X POST "$ENDPOINT/vpc/v2/regions/$REGION/private-networks" \
             -d '{"name":"near","subnets":["10.184.0.0/24"]}' | jq -r '.id')"
 near_id="$(api -X POST "$ENDPOINT/instance/v1/zones/$ZONE/servers" \
             -d '{"name":"conformance-near","commercial_type":"DEV1-S","image":"alpine"}' | jq -r '.server.id')"
-cleanup_ids+=("$near_id")
+cleanup_add "$near_id"
 near_nic="$(api -X POST "$ENDPOINT/instance/v1/zones/$ZONE/servers/$near_id/private_nics" \
              -d "{\"private_network_id\":\"$near_pn\"}")"
 near_ipam="$(echo "$near_nic" | jq -r '.private_nic.ipam_ip_ids[0] // empty')"
