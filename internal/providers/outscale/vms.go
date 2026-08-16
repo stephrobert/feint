@@ -709,6 +709,21 @@ func (p *Pack) deleteVms(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Gone reports a resource this pack keeps in the store although its API says
+// it no longer exists. The terminated Vm is the one case: the record stays
+// readable because the Terraform provider polls ReadVms until it observes
+// "terminated" (TestATerminatedVmStaysReadable), but the machine is destroyed
+// and holds nothing — upstream releases the private address at termination.
+//
+// This is the pack's word on liveness, in the pack because the vocabulary is
+// the provider's (rule 5 keeps it out of the core). Two consumers must read
+// the same answer or the instrument convicts the innocent: the barrage sweep
+// takes it as its predicate, and subnetAllocator skips exactly what it names,
+// so what the invariant excuses and what the pool reuses cannot disagree.
+func Gone(res *resource.Resource) bool {
+	return res.Kind == kindVM && res.State == stateTerminated
+}
+
 // vmView renders a Vm. Only fields the pack actually knows are emitted: a
 // PrivateIp of "" would tell a client the machine has no address, where an
 // absent field tells it the emulator does not model one.

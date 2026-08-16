@@ -45,7 +45,7 @@ func TestAHealthyStoreSweepsClean(t *testing.T) {
 
 	server.Runtime = map[string]string{"machine": "feint-scw-s1"}
 
-	if found := storetest.Sweep([]*resource.Resource{server, address, network, volA, volB}); len(found) != 0 {
+	if found := storetest.Sweep([]*resource.Resource{server, address, network, volA, volB}, nil); len(found) != 0 {
 		t.Errorf("a healthy store produced findings, so the sweep would cry wolf on every run:\n%s",
 			strings.Join(found, "\n"))
 	}
@@ -55,7 +55,7 @@ func TestTheSweepSeesAnIdentifierIssuedTwice(t *testing.T) {
 	found := storetest.Sweep([]*resource.Resource{
 		res("same", "instance/server", map[string]any{"name": "a"}),
 		res("same", "instance/ip", map[string]any{"address": "203.0.113.1"}),
-	})
+	}, nil)
 	if len(found) == 0 {
 		t.Fatal("two resources sharing an identifier swept clean, and the store keys on it")
 	}
@@ -68,7 +68,7 @@ func TestTheSweepSeesOneAddressAllocatedTwice(t *testing.T) {
 	found := storetest.Sweep([]*resource.Resource{
 		res("ip1", "instance/ip", map[string]any{"address": "203.0.113.9"}),
 		res("ip2", "instance/ip", map[string]any{"address": "203.0.113.9"}),
-	})
+	}, nil)
 	if len(found) == 0 {
 		t.Fatal("one address held by two resources of one kind swept clean")
 	}
@@ -83,7 +83,7 @@ func TestTheSweepSeesOneAddressAllocatedTwice(t *testing.T) {
 			"public_ips": []any{map[string]any{"address": "198.51.100.4"}}}),
 		res("s2", "instance/server", map[string]any{
 			"public_ips": []any{map[string]any{"address": "198.51.100.4"}}}),
-	})
+	}, nil)
 	if len(nested) == 0 {
 		t.Error("a duplicated address nested inside a list swept clean")
 	}
@@ -95,7 +95,7 @@ func TestTheSweepSeesTwoResourcesClaimingOneMachine(t *testing.T) {
 	b := res("s2", "instance/server", map[string]any{"name": "b"})
 	b.Runtime = map[string]string{"machine": "feint-scw-orphan"}
 
-	found := storetest.Sweep([]*resource.Resource{a, b})
+	found := storetest.Sweep([]*resource.Resource{a, b}, nil)
 	if len(found) == 0 {
 		t.Fatal("two resources naming one runtime machine swept clean: deleting either destroys the other's")
 	}
@@ -110,8 +110,39 @@ func TestTheSweepSurvivesANilResource(t *testing.T) {
 	found := storetest.Sweep([]*resource.Resource{
 		nil,
 		res("s1", "instance/server", map[string]any{"name": "a"}),
-	})
+	}, nil)
 	if len(found) != 0 {
 		t.Errorf("a nil element produced findings: %v", found)
+	}
+}
+
+// One address on two resources of one kind, one of them gone: not a breach.
+//
+// The blind reading of this exact store is the false verdict of 2026-08-16 — a
+// terminated Vm's address, legitimately reused, reported as a double
+// allocation, and a correct allocator fix reverted on the strength of it. The
+// liveness vocabulary stays the pack's: it arrives as the predicate, and nil
+// keeps the strict reading, which is the loud failure direction for a pack
+// that forgets to pass one.
+func TestAGoneResourcesAddressIsNotShared(t *testing.T) {
+	dead := res("vm-dead", "vm", map[string]any{"PrivateIp": "10.100.1.4"})
+	dead.State = "terminated"
+	live := res("vm-live", "vm", map[string]any{"PrivateIp": "10.100.1.4"})
+	both := []*resource.Resource{dead, live}
+	gone := func(r *resource.Resource) bool { return r.State == "terminated" }
+
+	if found := storetest.Sweep(both, gone); len(found) != 0 {
+		t.Errorf("an address inherited from a gone resource was reported shared:\n%s",
+			strings.Join(found, "\n"))
+	}
+
+	// Both halves: without the pack's word, the strict reading still bites —
+	// and two living holders stay a breach whatever predicate is passed.
+	if found := storetest.Sweep(both, nil); len(found) == 0 {
+		t.Error("with no liveness predicate the sweep stopped seeing the shared address at all")
+	}
+	dead.State = "running"
+	if found := storetest.Sweep(both, gone); len(found) == 0 {
+		t.Error("two living resources share an address and the predicate excused one of them")
 	}
 }

@@ -216,7 +216,7 @@ func TestABarrageLeavesTheStoreCoherent(t *testing.T) {
 			len(refused), strings.Join(firstFew(refused, 5), "\n"))
 	}
 
-	if found := storetest.Sweep(st.All()); len(found) != 0 {
+	if found := storetest.Sweep(st.All(), nil); len(found) != 0 {
 		t.Errorf("the store is incoherent after the barrage:\n%s", strings.Join(found, "\n"))
 	}
 
@@ -412,7 +412,7 @@ func TestARestoreDuringTrafficLandsInOneWorld(t *testing.T) {
 	// Whatever the interleaving produced, the store must be coherent: no
 	// identifier issued twice, no address held twice, no runtime object claimed
 	// twice. A merge of two worlds is exactly what breaks those.
-	if found := storetest.Sweep(st.All()); len(found) != 0 {
+	if found := storetest.Sweep(st.All(), nil); len(found) != 0 {
 		t.Errorf("a restore during traffic left the store incoherent:\n%s", strings.Join(found, "\n"))
 	}
 
@@ -517,7 +517,7 @@ func TestASharedNetworkUnderBarrageNeverHandsOutOneAddressTwice(t *testing.T) {
 	}
 
 	// The invariant the contention exists to test: one address, one resource.
-	if found := storetest.Sweep(st.All()); len(found) != 0 {
+	if found := storetest.Sweep(st.All(), nil); len(found) != 0 {
 		t.Errorf("one pool under contention produced an incoherent store:\n%s",
 			strings.Join(found, "\n"))
 	}

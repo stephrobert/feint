@@ -1,0 +1,12 @@
+{
+  "package": "./internal/core/store/storetest/",
+  "mutations": [
+    {
+      "label": "the address invariant goes blind to liveness again, and convicts a legitimate reuse",
+      "file": "internal/core/store/storetest/sweep.go",
+      "find": "\t\tif gone != nil && gone(res) {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif gone != nil && gone(res) && false {\n\t\t\tcontinue\n\t\t}",
+      "test": "TestAGoneResourcesAddressIsNotShared"
+    }
+  ]
+}

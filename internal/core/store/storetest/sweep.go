@@ -29,16 +29,33 @@ import (
 	"github.com/stephrobert/feint/internal/core/resource"
 )
 
+// Gone reports a resource the pack keeps in the store although its API says it
+// no longer exists — Outscale's terminated Vm, kept readable because the
+// Terraform provider polls ReadVms until it observes "terminated".
+//
+// The vocabulary of "no longer exists" is each provider's own (`terminated`,
+// `deleted`), and this package must not learn those words: CLAUDE.md's rule 5
+// names the watcher filter that once listed three provider prefixes in the
+// core as the shape to refuse. So liveness arrives as a predicate the pack
+// supplies, and the failure direction of forgetting it is the loud one: a nil
+// or stale predicate treats every resource as alive, which makes the sweep
+// stricter, never blinder.
+type Gone func(*resource.Resource) bool
+
 // Sweep reports every invariant the store broke, one line each, sorted so two
 // runs of the same failure read the same.
 //
 // Empty means coherent. The caller decides what to do about it — this returns
 // findings rather than calling t.Error, so a barrage can sweep repeatedly and
 // report only the first breach, and so the sweep itself is testable.
-func Sweep(resources []*resource.Resource) []string {
+//
+// gone is the pack's word on which resources no longer exist; nil means all of
+// them do. Only the address invariant reads it — an identifier is issued once
+// forever, and a runtime object claimed by a dead record is still an orphan.
+func Sweep(resources []*resource.Resource, gone Gone) []string {
 	var found []string
 	found = append(found, duplicateIdentifiers(resources)...)
-	found = append(found, sharedAddresses(resources)...)
+	found = append(found, sharedAddresses(resources, gone)...)
 	found = append(found, sharedRuntimeObjects(resources)...)
 	sort.Strings(found)
 	return found
@@ -68,7 +85,7 @@ func duplicateIdentifiers(resources []*resource.Resource) []string {
 	return found
 }
 
-// sharedAddresses: one address belongs to one resource of a kind.
+// sharedAddresses: one address belongs to one living resource of a kind.
 //
 // Scoped to the kind on purpose, and that is the difference between an invariant
 // and a false alarm: an address resource and the server it is attached to both
@@ -76,18 +93,30 @@ func duplicateIdentifiers(resources []*resource.Resource) []string {
 // would fail every healthy store. Two *servers* carrying it, or two *flexible
 // IPs*, is the double allocation this is for.
 //
+// Living, because a record a pack keeps for observability holds nothing. The
+// first version compared every resource of a kind whatever its state, and that
+// blind reading produced a false verdict, measured on 2026-08-16: a terminated
+// Vm's address legitimately reused by a new Vm was reported as "held by two vm
+// resources", and a correct allocator fix was reverted on the strength of it.
+// A control that measures something other than what it announces does not fail
+// loudly, it convicts the innocent. TestAGoneResourcesAddressIsNotShared fails
+// without the predicate being read.
+//
 // Addresses are found by shape rather than by attribute name, because the names
 // are each pack's own — `address`, `PublicIp`, `ipv4_address` — and a sweep
 // keyed on them is a sweep the fourth pack escapes. Anything that parses as an
 // IP is an address; a prefix like 10.0.0.0/24 is not, and is skipped, since a
 // subnet legitimately appears on the network and on everything placed in it.
-func sharedAddresses(resources []*resource.Resource) []string {
+func sharedAddresses(resources []*resource.Resource, gone Gone) []string {
 	// kind -> address -> the first resource holding it
 	byKind := map[string]map[string]string{}
 	var found []string
 
 	for _, res := range resources {
 		if res == nil {
+			continue
+		}
+		if gone != nil && gone(res) {
 			continue
 		}
 		held := byKind[res.Kind]
