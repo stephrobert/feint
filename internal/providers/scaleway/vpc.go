@@ -250,9 +250,9 @@ func (p *Pack) createPrivateNetwork(w http.ResponseWriter, r *http.Request) {
 	// stored. Choosing and checking overlap without it meant two concurrent
 	// creates read the same state, picked the same free block, both passed
 	// FirstOverlap, and both took it — and Terraform creates ten resources at a
-	// time by default, which is the case p.addresses was introduced for.
-	p.addresses.Lock()
-	defer p.addresses.Unlock()
+	// time by default, which is the case p.lockAddresses() was introduced for.
+	unlock := p.lockAddresses()
+	defer unlock()
 
 	// The block is validated, not stored blindly. floci accepts any CIDR, never
 	// checks the mask, never checks overlap, and reports a fixed address count
@@ -494,8 +494,8 @@ func (p *Pack) enableDHCP(w http.ResponseWriter, r *http.Request) {
 // security group, it is lazy: the emulator has no notion of "a project was
 // created", so the first read is the only moment it can happen.
 func (p *Pack) ensureDefaultVPC(region, project string) *resource.Resource {
-	p.defaults.Lock()
-	defer p.defaults.Unlock()
+	unlock := p.lockDefaults()
+	defer unlock()
 
 	scope := resource.Tenant{Provider: Name, Project: project, Zone: region}
 	for _, res := range p.env.Store.List(kindVPC, scope) {

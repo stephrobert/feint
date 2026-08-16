@@ -114,8 +114,8 @@ func (p *Pack) createPrivateNIC(w http.ResponseWriter, r *http.Request) {
 	// this address, and hand out the same one. The booked path holds it too:
 	// checking an address is unattached and attaching it is the same
 	// read-modify-write.
-	p.addresses.Lock()
-	defer p.addresses.Unlock()
+	unlock := p.lockAddresses()
+	defer unlock()
 
 	// The client either names addresses it booked through ipam/v1, or receives
 	// one from the network's own block. Same pool both ways: the allocator is
@@ -243,7 +243,7 @@ func (p *Pack) createPrivateNIC(w http.ResponseWriter, r *http.Request) {
 
 // bookedIPsOf resolves the IPAM addresses a NIC create names, and refuses the
 // ones a create cannot take: an address of another network, another region, or
-// one something already holds. Resolved under p.addresses, which the caller
+// one something already holds. Resolved under p.lockAddresses(), which the caller
 // holds — the unattached check and the attachment must be one critical section.
 func (p *Pack) bookedIPsOf(w http.ResponseWriter, ids []string, pn, server *resource.Resource) ([]*resource.Resource, bool) {
 	booked := make([]*resource.Resource, 0, len(ids))

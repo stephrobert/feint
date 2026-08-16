@@ -80,8 +80,8 @@ func (p *Pack) createIP(w http.ResponseWriter, r *http.Request) {
 	// Same lock as private addresses: rebuild, allocate, persist is a
 	// read-modify-write over the store, and two concurrent creates would
 	// otherwise receive the same address.
-	p.addresses.Lock()
-	defer p.addresses.Unlock()
+	unlock := p.lockAddresses()
+	defer unlock()
 
 	address, err := p.allocateFlexibleAddress()
 	if err != nil {
@@ -501,8 +501,8 @@ func (p *Pack) ensureDynamicAddress(res *resource.Resource) {
 		return
 	}
 
-	p.addresses.Lock()
-	defer p.addresses.Unlock()
+	unlock := p.lockAddresses()
+	defer unlock()
 	address, err := p.allocateFlexibleAddress()
 	if err != nil {
 		p.logger().Error("could not allocate a dynamic address",

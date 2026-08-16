@@ -315,8 +315,8 @@ func (p *Pack) createVms(w http.ResponseWriter, r *http.Request) {
 // batch. Releasing between two Vms of one batch would let another create take an
 // address this one is about to use, so the whole batch allocates at once.
 func (p *Pack) allocateVms(req createVmsRequest, count int, now time.Time) ([]*resource.Resource, error) {
-	p.addresses.Lock()
-	defer p.addresses.Unlock()
+	unlock := p.lockAddresses()
+	defer unlock()
 
 	created := make([]*resource.Resource, 0, count)
 	for range count {

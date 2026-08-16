@@ -189,7 +189,7 @@ func (p *Pack) getIPAMIP(w http.ResponseWriter, r *http.Request) {
 
 // bookIP reserves an address in a Private Network's subnet, which is the same
 // pool the NIC allocator draws from: both go through allocatorFor under
-// p.addresses, so a booked address and an allocated one cannot collide.
+// p.lockAddresses(), so a booked address and an allocated one cannot collide.
 //
 // Only the Private Network source is served. Upstream says the same thing of
 // itself — "not all sources are available for reservation", and picking a
@@ -245,8 +245,8 @@ func (p *Pack) bookIP(w http.ResponseWriter, r *http.Request) {
 	// Held from rebuild to Put, like every allocation in this pack: released
 	// earlier, a concurrent create rebuilds from a store that does not know
 	// about this address yet and hands it out again.
-	p.addresses.Lock()
-	defer p.addresses.Unlock()
+	unlock := p.lockAddresses()
+	defer unlock()
 
 	alloc, err := p.allocatorFor(pn)
 	if err != nil {
@@ -405,7 +405,7 @@ func (p *Pack) releaseIPAMIPSet(w http.ResponseWriter, r *http.Request) {
 	// The same lock, for the same reason releaseOne takes it: a delete frees an
 	// address, and freeing one while another request is allocating hands it out
 	// twice. Re-read under the lock, since the checks above ran outside it.
-	p.addresses.Lock()
+	unlock := p.lockAddresses()
 	for _, res := range batch {
 		current, found := p.env.Store.Get(Name, kindIPAMIP, res.ID)
 		if !found || ipamAttached(current) {
@@ -413,7 +413,7 @@ func (p *Pack) releaseIPAMIPSet(w http.ResponseWriter, r *http.Request) {
 		}
 		p.env.Store.Delete(Name, kindIPAMIP, current.ID)
 	}
-	p.addresses.Unlock()
+	unlock()
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -434,8 +434,8 @@ func (p *Pack) releaseOne(w http.ResponseWriter, res *resource.Resource) bool {
 	// one is exactly what frees an address: the read and the delete belong in the
 	// same critical section as the allocation they race.
 	// TestAReleasedAddressCannotBeTakenWhileItIsBeingAttached fails without this.
-	p.addresses.Lock()
-	defer p.addresses.Unlock()
+	unlock := p.lockAddresses()
+	defer unlock()
 
 	// Re-read under the lock. The caller resolved this resource outside it, and
 	// an attachment that landed in between is invisible to a stale clone.

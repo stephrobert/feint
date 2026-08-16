@@ -493,8 +493,8 @@ func (p *Pack) deleteSecurityGroupRule(w http.ResponseWriter, r *http.Request) {
 // what keeps two concurrent reads from provisioning it twice; the store offers
 // no compare-and-set, and a duplicated default is a state no client expects.
 func (p *Pack) ensureDefaultSecurityGroup(zone, project string) *resource.Resource {
-	p.defaults.Lock()
-	defer p.defaults.Unlock()
+	unlock := p.lockDefaults()
+	defer unlock()
 
 	for _, res := range p.env.Store.List(kindSecurityGroup, resource.Tenant{Provider: Name, Project: project, Zone: zone}) {
 		if isProjectDefault(res) {

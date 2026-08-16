@@ -216,8 +216,8 @@ func (p *Pack) deleteDhcpOptions(w http.ResponseWriter, r *http.Request) {
 	// Under the addressing lock, which is what serialises this scan against
 	// updateNet re-pointing a Net between the check and the delete.
 	// TestADhcpOptionsSetDoesNotDeleteUnderANet fails without the guard.
-	p.addresses.Lock()
-	defer p.addresses.Unlock()
+	unlock := p.lockAddresses()
+	defer unlock()
 	for _, net := range p.env.Store.List(kindNet, resource.Tenant{Provider: Name}) {
 		if stringOf(net.Attrs["DhcpOptionsSetId"]) == req.DhcpOptionsSetID {
 			p.conflict(w, "the DHCP options set "+req.DhcpOptionsSetID+

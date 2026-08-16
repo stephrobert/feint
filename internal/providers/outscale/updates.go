@@ -58,8 +58,8 @@ func (p *Pack) updateNet(w http.ResponseWriter, r *http.Request) {
 	// without it a set can be deleted between the existence check below and the
 	// Commit, and the Net ends up wearing an identifier that resolves to
 	// nothing — the exact relation the existence check exists to refuse.
-	p.addresses.Lock()
-	defer p.addresses.Unlock()
+	unlock := p.lockAddresses()
+	defer unlock()
 
 	// `default` is a keyword, not an identifier: their document defines it on
 	// this very field ("or `default` if you want to associate the default

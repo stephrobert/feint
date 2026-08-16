@@ -274,10 +274,10 @@ func (p *Pack) createNic(w http.ResponseWriter, r *http.Request) {
 	// Under the addressing lock, and the address reserved before release: a NIC
 	// takes an address in the Subnet exactly as a Vm does, and two creates must
 	// not pick the same one.
-	p.addresses.Lock()
+	unlock := p.lockAddresses()
 	place, err := p.placeInSubnet(req.SubnetID)
 	if err != nil {
-		p.addresses.Unlock()
+		unlock()
 		if errors.Is(err, errUnknownSubnet) {
 			p.notFound(w, "Subnet", req.SubnetID)
 		} else {
@@ -305,7 +305,7 @@ func (p *Pack) createNic(w http.ResponseWriter, r *http.Request) {
 		nic.Attrs["SecurityGroupIds"] = req.SecurityGroupIDs
 	}
 	p.env.Store.Put(nic)
-	p.addresses.Unlock()
+	unlock()
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"Nic":             p.storedNicView(nic),

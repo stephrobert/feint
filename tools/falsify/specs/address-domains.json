@@ -1,0 +1,28 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the scaleway addresses domain releases before the transaction, and a release no longer waits on an allocation",
+      "file": "internal/providers/scaleway/pack.go",
+      "find": "func (p *Pack) lockAddresses() func() { return serialise.Lock(Name + \"/addresses\") }",
+      "replace": "func (p *Pack) lockAddresses() func() {\n\tserialise.Lock(Name + \"/addresses\")()\n\treturn func() {}\n}",
+      "test": "TestAReleasedAddressCannotBeTakenWhileItIsBeingAttached"
+    },
+    {
+      "label": "the outscale addressing domain releases before the transaction, and concurrent creates share an address",
+      "file": "internal/providers/outscale/pack.go",
+      "find": "func (p *Pack) lockAddresses() func() { return serialise.Lock(Name + \"/addresses\") }",
+      "replace": "func (p *Pack) lockAddresses() func() {\n\tserialise.Lock(Name + \"/addresses\")()\n\treturn func() {}\n}",
+      "test": "TestConcurrentCreatesDoNotShareAnAddress",
+      "package": "./internal/providers/outscale/"
+    },
+    {
+      "label": "the exoscale addresses domain releases before the transaction, and concurrent allocations share",
+      "file": "internal/providers/exoscale/pack.go",
+      "find": "func (p *Pack) lockAddresses() func() { return serialise.Lock(Name + \"/addresses\") }",
+      "replace": "func (p *Pack) lockAddresses() func() {\n\tserialise.Lock(Name + \"/addresses\")()\n\treturn func() {}\n}",
+      "test": "TestConcurrentAllocationsShareNothing",
+      "package": "./internal/providers/exoscale/"
+    }
+  ]
+}

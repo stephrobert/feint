@@ -18,12 +18,12 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/stephrobert/feint/internal/core/cloudinit"
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/resource"
+	"github.com/stephrobert/feint/internal/core/serialise"
 )
 
 // Name is the provider key.
@@ -51,20 +51,23 @@ const (
 // Pack implements emulator.Pack for Exoscale.
 type Pack struct {
 	env *emulator.Env
-	// addresses serializes elastic IP allocation, which is read-modify-write
-	// over the store: freeElasticAddress rebuilds the used set from what exists,
-	// answers the lowest free address, and the caller then stores it. Two
-	// requests interleaving there receive the same address.
-	//
-	// Not a precaution. The barrage of #134 found it on its first run — three
-	// addresses handed to two elastic IPs each, out of sixteen creates — and it
-	// is the same defect the Scaleway pack fixed for its own pools long ago and
-	// this one never received. CLAUDE.md names that shape: written twice, fixed
-	// once, alive in the other copy.
-	//
-	// TestAnExoscaleBarrageLeavesTheStoreCoherent fails without this.
-	addresses sync.Mutex
 }
+
+// lockAddresses serializes elastic IP and lease allocation, which is
+// read-modify-write over the store: freeElasticAddress rebuilds the used set
+// from what exists, answers the lowest free address, and the caller then
+// stores it. Two requests interleaving there receive the same address.
+//
+// Not a precaution. The barrage of #134 found it on its first run — three
+// addresses handed to two elastic IPs each, out of sixteen creates — and it
+// was the same defect the Scaleway pack fixed for its own pools long ago and
+// this one never received. CLAUDE.md names that shape: written twice, fixed
+// once, alive in the other copy — which is why the lock now lives in
+// core/serialise, shared with every pack, instead of being a mutex each one
+// remembers to grow.
+//
+// TestAnExoscaleBarrageLeavesTheStoreCoherent fails without this.
+func (p *Pack) lockAddresses() func() { return serialise.Lock(Name + "/addresses") }
 
 // New returns an Exoscale pack backed by env.
 func New(env *emulator.Env) *Pack { return &Pack{env: env} }
@@ -742,11 +745,11 @@ func (p *Pack) createInstance(w http.ResponseWriter, r *http.Request) {
 	//
 	// TestAnInstanceIsGivenAPublicAddressAtCreation fails without this.
 	if assignment, _ := res.Attrs["public-ip-assignment"].(string); assignment != "none" {
-		p.addresses.Lock()
+		unlock := p.lockAddresses()
 		if ip, ok := p.freeElasticAddress(); ok {
 			res.Attrs["public-ip"] = ip
 		}
-		p.addresses.Unlock()
+		unlock()
 	}
 	if ids := refIDs(req.AntiAffinityGroups); len(ids) > 0 {
 		res.Attrs[attrAntiAffinityGroupIDs] = ids

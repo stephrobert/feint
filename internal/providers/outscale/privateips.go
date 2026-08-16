@@ -64,8 +64,8 @@ func (p *Pack) linkPrivateIps(w http.ResponseWriter, r *http.Request) {
 	// The allocation and the store write happen under one lock, for the reason
 	// placeInSubnet exists: two concurrent links must not be handed the same
 	// address, which on a runtime is two interfaces fighting for one IP.
-	p.addresses.Lock()
-	defer p.addresses.Unlock()
+	unlock := p.lockAddresses()
+	defer unlock()
 
 	nic, found := p.env.Store.Get(Name, kindNic, req.NicID)
 	if !found {
@@ -152,8 +152,8 @@ func (p *Pack) unlinkPrivateIps(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	p.addresses.Lock()
-	defer p.addresses.Unlock()
+	unlock := p.lockAddresses()
+	defer unlock()
 
 	nic, found := p.env.Store.Get(Name, kindNic, req.NicID)
 	if !found {

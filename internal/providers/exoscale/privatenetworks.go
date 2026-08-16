@@ -203,8 +203,8 @@ func (p *Pack) createPrivateNetwork(w http.ResponseWriter, r *http.Request) {
 	// stored: the VNI is read-modify-write over the store, the exact shape the
 	// barrage of #134 caught on this pack's elastic addresses.
 	// TestConcurrentAllocationsShareNothing fails without it.
-	p.addresses.Lock()
-	defer p.addresses.Unlock()
+	unlock := p.lockAddresses()
+	defer unlock()
 
 	now := p.env.Now()
 	res := &resource.Resource{
@@ -262,7 +262,7 @@ func (p *Pack) createPrivateNetwork(w http.ResponseWriter, r *http.Request) {
 // freeVNI hands out the lowest unused VXLAN id, starting at 1 as their schema's
 // exclusive minimum of 0 demands. Computed from what exists rather than
 // counted, so a deleted network's id returns to the pool. Callers hold
-// p.addresses across the read and the write.
+// p.lockAddresses() across the read and the write.
 func (p *Pack) freeVNI() int {
 	used := map[int]bool{}
 	for _, res := range p.env.Store.List(kindPrivateNetwork, resource.Tenant{Provider: Name}) {
@@ -664,7 +664,7 @@ func (p *Pack) attachInstanceToPrivateNetwork(w http.ResponseWriter, r *http.Req
 
 	// The instance is held for the read, the lease, and the runtime attach,
 	// like every lifecycle path of this pack; the address allocation is its own
-	// read-modify-write over every instance's leases and holds p.addresses
+	// read-modify-write over every instance's leases and holds p.lockAddresses()
 	// across the read and the write, which is what the barrage checks.
 	unlock := p.binding().Serialise(req.Instance.ID)
 	defer unlock()
@@ -684,14 +684,14 @@ func (p *Pack) attachInstanceToPrivateNetwork(w http.ResponseWriter, r *http.Req
 }
 
 // takeLease reserves an address of the network's range for the instance and
-// records the membership, under one hold of p.addresses: choosing from what
+// records the membership, under one hold of p.lockAddresses(): choosing from what
 // exists and storing the choice must be one critical section, or two attaches
 // interleaving there receive the same address — the defect the barrage of #134
 // found on this pack's elastic pool. TestConcurrentAllocationsShareNothing
 // fails without it.
 func (p *Pack) takeLease(w http.ResponseWriter, pn *resource.Resource, instanceID, requested string) (string, bool) {
-	p.addresses.Lock()
-	defer p.addresses.Unlock()
+	unlock := p.lockAddresses()
+	defer unlock()
 
 	dhcp, managed := rangeOf(pn)
 	leaseIP := ""
@@ -856,10 +856,10 @@ func (p *Pack) updatePrivateNetworkInstanceIP(w http.ResponseWriter, r *http.Req
 }
 
 // moveLease points an existing membership at a new address, under the same
-// hold of p.addresses as takeLease and for the same reason.
+// hold of p.lockAddresses() as takeLease and for the same reason.
 func (p *Pack) moveLease(w http.ResponseWriter, pn *resource.Resource, dhcp managedRange, instanceID, requested string) bool {
-	p.addresses.Lock()
-	defer p.addresses.Unlock()
+	unlock := p.lockAddresses()
+	defer unlock()
 
 	addr, err := netip.ParseAddr(requested)
 	if err != nil || !addr.Is4() {

@@ -123,8 +123,8 @@ func (p *Pack) createNet(w http.ResponseWriter, r *http.Request) {
 
 	// Held from the check to the store, or two concurrent creates both find the
 	// block free and both take it.
-	p.addresses.Lock()
-	defer p.addresses.Unlock()
+	unlock := p.lockAddresses()
+	defer unlock()
 
 	if other, clash := network.FirstOverlap(prefix, p.netPrefixes()); clash {
 		p.conflict(w, "IpRange "+prefix.String()+" overlaps the Net on "+other.String())
@@ -215,9 +215,9 @@ func (p *Pack) deleteNet(w http.ResponseWriter, r *http.Request) {
 	// this lock applies here, and it was applied to only one of the two.
 	//
 	// TestANetDoesNotDeleteUnderASubnetBeingCreated fails without this.
-	p.addresses.Lock()
+	unlock := p.lockAddresses()
 	if subnets := p.subnetsOf(req.NetID); len(subnets) > 0 {
-		p.addresses.Unlock()
+		unlock()
 		p.conflict(w, "the Net "+req.NetID+" still holds "+strconv.Itoa(len(subnets))+" subnet(s)")
 		return
 	}
@@ -225,7 +225,7 @@ func (p *Pack) deleteNet(w http.ResponseWriter, r *http.Request) {
 	// and Terraform's destroy order (unlink, delete gateway, delete Net) counts
 	// on the refusal to retry rather than to lose the gateway record.
 	if gw := p.linkedInternetServiceOf(req.NetID); gw != nil {
-		p.addresses.Unlock()
+		unlock()
 		p.conflict(w, "the Net "+req.NetID+" still has "+gw.ID+" linked")
 		return
 	}
@@ -234,14 +234,14 @@ func (p *Pack) deleteNet(w http.ResponseWriter, r *http.Request) {
 	// main/default marker.
 	for _, rtb := range p.routeTablesOf(req.NetID) {
 		if !isMainTable(rtb) {
-			p.addresses.Unlock()
+			unlock()
 			p.conflict(w, "the Net "+req.NetID+" still holds the route table "+rtb.ID)
 			return
 		}
 	}
 	for _, sg := range p.securityGroupsOf(req.NetID) {
 		if stringOf(sg.Attrs["SecurityGroupName"]) != "default" {
-			p.addresses.Unlock()
+			unlock()
 			p.conflict(w, "the Net "+req.NetID+" still holds the security group "+sg.ID)
 			return
 		}
@@ -256,7 +256,7 @@ func (p *Pack) deleteNet(w http.ResponseWriter, r *http.Request) {
 	for _, rtb := range p.routeTablesOf(req.NetID) {
 		p.env.Store.Delete(Name, kindRouteTable, rtb.ID)
 	}
-	p.addresses.Unlock()
+	unlock()
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"ResponseContext": p.context(),
@@ -309,10 +309,10 @@ func (p *Pack) createSubnet(w http.ResponseWriter, r *http.Request) {
 	//
 	// TestSubnetCreateDoesNotHoldTheAddressingLockAcrossTheRuntime fails
 	// without this.
-	p.addresses.Lock()
+	unlock := p.lockAddresses()
 
 	if other, clash := network.FirstOverlap(prefix, p.subnetPrefixes(req.NetID)); clash {
-		p.addresses.Unlock()
+		unlock()
 		p.conflict(w, "IpRange "+prefix.String()+" overlaps the subnet on "+other.String())
 		return
 	}
@@ -338,7 +338,7 @@ func (p *Pack) createSubnet(w http.ResponseWriter, r *http.Request) {
 	// reservation, and it is what makes a concurrent create see the range as
 	// taken.
 	p.env.Store.Put(res)
-	p.addresses.Unlock()
+	unlock()
 
 	// The subnet is a real network on the runtime, which is what makes an
 	// address published here an address a machine can carry. Without a runtime
@@ -436,7 +436,7 @@ func (p *Pack) deleteSubnet(w http.ResponseWriter, r *http.Request) {
 	// and nothing in the test can widen it. So the lock is argued from the
 	// allocation path, which does hold it, and the race test is a regression net,
 	// not the proof. Saying which is which is the point.
-	p.addresses.Lock()
+	unlock := p.lockAddresses()
 	for _, vm := range p.env.Store.List(kindVM, resource.Tenant{Provider: Name}) {
 		// A terminated Vm holds nothing. It stays in the store because the
 		// Terraform provider polls ReadVms until it reports "terminated", and a
@@ -447,7 +447,7 @@ func (p *Pack) deleteSubnet(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if stringOf(vm.Attrs["SubnetId"]) == req.SubnetID {
-			p.addresses.Unlock()
+			unlock()
 			p.conflict(w, "the Subnet "+req.SubnetID+" still holds "+vm.ID)
 			return
 		}
@@ -455,14 +455,14 @@ func (p *Pack) deleteSubnet(w http.ResponseWriter, r *http.Request) {
 	// A NAT service placed in the subnet blocks it the same way a Vm does; the
 	// real API refuses, and the destroy order relies on the refusal.
 	if nats := p.natServicesOf(req.SubnetID); len(nats) > 0 {
-		p.addresses.Unlock()
+		unlock()
 		p.conflict(w, "the Subnet "+req.SubnetID+" still holds "+nats[0].ID)
 		return
 	}
 	// Removed from the store under the lock, so a create that wakes up next
 	// fails to resolve it rather than placing a Vm in a Subnet being deleted.
 	p.env.Store.Delete(Name, kindSubnet, req.SubnetID)
-	p.addresses.Unlock()
+	unlock()
 
 	// The runtime call is slow and stays outside: the Subnet is already
 	// unreachable to every other handler by this point.

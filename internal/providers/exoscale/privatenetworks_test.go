@@ -341,7 +341,7 @@ func TestAnExternalSourceMustBeACIDR(t *testing.T) {
 // Two concurrent creates must not share a VXLAN id, and two concurrent
 // attaches must not share a lease: both allocations are read-modify-write over
 // the store, the exact shape the barrage of #134 caught on this pack's elastic
-// pool. Both halves fail without p.addresses held across the read and the
+// pool. Both halves fail without p.lockAddresses() held across the read and the
 // write.
 func TestConcurrentAllocationsShareNothing(t *testing.T) {
 	h := serve(t)

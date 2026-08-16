@@ -22,9 +22,9 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"sync"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/core/serialise"
 )
 
 // Name is the provider key.
@@ -40,12 +40,17 @@ const (
 // Pack implements emulator.Pack for Outscale.
 type Pack struct {
 	env *emulator.Env
-	// addresses serialises the choice of a block, which is read-modify-write
-	// over the store: what is free is computed from what exists, and two
-	// concurrent creates without it both find the same range free and both take
-	// it. Terraform creates ten resources at a time by default.
-	addresses sync.Mutex
 }
+
+// lockAddresses serialises the choice of a block or an address, which is
+// read-modify-write over the store: what is free is computed from what exists,
+// and two concurrent creates without it both find the same range free and both
+// take it. Terraform creates ten resources at a time by default. The comments
+// at the call sites name it the addressing lock, because it also orders the
+// scans that keep a Net, a Subnet and a DHCP options set pointing at each
+// other. The lock itself lives in core/serialise, shared with every pack and
+// the machine binding, so the next pack does not have to rediscover it.
+func (p *Pack) lockAddresses() func() { return serialise.Lock(Name + "/addresses") }
 
 // New returns an Outscale pack backed by env.
 func New(env *emulator.Env) *Pack { return &Pack{env: env} }

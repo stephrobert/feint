@@ -15,7 +15,7 @@ import (
 //
 // This is the defect an audit found in SW-4 and the reason it is tested from
 // inside the package rather than through a barrage. `bookIP` and
-// `createPrivateNIC` hold `p.addresses` from the moment they rebuild occupancy
+// `createPrivateNIC` hold `p.lockAddresses()` from the moment they rebuild occupancy
 // to the moment they store the result; `releaseOne` held nothing, while being
 // the operation that makes an address available again — `allocatorFor` rebuilds
 // occupancy from the IPAM resources alone, so deleting one is exactly what frees
@@ -59,8 +59,9 @@ func TestAReleasedAddressCannotBeTakenWhileItIsBeingAttached(t *testing.T) {
 	id, _ := booked["id"].(string)
 
 	// The allocator is busy, the way it is for the seconds another request
-	// spends between rebuilding occupancy and storing its result.
-	pack.addresses.Lock()
+	// spends between rebuilding occupancy and storing its result. The test
+	// holds the same domain the pack's own allocations take.
+	unlock := pack.lockAddresses()
 
 	done := make(chan int, 1)
 	go func() {
@@ -76,7 +77,7 @@ func TestAReleasedAddressCannotBeTakenWhileItIsBeingAttached(t *testing.T) {
 
 	select {
 	case status := <-done:
-		pack.addresses.Unlock()
+		unlock()
 		t.Fatalf("the release answered %d while the allocator was held: it frees an "+
 			"address without taking the lock every allocation takes", status)
 	case <-time.After(150 * time.Millisecond):
@@ -85,7 +86,7 @@ func TestAReleasedAddressCannotBeTakenWhileItIsBeingAttached(t *testing.T) {
 
 	// And it completes once the allocator is free: a release that never returned
 	// would satisfy the assertion above and break the product.
-	pack.addresses.Unlock()
+	unlock()
 	select {
 	case status := <-done:
 		if status != http.StatusNoContent {

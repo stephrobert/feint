@@ -14,9 +14,9 @@ package scaleway
 import (
 	"net/http"
 	"slices"
-	"sync"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/core/serialise"
 )
 
 // Name is the provider key used by the store and the coverage report.
@@ -25,20 +25,24 @@ const Name = "scaleway"
 // Pack implements emulator.Pack for Scaleway.
 type Pack struct {
 	env *emulator.Env
-	// defaults serializes the lazy provisioning of per-project inventory (the
-	// default security group). The store has no compare-and-set, so without it
-	// two concurrent first reads of a zone each create one.
-	defaults sync.Mutex
-	// addresses serializes address allocation, which is read-modify-write over
-	// the store: an allocator is rebuilt from what exists, hands out an address,
-	// and the result is persisted. Two requests interleaving there receive the
-	// same address, and Terraform creates ten resources at a time by default.
-	//
-	// One lock for every block rather than one per network: allocation is a
-	// handful of map operations, the contention is imperceptible, and a lock per
-	// resource would have to be created, found and eventually collected.
-	addresses sync.Mutex
 }
+
+// lockAddresses serialises address allocation, which is read-modify-write over
+// the store: an allocator is rebuilt from what exists, hands out an address,
+// and the result is persisted. Two requests interleaving there receive the
+// same address, and Terraform creates ten resources at a time by default.
+//
+// One domain for every block rather than one per network: allocation is a
+// handful of map operations, the contention is imperceptible, and a finer key
+// buys nothing. The lock itself lives in core/serialise, the same mechanism
+// every pack and the machine binding use, so the next pack does not have to
+// rediscover that it needs one.
+func (p *Pack) lockAddresses() func() { return serialise.Lock(Name + "/addresses") }
+
+// lockDefaults serialises the lazy provisioning of per-project inventory (the
+// default security group). The store has no compare-and-set, so without it
+// two concurrent first reads of a zone each create one.
+func (p *Pack) lockDefaults() func() { return serialise.Lock(Name + "/defaults") }
 
 // New returns a Scaleway pack backed by env.
 func New(env *emulator.Env) *Pack { return &Pack{env: env} }

@@ -142,8 +142,8 @@ func (p *Pack) createElasticIP(w http.ResponseWriter, r *http.Request) {
 	// Held across the read and the write, which is the whole point: the address
 	// is chosen from what the store holds and only becomes taken when the
 	// resource lands in it.
-	p.addresses.Lock()
-	defer p.addresses.Unlock()
+	unlock := p.lockAddresses()
+	defer unlock()
 
 	ip, ok := p.freeElasticAddress()
 	if !ok {
