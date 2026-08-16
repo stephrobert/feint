@@ -1,0 +1,26 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the peer list ignores reachability, and foreign networks are joined",
+      "file": "internal/core/machine/isolate.go",
+      "find": "\t\t\t\tif reachable(i, j) {\n\t\t\t\t\tpeers = append(peers, other.Network)\n\t\t\t\t}",
+      "replace": "\t\t\t\tif reachable(i, j) || true {\n\t\t\t\t\tpeers = append(peers, other.Network)\n\t\t\t\t}",
+      "test": "TestReconcilePeersExactlyTheReachableMembers"
+    },
+    {
+      "label": "the foreign list keeps reachable neighbours out too, severing what the provider routes",
+      "file": "internal/core/machine/isolate.go",
+      "find": "\t\t\tif j == i || reachable(i, j) {\n\t\t\t\tcontinue\n\t\t\t}",
+      "replace": "\t\t\tif j == i || (reachable(i, j) && false) {\n\t\t\t\tcontinue\n\t\t\t}",
+      "test": "TestReconcileKeepsOnlyForeignBlocksOut"
+    },
+    {
+      "label": "a member without a backing network is configured under its empty name",
+      "file": "internal/core/machine/isolate.go",
+      "find": "\t\tfor i, m := range members {\n\t\t\tif m.Network == \"\" {\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tpeers := make([]string, 0, len(members))",
+      "replace": "\t\tfor i, m := range members {\n\t\t\tif m.Network == \"\\x00never\" {\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tpeers := make([]string, 0, len(members))",
+      "test": "TestReconcileSkipsWhatHasNoNetworkOrNoBlock"
+    }
+  ]
+}

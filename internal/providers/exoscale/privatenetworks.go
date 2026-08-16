@@ -326,48 +326,25 @@ func (p *Pack) ensureBackingNetwork(ctx context.Context, res *resource.Resource,
 // What counts as foreign is an Exoscale question, and the answer is simpler
 // than Scaleway's: every private network is its own VXLAN segment upstream, so
 // every other network is foreign — there is no VPC routing to let through in
-// this batch. A runtime with native isolation gets an empty peer list; one
-// whose networks are born joined gets every other block to keep out.
+// this batch, and the predicate below says exactly that. The reconciliation —
+// empty peer lists under native isolation, every managed block to keep out
+// otherwise — is machine.ReconcileIsolation, shared with the two other packs.
 func (p *Pack) isolatePrivateNetworks(ctx context.Context) {
 	all := p.env.Store.List(kindPrivateNetwork, resource.Tenant{Provider: Name})
-
-	if peerer, ok := p.env.Machines.(machine.Peerer); ok && peerer.NativeIsolation() {
-		for _, pn := range all {
-			name := pn.Runtime[runtimeNetworkKey]
-			if name == "" {
-				continue
-			}
-			if err := peerer.PeerNetworks(ctx, name, nil); err != nil {
-				p.logger().Error("could not isolate the private network",
-					"private-network", pn.ID, "network", name, "error", err)
-			}
+	members := make([]machine.IsolationMember, len(all))
+	for i, pn := range all {
+		block := ""
+		if dhcp, managed := rangeOf(pn); managed {
+			block = dhcp.prefix.Masked().String()
 		}
-		return
-	}
-
-	isolator, ok := p.env.Machines.(machine.Isolator)
-	if !ok {
-		return
-	}
-	for _, pn := range all {
-		name := pn.Runtime[runtimeNetworkKey]
-		if name == "" {
-			continue
-		}
-		foreign := make([]string, 0, len(all))
-		for _, other := range all {
-			if other.ID == pn.ID {
-				continue
-			}
-			if dhcp, managed := rangeOf(other); managed {
-				foreign = append(foreign, dhcp.prefix.Masked().String())
-			}
-		}
-		if err := isolator.IsolateNetwork(ctx, name, foreign); err != nil {
-			p.logger().Error("could not isolate the private network",
-				"private-network", pn.ID, "network", name, "error", err)
+		members[i] = machine.IsolationMember{
+			ID:      pn.ID,
+			Network: pn.Runtime[runtimeNetworkKey],
+			Block:   block,
 		}
 	}
+	machine.ReconcileIsolation(ctx, p.env.Machines, p.logger(), "private-network",
+		members, func(int, int) bool { return false })
 }
 
 // ---- Reads ------------------------------------------------------------------

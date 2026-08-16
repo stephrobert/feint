@@ -37,61 +37,21 @@ func (p *Pack) reachableFrom(subnet, other *resource.Resource) bool {
 
 // isolateNetworks reconciles what every subnet's backing network may reach.
 //
-// Called after any change to the set of subnets, because a new one changes what
-// its neighbours must keep out. Reconciled over all of them rather than patched
-// for the one that moved: a patch has to be right about what changed, and this
-// only has to be right about what is.
-//
-// Failure is logged, never fatal. The control plane must keep answering when no
-// runtime is configured, which is the default and what CI uses.
+// Called after any change to the set of subnets, because a new one changes
+// what its neighbours must keep out. The reconciliation is
+// machine.ReconcileIsolation, shared with the two other packs — this pack is
+// the one that had no isolation wiring at all until #201 — and only the
+// Outscale question above stays here, as the predicate.
 func (p *Pack) isolateNetworks(ctx context.Context) {
 	all := p.env.Store.List(kindSubnet, resource.Tenant{Provider: Name})
-
-	peerer, native := p.env.Machines.(machine.Peerer)
-	if native && peerer.NativeIsolation() {
-		for _, subnet := range all {
-			name := subnet.Runtime[runtimeNetworkKey]
-			if name == "" {
-				continue
-			}
-			peers := make([]string, 0, len(all))
-			for _, other := range all {
-				if other.ID == subnet.ID || other.Runtime[runtimeNetworkKey] == "" {
-					continue
-				}
-				if p.reachableFrom(subnet, other) {
-					peers = append(peers, other.Runtime[runtimeNetworkKey])
-				}
-			}
-			if err := peerer.PeerNetworks(ctx, name, peers); err != nil {
-				p.logger().Error("could not peer the subnet's network",
-					"subnet", subnet.ID, "network", name, "error", err)
-			}
-		}
-		return
-	}
-
-	isolator, ok := p.env.Machines.(machine.Isolator)
-	if !ok {
-		return
-	}
-	for _, subnet := range all {
-		name := subnet.Runtime[runtimeNetworkKey]
-		if name == "" {
-			continue
-		}
-		foreign := make([]string, 0, len(all))
-		for _, other := range all {
-			if other.ID == subnet.ID || p.reachableFrom(subnet, other) {
-				continue
-			}
-			if block := stringOf(other.Attrs["IpRange"]); block != "" {
-				foreign = append(foreign, block)
-			}
-		}
-		if err := isolator.IsolateNetwork(ctx, name, foreign); err != nil {
-			p.logger().Error("could not isolate the subnet's network",
-				"subnet", subnet.ID, "network", name, "error", err)
+	members := make([]machine.IsolationMember, len(all))
+	for i, subnet := range all {
+		members[i] = machine.IsolationMember{
+			ID:      subnet.ID,
+			Network: subnet.Runtime[runtimeNetworkKey],
+			Block:   stringOf(subnet.Attrs["IpRange"]),
 		}
 	}
+	machine.ReconcileIsolation(ctx, p.env.Machines, p.logger(), "subnet",
+		members, func(from, to int) bool { return p.reachableFrom(all[from], all[to]) })
 }
