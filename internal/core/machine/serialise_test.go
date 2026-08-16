@@ -101,25 +101,8 @@ func TestSerialiseSeparatesProviders(t *testing.T) {
 	}
 }
 
-// A map that keeps one mutex per id a session ever touched is the memory sink an
-// emulator must not become. The refcount is what stops it, and it is exactly the
-// kind of bookkeeping that reads as correct and leaks.
-func TestSerialiseForgetsATargetOnceNobodyHoldsIt(t *testing.T) {
-	b := Binding{Provider: "scaleway"}
-
-	for i := range 100 {
-		unlock := b.Serialise(string(rune('a' + i%26)))
-		unlock()
-	}
-
-	targetLocks.mu.Lock()
-	held := len(targetLocks.held)
-	targetLocks.mu.Unlock()
-
-	if held != 0 {
-		t.Fatalf("%d target locks are still held after every caller left", held)
-	}
-}
+// The cleanup half — a target forgotten once nobody holds it — is measured in
+// core/serialise, where the map now lives: TestADomainIsForgottenOnceNobodyHoldsIt.
 
 // A release called twice unlocks a mutex the caller no longer holds, which
 // panics. Ordinary Go style produces it: a defer plus an explicit call on an

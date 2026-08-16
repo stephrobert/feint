@@ -1,0 +1,28 @@
+{
+  "package": "./internal/core/serialise/",
+  "mutations": [
+    {
+      "label": "the refcount cleanup never fires, and the map keeps one mutex per domain forever",
+      "file": "internal/core/serialise/serialise.go",
+      "find": "\t\t\tl.refs--\n\t\t\tif l.refs == 0 {\n\t\t\t\tdelete(k.held, key)\n\t\t\t}",
+      "replace": "\t\t\tl.refs--\n\t\t\tif l.refs == 0 && false {\n\t\t\t\tdelete(k.held, key)\n\t\t\t}",
+      "test": "TestADomainIsForgottenOnceNobodyHoldsIt"
+    },
+    {
+      "label": "the target id falls out of the key, and every server queues behind one launch",
+      "file": "internal/core/machine/serialise.go",
+      "find": "\treturn serialise.Lock(b.Provider + \"|\" + id)",
+      "replace": "\treturn serialise.Lock(b.Provider + \"|\" + id[:0])",
+      "test": "TestSerialiseDoesNotQueueDifferentTargets",
+      "package": "./internal/core/machine/"
+    },
+    {
+      "label": "the provider falls out of the key, and two packs wait on each other's ids",
+      "file": "internal/core/machine/serialise.go",
+      "find": "\treturn serialise.Lock(b.Provider + \"|\" + id)",
+      "replace": "\treturn serialise.Lock(b.Provider[:0] + \"|\" + id)",
+      "test": "TestSerialiseSeparatesProviders",
+      "package": "./internal/core/machine/"
+    }
+  ]
+}
