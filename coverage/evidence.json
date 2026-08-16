@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "7dd2353c6a25c3fa",
     "shapes": "c73ca6ca03ceac5b",
-    "suites": "607f3ccf6fc006f7"
+    "suites": "27dd432d79a87c59"
   },
   "operations": {
     "block/v1/API.CreateSnapshot": {
@@ -318,12 +318,12 @@
       "negative": false
     },
     "exoscale/v2.create-snapshot": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "exoscale/v2.delete-anti-affinity-group": {
@@ -381,12 +381,12 @@
       "negative": false
     },
     "exoscale/v2.delete-snapshot": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "exoscale/v2.delete-ssh-key": {
@@ -642,12 +642,12 @@
       "negative": false
     },
     "exoscale/v2.list-snapshots": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "observed",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "exoscale/v2.list-ssh-keys": {
@@ -777,12 +777,12 @@
       "negative": false
     },
     "exoscale/v2.revert-instance-to-snapshot": {
-      "driven": false,
-      "probed": "none",
-      "contract": "unchecked",
-      "dataplane": false,
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "exoscale/v2.scale-instance": {
@@ -858,48 +858,48 @@
       "negative": false
     },
     "iam/v1alpha1/API.CreateSSHKey": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "iam/v1alpha1/API.DeleteSSHKey": {
-      "driven": false,
+      "driven": true,
       "probed": "none",
       "contract": "unchecked",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "iam/v1alpha1/API.GetSSHKey": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
-      "negative": false
+      "behaviour": true,
+      "negative": true
     },
     "iam/v1alpha1/API.ListSSHKeys": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "observed",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "iam/v1alpha1/API.UpdateSSHKey": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "instance/v1/API.AttachServerVolume": {
@@ -1038,12 +1038,12 @@
       "negative": false
     },
     "instance/v1/API.DeleteServerUserData": {
-      "driven": false,
+      "driven": true,
       "probed": "none",
       "contract": "unchecked",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "instance/v1/API.DeleteSnapshot": {
@@ -1128,12 +1128,12 @@
       "negative": true
     },
     "instance/v1/API.GetServerUserData": {
-      "driven": false,
+      "driven": true,
       "probed": "none",
-      "contract": "unchecked",
-      "dataplane": false,
+      "contract": "clean",
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "instance/v1/API.GetSnapshot": {
@@ -1263,12 +1263,12 @@
       "negative": false
     },
     "instance/v1/API.SetServerUserData": {
-      "driven": false,
+      "driven": true,
       "probed": "none",
       "contract": "unchecked",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "instance/v1/API.UpdateIP": {
@@ -2213,7 +2213,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": true,
+      "behaviour": false,
       "negative": false
     },
     "vpc/v2/API.DeletePrivateNetwork": {

@@ -480,4 +480,61 @@ scw vpc private-network delete "$nic_pn_id" region=fr-par >/dev/null \
 prove_end "$span"
 ok "NIC gone with its server, address released, network deleted"
 
+# IAM SSH keys, all five (#174). The only suite that drove them was
+# conformance:ssh, which needs a machine runtime and is excluded from
+# `mise run conformance` by design — so five operations a client uses on day one
+# were mounted, probed, and never driven by a client in CI.
+#
+# The CRUD needs no runtime at all, which is what makes the gap avoidable rather
+# than structural.
+echo "- an IAM SSH key is created, listed, read, renamed and removed"
+span="$(prove_begin behaviour)"
+key="$(scw iam ssh-key create name=conformance-key \
+        public-key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIr6pEFlAFO3YU0DNW/r8SkpjdbptN9ockkO2BtIolSD conformance@feint' \
+        -o json 2>&1)" || fail "ssh-key create rejected: $key"
+key_id="$(printf '%s' "$key" | jq -r '.id // empty')"
+[ -n "$key_id" ] || fail "no id in the ssh-key response: $key"
+
+scw iam ssh-key list -o json | jq -e --arg i "$key_id" 'any(.[]; .id == $i)' >/dev/null \
+  || fail "the key is missing from the list"
+scw iam ssh-key get "$key_id" -o json | jq -e --arg i "$key_id" '.id == $i' >/dev/null \
+  || fail "get did not read the key back"
+scw iam ssh-key update "$key_id" name=conformance-key-2 -o json \
+  | jq -e '.name == "conformance-key-2"' >/dev/null || fail "update did not carry the name back"
+scw iam ssh-key delete "$key_id" >/dev/null || fail "ssh-key delete rejected"
+neg="$(prove_begin negative)"
+if scw iam ssh-key get "$key_id" -o json >/dev/null 2>&1; then
+  fail "a deleted key still answers"
+fi
+prove_end "$neg"
+prove_end "$span"
+ok "created, listed, read, renamed, removed"
+
+# User data, the three operations the YAML-injection work hardened and that no
+# client had ever driven (#174). The hardened route is the one a client's
+# cloud-init actually takes, so leaving it unproven was the gap that mattered
+# most of the three families.
+echo "- user data is set, read back and removed on a server"
+span="$(prove_begin behaviour)"
+ud_server="$(scw instance server create name=conformance-userdata type=DEV1-S zone="$ZONE" -o json 2>&1)" \
+  || fail "create rejected by the CLI: $ud_server"
+ud_id="$(printf '%s' "$ud_server" | jq -r '.id // empty')"
+[ -n "$ud_id" ] || fail "no id in the create response: $ud_server"
+
+ud_file="$(mktemp)"
+printf '#cloud-config\npackages:\n  - htop\n' > "$ud_file"
+scw instance user-data set server-id="$ud_id" key=cloud-init \
+  content=@"$ud_file" zone="$ZONE" >/dev/null \
+  || fail "user-data set rejected"
+scw instance user-data get server-id="$ud_id" key=cloud-init zone="$ZONE" 2>/dev/null \
+  | grep -q 'cloud-config' || fail "the user data did not come back"
+scw instance user-data delete server-id="$ud_id" key=cloud-init zone="$ZONE" >/dev/null \
+  || fail "user-data delete rejected"
+
+scw instance server stop "$ud_id" zone="$ZONE" >/dev/null || fail "cleanup: poweroff rejected"
+scw instance server delete "$ud_id" zone="$ZONE" >/dev/null || fail "cleanup: delete rejected"
+rm -f "$ud_file"
+prove_end "$span"
+ok "set, read, removed"
+
 echo "conformance: scw CLI passed"

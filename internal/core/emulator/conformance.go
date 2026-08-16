@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -267,6 +268,27 @@ func (o *observer) record(operation string, synthetic bool) {
 // rather than on the operation.
 func (o *observer) check(doc *contract.Doc, operation string, rec *recorder, synthetic bool) contract.Violations {
 	if rec.body == nil || rec.status < 200 || rec.status >= 300 || rec.body.Len() == 0 {
+		return nil
+	}
+	// A response the API does not describe as JSON is not compared as JSON, and
+	// this is not a loophole: GetServerUserData answers the raw cloud-init blob
+	// a client stored, text/plain, and so does its Outscale and Exoscale
+	// equivalent. Decoding it as JSON reported a violation on a route behaving
+	// exactly as its own API describes.
+	//
+	// Found by driving it. The route had been mounted, probed and hardened
+	// against YAML injection, and no client had ever walked it (#174) — the
+	// probe sends and receives JSON, so the check and the traffic agreed with
+	// each other and with nothing else.
+	//
+	// The Content-Type is the API's own statement about the body, so it is what
+	// decides. Not a list of exempt operations: that would need updating every
+	// time a pack serves another blob, which is the kind of list one pack
+	// forgets.
+	//
+	// TestANonJSONResponseIsNotComparedAsJSON fails without this.
+	if ct := rec.Header().Get("Content-Type"); ct != "" && !strings.Contains(ct, "json") {
+		o.markChecked(operation)
 		return nil
 	}
 	// Counted before the verdict, because both verdicts are checks: a

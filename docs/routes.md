@@ -108,11 +108,11 @@ disappears from the suite.
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `DELETE` | `/iam/v1alpha1/ssh-keys/{id}` | `iam/v1alpha1/API.DeleteSSHKey` | — |
-| `GET` | `/iam/v1alpha1/ssh-keys/{id}` | `iam/v1alpha1/API.GetSSHKey` | `contract` `probe` |
-| `GET` | `/iam/v1alpha1/ssh-keys` | `iam/v1alpha1/API.ListSSHKeys` | `contract` `shape` `probe` |
-| `PATCH` | `/iam/v1alpha1/ssh-keys/{id}` | `iam/v1alpha1/API.UpdateSSHKey` | `contract` `probe` |
-| `POST` | `/iam/v1alpha1/ssh-keys` | `iam/v1alpha1/API.CreateSSHKey` | `contract` `probe` |
+| `DELETE` | `/iam/v1alpha1/ssh-keys/{id}` | `iam/v1alpha1/API.DeleteSSHKey` | `client` `runtime` `behaviour` |
+| `GET` | `/iam/v1alpha1/ssh-keys/{id}` | `iam/v1alpha1/API.GetSSHKey` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
+| `GET` | `/iam/v1alpha1/ssh-keys` | `iam/v1alpha1/API.ListSSHKeys` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `PATCH` | `/iam/v1alpha1/ssh-keys/{id}` | `iam/v1alpha1/API.UpdateSSHKey` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/iam/v1alpha1/ssh-keys` | `iam/v1alpha1/API.CreateSSHKey` | `client` `contract` `runtime` `probe` `behaviour` |
 
 ### `instance`
 
@@ -123,7 +123,7 @@ disappears from the suite.
 | `DELETE` | `/instance/v1/zones/{zone}/security_groups/{id}/rules/{ruleID}` | `instance/v1/API.DeleteSecurityGroupRule` | `client` `runtime` `behaviour` |
 | `DELETE` | `/instance/v1/zones/{zone}/security_groups/{id}` | `instance/v1/API.DeleteSecurityGroup` | `client` `runtime` `behaviour` `negative` |
 | `DELETE` | `/instance/v1/zones/{zone}/servers/{id}/private_nics/{nicID}` | `instance/v1/API.DeletePrivateNIC` | `client` `runtime` `behaviour` |
-| `DELETE` | `/instance/v1/zones/{zone}/servers/{id}/user_data/{key}` | `instance/v1/API.DeleteServerUserData` | — |
+| `DELETE` | `/instance/v1/zones/{zone}/servers/{id}/user_data/{key}` | `instance/v1/API.DeleteServerUserData` | `client` `runtime` `behaviour` |
 | `DELETE` | `/instance/v1/zones/{zone}/servers/{id}` | `instance/v1/API.DeleteServer` | `client` `runtime` `behaviour` |
 | `DELETE` | `/instance/v1/zones/{zone}/snapshots/{id}` | `instance/v1/API.DeleteSnapshot` | `client` `runtime` `behaviour` `negative` |
 | `DELETE` | `/instance/v1/zones/{zone}/volumes/{id}` | `instance/v1/API.DeleteVolume` | `client` `runtime` `behaviour` `negative` |
@@ -138,7 +138,7 @@ disappears from the suite.
 | `GET` | `/instance/v1/zones/{zone}/security_groups` | `instance/v1/API.ListSecurityGroups` | `client` `contract` `shape` `runtime` `probe` |
 | `GET` | `/instance/v1/zones/{zone}/servers/{id}/private_nics/{nicID}` | `instance/v1/API.GetPrivateNIC` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/instance/v1/zones/{zone}/servers/{id}/private_nics` | `instance/v1/API.ListPrivateNICs` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
-| `GET` | `/instance/v1/zones/{zone}/servers/{id}/user_data/{key}` | `instance/v1/API.GetServerUserData` | — |
+| `GET` | `/instance/v1/zones/{zone}/servers/{id}/user_data/{key}` | `instance/v1/API.GetServerUserData` | `client` `contract` `runtime` `behaviour` |
 | `GET` | `/instance/v1/zones/{zone}/servers/{id}/user_data` | `instance/v1/API.ListServerUserData` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/instance/v1/zones/{zone}/servers/{id}` | `instance/v1/API.GetServer` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/instance/v1/zones/{zone}/servers` | `instance/v1/API.ListServers` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
@@ -150,7 +150,7 @@ disappears from the suite.
 | `PATCH` | `/instance/v1/zones/{zone}/ips/{id}` | `instance/v1/API.UpdateIP` | `client` `contract` `runtime` `probe` |
 | `PATCH` | `/instance/v1/zones/{zone}/security_groups/{id}/rules/{ruleID}` | `instance/v1/API.UpdateSecurityGroupRule` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PATCH` | `/instance/v1/zones/{zone}/security_groups/{id}` | `instance/v1/API.UpdateSecurityGroup` | `client` `contract` `runtime` `probe` `behaviour` |
-| `PATCH` | `/instance/v1/zones/{zone}/servers/{id}/user_data/{key}` | `instance/v1/API.SetServerUserData` | — |
+| `PATCH` | `/instance/v1/zones/{zone}/servers/{id}/user_data/{key}` | `instance/v1/API.SetServerUserData` | `client` `runtime` `behaviour` |
 | `PATCH` | `/instance/v1/zones/{zone}/servers/{id}` | `instance/v1/API.UpdateServer` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PATCH` | `/instance/v1/zones/{zone}/snapshots/{id}` | `instance/v1/API.UpdateSnapshot` | `contract` `probe` |
 | `PATCH` | `/instance/v1/zones/{zone}/volumes/{id}` | `instance/v1/API.UpdateVolume` | `contract` `probe` |
@@ -207,7 +207,7 @@ disappears from the suite.
 | `POST` | `/vpc/v2/regions/{region}/private-networks` | `vpc/v2/API.CreatePrivateNetwork` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/vpc/v2/regions/{region}/routes` | `vpc/v2/API.CreateRoute` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}/enable-routing` | `vpc/v2/API.EnableRouting` | `contract` `probe` |
-| `POST` | `/vpc/v2/regions/{region}/vpcs` | `vpc/v2/API.CreateVPC` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/vpc/v2/regions/{region}/vpcs` | `vpc/v2/API.CreateVPC` | `client` `contract` `runtime` `probe` |
 
 ### Declined on purpose (213)
 
@@ -510,7 +510,7 @@ are in `coverage/`, one artefact per provider.
 | `DELETE` | `/v2/private-network/{id}` | `exoscale/v2.delete-private-network` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `DELETE` | `/v2/security-group/{id}/rules/{rule}` | `exoscale/v2.delete-rule-from-security-group` | `contract` `probe` |
 | `DELETE` | `/v2/security-group/{id}` | `exoscale/v2.delete-security-group` | `client` `contract` `runtime` `probe` `behaviour` |
-| `DELETE` | `/v2/snapshot/{id}` | `exoscale/v2.delete-snapshot` | `contract` `probe` |
+| `DELETE` | `/v2/snapshot/{id}` | `exoscale/v2.delete-snapshot` | `client` `contract` `runtime` `probe` `behaviour` |
 | `DELETE` | `/v2/ssh-key/{name}` | `exoscale/v2.delete-ssh-key` | `client` `contract` `runtime` `probe` `behaviour` |
 | `DELETE` | `/v2/template/{id}` | `exoscale/v2.delete-template` | `contract` `probe` |
 | `GET` | `/v2/anti-affinity-group/{id}` | `exoscale/v2.get-anti-affinity-group` | `client` `contract` `runtime` `probe` `behaviour` |
@@ -528,16 +528,16 @@ are in `coverage/`, one artefact per provider.
 | `GET` | `/v2/security-group/{id}` | `exoscale/v2.get-security-group` | `contract` `probe` |
 | `GET` | `/v2/security-group` | `exoscale/v2.list-security-groups` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/snapshot/{id}` | `exoscale/v2.get-snapshot` | `contract` `probe` |
-| `GET` | `/v2/snapshot` | `exoscale/v2.list-snapshots` | `contract` `shape` `probe` |
+| `GET` | `/v2/snapshot` | `exoscale/v2.list-snapshots` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/ssh-key/{name}` | `exoscale/v2.get-ssh-key` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/ssh-key` | `exoscale/v2.list-ssh-keys` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/template/{id}` | `exoscale/v2.get-template` | `client` `contract` `runtime` `probe` |
 | `GET` | `/v2/template` | `exoscale/v2.list-templates` | `client` `contract` `shape` `runtime` `probe` |
 | `POST` | `/v2/anti-affinity-group` | `exoscale/v2.create-anti-affinity-group` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/v2/elastic-ip` | `exoscale/v2.create-elastic-ip` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/v2/instance/{id}:create-snapshot` | `exoscale/v2.create-snapshot` | `contract` `probe` |
+| `POST` | `/v2/instance/{id}:create-snapshot` | `exoscale/v2.create-snapshot` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/v2/instance/{id}:enable-tpm` | `exoscale/v2.enable-tpm` | `contract` `probe` |
-| `POST` | `/v2/instance/{id}:revert-snapshot` | `exoscale/v2.revert-instance-to-snapshot` | — |
+| `POST` | `/v2/instance/{id}:revert-snapshot` | `exoscale/v2.revert-instance-to-snapshot` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
 | `POST` | `/v2/instance` | `exoscale/v2.create-instance` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/v2/private-network` | `exoscale/v2.create-private-network` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/v2/security-group/{id}/rules` | `exoscale/v2.add-rule-to-security-group` | `client` `contract` `runtime` `probe` `behaviour` |
