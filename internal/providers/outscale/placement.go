@@ -82,6 +82,15 @@ func (p *Pack) placeInSubnet(subnetID string) (placement, error) {
 		if taken, parseErr := netip.ParseAddr(stringOf(nic.Attrs["PrivateIp"])); parseErr == nil {
 			_ = allocator.Reserve(taken)
 		}
+		// And the secondary addresses LinkPrivateIps assigned (#172). Without
+		// them a Vm created after a link is handed an address the NIC already
+		// holds, which is the very case the comment above warns about, one
+		// field further along. TestALinkedAddressIsNotHandedToTheNextVm.
+		for _, address := range secondaryAddresses(nic) {
+			if taken, parseErr := netip.ParseAddr(address); parseErr == nil {
+				_ = allocator.Reserve(taken)
+			}
+		}
 	}
 
 	address, err := allocator.Allocate()

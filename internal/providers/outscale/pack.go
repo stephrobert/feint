@@ -205,6 +205,8 @@ func (p *Pack) Routes() []emulator.Route {
 		p.route("DeleteNic", p.deleteNic),
 		p.route("UpdateNic", p.updateNic),
 		p.route("LinkNic", p.linkNic),
+		p.route("LinkPrivateIps", p.linkPrivateIps),
+		p.route("UnlinkPrivateIps", p.unlinkPrivateIps),
 		p.route("UnlinkNic", p.unlinkNic),
 
 		// The gateway a Net attaches, and the egress a subnet buys with an

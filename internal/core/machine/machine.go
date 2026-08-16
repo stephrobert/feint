@@ -55,6 +55,16 @@ type Attachment struct {
 	// so the driver configures the interface inside the guest, and that needs a
 	// mask. Zero means "leave the guest alone".
 	PrefixLen int
+	// Secondary are the extra addresses the interface carries beside Address,
+	// which Outscale calls secondary private IPs and every cloud has some form
+	// of. They share Address's mask.
+	//
+	// Reconciled rather than appended: the list is what the interface must end
+	// up carrying, so an address dropped from it is removed from the guest. A
+	// pack that only ever added would leave an unlinked address on the machine
+	// while its API said it was gone, which is the shape of defect #202 exists
+	// to prevent — an address nothing publishes.
+	Secondary []string
 }
 
 // Spec describes the machine a provider pack wants.

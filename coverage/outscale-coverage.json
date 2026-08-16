@@ -1,9 +1,9 @@
 {
   "provider": "outscale",
   "total": 263,
-  "implemented": 83,
+  "implemented": 85,
   "declined": 178,
-  "unknown": 2,
+  "unknown": 0,
   "orphans": null,
   "products": [
     {
@@ -16,9 +16,9 @@
     {
       "product": "osc",
       "total": 236,
-      "implemented": 83,
+      "implemented": 85,
       "declined": 151,
-      "unknown": 2
+      "unknown": 0
     }
   ],
   "groups": [
@@ -200,9 +200,9 @@
     {
       "group": "Nic",
       "total": 8,
-      "implemented": 6,
+      "implemented": 8,
       "declined": 0,
-      "unknown": 2
+      "unknown": 0
     },
     {
       "group": "Policy",
@@ -1264,7 +1264,7 @@
       "operation": "osc/Client.LinkPrivateIps",
       "product": "osc",
       "group": "Nic",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.LinkPublicIp",
@@ -1902,7 +1902,7 @@
       "operation": "osc/Client.UnlinkPrivateIps",
       "product": "osc",
       "group": "Nic",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.UnlinkPublicIp",

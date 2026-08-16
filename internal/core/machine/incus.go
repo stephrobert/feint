@@ -589,10 +589,101 @@ func (d *Incus) Attach(ctx context.Context, name string, att Attachment) error {
 		// On OVN the peered subnets are only reachable through the network's
 		// router, and a statically configured NIC knows nothing about them.
 		if d.OVN {
-			return d.installGuestPrivateRoutes(ctx, name, att.Network, device)
+			if err := d.installGuestPrivateRoutes(ctx, name, att.Network, device); err != nil {
+				return err
+			}
+		}
+	}
+	return d.reconcileSecondary(ctx, name, device, att)
+}
+
+// reconcileSecondary makes the interface carry exactly att.Secondary beside its
+// primary address: the ones that arrived are added, the ones that left are
+// removed.
+//
+// Reconciled rather than appended, and that is the whole of it. A driver that
+// only added would leave an address on the machine after its API said it was
+// unlinked — an address nothing publishes, which is the defect #202 exists to
+// prevent, reintroduced through a different door.
+//
+// The primary is never touched here. It is applied above and it belongs to the
+// interface; removing it would take the machine off its own network.
+//
+// TestSecondaryAddressesAreReconciledNotAppended fails without this.
+func (d *Incus) reconcileSecondary(ctx context.Context, name, device string, att Attachment) error {
+	if att.PrefixLen == 0 {
+		// No mask, so nothing can be configured inside the guest: the same
+		// condition the primary address is applied under.
+		return nil
+	}
+	iface, err := d.guestInterface(ctx, name, device)
+	if err != nil {
+		// Not running, most often, which is the ordinary attach-then-power-on
+		// order. The addresses are stored and land at the next attach.
+		if isNotRunning(err) {
+			return nil
+		}
+		return err
+	}
+
+	carried, err := d.guestAddresses(ctx, name, iface)
+	if err != nil {
+		if isNotRunning(err) {
+			return nil
+		}
+		return err
+	}
+
+	want := map[string]bool{}
+	for _, address := range att.Secondary {
+		want[address] = true
+	}
+	for _, address := range att.Secondary {
+		if carried[address] {
+			continue
+		}
+		cidr := fmt.Sprintf("%s/%d", address, att.PrefixLen)
+		if err := d.configureGuestAddress(ctx, name, device, cidr); err != nil && !isNotRunning(err) {
+			return fmt.Errorf("give %s to %s: %w", cidr, name, err)
+		}
+	}
+	for address := range carried {
+		if want[address] || address == att.Address {
+			continue
+		}
+		cidr := fmt.Sprintf("%s/%d", address, att.PrefixLen)
+		if _, err := d.run(ctx, "exec", name, "--",
+			"ip", "address", "del", cidr, "dev", iface); err != nil && !isNotRunning(err) {
+			return fmt.Errorf("take %s off %s: %w", cidr, name, err)
 		}
 	}
 	return nil
+}
+
+// guestAddresses reads the IPv4 addresses an interface carries inside the guest.
+//
+// Read from the guest rather than from the device's config, because the config
+// holds what the driver asked for and this needs what the machine has. The two
+// disagreeing is exactly the case a reconcile is for.
+func (d *Incus) guestAddresses(ctx context.Context, name, iface string) (map[string]bool, error) {
+	out, err := d.run(ctx, "exec", name, "--", "ip", "-4", "-o", "addr", "show", "dev", iface)
+	if err != nil {
+		return nil, err
+	}
+	carried := map[string]bool{}
+	for _, line := range strings.Split(string(out), "\n") {
+		fields := strings.Fields(line)
+		for i, field := range fields {
+			if field != "inet" || i+1 >= len(fields) {
+				continue
+			}
+			address, _, found := strings.Cut(fields[i+1], "/")
+			if found && address != "" {
+				carried[address] = true
+			}
+		}
+	}
+	return carried, nil
 }
 
 // configureGuestAddress gives the guest the address its NIC device reserves,

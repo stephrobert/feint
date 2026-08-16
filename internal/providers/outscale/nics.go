@@ -208,11 +208,11 @@ func (p *Pack) storedNicView(nic *resource.Resource) map[string]any {
 		"SubregionName":       subregionName,
 		"State":               stringOf(nic.Attrs["State"]),
 		"PrivateDnsName":      dns,
-		"PrivateIps": []any{map[string]any{
-			"IsPrimary":      true,
-			"PrivateDnsName": dns,
-			"PrivateIp":      privateIP,
-		}},
+		// The primary entry, plus every secondary address linked since
+		// (#172). Rebuilding the list from PrivateIp alone published one
+		// address whatever the NIC held, so LinkPrivateIps answered 200 and
+		// nothing changed — a write the API accepted and never showed.
+		"PrivateIps":     privateIPEntries(nic, dns, privateIP),
 		"SecurityGroups": groups,
 		"Tags":           []any{},
 	}
@@ -573,4 +573,25 @@ func macOf(nicID string) string {
 		hexPart += "0"
 	}
 	return "0a:00:" + hexPart[0:2] + ":" + hexPart[2:4] + ":" + hexPart[4:6] + ":" + hexPart[6:8]
+}
+
+// privateIPEntries renders the address list a NIC publishes: the primary first,
+// then the secondary ones in the order the store holds them.
+//
+// The primary is derived rather than read back, because it is the one address a
+// NIC cannot lose: it comes with the interface and UnlinkPrivateIps refuses it.
+func privateIPEntries(nic *resource.Resource, dns, primary string) []any {
+	entries := []any{map[string]any{
+		"IsPrimary":      true,
+		"PrivateDnsName": dns,
+		"PrivateIp":      primary,
+	}}
+	for _, address := range secondaryAddresses(nic) {
+		entries = append(entries, map[string]any{
+			"IsPrimary":      false,
+			"PrivateDnsName": privateDNSName(address),
+			"PrivateIp":      address,
+		})
+	}
+	return entries
 }

@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "7dd2353c6a25c3fa",
     "shapes": "c73ca6ca03ceac5b",
-    "suites": "b4fa8120ee00d133"
+    "suites": "000a544e9503ac23"
   },
   "operations": {
     "block/v1/API.CreateSnapshot": {
@@ -1640,6 +1640,15 @@
       "behaviour": true,
       "negative": false
     },
+    "osc/Client.LinkPrivateIps": {
+      "driven": false,
+      "probed": "refusal",
+      "contract": "unchecked",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
     "osc/Client.LinkPublicIp": {
       "driven": true,
       "probed": "refusal",
@@ -1937,6 +1946,15 @@
       "behaviour": true,
       "negative": false
     },
+    "osc/Client.UnlinkPrivateIps": {
+      "driven": false,
+      "probed": "refusal",
+      "contract": "unchecked",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
     "osc/Client.UnlinkPublicIp": {
       "driven": true,
       "probed": "refusal",
@@ -2087,7 +2105,7 @@
       "contract": "unchecked",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": true,
+      "behaviour": false,
       "negative": false
     },
     "vpc/v2/API.EnableDHCP": {

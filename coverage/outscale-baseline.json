@@ -1,7 +1,4 @@
 {
   "provider": "outscale",
-  "unknown": [
-    "osc/Client.LinkPrivateIps",
-    "osc/Client.UnlinkPrivateIps"
-  ]
+  "unknown": []
 }
