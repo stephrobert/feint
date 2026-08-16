@@ -1,0 +1,48 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "an address is routed to a new machine without being taken back from the old one",
+      "file": "internal/core/machine/placement.go",
+      "find": "\t\tif previous, _ := held.(string); previous != \"\" && previous != spec.Machine {",
+      "replace": "\t\tif previous, _ := held.(string); previous != \"\" && previous != spec.Machine && false {",
+      "test": "TestRouteAddressTakesItBackFromThePreviousHolderFirst"
+    },
+    {
+      "label": "a move whose withdrawal failed carries on and routes the address anyway",
+      "file": "internal/core/machine/placement.go",
+      "find": "\t\t\tif err := router.UnrouteAddress(ctx, previous, spec.Address); err != nil {\n\t\t\t\treturn err\n\t\t\t}",
+      "replace": "\t\t\tif err := router.UnrouteAddress(ctx, previous, spec.Address); err != nil && false {\n\t\t\t\treturn err\n\t\t\t}",
+      "test": "TestRouteAddressReportsAFailedWithdrawalInsteadOfMovingAnyway"
+    },
+    {
+      "label": "a replay withdraws the address from the machine it is routing it to",
+      "file": "internal/core/machine/placement.go",
+      "find": "previous != \"\" && previous != spec.Machine {",
+      "replace": "previous != \"\" && (previous != spec.Machine || true) {",
+      "test": "TestRouteAddressDoesNotWithdrawFromTheMachineItIsRoutingTo"
+    },
+    {
+      "label": "a late unroute forgets who actually holds the address",
+      "file": "internal/core/machine/placement.go",
+      "find": "\t\tif current, _ := held.(string); current == machine || machine == \"\" {",
+      "replace": "\t\tif current, _ := held.(string); current == machine || machine == \"\" || true {",
+      "test": "TestUnrouteAddressKeepsThePlacementWhenAnotherMachineHoldsIt"
+    },
+    {
+      "label": "placements are keyed on the address alone, so two packs take each other's routes back",
+      "file": "internal/core/machine/placement.go",
+      "find": "func placementKey(provider, address string) string { return provider + \"|\" + address }",
+      "replace": "func placementKey(provider, address string) string { _ = provider; return address }",
+      "test": "TestPlacementsAreKeptPerProvider"
+    },
+    {
+      "label": "the Exoscale attach routes the address without moving it off the previous instance",
+      "package": "./internal/providers/exoscale/",
+      "file": "internal/providers/exoscale/elasticips.go",
+      "find": "\tif err := p.binding().RouteAddress(ctx, router, machine.AddressSpec{Machine: name, Address: address}); err != nil {",
+      "replace": "\t_ = p.binding()\n\tif err := router.RouteAddress(ctx, machine.AddressSpec{Machine: name, Address: address}); err != nil {",
+      "test": "TestAnElasticIPReachesOneMachineAtATime"
+    }
+  ]
+}

@@ -347,7 +347,11 @@ func (p *Pack) routeAddress(ctx context.Context, address string, server *resourc
 	// On the network the server lives on, when it has one: a public address on
 	// the runtime's default bridge would answer, and would sit on an interface
 	// the emulated topology says nothing about.
-	if err := router.RouteAddress(ctx, machine.AddressSpec{
+	// Through the binding, which takes the address back from its previous holder
+	// before handing it over: this pack moves a flexible IP to the server the
+	// client names, and the move used to be written here rather than shared, which
+	// is how a third pack came to be missing it entirely (#213).
+	if err := p.binding().RouteAddress(ctx, router, machine.AddressSpec{
 		Machine: name,
 		Address: address,
 		Network: p.privateNetworkNameOf(server),
@@ -407,7 +411,7 @@ func (p *Pack) detachAddress(ctx context.Context, ip *resource.Resource) {
 			}
 		}
 	}
-	if err := router.UnrouteAddress(ctx, holder, address); err != nil {
+	if err := p.binding().UnrouteAddress(ctx, router, holder, address); err != nil {
 		p.logger().Error("could not stop routing the flexible IP",
 			"ip", ip.ID, "address", address, "error", err)
 	}
@@ -529,7 +533,7 @@ func (p *Pack) releaseDynamicAddress(ctx context.Context, res *resource.Resource
 	if !ok || !emulatedAddress(address) {
 		return
 	}
-	if err := router.UnrouteAddress(ctx, res.Runtime[runtimeMachineKey], address); err != nil {
+	if err := p.binding().UnrouteAddress(ctx, router, res.Runtime[runtimeMachineKey], address); err != nil {
 		p.logger().Error("could not stop routing the dynamic address",
 			"address", address, "server", res.ID, "error", err)
 	}

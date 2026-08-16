@@ -67,7 +67,19 @@ func (p *Pack) routeElasticIP(ctx context.Context, address string, inst *resourc
 			"address", address, "instance", inst.ID)
 		return
 	}
-	if err := router.RouteAddress(ctx, machine.AddressSpec{Machine: name, Address: address}); err != nil {
+	// Through the binding rather than straight at the router, because this pack
+	// lets several instances hold one Elastic IP — which is what the real cloud
+	// does, measured on ch-gva-2, where two instances both reported holding
+	// 185.19.28.243. The control plane is right to allow it; the runtime cannot
+	// honour it, since two containers answering ARP for one /32 make the host
+	// pick arbitrarily while the API describes both as holders.
+	//
+	// So the address goes to the most recent attach and is taken back from the
+	// previous holder. Upstream elects by healthcheck; feint has none and does
+	// not invent one — docs/limits.md names the rule instead.
+	//
+	// TestAnElasticIPReachesOneMachineAtATime fails without this.
+	if err := p.binding().RouteAddress(ctx, router, machine.AddressSpec{Machine: name, Address: address}); err != nil {
 		p.logger().Error("could not route the elastic IP to the machine",
 			"address", address, "instance", inst.ID, "error", err)
 	}
@@ -85,7 +97,7 @@ func (p *Pack) unrouteElasticIP(ctx context.Context, address string, inst *resou
 	if inst != nil {
 		name = inst.Runtime[p.binding().RuntimeKey]
 	}
-	if err := router.UnrouteAddress(ctx, name, address); err != nil {
+	if err := p.binding().UnrouteAddress(ctx, router, name, address); err != nil {
 		p.logger().Error("could not stop routing the elastic IP",
 			"address", address, "error", err)
 	}

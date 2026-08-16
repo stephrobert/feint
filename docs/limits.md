@@ -616,6 +616,34 @@ Bounds, stated rather than implied:
   never routed, because a restored snapshot carries these values verbatim.
   `TestAPoisonedStoredAddressIsNeverRouted` holds the refusal.
 
+### One address reaches one machine, and Exoscale is why that needs saying
+
+Exoscale's Elastic IP is designed to be held by **several instances at once**: an
+Elastic IP carries a healthcheck, and the platform sends the address to whichever
+instance is passing it. Measured on `ch-gva-2` rather than assumed — `exo compute
+instance elastic-ip attach` was accepted twice for one address, and both instances
+then reported holding `185.19.28.243`.
+
+The emulator keeps that in its control plane, because it is what the real one
+does: both instances go on listing the Elastic IP, and a client reading either of
+them sees what Exoscale would show.
+
+**The runtime cannot follow.** Two containers answering ARP for one `/32` make the
+host pick arbitrarily, and an emulator that publishes an address its machine may
+or may not carry has given up the one thing it exists to promise. So the address
+is routed to **the most recently attached instance**, and taken back from the
+previous holder before it is handed over.
+
+That rule is feint's, not Exoscale's. There is no healthcheck here, and inventing
+an election would put a winner in a client's hands that nothing measured. If you
+are testing a failover, the emulator will not perform it: attach the address to
+the instance you want to reach.
+
+The same bookkeeping serves all three packs (`machine.Binding.RouteAddress`), so
+the runtime carries one address on one machine whatever the pack's API allows —
+Scaleway moving a flexible IP on request, Outscale refusing without `AllowRelink`,
+Exoscale accepting both holders.
+
 ## Subnet isolation depends on the runtime mode
 
 Upstream, two private networks of two different VPCs do not reach each other.

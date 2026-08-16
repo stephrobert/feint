@@ -90,7 +90,10 @@ func (p *Pack) routeLinkedIP(ctx context.Context, address string, vm *resource.R
 			"address", address, "vm", vm.ID)
 		return
 	}
-	if err := router.RouteAddress(ctx, machine.AddressSpec{Machine: name, Address: address}); err != nil {
+	// Through the binding: this pack refuses to move a linked address unless the
+	// request passes AllowRelink, which is the real API's own default, and the
+	// runtime half of that move is the same in all three packs (#213).
+	if err := p.binding().RouteAddress(ctx, router, machine.AddressSpec{Machine: name, Address: address}); err != nil {
 		p.logger().Error("could not route the public IP to the machine",
 			"address", address, "vm", vm.ID, "error", err)
 	}
@@ -108,7 +111,7 @@ func (p *Pack) unrouteLinkedIP(ctx context.Context, address string, vm *resource
 	if vm != nil {
 		machineName = vm.Runtime[p.binding().RuntimeKey]
 	}
-	if err := router.UnrouteAddress(ctx, machineName, address); err != nil {
+	if err := p.binding().UnrouteAddress(ctx, router, machineName, address); err != nil {
 		p.logger().Error("could not stop routing the public IP",
 			"address", address, "error", err)
 	}
