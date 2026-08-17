@@ -103,6 +103,33 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "GET", Path: zones + "/servers/{id}/private_nics/{nicID}", Operation: "instance/v1/API.GetPrivateNIC", Handler: p.getPrivateNIC},
 		{Method: "DELETE", Path: zones + "/servers/{id}/private_nics/{nicID}", Operation: "instance/v1/API.DeletePrivateNIC", Handler: p.deletePrivateNIC},
 
+		// The same interfaces, read through instance/v2alpha1, where they are a
+		// top-level resource rather than a sub-resource of the server. Terraform
+		// provider 2.81.0 creates through v1 and reads through this, so a client
+		// that mixes both halves is the shape to survive, not an edge case.
+		// privatenics_v2alpha1.go carries the measurement and the four
+		// operations deliberately left out.
+		{Method: "GET", Path: privateNICsV2Path, Operation: "instance/v2alpha1/API.ListPrivateNetworkInterfaces", Handler: p.listPrivateNetworkInterfaces},
+		{Method: "POST", Path: privateNICsV2Path, Operation: "instance/v2alpha1/API.CreatePrivateNetworkInterface", Handler: p.createPrivateNetworkInterface},
+		{Method: "GET", Path: privateNICsV2Path + "/{id}", Operation: "instance/v2alpha1/API.GetPrivateNetworkInterface", Handler: p.getPrivateNetworkInterface},
+		{Method: "PATCH", Path: privateNICsV2Path + "/{id}", Operation: "instance/v2alpha1/API.UpdatePrivateNetworkInterface", Handler: p.updatePrivateNetworkInterface,
+			// The only field it changes is `tags`, and no suite here changes the
+			// tags of an interface after creating it — recorded through `feint
+			// proxy` across a full apply of the conformance fixture and both
+			// realistic stacks. `scw instance private-nic update` reaches
+			// instance/v1.UpdatePrivateNIC, which this pack does not mount, so
+			// the CLI cannot drive this one either.
+			//
+			// Mounted rather than declined all the same, and the choice is the
+			// afternoon of 17 August 2026 in one line: the Terraform resource
+			// exposes tags, so the first configuration that edits one lands
+			// here, and a 501 would fail an apply for a field the provider
+			// believes it can change. That is the failure this whole file exists
+			// to have prevented, and declining it would have scheduled the same
+			// one.
+			Undriven: "no client this project drives edits the tags of an interface after creating it; mounted because the Terraform resource exposes them and a 501 would break the first apply that changes one"},
+		{Method: "DELETE", Path: privateNICsV2Path + "/{id}", Operation: "instance/v2alpha1/API.DeletePrivateNetworkInterface", Handler: p.deletePrivateNetworkInterface},
+
 		// IPAM. Not a convenience: instance/v1.PrivateNIC carries no address, only
 		// ipam_ip_ids, so this is the only way a client learns the address of a
 		// NIC. Serving the NIC without it is serving half a product.
@@ -308,6 +335,10 @@ func (p *Pack) Routes() []emulator.Route {
 var productPrefixes = []string{
 	// Served here.
 	"/instance/v1/",
+	// Partly: the private network interfaces of provider 2.81.0 and nothing
+	// else. It sits in this half because what this list decides is the error
+	// envelope, and every v2alpha1 path now has a served neighbour.
+	"/instance/v2alpha1/",
 	"/vpc/v2/",
 	"/ipam/v1/",
 	"/iam/v1alpha1/",
@@ -342,7 +373,6 @@ var productPrefixes = []string{
 	"/flexible-ip/v1alpha1/",
 	"/functions/v1beta1/",
 	"/inference/v1/",
-	"/instance/v2alpha1/",
 	"/interlink/v1beta1/",
 	"/iot/v1/",
 	"/ipam/v1alpha1/",
@@ -719,16 +749,25 @@ func (p *Pack) Declined() []emulator.Decline {
 		// wrong, measured: of the thirteen VolumeAPI operations, v1's snapshot
 		// surface is untriaged and its ListVolumesTypes and ExportSnapshot are
 		// themselves declined, so eight of them duplicate nothing this pack
-		// serves. The decision stands on the other two legs — no client reaches
-		// for it (neither the scw binary nor the pinned Terraform provider
-		// carries the string), and emulating an alpha pins down shapes Scaleway
-		// is still free to change.
+		// serves. The decision stood on the other two legs — no client reached
+		// for it, and emulating an alpha pins down shapes Scaleway is still
+		// free to change.
+		//
+		// **The first leg broke on 17 August 2026**, and this is what a decline
+		// reason is for: Terraform provider 2.81.0 shipped that afternoon and
+		// reads its private network interfaces through v2alpha1 while still
+		// creating them through v1. Within four hours every apply against this
+		// emulator failed on a 501. The five private-network-interface
+		// operations moved out of this list and into the pack (see
+		// privatenics_v2alpha1.go); the rest stay, now standing on the second
+		// leg alone, and the reason below says so rather than repeating a
+		// sentence the measurement has already contradicted once.
 		//
 		// Listed one by one on purpose. A prefix rule would swallow whatever
 		// upstream adds here, and the point of this file is that additions are
 		// seen. When the surface stabilises into an instance/v2, the scan
 		// reports it as new and this decision gets taken again.
-		emulator.Because("instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+		emulator.Because("instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
 			"instance/v2alpha1/VolumeAPI.CreateSnapshot",
 			"instance/v2alpha1/VolumeAPI.CreateVolume",
 			"instance/v2alpha1/VolumeAPI.DeleteSnapshot",
@@ -749,13 +788,11 @@ func (p *Pack) Declined() []emulator.Decline {
 			"instance/v2alpha1/API.AttachServerVolume",
 			"instance/v2alpha1/API.CheckTemplate",
 			"instance/v2alpha1/API.CreatePlacementGroup",
-			"instance/v2alpha1/API.CreatePrivateNetworkInterface",
 			"instance/v2alpha1/API.CreateSecurityGroup",
 			"instance/v2alpha1/API.CreateServer",
 			"instance/v2alpha1/API.CreateServerFromTemplate",
 			"instance/v2alpha1/API.CreateTemplate",
 			"instance/v2alpha1/API.DeletePlacementGroup",
-			"instance/v2alpha1/API.DeletePrivateNetworkInterface",
 			"instance/v2alpha1/API.DeleteSecurityGroup",
 			"instance/v2alpha1/API.DeleteSecurityGroupRules",
 			"instance/v2alpha1/API.DeleteServer",
@@ -767,7 +804,6 @@ func (p *Pack) Declined() []emulator.Decline {
 			"instance/v2alpha1/API.DetachServerPrivateNetworkInterface",
 			"instance/v2alpha1/API.DetachServerVolume",
 			"instance/v2alpha1/API.GetPlacementGroup",
-			"instance/v2alpha1/API.GetPrivateNetworkInterface",
 			"instance/v2alpha1/API.GetResourceCounts",
 			"instance/v2alpha1/API.GetSecurityGroup",
 			"instance/v2alpha1/API.GetServer",
@@ -777,7 +813,6 @@ func (p *Pack) Declined() []emulator.Decline {
 			"instance/v2alpha1/API.GetTemplateUserData",
 			"instance/v2alpha1/API.GetUserData",
 			"instance/v2alpha1/API.ListPlacementGroups",
-			"instance/v2alpha1/API.ListPrivateNetworkInterfaces",
 			"instance/v2alpha1/API.ListSecurityGroups",
 			"instance/v2alpha1/API.ListServerTypes",
 			"instance/v2alpha1/API.ListServers",
@@ -796,7 +831,6 @@ func (p *Pack) Declined() []emulator.Decline {
 			"instance/v2alpha1/API.StopAndDeleteServer",
 			"instance/v2alpha1/API.StopServer",
 			"instance/v2alpha1/API.UpdatePlacementGroup",
-			"instance/v2alpha1/API.UpdatePrivateNetworkInterface",
 			"instance/v2alpha1/API.UpdateSecurityGroup",
 			"instance/v2alpha1/API.UpdateSecurityGroupRule",
 			"instance/v2alpha1/API.UpdateServer",

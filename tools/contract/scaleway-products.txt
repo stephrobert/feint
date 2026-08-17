@@ -20,6 +20,11 @@
 # describing an API nobody serves.
 
 instance/v1
+# instance/v2alpha1 holds the private-network-interfaces the Terraform provider
+# has read since 2.81.0 (17 August 2026). Half the product moved: a NIC is still
+# created through v1 by `scw`, and read through this by Terraform, so both
+# documents are needed to check both halves.
+instance/v2alpha1
 vpc/v2
 ipam/v1
 iam/v1alpha1

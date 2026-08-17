@@ -1,8 +1,8 @@
 {
   "provider": "scaleway",
   "total": 315,
-  "implemented": 102,
-  "declined": 213,
+  "implemented": 107,
+  "declined": 208,
   "unknown": 0,
   "orphans": null,
   "products": [
@@ -48,8 +48,8 @@
     {
       "product": "instance",
       "total": 150,
-      "implemented": 48,
-      "declined": 102,
+      "implemented": 53,
+      "declined": 97,
       "unknown": 0,
       "versions": [
         {
@@ -62,8 +62,8 @@
         {
           "version": "v2alpha1",
           "total": 72,
-          "implemented": 0,
-          "declined": 72,
+          "implemented": 5,
+          "declined": 67,
           "unknown": 0
         }
       ]
@@ -142,8 +142,8 @@
     {
       "group": "instance",
       "total": 150,
-      "implemented": 48,
-      "declined": 102,
+      "implemented": 53,
+      "declined": 97,
       "unknown": 0
     },
     {
@@ -1462,9 +1462,8 @@
     {
       "operation": "instance/v2alpha1/API.CreatePrivateNetworkInterface",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
       "version": "v2alpha1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "instance/v2alpha1/API.CreateSecurityGroup",
@@ -1504,9 +1503,8 @@
     {
       "operation": "instance/v2alpha1/API.DeletePrivateNetworkInterface",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
       "version": "v2alpha1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "instance/v2alpha1/API.DeleteSecurityGroup",
@@ -1588,9 +1586,8 @@
     {
       "operation": "instance/v2alpha1/API.GetPrivateNetworkInterface",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
       "version": "v2alpha1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "instance/v2alpha1/API.GetResourceCounts",
@@ -1658,9 +1655,8 @@
     {
       "operation": "instance/v2alpha1/API.ListPrivateNetworkInterfaces",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
       "version": "v2alpha1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "instance/v2alpha1/API.ListSecurityGroups",
@@ -1791,9 +1787,8 @@
     {
       "operation": "instance/v2alpha1/API.UpdatePrivateNetworkInterface",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
       "version": "v2alpha1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "instance/v2alpha1/API.UpdateSecurityGroup",

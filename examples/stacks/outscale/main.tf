@@ -246,7 +246,21 @@ resource "outscale_public_ip_link" "web" {
 }
 
 resource "outscale_vm" "app" {
-  image_id           = outscale_image.golden.image_id
+  # The catalogue image, not outscale_image.golden above. Same measurement as
+  # the Scaleway stack's web tier: this emulator keeps records, not disk
+  # contents, so an image the client registered has no bytes to boot. With a
+  # machine runtime configured the Vm is refused at boot and stays `stopped`,
+  # and the stack's own "the second plan is empty" assertion then fails with
+  # `state = "stopped" -> "running"` — which is the emulator telling the truth,
+  # not a defect.
+  #
+  # docs/limits.md carries the decision (#83): booting the source's base image
+  # instead would silently drop whatever the client baked in, and a
+  # golden-image workflow is exactly where that difference is the point.
+  #
+  # The image is still built, and outscale_image.golden below still proves the
+  # snapshot → image chain. Only the boot moves.
+  image_id           = data.outscale_images.ubuntu.images[0].image_id
   vm_type            = "tinav5.c1r1p2"
   subnet_id          = outscale_subnet.private.subnet_id
   security_group_ids = [outscale_security_group.app.security_group_id]
