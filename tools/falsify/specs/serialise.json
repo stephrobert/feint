@@ -24,5 +24,6 @@
       "test": "TestSerialiseSeparatesProviders",
       "package": "./internal/core/machine/"
     }
-  ]
+  ],
+  "note": "No repeat, and that is measured rather than assumed (2026-08-17, -count=1 in the harness's own out-of-tree copy): the subject is a lock, but none of these verdicts is a bet on the scheduler. The two keyed-locking tests hold one side themselves and wait on a five-second timeout the mutation forces, red 3/3 each; the refcount test is a sequential loop over the map, red every run."
 }

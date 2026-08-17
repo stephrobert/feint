@@ -16,5 +16,6 @@
       "replace": "\tstatus := res.State\n\tif status == \"syncing_error\" {\n\t\tstatus = \"available\"\n\t}",
       "test": "TestARefusedAttachmentIsVisibleOnTheV2alpha1View"
     }
-  ]
+  ],
+  "note": "`repeat: 10` is measured, not chosen. With the hold released, one -count=1 run of the barrage is close to a coin toss: red 3 of 5 on 17 August 2026 — the day this spec printed TEST STILL PASSED twice for a guard that bites — and red 7 of 10 when re-measured the same day in the harness's own out-of-tree copy. A false green near one run in three becomes (1/3)^10, about 2e-5, over ten."
 }
