@@ -19,9 +19,9 @@
 
 **Read this in another language:** [Français](./README.fr.md)
 
-[Install](#install) • [Use it](#use-it) • [What is proven](#status) •
-[Commands](#commands) • [What it does not do](docs/limits.md) •
-[Contributing](CONTRIBUTING.md)
+[**What you can validate**](docs/confidence.md) • [Install](#install) •
+[Use it](#use-it) • [What is proven](#status) • [Commands](#commands) •
+[What it does not do](docs/limits.md) • [Contributing](CONTRIBUTING.md)
 
 <!-- safety:start -->
 > [!IMPORTANT]

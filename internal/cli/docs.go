@@ -72,6 +72,7 @@ func docs(args []string, stdout, stderr io.Writer) int {
 	contractsDir := fs.String("contracts", "contracts", "directory holding the API description artefacts")
 	limits := fs.String("limits", "docs/limits.md", "the Markdown file holding the contract policy table (empty to skip)")
 	routesDoc := fs.String("routes", "docs/routes.md", "the Markdown file holding the route reference (empty to skip)")
+	confidenceDoc := fs.String("confidence", "docs/confidence.md", "the Markdown file holding the confidence page (empty to skip)")
 	installDoc := fs.String("install", "docs/install.md", "the Markdown file holding the prerequisites (empty to skip)")
 	workflow := fs.String("workflow", conformanceWorkflow, "the workflow the client versions are read from")
 	ansible := fs.String("client-pins", ansibleClientPins, "the Ansible defaults the workflow pins are compared against (empty to skip)")
@@ -204,6 +205,14 @@ func docs(args []string, stdout, stderr io.Writer) int {
 		return exitError
 	}
 
+	// The confidence page's two figures (#130): the same artefact the routes
+	// page reads, so a reader cannot be told two different numbers by two pages.
+	confidenceChanged, confidenceErr := spliceConfidence(*confidenceDoc, evidenceArt)
+	if confidenceErr != nil {
+		fmt.Fprintf(stderr, "feint: %v\n", confidenceErr)
+		return exitError
+	}
+
 	// A fourth: the install page, which carries the same prerequisites and the
 	// same install commands as the README. It is the page a release dates
 	// fastest, and the only one whose numbers nobody re-measures when cutting
@@ -289,6 +298,10 @@ func docs(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "feint: %s is out of date; run `mise run docs:coverage`\n", *routesDoc)
 			return exitDrift
 		}
+		if confidenceChanged {
+			fmt.Fprintf(stderr, "feint: %s is out of date; run `mise run docs:coverage`\n", *confidenceDoc)
+			return exitDrift
+		}
 		if installChanged || commandsChanged || containerChanged {
 			fmt.Fprintf(stderr, "feint: %s is out of date; run `mise run docs:coverage`\n", *installDoc)
 			return exitDrift
@@ -332,6 +345,13 @@ func docs(args []string, stdout, stderr io.Writer) int {
 			return exitError
 		}
 		fmt.Fprintf(stdout, "%s updated\n", *routesDoc)
+	}
+	if confidenceChanged {
+		if err := writeSplicedConfidence(*confidenceDoc, evidenceArt); err != nil {
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
+		fmt.Fprintf(stdout, "%s updated\n", *confidenceDoc)
 	}
 	if installChanged {
 		if err := writeSplicedPrereq(*installDoc, goModPath); err != nil {

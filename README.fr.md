@@ -18,9 +18,9 @@
 
 **Autre langue :** [English](./README.md)
 
-[Installer](#installer) • [S'en servir](#sen-servir) • [Ce qui est prouvé](#état) •
-[Commandes](#commandes) • [Ce qu'il ne fait pas](docs/limits.md) •
-[Contribuer](CONTRIBUTING.md)
+[**Ce que vous pouvez valider**](docs/confidence.md) • [Installer](#installer) •
+[S'en servir](#sen-servir) • [Ce qui est prouvé](#état) • [Commandes](#commandes) •
+[Ce qu'il ne fait pas](docs/limits.md) • [Contribuer](CONTRIBUTING.md)
 
 <!-- safety:start -->
 > [!IMPORTANT]
