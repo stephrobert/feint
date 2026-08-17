@@ -34,11 +34,26 @@ func TestAFailedStartSaysWhatTheContainerDid(t *testing.T) {
 	if cloud != nil {
 		t.Cleanup(cloud.stop)
 	}
-	if err == nil {
-		t.Fatal("a container that listens on nothing was reported as a working emulator")
-	}
 
-	msg := err.Error()
+	// The subject is the diagnosis, not the failure that occasions it, and the
+	// two are separable — which is worth doing rather than assuming, because the
+	// assumption broke in CI on 17 August 2026: `launch` *succeeded* against an
+	// image that listens on nothing, so something else was answering on the port
+	// between the kernel handing it out and Docker publishing it. The first
+	// version of this test called that "a container that listens on nothing was
+	// reported as a working emulator" and went red on an amd64 runner for a
+	// reason that says nothing about the code under test.
+	//
+	// So the diagnosis is read either way. The container has exited in both
+	// cases — alpine runs no server — and `diagnose` can still be asked about it
+	// precisely because `launch` no longer passes `--rm`. Put the flag back and
+	// both branches below answer "No such container".
+	msg := ""
+	if err != nil {
+		msg = err.Error()
+	} else {
+		msg = cloud.diagnose()
+	}
 	if strings.Contains(msg, "No such container") {
 		t.Errorf("the failure names a container the runtime has already destroyed:\n%s", msg)
 	}
