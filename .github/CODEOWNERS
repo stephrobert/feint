@@ -1,3 +1,19 @@
-# Default owner for everything in the repository. Pull requests require a
-# review from a code owner (enforced by branch protection on `main`).
+# Default owner for everything in the repository.
+#
+# A code owner review is **not** required on `main`, and this comment used to say
+# it was — "enforced by branch protection on `main`", next to a ruleset whose
+# `require_code_owner_review` is false. That is the defect this repository spends
+# itself on, written into its own governance: a sentence describing a control
+# nobody applies reads exactly like the control.
+#
+# It is false on purpose rather than by oversight. One maintainer cannot approve
+# their own pull request, so requiring a code owner review here would close the
+# only path this repository has to `main`, and the way past it would be the admin
+# bypass — scoring two controls while enforcing neither. docs/scorecard.md states
+# the trade, what the bypass does allow (merging a held pull request) and what it
+# does not (pushing to `main` directly), and what would change all of it: a
+# second reviewer, not a setting.
+#
+# What this file does today: name the reviewer GitHub requests automatically on
+# every pull request, and give the drift bot a human to address.
 * @stephrobert
