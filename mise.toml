@@ -348,7 +348,7 @@ run = "python3 tools/falsify/falsify.py"
 
 [tasks.prepush]
 description = "Everything a pull request will fail on that costs seconds and needs no client"
-depends = ["check", "docs:check", "drift:check", "shapes:check", "falsify:selftest"]
+depends = ["check", "docs:check", "drift:check", "shapes:check", "falsify:selftest", "falsify:lint"]
 # What this is, and what it deliberately is not.
 #
 # These four are deterministic, offline, and take seconds: they can be a hook
@@ -395,6 +395,18 @@ description = "Weaken a test so it cannot fail, and require the replay to name i
 # suite green, the replay red and naming the test. Writing that proof as a script
 # beside a pull request would have reproduced the fault it closes.
 run = "python3 tools/falsify/proof.py"
+
+[tasks."falsify:lint"]
+description = "Every declared mutation still finds the code it names — the cheap half of falsify:all"
+# String searches, no copy and no `go test`, so this belongs in prepush where
+# the replay itself cannot: `falsify:all` runs a build per mutation and lives on
+# a nightly cron, which means a spec killed by a refactor stays undetected for
+# up to twelve hours while the tree looks green to everyone working in it.
+#
+# It happened twice on 2026-08-17 — #211 had killed transition.json, #257 killed
+# serialise-then-commit.json the same afternoon — and this check names all five
+# dead mutations in a millisecond. Exit 2, like every other drift verdict here.
+run = "python3 tools/falsify/falsify.py --lint tools/falsify/specs"
 
 [tasks."falsify:selftest"]
 description = "Prove the falsification harness refuses the three mutations that voided a verdict"
