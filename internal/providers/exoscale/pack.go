@@ -252,6 +252,26 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "PUT", Path: "/v2/block-storage-snapshot/{id}", Operation: operation("update-block-storage-snapshot"), Handler: p.updateBlockSnapshot},
 		{Method: "DELETE", Path: "/v2/block-storage-snapshot/{id}", Operation: operation("delete-block-storage-snapshot"), Handler: p.deleteBlockSnapshot},
 
+		// Instance pools (EXO-7, #232). One control-plane write that creates or
+		// destroys several machines, which is why it was its own batch — and
+		// pools.go explains what dissolved the difficulty: a pool owns
+		// instances, and an instance owns a machine, so every per-target
+		// mechanism in the machine layer stays as it is.
+		{Method: "POST", Path: "/v2/instance-pool", Operation: operation("create-instance-pool"), Handler: p.createInstancePool},
+		{Method: "GET", Path: "/v2/instance-pool", Operation: operation("list-instance-pools"), Handler: p.listInstancePools},
+		{Method: "GET", Path: "/v2/instance-pool/{id}", Operation: operation("get-instance-pool"), Handler: p.getInstancePool,
+			// The fifth per-id read this CLI resolves by listing and filtering in
+			// the client. Measured on this one too rather than assumed from the
+			// pattern: `exo compute instance-pool show` calls list-instance-pools,
+			// then get-instance and get-template to render the members it found.
+			Undriven: "`exo compute instance-pool show` lists the pools and picks its one in the client, then reads the members it names, so the per-id pool read has no caller"},
+		{Method: "PUT", Path: "/v2/instance-pool/{id}", Operation: operation("update-instance-pool"), Handler: p.updateInstancePool},
+		{Method: "DELETE", Path: "/v2/instance-pool/{id}", Operation: operation("delete-instance-pool"), Handler: p.deleteInstancePool},
+		{Method: "PUT", Path: "/v2/instance-pool/{id}:scale", Operation: operation("scale-instance-pool"), Handler: p.scaleInstancePool},
+		{Method: "PUT", Path: "/v2/instance-pool/{id}:evict", Operation: operation("evict-instance-pool-members"), Handler: p.evictInstancePoolMembers},
+		{Method: "DELETE", Path: "/v2/instance-pool/{id}/{field}", Operation: operation("reset-instance-pool-field"), Handler: p.resetInstancePoolField,
+			Undriven: "the CLI clears a field by sending the update with an empty value, so the per-field DELETE the API declares is never issued"},
+
 		// SSH keys. On the critical path of a create: the official CLI
 		// registers one of its own before it posts the instance.
 		{Method: "POST", Path: "/v2/ssh-key", Operation: operation("register-ssh-key"), Handler: p.registerSSHKey},
@@ -1094,6 +1114,13 @@ func (p *Pack) view(res *resource.Resource) map[string]any {
 	if keys, _ := res.Attrs["ssh-keys"].([]any); len(keys) > 0 {
 		out["ssh-keys"] = keys
 		out["ssh-key"] = keys[0]
+	}
+	// The pool that manages this instance, when one does (#232). Declared by
+	// their instance schema and published on the member rather than only on the
+	// pool, because that is the direction a client reads it: it holds an
+	// instance id from a list and wants to know what governs it.
+	if manager, ok := res.Attrs["manager"].(map[string]any); ok {
+		out["manager"] = manager
 	}
 	if userData, _ := res.Attrs["user-data"].(string); userData != "" {
 		out["user-data"] = userData

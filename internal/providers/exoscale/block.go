@@ -105,12 +105,20 @@ const (
 // cannot be broken from the API at all. Declaring it would ask the sweep to
 // check something the refusal already makes impossible.
 func Owns(res *resource.Resource) (kind, id string, ok bool) {
-	if res.Kind != kindBlockVolume {
-		return "", "", false
-	}
-	attached, _ := res.Attrs["instance"].(map[string]any)
-	if instanceID, _ := attached["id"].(string); instanceID != "" {
-		return kindInstance, instanceID, true
+	switch res.Kind {
+	case kindBlockVolume:
+		attached, _ := res.Attrs["instance"].(map[string]any)
+		if instanceID, _ := attached["id"].(string); instanceID != "" {
+			return kindInstance, instanceID, true
+		}
+	case kindInstance:
+		// A pool member (#232). The pool destroys its members with itself, so a
+		// member naming a pool that is gone means that path was bypassed — by a
+		// restore, by a future write, or by a bug — and the instance is then
+		// managed by nothing while still claiming a manager.
+		if poolID := res.Runtime[runtimePoolKey]; poolID != "" {
+			return kindPool, poolID, true
+		}
 	}
 	return "", "", false
 }
