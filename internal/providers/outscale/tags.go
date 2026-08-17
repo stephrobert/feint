@@ -258,3 +258,16 @@ func tagsList(tags map[string]string) []any {
 	}
 	return out
 }
+
+// tagsOrEmpty publishes a resource's tags, and an empty list when it has none.
+//
+// A nil slice marshals to `null`, and a client ranging over null is a client
+// that stops. Every taggable view here owes this; the NIC one published a
+// constant `[]` instead, which is the same shape and a different fact.
+func tagsOrEmpty(res *resource.Resource) []any {
+	entries, _ := res.Attrs["Tags"].([]any)
+	if entries == nil {
+		return []any{}
+	}
+	return entries
+}

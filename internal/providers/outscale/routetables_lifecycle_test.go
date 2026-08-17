@@ -2,6 +2,7 @@ package outscale_test
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -120,4 +121,83 @@ func mainRouteTableID(t *testing.T, payload map[string]any) (string, string) {
 	}
 	t.Fatal("no main route table in the answer")
 	return "", ""
+}
+
+// A route can point at a Net peering, which is the only way two peered Nets
+// reach each other (#249).
+//
+// Their SDK declares it — CreateRouteRequest.NetPeeringId, "The ID of a Net
+// peering" — and the Terraform provider sends it for `outscale_route` with
+// `net_peering_id`. This emulator refused it with "a route needs a target:
+// GatewayId, NatServiceId, NicId or VmId" until a realistic stack asked.
+//
+// Found by writing the Terraform a platform team writes rather than by a test:
+// the suite creates peerings and asserts their state machine, and never routes
+// through one. That is the gap between proving what somebody thought to assert
+// and exercising what somebody actually writes.
+func TestARouteCanPointAtANetPeering(t *testing.T) {
+	ts := newServer(t)
+	doc := contractDoc(t)
+
+	netID, _ := netAndSubnet(t, ts, "10.70.0.0/16", "10.70.1.0/24")
+	other := call(t, ts, doc, "CreateNet", `{"IpRange":"10.71.0.0/16"}`)
+	otherNet, _ := other["Net"].(map[string]any)
+	otherID, _ := otherNet["NetId"].(string)
+
+	peering := call(t, ts, doc, "CreateNetPeering",
+		`{"SourceNetId":"`+netID+`","AccepterNetId":"`+otherID+`"}`)
+	pcx, _ := peering["NetPeering"].(map[string]any)
+	pcxID, _ := pcx["NetPeeringId"].(string)
+	if pcxID == "" {
+		t.Fatalf("no peering to route through: %v", peering)
+	}
+
+	created := call(t, ts, doc, "CreateRouteTable", `{"NetId":"`+netID+`"}`)
+	rtb, _ := created["RouteTable"].(map[string]any)
+	rtbID, _ := rtb["RouteTableId"].(string)
+
+	routed := call(t, ts, doc, "CreateRoute", `{
+		"RouteTableId":"`+rtbID+`",
+		"DestinationIpRange":"10.71.0.0/16",
+		"NetPeeringId":"`+pcxID+`"
+	}`)
+	table, _ := routed["RouteTable"].(map[string]any)
+	routes, _ := table["Routes"].([]any)
+	found := false
+	for _, entry := range routes {
+		route, _ := entry.(map[string]any)
+		if route["DestinationIpRange"] == "10.71.0.0/16" && route["NetPeeringId"] == pcxID {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("the route does not carry the peering it was created with: %v", routes)
+	}
+
+	// And a peering that has neither end in this Net is refused, the way a
+	// gateway attached elsewhere is: a route stored against somebody else's
+	// peering is a plan that would never work on the real cloud.
+	third := call(t, ts, doc, "CreateNet", `{"IpRange":"10.72.0.0/16"}`)
+	thirdNet, _ := third["Net"].(map[string]any)
+	thirdID, _ := thirdNet["NetId"].(string)
+	fourth := call(t, ts, doc, "CreateNet", `{"IpRange":"10.73.0.0/16"}`)
+	fourthNet, _ := fourth["Net"].(map[string]any)
+	fourthID, _ := fourthNet["NetId"].(string)
+	elsewhere := call(t, ts, doc, "CreateNetPeering",
+		`{"SourceNetId":"`+thirdID+`","AccepterNetId":"`+fourthID+`"}`)
+	elsewherePcx, _ := elsewhere["NetPeering"].(map[string]any)
+	elsewhereID, _ := elsewherePcx["NetPeeringId"].(string)
+
+	res, err := http.Post(ts.URL+"/api/v1/CreateRoute", "application/json", strings.NewReader(`{
+		"RouteTableId":"`+rtbID+`",
+		"DestinationIpRange":"10.73.0.0/16",
+		"NetPeeringId":"`+elsewhereID+`"
+	}`)) //nolint:noctx // test client
+	if err != nil {
+		t.Fatalf("CreateRoute: %v", err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode == http.StatusOK {
+		t.Error("a route was stored through a peering neither of whose ends is this Net")
+	}
 }

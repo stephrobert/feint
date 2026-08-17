@@ -214,7 +214,13 @@ func (p *Pack) storedNicView(nic *resource.Resource) map[string]any {
 		// nothing changed — a write the API accepted and never showed.
 		"PrivateIps":     privateIPEntries(nic, dns, privateIP),
 		"SecurityGroups": groups,
-		"Tags":           []any{},
+		// The NIC's own tags, not a constant. This published `[]` whatever the
+		// NIC carried, so `CreateTags` on an interface answered 200 and
+		// `ReadNics` denied it — and a Terraform configuration tagging a NIC
+		// planned the same change on every run, for ever. Found by applying a
+		// realistic stack rather than by a test: the conformance suite tags Nets,
+		// Vms and volumes, and never tagged an interface.
+		"Tags": tagsOrEmpty(nic),
 	}
 	// The link appears only when attached, in the measured shape: DeviceNumber
 	// from 1 (0 is the derived primary), VmAccountId the account's own.
@@ -293,6 +299,10 @@ func (p *Pack) createNic(w http.ResponseWriter, r *http.Request) {
 		"PrivateIp":   place.Address.String(),
 		"Description": req.Description,
 		"State":       "available",
+		// Present and empty from the start, like every other taggable resource
+		// here: CreateTags writes this key, and a NIC created without it made
+		// the first tag land on a resource whose view published a constant.
+		"Tags": []any{},
 	}
 	if len(req.SecurityGroupIDs) > 0 {
 		nic.Attrs["SecurityGroupIds"] = req.SecurityGroupIDs

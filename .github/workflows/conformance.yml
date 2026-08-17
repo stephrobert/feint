@@ -354,6 +354,20 @@ jobs:
         if: matrix.client == 'terraform' || matrix.client == 'opentofu' || matrix.client == 'fields'
         run: tools/conformance/outscale/terraform.sh http://127.0.0.1:4599
 
+      # The example stacks, which are examples and tests at once. They are
+      # written the way a platform team writes Terraform rather than the way a
+      # fixture is written, and that difference is measured rather than claimed:
+      # within an hour of the first one being applied, two defects surfaced that
+      # every gate here was blind to — a route that could not point at a Net
+      # peering (#249), and a tagged NIC that read back without its tags (#250).
+      #
+      # They run on the terraform and opentofu legs rather than on `fields`: the
+      # omission gate's verdict is about a whole run, and a stack applying a
+      # thousand resources tells it nothing a suite does not.
+      - name: Apply the example stacks
+        if: matrix.client == 'terraform' || matrix.client == 'opentofu'
+        run: tools/conformance/stacks.sh http://127.0.0.1:4599
+
       # No client at all: every route driven from its provider's own API
       # description, which is the half of conformance that needs nothing
       # installed. It proves the protocol and never touches the score.

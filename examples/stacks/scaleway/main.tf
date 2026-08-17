@@ -1,0 +1,303 @@
+# A three-tier platform on Scaleway, with a separate management VPC.
+#
+# Written the way a real project is written rather than the way a test fixture
+# is: two VPCs that do not share a network, a bastion that is the only public
+# door, web and application tiers with their own security groups, data disks,
+# a golden image cut from a snapshot, block-storage volumes with their own
+# snapshots, and addresses booked from IPAM before anything carries them.
+#
+# It exists to be run against Feint with no cloud account. Everything here is
+# ordinary Terraform: if it applies, re-plans empty and destroys, the emulator
+# held up under something that looks like production rather than under a test.
+
+terraform {
+  required_version = ">= 1.7.0"
+  required_providers {
+    scaleway = {
+      source  = "scaleway/scaleway"
+      version = "~> 2.79"
+    }
+  }
+}
+
+variable "endpoint" {
+  type    = string
+  default = "http://127.0.0.1:4599"
+}
+
+variable "web_count" {
+  type    = number
+  default = 2
+}
+
+variable "app_count" {
+  type    = number
+  default = 3
+}
+
+provider "scaleway" {
+  api_url         = var.endpoint
+  access_key      = "SCWXXXXXXXXXXXXXXXXX"
+  secret_key      = "11111111-1111-1111-1111-111111111111"
+  project_id      = "11111111-1111-1111-1111-111111111111"
+  organization_id = "11111111-1111-1111-1111-111111111111"
+  region          = "fr-par"
+  zone            = "fr-par-1"
+}
+
+# ---------------------------------------------------------------------------
+# Two VPCs. The workload one and the management one, which is the shape most
+# platforms end up with and the one that makes isolation a real question.
+# ---------------------------------------------------------------------------
+
+resource "scaleway_vpc" "workload" {
+  name = "platform-workload"
+  tags = ["platform", "workload"]
+}
+
+resource "scaleway_vpc" "management" {
+  name = "platform-management"
+  tags = ["platform", "management"]
+}
+
+resource "scaleway_vpc_private_network" "web" {
+  name   = "platform-web"
+  vpc_id = scaleway_vpc.workload.id
+  ipv4_subnet {
+    subnet = "10.30.1.0/24"
+  }
+}
+
+resource "scaleway_vpc_private_network" "app" {
+  name   = "platform-app"
+  vpc_id = scaleway_vpc.workload.id
+  ipv4_subnet {
+    subnet = "10.30.2.0/24"
+  }
+}
+
+resource "scaleway_vpc_private_network" "admin" {
+  name   = "platform-admin"
+  vpc_id = scaleway_vpc.management.id
+  ipv4_subnet {
+    subnet = "10.40.1.0/24"
+  }
+}
+
+# A route a platform team really writes: reach the management range through the
+# admin network.
+resource "scaleway_vpc_route" "to_management" {
+  vpc_id                     = scaleway_vpc.workload.id
+  description                = "management range"
+  destination                = "10.40.0.0/16"
+  nexthop_private_network_id = scaleway_vpc_private_network.app.id
+}
+
+# ---------------------------------------------------------------------------
+# Security groups, one per tier, each opening only what that tier needs.
+# ---------------------------------------------------------------------------
+
+resource "scaleway_instance_security_group" "bastion" {
+  name                    = "platform-bastion"
+  inbound_default_policy  = "drop"
+  outbound_default_policy = "accept"
+
+  inbound_rule {
+    action = "accept"
+    port   = 22
+  }
+}
+
+resource "scaleway_instance_security_group" "web" {
+  name                    = "platform-web"
+  inbound_default_policy  = "drop"
+  outbound_default_policy = "accept"
+
+  inbound_rule {
+    action = "accept"
+    port   = 443
+  }
+
+  inbound_rule {
+    action   = "accept"
+    port     = 22
+    ip_range = "10.40.1.0/24"
+  }
+}
+
+resource "scaleway_instance_security_group" "app" {
+  name                    = "platform-app"
+  inbound_default_policy  = "drop"
+  outbound_default_policy = "accept"
+
+  inbound_rule {
+    action   = "accept"
+    port     = 8080
+    ip_range = "10.30.1.0/24"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# A golden image: a volume, a snapshot of it, an image cut from the snapshot.
+# This is the sequence a platform builds once and boots from everywhere, and it
+# is where an emulator that stores a snapshot without a parent falls over.
+# ---------------------------------------------------------------------------
+
+resource "scaleway_instance_volume" "golden" {
+  name       = "platform-golden-src"
+  type       = "b_ssd"
+  size_in_gb = 10
+}
+
+resource "scaleway_instance_snapshot" "golden" {
+  name      = "platform-golden-snap"
+  volume_id = scaleway_instance_volume.golden.id
+}
+
+resource "scaleway_instance_image" "golden" {
+  name           = "platform-golden"
+  root_volume_id = scaleway_instance_snapshot.golden.id
+  architecture   = "x86_64"
+}
+
+# ---------------------------------------------------------------------------
+# The bastion: the only machine with a public address.
+# ---------------------------------------------------------------------------
+
+resource "scaleway_instance_ip" "bastion" {}
+
+resource "scaleway_instance_server" "bastion" {
+  name              = "platform-bastion"
+  type              = "DEV1-S"
+  image             = "ubuntu_jammy"
+  ip_id             = scaleway_instance_ip.bastion.id
+  security_group_id = scaleway_instance_security_group.bastion.id
+  tags              = ["platform", "bastion"]
+
+  cloud_init = <<-EOT
+    #cloud-config
+    package_update: true
+    packages:
+      - fail2ban
+  EOT
+}
+
+resource "scaleway_instance_private_nic" "bastion" {
+  server_id          = scaleway_instance_server.bastion.id
+  private_network_id = scaleway_vpc_private_network.admin.id
+}
+
+# ---------------------------------------------------------------------------
+# The web tier: addresses booked from IPAM before the NICs carry them, which is
+# what a platform does when it wants stable addresses rather than whatever the
+# cloud hands out.
+# ---------------------------------------------------------------------------
+
+resource "scaleway_ipam_ip" "web" {
+  count   = var.web_count
+  address = "10.30.1.${10 + count.index}"
+
+  source {
+    private_network_id = scaleway_vpc_private_network.web.id
+  }
+
+  tags = ["platform", "web"]
+}
+
+resource "scaleway_instance_volume" "web_data" {
+  count      = var.web_count
+  name       = "platform-web-data-${count.index}"
+  type       = "b_ssd"
+  size_in_gb = 10
+}
+
+resource "scaleway_instance_ip" "web" {
+  count = var.web_count
+}
+
+resource "scaleway_instance_server" "web" {
+  count = var.web_count
+
+  name                  = "platform-web-${count.index}"
+  type                  = "DEV1-S"
+  image                 = scaleway_instance_image.golden.id
+  ip_id                 = scaleway_instance_ip.web[count.index].id
+  security_group_id     = scaleway_instance_security_group.web.id
+  additional_volume_ids = [scaleway_instance_volume.web_data[count.index].id]
+  tags                  = ["platform", "web"]
+
+  cloud_init = <<-EOT
+    #cloud-config
+    package_update: true
+    packages:
+      - nginx
+  EOT
+}
+
+resource "scaleway_instance_private_nic" "web" {
+  count = var.web_count
+
+  server_id          = scaleway_instance_server.web[count.index].id
+  private_network_id = scaleway_vpc_private_network.web.id
+  ipam_ip_ids        = [scaleway_ipam_ip.web[count.index].id]
+}
+
+# ---------------------------------------------------------------------------
+# The application tier: no public address at all, and block-storage volumes
+# rather than instance ones, which is the other volume product and a different
+# API entirely.
+# ---------------------------------------------------------------------------
+
+resource "scaleway_block_volume" "app_data" {
+  count      = var.app_count
+  name       = "platform-app-data-${count.index}"
+  iops       = 5000
+  size_in_gb = 20
+  tags       = ["platform", "app"]
+}
+
+resource "scaleway_block_snapshot" "app_data" {
+  count     = var.app_count
+  name      = "platform-app-snap-${count.index}"
+  volume_id = scaleway_block_volume.app_data[count.index].id
+  tags      = ["platform", "app"]
+}
+
+resource "scaleway_instance_server" "app" {
+  count = var.app_count
+
+  name              = "platform-app-${count.index}"
+  type              = "DEV1-S"
+  image             = "ubuntu_jammy"
+  security_group_id = scaleway_instance_security_group.app.id
+  tags              = ["platform", "app"]
+
+  # No ip_id at all: this tier is unreachable from outside, which is the point.
+}
+
+resource "scaleway_instance_private_nic" "app" {
+  count = var.app_count
+
+  server_id          = scaleway_instance_server.app[count.index].id
+  private_network_id = scaleway_vpc_private_network.app.id
+}
+
+# ---------------------------------------------------------------------------
+# What a reader would check afterwards.
+# ---------------------------------------------------------------------------
+
+output "bastion_ip" {
+  value = scaleway_instance_ip.bastion.address
+}
+
+output "web_addresses" {
+  value = scaleway_ipam_ip.web[*].address
+}
+
+output "golden_image_id" {
+  value = scaleway_instance_image.golden.id
+}
+
+output "machines" {
+  value = length(scaleway_instance_server.web) + length(scaleway_instance_server.app) + 1
+}

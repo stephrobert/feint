@@ -341,9 +341,14 @@ type routeRequest struct {
 	DestinationIPRange string `json:"DestinationIpRange"`
 	GatewayID          string `json:"GatewayId"`
 	NatServiceID       string `json:"NatServiceId"`
-	NicID              string `json:"NicId"`
-	VMID               string `json:"VmId"`
-	DryRun             *bool  `json:"DryRun"`
+	// A route whose next hop is the other side of a peering. Declared by their
+	// SDK's CreateRouteRequest and refused here until a realistic configuration
+	// asked for it: two peered Nets are useless without the route that points at
+	// the peering, and the Terraform provider sends exactly this.
+	NetPeeringID string `json:"NetPeeringId"`
+	NicID        string `json:"NicId"`
+	VMID         string `json:"VmId"`
+	DryRun       *bool  `json:"DryRun"`
 }
 
 // routeTarget validates whichever target the request names and returns the key
@@ -374,6 +379,22 @@ func (p *Pack) routeTarget(w http.ResponseWriter, req *routeRequest, netID strin
 			return "", "", false
 		}
 		return "NatServiceId", req.NatServiceID, true
+	case req.NetPeeringID != "":
+		peering, found := p.env.Store.Get(Name, kindNetPeering, req.NetPeeringID)
+		if !found {
+			p.notFound(w, "Net peering", req.NetPeeringID)
+			return "", "", false
+		}
+		// The table's Net has to be one of the peering's two ends. A route
+		// through somebody else's peering is the mistake this checks for, and
+		// it is the same shape as the gateway check above.
+		source := stringOf(peering.Attrs["SourceNetId"])
+		accepter := stringOf(peering.Attrs["AccepterNetId"])
+		if netID != source && netID != accepter {
+			p.badRequest(w, "the Net peering "+req.NetPeeringID+" does not have "+netID+" at either end")
+			return "", "", false
+		}
+		return "NetPeeringId", req.NetPeeringID, true
 	case req.NicID != "":
 		return "NicId", req.NicID, true
 	case req.VMID != "":
@@ -383,7 +404,7 @@ func (p *Pack) routeTarget(w http.ResponseWriter, req *routeRequest, netID strin
 		}
 		return "VmId", req.VMID, true
 	default:
-		p.badRequest(w, "a route needs a target: GatewayId, NatServiceId, NicId or VmId")
+		p.badRequest(w, "a route needs a target: GatewayId, NatServiceId, NetPeeringId, NicId or VmId")
 		return "", "", false
 	}
 }

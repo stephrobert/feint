@@ -121,3 +121,54 @@ func TestReadTagsOmitsAKindUpstreamDoesNotName(t *testing.T) {
 		}
 	}
 }
+
+// A tagged NIC reads back its tags (#250).
+//
+// `storedNicView` published `"Tags": []` as a constant, so CreateTags on an
+// interface answered 200, stored the tag, and ReadNics denied it. For a client
+// that is worse than a refusal: a Terraform configuration tagging an interface
+// planned the same change on every run, for ever.
+//
+// The shape was right and the fact was wrong, which is why no schema check saw
+// it — an empty list is exactly what an untagged NIC should publish. Found by
+// applying a realistic stack and reading the second plan, and the suite had
+// tagged Nets, Vms and volumes without ever tagging an interface.
+func TestATaggedNicReadsBackItsTags(t *testing.T) {
+	ts := newServer(t)
+	doc := contractDoc(t)
+
+	netID, subnetID := netAndSubnet(t, ts, "10.80.0.0/16", "10.80.1.0/24")
+	_ = netID
+
+	created := call(t, ts, doc, "CreateNic", `{"SubnetId":"`+subnetID+`"}`)
+	nic, _ := created["Nic"].(map[string]any)
+	nicID, _ := nic["NicId"].(string)
+	if nicID == "" {
+		t.Fatalf("no NicId in the create response: %v", created)
+	}
+	// Empty rather than absent on a fresh interface: that is the honest answer,
+	// and a client ranging over null is a client that stops.
+	if tags, ok := nic["Tags"].([]any); !ok || len(tags) != 0 {
+		t.Errorf("a fresh NIC publishes %v for Tags, want an empty list", nic["Tags"])
+	}
+
+	call(t, ts, doc, "CreateTags", `{
+		"ResourceIds":["`+nicID+`"],
+		"Tags":[{"Key":"Name","Value":"platform-app-services"}]
+	}`)
+
+	read := call(t, ts, doc, "ReadNics", `{"Filters":{"NicIds":["`+nicID+`"]}}`)
+	nics, _ := read["Nics"].([]any)
+	if len(nics) != 1 {
+		t.Fatalf("the NIC is not readable after tagging: %v", read)
+	}
+	found, _ := nics[0].(map[string]any)
+	tags, _ := found["Tags"].([]any)
+	if len(tags) != 1 {
+		t.Fatalf("the tagged NIC publishes %d tag(s): the write was accepted and denied", len(tags))
+	}
+	tag, _ := tags[0].(map[string]any)
+	if tag["Key"] != "Name" || tag["Value"] != "platform-app-services" {
+		t.Errorf("the NIC carries %v, not the tag it was given", tags[0])
+	}
+}

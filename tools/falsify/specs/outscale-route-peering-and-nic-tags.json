@@ -1,0 +1,27 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "a route can no longer point at a Net peering, so two peered Nets stay unreachable",
+      "file": "internal/providers/outscale/routetables.go",
+      "find": "\tcase req.NetPeeringID != \"\":",
+      "replace": "\tcase req.NetPeeringID != \"\" && false:",
+      "test": "TestARouteCanPointAtANetPeering"
+    },
+    {
+      "label": "the peering's two ends stop being checked, so a route lands on somebody else's peering",
+      "file": "internal/providers/outscale/routetables.go",
+      "find": "\t\tif netID != source && netID != accepter {",
+      "replace": "\t\tif netID != source && netID != accepter && false {",
+      "test": "TestARouteCanPointAtANetPeering"
+    },
+    {
+      "label": "the NIC view publishes a constant again, so a tagged interface denies its own tag",
+      "file": "internal/providers/outscale/nics.go",
+      "find": "\t\t\"Tags\": tagsOrEmpty(nic),",
+      "replace": "\t\t\"Tags\": func() []any { _ = tagsOrEmpty(nic); return []any{} }(),",
+      "test": "TestATaggedNicReadsBackItsTags"
+    }
+  ],
+  "note": "Both defects were found by applying a realistic Terraform stack rather than by a test, and both were invisible to every schema check: a missing route target answers a clean 400, and a view publishing a constant empty list has exactly the shape an untagged NIC should have. The third mutation keeps `tagsOrEmpty(nic)` evaluated — the rule falsify.py enforces — while discarding its answer, which is precisely the defect as it stood."
+}

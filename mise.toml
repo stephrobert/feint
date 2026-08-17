@@ -139,6 +139,10 @@ run = [
   "tools/conformance/outscale/terraform.sh http://$FEINT_ADDR",
 ]
 
+[tasks."conformance:stacks"]
+description = "Apply the example stacks — realistic platform configurations, not fixtures"
+run = "tools/conformance/stacks.sh http://$FEINT_ADDR"
+
 [tasks."conformance:terraform:outscale"]
 description = "Run the real Outscale Terraform provider against the running emulator"
 run = "tools/conformance/outscale/terraform.sh http://$FEINT_ADDR"
@@ -274,6 +278,10 @@ tools/conformance/scaleway/scw-cli.sh "http://$FEINT_ADDR"
 tools/conformance/scaleway/terraform.sh "http://$FEINT_ADDR"
 tools/conformance/outscale/oapi-cli.sh "http://$FEINT_ADDR"
 tools/conformance/outscale/terraform.sh "http://$FEINT_ADDR"
+# The example stacks, which are examples and tests at once: written the way a
+# platform team writes Terraform rather than the way a fixture is written, and
+# they found two defects every other gate was blind to (#249, #250).
+tools/conformance/stacks.sh "http://$FEINT_ADDR"
 tools/conformance/exoscale/exo-cli.sh "http://$FEINT_ADDR"
 # Every route driven from its provider's API description. Skipped when a machine
 # runtime is on: a synthetic walk of every Create* would start a container each.
