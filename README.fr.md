@@ -447,6 +447,39 @@ pouvait voir.
 
 ---
 
+## Apportez-lui une configuration que vous utilisez vraiment
+
+**La chose la plus utile qu'on puisse envoyer à ce projet, c'est une
+configuration Terraform qui le casse.**
+
+Deux stacks réalistes écrites en interne ont fait apparaître deux défauts en une
+heure — une route qui ne pouvait pas viser un peering, et une interface taguée
+qui ne rendait jamais ses tags. Aucun des deux n'était visible pour la suite de
+conformance, parce qu'une suite prouve ce que quelqu'un a pensé à vérifier. La
+vôtre sollicite ce que quelqu'un écrit réellement.
+
+```bash
+feint start
+eval "$(feint env scaleway)"     # ou outscale
+terraform plan
+```
+
+L'objectif pour la 1.0 : **dix configurations réelles qui s'appliquent, se
+replanifient à vide et se détruisent sans compte cloud** — une cible qui, elle,
+ne peut pas être gonflée, contrairement à un nombre de routes.
+[docs/adoption.md](docs/adoption.md) tient la liste, les échecs compris.
+
+### Si vous travaillez chez un fournisseur cloud
+
+Feint peut servir de backend de test local à vos propres exemples Terraform et
+tests de SDK. Vos clients tournent déjà contre lui à chaque pull request ici, et
+la surface de votre SDK est scannée chaque semaine. Ce qui changerait ce que ce
+projet peut prouver de votre cloud : un compte bac à sable ou des
+enregistrements expurgés — le contrôle des formes compare les réponses de cet
+émulateur à ce que le vrai cloud a renvoyé, et enregistrer demande un compte.
+L'offre, et ce que ce projet ne fera jamais, sont dans
+[docs/adoption.md](docs/adoption.md).
+
 ## Contribuer
 
 Lisez d'abord [CONTRIBUTING.md](CONTRIBUTING.md) — en anglais, comme le code, les

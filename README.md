@@ -840,6 +840,38 @@ The human work is triage.
 
 ---
 
+## Bring it a configuration you actually use
+
+**The most useful thing anybody can send this project is a Terraform
+configuration that breaks it.**
+
+Two realistic stacks written in-house surfaced two defects within an hour — a
+route that could not point at a Net peering, and a tagged interface that never
+read its tags back. Neither was visible to the conformance suite, because a suite
+proves what somebody thought to assert. Yours exercises what somebody actually
+writes.
+
+```bash
+feint start
+eval "$(feint env scaleway)"     # or outscale
+terraform plan
+```
+
+The goal for 1.0 is **ten real configurations that apply, re-plan empty and
+destroy with no cloud account** — a target that cannot be inflated, unlike a
+route count. [docs/adoption.md](docs/adoption.md) keeps the list, the failures
+included.
+
+### If you work at a cloud provider
+
+Feint can be the local test backend for your own Terraform examples and SDK
+tests. Your clients already run against it here on every pull request, and your
+SDK's surface is scanned weekly. What would change what this project can prove
+about your cloud is a sandbox account or redacted recordings — the shapes gate
+compares this emulator's answers with what the real cloud returned, and recording
+needs an account. The offer, and what this project will never do, are both in
+[docs/adoption.md](docs/adoption.md).
+
 ## Contributing
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) first. It carries the one rule of this
