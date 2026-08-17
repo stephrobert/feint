@@ -3,10 +3,22 @@ package feinttest_test
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 	"testing"
 
 	"github.com/stephrobert/feint/feinttest"
 )
+
+// requireOptIn keeps these out of a plain `go test ./...`: they pull a published
+// image, and `mise run check` is offline by contract. The CI sets the variable
+// on every leg, so the coverage is unchanged — the network is now asked for
+// rather than assumed.
+func requireOptIn(t *testing.T) {
+	t.Helper()
+	if os.Getenv("FEINT_TESTCONTAINER") == "" {
+		t.Skip("feinttest: set FEINT_TESTCONTAINER=1 to run the container tests (they pull a published image)")
+	}
+}
 
 // The package's own promise, exercised: a test asks for a cloud and gets one.
 //
@@ -18,6 +30,7 @@ import (
 // being proven is that the artefact somebody else would consume works, and an
 // image built locally proves something nobody can reproduce.
 func TestStartHandsBackAnEmulatorThatAnswers(t *testing.T) {
+	requireOptIn(t)
 	cloud := feinttest.Start(t)
 
 	res, err := http.Get(cloud.Endpoint() + "/_feint/health") //nolint:noctx // test client
@@ -49,6 +62,7 @@ func TestStartHandsBackAnEmulatorThatAnswers(t *testing.T) {
 // runs packages in parallel, and two emulators on 4599 would make one of them
 // fail with a message naming a port rather than a cause.
 func TestTwoCloudsGetTwoPorts(t *testing.T) {
+	requireOptIn(t)
 	first := feinttest.Start(t)
 	second := feinttest.Start(t)
 

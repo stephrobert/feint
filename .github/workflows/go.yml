@@ -100,6 +100,10 @@ jobs:
         run: tools/docs/check.sh
 
       - name: go test (race)
+        # See the same variable on the cross matrix below: the feinttest package
+        # pulls the published image, which a local `mise run check` must not do.
+        env:
+          FEINT_TESTCONTAINER: '1'
         run: go test -race ./...
 
       # The emulator must answer the shapes a real cloud was observed to return
@@ -188,6 +192,13 @@ jobs:
         run: go build ./...
 
       - name: go test (race)
+        # FEINT_TESTCONTAINER arms the feinttest package, which pulls the
+        # published image and starts it. It is opt-in because `mise run check`
+        # is offline by contract; the CI is where asking for a registry is
+        # legitimate, so every leg of this matrix sets it and nothing is
+        # measured less than before.
+        env:
+          FEINT_TESTCONTAINER: '1'
         run: go test -race ./...
 
       # The binary has to answer, not merely link. A control plane that builds

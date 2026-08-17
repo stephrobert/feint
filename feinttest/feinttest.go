@@ -108,12 +108,30 @@ func Start(t *testing.T, opts ...Option) *Cloud {
 		t.Skipf("feinttest: %v", err)
 	}
 
+	cloud, err := launch(runtime, cfg)
+	// Registered before the error is read: a launch that started a container
+	// and then failed to reach it has still left a container, and that is the
+	// case where forgetting to remove it hurts most.
+	if cloud != nil {
+		t.Cleanup(cloud.stop)
+	}
+	if err != nil {
+		t.Fatalf("feinttest: %v", err)
+	}
+	return cloud
+}
+
+// launch does the work and returns an error rather than failing a test, so that
+// the failure path itself can be exercised — see
+// TestAFailedStartSaysWhatTheContainerDid, which is the whole reason this is not
+// inlined into Start.
+func launch(runtime string, cfg config) (*Cloud, error) {
 	// A free port asked of the kernel rather than a constant: two packages
 	// running in parallel with `go test ./...` would otherwise fight over 4599,
 	// and the loser's failure would name a port rather than a cause.
 	port, err := freePort()
 	if err != nil {
-		t.Fatalf("feinttest: no free port: %v", err)
+		return nil, fmt.Errorf("no free port: %w", err)
 	}
 
 	name := fmt.Sprintf("feint-test-%d-%d", os.Getpid(), port)
@@ -127,12 +145,19 @@ func Start(t *testing.T, opts ...Option) *Cloud {
 	// because the day this is called with a value from anywhere else — a
 	// configuration file, an environment variable — that reasoning stops being
 	// true and this comment is what a reader will check it against.
-	run := exec.CommandContext(ctx, runtime, "run", "--detach", "--rm", //nolint:gosec // the image is the test's own choice; see above
+	// No --rm. The flag looks like the tidy choice and destroys the only
+	// evidence there is: a container that dies on startup is gone before
+	// anything can read its log, and `docker logs` then answers "No such
+	// container" — which is precisely what this package printed when the ARM
+	// leg of #247 went red, in place of the reason. Removal happens in the
+	// cleanup below, after the diagnosis. TestAFailedStartSaysWhatTheContainerDid
+	// fails when the flag comes back.
+	run := exec.CommandContext(ctx, runtime, "run", "--detach", //nolint:gosec // the image is the test's own choice; see above
 		"--name", name,
 		"--publish", fmt.Sprintf("127.0.0.1:%d:4599", port),
 		cfg.image)
 	if out, err := run.CombinedOutput(); err != nil {
-		t.Fatalf("feinttest: %s run failed: %v\n%s", runtime, err, out)
+		return nil, fmt.Errorf("%s run failed: %w\n%s", runtime, err, out)
 	}
 
 	cloud := &Cloud{
@@ -140,24 +165,47 @@ func Start(t *testing.T, opts ...Option) *Cloud {
 		container: name,
 		runtime:   runtime,
 	}
-	t.Cleanup(cloud.stop)
-
 	if err := cloud.wait(ctx); err != nil {
-		// The container's own log first: an emulator that will not start says
-		// why there and nowhere else, and a test that swallows it sends its
-		// reader to the wrong place.
-		logs, _ := exec.Command(runtime, "logs", name).CombinedOutput() //nolint:gosec // a name this package built
-		t.Fatalf("feinttest: the emulator never answered on %s: %v\n%s", cloud.endpoint, err, logs)
+		return cloud, fmt.Errorf("the emulator never answered on %s: %w\n%s", cloud.endpoint, err, cloud.diagnose())
 	}
-	return cloud
+	return cloud, nil
+}
+
+// diagnose answers what the container did, for a Start that timed out.
+//
+// Two questions, because they have different answers: whether the container is
+// still running — a live container that answers nothing is a different fault
+// from one that died — and what it said. A caller reading "exited (code 1)"
+// knows to look at the log below it; a caller reading "running" knows the
+// process is up and the port is not reaching it, which is a host problem and
+// not this software's.
+func (c *Cloud) diagnose() string {
+	state, err := exec.Command(c.runtime, "inspect", //nolint:gosec // a name this package built
+		"--format", "{{.State.Status}} (code {{.State.ExitCode}})", c.container).CombinedOutput()
+	line := strings.TrimSpace(string(state))
+	if err != nil {
+		line = fmt.Sprintf("the container could not be inspected: %v: %s", err, line)
+	}
+	logs, err := exec.Command(c.runtime, "logs", c.container).CombinedOutput() //nolint:gosec // a name this package built
+	if err != nil {
+		return fmt.Sprintf("container %s; its log could not be read: %v: %s", line, err, logs)
+	}
+	if len(logs) == 0 {
+		return fmt.Sprintf("container %s, and it wrote nothing", line)
+	}
+	return fmt.Sprintf("container %s; its log:\n%s", line, logs)
 }
 
 // stop removes the container. Errors are reported rather than swallowed: a
 // leftover container holds a port, and a silent cleanup failure is how somebody
 // spends an afternoon on a port already in use.
+//
+// `rm --force` rather than `stop`, because the container may already have
+// exited — that is the case Start most wants to survive, and `stop` on a dead
+// container is an error that says nothing while leaving the name taken.
 func (c *Cloud) stop() {
-	if out, err := exec.Command(c.runtime, "stop", c.container).CombinedOutput(); err != nil { //nolint:gosec // a name this package built
-		fmt.Fprintf(os.Stderr, "feinttest: could not stop %s: %v\n%s", c.container, err, out)
+	if out, err := exec.Command(c.runtime, "rm", "--force", c.container).CombinedOutput(); err != nil { //nolint:gosec // a name this package built
+		fmt.Fprintf(os.Stderr, "feinttest: could not remove %s: %v\n%s", c.container, err, out)
 	}
 }
 
