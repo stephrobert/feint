@@ -212,14 +212,24 @@ def copy_tree(src, dst):
     shutil.copytree(src, dst, ignore=ignore, symlinks=True)
 
 
-def run(dst, cmd):
-    """Every command is capped, so a runaway cannot take the station with it."""
+def run(dst, cmd, extra_env=None):
+    """Every command is capped, so a runaway cannot take the station with it.
+
+    `extra_env` exists for a subject whose test is itself behind an opt-in: the
+    container tests skip unless FEINT_TESTCONTAINER is set, and a skip counts as
+    a pass, so without this the harness would report the mutation undetected and
+    blame the guard rather than its own environment.
+    """
+    env = None
+    if extra_env:
+        env = {**os.environ, **extra_env}
     return subprocess.run(
         ["systemd-run", "--user", "--scope", "-q", "-p", "MemoryMax=8G", "-p", "MemorySwapMax=0"]
         + cmd,
         cwd=dst,
         capture_output=True,
         text=True,
+        env=env,
     )
 
 
@@ -425,8 +435,10 @@ def main(argv):
 
     default_pkg = spec.get("package", "./...")
     packages = sorted({m.get("package", default_pkg) for m in mutations})
+    # A spec may arm what its subject's tests need — see run().
+    spec_env = spec.get("env") or {}
 
-    base = run(dst, ["go", "test", "-count=1", *packages])
+    base = run(dst, ["go", "test", "-count=1", *packages], spec_env)
     if base.returncode != 0:
         print(
             "the copy is red before any mutation, so nothing below measures a guard",
@@ -472,7 +484,7 @@ def main(argv):
             # A spec whose subject is a race declares `repeat`, and the odds of
             # a false green fall from p to p**n.
             repeat = int(m.get("repeat") or spec.get("repeat") or 1)
-            res = run(dst, ["go", "test", f"-count={repeat}", "-run", m["test"], pkg])
+            res = run(dst, ["go", "test", f"-count={repeat}", "-run", m["test"], pkg], spec_env)
             bit = res.returncode != 0
             verdicts.append((m["label"], "the test bit" if bit else "TEST STILL PASSED", "yes"))
             print(
@@ -483,7 +495,7 @@ def main(argv):
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(pristine[m["file"]])
 
-    final = run(dst, ["go", "test", "-count=1", *packages])
+    final = run(dst, ["go", "test", "-count=1", *packages], spec_env)
     print("=" * 72)
     for label, verdict, compiled in verdicts:
         print(f"  compiled={compiled:3}  {verdict:24}  {label}")

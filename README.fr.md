@@ -28,7 +28,7 @@
 >
 > **Prouvé** : 264 des 285 opérations montées sont pilotées par un vrai client, à chaque pull request. `scw`, `oapi-cli`, `exo`, Terraform et OpenTofu tournent contre l'émulateur en CI, et les machines démarrent réellement : connexion ssh sur le compte par défaut de chaque provider, subnets isolés, pare-feu qui filtre. La chaîne complète est décrite dans [docs/conformance.md](docs/conformance.md).
 >
-> **Pas prouvé** : quotas, prix, capacité réelle, validation des identifiants, authentification, cohérence à terme. Les 30 sections de [docs/limits.md](docs/limits.md) disent chacune ce qu'elle coûte. Un émulateur avec un seul compte implicite et aucune grille tarifaire devrait inventer ces chiffres, et quelqu'un agirait dessus.
+> **Pas prouvé** : quotas, prix, capacité réelle, validation des identifiants, authentification, cohérence à terme. Les 31 sections de [docs/limits.md](docs/limits.md) disent chacune ce qu'elle coûte. Un émulateur avec un seul compte implicite et aucune grille tarifaire devrait inventer ces chiffres, et quelqu'un agirait dessus.
 >
 > **Inconnu** : 21 opérations sont montées et n'ont jamais été pilotées par un client. Chacune dit pourquoi aucun client officiel ne l'atteint, à la route et dans [docs/routes.md](docs/routes.md). Elles sont comptées plutôt qu'escamotées, une par une, dans [coverage/evidence.json](coverage/evidence.json).
 >
@@ -446,6 +446,39 @@ ce qui a révélé des champs que l'émulateur omettait et qu'aucun autre contr�
 pouvait voir.
 
 ---
+
+## Apportez-lui une configuration que vous utilisez vraiment
+
+**La chose la plus utile qu'on puisse envoyer à ce projet, c'est une
+configuration Terraform qui le casse.**
+
+Deux stacks réalistes écrites en interne ont fait apparaître deux défauts en une
+heure — une route qui ne pouvait pas viser un peering, et une interface taguée
+qui ne rendait jamais ses tags. Aucun des deux n'était visible pour la suite de
+conformance, parce qu'une suite prouve ce que quelqu'un a pensé à vérifier. La
+vôtre sollicite ce que quelqu'un écrit réellement.
+
+```bash
+feint start
+eval "$(feint env scaleway)"     # ou outscale
+terraform plan
+```
+
+L'objectif pour la 1.0 : **dix configurations réelles qui s'appliquent, se
+replanifient à vide et se détruisent sans compte cloud** — une cible qui, elle,
+ne peut pas être gonflée, contrairement à un nombre de routes.
+[docs/adoption.md](docs/adoption.md) tient la liste, les échecs compris.
+
+### Si vous travaillez chez un fournisseur cloud
+
+Feint peut servir de backend de test local à vos propres exemples Terraform et
+tests de SDK. Vos clients tournent déjà contre lui à chaque pull request ici, et
+la surface de votre SDK est scannée chaque semaine. Ce qui changerait ce que ce
+projet peut prouver de votre cloud : un compte bac à sable ou des
+enregistrements expurgés — le contrôle des formes compare les réponses de cet
+émulateur à ce que le vrai cloud a renvoyé, et enregistrer demande un compte.
+L'offre, et ce que ce projet ne fera jamais, sont dans
+[docs/adoption.md](docs/adoption.md).
 
 ## Contribuer
 
