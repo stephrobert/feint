@@ -112,6 +112,41 @@ which is the Code-Review and Contributors ceiling again.
 Contributors from at least two organisations. One author, so far. Same shape as
 the two above: it moves when somebody else contributes, not when a file changes.
 
+## The CodeQL alerts, and why five of them are false
+
+The same code-scanning page carries five CodeQL findings, all `go/log-injection`,
+on the three packs that log an address they refused to route
+(`outscale/publicips.go`, `exoscale/elasticips.go` twice, `outscale/privateips.go`).
+
+**The dataflow the query describes is real.** The value is client-controlled, and
+the branch that logs it is precisely the one where `netip.ParseAddr` refused it,
+so it can be any string at all — including one carrying a newline and a forged
+`level=ERROR` record.
+
+**The sink is what the query cannot see.** This emulator logs through
+`slog.TextHandler`, which quotes any value carrying a space, an `=` or a control
+character. Measured with that exact payload before anything was concluded:
+
+```
+time=… level=WARN msg="refusing to route an address outside the emulated elastic block"
+  address="192.0.2.1\nlevel=ERROR msg=\"the emulator was compromised\" attacker=yes" instance=i-1234
+```
+
+One line out. The newline is written as the two characters `\n` inside quotes,
+and no forged field reaches the record.
+
+So the finding is a false positive — and dismissing it in a web interface is a
+sentence no future change consults. `TestALoggedClientValueCannotForgeALine`
+holds the sink instead: it fails the day the emulator's logger stops escaping,
+whether by a hand-rolled handler, a format that does not quote, or a message
+built with `fmt.Sprintf` into a sink that does not.
+
+Worth stating explicitly, because CLAUDE.md's own rule points the other way:
+this repository refuses a dangerous value **at the door** rather than escaping it
+at the render. The exception here is deliberate — the value being logged is the
+one the emulator has just *refused*, and sanitising it would hide from an
+operator exactly what was rejected.
+
 ## What is *not* here, because it is already 10/10
 
 Pinned-Dependencies, Token-Permissions, Dangerous-Workflow, Security-Policy,
