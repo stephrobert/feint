@@ -9,7 +9,7 @@
 # Two ways to run it, and this file shows the one a CI reads best — the emulator
 # as a service container. The other is the action beside this file:
 #
-#     - uses: stephrobert/feint/.github/actions/setup-feint@v0.9.0
+#     - uses: stephrobert/setup-feint@v1
 #       with:
 #         version: 0.9.0
 #         provider: scaleway
