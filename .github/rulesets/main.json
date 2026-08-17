@@ -67,6 +67,9 @@
             "context": "Review dependency changes"
           },
           {
+            "context": "The published action matches the source"
+          },
+          {
             "context": "TruffleHog"
           },
           {
