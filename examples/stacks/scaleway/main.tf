@@ -160,6 +160,10 @@ resource "scaleway_instance_image" "golden" {
   architecture   = "x86_64"
 }
 
+# Built, and deliberately not booted from — see the web tier below. The chain
+# volume → snapshot → image is what this block exercises; booting the result is
+# a different claim, and one the emulator refuses on purpose.
+
 # ---------------------------------------------------------------------------
 # The bastion: the only machine with a public address.
 # ---------------------------------------------------------------------------
@@ -218,9 +222,25 @@ resource "scaleway_instance_ip" "web" {
 resource "scaleway_instance_server" "web" {
   count = var.web_count
 
-  name                  = "platform-web-${count.index}"
-  type                  = "DEV1-S"
-  image                 = scaleway_instance_image.golden.id
+  name = "platform-web-${count.index}"
+  type = "DEV1-S"
+
+  # The catalogue image, not scaleway_instance_image.golden above, and the
+  # reason is measured rather than stylistic: this emulator keeps records, not
+  # disk contents, so an image the client registered has no bytes to boot. With
+  # a machine runtime configured (FEINT_VM=incus and friends) a server created
+  # from one is refused at boot and stays `stopped`, which is what the real
+  # sequence would have produced here — Terraform then fails the apply with
+  # "expected state running but found stopped".
+  #
+  # That refusal is a decision, not a gap: booting the source's base image
+  # instead would silently drop whatever the client baked in, and the
+  # golden-image workflow is exactly where that difference is the point.
+  # docs/limits.md carries the measurement (#83).
+  #
+  # So the stack still builds the golden image, and boots from the catalogue.
+  # It runs in both modes, which is what an example has to do.
+  image                 = "ubuntu_jammy"
   ip_id                 = scaleway_instance_ip.web[count.index].id
   security_group_id     = scaleway_instance_security_group.web.id
   additional_volume_ids = [scaleway_instance_volume.web_data[count.index].id]

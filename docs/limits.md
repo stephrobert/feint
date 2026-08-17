@@ -1066,7 +1066,7 @@ proof.
 |---|---|--:|---|
 | Exoscale | `2.0.0` | 473 | *assumed* by this emulator |
 | Outscale | `1.42.0` | 655 | **declared** by the provider |
-| Scaleway | `instance/v1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2, block/v1, block/v1alpha1` | 383 | **declared** by the provider |
+| Scaleway | `instance/v1, instance/v2alpha1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2, block/v1, block/v1alpha1` | 476 | **declared** by the provider |
 <!-- contracts:end -->
 
 **Declared** means the provider wrote `additionalProperties: false` themselves:
