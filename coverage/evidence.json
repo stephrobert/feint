@@ -6,9 +6,9 @@
     "none"
   ],
   "generated_from": {
-    "contracts": "7dd2353c6a25c3fa",
+    "contracts": "a463dc43468c67f8",
     "shapes": "c73ca6ca03ceac5b",
-    "suites": "1fcb4d913d5d7b8e"
+    "suites": "f011449966ee0fa8"
   },
   "operations": {
     "block/v1/API.CreateSnapshot": {
@@ -1521,6 +1521,51 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
+      "negative": false
+    },
+    "instance/v2alpha1/API.CreatePrivateNetworkInterface": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "instance/v2alpha1/API.DeletePrivateNetworkInterface": {
+      "driven": true,
+      "probed": "none",
+      "contract": "unchecked",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "instance/v2alpha1/API.GetPrivateNetworkInterface": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "instance/v2alpha1/API.ListPrivateNetworkInterfaces": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "instance/v2alpha1/API.UpdatePrivateNetworkInterface": {
+      "driven": false,
+      "probed": "refusal",
+      "contract": "unchecked",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
       "negative": false
     },
     "ipam/v1/API.AttachIP": {

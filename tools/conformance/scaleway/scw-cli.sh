@@ -453,10 +453,29 @@ nic="$(scw instance private-nic create server-id="$nic_server_id" \
 nic_id="$(printf '%s' "$nic" | jq -r '.id // .private_nic.id // empty')"
 [ -n "$nic_id" ] || fail "no id in the private nic response: $nic"
 
+# Read back by its own id, then removed by it. Both were driven by the Terraform
+# provider until 2.81.0 moved its reads and deletes onto instance/v2alpha1 — at
+# which point two routes this emulator still serves were driven by nobody, and
+# the #174 gate said so on the next run. `scw` reaches them and nothing else
+# does, so the suite that keeps them honest is this one.
+nic_read="$(scw instance private-nic get private-nic-id="$nic_id" server-id="$nic_server_id" zone="$ZONE" -o json 2>&1)" \
+  || fail "private nic get rejected: $nic_read"
+printf '%s' "$nic_read" | jq -e --arg id "$nic_id" '(.id // .private_nic.id) == $id' >/dev/null \
+  || fail "the NIC read back is not the one created: $nic_read"
+
 # The address is booked before the delete, so the release after it is a change
 # and not the absence of anything.
 scw ipam ip list private-network-id="$nic_pn_id" region=fr-par -o json \
   | jq -e 'length > 0' >/dev/null || fail "the attach booked no address: nothing to measure"
+
+# Detached through its own door rather than by deleting the server, which is the
+# path a client takes when it keeps the machine. releaseNIC runs either way, and
+# only this one exercises the v1 delete.
+scw instance private-nic delete private-nic-id="$nic_id" server-id="$nic_server_id" zone="$ZONE" >/dev/null 2>&1 \
+  || fail "private nic delete rejected"
+scw instance private-nic list server-id="$nic_server_id" zone="$ZONE" -o json \
+  | jq -e 'length == 0' >/dev/null \
+  || fail "the NIC still lists after its own delete"
 
 scw instance server stop "$nic_server_id" zone="$ZONE" >/dev/null || fail "poweroff rejected"
 scw instance server delete "$nic_server_id" zone="$ZONE" >/dev/null || fail "delete rejected"

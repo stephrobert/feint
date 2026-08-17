@@ -461,7 +461,18 @@ def main(argv):
             print(f"!! {m['label']}: does not build, verdict void")
             print(vet.stderr[-900:])
         else:
-            res = run(dst, ["go", "test", "-count=1", "-run", m["test"], pkg])
+            # A race is measured, not observed once. With its per-server lock
+            # neutralised, TestAttachingANICDoesNotResurrectADeletedServer went
+            # red on three of five identical runs on 17 August 2026 — so a
+            # harness that runs it once reports a coin toss and prints it as a
+            # verdict, which is worse than no verdict because it reads like a
+            # proof. It had already printed "TEST STILL PASSED" twice for a
+            # guard that does bite.
+            #
+            # A spec whose subject is a race declares `repeat`, and the odds of
+            # a false green fall from p to p**n.
+            repeat = int(m.get("repeat") or spec.get("repeat") or 1)
+            res = run(dst, ["go", "test", f"-count={repeat}", "-run", m["test"], pkg])
             bit = res.returncode != 0
             verdicts.append((m["label"], "the test bit" if bit else "TEST STILL PASSED", "yes"))
             print(
