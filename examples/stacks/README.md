@@ -48,7 +48,23 @@ terraform plan -detailed-exitcode      # must be empty
 An apply that succeeds proves the emulator answered. An empty second plan proves
 it read back what the provider sent.
 
-## Exoscale needs a patched provider, and is not run by CI
+## What CI runs them against, and why not the published tag
+
+Every pull request applies them twice: against the emulator built from the
+branch (the `terraform` and `opentofu` legs — the change under review), and
+against the container image built from the branch with the release's own recipe
+(the `image` job — the packaging a user pulls). Not against the last tag on
+ghcr.io, and that is arithmetic rather than preference: a published image is
+immutable, and the rule above makes the stacks grow every time they find a
+defect, so the two must diverge exactly when the stacks do their job. Measured
+before it was decided — v0.8.0 predates the fixes for [#249] and [#250], both
+stacks exercise those fixes, and a gate on the published tag would have been
+red by construction from its first run. The commit a tag is cut from gets the
+same image run on `main` after the merge, which is what makes the image
+eventually published a proven one.
+
+[#249]: https://github.com/stephrobert/feint/issues/249
+[#250]: https://github.com/stephrobert/feint/issues/250
 
 The published Exoscale provider builds two clients: one honours
 `EXOSCALE_API_ENDPOINT`, the other has `.exoscale.com` compiled in. An apply

@@ -19,12 +19,13 @@ on:
 
 permissions: {}
 
-# One pin for the one client two jobs install: the scw-cli leg of the matrix
-# and the image job both read this, so the version that proves the binary and
-# the version that proves the image cannot quietly diverge. The other clients
-# stay pinned in their own install steps, where each has exactly one.
+# One pin per client two jobs install: the matrix legs and the image job read
+# these, so the version that proves the binary and the version that proves the
+# image cannot quietly diverge. The other clients stay pinned in their own
+# install steps, where each has exactly one.
 env:
   SCW_VERSION: '2.56.3'
+  TERRAFORM_VERSION: '1.13.3'
 
 jobs:
   # The page, driven by the one client that can say whether it renders: a
@@ -67,8 +68,9 @@ jobs:
   # The same proof as the matrix below, against the emulator running inside the
   # container image instead of a host process. This is what the roadmap's image
   # item names as its evidence: an image that merely starts proves nothing, so
-  # the official CLI and the contract probe drive it from the host, through the
-  # published port, exactly the way a `services:` block would reach it.
+  # the official CLI, the contract probe and the example stacks drive it from
+  # the host, through the published port, exactly the way a `services:` block
+  # would reach it.
   #
   # It runs on every pull request rather than only at release, because release
   # is the one moment a broken Dockerfile cannot be cheaply fixed: the tag is
@@ -76,6 +78,7 @@ jobs:
   image:
     name: image
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -134,6 +137,38 @@ jobs:
       # no flag a `services:` block would not pass.
       - name: Probe every route of the image against its contract
         run: dist/feint-linux-amd64 probe --endpoint http://127.0.0.1:4599 --contracts contracts
+
+      # Same pinned version as the terraform leg of the matrix (the
+      # workflow-level TERRAFORM_VERSION), same upstream checksums: one client,
+      # two emulator packagings, one truth — the argument that already holds
+      # for scw above.
+      - name: Install Terraform
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          base="https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}"
+          asset="terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/${asset}" "${base}/${asset}"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/sums" "${base}/terraform_${TERRAFORM_VERSION}_SHA256SUMS"
+          (cd "${workdir}" && grep " ${asset}$" sums | sha256sum -c -)
+          sudo unzip -o "${workdir}/${asset}" terraform -d /usr/local/bin
+          terraform version
+
+      # The example stacks against the image, not only against a host binary.
+      #
+      # #251 asks for them "against the published image", and a pull request is
+      # the one place that cannot literally mean the last tag on ghcr.io: a
+      # published image is immutable, and the stacks grow whenever they find a
+      # defect, so the two diverge every time the stacks do their job. Measured,
+      # not argued: v0.8.0 was published on 2026-08-14, the fixes for #249 and
+      # #250 landed on 2026-08-17, and both stacks exercise exactly those fixes
+      # — a gate on the published tag would have been red by construction from
+      # its first run. What a pull request can prove is the image as it will be
+      # published, built above from the release's own recipe, and the push run
+      # on main proves the exact commit a tag is later cut from. That chain is
+      # what makes the image a user eventually pulls a proven one.
+      - name: Apply the example stacks against the image
+        run: tools/conformance/stacks.sh http://127.0.0.1:4599
 
       - name: The container's log
         if: failure()
@@ -300,8 +335,6 @@ jobs:
       # client changes under it reports a difference nobody made.
       - name: Install Terraform
         if: matrix.client == 'terraform' || matrix.client == 'fields'
-        env:
-          TERRAFORM_VERSION: '1.13.3'
         run: |
           set -euo pipefail
           workdir="$(mktemp -d)"
