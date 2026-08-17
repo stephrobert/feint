@@ -453,7 +453,10 @@ def lint(directory):
         )
         return 2
 
-    count = sum(len(json.load(open(p, encoding="utf-8")).get("mutations") or []) for p in specs)
+    count = 0
+    for path in specs:
+        with open(path, encoding="utf-8") as fh:
+            count += len(json.load(fh).get("mutations") or [])
     print(f"every declared fragment still applies: {count} mutation(s) across {len(specs)} spec(s)")
     return 0
 

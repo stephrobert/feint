@@ -8,5 +8,6 @@
       "replace": "\tdefer unlock()\n\tp.carrySecondary(r.Context(), nic)\n\n\temulator.WriteJSON(w, http.StatusOK, map[string]any{\"ResponseContext\": p.context()})\n}\n\n// unlinkPrivateIps",
       "test": "TestAnAddressLinkDoesNotHoldTheAddressLockAcrossTheRuntime"
     }
-  ]
+  ],
+  "note": "No repeat: the interleaving is staged, not bet on. The fake runtime parks the link on a channel until the test releases it, so with the lock held across that call the concurrent allocation times out on every run — red 5/5 on 2026-08-17, -count=1 in the harness's own out-of-tree copy."
 }
