@@ -69,6 +69,17 @@ services:
 ```
 
 The image is control-plane only and carries no `latest` tag; [docs/install.md](docs/install.md) has the GitLab form, the compose form and the signature verification. Pull it directly with `docker run --rm -p 127.0.0.1:4599:4599 ghcr.io/stephrobert/feint:v0.8.0`.
+
+**In GitHub Actions without a container** — the action from the Marketplace:
+
+```yaml
+- uses: stephrobert/setup-feint@v1
+  with:
+    version: 0.8.0
+    provider: scaleway   # exports what the official client needs
+```
+
+It installs the released binary, **verifies its checksum before running it**, and waits until the emulator answers.
 <!-- quickstart:end -->
 
 ```text

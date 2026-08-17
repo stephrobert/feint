@@ -212,3 +212,58 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: tools/governance/ruleset.sh check
+
+  # The Marketplace copy of the setup action cannot rot silently.
+  #
+  # `uses: stephrobert/setup-feint@v1` is the line people copy (#245), and the
+  # Marketplace requires action.yml at the root of its own repository — the only
+  # reason a second copy exists at all. The source of truth stays here, in
+  # .github/actions/setup-feint/action.yml, where it is reviewed and gated; the
+  # mirror is only a distribution address. Issue #245 already named the failure
+  # mode: "a mirroring step in release.yml is a gate; a second hand-maintained
+  # copy is not."
+  #
+  # A push step in release.yml would need a cross-repository token this
+  # repository does not hold, and a gate wired to a secret that does not exist
+  # is the drift.yml defect all over again — a correction written in the past
+  # tense. A comparison needs no secret: the mirror is public, the default
+  # GITHUB_TOKEN reads it, and this job fails the pull request while the two
+  # files differ. It reads the `v1` tag rather than the mirror's main branch,
+  # because `v1` is what every consumer resolves — a mirror whose main moved
+  # while `v1` stayed behind has still drifted for everyone who matters.
+  #
+  # Measured on 2026-08-17: byte-identical today, and the gate can fail —
+  # one flipped byte in a local copy makes this exact diff exit 1.
+  marketplace:
+    name: The published action matches the source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Exit 2 on drift, the code every drift gate of this repository uses.
+      - name: stephrobert/setup-feint@v1 serves this repository's action.yml
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          published="$(mktemp)"
+          gh api -H "Accept: application/vnd.github.raw" \
+            "repos/stephrobert/setup-feint/contents/action.yml?ref=v1" > "${published}"
+          if ! diff -u .github/actions/setup-feint/action.yml "${published}"; then
+            {
+              echo "stephrobert/setup-feint@v1 no longer serves the action.yml of this repository."
+              echo "Push the file above to stephrobert/setup-feint, tag the exact version, and move v1 to it."
+            } >&2
+            exit 2
+          fi

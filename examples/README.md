@@ -43,7 +43,7 @@ There is a third way, for a job that does not already run in containers or one
 that wants real machines behind `--vm` on a host with Incus:
 
 ```yaml
-- uses: stephrobert/feint/.github/actions/setup-feint@v0.9.0
+- uses: stephrobert/setup-feint@v1
   with:
     version: 0.9.0
     provider: scaleway     # exports what the official client needs
@@ -54,7 +54,10 @@ The action installs the released binary, **verifies its checksum before running
 it**, starts the emulator through the lifecycle verbs and waits until it answers.
 Its source is [`.github/actions/setup-feint`](../.github/actions/setup-feint/action.yml),
 and the comments there say why it exists at all when three shell lines do the
-same thing.
+same thing. [`stephrobert/setup-feint`](https://github.com/stephrobert/setup-feint)
+is only the Marketplace address for that file — the Marketplace requires
+`action.yml` at a repository root — and a gate in this repository's CI fails
+every pull request while the published `v1` differs from the source here.
 
 ## The one assertion worth keeping when you adapt these
 

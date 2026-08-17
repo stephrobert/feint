@@ -21,9 +21,17 @@ import (
 // living in docs/install.md. A reader deciding whether Feint fits their pipeline
 // was being shown the mode that fits a laptop.
 //
+// The third door is the Marketplace action (#245): `uses:
+// stephrobert/setup-feint@v1` is the line people copy out of somebody else's
+// pipeline, and a workflow is read more often than it is run. The `@v1` is
+// floating because that is the convention every consumer of an action expects;
+// the binary it installs is not — the `version:` input is required, and the
+// action verifies the checksum before anything runs.
+//
 // Generated rather than typed for the reason every version in this repository
 // is: the image tag is a release's own, and a hand-written one is wrong the day
-// after the next release. `feint docs --check` fails until it is regenerated.
+// after the next release. So is the `version:` under the action. `feint docs
+// --check` fails until it is regenerated.
 
 const (
 	quickstartStartMarker = "<!-- quickstart:start -->"
@@ -63,7 +71,17 @@ func renderQuickstart(goMod, changelog string) (string, error) {
 	fmt.Fprintf(&b, "The image is control-plane only and carries no `latest` tag; "+
 		"[docs/install.md](docs/install.md) has the GitLab form, the compose form and "+
 		"the signature verification. Pull it directly with "+
-		"`docker run --rm -p 127.0.0.1:4599:4599 %s:v%s`.\n", image, version)
+		"`docker run --rm -p 127.0.0.1:4599:4599 %s:v%s`.\n\n", image, version)
+
+	b.WriteString("**In GitHub Actions without a container** — the action from the Marketplace:\n\n")
+	b.WriteString("```yaml\n")
+	b.WriteString("- uses: stephrobert/setup-feint@v1\n")
+	b.WriteString("  with:\n")
+	fmt.Fprintf(&b, "    version: %s\n", version)
+	b.WriteString("    provider: scaleway   # exports what the official client needs\n")
+	b.WriteString("```\n\n")
+	b.WriteString("It installs the released binary, **verifies its checksum before running " +
+		"it**, and waits until the emulator answers.\n")
 	return b.String(), nil
 }
 
