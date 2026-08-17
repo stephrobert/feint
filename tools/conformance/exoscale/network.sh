@@ -234,6 +234,64 @@ else
   ok "an instance of another private network is unreachable ($far_ip)"
 fi
 
+# The closing condition of EXO-7 (#232), and the only one a unit test cannot
+# reach: scaling a pool moves the number of machines the **runtime** holds, not
+# only the number the API reports. A pool answering `size: 3` while one container
+# exists is the exact failure that batch was deferred over, and the question is
+# asked of incus rather than of the emulator.
+echo "- scaling a pool moves the machines the runtime holds"
+pool_machines() { # -> how many containers of this pool exist
+  local n=0 member
+  for member in $(exo -O json compute instance-pool show conformance-pool 2>/dev/null \
+                  | jq -r '.instances[]? // empty'); do
+    # `show` renders members by name; the machine is named from the instance id,
+    # so the id is resolved through the instance list rather than guessed.
+    local id
+    id="$(exo -O json compute instance list | jq -r --arg n "$member" \
+          '.[] | select(.name == $n or .id == $n) | .id' | head -1)"
+    [ -n "$id" ] || continue
+    incus info "$(machine "$id")" >/dev/null 2>&1 && n=$((n + 1))
+  done
+  echo "$n"
+}
+
+# The same template and type boot() names, spelled out rather than carried in a
+# variable that does not exist: this suite has no inventory step, and inventing
+# one here would be a second source for what boot() already decided.
+exo -Q compute instance-pool create conformance-pool --size 2 \
+  --template "Linux Ubuntu 24.04 LTS 64-bit" --instance-type standard.tiny \
+  --disk-size 10 >/dev/null \
+  || fail "instance-pool create rejected"
+for id in $(exo -O json compute instance list \
+            | jq -r '.[] | select(.name | startswith("conformance-pool-")) | .id'); do
+  cleanup_add "$id"
+done
+sleep 5
+[ "$(pool_machines)" = "2" ] \
+  || fail "a pool of size 2 is backed by $(pool_machines) machine(s): the control plane promised what the runtime does not hold"
+ok "two members, two machines"
+
+exo -Q compute instance-pool scale conformance-pool 3 --force >/dev/null || fail "scale up rejected"
+for id in $(exo -O json compute instance list \
+            | jq -r '.[] | select(.name | startswith("conformance-pool-")) | .id'); do
+  cleanup_add "$id"
+done
+sleep 5
+[ "$(pool_machines)" = "3" ] \
+  || fail "after scaling to 3 the runtime holds $(pool_machines) machine(s)"
+ok "scaled up, and the third machine really started"
+
+exo -Q compute instance-pool scale conformance-pool 1 --force >/dev/null || fail "scale down rejected"
+sleep 5
+[ "$(pool_machines)" = "1" ] \
+  || fail "after scaling to 1 the runtime still holds $(pool_machines) machine(s): a scale down that leaves containers behind is a bill nobody asked for"
+ok "scaled down, and the machines went with the members"
+
+exo -Q compute instance-pool delete conformance-pool --force >/dev/null || fail "pool delete rejected"
+sleep 3
+[ "$(pool_machines)" = "0" ] || fail "the deleted pool left $(pool_machines) machine(s) running"
+ok "deleted, and the runtime holds nothing of it"
+
 echo "- detach, delete, and the records go"
 exo compute instance private-network detach conformance-probe conformance-net >/dev/null \
   || fail "probe detach rejected"

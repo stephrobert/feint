@@ -501,6 +501,66 @@ exoc -O json compute block-storage list \
 prove_end "$span_block"
 ok "created, renamed, resized, attached, snapshotted, and removed in order"
 
+# Instance pools (EXO-7, #232): one control-plane write that moves several
+# machines. The assertions are on the members rather than on the pool's own
+# number, because a pool announcing `size: 3` while holding one member is the
+# failure the batch exists to avoid — and the members are ordinary instances, so
+# `compute instance list` is what settles it.
+echo "- an instance pool is created, scaled, evicted from and removed"
+span_pool="$(prove_begin behaviour)"
+before_instances="$(exoc -O json compute instance list | jq 'length')"
+
+exoc -Q compute instance-pool create conformance-pool --size 2 \
+  --template "$template_name" --instance-type "$type_name" --disk-size 10 >/dev/null \
+  || fail "instance-pool create rejected"
+pool_id="$(exoc -O json compute instance-pool list \
+  | jq -r '.[] | select(.name == "conformance-pool") | .id')"
+[ -n "$pool_id" ] || fail "the created pool is not in the list"
+
+members_of() {
+  exoc -O json compute instance-pool show "$pool_id" | jq -r '.instances | length'
+}
+[ "$(members_of)" = "2" ] || fail "a pool of size 2 holds $(members_of) member(s)"
+# The members are instances, which is the whole design: everything an instance
+# has — a machine, a lifecycle, an address — applies to them with no second
+# implementation.
+after_create="$(exoc -O json compute instance list | jq 'length')"
+[ "$after_create" = "$((before_instances + 2))" ] \
+  || fail "the pool's members are not in the instance list: $before_instances then $after_create"
+
+exoc -Q compute instance-pool update "$pool_id" --description 'conformance pool' >/dev/null \
+  || fail "instance-pool update rejected"
+
+echo "- scaling moves the members, in both directions"
+exoc -Q compute instance-pool scale "$pool_id" 4 --force >/dev/null || fail "scale up rejected"
+[ "$(members_of)" = "4" ] || fail "after scaling to 4 the pool holds $(members_of) member(s)"
+exoc -Q compute instance-pool scale "$pool_id" 2 --force >/dev/null || fail "scale down rejected"
+[ "$(members_of)" = "2" ] || fail "after scaling to 2 the pool holds $(members_of) member(s)"
+# And the pool says what it holds. Two numbers that disagree is the exact shape
+# of an emulator lying about a runtime it never touched.
+exoc -O json compute instance-pool show "$pool_id" | jq -e '.size == 2' >/dev/null \
+  || fail "the pool announces a size its member list denies"
+
+echo "- evicting names its victim, and spares the others"
+victim="$(exoc -O json compute instance-pool show "$pool_id" | jq -r '.instances[0]')"
+[ -n "$victim" ] || fail "the pool publishes no member to evict"
+exoc -Q compute instance-pool evict "$pool_id" "$victim" --force >/dev/null \
+  || fail "instance-pool evict rejected"
+[ "$(members_of)" = "1" ] || fail "after evicting one member the pool holds $(members_of)"
+
+exoc -Q compute instance-pool delete "$pool_id" --force >/dev/null \
+  || fail "instance-pool delete rejected"
+exoc -O json compute instance-pool list \
+  | jq -e --arg i "$pool_id" 'all(.[]; .id != $i)' >/dev/null \
+  || fail "the pool survived its delete"
+# A pool takes its members with it: an instance outliving its manager is the
+# orphan class #215 named, and storetest.Orphans reports it for this pack now.
+final_instances="$(exoc -O json compute instance list | jq 'length')"
+[ "$final_instances" = "$before_instances" ] \
+  || fail "the deleted pool left $((final_instances - before_instances)) instance(s) behind"
+prove_end "$span_pool"
+ok "created, scaled up and down, evicted from, and removed with its members"
+
 echo "- delete, and it is gone"
 exoc -Q compute instance delete "$id" --force >/dev/null || fail "instance delete rejected"
 after="$(exoc -O json compute instance list)" || fail "instance list rejected: $after"

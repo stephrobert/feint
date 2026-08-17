@@ -1,24 +1,24 @@
 {
   "provider": "exoscale",
   "total": 374,
-  "implemented": 85,
+  "implemented": 93,
   "declined": 254,
-  "unknown": 35,
+  "unknown": 27,
   "orphans": null,
   "products": [
     {
       "product": "exoscale",
       "total": 374,
-      "implemented": 85,
+      "implemented": 93,
       "declined": 254,
-      "unknown": 35,
+      "unknown": 27,
       "versions": [
         {
           "version": "2.0.0",
           "total": 374,
-          "implemented": 85,
+          "implemented": 93,
           "declined": 254,
-          "unknown": 35
+          "unknown": 27
         }
       ]
     }
@@ -48,9 +48,9 @@
     {
       "group": "compute",
       "total": 111,
-      "implemented": 66,
+      "implemented": 74,
       "declined": 10,
-      "unknown": 35
+      "unknown": 27
     },
     {
       "group": "dbaas",
@@ -522,7 +522,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.create-kms-key",
@@ -925,7 +925,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.delete-load-balancer",
@@ -1155,7 +1155,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.evict-sks-nodepool-members",
@@ -1634,7 +1634,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.get-instance-type",
@@ -2006,7 +2006,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.list-instance-types",
@@ -2326,7 +2326,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.reset-load-balancer-field",
@@ -2534,7 +2534,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.scale-sks-nodepool",
@@ -2887,7 +2887,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.update-load-balancer",

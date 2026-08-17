@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "7dd2353c6a25c3fa",
     "shapes": "c73ca6ca03ceac5b",
-    "suites": "c04a5f10441ba81b"
+    "suites": "1fcb4d913d5d7b8e"
   },
   "operations": {
     "block/v1/API.CreateSnapshot": {
@@ -326,6 +326,15 @@
       "behaviour": true,
       "negative": false
     },
+    "exoscale/v2.create-instance-pool": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "exoscale/v2.create-private-network": {
       "driven": true,
       "probed": "response",
@@ -397,6 +406,15 @@
       "shape": "unobserved",
       "behaviour": true,
       "negative": true
+    },
+    "exoscale/v2.delete-instance-pool": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
     },
     "exoscale/v2.delete-private-network": {
       "driven": true,
@@ -497,6 +515,15 @@
       "behaviour": true,
       "negative": false
     },
+    "exoscale/v2.evict-instance-pool-members": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "exoscale/v2.get-anti-affinity-group": {
       "driven": true,
       "probed": "response",
@@ -549,6 +576,15 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
+      "negative": false
+    },
+    "exoscale/v2.get-instance-pool": {
+      "driven": false,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
       "negative": false
     },
     "exoscale/v2.get-instance-type": {
@@ -684,6 +720,15 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": false,
+      "negative": false
+    },
+    "exoscale/v2.list-instance-pools": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "observed",
+      "behaviour": true,
       "negative": false
     },
     "exoscale/v2.list-instance-types": {
@@ -848,6 +893,15 @@
       "behaviour": false,
       "negative": false
     },
+    "exoscale/v2.reset-instance-pool-field": {
+      "driven": false,
+      "probed": "none",
+      "contract": "unchecked",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
     "exoscale/v2.reset-private-network-field": {
       "driven": false,
       "probed": "none",
@@ -885,6 +939,15 @@
       "negative": false
     },
     "exoscale/v2.scale-instance": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "exoscale/v2.scale-instance-pool": {
       "driven": true,
       "probed": "response",
       "contract": "clean",
@@ -939,6 +1002,15 @@
       "negative": false
     },
     "exoscale/v2.update-instance": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "exoscale/v2.update-instance-pool": {
       "driven": true,
       "probed": "response",
       "contract": "clean",
