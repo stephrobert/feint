@@ -949,6 +949,46 @@ The practical consequences, none of them silent:
   naming the machine it had just terminated.
 - `feint restart` clears them, like everything else: the store is in memory.
 
+## An Exoscale block volume holds no bytes, and every number it publishes says so
+
+The thirteen block-storage operations (EXO-4) are a control plane. A volume is a
+record carrying a size, a state and the instance holding it; nothing is
+allocated, nothing is written, and no machine gains a disk when one is attached.
+A `--vm` run does not change that — the machine driver knows nothing about this
+product, and a volume attached to a running container is a fact of the API and
+of nothing else.
+
+What follows from it, stated rather than left for a reader to find out:
+
+- **A snapshot is instantaneous and costs nothing**, because it copies nothing.
+  Its `size` and `volume-size` are both the volume's declared size — there is no
+  compression to model, and a ratio invented here would be fiction a client could
+  compute against.
+- **`blocksize` is 4096 on every volume.** One storage class, one number; a value
+  varying per volume would be arithmetic nobody measured.
+- **`encrypted` is always true**, which is Exoscale's own default rather than a
+  claim about this emulator. No byte is encrypted because no byte exists.
+- **A resize is a number changing.** The refusal to shrink is real and enforced,
+  because that one has a consequence a client can hit; growing is a field write.
+
+What *is* enforced is every relation a client's plan depends on: one volume
+attaches to one instance and refuses a second, an attached volume refuses its
+delete, a volume with snapshots refuses its delete, and a detach of nothing is an
+error rather than a success. Those are the rules a `destroy` walks in order, and
+they are driven by `exo compute block-storage` on every pull request.
+
+**One refusal's wording is load-bearing, and only Terraform could show it.** The
+provider's destroy calls detach unconditionally, and tells a tolerable refusal
+from a real failure by reading the message:
+`strings.HasSuffix(err.Error(), "Volume not attached")`. So this emulator answers
+exactly that sentence. It first answered *"the volume is not attached to an
+instance"* — the same fact, refused the same way, and `terraform destroy` died on
+`unable to detach volume` for every volume that had never been attached. `exo`
+cannot show this: it does not detach before deleting. Measured against the
+patched provider [pinned below](#the-patched-provider-while-upstream-decides),
+which is what that fork is for — a check by hand that does not count towards
+conformance, and did find something.
+
 ## Outscale and Exoscale are starters
 
 Both packs exist to prove the core stays protocol-neutral: three genuinely

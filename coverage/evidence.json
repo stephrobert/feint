@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "7dd2353c6a25c3fa",
     "shapes": "c73ca6ca03ceac5b",
-    "suites": "694264a54162c10b"
+    "suites": "c04a5f10441ba81b"
   },
   "operations": {
     "block/v1/API.CreateSnapshot": {
@@ -17,7 +17,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "block/v1/API.CreateVolume": {
@@ -26,7 +26,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "block/v1/API.DeleteSnapshot": {
@@ -236,6 +236,15 @@
       "behaviour": true,
       "negative": false
     },
+    "exoscale/v2.attach-block-storage-volume-to-instance": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "exoscale/v2.attach-instance-to-elastic-ip": {
       "driven": true,
       "probed": "response",
@@ -275,6 +284,24 @@
     "exoscale/v2.create-anti-affinity-group": {
       "driven": true,
       "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "exoscale/v2.create-block-storage-snapshot": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "exoscale/v2.create-block-storage-volume": {
+      "driven": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
@@ -334,6 +361,24 @@
       "shape": "unobserved",
       "behaviour": true,
       "negative": false
+    },
+    "exoscale/v2.delete-block-storage-snapshot": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "exoscale/v2.delete-block-storage-volume": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": true
     },
     "exoscale/v2.delete-elastic-ip": {
       "driven": true,
@@ -407,6 +452,15 @@
       "behaviour": true,
       "negative": false
     },
+    "exoscale/v2.detach-block-storage-volume": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "exoscale/v2.detach-instance-from-elastic-ip": {
       "driven": true,
       "probed": "response",
@@ -446,6 +500,24 @@
     "exoscale/v2.get-anti-affinity-group": {
       "driven": true,
       "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "exoscale/v2.get-block-storage-snapshot": {
+      "driven": false,
+      "probed": "refusal",
+      "contract": "unchecked",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
+    "exoscale/v2.get-block-storage-volume": {
+      "driven": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
@@ -566,6 +638,24 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
+      "behaviour": true,
+      "negative": false
+    },
+    "exoscale/v2.list-block-storage-snapshots": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "observed",
+      "behaviour": true,
+      "negative": false
+    },
+    "exoscale/v2.list-block-storage-volumes": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
       "behaviour": true,
       "negative": false
     },
@@ -767,6 +857,15 @@
       "behaviour": false,
       "negative": false
     },
+    "exoscale/v2.resize-block-storage-volume": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": true
+    },
     "exoscale/v2.resize-instance-disk": {
       "driven": true,
       "probed": "response",
@@ -806,6 +905,24 @@
     "exoscale/v2.stop-instance": {
       "driven": true,
       "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "exoscale/v2.update-block-storage-snapshot": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "exoscale/v2.update-block-storage-volume": {
+      "driven": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
