@@ -11,6 +11,13 @@
 # against it, and the container is removed. A recording nobody can re-run is a
 # claim, and the whole argument of this project is that a claim is not a proof.
 #
+# Prove it before recording it: `tools/demo/ci.sh` runs this exact sequence where
+# a non-zero exit is visible, and `mise run demo:ci` runs it first. The first cut
+# of this GIF recorded four errors in a row — an empty tag, a container that
+# never started, a port nothing listened on, an apply against no catalogue — and
+# was published without being watched. A recording cannot fail; a script can, so
+# the script is what says the demo is true.
+#
 # The last frame matters as much as the apply. What a mock cannot show is that
 # nothing survives it: `docker ps` empty, and the port answering nothing.
 
@@ -30,9 +37,19 @@ Hide
 # generated blocks in the README exist to avoid.
 Type "export REPO=$PWD && export PS1='$ ' && export DEMO=$(mktemp -d)" Enter
 Sleep 1s
-Type "export TAG=$(grep -m1 -oE '^## \\[[0-9]+\\.[0-9]+\\.[0-9]+\\]' $REPO/CHANGELOG.md | tr -d '#[] ')" Enter
+# One backslash, not two. A tape types its line into the shell verbatim, so `\\[`
+# arrived as two characters, the grep matched nothing, and TAG was empty — which
+# is how the first cut recorded `docker run … feint:v` and then three more errors
+# caused by it. tools/demo/ci.sh runs this same line where a failure is visible.
+Type "export TAG=$(grep -m1 -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' $REPO/CHANGELOG.md | tr -d '#[] ')" Enter
 Sleep 1s
 Type "cp $REPO/tools/demo/main.tf $DEMO/ && cd $DEMO" Enter
+Sleep 1s
+# The environment the official provider needs, out of frame: it is six exports of
+# values that mean nothing, and watching them typed teaches nobody anything. The
+# apply on screen is the real one, and it needs them — without them the recorded
+# apply failed on a catalogue it never reached.
+Type "source $REPO/tools/demo/env.sh" Enter
 Sleep 1s
 # Pulled and pre-initialised out of frame: a pull and a provider download take
 # longer than anybody will watch, and neither is what this shows.
@@ -48,7 +65,12 @@ Type "# A cloud API in a container. No account, no credentials, no bill."
 Enter
 Sleep 1500ms
 
-Type 'docker run -d --rm --name feint -p 4599:4599 ghcr.io/stephrobert/feint:v$TAG'
+# The version is written out rather than expanded, and that is deliberate: vhs
+# types the literal text, so `$TAG` reached the screen as `$TAG` — the command
+# worked, and no viewer could copy the line. A hard-coded version in a recording
+# is the kind of figure this repository refuses, so tools/demo/ci.sh fails when
+# this line and the CHANGELOG disagree.
+Type "docker run -d --rm --name feint -p 4599:4599 ghcr.io/stephrobert/feint:v0.8.0"
 Enter
 Sleep 6s
 

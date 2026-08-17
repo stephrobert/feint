@@ -229,6 +229,10 @@ description = "Re-record the CI demo: an OCI image, a real terraform apply, and 
 run = """
 command -v vhs >/dev/null 2>&1 || { echo 'vhs is not installed: go install github.com/charmbracelet/vhs@latest' >&2; exit 1; }
 command -v docker >/dev/null 2>&1 || { echo 'docker is not installed: this demo shows the container path' >&2; exit 1; }
+# The sequence is proven before it is filmed. A recording cannot fail — the first
+# cut of this GIF was four errors in a row, published without being watched — so
+# the script that can fail runs first, and a red one stops the recording.
+tools/demo/ci.sh
 vhs tools/demo/ci.tape
 ls -lh docs/assets/ci.gif
 """
