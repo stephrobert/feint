@@ -16,6 +16,29 @@ If you want to see Feint hold up under something that looks like production
 rather than under a snippet, start with [`stacks/`](stacks/). They are examples
 and tests at once, and they have already found two defects nothing else saw.
 
+## From a Go test
+
+An emulator enters a test suite through the test framework, not through a README:
+
+```go
+func TestProvisioning(t *testing.T) {
+    cloud := feinttest.Start(t)          // starts the image, waits, cleans up
+
+    client, _ := scw.NewClient(
+        scw.WithAPIURL(cloud.Endpoint()),
+        scw.WithAuth("SCWXXXXXXXXXXXXXXXXX", "11111111-1111-1111-1111-111111111111"),
+    )
+    // …drive the official SDK against it
+}
+```
+
+[`feinttest`](../feinttest/) is that package. It drives the container runtime
+through its command-line tool rather than importing a Docker client, so it adds
+**no dependency** to anybody who imports it — the same reasoning that keeps
+`go.mod` at three lines, and the same pattern the Incus driver already uses.
+It asks the kernel for a free port, so two packages testing in parallel do not
+fight, and it skips rather than fails when no runtime is installed.
+
 There is a third way, for a job that does not already run in containers or one
 that wants real machines behind `--vm` on a host with Incus:
 

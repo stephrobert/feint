@@ -100,6 +100,10 @@ jobs:
         run: tools/docs/check.sh
 
       - name: go test (race)
+        # See the same variable on the cross matrix below: the feinttest package
+        # pulls the published image, which a local `mise run check` must not do.
+        env:
+          FEINT_TESTCONTAINER: '1'
         run: go test -race ./...
 
       # The emulator must answer the shapes a real cloud was observed to return
@@ -188,6 +192,19 @@ jobs:
         run: go build ./...
 
       - name: go test (race)
+        # No FEINT_TESTCONTAINER here, and it is a measurement rather than a
+        # convenience. On ubuntu-24.04-arm the published image starts and the
+        # container dies immediately: `exited (code 255)` with an empty log,
+        # twice, on 17 August 2026 — the diagnosis feinttest now prints because
+        # it stopped passing `--rm`. The same image runs on this station under
+        # `--platform linux/arm64`, so it is the runner's container runtime that
+        # refuses, not the arm64 binary, and nothing here can reproduce it.
+        #
+        # docs/limits.md records it. The amd64 leg above sets the variable, so
+        # the package is still exercised on every pull request; what is not
+        # claimed is that it works on a runner where it was measured not to.
+        # This is the shape the `serve`-not-`start` step below already uses for
+        # macOS, and for the same reason.
         run: go test -race ./...
 
       # The binary has to answer, not merely link. A control plane that builds
