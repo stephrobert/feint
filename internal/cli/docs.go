@@ -133,6 +133,14 @@ func docs(args []string, stdout, stderr io.Writer) int {
 			return exitError
 		}
 	}
+	// And the translated page, which carried the same block written by hand.
+	// It said 57, 72 and 46 routes while the packs mounted 102, 85 and 93 — the
+	// defect this file's own header describes, in the one page no check read.
+	bannerFrChanged, bannerFrErr := spliceTranslatedBanner(filepath.Dir(*target), order, routes)
+	if bannerFrErr != nil {
+		fmt.Fprintf(stderr, "feint: %v\n", bannerFrErr)
+		return exitError
+	}
 	// The client matrix, on the same optional terms. Its source is the workflow
 	// that installs the clients, so the versions on the page and the versions the
 	// suite runs cannot drift apart.
@@ -210,6 +218,13 @@ func docs(args []string, stdout, stderr io.Writer) int {
 	confidenceChanged, confidenceErr := spliceConfidence(*confidenceDoc, evidenceArt)
 	if confidenceErr != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", confidenceErr)
+		return exitError
+	}
+
+	// The first screen: the two doors, both pinned to the released version.
+	quickstartChanged, quickstartErr := spliceQuickstart(filepath.Dir(*target), goModPath, changelogPath)
+	if quickstartErr != nil {
+		fmt.Fprintf(stderr, "feint: %v\n", quickstartErr)
 		return exitError
 	}
 
@@ -302,6 +317,14 @@ func docs(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "feint: %s is out of date; run `mise run docs:coverage`\n", *confidenceDoc)
 			return exitDrift
 		}
+		if quickstartChanged {
+			fmt.Fprintf(stderr, "feint: the quick start in %s is behind the released version; run `feint docs`\n", *target)
+			return exitDrift
+		}
+		if bannerFrChanged {
+			fmt.Fprintf(stderr, "feint: the route banner in the translated README is out of date; run `feint docs`\n")
+			return exitDrift
+		}
 		if installChanged || commandsChanged || containerChanged {
 			fmt.Fprintf(stderr, "feint: %s is out of date; run `mise run docs:coverage`\n", *installDoc)
 			return exitDrift
@@ -352,6 +375,20 @@ func docs(args []string, stdout, stderr io.Writer) int {
 			return exitError
 		}
 		fmt.Fprintf(stdout, "%s updated\n", *confidenceDoc)
+	}
+	if quickstartChanged {
+		if err := writeSplicedQuickstart(filepath.Dir(*target), goModPath, changelogPath); err != nil {
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
+		fmt.Fprintf(stdout, "the quick start in %s updated\n", *target)
+	}
+	if bannerFrChanged {
+		if err := writeSplicedTranslatedBanner(filepath.Dir(*target), order, routes); err != nil {
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
+		fmt.Fprintln(stdout, "the route banner in the translated README updated")
 	}
 	if installChanged {
 		if err := writeSplicedPrereq(*installDoc, goModPath); err != nil {

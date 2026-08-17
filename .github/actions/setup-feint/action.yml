@@ -1,0 +1,108 @@
+# Install Feint, start it, and hand the job an emulator that answers.
+#
+# Why an action at all, when three shell lines do the same thing: a workflow is
+# read as often as it is run. Somebody looking at another project's pipeline sees
+# `uses: stephrobert/feint/.github/actions/setup-feint@v0.9.0` and learns the
+# tool exists; they do not learn it from a `curl` into a `chmod` into a
+# background process. Discovery is the point, and the convenience is the excuse.
+#
+# It uses the lifecycle verbs rather than reimplementing them, which is the whole
+# reason those verbs exist: `start` detaches and waits until the emulator
+# answers, `wait` is the poll a CI would otherwise hand-roll, and the exit codes
+# are stable (0 ok, 1 error, 2 drift) because CI depends on them. A hand-rolled
+# curl loop is what every script in this repository used to carry, and one of
+# them hid the difference between "still starting" and "died immediately".
+#
+# The binary is verified before it runs. An action that pipes a download into a
+# shell is the supply-chain shape this project spends a workflow proving it does
+# not have.
+name: Set up Feint
+description: >-
+  Run Terraform, OpenTofu or the official Scaleway, Outscale and Exoscale CLIs
+  against a local emulator — no cloud account, no credentials, nothing billed.
+author: stephrobert
+
+branding:
+  icon: cloud-off
+  color: purple
+
+inputs:
+  version:
+    description: >-
+      The released version to install, without the leading `v` (for example
+      `0.9.0`). Named rather than defaulted to latest: a mutable reference
+      installs whatever is newest, which is a binary nobody can name afterwards.
+    required: true
+  addr:
+    description: The address the emulator listens on.
+    required: false
+    default: 127.0.0.1:4599
+  provider:
+    description: >-
+      When set to `scaleway`, `outscale` or `exoscale`, the environment that
+      client needs is exported into the job, so the next step can run
+      `terraform apply` with nothing else to configure.
+    required: false
+    default: ''
+
+outputs:
+  endpoint:
+    description: The URL the emulator answers on.
+    value: ${{ steps.start.outputs.endpoint }}
+
+runs:
+  using: composite
+  steps:
+    - name: Download and verify the released binary
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        base="https://github.com/stephrobert/feint/releases/download/v${VERSION}"
+        case "$(uname -s)-$(uname -m)" in
+          Linux-x86_64)  asset=feint-linux-amd64 ;;
+          Linux-aarch64) asset=feint-linux-arm64 ;;
+          Darwin-x86_64) asset=feint-darwin-amd64 ;;
+          Darwin-arm64)  asset=feint-darwin-arm64 ;;
+          *) echo "no published binary for $(uname -s)-$(uname -m)" >&2; exit 1 ;;
+        esac
+        workdir="$(mktemp -d)"
+        curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/${asset}" "${base}/${asset}"
+        curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/checksums.txt" "${base}/checksums.txt"
+        # The bytes are checked before anything runs them. The signature over the
+        # checksum list is the stronger half and needs cosign, which a job may
+        # not have; docs/install.md carries that command for anyone who wants it.
+        (cd "${workdir}" && grep " ${asset}$" checksums.txt | sha256sum -c -)
+        install -m 0755 "${workdir}/${asset}" "${RUNNER_TEMP}/feint"
+        echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
+
+    - name: Start it, and wait until it answers
+      id: start
+      shell: bash
+      env:
+        ADDR: ${{ inputs.addr }}
+      run: |
+        set -euo pipefail
+        # `start` records the instance, waits for it to answer and prints where
+        # the log is. It refuses to adopt an instance already running on that
+        # address, which is what makes a second call in one job an error rather
+        # than a surprise.
+        "${RUNNER_TEMP}/feint" start --addr "${ADDR}" --timeout 60s
+        echo "endpoint=http://${ADDR}" >> "${GITHUB_OUTPUT}"
+
+    - name: Export the client environment
+      if: inputs.provider != ''
+      shell: bash
+      env:
+        ADDR: ${{ inputs.addr }}
+        PROVIDER: ${{ inputs.provider }}
+      run: |
+        set -euo pipefail
+        # `feint env` prints the exports on stdout and everything else on stderr,
+        # precisely so this is safe. The variable names are the pack's own
+        # knowledge — the emulator core names none of them.
+        # `export NAME='value'` is the shape it prints — single quotes, measured
+        # rather than assumed — and GITHUB_ENV wants `NAME=value`.
+        "${RUNNER_TEMP}/feint" env "${PROVIDER}" --endpoint "http://${ADDR}" \
+          | sed -e 's/^export //' -e "s/'//g" >> "${GITHUB_ENV}"
