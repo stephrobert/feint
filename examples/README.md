@@ -10,6 +10,7 @@ lets a real client start against values that mean nothing.
 | [`stacks/`](stacks/) | **two complete platform stacks** — multi-VPC, multi-machine, golden images, block storage — applied against Feint on every pull request |
 | [`github-actions/terraform.yml`](github-actions/terraform.yml) | a GitHub Actions job that applies your Terraform, re-plans to prove the emulator read back what it was sent, and destroys |
 | [`gitlab-ci/.gitlab-ci.yml`](gitlab-ci/.gitlab-ci.yml) | the same pipeline for GitLab CI, with the emulator as a service |
+| [`compose/compose.yaml`](compose/compose.yaml) | the emulator beside your application for the length of a `docker compose up`, with a healthcheck the app waits on |
 
 If you want to see Feint hold up under something that looks like production
 rather than under a snippet, start with [`stacks/`](stacks/). They are examples
