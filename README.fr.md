@@ -482,6 +482,14 @@ replanifient à vide et se détruisent sans compte cloud** — une cible qui, el
 ne peut pas être gonflée, contrairement à un nombre de routes.
 [docs/adoption.md](docs/adoption.md) tient la liste, les échecs compris.
 
+**Où l'envoyer** : [ouvrez une issue avec le gabarit *A configuration that breaks
+it*](https://github.com/stephrobert/feint/issues/new?template=breaking_configuration.yml).
+En public plutôt qu'en message privé, parce que les échecs sont précisément
+l'intérêt : une configuration qui ne s'applique pas est l'entrée la plus utile de
+cette liste, et envoyée en privé elle n'aide qu'une personne au lieu de toutes
+celles qui buteront dessus ensuite. Vous n'avez rien à diagnostiquer — une
+configuration et un message d'erreur suffisent.
+
 ### Si vous travaillez chez un fournisseur cloud
 
 Feint peut servir de backend de test local à vos propres exemples Terraform et

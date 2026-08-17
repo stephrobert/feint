@@ -875,6 +875,13 @@ destroy with no cloud account** — a target that cannot be inflated, unlike a
 route count. [docs/adoption.md](docs/adoption.md) keeps the list, the failures
 included.
 
+**Where to send it:** [open an issue with the *A configuration that breaks it*
+template](https://github.com/stephrobert/feint/issues/new?template=breaking_configuration.yml).
+In public rather than by message, because the failures are the point: a
+configuration that does not apply is the most valuable entry in that list, and
+one sent privately helps one person instead of everyone who hits it next. You do
+not need to diagnose anything — a configuration and an error message are enough.
+
 ### If you work at a cloud provider
 
 Feint can be the local test backend for your own Terraform examples and SDK
