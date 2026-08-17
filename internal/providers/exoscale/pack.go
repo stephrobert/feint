@@ -767,7 +767,56 @@ func (r createInstanceRequest) keyNames() []string {
 	return names
 }
 
+// instanceListFilter is what list-instances may narrow the answer by. Their
+// document declares four query parameters on the operation — manager-id,
+// manager-type (enum instance-pool), ip-address and labels
+// (.upstream/exoscale-openapi.yaml:24156-24178) — and the handler read none of
+// them, which is the list-templates defect (#271) on another operation: an
+// instance pool asking for its own members received every instance the store
+// holds.
+//
+// labels is the one refused rather than served: their document types it as a
+// bare string with no format and no description, egoscale v3 exposes no option
+// for it, so any wire encoding this emulator picked would be an invented format
+// — the thing rule 4 of CLAUDE.md forbids. A client that sends it gets a 400
+// naming the parameter, never a silently unfiltered list. docs/limits.md
+// carries the decision.
+//
+// TestInstanceListFiltersAreHonoured fails if a filter stops narrowing, and
+// TestInstanceListRefusesTheLabelsFilter if the refusal goes quiet.
+type instanceListFilter struct {
+	managerID, managerType, ipAddress string
+}
+
+func (f instanceListFilter) matches(view map[string]any) bool {
+	if f.managerID != "" || f.managerType != "" {
+		manager, _ := view["manager"].(map[string]any)
+		if f.managerID != "" && manager["id"] != f.managerID {
+			return false
+		}
+		if f.managerType != "" && manager["type"] != f.managerType {
+			return false
+		}
+	}
+	return f.ipAddress == "" || view["public-ip"] == f.ipAddress
+}
+
 func (p *Pack) listInstances(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	if query.Get("labels") != "" {
+		writeError(w, http.StatusBadRequest, "the labels filter is not served by this emulator")
+		return
+	}
+	if t := query.Get("manager-type"); t != "" && t != "instance-pool" {
+		writeError(w, http.StatusBadRequest, "manager-type must be instance-pool")
+		return
+	}
+	filter := instanceListFilter{
+		managerID:   query.Get("manager-id"),
+		managerType: query.Get("manager-type"),
+		ipAddress:   query.Get("ip-address"),
+	}
+
 	list := p.env.Store.List(kindInstance, resource.Tenant{Provider: Name})
 	instances := make([]map[string]any, 0, len(list))
 	for _, res := range list {
@@ -786,7 +835,12 @@ func (p *Pack) listInstances(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			continue
 		}
-		instances = append(instances, p.view(fresh))
+		// Filtered on the view rather than on the stored attributes, because
+		// public-ip is a fact the view computes and the filter must see the
+		// same value the client would read back.
+		if view := p.view(fresh); filter.matches(view) {
+			instances = append(instances, view)
+		}
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"instances": instances})
 }

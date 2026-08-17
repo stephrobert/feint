@@ -1,0 +1,54 @@
+{
+  "package": "./internal/providers/exoscale/",
+  "mutations": [
+    {
+      "label": "the template visibility filter reads a key nobody sends, which is #271 verbatim: ?visibility=private answers the public catalogue again",
+      "file": "internal/providers/exoscale/catalog.go",
+      "find": "\tvisibility := r.URL.Query().Get(\"visibility\")",
+      "replace": "\tvisibility := r.URL.Query().Get(\"visibility-never\")",
+      "test": "TestTemplateVisibilityIsHonoured"
+    },
+    {
+      "label": "the template family filter goes inert and an unknown family answers the whole catalogue",
+      "file": "internal/providers/exoscale/catalog.go",
+      "find": "\tfamily := r.URL.Query().Get(\"family\")",
+      "replace": "\tfamily := r.URL.Query().Get(\"family-never\")",
+      "test": "TestTemplateFamilyIsHonoured"
+    },
+    {
+      "label": "the security-group visibility filter goes inert and ?visibility=public answers the private groups",
+      "file": "internal/providers/exoscale/securitygroups.go",
+      "find": "\tswitch r.URL.Query().Get(\"visibility\") {",
+      "replace": "\tswitch r.URL.Query().Get(\"visibility-never\") {",
+      "test": "TestSecurityGroupVisibilityIsHonoured"
+    },
+    {
+      "label": "the manager-id filter goes inert and a pool counting its members counts the whole account",
+      "file": "internal/providers/exoscale/pack.go",
+      "find": "\t\tmanagerID:   query.Get(\"manager-id\"),",
+      "replace": "\t\tmanagerID:   query.Get(\"manager-id-never\"),",
+      "test": "TestInstanceListFiltersAreHonoured"
+    },
+    {
+      "label": "the labels refusal goes quiet, which is the silent drop the whole class is about",
+      "file": "internal/providers/exoscale/pack.go",
+      "find": "\tif query.Get(\"labels\") != \"\" {",
+      "replace": "\tif query.Get(\"labels\") != \"\" && false {",
+      "test": "TestInstanceListRefusesTheLabelsFilter"
+    },
+    {
+      "label": "the event window stops validating and a malformed timestamp is swallowed",
+      "file": "internal/providers/exoscale/account.go",
+      "find": "\t\tif _, err := time.Parse(time.RFC3339, value); err != nil {",
+      "replace": "\t\tif _, err := time.Parse(time.RFC3339, value); err != nil && false {",
+      "test": "TestEventWindowIsValidated"
+    },
+    {
+      "label": "the block-volume instance filter goes inert and one machine's disks are the whole account's",
+      "file": "internal/providers/exoscale/block.go",
+      "find": "\tinstanceID := r.URL.Query().Get(\"instance-id\")",
+      "replace": "\tinstanceID := r.URL.Query().Get(\"instance-id-never\")",
+      "test": "TestBlockVolumeInstanceFilterIsHonoured"
+    }
+  ]
+}

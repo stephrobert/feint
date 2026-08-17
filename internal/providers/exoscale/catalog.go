@@ -126,18 +126,53 @@ var instanceTypes = []map[string]any{
 // listTemplates serves the same table the machine driver boots from, so what a
 // client can choose and what the emulator can start cannot drift apart. Holding
 // two lists is how a client ends up picking a template that boots nothing.
-// listTemplates answers the fixed catalogue and whatever the tenant registered or
-// promoted, in one list (#173).
 //
-// One list because a client resolving a template by name has no idea which of the
-// two it is asking for. Serving them apart would be an emulator detail surfacing
-// in an API the client reads as a single inventory — and `exo compute instance
-// create --template <name>` walks exactly this list.
-func (p *Pack) listTemplates(w http.ResponseWriter, _ *http.Request) {
+// The two worlds are NOT one list. Their document declares a visibility filter
+// on this operation — enum private|public, with a family filter beside it
+// (.upstream/exoscale-openapi.yaml:21648-21662) — and the split is the point:
+// public is Exoscale's catalogue, private is what the organisation registered
+// or promoted. The first version discarded the request (`_ *http.Request`), so
+// `?visibility=private` on a fresh store answered the public catalogue, every
+// entry contradicting the filter it was inside (#271). No client escaped the
+// parameter either: `exo compute instance-template list` always sends
+// visibility (its default is public), and sends family beside it when asked —
+// measured through a recording proxy on exo 1.95.1.
+//
+// Absent, visibility defaults to public. That is the one case no real client
+// exercises — the CLI and egoscale always name one — and the catalogue is what
+// keeps a paramless read (the probe, a curl, the cross-pack catalogue guard)
+// meaning "what can I boot here".
+//
+// TestTemplateVisibilityIsHonoured fails without the filter, and
+// TestTemplateFamilyIsHonoured without family.
+func (p *Pack) listTemplates(w http.ResponseWriter, r *http.Request) {
+	visibility := r.URL.Query().Get("visibility")
+	family := r.URL.Query().Get("family")
+
+	matches := func(view map[string]any) bool {
+		return family == "" || view["family"] == family
+	}
+
 	out := make([]map[string]any, 0, len(templates))
-	out = append(out, templates...)
-	for _, res := range p.storedTemplates() {
-		out = append(out, p.templateView(res))
+	switch visibility {
+	case "", "public":
+		for _, t := range templates {
+			if matches(t) {
+				out = append(out, t)
+			}
+		}
+	case "private":
+		for _, res := range p.storedTemplates() {
+			if view := p.templateView(res); matches(view) {
+				out = append(out, view)
+			}
+		}
+	default:
+		// The enum is closed in their document; a value outside it is a request
+		// this emulator cannot answer honestly, so it refuses rather than picking
+		// a visibility the client never asked for.
+		writeError(w, http.StatusBadRequest, "visibility must be private or public")
+		return
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"templates": out})
 }
