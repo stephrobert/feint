@@ -15,7 +15,11 @@ terraform {
   required_providers {
     scaleway = {
       source  = "scaleway/scaleway"
-      version = "~> 2.79"
+      # Exact for the same reason the conformance fixture is exact: v2.81.0
+      # reads private NICs through an /instance/v2alpha1 route the emulator
+      # does not serve yet (#258), and a floating constraint turned CI red the
+      # hour it was published, with no change on this side.
+      version = "2.80.0"
     }
   }
 }

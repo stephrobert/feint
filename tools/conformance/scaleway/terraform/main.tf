@@ -10,7 +10,14 @@ terraform {
   required_providers {
     scaleway = {
       source  = "scaleway/scaleway"
-      version = "~> 2.79"
+      # Exact, not `~>`: v2.81.0 was published on 2026-08-17 and reads private
+      # NICs through /instance/v2alpha1/private-network-interfaces, which the
+      # emulator does not serve, so a float turned every Terraform leg red
+      # without a repository change (#258). Same doctrine the workflow already
+      # applies to the Terraform binary itself — a suite whose client changes
+      # under it reports a difference nobody made. Moving this pin is the proof
+      # that a newer provider works, and #258 is what has to close first.
+      version = "2.80.0"
     }
   }
 }
