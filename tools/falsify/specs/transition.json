@@ -3,24 +3,26 @@
   "mutations": [
     {
       "label": "the target releases before the change, and two actions run on one machine at once",
-      "file": "internal/core/machine/transition.go",
+      "file": "internal/core/machine/observe.go",
       "find": "\tunlock := b.Serialise(id)\n\tdefer unlock()",
       "replace": "\tunlock := b.Serialise(id)\n\tunlock()",
-      "test": "TestTransitionExcludesASecondActionOnTheTarget"
+      "test": "TestTransitionExcludesASecondActionOnTheTarget",
+      "repeat": 3
     },
     {
       "label": "a failed write-back is retried unconditionally, and a deleted resource comes back",
-      "file": "internal/core/machine/transition.go",
-      "find": "\treturn st.Update(b.Provider, kind, id, func(stored *resource.Resource) error {\n\t\tstored.State = res.State\n\t\tstored.Runtime = res.Runtime\n\t\tstored.Attrs = res.Attrs\n\t\tstored.Updated = now()\n\t\treturn nil\n\t})",
-      "replace": "\terr := st.Update(b.Provider, kind, id, func(stored *resource.Resource) error {\n\t\tstored.State = res.State\n\t\tstored.Runtime = res.Runtime\n\t\tstored.Attrs = res.Attrs\n\t\tstored.Updated = now()\n\t\treturn nil\n\t})\n\tif err != nil {\n\t\tst.Put(res)\n\t}\n\treturn nil",
+      "file": "internal/core/machine/observe.go",
+      "find": "\t}); err != nil {\n\t\treturn nil, err\n\t}",
+      "replace": "\t}); err != nil {\n\t\tst.Put(res)\n\t\treturn res, nil\n\t}",
       "test": "TestADeleteLandingMidTransitionWins"
     },
     {
       "label": "a missing target no longer stops the change, and the runtime works for a resource nobody stores",
-      "file": "internal/core/machine/transition.go",
-      "find": "\tif !found {\n\t\treturn store.ErrNotFound\n\t}",
-      "replace": "\tif !found {\n\t\tres = &resource.Resource{Attrs: map[string]any{}}\n\t\t_ = store.ErrNotFound\n\t}",
+      "file": "internal/core/machine/observe.go",
+      "find": "\tres, found := st.Get(b.Provider, kind, id)\n\tif !found {\n\t\treturn nil, store.ErrNotFound\n\t}",
+      "replace": "\tres, found := st.Get(b.Provider, kind, id)\n\tif !found {\n\t\tres = &resource.Resource{ID: id, Kind: kind, Attrs: map[string]any{}}\n\t\t_ = store.ErrNotFound\n\t}",
       "test": "TestTransitionRefusesAMissingTargetBeforeTheChange"
     }
-  ]
+  ],
+  "note": "Transition became a one-line wrapper over Observe when #211 moved the transactional half into the shared layer, and this spec silently stopped applying: its fragments named code transition.go no longer holds. The guards live in observe.go now, so that is what the mutations remove — while the tests stay at the Transition door, which is what proves the wrapper still delegates to them. The Observe door of the same guards is falsified by serialise-then-commit.json. Measured 2026-08-17: the exclusion barrage (eight goroutines betting on the scheduler) went red 30/30 in -count=1 with the hold released, which bounds a false green at 10% per run (rule of three, 95%); `repeat: 3` brings that worst case under 0.1%. The other two mutations are sequential — the test itself provokes the delete and the missing target — and carry no repeat."
 }

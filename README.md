@@ -29,7 +29,7 @@
 >
 > **Proven**: 264 of the 285 mounted operations are driven by a real client, on every pull request. `scw`, `oapi-cli`, `exo`, Terraform and OpenTofu run against the emulator in CI, and machines really boot: an ssh login on each provider's own default account, isolated subnets, a firewall that filters. The whole chain is described in [docs/conformance.md](docs/conformance.md).
 >
-> **Not proven**: quotas, prices, real capacity, identifier validation, authentication, eventual consistency. The 30 sections of [docs/limits.md](docs/limits.md) each say what one costs. An emulator with a single implicit account and no price list would have to invent those figures, and somebody would act on them.
+> **Not proven**: quotas, prices, real capacity, identifier validation, authentication, eventual consistency. The 31 sections of [docs/limits.md](docs/limits.md) each say what one costs. An emulator with a single implicit account and no price list would have to invent those figures, and somebody would act on them.
 >
 > **Unknown**: 21 operations are mounted and have never been driven by a client. Every one of them states why no official client reaches it, at the route and in [docs/routes.md](docs/routes.md). They are counted rather than glossed, one by one, in [coverage/evidence.json](coverage/evidence.json).
 >
@@ -62,11 +62,24 @@ services:
 ```
 
 The image is control-plane only and carries no `latest` tag; [docs/install.md](docs/install.md) has the GitLab form, the compose form and the signature verification. Pull it directly with `docker run --rm -p 127.0.0.1:4599:4599 ghcr.io/stephrobert/feint:v0.8.0`.
+
+**In GitHub Actions without a container** — the action from the Marketplace:
+
+```yaml
+- uses: stephrobert/setup-feint@v1
+  with:
+    version: 0.8.0
+    provider: scaleway   # exports what the official client needs
+```
+
+It installs the released binary, **verifies its checksum before running it**, and waits until the emulator answers.
 <!-- quickstart:end -->
 
 ```text
 Apply complete! Resources: 5 added, 0 changed, 0 destroyed.
 ```
+
+![A GitHub Actions job pulling the image, pointing the official Scaleway CLI at it, and applying Terraform — no cloud account and no secret](docs/assets/ci.gif)
 
 Copy-paste pipelines for both, with nothing to configure and no secret to add:
 [**examples/**](examples/) — GitHub Actions, GitLab CI, and a `setup-feint`
@@ -616,8 +629,8 @@ argument is that the upstream moves:
 | Client | Version proven in CI | Emulated provider |
 |---|---|---|
 | `scw` | 2.56.3 | Scaleway |
-| Terraform | 1.13.3 with providers `outscale/outscale ~> 1.7`, `scaleway/scaleway ~> 2.79` | Outscale, Scaleway |
-| OpenTofu | 1.12.5 with providers `outscale/outscale ~> 1.7`, `scaleway/scaleway ~> 2.79` | Outscale, Scaleway |
+| Terraform | 1.13.3 with providers `outscale/outscale ~> 1.7`, `scaleway/scaleway 2.81.0` | Outscale, Scaleway |
+| OpenTofu | 1.12.5 with providers `outscale/outscale ~> 1.7`, `scaleway/scaleway 2.81.0` | Outscale, Scaleway |
 | `oapi-cli` | 0.15.0 | Outscale |
 | `exo` | 1.95.6 | Exoscale |
 
@@ -839,6 +852,45 @@ A weekly job runs the scan and **opens a pull request** the moment upstream move
 The human work is triage.
 
 ---
+
+## Bring it a configuration you actually use
+
+**The most useful thing anybody can send this project is a Terraform
+configuration that breaks it.**
+
+Two realistic stacks written in-house surfaced two defects within an hour — a
+route that could not point at a Net peering, and a tagged interface that never
+read its tags back. Neither was visible to the conformance suite, because a suite
+proves what somebody thought to assert. Yours exercises what somebody actually
+writes.
+
+```bash
+feint start
+eval "$(feint env scaleway)"     # or outscale
+terraform plan
+```
+
+The goal for 1.0 is **ten real configurations that apply, re-plan empty and
+destroy with no cloud account** — a target that cannot be inflated, unlike a
+route count. [docs/adoption.md](docs/adoption.md) keeps the list, the failures
+included.
+
+**Where to send it:** [open an issue with the *A configuration that breaks it*
+template](https://github.com/stephrobert/feint/issues/new?template=breaking_configuration.yml).
+In public rather than by message, because the failures are the point: a
+configuration that does not apply is the most valuable entry in that list, and
+one sent privately helps one person instead of everyone who hits it next. You do
+not need to diagnose anything — a configuration and an error message are enough.
+
+### If you work at a cloud provider
+
+Feint can be the local test backend for your own Terraform examples and SDK
+tests. Your clients already run against it here on every pull request, and your
+SDK's surface is scanned weekly. What would change what this project can prove
+about your cloud is a sandbox account or redacted recordings — the shapes gate
+compares this emulator's answers with what the real cloud returned, and recording
+needs an account. The offer, and what this project will never do, are both in
+[docs/adoption.md](docs/adoption.md).
 
 ## Contributing
 

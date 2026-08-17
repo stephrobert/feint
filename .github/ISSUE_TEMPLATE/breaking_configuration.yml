@@ -1,0 +1,87 @@
+name: A configuration that breaks it
+description: You pointed a real Terraform, OpenTofu or CLI configuration at Feint and it did not behave like the cloud. This is the most useful thing anybody can send.
+title: "<resource or command>: "
+labels: ["configuration"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **This is the report this project wants most.**
+
+        Two realistic stacks written in-house surfaced two defects within an hour, and neither
+        was visible to the conformance suite — because a suite proves what somebody thought to
+        assert, and your configuration exercises what somebody actually writes.
+
+        You do not need to diagnose anything. A configuration and an error message are enough;
+        working out which of the three cases below applies is our job, not yours.
+
+        Before filing, one thing worth checking: [docs/limits.md](https://github.com/stephrobert/feint/blob/main/docs/limits.md)
+        lists what is deliberately not emulated, measured rather than guessed. A `501` naming a
+        route is Feint refusing to invent an answer, and that is working as intended — though if
+        it blocked *your* work, say so anyway: which products people actually reach for is the
+        roadmap.
+
+  - type: textarea
+    id: configuration
+    attributes:
+      label: The configuration
+      description: >-
+        The smallest part that still reproduces it, if you have time to reduce it — and the whole
+        thing if you do not. Do not spend an evening minimising: a large configuration that
+        reproduces beats a small one that might.
+      render: hcl
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened
+      description: The error, verbatim. Paste the whole message rather than a summary of it; the wording is often what identifies the defect.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What the real cloud does
+      description: >-
+        If you know — you have run the same thing against the real thing, or the provider
+        documentation says so. **"I do not know" is a perfectly good answer**, and a better one
+        than a guess: two audit reports here once asked for a divergence *from* the real cloud
+        because nobody had checked the premise.
+    validations:
+      required: false
+
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Feint, the client, and the provider — `feint version`, `terraform version`.
+      placeholder: "feint 0.9.0, terraform 1.13.3, scaleway/scaleway 2.81.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: machines
+    attributes:
+      label: Were machines on?
+      description: "`--vm` is off by default. It changes what can be proven, and half the answers here depend on it."
+      options:
+        - "off (the default)"
+        - "incus / incus-ovn / incus-vm"
+        - "not sure"
+    validations:
+      required: true
+
+  - type: textarea
+    id: transcript
+    attributes:
+      label: The exchange, if you have it
+      description: >-
+        Optional and worth a lot. `feint proxy --upstream http://127.0.0.1:4599 --record -` sits
+        between your client and the emulator and prints every request and answer. It is what
+        turns "Terraform failed" into "the emulator answers X where the SDK expects Y".
+      render: json
+    validations:
+      required: false

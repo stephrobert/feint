@@ -14,7 +14,8 @@
       "find": "func (p *Pack) lockAddresses() func() { return serialise.Lock(Name + \"/addresses\") }",
       "replace": "func (p *Pack) lockAddresses() func() {\n\tserialise.Lock(Name + \"/addresses\")()\n\treturn func() {}\n}",
       "test": "TestConcurrentCreatesDoNotShareAnAddress",
-      "package": "./internal/providers/outscale/"
+      "package": "./internal/providers/outscale/",
+      "repeat": 3
     },
     {
       "label": "the exoscale addresses domain releases before the transaction, and concurrent allocations share",
@@ -22,7 +23,9 @@
       "find": "func (p *Pack) lockAddresses() func() { return serialise.Lock(Name + \"/addresses\") }",
       "replace": "func (p *Pack) lockAddresses() func() {\n\tserialise.Lock(Name + \"/addresses\")()\n\treturn func() {}\n}",
       "test": "TestConcurrentAllocationsShareNothing",
-      "package": "./internal/providers/exoscale/"
+      "package": "./internal/providers/exoscale/",
+      "repeat": 3
     }
-  ]
+  ],
+  "note": "Measured 2026-08-17, thirty -count=1 runs per mutation in the harness's own out-of-tree copy. The Scaleway test stages its interleaving — it holds the domain itself while a release runs — so its verdict is not a bet: red 5/5, no repeat. The Outscale and Exoscale tests bet on the scheduler (12 and 8+8 concurrent workers over one allocator): both went red 30/30, which still only bounds a false green at 10% per run (rule of three, 95%), and `repeat: 3` brings that worst case under 0.1%."
 }

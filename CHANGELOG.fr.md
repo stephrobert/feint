@@ -19,6 +19,17 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Deux enregistrements, sur la page et non dans le dépôt** (#252). Ce que ce
+  projet a de plus convaincant dure quarante-cinq secondes : une API cloud qui
+  répond à un client officiel sans qu'aucun compte existe derrière. Le premier
+  montre le binaire sur un poste, le second un job GitHub Actions qui tire
+  l'image — les deux portes, chacune à côté de l'extrait qui la concerne, dans
+  les deux README. Produits par `mise run demo` depuis des bandes versionnées,
+  de sorte qu'une commande qui casse casse la vidéo, et `tools/demo/ci.sh`
+  éprouve la séquence avant que `vhs` ne la filme. À voir ici :
+  [le chemin CI](https://github.com/stephrobert/feint/blob/main/docs/assets/ci.gif),
+  [le chemin poste de travail](https://github.com/stephrobert/feint/blob/main/docs/assets/quickstart.gif).
+
 - **L'émulateur construit ses propres images de machines, et elles portent un
   démon ssh** (#203). Aucune image du serveur amont n'en a : mesuré sur
   `images:ubuntu/24.04`, `ubuntu/24.04/cloud`, `debian/12/cloud` et

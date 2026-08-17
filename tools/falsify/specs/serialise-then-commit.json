@@ -6,21 +6,16 @@
       "file": "internal/providers/scaleway/servers.go",
       "find": "\t// TestConcurrentUpdatesKeepEveryAcknowledgedField fails without this line.\n\tunlock := p.binding().Serialise(id)\n\tdefer unlock()\n\n\tres, found := p.env.Store.Get(Name, kindServer, id)",
       "replace": "\t// TestConcurrentUpdatesKeepEveryAcknowledgedField fails without this line.\n\tunlock := p.binding().Serialise(id)\n\tunlock()\n\n\tres, found := p.env.Store.Get(Name, kindServer, id)",
-      "test": "TestConcurrentUpdatesKeepEveryAcknowledgedField"
+      "test": "TestConcurrentUpdatesKeepEveryAcknowledgedField",
+      "repeat": 3
     },
     {
-      "label": "a NIC create stops holding the server, so a delete lands between its NIC and its write-back",
+      "label": "a NIC create trusts nothing the hold could tell it, so a finished delete goes unseen",
       "file": "internal/providers/scaleway/privatenics.go",
-      "find": "\tunlock := p.binding().Serialise(server.ID)\n\tdefer unlock()",
-      "replace": "\tunlock := p.binding().Serialise(server.ID)\n\tunlock()",
-      "test": "TestAttachingANICDoesNotResurrectADeletedServer"
-    },
-    {
-      "label": "a NIC create trusts the copy it read before the hold, so a finished delete goes unseen",
-      "file": "internal/providers/scaleway/privatenics.go",
-      "find": "\tserver, found := p.env.Store.Get(Name, kindServer, server.ID)\n\tif !found {\n\t\twriteNotFound(w, \"server\", r.PathValue(\"id\"))\n\t\treturn\n\t}",
-      "replace": "\tif fresh, found := p.env.Store.Get(Name, kindServer, server.ID); found {\n\t\tserver = fresh\n\t} else if false {\n\t\twriteNotFound(w, \"server\", r.PathValue(\"id\"))\n\t\treturn\n\t}",
-      "test": "TestAttachingANICDoesNotResurrectADeletedServer"
+      "find": "\tserver, found := p.env.Store.Get(Name, kindServer, serverID)\n\tif !found {\n\t\twriteNotFound(w, \"server\", serverID)\n\t\treturn nil, false\n\t}",
+      "replace": "\tserver, found := p.env.Store.Get(Name, kindServer, serverID)\n\tif !found && false {\n\t\twriteNotFound(w, \"server\", serverID)\n\t\treturn nil, false\n\t}\n\tif !found {\n\t\tserver = resource.New(serverID, kindServer, resource.Tenant{Provider: Name}, \"stopped\", p.env.Now())\n\t}",
+      "test": "TestAttachingANICDoesNotResurrectADeletedServer",
+      "repeat": 3
     },
     {
       "label": "Observe hands the look a copy read before the hold",
@@ -69,5 +64,6 @@
       "replace": "\tif req.DeletionProtection != nil && false {\n\t\tres.Attrs[\"DeletionProtection\"] = *req.DeletionProtection\n\t}",
       "test": "TestDeletionProtectionCanBeClearedByAnUpdate"
     }
-  ]
+  ],
+  "note": "Two mutations here went stale when #257 merged the two NIC doors into attachNIC and renamed server.ID to serverID: their fragments matched nothing, so they had silently stopped measuring. The per-server hold of attachNIC is falsified by one-attachment-two-doors.json (with `repeat`, the race being a coin toss per run) and is not repeated here. The re-read mutation cannot literally 'trust the pre-hold copy' any more — attachNIC receives only the id — so it does the equivalent: when the re-read answers not-found, it fabricates the server the way the old stale copy stood in for it, which is exactly what a handler working from a pre-delete read did. Measured 2026-08-17, thirty -count=1 runs per race in the harness's own out-of-tree copy: the update-path and re-read barrages both went red 30/30 — scheduler bets all the same, so `repeat: 3` turns the 10% false-green bound (rule of three, 95%) into under 0.1%. The Observe mutations carry no repeat: their tests stage the interleaving with channels or provoke it sequentially, and the reorder went red 5/5."
 }

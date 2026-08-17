@@ -1,0 +1,15 @@
+{
+  "package": "./feinttest/",
+  "env": {
+    "FEINT_TESTCONTAINER": "1"
+  },
+  "mutations": [
+    {
+      "label": "the container is removed the moment it dies, so a failed start can only report that it is gone",
+      "file": "feinttest/feinttest.go",
+      "find": "run := exec.CommandContext(ctx, runtime, \"run\", \"--detach\", //nolint:gosec // the image is the test's own choice; see above",
+      "replace": "run := exec.CommandContext(ctx, runtime, \"run\", \"--detach\", \"--rm\", //nolint:gosec // the image is the test's own choice; see above",
+      "test": "TestAFailedStartSaysWhatTheContainerDid"
+    }
+  ]
+}

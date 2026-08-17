@@ -114,7 +114,9 @@ func TestConcurrentUpdatesKeepEveryAcknowledgedField(t *testing.T) {
 // the lock deleteServer takes, so it orders nothing here.
 //
 // What the barrage measures is the pair working together; each half is falsified
-// on its own by tools/falsify/specs/serialise-then-commit.json.
+// on its own — the hold by tools/falsify/specs/one-attachment-two-doors.json
+// (under `repeat`, one run of this barrage being a coin toss with the hold gone),
+// the re-read by tools/falsify/specs/serialise-then-commit.json.
 //
 // Trials rather than one run: written when a delete released nothing, any
 // completed attach left an orphan and once was enough. Once the delete learned to

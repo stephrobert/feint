@@ -17,9 +17,13 @@
 # shell is the supply-chain shape this project spends a workflow proving it does
 # not have.
 name: Set up Feint
+# 125 characters is the Marketplace's hard limit, and it refuses the release
+# rather than truncating: the first version of this line was 153 and the publish
+# form rejected it. OpenTofu and "no credentials" are what came out — the README
+# carries both, and this line has to survive a listing page.
 description: >-
-  Run Terraform, OpenTofu or the official Scaleway, Outscale and Exoscale CLIs
-  against a local emulator — no cloud account, no credentials, nothing billed.
+  Run Terraform and the official Scaleway, Outscale and Exoscale CLIs
+  against a local emulator. No account, no bill.
 author: stephrobert
 
 branding:

@@ -87,6 +87,15 @@ description = "Fetch the upstream SDKs and API descriptions the scan and the con
 # stale file that would silently describe last year's API.
 run = """
 set -e
+# Git exports GIT_DIR to every hook it runs, and GIT_DIR overrides `git -C`:
+# the pull below then acts on GIT_DIR's repository, not on the SDK checkout
+# -C names. In an ordinary clone GIT_DIR is the relative `.git` and happens
+# to resolve correctly after -C, which is why this survived; from a worktree
+# it is absolute, and the pre-push hook failed the first push of any branch
+# with "There is no tracking information" — about the branch being pushed,
+# not about any SDK. Measured on 2026-08-17: with GIT_DIR exported the pull
+# reports the pushing repository's branch, without it the SDK syncs.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
 mkdir -p "{{config_root}}/.upstream"
 sync() {
   if [ -d "$2/.git" ]; then
@@ -221,6 +230,22 @@ vhs tools/demo/quickstart.tape
 ls -lh docs/assets/quickstart.gif
 """
 
+[tasks."demo:ci"]
+description = "Re-record the CI demo: an OCI image, a real terraform apply, and nothing left behind"
+# Needs vhs and a container runtime. It pulls the *published* image rather than
+# building one, because the thing being demonstrated is what a reader would run,
+# and an image built locally proves something nobody else can reproduce.
+run = """
+command -v vhs >/dev/null 2>&1 || { echo 'vhs is not installed: go install github.com/charmbracelet/vhs@latest' >&2; exit 1; }
+command -v docker >/dev/null 2>&1 || { echo 'docker is not installed: this demo shows the container path' >&2; exit 1; }
+# The sequence is proven before it is filmed. A recording cannot fail — the first
+# cut of this GIF was four errors in a row, published without being watched — so
+# the script that can fail runs first, and a red one stops the recording.
+tools/demo/ci.sh
+vhs tools/demo/ci.tape
+ls -lh docs/assets/ci.gif
+"""
+
 [tasks."docs:ui"]
 description = "Check the page in a real browser and re-photograph it for the documentation"
 depends = ["build"]
@@ -323,7 +348,7 @@ run = "python3 tools/falsify/falsify.py"
 
 [tasks.prepush]
 description = "Everything a pull request will fail on that costs seconds and needs no client"
-depends = ["check", "docs:check", "drift:check", "shapes:check", "falsify:selftest"]
+depends = ["check", "docs:check", "drift:check", "shapes:check", "falsify:selftest", "falsify:lint"]
 # What this is, and what it deliberately is not.
 #
 # These four are deterministic, offline, and take seconds: they can be a hook
@@ -370,6 +395,18 @@ description = "Weaken a test so it cannot fail, and require the replay to name i
 # suite green, the replay red and naming the test. Writing that proof as a script
 # beside a pull request would have reproduced the fault it closes.
 run = "python3 tools/falsify/proof.py"
+
+[tasks."falsify:lint"]
+description = "Every declared mutation still finds the code it names — the cheap half of falsify:all"
+# String searches, no copy and no `go test`, so this belongs in prepush where
+# the replay itself cannot: `falsify:all` runs a build per mutation and lives on
+# a nightly cron, which means a spec killed by a refactor stays undetected for
+# up to twelve hours while the tree looks green to everyone working in it.
+#
+# It happened twice on 2026-08-17 — #211 had killed transition.json, #257 killed
+# serialise-then-commit.json the same afternoon — and this check names all five
+# dead mutations in a millisecond. Exit 2, like every other drift verdict here.
+run = "python3 tools/falsify/falsify.py --lint tools/falsify/specs"
 
 [tasks."falsify:selftest"]
 description = "Prove the falsification harness refuses the three mutations that voided a verdict"

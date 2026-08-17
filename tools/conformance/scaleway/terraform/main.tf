@@ -10,7 +10,25 @@ terraform {
   required_providers {
     scaleway = {
       source  = "scaleway/scaleway"
-      version = "~> 2.79"
+      # Exact, not `~>`: v2.81.0 was published on 2026-08-17 and reads private
+      # NICs through /instance/v2alpha1/private-network-interfaces, so a float
+      # turned every Terraform leg red the hour it shipped, with no repository
+      # change (#257). Same doctrine the workflow already applies to the
+      # Terraform binary itself — a suite whose client changes under it reports
+      # a difference nobody made.
+      #
+      # And the pin is 2.81.0 rather than the 2.80.0 that made CI green again,
+      # because that is what the comment this replaces asked for: "moving this
+      # pin is the proof that a newer provider works". #260 serves the five
+      # v2alpha1 operations, so 2.81.0 is the client that exercises them.
+      #
+      # Pinning 2.80.0 here would have been worse than a float: coverage/
+      # evidence.json records those operations as driven by a real client, and
+      # a suite running a client that never calls them would make that true on
+      # the machine that regenerated the artefact and false on the runner. An
+      # artefact claiming "a real client proved this" has to mean the client CI
+      # actually runs.
+      version = "2.81.0"
     }
   }
 }

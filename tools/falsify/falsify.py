@@ -212,14 +212,24 @@ def copy_tree(src, dst):
     shutil.copytree(src, dst, ignore=ignore, symlinks=True)
 
 
-def run(dst, cmd):
-    """Every command is capped, so a runaway cannot take the station with it."""
+def run(dst, cmd, extra_env=None):
+    """Every command is capped, so a runaway cannot take the station with it.
+
+    `extra_env` exists for a subject whose test is itself behind an opt-in: the
+    container tests skip unless FEINT_TESTCONTAINER is set, and a skip counts as
+    a pass, so without this the harness would report the mutation undetected and
+    blame the guard rather than its own environment.
+    """
+    env = None
+    if extra_env:
+        env = {**os.environ, **extra_env}
     return subprocess.run(
         ["systemd-run", "--user", "--scope", "-q", "-p", "MemoryMax=8G", "-p", "MemorySwapMax=0"]
         + cmd,
         cwd=dst,
         capture_output=True,
         text=True,
+        env=env,
     )
 
 
@@ -315,6 +325,9 @@ def selftest():
         else:
             print(f"    accepted, every name kept: {safe}")
     print()
+    failures += lint_selftest()
+
+    print()
     if failures:
         print(f"{failures} failure(s): the rule does not hold its own history")
         return 1
@@ -326,11 +339,126 @@ def selftest():
     return 0
 
 
+def lint_selftest():
+    """The lint answers 2 on a dead fragment and 0 on a live one.
+
+    A control that never fires reads exactly like a control that passes, which
+    is the failure this whole program exists to name. So the lint is pointed at
+    two specs built here: one naming a fragment that is in the file, one naming
+    a fragment that is not.
+
+    Written against a temporary directory rather than the repository's own
+    specs, because those are supposed to be green — a selftest that depended on
+    them would go red the day somebody legitimately retargets a mutation, and
+    that is the noise which teaches people to skip the check.
+    """
+    failures = 0
+    with tempfile.TemporaryDirectory() as tmp:
+        subject = os.path.join(tmp, "subject.go")
+        with open(subject, "w", encoding="utf-8") as fh:
+            fh.write("package p\n\nfunc guard() bool { return true }\n")
+
+        cases = [
+            ("live.json", "func guard() bool { return true }", 0, "a fragment that is in the file"),
+            ("dead.json", "func guard() bool { return gone }", 2, "a fragment that is not"),
+        ]
+        for name, find, want, why in cases:
+            spec = {
+                "package": "./p/",
+                "mutations": [
+                    {
+                        "label": "selftest",
+                        "file": subject,
+                        "find": find,
+                        "replace": find.replace("true", "false"),
+                        "test": "TestNothing",
+                    }
+                ],
+            }
+            directory = os.path.join(tmp, name.removesuffix(".json"))
+            os.mkdir(directory)
+            with open(os.path.join(directory, name), "w", encoding="utf-8") as fh:
+                json.dump(spec, fh)
+
+            got = lint(directory)
+            if got != want:
+                print(f"!! the lint answers {got} on {why}, want {want}")
+                failures += 1
+            else:
+                print(f"ok  the lint answers {got} on {why}")
+    return failures
+
+
 def every_spec(directory):
     """Every spec in the directory, sorted, so two runs report the same order."""
     return sorted(
         os.path.join(directory, name) for name in os.listdir(directory) if name.endswith(".json")
     )
+
+
+def lint(directory):
+    """Every declared fragment still exists in the file it names.
+
+    The cheap half of `--all`, and the half that catches the failure `--all`
+    catches twelve hours late. Replaying a spec copies the tree and runs `go
+    test` once per mutation, so it lives on a nightly cron: declaring one more
+    mutation must never be what makes pull requests slower. But a fragment that
+    no longer matches any code is not a slow question — it is a string search,
+    and the answer is the same in a millisecond as in eight minutes.
+
+    It has already cost this repository twice, both found on 17 August 2026 and
+    neither by the people who caused them:
+
+      - transition.json stopped applying when #211 reduced Transition to a
+        wrapper around Observe;
+      - serialise-then-commit.json stopped applying the same afternoon, when
+        #257 merged the two NIC doors and `server.ID` became `serverID`.
+
+    Between the change and the nightly run, `falsify:all` was red and the tree
+    looked green to everyone working in it. A dead spec is worse than a missing
+    one: `falsify:all` prints DID NOT APPLY, the count of proven guards silently
+    drops, and the specs directory keeps reading like a register of proofs.
+
+    So this runs in prepush, where it costs nothing.
+    """
+    specs = every_spec(directory)
+    if not specs:
+        return refuse(f"{directory} holds no spec, so this checked nothing")
+
+    stale = []
+    for path in specs:
+        with open(path, encoding="utf-8") as fh:
+            spec = json.load(fh)
+        for m in spec.get("mutations") or []:
+            target = m.get("file")
+            if not target or not os.path.exists(target):
+                stale.append((path, m.get("label", "?"), f"{target}: no such file"))
+                continue
+            with open(target, encoding="utf-8") as fh:
+                if m.get("find") not in fh.read():
+                    stale.append((path, m.get("label", "?"), f"{target}: fragment not found"))
+
+    if stale:
+        print(
+            f"falsify: {len(stale)} declared mutation(s) no longer apply. The code moved and "
+            "the spec did not, so these guards have stopped being measured:",
+            file=sys.stderr,
+        )
+        for path, label, why in stale:
+            print(f"  {os.path.basename(path)}: {why}\n      {label}", file=sys.stderr)
+        print(
+            "\nRetarget the fragment at the code that carries the guard today, or delete the "
+            "mutation and say in the spec why it no longer has a subject.",
+            file=sys.stderr,
+        )
+        return 2
+
+    count = 0
+    for path in specs:
+        with open(path, encoding="utf-8") as fh:
+            count += len(json.load(fh).get("mutations") or [])
+    print(f"every declared fragment still applies: {count} mutation(s) across {len(specs)} spec(s)")
+    return 0
 
 
 def replay_all(directory):
@@ -380,8 +508,10 @@ def main(argv):
         return selftest()
     if len(argv) == 3 and argv[1] == "--all":
         return replay_all(argv[2])
+    if len(argv) == 3 and argv[1] == "--lint":
+        return lint(argv[2])
     if len(argv) != 2:
-        return refuse("usage: falsify.py <spec.json> | --all <dir> | --selftest")
+        return refuse("usage: falsify.py <spec.json> | --all <dir> | --lint <dir> | --selftest")
     spec_path = argv[1]
     with open(spec_path, encoding="utf-8") as fh:
         spec = json.load(fh)
@@ -425,8 +555,10 @@ def main(argv):
 
     default_pkg = spec.get("package", "./...")
     packages = sorted({m.get("package", default_pkg) for m in mutations})
+    # A spec may arm what its subject's tests need — see run().
+    spec_env = spec.get("env") or {}
 
-    base = run(dst, ["go", "test", "-count=1", *packages])
+    base = run(dst, ["go", "test", "-count=1", *packages], spec_env)
     if base.returncode != 0:
         print(
             "the copy is red before any mutation, so nothing below measures a guard",
@@ -472,7 +604,7 @@ def main(argv):
             # A spec whose subject is a race declares `repeat`, and the odds of
             # a false green fall from p to p**n.
             repeat = int(m.get("repeat") or spec.get("repeat") or 1)
-            res = run(dst, ["go", "test", f"-count={repeat}", "-run", m["test"], pkg])
+            res = run(dst, ["go", "test", f"-count={repeat}", "-run", m["test"], pkg], spec_env)
             bit = res.returncode != 0
             verdicts.append((m["label"], "the test bit" if bit else "TEST STILL PASSED", "yes"))
             print(
@@ -483,7 +615,7 @@ def main(argv):
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(pristine[m["file"]])
 
-    final = run(dst, ["go", "test", "-count=1", *packages])
+    final = run(dst, ["go", "test", "-count=1", *packages], spec_env)
     print("=" * 72)
     for label, verdict, compiled in verdicts:
         print(f"  compiled={compiled:3}  {verdict:24}  {label}")
