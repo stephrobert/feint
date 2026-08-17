@@ -411,6 +411,96 @@ exoc -O json compute instance-template list --family custom \
 prove_end "$span_tmpl"
 ok "registered, listed, removed"
 
+# Block Storage (EXO-4, #12), driven by `exo compute block-storage`.
+#
+# The CLI is the only *published* client this product can have here, and the
+# reason is already written down: docs/limits.md, "The Exoscale Terraform
+# provider is refused, and why". A patched fork exists and can check the same
+# product by hand; that section also says why it does not count towards
+# conformance, and this suite is the place that decision binds.
+echo "- a block volume is created, attached, snapshotted, resized and removed"
+span_block="$(prove_begin behaviour)"
+exoc -Q compute block-storage create conformance-block --size 20 >/dev/null \
+  || fail "block-storage create rejected"
+block_id="$(exoc -O json compute block-storage list \
+  | jq -r '.[] | select(.name == "conformance-block") | .id')"
+[ -n "$block_id" ] || fail "the created volume is not in the list"
+
+# Detached is a state, not a missing field: the schema declares the vocabulary
+# and `ready` is not in it — the contract check named that on three operations
+# when this pack first published it.
+exoc -O json compute block-storage show "$block_id" \
+  | jq -e '.state == "detached" and .blocksize == 4096' >/dev/null \
+  || fail "a fresh volume does not read back as detached"
+
+exoc -Q compute block-storage update "$block_id" --rename conformance-block-2 >/dev/null \
+  || fail "block-storage rename rejected"
+exoc -Q compute block-storage update "$block_id" --size 30 >/dev/null \
+  || fail "block-storage resize rejected"
+exoc -O json compute block-storage show "$block_id" \
+  | jq -e '.name == "conformance-block-2" and (.size | tostring | startswith("30"))' >/dev/null \
+  || fail "the rename and the resize did not both survive"
+
+# Shrinking is refused, because a filesystem does not survive its disk getting
+# smaller. The same refusal the Outscale pack serves on UpdateVolume.
+neg="$(prove_begin negative)"
+if exoc -Q compute block-storage update "$block_id" --size 5 >/dev/null 2>&1; then
+  fail "the volume shrank, which loses a filesystem"
+fi
+prove_end "$neg"
+
+exoc compute block-storage attach "$block_id" "$id" >/dev/null \
+  || fail "block-storage attach rejected"
+exoc -O json compute block-storage show "$block_id" \
+  | jq -e --arg i "$id" '.state == "attached" and .instance.id == $i' >/dev/null \
+  || fail "the attached volume does not name its instance"
+
+# An attached volume refuses its own delete, which is the first step of a
+# destroy walked in the wrong order.
+neg="$(prove_begin negative)"
+if exoc -Q compute block-storage delete "$block_id" --force >/dev/null 2>&1; then
+  fail "an attached volume was deleted"
+fi
+prove_end "$neg"
+
+exoc -Q compute block-storage snapshot create "$block_id" --name conformance-block-snap >/dev/null \
+  || fail "block-storage snapshot create rejected"
+block_snap_id="$(exoc -O json compute block-storage snapshot list \
+  | jq -r '.[] | select(.name == "conformance-block-snap") | .id')"
+[ -n "$block_snap_id" ] || fail "the snapshot is not in the list"
+exoc -O json compute block-storage snapshot show "$block_snap_id" \
+  | jq -e --arg v "$block_id" '.volume.id == $v and .state == "created"' >/dev/null \
+  || fail "the snapshot does not name the volume it was taken from"
+# And the volume publishes it back, computed from the store rather than kept
+# beside it: a list maintained by hand is a list a delete forgets.
+exoc -O json compute block-storage show "$block_id" \
+  | jq -e --arg s "$block_snap_id" 'any(.["block-storage-snapshots"][]?; .id == $s)' >/dev/null \
+  || fail "the volume does not publish the snapshot taken from it"
+
+exoc -Q compute block-storage snapshot update "$block_snap_id" --rename conformance-block-snap-2 >/dev/null \
+  || fail "block-storage snapshot rename rejected"
+
+# A snapshotted volume refuses its delete too, and this is the order a destroy
+# has to take: snapshot, then detach, then volume.
+neg="$(prove_begin negative)"
+# --force, because the detach prompts for confirmation and a suite has no tty.
+exoc -Q compute block-storage detach "$block_id" --force >/dev/null \
+  || fail "block-storage detach rejected"
+if exoc -Q compute block-storage delete "$block_id" --force >/dev/null 2>&1; then
+  fail "a volume with a snapshot was deleted, leaving the snapshot naming nothing"
+fi
+prove_end "$neg"
+
+exoc -Q compute block-storage snapshot delete "$block_snap_id" --force >/dev/null \
+  || fail "block-storage snapshot delete rejected"
+exoc -Q compute block-storage delete "$block_id" --force >/dev/null \
+  || fail "block-storage delete rejected once nothing holds it"
+exoc -O json compute block-storage list \
+  | jq -e --arg i "$block_id" 'all(.[]; .id != $i)' >/dev/null \
+  || fail "the volume survived its delete"
+prove_end "$span_block"
+ok "created, renamed, resized, attached, snapshotted, and removed in order"
+
 echo "- delete, and it is gone"
 exoc -Q compute instance delete "$id" --force >/dev/null || fail "instance delete rejected"
 after="$(exoc -O json compute instance list)" || fail "instance list rejected: $after"

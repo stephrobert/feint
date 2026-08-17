@@ -94,6 +94,33 @@ func TestAnExoscaleBarrageLeavesTheStoreCoherent(t *testing.T) {
 					problems <- fmt.Sprintf("%s-%d: the operation names no resource", tag, i)
 					continue
 				}
+
+				// A block volume attached to that instance, so the orphan sweep
+				// below has something to find. Without this the sweep runs over
+				// a store where nothing names an instance and passes by finding
+				// nothing, which reads exactly like a clean pack (#12).
+				status, volume := callRaw(h, "POST", "/v2/block-storage", fmt.Sprintf(`{
+					"name": "barrage-%s-%d", "size": 10
+				}`, tag, i))
+				if status != http.StatusOK {
+					problems <- fmt.Sprintf("%s-%d: block volume create answered %d", tag, i, status)
+				} else {
+					ref, _ := volume["reference"].(map[string]any)
+					volumeID, _ := ref["id"].(string)
+					if volumeID == "" {
+						problems <- fmt.Sprintf("%s-%d: the volume operation names no resource", tag, i)
+					} else if status, _ := callRaw(h, "PUT", "/v2/block-storage/"+volumeID+":attach",
+						`{"instance": {"id": "`+id+`"}}`); status != http.StatusOK {
+						problems <- fmt.Sprintf("%s-%d: attach answered %d", tag, i, status)
+					} else {
+						// Detached before the instance goes: an attached volume
+						// refuses its own delete, and the order a client walks
+						// is the order this barrage walks.
+						callRaw(h, "PUT", "/v2/block-storage/"+volumeID+":detach", "")
+						callRaw(h, "DELETE", "/v2/block-storage/"+volumeID, "")
+					}
+				}
+
 				callRaw(h, "DELETE", "/v2/instance/"+id, "")
 			}
 		}(w)
@@ -110,13 +137,18 @@ func TestAnExoscaleBarrageLeavesTheStoreCoherent(t *testing.T) {
 			len(refused), strings.Join(refused, "\n"))
 	}
 
-	// storetest.Orphans is not called here, and the reason belongs in the file
-	// rather than in a reader's head: this pack keeps its references on the owner
-	// and not on the dependent. An instance carries the ids of its elastic IPs
-	// and the networks it joined, so deleting the instance takes the reference
-	// with it and there is no record left naming something gone. The day a
-	// resource here names an instance, it declares Owns and joins the sweep the
-	// two other packs run (#215).
+	// That day came with EXO-4 (#12). This block used to explain why
+	// storetest.Orphans was not called — every reference in this pack was held
+	// by the owner, so deleting the owner took it along — and it named the
+	// condition for its own expiry: *the day a resource here names an instance,
+	// it declares Owns and joins the sweep the two other packs run (#215)*. A
+	// block volume names the instance it is attached to, so the pack declares
+	// Owns and the sweep runs here like everywhere else.
+	if found := storetest.Orphans(st.All(), exoscale.Owns, nil); len(found) != 0 {
+		t.Errorf("the barrage left resources naming an owner that is gone:\n%s",
+			strings.Join(found, "\n"))
+	}
+
 	if found := storetest.Sweep(st.All(), nil, nil); len(found) != 0 {
 		t.Errorf("the store is incoherent after the barrage:\n%s", strings.Join(found, "\n"))
 	}

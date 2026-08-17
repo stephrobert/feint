@@ -1,24 +1,24 @@
 {
   "provider": "exoscale",
   "total": 374,
-  "implemented": 72,
+  "implemented": 85,
   "declined": 254,
-  "unknown": 48,
+  "unknown": 35,
   "orphans": null,
   "products": [
     {
       "product": "exoscale",
       "total": 374,
-      "implemented": 72,
+      "implemented": 85,
       "declined": 254,
-      "unknown": 48,
+      "unknown": 35,
       "versions": [
         {
           "version": "2.0.0",
           "total": 374,
-          "implemented": 72,
+          "implemented": 85,
           "declined": 254,
-          "unknown": 48
+          "unknown": 35
         }
       ]
     }
@@ -41,9 +41,9 @@
     {
       "group": "block-storage",
       "total": 13,
-      "implemented": 0,
+      "implemented": 13,
       "declined": 0,
-      "unknown": 13
+      "unknown": 0
     },
     {
       "group": "compute",
@@ -165,7 +165,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "block-storage",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.attach-dbaas-service-to-endpoint",
@@ -246,14 +246,14 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "block-storage",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.create-block-storage-volume",
       "product": "exoscale",
       "version": "2.0.0",
       "group": "block-storage",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.create-dbaas-clickhouse-user",
@@ -649,14 +649,14 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "block-storage",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.delete-block-storage-volume",
       "product": "exoscale",
       "version": "2.0.0",
       "group": "block-storage",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.delete-dbaas-clickhouse-role",
@@ -1057,7 +1057,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "block-storage",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.detach-dbaas-service-from-endpoint",
@@ -1241,14 +1241,14 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "block-storage",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.get-block-storage-volume",
       "product": "exoscale",
       "version": "2.0.0",
       "group": "block-storage",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.get-console-proxy-url",
@@ -1859,14 +1859,14 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "block-storage",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.list-block-storage-volumes",
       "product": "exoscale",
       "version": "2.0.0",
       "group": "block-storage",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.list-dbaas-clickhouse-roles",
@@ -2354,7 +2354,7 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "block-storage",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.resize-instance-disk",
@@ -2667,14 +2667,14 @@
       "product": "exoscale",
       "version": "2.0.0",
       "group": "block-storage",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.update-block-storage-volume",
       "product": "exoscale",
       "version": "2.0.0",
       "group": "block-storage",
-      "status": "unknown"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.update-dbaas-external-endpoint-datadog",

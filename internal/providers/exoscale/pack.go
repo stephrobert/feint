@@ -220,6 +220,38 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "GET", Path: "/v2/instance-type", Operation: operation("list-instance-types"), Handler: p.listInstanceTypes},
 		{Method: "GET", Path: "/v2/instance-type/{id}", Operation: operation("get-instance-type"), Handler: p.getInstanceType},
 
+		// Block Storage (EXO-4, #12). A product a client declares in an ordinary
+		// configuration, and the thirteen operations are the whole of it: the
+		// volume's CRUD, its attachment to one instance, its resize, and the
+		// snapshots taken from it. block.go says what is stored, what is
+		// computed, and which refusals are upstream's.
+		{Method: "POST", Path: "/v2/block-storage", Operation: operation("create-block-storage-volume"), Handler: p.createBlockVolume},
+		{Method: "GET", Path: "/v2/block-storage", Operation: operation("list-block-storage-volumes"), Handler: p.listBlockVolumes},
+		{Method: "GET", Path: "/v2/block-storage/{id}", Operation: operation("get-block-storage-volume"), Handler: p.getBlockVolume},
+		{Method: "PUT", Path: "/v2/block-storage/{id}", Operation: operation("update-block-storage-volume"), Handler: p.updateBlockVolume},
+		{Method: "DELETE", Path: "/v2/block-storage/{id}", Operation: operation("delete-block-storage-volume"), Handler: p.deleteBlockVolume},
+		{Method: "PUT", Path: "/v2/block-storage/{id}:attach", Operation: operation("attach-block-storage-volume-to-instance"), Handler: p.attachBlockVolumeToInstance},
+		{Method: "PUT", Path: "/v2/block-storage/{id}:detach", Operation: operation("detach-block-storage-volume"), Handler: p.detachBlockVolume},
+		{Method: "PUT", Path: "/v2/block-storage/{id}:resize-volume", Operation: operation("resize-block-storage-volume"), Handler: p.resizeBlockVolume},
+		{Method: "POST", Path: "/v2/block-storage/{id}:create-snapshot", Operation: operation("create-block-storage-snapshot"), Handler: p.createBlockSnapshot},
+		{Method: "GET", Path: "/v2/block-storage-snapshot", Operation: operation("list-block-storage-snapshots"), Handler: p.listBlockSnapshots},
+		{Method: "GET", Path: "/v2/block-storage-snapshot/{id}", Operation: operation("get-block-storage-snapshot"), Handler: p.getBlockSnapshot,
+			// The fourth per-id read this CLI never makes, and the pattern is
+			// now established rather than suspected: `exo` resolves a security
+			// group, an elastic IP, an instance snapshot and this one by listing
+			// and filtering in the client, because a user names a resource and
+			// the API keys it by id. Measured on each (#174).
+			//
+			// The Terraform provider *does* call it — measured against the
+			// patched fork docs/limits.md pins, where an apply of
+			// exoscale_block_storage_volume_snapshot reads it back by id. That
+			// is why the route is served rather than declined, and it is not why
+			// it would be driven: a client this project patched is not the
+			// official client, and that section says so.
+			Undriven: "`exo compute block-storage snapshot show` lists the snapshots and picks its one in the client, so the per-id read has no caller among the published clients"},
+		{Method: "PUT", Path: "/v2/block-storage-snapshot/{id}", Operation: operation("update-block-storage-snapshot"), Handler: p.updateBlockSnapshot},
+		{Method: "DELETE", Path: "/v2/block-storage-snapshot/{id}", Operation: operation("delete-block-storage-snapshot"), Handler: p.deleteBlockSnapshot},
+
 		// SSH keys. On the critical path of a create: the official CLI
 		// registers one of its own before it posts the instance.
 		{Method: "POST", Path: "/v2/ssh-key", Operation: operation("register-ssh-key"), Handler: p.registerSSHKey},
