@@ -87,6 +87,15 @@ description = "Fetch the upstream SDKs and API descriptions the scan and the con
 # stale file that would silently describe last year's API.
 run = """
 set -e
+# Git exports GIT_DIR to every hook it runs, and GIT_DIR overrides `git -C`:
+# the pull below then acts on GIT_DIR's repository, not on the SDK checkout
+# -C names. In an ordinary clone GIT_DIR is the relative `.git` and happens
+# to resolve correctly after -C, which is why this survived; from a worktree
+# it is absolute, and the pre-push hook failed the first push of any branch
+# with "There is no tracking information" — about the branch being pushed,
+# not about any SDK. Measured on 2026-08-17: with GIT_DIR exported the pull
+# reports the pushing repository's branch, without it the SDK syncs.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
 mkdir -p "{{config_root}}/.upstream"
 sync() {
   if [ -d "$2/.git" ]; then
