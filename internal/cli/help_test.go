@@ -4,6 +4,8 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -44,6 +46,55 @@ func TestEveryDispatchedCommandIsInTheHelp(t *testing.T) {
 		if !strings.Contains(help, "\n  feint "+name+" ") {
 			t.Errorf("`feint %s` dispatches and `feint --help` never names it: "+
 				"a reader exploring the CLI cannot discover it", name)
+		}
+	}
+}
+
+// A command the README never names is a command a reader decides against
+// installing without knowing it exists.
+//
+// The help is the second page somebody reads; the README is the first, and it is
+// the only one a reader sees before deciding whether to try this at all. Five of
+// the twenty-two verbs were missing from it on 2026-08-16 — `evidence`, `images`
+// and `shapes` outright, `stop` and `restart` folded into one entry — and ten
+// were missing from the French one, which had quietly fallen a release behind.
+//
+// The defect is not the five lines. It is that the generated blocks are checked
+// (`feint docs --check` regenerates the coverage tables and fails when they move)
+// while the hand-written command list was checked by nobody, so the sixth would
+// have gone the same way. This is the same test as the one above, one document
+// further out.
+//
+// Both READMEs, because the French one is the one that fell behind: a check on
+// the English one alone would have passed on the day the gap was widest.
+func TestEveryCommandIsNamedInTheReadmes(t *testing.T) {
+	dispatched := topLevelCommands(t)
+	if len(dispatched) < 15 {
+		t.Fatalf("only %d commands found in the dispatch: the scan is broken, "+
+			"not the README, and would otherwise pass while measuring nothing", len(dispatched))
+	}
+
+	for _, doc := range []string{"README.md", "README.fr.md"} {
+		body, err := os.ReadFile(filepath.Join("..", "..", doc))
+		if err != nil {
+			t.Fatalf("read %s: %v", doc, err)
+		}
+		page := string(body)
+		var missing []string
+		for _, name := range dispatched {
+			// Spelled out — "feint stop", not `stop` inside an entry about
+			// another verb. The grouped line `feint start` / `stop` / `restart`
+			// is what the first version of this list did, and it is why two
+			// verbs read as documented while nothing named them: a reader
+			// searching the page for "feint stop" found nothing.
+			if !strings.Contains(page, "feint "+name) {
+				missing = append(missing, name)
+			}
+		}
+		if len(missing) > 0 {
+			t.Errorf("%s never names %d of the %d commands the binary dispatches: %s.\n"+
+				"A verb no page names is one only a reader of the source will find.",
+				doc, len(missing), len(dispatched), strings.Join(missing, ", "))
 		}
 	}
 }

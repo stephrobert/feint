@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -185,6 +186,96 @@ func TestEveryBarrageExemptionSaysWhy(t *testing.T) {
 					key, reason)
 			}
 		}
+	}
+}
+
+// `internal/core` carries no provider-named code, which is the testable half of
+// what adding a provider costs.
+//
+// docs/architecture.md said "nothing outside `internal/providers/<name>/` should
+// need to change", and docs/fourth-pack.md measured eleven shared files a fourth
+// pack edits — a registration in `packsFor`, a row in the doctor's client table,
+// a task in mise.toml. Both statements were defended, and only one of them can be
+// true as written. The absolute one is the one that has to give: what actually
+// holds, measured every time anybody has looked, is narrower and stronger.
+//
+//	Adding a provider requires no behavioural change to internal/core; the
+//	external registration and integration points may receive additive data.
+//
+// That sentence is testable where the absolute one was not, and this is the test.
+// A pack's differences reach the core as field values — `Binding.Prefix`,
+// `Boot.User`, `AddressKey` — never as a name the core knows, so a name appearing
+// in core code is the boundary being in the wrong place. It was measured at zero
+// on 2026-08-10 and again on 2026-08-17; what was missing both times was anything
+// that would notice it stop being zero.
+//
+// Comments are exempt, and deliberately: this repository documents by citing the
+// measured example, and "the Scaleway CLI resolves its image first" in a comment
+// is the evidence for a rule, not a dependency on a pack. The watcher's event
+// filter — three provider prefixes written into the core, found by an audit — was
+// code, and would fail here.
+func TestTheCoreNamesNoProvider(t *testing.T) {
+	root := repoRoot(t)
+	packs := []string{}
+	for _, dir := range packDirs(t) {
+		packs = append(packs, filepath.Base(dir))
+	}
+
+	var offences []string
+	scanned := 0
+	err := filepath.WalkDir(filepath.Join(root, "internal", "core"), func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		fset := token.NewFileSet()
+		parsed, parseErr := parser.ParseFile(fset, path, nil, 0)
+		if parseErr != nil {
+			return parseErr
+		}
+		scanned++
+		rel, _ := filepath.Rel(root, path)
+		// The AST rather than the file's bytes, which is the whole design: a
+		// comment naming a provider is documentation, and grep cannot tell the
+		// two apart. Identifiers and string literals are what a program acts on.
+		ast.Inspect(parsed, func(node ast.Node) bool {
+			var text string
+			switch n := node.(type) {
+			case *ast.Ident:
+				text = n.Name
+			case *ast.BasicLit:
+				if n.Kind != token.STRING {
+					return true
+				}
+				text = n.Value
+			default:
+				return true
+			}
+			lowered := strings.ToLower(text)
+			for _, pack := range packs {
+				if strings.Contains(lowered, pack) {
+					offences = append(offences, fmt.Sprintf("%s:%d names %s in %s",
+						rel, fset.Position(node.Pos()).Line, pack, text))
+				}
+			}
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk internal/core: %v", err)
+	}
+	if scanned < 10 {
+		t.Fatalf("only %d files scanned under internal/core: the walk is broken, "+
+			"and would otherwise pass while measuring nothing", scanned)
+	}
+	sort.Strings(offences)
+	if len(offences) > 0 {
+		t.Errorf("internal/core acts on %d provider name(s), so a fourth pack would have to "+
+			"open the core to be treated like the other three:\n  %s",
+			len(offences), strings.Join(offences, "\n  "))
 	}
 }
 

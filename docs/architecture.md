@@ -127,11 +127,33 @@ link proves, and which links are stated but not yet enforced.
 
 ## Adding a provider
 
-Nothing outside `internal/providers/<name>/` should need to change. A pack
-declares its name, its routes with their upstream operations, what it declines,
-and the environment a real client of that cloud needs (`Pack.Env`, which is why
-`feint env` names no provider). If something seems to require touching the core,
-the boundary is in the wrong place — that is the signal, not the exception.
+**Adding a provider requires no behavioural change to `internal/core`; the
+external registration and integration points may receive additive data.**
+
+A pack declares its name, its routes with their upstream operations, what it
+declines, and the environment a real client of that cloud needs (`Pack.Env`,
+which is why `feint env` names no provider). If something seems to require
+changing how the core *behaves*, the boundary is in the wrong place — that is the
+signal, not the exception.
+
+The rule used to read "nothing outside `internal/providers/<name>/` should need
+to change", and that was refuted by this repository's own audit:
+[fourth-pack.md](fourth-pack.md) measured eleven shared files a fourth pack
+edits — a constructor in `packsFor`, a row in the doctor's client table, a task
+in `mise.toml`. Every one of them is additive, none can regress the three
+existing packs, and none of them made the absolute sentence true. Two documents
+disagreeing is worse than one narrower claim, and the narrower claim is the one
+that survives measurement.
+
+It also has what the absolute one could not have: a test.
+`TestTheCoreNamesNoProvider` reads every non-test file under `internal/core` and
+fails on a provider name in an identifier or a string literal — comments are
+exempt, because citing a measured example is how this repository documents. The
+defect it reproduces is real: the event watcher's filter once listed `"scw-"`,
+`"osc-"` and `"exo-"` in the core, so a fourth pack would have had to edit
+`internal/core` for its own events to be reported. A pack's differences reach the
+core as field values (`Binding.Prefix`, `Boot.User`, `AddressKey`), never as a
+name the core knows.
 
 [CONTRIBUTING.md](../CONTRIBUTING.md) walks through it, and
 `internal/providers/scaleway/` is the reference implementation.

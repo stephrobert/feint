@@ -334,22 +334,34 @@ sont pas encore appliqués : [docs/conformance.fr.md](docs/conformance.fr.md).
 
 ## Commandes
 
-La liste complète est donnée par `feint --help`, et elle fait autorité sur cette
-page. Les verbes principaux :
+`feint --help` donne les drapeaux. Les vingt-deux verbes sont ici : un verbe que
+cette page ne nomme pas est un verbe que seul un lecteur du code trouvera, et
+c'est arrivé à dix d'entre eux avant qu'un test compare les deux listes.
 
 | commande | ce qu'elle fait |
 | --- | --- |
 | `feint serve` | les trois clouds émulés sur un port, au premier plan |
-| `feint start` / `stop` / `restart` | le même, détaché, avec un cycle de vie surveillé |
+| `feint start` | le même, détaché : il enregistre l'instance, attend qu'elle réponde, dit où est le journal |
+| `feint stop` | SIGTERM, puis SIGKILL s'il le faut, en disant lequel — jamais un pid qui a cessé d'être feint |
+| `feint restart` | arrête, puis redémarre avec les drapeaux enregistrés |
+| `feint wait` | attend qu'il réponde — le verbe de la CI |
 | `feint status` | ce qui tourne, ce qu'il monte, ce qu'un client a piloté |
+| `feint logs` | le journal du processus détaché |
 | `feint ui` | ouvre la page que le binaire sert sur lui-même |
 | `feint doctor` | diagnostique l'hôte : le port, le runtime, les clients |
 | `feint env <provider>` | l'environnement dont un vrai client de ce provider a besoin |
-| `feint proxy` | enregistre ce qu'un vrai client et un vrai cloud se disent |
-| `feint shapes` | ce qu'un vrai cloud renvoie, et ce que l'émulateur en omet |
+| `feint snapshot` | nomme l'état d'un émulateur qui tourne et y revient : `save`, `load`, `list`, `rm` |
 | `feint coverage` | la surface amont servie, déclinée ou non triée |
-| `feint snapshot` | sauvegarde et recharge l'état |
-| `feint clean` | retire les machines et réseaux que l'émulateur a créés |
+| `feint proxy` | enregistre ce qu'un vrai client et un vrai cloud se disent, identifiants masqués |
+| `feint transcript` | lit un enregistrement : quoi servir ensuite, quelle forme, ce que l'émulateur omet |
+| `feint probe` | pilote chaque route montée depuis sa description d'API et contrôle les réponses |
+| `feint shapes` | ce qu'un vrai cloud renvoie, et ce que l'émulateur en omet |
+| `feint evidence` | écrit le registre de preuves qu'une exécution de conformance a gagnées, opération par opération |
+| `feint images` | construit les images de machines, qui portent un démon ssh pour répondre sans dépôt de paquets |
+| `feint docs` | régénère les tableaux de couverture de cette page |
+| `feint catalog` | affiche l'inventaire émulé qu'un client lit avant de créer |
+| `feint clean` | retire les machines, réseaux et jeux de règles que l'émulateur a créés |
+| `feint version` | affiche la version |
 
 Les codes de sortie sont stables, parce que la CI en dépend : **0** succès,
 **1** erreur, **2** dérive détectée.

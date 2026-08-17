@@ -692,7 +692,9 @@ rather than assumed.
 
 | Command | What it does |
 |---|---|
-| `feint start` / `stop` / `restart` | run it in the background, and stop it |
+| `feint start` | run it in the background: it records the instance, waits until it answers, and says where the log is |
+| `feint stop` | SIGTERM, then SIGKILL if it has to, and say which — never a pid that stopped being feint |
+| `feint restart` | stop, then start again with the flags that were recorded |
 | `feint wait` | poll until it answers — the CI verb |
 | `feint status` | what is running, what it mounts, what a client has driven |
 | `feint logs` | the detached run's log |
@@ -705,6 +707,9 @@ rather than assumed.
 | `feint proxy` | sit between a real client and a real cloud and record every exchange, credentials redacted |
 | `feint transcript` | read a recording: what to serve next, what a response must look like, what the emulator omits |
 | `feint probe` | drive every mounted route from its API description and check the answers |
+| `feint shapes` | the field trees a real cloud returns, versioned — and what this emulator omits from them |
+| `feint evidence` | write the per-operation evidence record a conformance run earned |
+| `feint images` | build the machine images, which carry an ssh daemon so a machine answers without a package repository |
 | `feint docs` | regenerate the coverage tables in this README |
 | `feint catalog` | print the emulated inventory a client reads before creating |
 | `feint clean` | remove every machine, network and rule set the emulator created |

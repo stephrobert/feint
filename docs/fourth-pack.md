@@ -2,7 +2,16 @@
 
 An audit with one question: is adding a fourth cloud cheap? Measured on
 `integration` at 6ece38c (2026-08-10), with the three existing packs as the
-sample. They are a good sample because they disagree on everything a fourth
+sample.
+
+> **Read the dates before the numbers.** The body of this document is the
+> 2026-08-10 measurement, kept as it was written. What has moved since is
+> collected under [Since the audit](#since-the-audit) at the end: two of its five
+> recommendations have landed, the packs have grown, and the one figure worth
+> defending — zero provider-named code in `internal/core` — is now held by a test
+> instead of by an audit somebody has to redo. The rest of the numbers are a
+> snapshot of a repository that has had a milestone happen to it, and should be
+> re-measured before anything is concluded from them. They are a good sample because they disagree on everything a fourth
 provider could disagree on: Scaleway signs nothing and is redirected by one
 variable, Outscale signs the Host header of a POST-action API, Exoscale follows
 an address the server returns and writes its verbs inside a path segment
@@ -199,3 +208,56 @@ What is **not** industrial today is three things, none structural:
   account by design, so a fourth pack built without one ships with the gate
   honestly saying "nothing to check", which recommendation 3 at least makes
   visible.
+
+## Since the audit
+
+Re-read on **2026-08-17**, one milestone later. Only what changed is listed; the
+body above stands as the 2026-08-10 measurement.
+
+**Recommendation 4 has landed.** `upstream.OutscaleCall(action) (key, method,
+path)` exists, and `shapes_check.callIdentity` calls it: the dialect is written
+once and its two consumers read the same function. That was the audit's one
+*real* duplication, named as this repository's failure pattern, and it is gone.
+Recommendations 2 and 3 were already marked done in the body. What is left open
+is 1 (proxy redaction for a dialect nobody has read) and 5 (watch, do not build),
+and 1 is still the one with a security consequence.
+
+**The headline figure is now a control rather than a claim.** "`internal/core`
+contains zero provider-named code" was true on 2026-08-10, true again on
+2026-08-17, and until now nothing would have noticed it stop being true.
+`TestTheCoreNamesNoProvider` (`internal/cli/discipline_test.go`) walks every
+non-test file under `internal/core` and fails on a provider name in an identifier
+or a string literal. It is falsified by reintroducing the exact defect an audit
+once found — the event filter listing `"scw-"`, `"osc-"`, `"exo-"` — and it
+reports all three.
+
+**The rule it holds was reworded, because this document refuted the old one.**
+`architecture.md` claimed nothing outside a pack's directory should need to
+change, while the map above counts eleven shared files. Both were defended and
+only one could be true as written. What holds is narrower:
+
+> Adding a provider requires no behavioural change to `internal/core`; the
+> external registration and integration points may receive additive data.
+
+**The size figures are stale, and by a lot.** The packs on 2026-08-17, code and
+test lines counted the same way as the body:
+
+| pack | code | test | operations mounted |
+|---|---|---|---|
+| Scaleway | 8 713 | 6 093 | 102 |
+| Outscale | 8 299 | 5 315 | 85 |
+| Exoscale | 4 549 | 2 542 | 72 |
+
+The body's "~79 lines per operation including tests" came from Exoscale at 46
+served operations; the same pack now sits at ~98 for 72, and the three together
+average ~137 (35 511 lines over 259 operations). The per-operation cost has gone **up**, not down, which is what
+should be expected as the cheap operations get served first and the shared
+proofs get finer — every route now owes a contract check, a shapes comparison,
+an evidence row, and either a client or a stated reason (#174). None of that
+existed at the ratio the body quotes.
+
+**What still has not been measured**, and is the reason this section is not a
+new audit: the eleven-file, forty-three-line figure for the shared surface. It
+requires judging, file by file, whether a fourth pack would have to edit it, and
+the answer moved when `packsFor`, the shapes gate and the docs banner started
+deriving their lists from the mounted packs. Re-measure it before quoting it.
