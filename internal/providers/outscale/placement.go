@@ -31,6 +31,10 @@ type placement struct {
 	NetID     string
 	Address   netip.Addr
 	PrefixLen int
+	// SubregionName is the zone the Subnet was created in — a stored fact
+	// since #269, and what a Vm created without a Placement of its own
+	// inherits (#268): its machine can only sit where its Subnet sits.
+	SubregionName string
 	// Network is the runtime network backing the Subnet, empty when no runtime
 	// is configured. Recorded for the caller that wants to know without asking
 	// the store again; the boot rebuilds it from the stored Subnet instead, so
@@ -75,11 +79,12 @@ func (p *Pack) placeInSubnet(subnetID string) (placement, error) {
 	}
 	netID := stringOf(subnet.Attrs["NetId"])
 	return placement{
-		SubnetID:  subnetID,
-		NetID:     netID,
-		Address:   address,
-		PrefixLen: prefix.Bits(),
-		Network:   subnet.Runtime[runtimeNetworkKey],
+		SubnetID:      subnetID,
+		NetID:         netID,
+		Address:       address,
+		PrefixLen:     prefix.Bits(),
+		SubregionName: orDefault(stringOf(subnet.Attrs["SubregionName"]), defaultSubregionName),
+		Network:       subnet.Runtime[runtimeNetworkKey],
 	}, nil
 }
 

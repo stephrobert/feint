@@ -1,0 +1,26 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "the view answers the pack's constant again, and a Vm created in eu-west-2b reads back in eu-west-2a (#268)",
+      "file": "internal/providers/outscale/vms.go",
+      "find": "\tif placement, ok := res.Attrs[\"Placement\"].(map[string]any); ok {",
+      "replace": "\tif placement, ok := res.Attrs[\"Placement\"].(map[string]any); ok && false {",
+      "test": "TestAVmCreatedInANamedSubregionReadsBackInIt"
+    },
+    {
+      "label": "the create stops reading the request's Placement, which is the exact defect: accepted with a 200, stored as the default (#268)",
+      "file": "internal/providers/outscale/vms.go",
+      "find": "\t\tsubregion = orDefault(requested.SubregionName, subregion)",
+      "replace": "\t\tsubregion = orDefault(requested.SubregionName[:0], subregion)",
+      "test": "TestAVmCreatedInANamedSubregionReadsBackInIt"
+    },
+    {
+      "label": "the catalogue declares one subregion again, and subregions[1] — the index the ocp stack reads — names nothing (#269)",
+      "file": "internal/providers/outscale/catalog.go",
+      "find": "\tout := make([]map[string]any, 0, len(subregions))\n\tfor _, subregion := range subregions {",
+      "replace": "\tout := make([]map[string]any, 0, len(subregions))\n\tfor _, subregion := range subregions[:1] {",
+      "test": "TestReadSubregionsDeclaresTheRegionsSubregions"
+    }
+  ]
+}

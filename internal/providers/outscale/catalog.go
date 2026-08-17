@@ -23,9 +23,43 @@ import (
 // Region is where the emulated account lives. One region, because a second one
 // would need its own store scoping and buys nothing until something tests it.
 const (
-	regionName    = "eu-west-2"
-	subregionName = "eu-west-2a"
+	regionName = "eu-west-2"
+	// defaultSubregionName is where anything lands when the client names no
+	// subregion — the API's own behaviour for a create outside a Net.
+	defaultSubregionName = "eu-west-2a"
 )
+
+// subregions is the catalogue of the region's own subregions: both of them,
+// because Outscale's published reference ("Regions, Endpoints, and Subregions
+// Reference", docs.outscale.com) lists exactly two for eu-west-2, mapped to
+// the physical zones PAR1 and PAR2. One region was a justified constant (store
+// scoping); one *subregion* never was, and #269 measured what the gap breaks:
+// a stack that asks ReadSubregions where it may put things — the recommended
+// pattern, `data "outscale_subregions"` indexed at [1] — died on "list of
+// object with 1 element" while a stack hardcoding its zone sailed through.
+//
+// This table is also the authority the write paths check against
+// (knownSubregion): CreateSubnet used to accept `cloudgouv-eu-west-1a`
+// verbatim while this catalogue claimed one AZ existed, so what a create
+// accepted and what the catalogue declared contradicted each other. Whichever
+// side a client believed, the other one lied to it.
+var subregions = []map[string]any{
+	{"SubregionName": "eu-west-2a", "RegionName": regionName, "LocationCode": "PAR1", "State": "available"},
+	{"SubregionName": "eu-west-2b", "RegionName": regionName, "LocationCode": "PAR2", "State": "available"},
+}
+
+// knownSubregion reports whether the catalogue declares the subregion. Every
+// write path that takes a SubregionName asks this before storing, so the
+// catalogue and the creates cannot disagree about which zones exist —
+// TestWhatACreateAcceptsTheCatalogueDeclares fails without it.
+func knownSubregion(name string) bool {
+	for _, subregion := range subregions {
+		if subregion["SubregionName"] == name {
+			return true
+		}
+	}
+	return false
+}
 
 // vmTypes is the emulated catalogue. Three sizes of the same family: enough for
 // a client to pick one, few enough that nobody mistakes it for Outscale's real
@@ -240,16 +274,35 @@ func (p *Pack) readRegions(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (p *Pack) readSubregions(w http.ResponseWriter, _ *http.Request) {
+// readSubregions serves the region's subregions and applies the three filters
+// FiltersSubregion declares (osc-sdk-go, pkg/osc/client.gen.go:5071). It used
+// to ignore the body entirely and answer a single fixed zone; the body matters
+// because the Terraform datasource is exactly the client that reads this
+// before deciding where to place everything else (#269).
+func (p *Pack) readSubregions(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Filters        filterSet `json:"Filters"`
+		ResultsPerPage int       `json:"ResultsPerPage"`
+		DryRun         *bool     `json:"DryRun"`
+	}
+	if err := emulator.DecodeJSON(r, &req); err != nil {
+		p.badRequest(w, err.Error())
+		return
+	}
+	if p.refuseUnsupported(w, req.Filters, "SubregionNames", "RegionNames", "States") {
+		return
+	}
+	out := make([]map[string]any, 0, len(subregions))
+	for _, subregion := range subregions {
+		if !matchesStrings(req.Filters, "SubregionNames", stringOf(subregion["SubregionName"])) ||
+			!matchesStrings(req.Filters, "RegionNames", stringOf(subregion["RegionName"])) ||
+			!matchesStrings(req.Filters, "States", stringOf(subregion["State"])) {
+			continue
+		}
+		out = append(out, subregion)
+	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Subregions": []map[string]any{
-			{
-				"SubregionName": subregionName,
-				"RegionName":    regionName,
-				"LocationCode":  "PAR1",
-				"State":         "available",
-			},
-		},
+		"Subregions":      page(out, req.ResultsPerPage),
 		"ResponseContext": p.context(),
 	})
 }

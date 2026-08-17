@@ -120,6 +120,23 @@ printf '%s' "$vms" | jq -e 'any(.Vms[0].Tags[]?; .Key == "name" and .Value == "f
   || fail "the tag the provider created is not on the Vm: $vms"
 ok "served, and carrying its tag"
 
+# The multi-AZ half (#268, #269): the second Vm was placed through the zone the
+# data source handed out — subregions[1], the exact index that could not even
+# plan against a one-zone catalogue — and the emulator must read it back in
+# that zone. Asked of the emulator, not of the state file: the state agreeing
+# with itself is precisely how #268 stayed invisible until a second plan ran.
+echo "- the Vm placed in the data-sourced subregion reads back in it"
+azb_vm_id="$("$TF" output -raw azb_vm_id)"
+azb_zone="$("$TF" output -raw azb_subregion)"
+[ -n "$azb_zone" ] || fail "the data source handed out no second subregion"
+[ "$azb_zone" != "eu-west-2a" ] || fail "subregions[1] is the default zone, so this proves nothing"
+azb_vms="$(curl -sf -X POST "$ENDPOINT/api/v1/ReadVms" -H 'Content-Type: application/json' \
+            -d "{\"Filters\":{\"VmIds\":[\"$azb_vm_id\"]}}")" || fail "ReadVms rejected"
+printf '%s' "$azb_vms" | jq -e --arg z "$azb_zone" \
+  '.Vms[0].Placement.SubregionName == $z and .Vms[0].Placement.Tenancy == "default"' >/dev/null \
+  || fail "the Vm asked for $azb_zone and reads back elsewhere — #268 is back: $azb_vms"
+ok "Vm $azb_vm_id placed and read back in $azb_zone"
+
 # The routing family, which the apply proves the provider accepted and this
 # proves the emulator actually holds. Each of these was a 400 on a filter the
 # provider sends and the pack had not declared — found here, by this fixture,

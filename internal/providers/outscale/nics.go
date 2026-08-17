@@ -140,7 +140,7 @@ func (p *Pack) nicView(vm *resource.Resource, nicID, subnetID, netID string) map
 		"MacAddress":          macOf(nicID),
 		"NetId":               netID,
 		"SubnetId":            subnetID,
-		"SubregionName":       subregionName,
+		"SubregionName":       p.subnetSubregion(subnetID),
 		"State":               "in-use",
 		"PrivateDnsName":      dns,
 		"PrivateIps": []any{map[string]any{
@@ -205,7 +205,7 @@ func (p *Pack) storedNicView(nic *resource.Resource) map[string]any {
 		"MacAddress":          macOf(nic.ID),
 		"NetId":               netID,
 		"SubnetId":            stringOf(nic.Attrs["SubnetId"]),
-		"SubregionName":       subregionName,
+		"SubregionName":       p.subnetSubregion(stringOf(nic.Attrs["SubnetId"])),
 		"State":               stringOf(nic.Attrs["State"]),
 		"PrivateDnsName":      dns,
 		// The primary entry, plus every secondary address linked since
