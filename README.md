@@ -79,6 +79,8 @@ It installs the released binary, **verifies its checksum before running it**, an
 Apply complete! Resources: 5 added, 0 changed, 0 destroyed.
 ```
 
+![A GitHub Actions job pulling the image, pointing the official Scaleway CLI at it, and applying Terraform — no cloud account and no secret](docs/assets/ci.gif)
+
 Copy-paste pipelines for both, with nothing to configure and no secret to add:
 [**examples/**](examples/) — GitHub Actions, GitLab CI, and a `setup-feint`
 action that verifies the binary before it runs it.
