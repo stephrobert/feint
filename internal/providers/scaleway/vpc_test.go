@@ -56,10 +56,12 @@ func TestPrivateNetworkRoundTripsItsBlock(t *testing.T) {
 
 	_, created := privateNetwork(t, ts, `{"name":"app","subnets":["10.20.0.0/24"]}`)
 	subnets, _ := created["subnets"].([]any)
-	if len(subnets) != 1 {
-		t.Fatalf("expected one subnet, got %v", created["subnets"])
+	// Two records, one per family: the IPv4 block the client chose, and the
+	// IPv6 /64 upstream allocates unasked (#270).
+	if len(subnets) != 2 {
+		t.Fatalf("expected two subnets, got %v", created["subnets"])
 	}
-	subnet, _ := subnets[0].(map[string]any)
+	subnet := ipv4SubnetOf(t, subnets)
 	if subnet["subnet"] != "10.20.0.0/24" {
 		t.Errorf("block came back as %v, want 10.20.0.0/24", subnet["subnet"])
 	}

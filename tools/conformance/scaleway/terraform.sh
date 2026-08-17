@@ -112,6 +112,18 @@ printf '%s' "$ipam_body" | jq -e '.resource.type == "instance_private_nic" and (
   || fail "the booked address does not name the NIC carrying it: $ipam_body"
 ok "10.182.0.10 booked and carried by a NIC"
 
+# The IPv6 half of the Private Network (#270). The fixture's ipv6_subnet output
+# is one(pn.ipv6_subnets).subnet — the expression that died on null while this
+# emulator served IPv4 only, on apply and then again on destroy — so reaching
+# this line at all means the provider found exactly one IPv6 subnet. What is
+# asserted on top is its advertised form: a unique-local /64.
+echo "- the private network publishes one IPv6 /64"
+ipv6_subnet="$("$TF" output -raw ipv6_subnet)"
+case "$ipv6_subnet" in
+  fd*/64) ok "ipv6_subnets carries $ipv6_subnet" ;;
+  *) fail "expected a unique-local /64 in ipv6_subnets, got '$ipv6_subnet'" ;;
+esac
+
 route_id="$("$TF" output -raw route_id)"
 route_uuid="${route_id##*/}"
 code="$(curl -s -o /dev/null -w '%{http_code}' "$ENDPOINT/vpc/v2/regions/fr-par/routes/$route_uuid")"

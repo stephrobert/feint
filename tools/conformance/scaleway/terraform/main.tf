@@ -238,6 +238,15 @@ resource "scaleway_instance_private_nic" "conformance" {
   zone               = "fr-par-1"
 }
 
+# The exact expression that killed the talos stack (#270): upstream always
+# allocates exactly one IPv6 /64 per Private Network, so one() is the ordinary
+# way to consume it — and against an emulator publishing no IPv6 subnet, one()
+# yields null, this output dies on apply, and a stack already applied cannot
+# even destroy. Keeping the expression here makes that a permanent regression.
+output "ipv6_subnet" {
+  value = one(scaleway_vpc_private_network.conformance.ipv6_subnets).subnet
+}
+
 output "server_id" {
   value = scaleway_instance_server.conformance.id
 }

@@ -27,12 +27,28 @@ func createPN(t *testing.T, ts *httptest.Server, subnet string) (id string, subn
 	}
 	id, _ = body["id"].(string)
 	subnets, _ := body["subnets"].([]any)
-	if len(subnets) != 1 {
-		t.Fatalf("private network carries %d subnets, want 1", len(subnets))
+	// Dual-stack, like upstream (#270): one IPv4 record, one IPv6. IPAM joins
+	// on the IPv4 one, so that is the id handed back.
+	if len(subnets) != 2 {
+		t.Fatalf("private network carries %d subnets, want 2", len(subnets))
 	}
-	first, _ := subnets[0].(map[string]any)
-	subnetID, _ = first["id"].(string)
+	subnetID, _ = ipv4SubnetOf(t, subnets)["id"].(string)
 	return id, subnetID
+}
+
+// ipv4SubnetOf picks the IPv4 record out of a subnets list: a Private Network
+// carries one record per family, and most consumers here want the IPv4 half.
+func ipv4SubnetOf(t *testing.T, subnets []any) map[string]any {
+	t.Helper()
+	for _, raw := range subnets {
+		s, _ := raw.(map[string]any)
+		block, _ := s["subnet"].(string)
+		if p, err := netip.ParsePrefix(block); err == nil && p.Addr().Is4() {
+			return s
+		}
+	}
+	t.Fatalf("no IPv4 subnet in %v", subnets)
+	return nil
 }
 
 func bookIP(t *testing.T, ts *httptest.Server, body string) map[string]any {

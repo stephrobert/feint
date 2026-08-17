@@ -49,6 +49,24 @@ var knownRegions = map[string]bool{
 // the same shape so an address computed here looks like one from up there.
 const privateNetworkMask = 22
 
+// privateNetworkV6Mask is the size of a Private Network's IPv6 subnet.
+//
+// Upstream, every Private Network is dual-stack: creation allocates the IPv4
+// block and an IPv6 /64 without being asked, and the SDK carries both in the
+// one subnets list (vpc_sdk.go: PrivateNetwork.Subnets, []*Subnet — there is no
+// separate ipv6 field on the wire; the Terraform provider splits ipv4_subnet
+// from ipv6_subnets by address family, client-side). An emulator serving only
+// the IPv4 half made `one(pn.ipv6_subnets).subnet` die on null, apply and
+// destroy both (#270).
+//
+// Honest caveat: the /64 size and the fd00::/8 unique-local range are derived
+// from the SDK and the provider's documentation, not observed — the shapes
+// catalogue holds no populated private-network read from the real cloud yet.
+// #270 stays open until `feint shapes --record --provider scaleway` runs
+// against an account holding one Private Network and the recording lands in
+// shapes/scaleway.json to arbitrate this.
+const privateNetworkV6Mask = 64
+
 // reservedPerSubnet is what the runtime keeps at the bottom of a Private Network
 // block: the network address, and the gateway the managed bridge answers on.
 const reservedPerSubnet = 2
@@ -275,8 +293,31 @@ func (p *Pack) createPrivateNetwork(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The IPv6 half, allocated whether or not the client asked: upstream every
+	// Private Network is dual-stack (see privateNetworkV6Mask). The id is drawn
+	// first because it seeds the derivation, so the block is a function of the
+	// resource and nothing else.
+	id := p.env.NewID()
+	prefix6, err := p.resolveSubnetV6(req.Subnets, id)
+	if err != nil {
+		writeInvalidArguments(w, ArgumentError{
+			ArgumentName: "subnets",
+			Reason:       "constraint",
+			HelpMessage:  err.Error(),
+		})
+		return
+	}
+	if other, clash := network.FirstOverlap(prefix6, p.usedPrefixes(region)); clash {
+		writeInvalidArguments(w, ArgumentError{
+			ArgumentName: "subnets",
+			Reason:       "constraint",
+			HelpMessage:  "subnet " + prefix6.String() + " overlaps " + other.String(),
+		})
+		return
+	}
+
 	now := p.env.Now()
-	res := resource.New(p.env.NewID(), kindPrivateNetwork, resource.Tenant{Provider: Name, Project: project, Zone: region}, "available", now)
+	res := resource.New(id, kindPrivateNetwork, resource.Tenant{Provider: Name, Project: project, Zone: region}, "available", now)
 	res.Attrs = map[string]any{
 		"name":                              orDefault(req.Name, "pn-"+prefix.Addr().String()),
 		"project_id":                        project,
@@ -286,6 +327,9 @@ func (p *Pack) createPrivateNetwork(w http.ResponseWriter, r *http.Request) {
 		"dhcp_enabled":                      true,
 		"default_route_propagation_enabled": deref(req.DefaultRoutePropagationEnabled, false),
 		"subnet":                            prefix.String(),
+		// Stored, not recomputed at read time: what a client was told once is
+		// what every later read and every restored snapshot must repeat.
+		"subnet_ipv6": prefix6.String(),
 	}
 	// The backing network is created before the resource is stored, and a
 	// failure is fatal to the request rather than logged.
@@ -392,8 +436,8 @@ func (p *Pack) deletePrivateNetwork(w http.ResponseWriter, r *http.Request) {
 // ---- Subnets ----------------------------------------------------------------
 
 // listSubnets answers the region's subnets as first-class objects. They are the
-// same records ListPrivateNetworks already carries on each network — one block
-// per network here — served flat because the SDK offers this second door and
+// same records ListPrivateNetworks already carries on each network — one per
+// address family — served flat because the SDK offers this second door and
 // the Terraform provider matches a booked address's subnet_id against it.
 func (p *Pack) listSubnets(w http.ResponseWriter, r *http.Request) {
 	region, ok := regionOf(w, r)
@@ -408,35 +452,57 @@ func (p *Pack) listSubnets(w http.ResponseWriter, r *http.Request) {
 			return res.Attrs["vpc_id"] == vpcID
 		})
 	}
+
+	// Flattened before filtering and paging: a Private Network carries two
+	// subnets now, and this door serves subnets, not networks — a page size or
+	// a subnet_ids filter counts records of the thing being listed.
+	subnets := make([]map[string]any, 0, 2*len(networks))
+	for _, pn := range networks {
+		subnets = append(subnets, subnetViews(pn)...)
+	}
 	if ids := q["subnet_ids"]; len(ids) > 0 {
 		wanted := make(map[string]bool, len(ids))
 		for _, id := range ids {
 			wanted[id] = true
 		}
-		networks = filterResources(networks, func(res *resource.Resource) bool {
-			return wanted[subnetIDOf(res.ID)]
-		})
+		filtered := subnets[:0]
+		for _, s := range subnets {
+			if id, _ := s["id"].(string); wanted[id] {
+				filtered = append(filtered, s)
+			}
+		}
+		subnets = filtered
 	}
 
 	page := parsePage(r)
-	start, end := page.slice(len(networks))
-	subnets := make([]map[string]any, 0, end-start)
-	for _, pn := range networks[start:end] {
-		subnets = append(subnets, subnetView(pn))
-	}
+	start, end := page.slice(len(subnets))
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"subnets":     subnets,
-		"total_count": len(networks),
+		"subnets":     subnets[start:end],
+		"total_count": len(subnets),
 	})
 }
 
-// subnetView is the wire shape of a Private Network's one subnet, and the same
-// object privateNetworkView embeds: two doors, one record.
-func subnetView(pn *resource.Resource) map[string]any {
+// subnetViews is the wire shape of a Private Network's subnets, one record per
+// family, and the same objects privateNetworkView embeds: two doors, one
+// builder. The SDK has no ipv6 field here — both families ride the one
+// subnets list (vpc_sdk.go: PrivateNetwork.Subnets), and a client tells them
+// apart by address family.
+func subnetViews(pn *resource.Resource) []map[string]any {
 	subnet, _ := pn.Attrs["subnet"].(string)
+	out := []map[string]any{subnetRecord(pn, subnetIDOf(pn.ID), subnet)}
+	// Absent on a resource restored from a snapshot taken before the emulator
+	// allocated IPv6: serve what the store holds rather than invent a block at
+	// read time that no create path ever validated.
+	if subnet6, _ := pn.Attrs["subnet_ipv6"].(string); subnet6 != "" {
+		out = append(out, subnetRecord(pn, subnetV6IDOf(pn.ID), subnet6))
+	}
+	return out
+}
+
+func subnetRecord(pn *resource.Resource, id, block string) map[string]any {
 	return map[string]any{
-		"id":                 subnetIDOf(pn.ID),
-		"subnet":             subnet,
+		"id":                 id,
+		"subnet":             block,
 		"project_id":         pn.Attrs["project_id"],
 		"private_network_id": pn.ID,
 		"vpc_id":             pn.Attrs["vpc_id"],
@@ -598,9 +664,9 @@ func (p *Pack) resolveSubnet(requested []string) (netip.Prefix, error) {
 	if len(requested) == 0 {
 		return p.freePrefix(), nil
 	}
-	// One IPv4 block per Private Network here. Scaleway also carries an IPv6
-	// one, which the allocator does not handle and which no emulated machine
-	// would use.
+	// This resolves the IPv4 block only; the IPv6 one goes through
+	// resolveSubnetV6. Requesting IPv6 alone stays an error, as upstream
+	// requires the IPv4 half.
 	for _, raw := range requested {
 		prefix, err := network.ParseCIDR(raw)
 		if err != nil {
@@ -615,6 +681,42 @@ func (p *Pack) resolveSubnet(requested []string) (netip.Prefix, error) {
 		return prefix, nil
 	}
 	return netip.Prefix{}, fmt.Errorf("no IPv4 subnet in the request")
+}
+
+// resolveSubnetV6 validates the IPv6 block a client asked for, or derives one.
+//
+// A client that named an fd…/64 expects it back unchanged, exactly like the
+// IPv4 path. A client that named none still gets one, because upstream
+// allocates it unasked — that is the whole of #270. The derived block is a
+// unique-local /64 seeded by the resource id: deterministic between two reads,
+// and stored anyway, so it also survives a snapshot into another instance.
+func (p *Pack) resolveSubnetV6(requested []string, id string) (netip.Prefix, error) {
+	for _, raw := range requested {
+		prefix, err := network.ParseCIDR(raw)
+		if err != nil {
+			return netip.Prefix{}, err
+		}
+		if prefix.Addr().Is4() {
+			continue
+		}
+		if err := network.CheckMask(prefix, privateNetworkV6Mask, privateNetworkV6Mask); err != nil {
+			return netip.Prefix{}, err
+		}
+		return prefix, nil
+	}
+	// Nothing requested: derive, and dodge the blocks already held. A clash is
+	// a 2^-56 hash collision or a client that requested this exact block for
+	// another network; salting the seed keeps the loop deterministic given the
+	// same store, and the result is stored, so later reads do not re-run it.
+	taken := p.usedPrefixes("")
+	seed := id
+	for {
+		candidate := network.ULA64(seed)
+		if _, clash := network.FirstOverlap(candidate, taken); !clash {
+			return candidate, nil
+		}
+		seed += "+"
+	}
 }
 
 // freePrefix picks a block from the private range that no Private Network holds.
@@ -651,6 +753,13 @@ func (p *Pack) usedPrefixes(region string) []netip.Prefix {
 		}
 		if prefix, err := prefixOf(res); err == nil {
 			out = append(out, prefix)
+		}
+		// The IPv6 blocks too, so a requested fd…/64 cannot land on a sibling's.
+		// Harmless to the IPv4 callers: Overlaps is false across families.
+		if raw, _ := res.Attrs["subnet_ipv6"].(string); raw != "" {
+			if prefix6, err := network.ParseCIDR(raw); err == nil {
+				out = append(out, prefix6)
+			}
 		}
 	}
 	return out
@@ -838,15 +947,15 @@ func privateNetworkView(res *resource.Resource) map[string]any {
 		"updated_at": res.Updated.Format(time.RFC3339),
 	}
 	for k, v := range res.Attrs {
-		if k == "subnet" {
+		if k == "subnet" || k == "subnet_ipv6" {
 			continue
 		}
 		out[k] = v
 	}
-	// The wire shape carries a list of subnet objects, not the bare block the
-	// store keeps: a client decodes them into vpc.Subnet. The same object
+	// The wire shape carries a list of subnet objects, not the bare blocks the
+	// store keeps: a client decodes them into vpc.Subnet. The same objects
 	// ListSubnets serves flat — one builder, so the two doors cannot disagree.
-	out["subnets"] = []any{subnetView(res)}
+	out["subnets"] = subnetViews(res)
 	return out
 }
 
@@ -858,6 +967,13 @@ func privateNetworkView(res *resource.Resource) map[string]any {
 // looking at.
 func subnetIDOf(privateNetworkID string) string {
 	return derivedID("subnet:" + privateNetworkID)
+}
+
+// subnetV6IDOf is the IPv6 subnet's identifier, distinct from the IPv4 one for
+// the same reason the IPv4 one is distinct from the network's: two records,
+// two ids, or a client holding both cannot tell which it stored.
+func subnetV6IDOf(privateNetworkID string) string {
+	return derivedID("subnet-v6:" + privateNetworkID)
 }
 
 // derivedID builds a UUID-shaped identifier from a seed, deterministically.

@@ -1,0 +1,19 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the IPv6 block is stored under a key nothing reads, so the network publishes IPv4 only",
+      "file": "internal/providers/scaleway/vpc.go",
+      "find": "\t\t\"subnet_ipv6\": prefix6.String(),",
+      "replace": "\t\t\"subnet_ipv6\" + \"-unread\": prefix6.String(),",
+      "test": "TestPrivateNetworkPublishesAnIPv6Subnet"
+    },
+    {
+      "label": "the stored IPv6 block never reaches the subnets list",
+      "file": "internal/providers/scaleway/vpc.go",
+      "find": "\tif subnet6, _ := pn.Attrs[\"subnet_ipv6\"].(string); subnet6 != \"\" {",
+      "replace": "\tif subnet6, _ := pn.Attrs[\"subnet_ipv6\"].(string); subnet6 != \"\" && false {",
+      "test": "TestPrivateNetworkPublishesAnIPv6Subnet"
+    }
+  ]
+}

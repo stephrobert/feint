@@ -208,10 +208,14 @@ func (p *Pack) bookIP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.IsIPv6 {
+		// The Private Network publishes an IPv6 subnet (#270), but the machine
+		// runtime and the allocator behind it are IPv4: booking from the IPv6
+		// block would hand out an address no emulated machine ever carries,
+		// which is the exact lie this project exists to avoid.
 		writeInvalidArguments(w, ArgumentError{
 			ArgumentName: "is_ipv6",
 			Reason:       "constraint",
-			HelpMessage:  "the emulated networks are IPv4; there is no IPv6 subnet to book from",
+			HelpMessage:  "the emulated machines carry IPv4 only; the IPv6 subnet is published but no address can be booked from it",
 		})
 		return
 	}
