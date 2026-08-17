@@ -84,6 +84,36 @@ func (p *Pack) createPrivateNIC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var req createPrivateNICRequest
+	if err := emulator.DecodeJSON(r, &req); err != nil {
+		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
+		return
+	}
+
+	res, ok := p.attachNIC(w, r, server.ID, req)
+	if !ok {
+		return
+	}
+	emulator.WriteJSON(w, http.StatusCreated, map[string]any{"private_nic": p.privateNICView(res)})
+}
+
+// attachNIC is the whole attachment, from the server hold to the firewall, and
+// it is shared because two APIs now reach it: instance/v1
+// (POST /servers/{id}/private_nics) and instance/v2alpha1
+// (POST /private-network-interfaces, server_id in the body). Terraform provider
+// 2.81.0 uses the second, `scw` still uses the first.
+//
+// Shared rather than copied, and CLAUDE.md says why in general terms; here it is
+// concrete. This sequence holds a per-server lock, re-reads the server inside it,
+// serialises address allocation, books or allocates an address, writes back with
+// Commit rather than Put, attaches the machine outside the store lock and reapplies
+// the firewall. Six invariants, each one paid for by a defect. A second copy
+// would have five of them for about a week.
+//
+// What differs between the two doors is the envelope alone — where server_id
+// comes from, and the shape of the answer — so that is what stays in the
+// handlers.
+func (p *Pack) attachNIC(w http.ResponseWriter, r *http.Request, serverID string, req createPrivateNICRequest) (*resource.Resource, bool) {
 	// Held for the whole handler. p.lockAddresses() below serialises NIC creates
 	// against each other, but it is not the lock deleteServer takes, so nothing
 	// ordered this handler against a delete of the server it is attaching to.
@@ -99,7 +129,7 @@ func (p *Pack) createPrivateNIC(w http.ResponseWriter, r *http.Request) {
 	// direction everywhere is what keeps two callers from meeting head on.
 	//
 	// TestAttachingANICDoesNotResurrectADeletedServer fails without this.
-	unlock := p.binding().Serialise(server.ID)
+	unlock := p.binding().Serialise(serverID)
 	defer unlock()
 
 	// And the target is read again inside the hold, because the hold alone is not
@@ -112,25 +142,20 @@ func (p *Pack) createPrivateNIC(w http.ResponseWriter, r *http.Request) {
 	// that landed before the lock, the hold rules out one landing after.
 	//
 	// TestAttachingANICDoesNotResurrectADeletedServer fails without this too.
-	server, found := p.env.Store.Get(Name, kindServer, server.ID)
+	server, found := p.env.Store.Get(Name, kindServer, serverID)
 	if !found {
-		writeNotFound(w, "server", r.PathValue("id"))
-		return
+		writeNotFound(w, "server", serverID)
+		return nil, false
 	}
 
-	var req createPrivateNICRequest
-	if err := emulator.DecodeJSON(r, &req); err != nil {
-		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
-		return
-	}
 	if req.PrivateNetworkID == "" {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "private_network_id", Reason: "required"})
-		return
+		return nil, false
 	}
 	pn, found := p.env.Store.Get(Name, kindPrivateNetwork, req.PrivateNetworkID)
 	if !found {
 		writeNotFound(w, "private_network", req.PrivateNetworkID)
-		return
+		return nil, false
 	}
 	// One NIC per network per server, which is what the API enforces: a second
 	// one would receive a second address on the same bridge and the control
@@ -139,7 +164,7 @@ func (p *Pack) createPrivateNIC(w http.ResponseWriter, r *http.Request) {
 		if existing.Runtime[runtimePrivateNetworkKey] == pn.ID {
 			writePrecondition(w, "private_nic", existing.ID,
 				"the server is already attached to this private network")
-			return
+			return nil, false
 		}
 	}
 
@@ -156,7 +181,7 @@ func (p *Pack) createPrivateNIC(w http.ResponseWriter, r *http.Request) {
 	// rebuilt from every IPAM address of the network, booked included.
 	booked, ok := p.bookedIPsOf(w, req.bookedIPIDs(), pn, server)
 	if !ok {
-		return
+		return nil, false
 	}
 
 	var address netip.Addr
@@ -170,7 +195,7 @@ func (p *Pack) createPrivateNIC(w http.ResponseWriter, r *http.Request) {
 			writeInvalidArguments(w, ArgumentError{
 				ArgumentName: "ipam_ip_ids", Reason: "constraint", HelpMessage: err.Error(),
 			})
-			return
+			return nil, false
 		}
 		address = prefix.Addr()
 	} else {
@@ -181,7 +206,7 @@ func (p *Pack) createPrivateNIC(w http.ResponseWriter, r *http.Request) {
 				Reason:       "constraint",
 				HelpMessage:  err.Error(),
 			})
-			return
+			return nil, false
 		}
 		address, err = alloc.Allocate()
 		if err != nil {
@@ -189,7 +214,7 @@ func (p *Pack) createPrivateNIC(w http.ResponseWriter, r *http.Request) {
 			// asked for one more address than the subnet holds.
 			writePrecondition(w, "private_network", pn.ID,
 				"no address left in "+alloc.Prefix().String())
-			return
+			return nil, false
 		}
 	}
 
@@ -229,7 +254,7 @@ func (p *Pack) createPrivateNIC(w http.ResponseWriter, r *http.Request) {
 			writeInvalidArguments(w, ArgumentError{
 				ArgumentName: "private_network_id", Reason: "constraint", HelpMessage: err.Error(),
 			})
-			return
+			return nil, false
 		}
 		p.env.Store.Put(p.newIPAMIP(regionOfZone(server.Tenant.Zone), server.Tenant.Project,
 			netip.PrefixFrom(address, prefix.Bits()), res, pn))
@@ -242,13 +267,25 @@ func (p *Pack) createPrivateNIC(w http.ResponseWriter, r *http.Request) {
 	// Commit, not Put, and it is the rule the repository already states: Put
 	// reinserts unconditionally, so attaching a NIC to a server a concurrent
 	// DELETE had just removed brought the server back — with its address, its
-	// volumes and a machine nobody would think to stop. The server is also held
-	// above, so this write cannot be built on a copy older than the lock.
+	// volumes and a machine nobody would think to stop.
 	//
-	// TestAttachingANICDoesNotResurrectADeletedServer fails without this.
+	// **What this line is worth today, measured rather than asserted.** The
+	// comment used to end "TestAttachingANICDoesNotResurrectADeletedServer fails
+	// without this", and on 17 August 2026 that turned out to be false: with
+	// Commit replaced by an unconditional Put, the barrage stayed green over 120
+	// trials (tools/falsify/specs/one-attachment-two-doors.json, `repeat: 10`).
+	// It is the per-server hold above that the same barrage kills in one run.
+	//
+	// The two guards overlap, and the hold subsumes this one: the re-read
+	// happens inside the lock, so a delete either landed before it — and the
+	// re-read answers 404 — or cannot land until this returns. Commit stays
+	// because it costs nothing and is the only guard left if that hold is ever
+	// narrowed, but it is a belt behind braces, and saying otherwise is the
+	// exact failure CLAUDE.md names: a sentence that reads like a proof and is
+	// not one.
 	if !p.env.Store.Commit(server, p.env.Now()) {
 		writeNotFound(w, "server", server.ID)
-		return
+		return nil, false
 	}
 
 	// The address lock is done once the allocation is written, and it is released
@@ -288,7 +325,7 @@ func (p *Pack) createPrivateNIC(w http.ResponseWriter, r *http.Request) {
 	// exactly the interface the group is about.
 	p.applyServerFirewall(r.Context(), server)
 
-	emulator.WriteJSON(w, http.StatusCreated, map[string]any{"private_nic": p.privateNICView(res)})
+	return res, true
 }
 
 // bookedIPsOf resolves the IPAM addresses a NIC create names, and refuses the

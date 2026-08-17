@@ -1,0 +1,20 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the shared attachment releases the server before it works, so an attach can be built on a server a concurrent delete already removed",
+      "file": "internal/providers/scaleway/privatenics.go",
+      "find": "\tunlock := p.binding().Serialise(serverID)\n\tdefer unlock()",
+      "replace": "\tunlock := p.binding().Serialise(serverID)\n\tunlock()\n\tdefer func() {}()",
+      "test": "TestAttachingANICDoesNotResurrectADeletedServer",
+      "repeat": 10
+    },
+    {
+      "label": "the v2alpha1 view reports a NIC the runtime refused as available, so the API claims an interface the machine does not carry",
+      "file": "internal/providers/scaleway/privatenics_v2alpha1.go",
+      "find": "\tstatus := res.State\n\tif status == \"syncing_error\" {\n\t\tstatus = \"unknown_status\"\n\t}",
+      "replace": "\tstatus := res.State\n\tif status == \"syncing_error\" {\n\t\tstatus = \"available\"\n\t}",
+      "test": "TestARefusedAttachmentIsVisibleOnTheV2alpha1View"
+    }
+  ]
+}

@@ -454,6 +454,52 @@ func TestARefusedAttachmentIsVisibleOnTheNIC(t *testing.T) {
 	}
 }
 
+// The same refusal, read through the door instance/v2alpha1 opened.
+//
+// v1 has a syncing_error state and says so; v2alpha1's enum has no error member
+// at all — unknown_status, available, attaching, detaching, syncing — so the
+// view has to choose, and choosing `available` would publish an interface the
+// machine does not carry. That is the one failure this project exists to
+// avoid, and it would be invisible to the v1 test above: the two views read one
+// stored state through two vocabularies.
+//
+// tools/falsify/specs/one-attachment-two-doors.json turns the mapping into
+// `available` and this test goes red.
+func TestARefusedAttachmentIsVisibleOnTheV2alpha1View(t *testing.T) {
+	refusing := &refusingRuntime{fakeRuntime: newFakeRuntime()}
+	close(refusing.release)
+	ts := newRuntimeTestServer(t, refusing)
+
+	srvID := aServer(t, ts, "vm-host")
+	if status, _ := do(t, ts, "POST", zone+"/servers/"+srvID+"/action",
+		`{"action":"poweron"}`); status != http.StatusAccepted {
+		t.Fatalf("poweron")
+	}
+	_, out := do(t, ts, "POST", "/vpc/v2/regions/fr-par/private-networks",
+		`{"name":"net","subnets":["10.191.0.0/24"]}`)
+	pnID, _ := out["id"].(string)
+	if pnID == "" {
+		t.Fatalf("no private network: %v", out)
+	}
+
+	// Created through the v2alpha1 door too, so the whole path is the one the
+	// Terraform provider takes since 2.81.0.
+	status, created := do(t, ts, "POST", "/instance/v2alpha1/zones/fr-par-1/private-network-interfaces",
+		`{"private_network_id":"`+pnID+`","server_id":"`+srvID+`"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("v2alpha1 create: expected 201, got %d (%v)", status, created)
+	}
+	if got, _ := created["status"].(string); got != "unknown_status" {
+		t.Errorf("the create answers status %q after the runtime refused the attachment, want unknown_status", got)
+	}
+
+	nicID, _ := created["id"].(string)
+	_, read := do(t, ts, "GET", "/instance/v2alpha1/zones/fr-par-1/private-network-interfaces/"+nicID, "")
+	if got, _ := read["status"].(string); got != "unknown_status" {
+		t.Errorf("the read answers status %q, want unknown_status", got)
+	}
+}
+
 // refusingRuntime attaches nothing, the way Incus refuses a hot-plugged NIC on a
 // running virtual machine.
 type refusingRuntime struct {

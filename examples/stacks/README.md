@@ -13,6 +13,7 @@ cd examples/stacks/scaleway && terraform init && terraform apply
 |---|---|
 | [`scaleway/`](scaleway/main.tf) | two VPCs, three private networks and a route between them, three security groups, a bastion, a web tier with IPAM-booked addresses, an application tier with no public address, a golden image cut from a snapshot, block-storage volumes with their own snapshots, cloud-init everywhere — six machines |
 | [`outscale/`](outscale/main.tf) | two Nets with a peering and the route across it, a public subnet with an internet service and a route table, a private subnet, a shared-services Net, a standalone NIC, per-tier security groups, public IPs linked to Vms, a volume attached to a machine, an image from a snapshot |
+| [`exoscale/`](exoscale/main.tf) | two private networks, per-tier security groups (one naming the other rather than an address), an anti-affinity group, a web instance holding an elastic IP, and an instance pool for the application tier — **needs the patched provider, see below** |
 
 ## Why they exist, and it is not decoration
 
@@ -46,6 +47,31 @@ terraform plan -detailed-exitcode      # must be empty
 
 An apply that succeeds proves the emulator answered. An empty second plan proves
 it read back what the provider sent.
+
+## Exoscale needs a patched provider, and is not run by CI
+
+The published Exoscale provider builds two clients: one honours
+`EXOSCALE_API_ENDPOINT`, the other has `.exoscale.com` compiled in. An apply
+therefore does not fail — it **splits**, half against the emulator and half
+against a paying account. Feint refuses that client by its user agent rather than
+serving half of it, and the whole measurement is in
+[docs/limits.md](../../docs/limits.md#the-exoscale-terraform-provider-is-refused-and-why),
+with the pinned fork and the `dev_overrides` recipe.
+
+To run it:
+
+```bash
+FEINT_EXOSCALE_ALLOW_TERRAFORM=1 feint start
+export TF_CLI_CONFIG_FILE=/tmp/dev.tfrc     # the dev_overrides from limits.md
+eval "$(feint env exoscale)"
+cd examples/stacks/exoscale && terraform apply
+```
+
+**CI does not run it, on purpose.** No gate here clones a third-party repository
+— that would put somebody else's availability in this project's pipeline — and a
+client this project patched is not the official client, so it could not count
+towards conformance in any case. It was applied by hand on 2026-08-17: apply, an
+empty second plan, destroy, and zero contract violations.
 
 ## What they do not prove
 
