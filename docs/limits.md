@@ -1157,6 +1157,41 @@ The consequence to hold on to: the pictures are guaranteed to be *of this page*,
 and nothing guarantees they are *good pictures of it*. That is a human's job at
 review time, and the images are in the pull request diff for exactly that.
 
+## `feinttest` does not run on GitHub's arm64 runners
+
+`feinttest.Start` pulls the published image and runs it through the local
+container runtime. That works on this station, on amd64 CI runners, and under
+`docker run --platform linux/arm64` with qemu — and it does not work on
+`ubuntu-24.04-arm`, where the container starts and dies at once:
+
+```
+feinttest: the emulator never answered on http://127.0.0.1:33437: context deadline exceeded
+container exited (code 255), and it wrote nothing
+```
+
+Both tests of the package, twice, on 17 August 2026. The exit code and the empty
+log are the whole of what is known: the image is a multi-arch index carrying a
+real arm64 binary — `docker manifest inspect` lists `linux/arm64`, and that
+variant serves its routes here under emulation — so the runner's runtime refuses
+something the binary is not doing. Nothing available here reproduces it, and a
+guess written down would be the kind of sentence this document exists to avoid.
+
+**What follows from it.** The arm64 leg of the test matrix does not set
+`FEINT_TESTCONTAINER`, so the package skips there. Every other leg sets it, and
+`go test ./...` on a developer's machine skips it too unless asked — the package
+reaches a registry, and `mise run check` is offline by contract.
+
+The diagnosis above is itself a fix: the first version of this package passed
+`--rm`, so a container that died was gone before anything could read it and the
+CI printed `No such container` where the reason should have been.
+`TestAFailedStartSaysWhatTheContainerDid` is the control, and
+`tools/falsify/specs/container-diagnosis.json` puts the flag back and requires
+it to fail.
+
+**What is not affected.** The image itself. `feint start`, the OCI image as a CI
+service, and the composite action all run on arm64; this is about a Go test
+driving a container runtime, on one class of runner.
+
 ## The drift report only covers started products
 
 The CI gate watches the products the emulator has begun serving. Asking it to
