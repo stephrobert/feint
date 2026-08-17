@@ -50,6 +50,35 @@ ok() { echo "  ok: $*"; }
 
 echo "conformance: the example stacks against $ENDPOINT, with $TF"
 
+# The destroy has to happen on the error path too. Without it the first broken
+# run poisons every later one: the emulator keeps the half-applied resources,
+# and the rerun fails on "subnet 10.30.1.0/24 overlaps 10.30.1.0/24" — its own
+# leftovers — instead of the defect that stopped the first run. CI never sees
+# this, because every leg gets a fresh emulator; the operator's station does.
+#
+# An EXIT trap, deliberately not RETURN. The first version of this file hung
+# the cleanup on `trap cleanup_stack RETURN`, and that trap never fired where
+# it mattered: fail() exits the script, and bash runs a RETURN trap only when
+# the function returns, never on exit. Falsified on 2026-08-17 against a fresh
+# container, by duplicating the app subnet so the apply fails after networks
+# exist: with RETURN, the rerun reported three overlaps — admin among them,
+# which nothing in the plan duplicates, so it collided with its own leftover;
+# with EXIT, the rerun reports exactly the one overlap the sabotage put in
+# the plan.
+WORK=""
+STACK=""
+DESTROYED=1
+cleanup_stack() {
+  [ -n "$WORK" ] || return 0
+  if [ "$DESTROYED" = "0" ] && [ -f "$WORK/terraform.tfstate" ]; then
+    (cd "$WORK" && "$TF" destroy -no-color -auto-approve -var "endpoint=$ENDPOINT" >/dev/null 2>&1) \
+      || echo "FAIL: could not destroy $STACK; resources may be left behind" >&2
+  fi
+  rm -rf "$WORK"
+  WORK=""
+}
+trap cleanup_stack EXIT
+
 run_stack() { # name
   local name="$1"
   local src="$ROOT/examples/stacks/$name"
@@ -57,23 +86,12 @@ run_stack() { # name
 
   # A copy, so the working directory of a repository nobody asked to dirty stays
   # clean: state files and provider caches belong to the run, not to the tree.
-  local work
-  work="$(mktemp -d)"
-  cp "$src"/*.tf "$work/"
+  WORK="$(mktemp -d)"
+  STACK="$name"
+  DESTROYED=0
+  cp "$src"/*.tf "$WORK/"
 
-  # The destroy has to happen on the error path too. Without it the first broken
-  # run poisons every later one, and the operator sweeps by hand.
-  local destroyed=0
-  cleanup_stack() {
-    if [ "$destroyed" = "0" ] && [ -f "$work/terraform.tfstate" ]; then
-      (cd "$work" && "$TF" destroy -no-color -auto-approve -var "endpoint=$ENDPOINT" >/dev/null 2>&1) \
-        || echo "FAIL: could not destroy $name; resources may be left behind" >&2
-    fi
-    rm -rf "$work"
-  }
-  trap cleanup_stack RETURN
-
-  cd "$work"
+  cd "$WORK"
   export TF_IN_AUTOMATION=1 TF_INPUT=0
 
   echo "- $name: init and apply"
@@ -97,8 +115,9 @@ run_stack() { # name
   echo "- $name: destroy"
   "$TF" destroy -no-color -auto-approve -var "endpoint=$ENDPOINT" >/dev/null \
     || fail "$name: destroy failed"
-  destroyed=1
+  DESTROYED=1
   ok "destroyed"
+  cleanup_stack
 }
 
 run_stack scaleway
