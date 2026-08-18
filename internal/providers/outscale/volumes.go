@@ -51,6 +51,13 @@ func (p *Pack) createVolume(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, "SubregionName is required")
 		return
 	}
+	// Required is not enough: a zone the catalogue does not declare is refused
+	// rather than stored, so the write path and ReadSubregions cannot
+	// contradict each other (#269).
+	if !knownSubregion(req.SubregionName) {
+		p.badRequest(w, "the Subregion "+req.SubregionName+" does not exist in "+regionName)
+		return
+	}
 	size := req.Size
 	if req.SnapshotID != "" {
 		// A volume may come from a snapshot the emulator knows — a control-plane
@@ -376,14 +383,21 @@ func (p *Pack) readVmsState(w http.ResponseWriter, r *http.Request) {
 		if !all && res.State != stateRunning {
 			continue
 		}
+		// SubregionNames was declared to refuseUnsupported above and applied
+		// nowhere — the exact blind spot placement.go documents, one call
+		// over: a declared-and-unread field is invisible to the unread-field
+		// report, and a client filtering by zone got every zone back.
 		if !matchesStrings(req.Filters, "VmIds", res.ID) ||
-			!matchesStrings(req.Filters, "VmStates", res.State) {
+			!matchesStrings(req.Filters, "VmStates", res.State) ||
+			!matchesStrings(req.Filters, "SubregionNames", vmSubregion(res)) {
 			continue
 		}
 		out = append(out, map[string]any{
-			"VmId":              res.ID,
-			"VmState":           res.State,
-			"SubregionName":     subregionName,
+			"VmId":    res.ID,
+			"VmState": res.State,
+			// The machine's own zone, through the same door every other read
+			// answers from (#268) — this was the pack's constant too.
+			"SubregionName":     vmSubregion(res),
 			"MaintenanceEvents": []any{},
 		})
 	}

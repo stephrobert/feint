@@ -84,8 +84,11 @@ type readNetsRequest struct {
 // keyword. Refusing the filter fails every `terraform destroy` of an
 // outscale_dhcp_option.
 var (
-	netFilters    = []string{"NetIds", "IpRanges", "States", "DhcpOptionsSetIds"}
-	subnetFilters = []string{"SubnetIds", "NetIds", "IpRanges", "States"}
+	netFilters = []string{"NetIds", "IpRanges", "States", "DhcpOptionsSetIds"}
+	// SubregionNames is served since the subregion became a stored fact
+	// (#269): FiltersSubnet declares it (osc-sdk-go, client.gen.go:5058), and
+	// it is how a stack that spreads subnets across zones reads its own back.
+	subnetFilters = []string{"SubnetIds", "NetIds", "IpRanges", "States", "SubregionNames"}
 )
 
 type readSubnetsRequest struct {
@@ -268,6 +271,14 @@ func (p *Pack) createSubnet(w http.ResponseWriter, r *http.Request) {
 		p.notFound(w, "Net", req.NetID)
 		return
 	}
+	// A zone the catalogue does not declare is refused, not echoed. This
+	// create used to store `cloudgouv-eu-west-1a` verbatim while
+	// ReadSubregions declared one zone in another region: the two halves of
+	// the same API contradicting each other, measured in #269.
+	if req.SubregionName != "" && !knownSubregion(req.SubregionName) {
+		p.badRequest(w, "the Subregion "+req.SubregionName+" does not exist in "+regionName)
+		return
+	}
 	prefix, err := network.ParseCIDR(req.IPRange)
 	if err != nil {
 		p.badRequest(w, "IpRange: "+err.Error())
@@ -315,7 +326,7 @@ func (p *Pack) createSubnet(w http.ResponseWriter, r *http.Request) {
 	res.Attrs = map[string]any{
 		"IpRange":             prefix.String(),
 		"NetId":               req.NetID,
-		"SubregionName":       orDefault(req.SubregionName, subregionName),
+		"SubregionName":       orDefault(req.SubregionName, defaultSubregionName),
 		"MapPublicIpOnLaunch": false,
 		"Tags":                []any{},
 	}
@@ -378,7 +389,8 @@ func (p *Pack) readSubnets(w http.ResponseWriter, r *http.Request) {
 		if !matchesStrings(req.Filters, "SubnetIds", res.ID) ||
 			!matchesStrings(req.Filters, "NetIds", netID) ||
 			!matchesStrings(req.Filters, "IpRanges", ipRange) ||
-			!matchesStrings(req.Filters, "States", res.State) {
+			!matchesStrings(req.Filters, "States", res.State) ||
+			!matchesStrings(req.Filters, "SubregionNames", p.subnetSubregion(res.ID)) {
 			continue
 		}
 		subnets = append(subnets, p.subnetView(res))
@@ -540,6 +552,18 @@ func (p *Pack) subnetsOf(netID string) []*resource.Resource {
 		}
 	}
 	return out
+}
+
+// subnetSubregion is the zone a Subnet was created in, and the default when
+// the Subnet is unknown or predates the stored field (a restored snapshot from
+// an older emulator). NICs derive their own SubregionName through this — an
+// interface sits where its Subnet sits, so publishing a constant there was the
+// same defect as #268 one resource over, merely not client-writable.
+func (p *Pack) subnetSubregion(subnetID string) string {
+	if subnet, found := p.env.Store.Get(Name, kindSubnet, subnetID); found {
+		return orDefault(stringOf(subnet.Attrs["SubregionName"]), defaultSubregionName)
+	}
+	return defaultSubregionName
 }
 
 // runtimeNetworkKey is the runtime network backing a subnet, kept out of Attrs.

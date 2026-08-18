@@ -865,7 +865,10 @@ func TestAnUnsupportedFilterIsRefused(t *testing.T) {
 		// on it — and TestReadNetsFiltersOnTheDhcpOptionsSet now holds the
 		// accepting half.
 		{"ReadNets", `{"Filters":{"Tags":["a=b"]}}`},
-		{"ReadSubnets", `{"Filters":{"SubregionNames":["eu-west-2a"]}}`},
+		// SubregionNames was the probe here until it became a served filter
+		// (#269); AvailableIpsCounts is declared by FiltersSubnet upstream and
+		// still not applied, so it keeps the refusal measured.
+		{"ReadSubnets", `{"Filters":{"AvailableIpsCounts":[251]}}`},
 		{"ReadKeypairs", `{"Filters":{"TagKeys":["env"]}}`},
 	} {
 		status, out := post(t, ts, probe.action, probe.body)

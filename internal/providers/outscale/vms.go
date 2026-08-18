@@ -2,6 +2,7 @@ package outscale
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -52,12 +53,29 @@ type readVmsRequest struct {
 var vmFilters = []string{
 	"VmIds", "VmStates", "ImageIds", "VmTypes", "KeypairNames",
 	"SubnetIds", "NetIds", "PrivateIps",
+	// The zone filter FiltersVm declares (osc-sdk-go, client.gen.go:5304),
+	// served since the subregion became a stored fact rather than a constant
+	// (#268): a constant made this filter either a tautology or a void.
+	"SubregionNames",
 	// The group filters are what `terraform destroy` asks before removing a
 	// security group: which machines still wear it. Without them the destroy
 	// fails on the group, after the apply succeeded — so the whole fixture is
 	// left standing by a filter nobody had declared.
 	"SecurityGroupIds", "SecurityGroupNames",
 }
+
+// vmPlacement is CreateVmsRequest's Placement (osc-sdk-go,
+// pkg/osc/client.gen.go:6804): the subregion the machine goes to, and its
+// tenancy — `default`, `dedicated`, or a dedicated group ID, per the SDK's own
+// description, which is why Tenancy is stored verbatim rather than checked
+// against a closed list.
+type vmPlacement struct {
+	SubregionName string `json:"SubregionName"`
+	Tenancy       string `json:"Tenancy"`
+}
+
+// defaultTenancy is what a machine placed with nothing said runs under.
+const defaultTenancy = "default"
 
 // createVmsRequest is the subset of CreateVmsRequest this pack honours. The
 // count fields are MinVmsCount and MaxVmsCount: there is no VmCount, and reading
@@ -77,6 +95,12 @@ type createVmsRequest struct {
 	SubnetID             string   `json:"SubnetId"`
 	SecurityGroupIDs     []string `json:"SecurityGroupIds"`
 	BootOnCreation       *bool    `json:"BootOnCreation"`
+	// Placement was the field of #268: accepted with a 200, never read, and
+	// every read then answered the pack's constant. A machine created in
+	// eu-west-2b read back in eu-west-2a, and a multi-AZ Terraform plan
+	// re-planned the same in-place change for ever. The chain is
+	// request → store → response now; vmPlacementView renders what this stored.
+	Placement *vmPlacement `json:"Placement"`
 }
 
 type vmIDsRequest struct {
@@ -188,6 +212,7 @@ func (p *Pack) vmMatches(res *resource.Resource, f filterSet) bool {
 		matchesStrings(f, "SubnetIds", attr("SubnetId")) &&
 		matchesStrings(f, "NetIds", attr("NetId")) &&
 		matchesStrings(f, "PrivateIps", p.addressOf(res)) &&
+		matchesStrings(f, "SubregionNames", vmSubregion(res)) &&
 		matchesAny(f, "SecurityGroupIds", groupIDs...) &&
 		matchesAny(f, "SecurityGroupNames", groupNames...)
 }
@@ -203,6 +228,13 @@ func (p *Pack) createVms(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !p.validVmFields(w, req.KeypairName, req.UserData) {
+		return
+	}
+	// A subregion the catalogue does not declare is refused here, not stored:
+	// accepting it would recreate the contradiction #269 measured, where the
+	// write path took any zone and ReadSubregions denied its existence.
+	if req.Placement != nil && req.Placement.SubregionName != "" && !knownSubregion(req.Placement.SubregionName) {
+		p.badRequest(w, "the Subregion "+req.Placement.SubregionName+" does not exist in "+regionName)
 		return
 	}
 
@@ -263,6 +295,10 @@ func (p *Pack) createVms(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, errUnknownSubnet) {
 			p.notFound(w, "Subnet", req.SubnetID)
+			return
+		}
+		if errors.Is(err, errPlacementMismatch) {
+			p.badRequest(w, err.Error())
 			return
 		}
 		p.conflict(w, "cannot place a Vm in "+req.SubnetID+": "+err.Error())
@@ -335,13 +371,29 @@ func (p *Pack) allocateVms(req createVmsRequest, count int, now time.Time) ([]*r
 		// under the lock, is also what makes deleteSubnet's guard hold: the two
 		// cannot interleave, so a Subnet either still exists for this batch or
 		// is already gone for it.
+		subnetSubregion := ""
 		if req.SubnetID != "" {
 			place, err := p.placeInSubnet(req.SubnetID)
 			if err != nil {
 				return created, err
 			}
+			// A Vm lives where its Subnet lives. A Placement naming another
+			// zone is refused rather than stored: answering 200 while keeping
+			// one of two contradicting facts is the lie either read would then
+			// tell. (The exact upstream error shape for this is unmeasured; the
+			// refusal itself is what must not be traded away.)
+			if req.Placement != nil && req.Placement.SubregionName != "" &&
+				req.Placement.SubregionName != place.SubregionName {
+				return created, fmt.Errorf("%w: the Subnet %s sits in %s, not in %s",
+					errPlacementMismatch, req.SubnetID, place.SubregionName, req.Placement.SubregionName)
+			}
 			place.apply(res)
+			subnetSubregion = place.SubregionName
 		}
+		// The placement the reads will answer, resolved once and stored — the
+		// chain #268 demands is request → store → response, never
+		// request → constant → response.
+		res.Attrs["Placement"] = resolvedPlacement(req.Placement, subnetSubregion)
 		if req.KeypairName != "" {
 			res.Attrs["KeypairName"] = req.KeypairName
 		}
@@ -735,6 +787,50 @@ func Gone(res *resource.Resource) bool {
 	return res.Kind == kindVM && res.State == stateTerminated
 }
 
+// errPlacementMismatch is what a create gets for a Placement naming a zone its
+// own Subnet does not sit in.
+var errPlacementMismatch = errors.New("the Placement contradicts the Subnet")
+
+// resolvedPlacement is the placement a create stores: what the client asked,
+// else the Subnet's own zone, else the default — in that order, because the
+// first two are facts the client can read back and the third is the emulator's
+// only honest answer when nobody said anything.
+//
+// TestAVmCreatedInANamedSubregionReadsBackInIt fails when the request's half
+// stops being read; TestAVmInheritsItsSubnetsSubregion when the Subnet's half
+// does.
+func resolvedPlacement(requested *vmPlacement, subnetSubregion string) map[string]any {
+	subregion := orDefault(subnetSubregion, defaultSubregionName)
+	tenancy := defaultTenancy
+	if requested != nil {
+		subregion = orDefault(requested.SubregionName, subregion)
+		tenancy = orDefault(requested.Tenancy, tenancy)
+	}
+	return map[string]any{
+		"SubregionName": subregion,
+		"Tenancy":       tenancy,
+	}
+}
+
+// vmPlacementView renders a Vm's Placement from what its create stored. The
+// fallback exists for records that predate the stored field — a restored
+// snapshot from an older emulator — because the Vm schema declares Placement
+// on every machine (osc-sdk-go, client.gen.go:10576) and a client reads it
+// unconditionally.
+func vmPlacementView(res *resource.Resource) map[string]any {
+	if placement, ok := res.Attrs["Placement"].(map[string]any); ok {
+		return placement
+	}
+	return resolvedPlacement(nil, "")
+}
+
+// vmSubregion is the zone a Vm's own reads answer, shared by every door that
+// publishes it — the view, the state view (readVmsState) and the filters — so
+// two doors cannot disagree about where a machine sits.
+func vmSubregion(res *resource.Resource) string {
+	return stringOf(vmPlacementView(res)["SubregionName"])
+}
+
 // vmView renders a Vm. Only fields the pack actually knows are emitted: a
 // PrivateIp of "" would tell a client the machine has no address, where an
 // absent field tells it the emulator does not model one.
@@ -800,10 +896,12 @@ func (p *Pack) vmView(res *resource.Resource) map[string]any {
 	out["VmInitiatedShutdownBehavior"] = "stop"
 	out["StateReason"] = ""
 	out["ActionsOnNextBoot"] = map[string]any{"SecureBoot": "none"}
-	out["Placement"] = map[string]any{
-		"SubregionName": subregionName,
-		"Tenancy":       "default",
-	}
+	// What the create stored, never a constant. The constant here was #268: a
+	// machine created in eu-west-2b read back in eu-west-2a, stable and wrong —
+	// #250 had already named the pattern, "a constant in a view is a claim
+	// nobody checks". TestAVmCreatedInANamedSubregionReadsBackInIt fails
+	// without this.
+	out["Placement"] = vmPlacementView(res)
 	// Derived from the machine's own id so it cannot move between two reads:
 	// anything Terraform stores has to be stable or it plans a change for ever.
 	out["ReservationId"] = "r-" + hexOf(strings.TrimPrefix(res.ID, "i-")+res.ID, idLen)

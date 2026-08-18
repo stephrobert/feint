@@ -34,10 +34,12 @@ func TestListSubnetsServesTheSameSubnetAsTheNetwork(t *testing.T) {
 		t.Fatalf("list subnets: status %d", status)
 	}
 	subnets, _ := body["subnets"].([]any)
-	if len(subnets) != 1 {
-		t.Fatalf("%d subnets, want 1", len(subnets))
+	// One record per family: the flat door serves the same dual-stack pair the
+	// network embeds (#270).
+	if len(subnets) != 2 {
+		t.Fatalf("%d subnets, want 2", len(subnets))
 	}
-	subnet, _ := subnets[0].(map[string]any)
+	subnet := ipv4SubnetOf(t, subnets)
 	// Two doors, one record: the flat listing and the network's own embed must
 	// agree on the id, because the Terraform provider joins on it.
 	if subnet["id"] != subnetID || subnet["private_network_id"] != pnID {
