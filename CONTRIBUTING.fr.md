@@ -38,7 +38,8 @@ Elle installe trois types de hooks, et les deux derniers se ratent facilement :
 ### Avant de pousser
 
 Le hook `pre-push` lance `mise run prepush` : `check`, `docs:check`,
-`drift:check` et `shapes:check`. Déterministe, hors ligne, quelques secondes.
+`drift:check`, `shapes:check`, `falsify:selftest` et `falsify:lint`.
+Déterministe, hors ligne, quelques secondes.
 C'est ce qu'une pull request refusera, sans jamais dépendre de la météo d'un
 runner.
 
@@ -159,7 +160,7 @@ mise run upstream:sync
 
 ## Ajouter de la surface émulée
 
-Le tout, en cinq points :
+Le tout, en quatre points :
 
 1. Lire le source du SDK upstream pour les formes exactes, pas la doc web.
 2. Tracer le vrai client (`scw -D <commande>`) et émuler la séquence **entière** :

@@ -9,8 +9,11 @@
 // Shapes are read from Outscale's own OpenAPI document, which ships inside their
 // Go SDK, and the emulator checks itself against it: contracts/outscale.json is
 // extracted from that document and internal/contract fails a response carrying a
-// field the API does not define. That is not a rule invented here — 643 of their
-// 650 schemas declare additionalProperties: false.
+// field the API does not define. That is not a rule invented here — nearly every
+// schema they publish declares additionalProperties: false, and the artefact's
+// closedPolicy records that the declaration is theirs. The exact count is
+// rendered into the README from the artefact by `feint docs`, not restated here,
+// because a restated figure was measured stale once already.
 //
 // Everything the pack serves is declared in Routes with its upstream operation
 // name, and everything it deliberately does not serve is declared in Declined.

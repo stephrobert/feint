@@ -217,6 +217,7 @@ those would go red on routine runs and be disarmed within the week.
 | the machine runtime, both modes | | | ✔ | |
 | every declared falsification still bites | | | ✔ | |
 | frozen surfaces and their versions | ✔ | ✔ | | ✔ |
+| a consumer's expressions against the previous release (`compat:check`) | | | | ✔ |
 
 The machine-runtime proof is deliberately not on the pull-request path. A gate
 that reds on runner weather gets disarmed, which is worse than not running; its
@@ -289,20 +290,24 @@ mutation compiled, and the named test stayed green.
 
 ## What is not closed yet
 
-One link in the chain above is stated but not enforced. It is an open issue, and
-it is named here because a page describing only the finished half would be the
-defect this project removes.
+Nothing, as of 2026-08-18 — and the date matters more than the sentence,
+because this section has emptied one issue at a time and a new link that opens
+belongs here the day it is stated.
 
-- **Nothing measures what a release does to a consumer**
-  ([#170](https://github.com/stephrobert/feint/issues/170)). `schema_version` is
-  the signal that lets a pipeline notice a break; nothing checks that a pipeline
-  *can* notice. `probed` went from boolean to string, and a consumer reading it
-  as truthy counts every refusal as a success.
+The last one closed with
+[#170](https://github.com/stephrobert/feint/issues/170): nothing measured what
+a release does to a consumer. `schema_version` is the signal that lets a
+pipeline notice a break, and nothing checked that a pipeline *could* notice —
+`probed` went from boolean to string, and a consumer reading it as truthy
+counts every refusal as a success. `mise run compat:check` now builds the
+previous release out of this repository's own history, runs expressions a
+consumer could legitimately have written against both binaries, and sorts each
+into compatible, explicitly broken or **silently wrong**; one unaccepted
+silently-wrong verdict refuses the tag, enforced by `tools/release/preflight.sh`.
+What it found against 0.8 — including the one boundary it cannot protect — is
+in [RELEASING.md](../RELEASING.md#what-the-measurement-found-and-the-one-boundary-it-cannot-protect).
 
-Until it closes, the honest statement is the one this page opens with: the chain
-is measured, link by link, and this link is measured by prose.
-
-The other two this section listed are now closed and folded into the page above.
+The two closed before it are folded into the page above.
 [#171](https://github.com/stephrobert/feint/issues/171) gave the evidence record
 a provenance the join compares, so deleting a conformance assertion demotes what
 it proved instead of being a sentence written twice;

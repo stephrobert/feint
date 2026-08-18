@@ -35,8 +35,9 @@ It installs three hook types, and the last two are easy to miss: `pre-commit`,
 ### Before you push
 
 The `pre-push` hook runs `mise run prepush`: `check`, `docs:check`,
-`drift:check` and `shapes:check`. Deterministic, offline, seconds. It is what a
-pull request will refuse without ever depending on a runner's weather.
+`drift:check`, `shapes:check`, `falsify:selftest` and `falsify:lint`.
+Deterministic, offline, seconds. It is what a pull request will refuse without
+ever depending on a runner's weather.
 
 **It is not enough**, and what it misses depends on what you changed:
 
@@ -149,7 +150,7 @@ mise run upstream:sync
 
 ## Adding emulated surface
 
-The whole of it, in five points:
+The whole of it, in four points:
 
 1. Read the upstream SDK source for the exact shapes, not the web docs.
 2. Trace the real client (`scw -D <command>`) and emulate the **whole** sequence:

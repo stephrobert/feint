@@ -43,8 +43,8 @@ entrypoint wants. Anyone who needs real machines runs the binary on a host with
 Incus, which is the documented path and stays so.
 
 Why it came before the adoption channels: the image is the format an emulator is
-consumed in, and every channel below (testcontainers, a compose file, a
-`services:` block in GitLab CI) waits on it. What the image must never become is
+consumed in, and every channel below (`feinttest`, the compose file, the
+`services:` block in GitLab CI — all since landed) waited on it. What the image must never become is
 the nominal mode: the self-detaching static binary is the one thing none of the
 comparable emulators can do, and leading with Docker would erase it.
 
@@ -221,11 +221,11 @@ the archived documents explain how each batch was cut.
    remains, under the network-evidence rule: under OVN the
    claim is asserted, elsewhere it is skipped, and no document says "isolated"
    without naming the mode.
-5. **Storage on the two starters** — **Outscale done, Exoscale open.** OSC-4
-   is merged (volumes, snapshots, images, the storage chain in the Terraform
-   fixture). EXO-4 (#12, block storage) remains, aligned with the relation
-   rules Scaleway settled: stored on one side, computed on the other, deletion
-   rules tested by the fixture's destroy.
+5. **Storage on the two starters** — **done.** OSC-4 is merged (volumes,
+   snapshots, images, the storage chain in the Terraform fixture). EXO-4 (#12)
+   is merged too: block storage, thirteen operations a real client drives,
+   aligned with the relation rules Scaleway settled — stored on one side,
+   computed on the other, deletion rules tested by the fixture's destroy.
 6. **Load balancing and gateways** — **open.** SW-5 (#17), SW-6 (#18), OSC-5
    (#16), EXO-5 (#14), EXO-6 (#15). Last because nothing else depends on them
    and everything they depend on (IPAM, networks, the waiter discipline) is
@@ -255,7 +255,7 @@ the table carries the state as an issue reference rather than a claim.
 | **SW-4** | 4 | IPAM lifecycle and the rest of vpc | open (#11) |
 | **EXO-3** | 4 | private networks and instance attachment | done (#9) |
 | **OSC-4** | 5 | volumes, snapshots, images | done (#13) |
-| **EXO-4** | 5 | block storage | open (#12) |
+| **EXO-4** | 5 | block storage | done (#12) |
 | **SW-5** | 6 | `lb/v1` ZonedAPI | open (#17) |
 | **SW-6** | 6 | `vpcgw/v2` | open (#18) |
 | **OSC-5** | 6 | load balancing | open (#16) |
@@ -352,7 +352,7 @@ happens on a human's own station, against their own account, never in CI.
 
 `Server.Handler() http.Handler` already exists; everything that would use it is
 under `internal/`, so nothing outside this module can. Two items on this page
-pay for that today: the testcontainers module must start a published image to
+pay for that today: `feinttest` must start a published image to
 reach a handler that could be a function call, and *"a fourth provider changes
 nothing in `internal/core`"* is admitted below to be untested — as it must
 remain, since three packs in one tree can share a mistake for a year without
@@ -484,26 +484,30 @@ next versions on proofs rather than surface is the proposal.
 What that track has built is now described end to end in
 [docs/conformance.md](conformance.md): the chain from the provider's own API
 description to a pipeline reading a number out of the emulator, what each link
-proves, and the three links that are stated but not yet enforced (#169, #170,
-#171).
+proves — and, since #170 closed, no link of it is enforced by prose alone
+(#169, #170 and #171 all landed; that page's closing section carries the
+detail).
 
-The issues, each carrying its own evidence:
+The issues, most of them since delivered, each carrying its own evidence:
 
-- **#123** — what is proven about an operation becomes a set of named proof
+- **#123** — *done*: what is proven about an operation is a set of named proof
   axes (driven, contract, behaviour, dataplane…), computed from artefacts,
   published without ever being summed into a score.
-- **#125** — the runtime-backed proof runs on a machine nobody here owns; it
-  promotes the "Later" item below and carries its promotion rule.
-- **#130** — one page answers what a user can validate here, per runtime mode,
-  every row carrying its proof or its limit.
-- **#132**, **#133** — this project's own contract surfaces (CLI, exit codes,
-  `/_feint/*`, snapshots) frozen by tests; a snapshot is understood or
+- **#125** — *open*: the runtime-backed proof runs on a machine nobody here
+  owns; it promotes the "Later" item below and carries its promotion rule.
+- **#130** — *done*: one page answers what a user can validate here, per
+  runtime mode, every row carrying its proof or its limit
+  ([confidence.md](confidence.md)).
+- **#132**, **#133** — *done*: this project's own contract surfaces (CLI, exit
+  codes, `/_feint/*`, snapshots) frozen by tests; a snapshot is understood or
   refused, never silently half-read.
-- **#134**, **#135** — concurrency invariants under a deliberate barrage;
-  crash and restart behaviour stated once and proven by a kill.
-- **#124**, **#126**, **#128**, **#129** — deterministic transient states, the
-  opt-in strict catalogue, `feint exec`, the release-workflow-pinned
-  signature. Fidelity and hardening, explicitly behind the proofs above.
+- **#134**, **#135** — *done*: concurrency invariants under a deliberate
+  barrage; crash and restart behaviour stated once and proven by a kill.
+- **#124**, **#126**, **#128** — *open* — and **#129** *done*: deterministic
+  transient states, the opt-in strict catalogue and `feint exec` are fidelity
+  and hardening still explicitly behind the proofs above; the
+  release-workflow-pinned signature is delivered and documented in the README's
+  install section.
 
 **The arbitration they propose is #136**, and it is a proposal, not a
 decision: version 0.8 buys *trust* (runtime CI, concurrency, crash
@@ -522,17 +526,19 @@ waves above keep running either way.
 
 The request side now has teeth: a field a client sends that no handler reads
 fails the conformance run, which is the mechanism that caught a server retype
-answering 200 while doing nothing. Two gaps remain, both measured. A probe
-answered with a 4xx counts as *refused* and its error body is never validated
-against the contract, so a wrong error shape hides behind a right status code;
-and request parameters are not contractualised, which is exactly where an
-ignored page-size parameter slipped through until a real client noticed. A
+answering 200 while doing nothing. The two gaps this item named are closed,
+and each closed on its stated evidence. A probe answered with a 4xx used to
+count as *refused* with its error body never validated, so a wrong error shape
+hid behind a right status code — the probe now validates every refusal body
+against the provider's declared error schema, and a violation fails
+`mise run conformance` (#162). Request parameters were not contractualised,
+which is exactly where an ignored page-size parameter slipped through until a
+real client noticed — the contracts now declare query parameters, the paged
+probes vary the page size and assert the page they got (#166), and a declared
+query parameter a handler never reads fails outright (#271,
+`TestDeclaredQueryParametersAreRead`). The sentence that drove it stands: a
 "probed" that proves little is worse than an honest gap, because it reads like
 evidence.
-
-**Evidence:** a refused probe's error body is validated against the provider's
-own error schema and a violation fails `mise run conformance`; and the list-route
-probes vary the page size and assert the page they got.
 
 ### IAM under the drift gate — settled
 
@@ -543,28 +549,40 @@ which was this item's stated evidence. It stays on this page for one release
 because the state it fixed (served and unmeasured, the least defensible state
 a route can be in) is worth remembering by name.
 
-### A `setup-feint` GitHub Action and a GitLab CI template
+### A `setup-feint` GitHub Action and a GitLab CI template — landed
 
 The lifecycle verbs were designed for CI (`start`, `wait`, `env`, stable exit
-codes), so the action is a thin composite, not a project. It is listed after the
-image because the GitLab `services:` path consumes the image, and because an
-action that exists before the golden-image scenario works would install a tool
-that fails on the first realistic module.
+codes), so the action is a thin composite, not a project — and that is what
+shipped. `stephrobert/setup-feint@v1` installs the released binary, verifies
+its checksum before running it, and waits until the emulator answers
+(`.github/actions/setup-feint/`, published from here and gated against the
+copy, #245); the GitLab `services:` template, the compose file and the
+GitHub Actions job live under [examples/](../examples/) (#244, #246).
 
-**Evidence:** an example repository's CI, on GitHub and on GitLab, goes from
-checkout to a passing `terraform apply` against the emulator using only the
-published action or template.
+**Evidence, met:** the example pipelines go from checkout to a passing
+`terraform apply` against the emulator using only the published action or
+template, and `examples/README.md` walks each one.
 
-### A testcontainers-go module
+### A testcontainers-go module — landed as `feinttest`, deliberately not testcontainers
 
-This is how an emulator enters other people's test suites. It lives in a
-separate repository, because the module must depend on testcontainers while this
-repository's zero-dependency `go.mod` is enforced by a pre-commit hook, and Go
-comes first because it is the language of all three providers' SDKs. Java and
-Python follow the same pattern only after the Go module has users.
+This is how an emulator enters other people's test suites. The section used to
+say it must live in a separate repository, because the module would depend on
+testcontainers while this repository's zero-dependency `go.mod` is enforced by
+a pre-commit hook. What shipped (#247) refutes the premise rather than the
+goal: [`feinttest/`](../feinttest/) lives *in* this repository, drives the
+container CLI instead of importing testcontainers, and keeps the dependency
+count at zero — `feinttest.Start(t)` starts the published image, hands back
+the endpoint, and cleans up with the test. Its own doc comment carries the
+"why this is not testcontainers-go" argument. A community testcontainers
+wrapper remains possible on top; nothing here blocks it, and nothing here
+waits for it.
 
-**Evidence:** a `go test` in the module's repository starts the published image,
-points the official Scaleway SDK at it, and creates and deletes a server.
+**Evidence, met in half:** `feinttest`'s own tests start the published image
+and prove it answers, isolated per test. The other half of the stated evidence
+— an official SDK creating and deleting a server through it — is shown in the
+package's doc comment and cannot be a test *here*: importing a provider SDK is
+exactly the dependency this repository's three-line `go.mod` refuses, so that
+proof belongs to the first consumer's suite, not this one.
 
 ### Conformance suites split per resource
 
@@ -956,8 +974,9 @@ here.
   distinguishes this project, a data plane that keeps its promises.
 - **Any external Go dependency.** A three-line `go.mod` is a security argument
   for a tool that will run inside everyone's CI, and a pre-commit hook enforces
-  it. Anything that needs a dependency (the testcontainers module above) lives
-  in its own repository.
+  it. Anything that would need a dependency lives in its own repository — and
+  `feinttest` exists precisely because the obvious dependency was refused and
+  the CLI-driving shape kept it at zero.
 - **Telemetry, or an account. Ever.** "No account, no bill" is in the first line
   of the README and it is load-bearing.
 - **A fourth provider before the third is usable.** Otherwise the result is

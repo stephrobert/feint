@@ -6,10 +6,17 @@
 // even though the emulator applies changes synchronously.
 //
 // Authentication (EXO2-HMAC-SHA256) is accepted without verification. Clients
-// reach the emulator through EXOSCALE_API_ENDPOINT, which the Terraform provider
-// reads directly.
+// reach the emulator through EXOSCALE_API_ENDPOINT, which the exo CLI honours
+// for everything. The Terraform provider honours it for only one of the two
+// clients it builds and reaches the real cloud with the other, so the pack
+// refuses it by user agent unless FEINT_EXOSCALE_ALLOW_TERRAFORM=1 is set —
+// docs/limits.md carries the measurement and the upstream issue (#573).
 //
-// This pack is an amorce: compute instances only.
+// The pack serves the compute family (instances, templates, security groups,
+// ssh keys, pools, private networks, elastic IPs), block storage, and the
+// operation objects everything asynchronous answers through;
+// coverage/exoscale-coverage.json is the exact ledger of what is served,
+// declined and untriaged.
 package exoscale
 
 import (

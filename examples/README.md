@@ -7,7 +7,7 @@ lets a real client start against values that mean nothing.
 
 | File | What it gives you |
 |---|---|
-| [`stacks/`](stacks/) | **two complete platform stacks** — multi-VPC, multi-machine, golden images, block storage — applied against Feint on every pull request |
+| [`stacks/`](stacks/) | **three complete platform stacks** — multi-VPC, multi-machine, golden images, block storage — the Scaleway and Outscale ones applied against Feint on every pull request, the Exoscale one by hand behind the patched provider |
 | [`github-actions/terraform.yml`](github-actions/terraform.yml) | a GitHub Actions job that applies your Terraform, re-plans to prove the emulator read back what it was sent, and destroys |
 | [`gitlab-ci/.gitlab-ci.yml`](gitlab-ci/.gitlab-ci.yml) | the same pipeline for GitLab CI, with the emulator as a service |
 | [`compose/compose.yaml`](compose/compose.yaml) | the emulator beside your application for the length of a `docker compose up`, with a healthcheck the app waits on |
@@ -15,6 +15,8 @@ lets a real client start against values that mean nothing.
 If you want to see Feint hold up under something that looks like production
 rather than under a snippet, start with [`stacks/`](stacks/). They are examples
 and tests at once, and they have already found two defects nothing else saw.
+The same method turned outward found four more: fifteen strangers' published
+stacks, applied and scored in [`stacks/surveyed.md`](stacks/surveyed.md).
 
 ## From a Go test
 
@@ -45,7 +47,7 @@ that wants real machines behind `--vm` on a host with Incus:
 ```yaml
 - uses: stephrobert/setup-feint@v1
   with:
-    version: 0.9.0
+    version: 0.8.0
     provider: scaleway     # exports what the official client needs
 - run: terraform apply -auto-approve
 ```

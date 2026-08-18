@@ -50,8 +50,9 @@ d'entrée de conteneur. Qui a besoin de vraies machines exécute le binaire sur
 un hôte avec Incus ; c'est le chemin documenté et il le reste.
 
 Pourquoi elle est passée avant les canaux d'adoption : l'image est le format
-dans lequel un émulateur se consomme, et chaque canal plus bas (testcontainers,
-un fichier compose, un bloc `services:` de GitLab CI) l'attend. Ce que l'image
+dans lequel un émulateur se consomme, et chaque canal plus bas (`feinttest`,
+le fichier compose, le bloc `services:` de GitLab CI — tous livrés depuis)
+l'attendait. Ce que l'image
 ne doit jamais devenir : le mode nominal. Le binaire statique qui se détache
 tout seul est la seule chose qu'aucun émulateur comparable ne sait faire, et
 mener avec Docker l'effacerait.
@@ -237,10 +238,11 @@ documents archivés expliquent comment chaque lot a été découpé.
    reste de vpc) reste, sous la règle de preuve réseau : sous OVN
    l'affirmation est vérifiée, ailleurs elle est sautée, et aucun document ne
    dit « isolé » sans nommer le mode.
-5. **Le stockage sur les deux starters** : **Outscale fait, Exoscale
-   ouvert.** OSC-4 est mergée (volumes, snapshots, images, la chaîne de
-   stockage dans la fixture Terraform). EXO-4 (#12, stockage bloc) reste,
-   aligné sur les règles de relation que Scaleway a réglées : stocké d'un
+5. **Le stockage sur les deux starters** : **fait.** OSC-4 est mergée
+   (volumes, snapshots, images, la chaîne de stockage dans la fixture
+   Terraform). EXO-4 (#12) l'est aussi : le stockage bloc, treize opérations
+   qu'un vrai client pilote, aligné sur les règles de relation que Scaleway a
+   réglées : stocké d'un
    côté, calculé de l'autre, règles de suppression testées par le destroy de
    la fixture.
 6. **Load balancing et gateways** : **ouvert.** SW-5 (#17), SW-6 (#18), OSC-5
@@ -275,7 +277,7 @@ comme affirmation.
 | **SW-4** | 4 | cycle de vie IPAM et le reste de vpc | ouvert (#11) |
 | **EXO-3** | 4 | réseaux privés et attachement d'instance | faite (#9) |
 | **OSC-4** | 5 | volumes, snapshots, images | fait (#13) |
-| **EXO-4** | 5 | stockage bloc | ouvert (#12) |
+| **EXO-4** | 5 | stockage bloc | fait (#12) |
 | **SW-5** | 6 | `lb/v1` ZonedAPI | ouvert (#17) |
 | **SW-6** | 6 | `vpcgw/v2` | ouvert (#18) |
 | **OSC-5** | 6 | load balancing | ouvert (#16) |
@@ -379,7 +381,7 @@ jamais en CI.
 
 `Server.Handler() http.Handler` existe déjà ; tout ce qui l'utiliserait est
 sous `internal/`, donc rien hors de ce module ne le peut. Deux éléments de
-cette page le paient aujourd'hui : le module testcontainers doit démarrer une
+cette page le paient aujourd'hui : `feinttest` doit démarrer une
 image publiée pour atteindre un handler qui pourrait être un appel de
 fonction, et « un quatrième provider ne change rien dans `internal/core` »
 est admis plus bas comme non testé, comme il doit le rester : trois packs dans
@@ -438,22 +440,44 @@ code plutôt que lu d'un réglage** est inatteignable pour la même raison, et c
 projet ne sait pas combien il en existe. Ce nombre pourrait trancher dans un
 sens comme dans l'autre.
 
-**Cette page ne tranche pas.** Ce que #76 demande, ce sont quatre mesures,
-avant que quiconque écrive un résolveur : combien d'endpoints codés en dur
-existent dans les providers Terraform, CLI et SDK des trois fournisseurs, et
-quelles opérations chacun coûte ; ce qu'il faut à chaque client pour accepter
-un certificat frappé localement, avec la ligne nette entre une variable
-d'environnement limitée à une commande et une installation dans le magasin de
-confiance du système de l'opérateur ; s'il faut un serveur DNS du tout, ou si
-une entrée hosts ou un drapeau de résolveur couvre les cas mesurés ; et ce que
-la bibliothèque standard donne gratuitement, une CA locale étant bon marché en
-`crypto/x509` quand un serveur DNS n'a aucune réponse standard.
+**Mesuré, et refusé avec les chiffres à l'appui.** Les quatre mesures que #76
+demandait sont faites et rédigées dans [limits.md](limits.md), sous *The cost
+of DNS/TLS interception, measured*. Elles renversent la prémisse : le
+certificat était la moitié redoutée et c'est la moitié bon marché et sûre,
+tandis que la redirection DNS — celle que #76 nommait presque en passant —
+est le vrai blocage.
 
-**Preuve :** [limits.md](limits.md) remplace « un projet à part entière » par
-ces nombres et un verdict. Refusé, et cela rejoint « Non prévu » avec une
-prose de qualité `Declined()`. Retenu, et cela devient un élément d'ici avec
-un client officiel nommé d'avance. Chaque réponse clôt la question ; l'état
-présent, un refus posé sur un coût non mesuré, est le seul qui ne la clôt pas.
+- **Combien d'endpoints codés en dur :** un seul. Balayés sur les trois
+  providers Terraform, les trois CLI et les trois SDK, exactement un endpoint
+  est construit dans le code sans réglage pour le remplacer — l'Object Storage
+  Scaleway dans le provider Terraform. Tout le reste, SOS d'Exoscale et tout
+  Outscale compris, s'atteint par un réglage d'endpoint. Le plafond de
+  couverture est un produit sur un client, pas la douzaine que la réouverture
+  craignait.
+- **Ce qui accepte un certificat frappé localement :** chaque client Go, via
+  un seul `SSL_CERT_FILE` à portée de processus — prouvé par `scw` créant un
+  serveur et, le doute ouvert, par le **plugin du provider Terraform qui
+  l'hérite** et applique cinq ressources en TLS local. Aucune installation
+  dans le magasin de confiance du système.
+- **S'il faut un serveur DNS :** non, mais c'est une maigre consolation. Sur
+  un Linux durci, il n'existe aucun moyen jetable, non privilégié et limité au
+  processus de rediriger le nom codé en dur pour un plugin Go statique :
+  `curl --resolve` ne vaut que pour curl, `HOSTALIASES` rate les noms à
+  points, un shim `LD_PRELOAD` rate les binaires `CGO_ENABLED=0`, et un
+  namespace réseau exige un namespace utilisateur que la station bloque. Ce
+  qui reste — éditer `/etc/hosts` — est une modification durable de la
+  machine de l'opérateur, que la promesse « aucune trace » interdit.
+- **Coût en bibliothèque standard :** moins de 100 lignes de `crypto/x509` et
+  `crypto/tls`, aucune dépendance, pour la moitié CA.
+
+L'Object Storage reste donc décliné, et la raison est désormais de qualité
+`Declined()` : non plus « un projet à part entière » mais « le certificat est
+bon marché et sûr, la redirection de nom ne l'est pas, et cela n'achète qu'un
+produit sur un client ». S'il est un jour retenu, c'est un élément avec un
+propriétaire nommé et une forme mesurée — `SSL_CERT_FILE` plus une redirection
+de nom jetable à la main de l'opérateur (un devcontainer, une entrée hosts
+temporaire), jamais une installation dans le magasin de confiance du système
+et jamais un fichier hosts que le binaire éditerait lui-même.
 
 ### Considéré dans la même passe, et non mis en file
 
@@ -505,29 +529,32 @@ plutôt qu'en surface est la proposition.
 Ce que cette piste a construit est désormais décrit de bout en bout dans
 [docs/conformance.fr.md](conformance.fr.md) : la chaîne qui va de la description
 d'API du fournisseur jusqu'à un pipeline lisant un chiffre dans l'émulateur, ce
-que chaque maillon prouve, et les trois maillons énoncés mais pas encore
-appliqués (#169, #170, #171).
+que chaque maillon prouve — et, depuis la fermeture de #170, plus aucun maillon
+n'est appliqué par de la seule prose (#169, #170 et #171 sont tous livrés ; la
+section finale de cette page-là porte le détail).
 
-Les issues, chacune portant sa propre preuve :
+Les issues, pour la plupart livrées depuis, chacune portant sa propre preuve :
 
-- **#123** : ce qui est prouvé d'une opération devient un ensemble d'axes de
-  preuve nommés (piloté, contrat, comportement, dataplane…), calculés depuis
+- **#123** : *faite* — ce qui est prouvé d'une opération est un ensemble d'axes
+  de preuve nommés (piloté, contrat, comportement, dataplane…), calculés depuis
   les artefacts, publiés sans jamais être additionnés en score.
-- **#125** : la preuve adossée au runtime tourne sur une machine que personne
-  ici ne possède ; elle promeut l'élément « Plus tard » ci-dessous et porte sa
-  règle de promotion.
-- **#130** : une page répond à ce qu'un utilisateur peut valider ici, par mode
-  runtime, chaque ligne portant sa preuve ou sa limite.
-- **#132**, **#133** : les surfaces contractuelles propres du projet (CLI,
-  codes de sortie, `/_feint/*`, snapshots) gelées par des tests ; un snapshot
-  est compris ou refusé, jamais à moitié lu en silence.
-- **#134**, **#135** : des invariants de concurrence sous un barrage
+- **#125** : *ouverte* — la preuve adossée au runtime tourne sur une machine
+  que personne ici ne possède ; elle promeut l'élément « Plus tard » ci-dessous
+  et porte sa règle de promotion.
+- **#130** : *faite* — une page répond à ce qu'un utilisateur peut valider ici,
+  par mode runtime, chaque ligne portant sa preuve ou sa limite
+  ([confidence.md](confidence.md)).
+- **#132**, **#133** : *faites* — les surfaces contractuelles propres du projet
+  (CLI, codes de sortie, `/_feint/*`, snapshots) gelées par des tests ; un
+  snapshot est compris ou refusé, jamais à moitié lu en silence.
+- **#134**, **#135** : *faites* — des invariants de concurrence sous un barrage
   délibéré ; le comportement au crash et au redémarrage énoncé une fois et
   prouvé par un kill.
-- **#124**, **#126**, **#128**, **#129** : états transitoires déterministes,
-  catalogue strict opt-in, `feint exec`, signature épinglée au workflow de
-  release. Fidélité et durcissement, explicitement derrière les preuves
-  ci-dessus.
+- **#124**, **#126**, **#128** : *ouvertes* — et **#129** *faite* : états
+  transitoires déterministes, catalogue strict opt-in et `feint exec` sont la
+  fidélité et le durcissement encore explicitement derrière les preuves
+  ci-dessus ; la signature épinglée au workflow de release est livrée et
+  documentée dans la section d'installation du README.
 
 **L'arbitrage qu'elles proposent est #136**, et c'est une proposition, pas une
 décision : la version 0.8 achète la *confiance* (CI runtime, concurrence,
@@ -546,18 +573,21 @@ est posée, et que les vagues ci-dessus continuent quoi qu'il arrive.
 
 Le côté requête a maintenant des dents : un champ envoyé par un client qu'aucun
 handler ne lit fait échouer le run de conformance, le mécanisme qui a attrapé
-un retype de serveur répondant 200 sans rien faire. Deux manques restent, tous
-deux mesurés. Une sonde qui reçoit un 4xx compte comme *refused* et son corps
-d'erreur n'est jamais validé contre le contrat, donc une mauvaise forme
-d'erreur se cache derrière un bon code ; et les paramètres de requête ne sont
-pas contractualisés, exactement là où un paramètre de taille de page ignoré
-est passé jusqu'à ce qu'un vrai client s'en aperçoive. Un « probed » qui
-prouve peu est pire qu'un manque honnête, parce qu'il se lit comme une preuve.
-
-**Preuve :** le corps d'erreur d'une sonde refusée est validé contre le schéma
-d'erreur du provider lui-même et une violation fait échouer
-`mise run conformance` ; et les sondes des routes de liste font varier la
-taille de page et vérifient la page reçue.
+un retype de serveur répondant 200 sans rien faire. Les deux manques que cet
+élément nommait sont fermés, chacun sur sa preuve énoncée. Une sonde qui
+recevait un 4xx comptait comme *refused* sans que son corps d'erreur soit
+jamais validé, donc une mauvaise forme d'erreur se cachait derrière un bon
+code — la sonde valide désormais chaque corps de refus contre le schéma
+d'erreur que le provider déclare, et une violation fait échouer
+`mise run conformance` (#162). Les paramètres de requête n'étaient pas
+contractualisés, exactement là où un paramètre de taille de page ignoré est
+passé jusqu'à ce qu'un vrai client s'en aperçoive — les contrats déclarent
+désormais les paramètres de requête, les sondes paginées font varier la taille
+de page et vérifient la page reçue (#166), et un paramètre déclaré qu'un
+handler ne lit jamais échoue tout court (#271,
+`TestDeclaredQueryParametersAreRead`). La phrase qui a porté tout cela tient :
+un « probed » qui prouve peu est pire qu'un manque honnête, parce qu'il se lit
+comme une preuve.
 
 ### IAM sous le gate de dérive : réglé
 
@@ -568,30 +598,42 @@ n'importe quel autre produit ; c'était la preuve énoncée. L'élément reste s
 cette page une release, parce que l'état qu'il a corrigé (servi et non mesuré,
 l'état le moins défendable pour une route) mérite d'être rappelé par son nom.
 
-### Une GitHub Action `setup-feint` et un modèle GitLab CI
+### Une GitHub Action `setup-feint` et un modèle GitLab CI : livrés
 
 Les verbes de cycle de vie ont été conçus pour la CI (`start`, `wait`, `env`,
-codes de sortie stables), donc l'action est un composite mince, pas un projet.
-Elle est listée après l'image parce que le chemin GitLab `services:` consomme
-l'image, et parce qu'une action qui existerait avant que le scénario golden
-image fonctionne installerait un outil qui échoue sur le premier module
-réaliste.
+codes de sortie stables), donc l'action est un composite mince, pas un projet —
+et c'est ce qui a été livré. `stephrobert/setup-feint@v1` installe le binaire
+publié, vérifie sa somme de contrôle avant de l'exécuter, et attend que
+l'émulateur réponde (`.github/actions/setup-feint/`, publiée depuis ce dépôt
+et gardée contre sa copie, #245) ; le modèle GitLab `services:`, le fichier
+compose et le job GitHub Actions vivent sous [examples/](../examples/) (#244,
+#246).
 
-**Preuve :** la CI d'un dépôt d'exemple, sur GitHub et sur GitLab, va du
-checkout à un `terraform apply` vert contre l'émulateur en n'utilisant que
-l'action ou le modèle publiés.
+**Preuve, atteinte :** les pipelines d'exemple vont du checkout à un
+`terraform apply` vert contre l'émulateur en n'utilisant que l'action ou le
+modèle publiés, et `examples/README.md` déroule chacun.
 
-### Un module testcontainers-go
+### Un module testcontainers-go : livré sous le nom `feinttest`, délibérément sans testcontainers
 
-C'est ainsi qu'un émulateur entre dans les suites de test des autres. Il vit
-dans un dépôt séparé, parce que le module doit dépendre de testcontainers
-alors que le `go.mod` zéro dépendance de ce dépôt est imposé par un hook
-pre-commit, et Go vient en premier parce que c'est la langue des SDK des trois
-fournisseurs. Java et Python suivent le même motif seulement après que le
-module Go a des utilisateurs.
+C'est ainsi qu'un émulateur entre dans les suites de test des autres. Cette
+section disait qu'il devrait vivre dans un dépôt séparé, parce que le module
+dépendrait de testcontainers alors que le `go.mod` zéro dépendance de ce dépôt
+est imposé par un hook pre-commit. Ce qui a été livré (#247) réfute la
+prémisse plutôt que l'objectif : [`feinttest/`](../feinttest/) vit *dans* ce
+dépôt, pilote le CLI du runtime de conteneurs au lieu d'importer
+testcontainers, et garde le compte de dépendances à zéro —
+`feinttest.Start(t)` démarre l'image publiée, rend l'endpoint, et nettoie avec
+le test. Son propre commentaire de paquet porte l'argument « pourquoi ce n'est
+pas testcontainers-go ». Un habillage testcontainers communautaire reste
+possible par-dessus ; rien ici ne le bloque, et rien ici ne l'attend.
 
-**Preuve :** un `go test` dans le dépôt du module démarre l'image publiée,
-pointe le SDK Scaleway officiel dessus, crée et supprime un serveur.
+**Preuve, atteinte à moitié :** les tests de `feinttest` démarrent l'image
+publiée et prouvent qu'elle répond, isolée par test. L'autre moitié de la
+preuve énoncée — un SDK officiel créant et supprimant un serveur au travers —
+est montrée dans le commentaire du paquet et ne peut pas être un test *ici* :
+importer le SDK d'un provider est exactement la dépendance que le `go.mod` de
+trois lignes refuse, donc cette preuve appartient à la suite du premier
+consommateur, pas à celle-ci.
 
 ### Des suites de conformance découpées par ressource
 
@@ -843,9 +885,8 @@ puisqu'il compare la page à son générateur : il prouve la forme, jamais
 l'énoncé. Vérifier n'est pas parser, commis sur la documentation de ce projet —
 consigné ici plutôt que discrètement réécrit.
 
-Il ne reste dans « plus tard » qu'au sens du calendrier ; le terrain est
-mesuré (30 juillet 2026, sur la CI des projets amont eux-mêmes), et le tout
-repose sur une seule combinaison non prouvée :
+Le terrain ci-dessous a été mesuré le 30 juillet 2026, avant que le job
+existe, et la combinaison qu'il déclarait non prouvée a depuis été exécutée :
 
 - **Incus tourne sur un `ubuntu-24.04` hébergé par GitHub.** `lxc/incus` y
   pilote son propre `test/main.sh` avec de vrais conteneurs sur zfs, btrfs,
@@ -855,8 +896,10 @@ repose sur une seule combinaison non prouvée :
   utilisateur) sur le même runner, après
   `apt install linux-modules-extra-$(uname -r)` et un correctif du fichier
   hosts tiré de son `.ci/linux-util.sh`.
-- **Personne ne fait tourner les deux ensemble.** La CI d'Incus ne contient
-  aucune occurrence d'`ovn`, et le dépôt OVN n'a aucune suite de test Incus.
+- **Personne n'avait fait tourner les deux ensemble — jusqu'à ce que ce job le
+  fasse.** La CI d'Incus ne contient aucune occurrence d'`ovn`, et ce dépôt-là
+  n'a aucune suite de test OVN, donc la première preuve que la combinaison
+  fonctionne sur un runner hébergé est celle-ci.
 
 Un piège et une inconnue. Le piège est **AppArmor** : ce même
 `.ci/linux-util.sh` exécute `aa-teardown` et désactive le service, ce qui se
@@ -870,15 +913,15 @@ runner en appelant cela de l'installation. L'inconnue est **arm64** : aucun
 des deux projets amont ne l'exerce sur un runner hébergé, donc un run vert là
 serait la première preuve arm64 de ce dépôt, pas seulement de `--vm`.
 
-L'ordre est : mesurer, puis gater. Le job atterrit derrière
-`workflow_dispatch`, se lance à la main, et ne passe sur `pull_request` que
-lorsque son taux d'échec nocturne sur un nombre de nuits énoncé atteint un
-seuil énoncé ; un nombre que l'historique des Actions prouve, pas une opinion
-(#125 consigne la règle). Un gate rouge le jour de son apparition est un gate
+L'ordre est : mesurer, puis gater. Le job tourne chaque nuit et par
+`workflow_dispatch`, et ne passe sur `pull_request` que lorsque son taux
+d'échec sur un nombre de nuits énoncé atteint un seuil énoncé ; un nombre que
+l'historique des Actions prouve, pas une opinion. Cette série n'y est pas
+encore, et c'est pourquoi ce n'est pas un gate. Un gate rouge le jour de son apparition est un gate
 que tout le monde apprend à ignorer, et ce dépôt porte déjà la note sur ce que
 cela coûte.
 
-**Preuve :** un job de CI installe Incus depuis Zabbly plus OVN sur un runner
+**Preuve, atteinte :** un job de CI installe Incus depuis Zabbly plus OVN sur un runner
 hébergé, câble la connexion northbound, et `FEINT_VM=incus-ovn` déroule la
 suite réseau jusqu'au bout : le subnet créé à travers l'API émulée, l'adresse
 publiée par l'API qui répond, et l'assertion d'isolation qui passe au lieu
@@ -917,12 +960,13 @@ supporter demande interception DNS et terminaison TLS plutôt qu'un réglage
 d'endpoint. Émuler S3 n'est pas la partie difficile et ne l'a jamais été ;
 atteindre l'émulateur l'est.
 
-**Ce sur quoi ce « non » repose est désormais lui-même en question** : voir
-l'arbitrage rouvert plus haut et #76. La mesure (l'endpoint est construit dans
-le code) tient ; l'estimation qui l'a suivie (« un projet à part entière »)
-n'a jamais été faite, et le bloqueur s'avère générique plutôt que propre à
-l'object storage. Cet élément n'est donc plus un refus réglé, c'est un refus
-en attente d'un coût.
+**Ce sur quoi ce « non » repose est désormais mesuré** : voir l'arbitrage plus
+haut et #76. L'estimation qui suivait la mesure (« un projet à part entière »)
+a été faite : le bloqueur est un produit sur un client, pas la dérive
+générique que la réouverture craignait, et le coût vit dans la redirection
+DNS, pas dans le certificat. Cet élément est donc redevenu un refus réglé —
+cette fois avec les chiffres à l'appui, dans [limits.md](limits.md) — plutôt
+qu'un refus en attente d'un coût.
 
 Ce qui n'attend pas, c'est le « voici comment » : les chemins SDK et CLI
 honorent `SCW_S3_ENDPOINT`, donc une page documentée feint plus MinIO couvre
@@ -1009,8 +1053,9 @@ seconde a sa place ici.
   qui tient ses promesses.
 - **Toute dépendance Go externe.** Un `go.mod` de trois lignes est un argument
   de sécurité pour un outil qui tournera dans la CI de tout le monde, et un
-  hook pre-commit l'impose. Ce qui exige une dépendance (le module
-  testcontainers ci-dessus) vit dans son propre dépôt.
+  hook pre-commit l'impose. Ce qui exigerait une dépendance vit dans son propre
+  dépôt — et `feinttest` existe précisément parce que la dépendance évidente a
+  été refusée et que la forme pilotée par CLI a gardé le compte à zéro.
 - **La télémétrie, ou un compte. Jamais.** « Pas de compte, pas de facture »
   est dans la première ligne du README et cette phrase est porteuse.
 - **Un quatrième provider avant que le troisième soit utilisable.** Sinon le

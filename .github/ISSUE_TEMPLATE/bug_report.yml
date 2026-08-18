@@ -25,7 +25,7 @@ body:
     attributes:
       label: feint version
       description: The output of `feint version`.
-      placeholder: v0.1.0
+      placeholder: v0.8.0
     validations:
       required: true
 

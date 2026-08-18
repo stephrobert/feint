@@ -17,9 +17,17 @@ internal/core/emulator/     Env, Pack, Route, the single-port mount, /_feint/*
 internal/core/machine/      the machine runtime behind --vm: Incus containers, VMs, OVN
 internal/core/network/      address plans, subnets, firewall bindings
 internal/core/cloudinit/    the boot payload a provider hands its machines
+internal/core/serialise/    keyed mutual exclusion: one lock per named target
+internal/core/sshkey/       the OpenSSH one-line public key format, read and refused
 internal/contract/          API descriptions, and the check that answers match them
 internal/drift/             the upstream surface scan, coverage, baselines
 internal/probe/             drives every mounted route from its API description
+internal/proxy/             records what a real client and a real cloud say to each other
+internal/shape/             what a real cloud was observed to return, and what is omitted from it
+internal/trace/             the record of one HTTP exchange, for /_feint/trace and the log
+internal/transcript/        turns a proxy recording into what to serve next
+internal/upstream/          talks to the real clouds, so that nothing else has to
+internal/compat/            classifies a consumer's expression across two releases (compat:check)
 internal/providers/<name>/  one pack per emulated cloud
 tools/conformance/<name>/   that provider's real clients: CLI, Terraform, OpenTofu
 coverage/, contracts/       versioned artefacts the gates read

@@ -30,6 +30,17 @@ The SDK and the CLI are better off: they honour `SCW_S3_ENDPOINT`. So an S3
 workflow driven by `scw` or by an SDK can already point at MinIO today; only the
 Terraform path is blocked.
 
+The consequence has since been observed live, from a stranger's stack rather
+than a fixture ([#262](https://github.com/stephrobert/feint/issues/262),
+[examples/stacks/surveyed.md](../examples/stacks/surveyed.md)): with
+`SCW_API_URL` pointing at this emulator, the provider still sent its
+`CreateBucket` to the real `s3.fr-par.scw.cloud`, which answered 403 on the
+fake credentials. Nothing was created and nothing was billed — but the request
+left the machine. A configuration carrying `scaleway_object_bucket` talks to
+the real endpoint no matter where the rest of it is pointed, and any sentence
+here promising that traffic never leaves your machine has to carve out this
+one product on this one client.
+
 ## The cost of DNS/TLS interception, measured (#76)
 
 The refusal above rested on an unmeasured cost. Measured against the real
@@ -1373,6 +1384,41 @@ pass against this, which is exactly what those refusals are for.
 So: a plan that builds a routable topology applies, reads back and destroys
 correctly. A machine inside it still cannot reach the internet. Use the emulator
 to test the shape of your infrastructure, never its connectivity.
+
+## An Outscale Vm's options round-trip as data; their behavioural half has nothing to act on here
+
+`BootMode`, `Performance` and `VmInitiatedShutdownBehavior` used to be
+accepted at create with a 200 while every read answered a constant of the
+pack — the client asked `medium`/`restart`/`legacy`, the same create's answer
+said `high`/`stop`/`uefi`, and a Terraform stack setting any of them
+re-planned the same in-place change for ever (#276, the #268 pattern on
+per-machine scalars). They are stored and restituted now, on the create and
+on UpdateVm where upstream declares them, values validated against their
+enums, and `Performance` honours upstream's own precedence: a performance
+flag inside the `VmType` (`tinavW.cXrYpZ`) wins over the parameter. The same
+sweep covers the neighbours with the same symptom: `TpmEnabled`,
+`ActionsOnNextBoot.SecureBoot`, `ShutdownBehaviorConfiguration` (whose
+defaults are now the SDK's own "By default" lines — GuestAction `stop`,
+HostAction `restart`; the old constant said `stop`/`stop`) and UpdateVm's
+`IsSourceDestChecked`.
+
+What is served is the datum. The behavioural half of these fields has nothing
+to act on in this emulator, and saying so is the difference between an echo
+and a lie:
+
+- `VmInitiatedShutdownBehavior` and `ShutdownBehaviorConfiguration` describe
+  what the platform does when the **guest** shuts itself down. No path here
+  watches a guest-initiated shutdown — `StopVms` stops the machine whatever
+  the field says, which matches upstream, where the API stop is not a
+  VM-initiated one. A `terminate` behaviour will therefore never terminate a
+  machine here, because the event that would trigger it is never observed.
+- `TpmEnabled` and `ActionsOnNextBoot.SecureBoot` round-trip; no vTPM and no
+  secure-boot state is presented to any guest the runtime boots.
+- `IsSourceDestChecked` round-trips; nothing enforces the check on traffic.
+- `BsuOptimized` stays the constant `false` on every read, and that one is
+  upstream's own behaviour, not this pack's shortcut: "This parameter is not
+  available. It is present in our API for the sake of historical
+  compatibility with AWS" (osc-sdk-go client.gen.go:3029).
 
 ## An Outscale Net peering carries traffic under OVN, and only there
 

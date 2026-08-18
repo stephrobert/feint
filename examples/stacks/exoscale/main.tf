@@ -140,14 +140,66 @@ resource "exoscale_anti_affinity_group" "app" {
 # application tier — which is the shape a pool exists for.
 # ---------------------------------------------------------------------------
 
+# The visibility filter is written out rather than left to its default.
+# appuio/terraform-openshift4-exoscale resolves every template through this
+# parameter, and its reads produced the #271 transcript: a filter the API
+# document declares and the emulator dropped, answering the public catalogue
+# to a private query. The declared parameter on this read keeps the served
+# half of that fix under a real client; the private half — register a
+# template, list it under `--visibility private` — needs a register call the
+# pinned provider fork (0.70-based) has no resource for, so it lives in the
+# exo CLI conformance suite instead.
 data "exoscale_template" "ubuntu" {
-  zone = var.zone
-  name = "Linux Ubuntu 24.04 LTS 64-bit"
+  zone       = var.zone
+  name       = "Linux Ubuntu 24.04 LTS 64-bit"
+  visibility = "public"
 }
 
 resource "exoscale_elastic_ip" "ingress" {
   zone        = var.zone
   description = "platform ingress"
+
+  # A managed EIP rather than a bare one: PhilippeChepy/terraform-exoscale-vault
+  # — the only surveyed third-party stack that came out entirely green — fronts
+  # its cluster with exactly this healthcheck shape. The block must read back
+  # as sent or the second plan never converges.
+  healthcheck {
+    mode         = "tcp"
+    port         = 443
+    interval     = 10
+    timeout      = 5
+    strikes_ok   = 2
+    strikes_fail = 3
+  }
+}
+
+# ---------------------------------------------------------------------------
+# A persistent data volume, attached to the web instance and snapshotted —
+# the block-storage product, which is a different API from the instance disk.
+# HealsCodes/ephemeral-devbox is built around exactly this motif (a machine
+# that comes and goes, a data volume that survives it, a snapshot rotation);
+# it drove the chain on the neighbouring provider, and this is the Terraform
+# reader of the block-storage work of #12 and #232 that the exo CLI suite
+# otherwise exercises alone.
+# ---------------------------------------------------------------------------
+
+resource "exoscale_block_storage_volume" "web_data" {
+  zone = var.zone
+  name = "platform-web-data"
+  size = 20
+
+  labels = {
+    tier = "web"
+  }
+}
+
+resource "exoscale_block_storage_volume_snapshot" "web_data" {
+  zone = var.zone
+  name = "platform-web-snap"
+
+  volume = {
+    id = exoscale_block_storage_volume.web_data.id
+  }
 }
 
 resource "exoscale_compute_instance" "web" {
@@ -159,6 +211,8 @@ resource "exoscale_compute_instance" "web" {
   ssh_key            = exoscale_ssh_key.platform.name
   security_group_ids = [exoscale_security_group.web.id]
   elastic_ip_ids     = [exoscale_elastic_ip.ingress.id]
+
+  block_storage_volume_ids = [exoscale_block_storage_volume.web_data.id]
 
   network_interface {
     network_id = exoscale_private_network.front.id
@@ -195,4 +249,9 @@ output "ingress_address" {
 
 output "pool_instances" {
   value = exoscale_instance_pool.app.virtual_machines
+}
+
+output "template_id" {
+  # Resolved through an explicit visibility filter — the #271 read path.
+  value = data.exoscale_template.ubuntu.id
 }

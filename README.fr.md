@@ -389,7 +389,7 @@ sont pas encore appliqués : [docs/conformance.fr.md](docs/conformance.fr.md).
 
 ## Commandes
 
-`feint --help` donne les drapeaux. Les vingt-deux verbes sont ici : un verbe que
+`feint --help` donne les drapeaux. Tous les verbes sont ici : un verbe que
 cette page ne nomme pas est un verbe que seul un lecteur du code trouvera, et
 c'est arrivé à dix d'entre eux avant qu'un test compare les deux listes.
 
@@ -448,8 +448,11 @@ ressource créée se relise à l'identique, ce qu'un mock ne fait pas sans qu'on
 
 ### Pourquoi pas de l'émulation écrite à la main
 
-Parce que la surface bouge plus vite qu'une équipe. Scaleway a ajouté 453
-méthodes de SDK et en a retiré 26 en douze mois : personne ne suit cela de tête.
+Parce que la surface bouge plus vite qu'une équipe. Scaleway a ajouté 363
+opérations et en a retiré 25 dans les douze mois précédant le 2026-07-28 —
+mesuré en exécutant le scan de surface de ce dépôt sur deux checkouts datés de
+leur SDK et en comparant les listes d'opérations : personne ne suit cela de
+tête.
 
 C'est pourquoi ce projet **mesure** l'API au lieu de la suivre. Un scan lit le
 SDK officiel du provider, une baseline versionnée fait échouer la CI dès qu'une
