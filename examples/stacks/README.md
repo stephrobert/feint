@@ -33,6 +33,13 @@ Neither was visible to a schema check. A missing route target answers a clean
 400, and a view publishing a constant empty list has exactly the shape an
 untagged NIC should have: the form was right and the fact was wrong.
 
+The same argument was then turned outward: fifteen stacks from GitHub,
+written by people who had never seen this repository, applied against the
+emulator — five per provider. [`surveyed.md`](surveyed.md) is that register
+(#262): repository and commit for each, verdict, every edit recorded with
+its reason, the declined products they reached for, and the four defects
+they surfaced (#268, #269, #270, #271).
+
 ## The rule when you change one
 
 **Every defect a stack finds gets its resource added to the stack.** That is what
