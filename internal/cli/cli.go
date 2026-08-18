@@ -92,7 +92,7 @@ const (
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 2
+const cliSurfaceVersion = 3
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -242,7 +242,12 @@ Usage:
   feint coverage   (--sdk <dir> | --contract <file>) [--provider scaleway|outscale|exoscale]
                     [--products <a,b,c>] [--format text|json|triage|list]
                     [--baseline <file> [--write-baseline]] [--fail-on-unknown]
+                    [--artefact <file>]
                     Compare the upstream API surface with what the packs serve.
+                    --artefact compares the committed coverage artefact against
+                    what the pack declares today — statuses and decline reasons —
+                    and exits 2 on any skew, so an edited reason cannot outlive
+                    itself in the versioned copy.
                     Scaleway and Outscale are read from an SDK checkout; Exoscale
                     publishes an OpenAPI document, so it is read with --contract.
                     Given both, the SDK lists the operations and the contract adds
@@ -729,6 +734,7 @@ func coverage(args []string, stdout, stderr io.Writer) int {
 	failOnUnknown := fs.Bool("fail-on-unknown", false, "exit 2 when an upstream operation is neither served nor declined")
 	baseline := fs.String("baseline", "", "compare the unknown operations against this baseline file and exit 2 on new ones")
 	writeBaseline := fs.Bool("write-baseline", false, "rewrite the baseline file from the current upstream surface")
+	artefact := fs.String("artefact", "", "compare this committed coverage artefact against what the pack declares and exit 2 on any skew")
 	if err := fs.Parse(args); err != nil {
 		return exitError
 	}
@@ -859,6 +865,30 @@ func coverage(args []string, stdout, stderr io.Writer) int {
 		}
 		if code != exitOK {
 			return code
+		}
+	}
+
+	// The committed artefact against the pack's current declarations. The
+	// baseline above watches the upstream side; this watches the copy: #298
+	// measured a decline reason rewritten in a pack that took four days to reach
+	// coverage/scaleway-coverage.json, because the baseline compares operation
+	// names and docs --check regenerates the README from the same stale artefact
+	// — two gates agreeing with each other while both disagreed with the code.
+	// TestTheCommittedArtefactCarriesWhatThePacksDeclare fails on the same skew;
+	// this flag is what makes tools/drift/gate.sh check exit 2 on it.
+	if *artefact != "" {
+		skew, err := artefactSkew(*artefact, served, declined)
+		if err != nil {
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
+		if len(skew) > 0 {
+			fmt.Fprintf(stderr, "feint: %s disagrees with what the pack declares, %d operation(s):\n", *artefact, len(skew))
+			for _, line := range skew {
+				fmt.Fprintf(stderr, "  %s\n", line)
+			}
+			fmt.Fprintln(stderr, "feint: the artefact follows the code; regenerate it: mise run drift:update")
+			return exitDrift
 		}
 	}
 

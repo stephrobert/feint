@@ -252,6 +252,136 @@
           ]
         }
       }
+    },
+    {
+      "schema_version": 3,
+      "content": {
+        "exit_codes": {
+          "drift": 2,
+          "error": 1,
+          "ok": 0
+        },
+        "verbs": {
+          "catalog": [
+            "--format"
+          ],
+          "clean": [
+            "--vm"
+          ],
+          "coverage": [
+            "--artefact",
+            "--baseline",
+            "--contract",
+            "--fail-on-unknown",
+            "--format",
+            "--products",
+            "--provider",
+            "--sdk",
+            "--write-baseline"
+          ],
+          "docs": [
+            "--check",
+            "--coverage",
+            "--file"
+          ],
+          "doctor": [
+            "--addr",
+            "--vm"
+          ],
+          "env": [
+            "--endpoint",
+            "--shell",
+            "--unset"
+          ],
+          "evidence": [
+            "--endpoint",
+            "--join",
+            "--out",
+            "--shapes"
+          ],
+          "images": [
+            "--check",
+            "--only",
+            "--vm"
+          ],
+          "logs": [
+            "--addr",
+            "-f",
+            "-n"
+          ],
+          "probe": [
+            "--contracts",
+            "--endpoint",
+            "--provider"
+          ],
+          "proxy": [
+            "--addr",
+            "--max-body",
+            "--provider",
+            "--queue",
+            "--record",
+            "--upstream"
+          ],
+          "restart": [
+            "--addr",
+            "--timeout"
+          ],
+          "serve": [
+            "--addr",
+            "--cleanup",
+            "--contracts",
+            "--coverage",
+            "--log-level",
+            "--state",
+            "--vm"
+          ],
+          "shapes": [
+            "--check",
+            "--dir",
+            "--dry-run",
+            "--profile",
+            "--provider",
+            "--record"
+          ],
+          "snapshot": [
+            "--addr",
+            "--force",
+            "--format",
+            "--state"
+          ],
+          "start": [
+            "--detach",
+            "--foreground",
+            "--timeout"
+          ],
+          "status": [
+            "--addr",
+            "--coverage",
+            "--format"
+          ],
+          "stop": [
+            "--addr",
+            "--timeout"
+          ],
+          "transcript": [
+            "--against",
+            "--format",
+            "--shape"
+          ],
+          "ui": [
+            "--addr",
+            "--print"
+          ],
+          "version": [
+            "--version",
+            "-v"
+          ],
+          "wait": [
+            "--addr",
+            "--timeout"
+          ]
+        }
+      }
     }
   ]
 }
