@@ -1,0 +1,40 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "BootMode reads a key nobody stores and the constant uefi is back — the client asked legacy, the 200 answers uefi (#276)",
+      "file": "internal/providers/outscale/vmoptions.go",
+      "find": "\treturn orDefault(stringOf(res.Attrs[attrBootMode]), defaultBootMode)",
+      "replace": "\treturn orDefault(stringOf(res.Attrs[attrBootMode+\"-never\"]), defaultBootMode)",
+      "test": "TestAVmReadsBackItsOwnOptions"
+    },
+    {
+      "label": "Performance reads a key nobody stores and the constant high is back",
+      "file": "internal/providers/outscale/vmoptions.go",
+      "find": "\treturn orDefault(stringOf(res.Attrs[attrPerformance]), defaultPerformance)",
+      "replace": "\treturn orDefault(stringOf(res.Attrs[attrPerformance+\"-never\"]), defaultPerformance)",
+      "test": "TestAVmReadsBackItsOwnOptions"
+    },
+    {
+      "label": "VmInitiatedShutdownBehavior reads a key nobody stores and the constant stop is back",
+      "file": "internal/providers/outscale/vmoptions.go",
+      "find": "\treturn orDefault(stringOf(res.Attrs[attrShutdownBehavior]), defaultShutdownBehavior)",
+      "replace": "\treturn orDefault(stringOf(res.Attrs[attrShutdownBehavior+\"-never\"]), defaultShutdownBehavior)",
+      "test": "TestAVmReadsBackItsOwnOptions"
+    },
+    {
+      "label": "the VmType performance flag stops winning, so a p3 type beside Performance=highest reads highest — upstream's documented precedence inverted",
+      "file": "internal/providers/outscale/vmoptions.go",
+      "find": "\tif !strings.HasPrefix(vmType, \"tinav\") {",
+      "replace": "\tif !strings.HasPrefix(vmType, \"tinav-never\") {",
+      "test": "TestTheVmTypePerformanceFlagWins"
+    },
+    {
+      "label": "the enum refusal goes quiet and Performance=turbo is stored with a 200 — accepted-then-denied, the one option off the table",
+      "file": "internal/providers/outscale/vmoptions.go",
+      "find": "\tif opts.Performance != nil && !oneOf(*opts.Performance, \"medium\", \"high\", \"highest\") {",
+      "replace": "\tif opts.Performance != nil && !oneOf(*opts.Performance, \"medium\", \"high\", \"highest\") && false {",
+      "test": "TestVmOptionsOutsideTheirEnumAreRefused"
+    }
+  ]
+}

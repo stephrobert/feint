@@ -101,6 +101,20 @@ type createVmsRequest struct {
 	// re-planned the same in-place change for ever. The chain is
 	// request → store → response now; vmPlacementView renders what this stored.
 	Placement *vmPlacement `json:"Placement"`
+	// The per-machine scalars of the same family (#276): accepted with a 200
+	// while every read answered a constant — medium/restart/legacy asked,
+	// high/stop/uefi answered. vmoptions.go carries the model and the SDK
+	// citations. BootMode is create-only upstream: UpdateVmRequest declares
+	// no such field.
+	BootMode   *string `json:"BootMode"`
+	TpmEnabled *bool   `json:"TpmEnabled"`
+	// BsuOptimized is read and deliberately not stored: "This parameter is
+	// not available. It is present in our API for the sake of historical
+	// compatibility with AWS" (client.gen.go:3029) — the real cloud ignores
+	// it too, so the constant false every read answers is upstream's own
+	// behaviour, not this pack's invention.
+	BsuOptimized *bool `json:"BsuOptimized"`
+	vmOptionsRequest
 }
 
 type vmIDsRequest struct {
@@ -126,6 +140,10 @@ type updateVMRequest struct {
 	// A pointer because false is the value that matters: a plain bool cannot
 	// tell "clear the protection" from "this request says nothing about it".
 	DeletionProtection *bool `json:"DeletionProtection"`
+	// "(Net only)" upstream; stored and restituted, enacted by nothing —
+	// docs/limits.md carries what the flag does not do here.
+	IsSourceDestChecked *bool `json:"IsSourceDestChecked"`
+	vmOptionsRequest
 }
 
 func (p *Pack) readVms(w http.ResponseWriter, r *http.Request) {
@@ -228,6 +246,16 @@ func (p *Pack) createVms(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !p.validVmFields(w, req.KeypairName, req.UserData) {
+		return
+	}
+	// The option enums, shared with UpdateVm; BootMode is create-only, so its
+	// check lives here. Refused rather than stored: a stored value outside
+	// the platform's enum is a read that can only lie one way or another.
+	if !p.validVmOptions(w, req.vmOptionsRequest) {
+		return
+	}
+	if req.BootMode != nil && !oneOf(*req.BootMode, "legacy", "uefi") {
+		p.badRequest(w, "BootMode must be legacy or uefi")
 		return
 	}
 	// A subregion the catalogue does not declare is refused here, not stored:
@@ -365,7 +393,16 @@ func (p *Pack) allocateVms(req createVmsRequest, count int, now time.Time) ([]*r
 			"VmType":               orDefault(req.VMType, defaultVMType),
 			"DeletionProtection":   boolOr(req.DeletionProtection, false),
 			"NestedVirtualization": boolOr(req.NestedVirtualization, false),
+			// Resolved once and stored, like Placement below: the chain #276
+			// demands is request → store → response, never
+			// request → constant → response.
+			attrBootMode:   defaultBootMode,
+			attrTpmEnabled: boolOr(req.TpmEnabled, false),
 		}
+		if req.BootMode != nil {
+			res.Attrs[attrBootMode] = *req.BootMode
+		}
+		storeVmOptions(res, req.vmOptionsRequest, stringOf(res.Attrs["VmType"]))
 		// The Subnet the client asked for, resolved before anything is stored: a
 		// Vm placed nowhere is not a Vm the client asked for. Reading it here,
 		// under the lock, is also what makes deleteSubnet's guard hold: the two
@@ -500,6 +537,9 @@ func (p *Pack) updateVm(w http.ResponseWriter, r *http.Request) {
 	if !p.validVmFields(w, req.KeypairName, req.UserData) {
 		return
 	}
+	if !p.validVmOptions(w, req.vmOptionsRequest) {
+		return
+	}
 
 	// Serialised on the target, like transitionOne and deleteVms. Without it,
 	// Commit replaces State, Runtime and Attrs wholesale over whatever a
@@ -543,6 +583,12 @@ func (p *Pack) updateVm(w http.ResponseWriter, r *http.Request) {
 	if req.DeletionProtection != nil {
 		res.Attrs["DeletionProtection"] = *req.DeletionProtection
 	}
+	if req.IsSourceDestChecked != nil {
+		res.Attrs[attrSourceDestChecked] = *req.IsSourceDestChecked
+	}
+	// After the VmType block above, so a retype's performance flag wins over
+	// whatever was stored — upstream's own precedence (vmoptions.go).
+	storeVmOptions(res, req.vmOptionsRequest, stringOf(res.Attrs["VmType"]))
 	if !p.env.Store.Commit(res, p.env.Now()) {
 		p.notFound(w, "Vm", res.ID)
 		return
@@ -884,18 +930,31 @@ func (p *Pack) vmView(res *resource.Resource) map[string]any {
 	// whatever Hypervisor says. What matters to a client is that the field is
 	// there, well-formed, and stable between two reads.
 	out["Architecture"] = "x86_64"
-	out["BootMode"] = "uefi"
 	out["Hypervisor"] = "xen"
-	out["IsSourceDestChecked"] = true
 	out["LaunchNumber"] = 0
-	out["Performance"] = "high"
 	out["RootDeviceName"] = "/dev/sda1"
 	out["RootDeviceType"] = "ebs"
+	// Upstream's own constant, not this pack's: "This parameter is not
+	// available. It is present in our API for the sake of historical
+	// compatibility with AWS" (client.gen.go:3029), so false is what the real
+	// cloud answers whatever a create asked.
 	out["BsuOptimized"] = false
-	out["TpmEnabled"] = false
-	out["VmInitiatedShutdownBehavior"] = "stop"
 	out["StateReason"] = ""
-	out["ActionsOnNextBoot"] = map[string]any{"SecureBoot": "none"}
+	// What the create (and UpdateVm, where upstream declares it) stored,
+	// never a constant — BootMode, Performance and
+	// VmInitiatedShutdownBehavior were #276: medium/restart/legacy asked,
+	// high/stop/uefi answered on the same create's 200, and a Terraform
+	// stack setting any of them re-planned for ever. The neighbours carried
+	// the same defect one field over. vmoptions.go holds the readers, the
+	// defaults, and the SDK lines. TestAVmReadsBackItsOwnOptions fails
+	// without this.
+	out["BootMode"] = vmBootMode(res)
+	out["Performance"] = vmPerformance(res)
+	out["VmInitiatedShutdownBehavior"] = vmShutdownBehavior(res)
+	out["ShutdownBehaviorConfiguration"] = vmShutdownConfiguration(res)
+	out["ActionsOnNextBoot"] = vmActionsOnNextBoot(res)
+	out["TpmEnabled"] = vmTpmEnabled(res)
+	out["IsSourceDestChecked"] = vmSourceDestChecked(res)
 	// What the create stored, never a constant. The constant here was #268: a
 	// machine created in eu-west-2b read back in eu-west-2a, stable and wrong —
 	// #250 had already named the pattern, "a constant in a view is a claim
@@ -932,14 +991,6 @@ func (p *Pack) vmView(res *resource.Resource) map[string]any {
 	// this emulator's machines truthfully have (they model no root volume,
 	// docs/limits.md).
 	out["BlockDeviceMappings"] = p.blockDeviceMappingsOf(res.ID)
-	// Declared by Outscale's document since the 1.42 contract refresh — an
-	// earlier note here recorded the opposite, and the note aged while the
-	// document moved. Both actions sit on their platform defaults, matching
-	// VmInitiatedShutdownBehavior above.
-	out["ShutdownBehaviorConfiguration"] = map[string]any{
-		"GuestAction": "stop",
-		"HostAction":  "stop",
-	}
 	return out
 }
 

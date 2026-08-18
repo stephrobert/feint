@@ -137,6 +137,22 @@ printf '%s' "$azb_vms" | jq -e --arg z "$azb_zone" \
   || fail "the Vm asked for $azb_zone and reads back elsewhere — #268 is back: $azb_vms"
 ok "Vm $azb_vm_id placed and read back in $azb_zone"
 
+# The Vm options (#276): boot_mode, performance and
+# vm_initiated_shutdown_behavior, asked with non-default values in
+# vm_options.tf, must read back from the emulator as asked — every one of them
+# used to answer a constant (uefi/high/stop) on a 200. Asked of the emulator,
+# not of the state file, for the same reason as the subregion above; the
+# second-plan gate below holds the provider's own reading.
+echo "- the Vm options read back as asked, not as constants"
+options_vm_id="$("$TF" output -raw options_vm_id)"
+options_vms="$(curl -sf -X POST "$ENDPOINT/api/v1/ReadVms" -H 'Content-Type: application/json' \
+            -d "{\"Filters\":{\"VmIds\":[\"$options_vm_id\"]}}")" || fail "ReadVms rejected"
+printf '%s' "$options_vms" | jq -e \
+  '.Vms[0].BootMode == "legacy" and .Vms[0].Performance == "medium"
+   and .Vms[0].VmInitiatedShutdownBehavior == "restart"' >/dev/null \
+  || fail "the Vm asked legacy/medium/restart and reads back constants — #276 is back: $options_vms"
+ok "Vm $options_vm_id reads back legacy/medium/restart"
+
 # The routing family, which the apply proves the provider accepted and this
 # proves the emulator actually holds. Each of these was a 400 on a filter the
 # provider sends and the pack had not declared — found here, by this fixture,
