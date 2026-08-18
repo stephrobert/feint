@@ -16,6 +16,34 @@ The defects this exercise filed: [#268](https://github.com/stephrobert/feint/iss
 the exact #249 shape, written by strangers — and applied with an empty
 second plan.
 
+## Replayed on `main@23f57c1` for the 0.9.0 qualification (2026-08-18)
+
+The register was replayed the day after it was written, on the commit
+candidate for 0.9.0, with the four fixes it produced (#268–#271) merged.
+Same harness, same commits, same edits, stacks run sequentially; the only
+harness deltas were a freshly minted intercept CA and re-seeded
+prerequisites (keypairs, templates, the devbox snapshot, the talos images).
+Each entry below carries a **Replayed** line; the original verdicts stand
+above them as the before-picture.
+
+What the replay measured, in one paragraph. All four fixes hold on the
+stacks that revealed them: kasten's second plan is now empty (#268),
+ocp_outscale went from plan-blocked at zero resources to 30 applied,
+converged and destroyed (#269), talos destroys cleanly and reads a real
+IPv6 `/64` off its Private Network (#270), and openshift4's
+`visibility=private` read answers exactly the organisation's templates
+(#271). Two findings came out of the replay, one issue each: **ztiac lost
+its empty second plan** to the same catalogue enforcement that fixed #269 —
+its hardcoded `cloudgouv-eu-west-1a/b/c` zones are now refused with an
+explicit 400, 95 → 53 resources ([#290]) — and **one new lying 200**:
+concurrent `CreateSecurityGroupRule` calls can lose an acknowledged rule,
+found when terraform-outscale-k3s's destroy tripped over the phantom
+([#289]). No re-plan of any replayed stack showed an in-place change:
+everything that applied read back as created.
+
+[#289]: https://github.com/stephrobert/feint/issues/289
+[#290]: https://github.com/stephrobert/feint/issues/290
+
 ## How every stack was pointed here
 
 One emulator, one recording proxy in front of it (the transcripts quoted in
@@ -72,6 +100,9 @@ stack's quality.
 - **Declined reached**: `CreateLoadBalancer`.
 - **Score 7/10** — committed tfvars and real docs get it close; the unpinned
   provider is exactly what broke it, and there is no backend.
+- **Replayed 2026-08-18, `main@23f57c1`**: identical — 50 created, the local
+  RKE/ansible tail times out against the fictional bastion, re-plan
+  `17 to add / 0 to change` (all behind that tail), 50 destroyed.
 
 ### 2. chimere-eu/ztiac — applied as-is, both templates
 
@@ -97,6 +128,17 @@ stack's quality.
 - **Declined reached**: `CreateLoadBalancer` ×2.
 - **Score 8/10** — documented templates, no secret in the tree, floor-pinned
   provider (`>= 1.1.3`, not exact) and no backend keep it off 9.
+- **Replayed 2026-08-18, `main@23f57c1`**: **regressed, filed [#290]** — the
+  asymmetry the note above pointed at bit the other way. The #269 fix makes
+  the catalogue the authority every write checks, and the hardcoded
+  `cloudgouv-eu-west-1a/b/c` zones are now refused: `CreateSubnet` answers
+  400 `[4001] the Subregion cloudgouv-eu-west-1a does not exist in
+  eu-west-2`. `advanced-network`: 53 of 95 applied (the peering and all 14
+  routes through it — the #249 shape — still apply and destroy cleanly),
+  re-plan `42 to add / 0 to change`, 53 destroyed. `two-tier-architecture`:
+  25 of 49, re-plan `29 to add / 0 to change`, 25 destroyed. An explicit
+  refusal replacing a verbatim 200, and the register's only fully
+  converging stranger stack lost to it: the decision is #290's.
 
 ### 3. davmartini/ocp_outscale — could not be applied (plan-blocked), filed #269
 
@@ -116,6 +158,11 @@ stack's quality.
   name, three DNS IPs).
 - **Score 6/10** — staged layout and a thorough README, but a dead-namespace
   exact pin (0.5.3), no licence, no backend.
+- **Replayed 2026-08-18, `main@23f57c1`**: **plan-blocked → applied** — the
+  #269 fix verified on its witness. `ReadSubregions` answers both of
+  eu-west-2's zones, `subregions[1]` indexes, and the whole stage applies:
+  30 resources, empty re-plan, 30 destroyed. Same recorded edits still
+  required (0.5.3's `endpoints` block, the TLS intercept on 4612).
 
 ### 4. pli01/terraform-outscale-k3s — applied after recorded edits
 
@@ -139,6 +186,13 @@ stack's quality.
 - **Score 5/10** — modules and CI scaffolding, but an unpinned provider on a
   deprecated namespace, token-shaped variables (`dockerhub_token`,
   `github_token`) that nothing documents, no licence, no backend.
+- **Replayed 2026-08-18, `main@23f57c1`**: applied 37 as surveyed, LBU ×2
+  declined, same re-plan residue — and the destroy that was clean **found
+  [#289]**: of the stack's 15 concurrently created security group rules,
+  one was acknowledged 200 and never stored, so `destroy` died revoking a
+  rule the emulator never held (`[5063] the security group rule on
+  sg-08bf69ac does not exist`), 34 of 37 destroyed. The one new lying 200
+  of this replay; reduced and re-verified in the issue.
 
 ### 5. michaelcourcy/kasten-on-outscale — applied after a recorded edit, filed #268
 
@@ -156,6 +210,10 @@ stack's quality.
 - **Score 4/10** — a working lab, but an ancient exact pin, a committed
   `terraform.tfstate.backup`, no licence, prerequisites a reader must
   reverse-engineer.
+- **Replayed 2026-08-18, `main@23f57c1`**: **converged** — the #268 fix
+  verified on its witness. 30 applied, the `eu-west-2b` worker reads back
+  `eu-west-2b` (measured in the transcript: 4 Vms placed in 2a, 1 in 2b),
+  **empty second plan** where the survey re-planned for ever, 30 destroyed.
 
 **Outscale mean: 6.0.** Few stacks, but every one carries a full network
 plane. The ecosystem's real hazard is client-side: four provider
@@ -193,6 +251,11 @@ answered everything the modern provider sent.
 - **Declined reached**: DNS (domain + records); NLB untouched here.
 - **Score 7/10** — renovate-maintained, modular, pinned exactly; loses on
   required variables only a VSHN insider can fill and no licence file.
+- **Replayed 2026-08-18, `main@23f57c1`**: the #271 fix verified on its
+  witness — `GET /v2/template?visibility=private` answers exactly the two
+  registered private templates, not the public catalogue. 43 applied (one
+  more than surveyed), the unserved DNS branch is the only failure, re-plan
+  carries only that branch (`0 to change`), 43 destroyed.
 
 ### 2. PhilippeChepy/platform — applied as-is (base layer)
 
@@ -213,6 +276,9 @@ answered everything the modern provider sent.
 - **Score 7/10** — genuinely documented layering and an example operator
   file; floor pins (`>= 0.49`) and the multi-layer Vault coupling keep it
   from 8.
+- **Replayed 2026-08-18, `main@23f57c1`**: identical — 19 applied, NLB
+  refused by name, SOS at the real endpoint on fake credentials, re-plan
+  `6 to add / 0 to change`, 19 destroyed.
 
 ### 3. PhilippeChepy/terraform-exoscale-vault — applied after a recorded edit, fully green
 
@@ -230,6 +296,9 @@ answered everything the modern provider sent.
   design), ssh key name, domain.
 - **Score 6/10** — clean, focused module; unusable on any current Terraform
   without that one-line edit, floor-pinned, no licence.
+- **Replayed 2026-08-18, `main@23f57c1`**: identical — 7 applied, empty
+  second plan, 7 destroyed. Still the only stack of the fifteen that is
+  entirely green end to end.
 
 ### 4. camptocamp/terraform-exoscale-sks — not applicable, and the reason is the finding
 
@@ -244,6 +313,8 @@ answered everything the modern provider sent.
 - **Score 3/10** — archived-generation resources with no upper pin means it
   no longer runs against the real cloud either; that is an observation about
   publication rot, not about its authors' 2021 code.
+- **Replayed 2026-08-18, `main@23f57c1`**: identical — the reachable
+  provider still refuses `exoscale_affinity` at parse, nothing to run.
 
 ### 5. datamindedbe/eu-data-platform — not applicable: every product it needs is unserved
 
@@ -261,6 +332,9 @@ answered everything the modern provider sent.
 - **Score 7/10** — recent, mise-driven, state declared, MIT; hardcoded zone
   and tofu-only backend syntax are the friction, and both are visible facts
   a reader meets in the first ten minutes.
+- **Replayed 2026-08-18, `main@23f57c1`**: identical — `terraform init`
+  still refuses the interpolated backend block; nothing reaches any
+  endpoint.
 
 **Exoscale mean: 6.0.** The ecosystem splits cleanly in two: compute-shaped
 stacks (instance pools, SGs, EIPs) apply and converge; platform-shaped ones
@@ -296,6 +370,12 @@ zone other than `ch-dk-2`.
 - **Score 7/10** — encrypted secrets and real maintenance; the sops schema
   is undocumented (reverse-engineered from templates) and apply-nothing
   defaults cost the rest.
+- **Replayed 2026-08-18, `main@23f57c1`**: the #270 fix verified on its
+  witness — the third wall fell. The Private Network publishes its IPv6
+  `/64` (`fdfe:5964:94ef:a41c::/64` in the transcript),
+  `one(pn.ipv6_subnets).subnet` evaluates, zero null errors, and the
+  destroy that wedged completes: 12 of 12. The two declined walls stand as
+  designed (placement groups ×2, vpc-gw, each a 501 naming its route).
 
 ### 2. ioandev/scaleway-flatcar-k3s — applied in part
 
@@ -316,6 +396,10 @@ zone other than `ch-dk-2`.
 - **Declined reached**: Object Storage (by the client's own routing).
 - **Score 7/10** — recent, careful conditionals, honest README; no licence,
   no backend.
+- **Replayed 2026-08-18, `main@23f57c1`**: identical — 9 applied,
+  `CreateBucket` still routed by the provider to the real
+  `s3.fr-par.scw.cloud` (403), Cloudflare external, `0 to change`,
+  9 destroyed.
 
 ### 3. HealsCodes/ephemeral-devbox — applied in part
 
@@ -336,6 +420,10 @@ zone other than `ch-dk-2`.
 - **Declined reached**: none.
 - **Score 6/10** — small and honest, MIT-0, documented; external SaaS on the
   critical path and floor pins.
+- **Replayed 2026-08-18, `main@23f57c1`**: identical — the block/v1 chain
+  applies from the re-seeded snapshot (3 resources), Tailscale still walls
+  the server, and the destroy trips on the stack's own snapshot rotation
+  meeting feint's correct `resource is still in use` refusal.
 
 ### 4. CentraleSupelec/kubic — not applicable: every product it needs is unserved
 
@@ -351,6 +439,9 @@ zone other than `ch-dk-2`.
 - **Declined reached**: Kapsule, LB, Object Storage.
 - **Score 8/10** — pinned, documented, state declared, maintained; the best
   publication hygiene of the fifteen even though feint can serve none of it.
+- **Replayed 2026-08-18, `main@23f57c1`**: identical by inspection — the S3
+  backend and the Kapsule/LB resources are unchanged at the pinned commit;
+  recorded rather than half-run, as in the survey.
 
 ### 5. Rookain-Kiwi/kiwinet-infra-cloud — applied in part
 
@@ -367,6 +458,9 @@ zone other than `ch-dk-2`.
 - **Declined reached**: the `STARDUST1` type family.
 - **Score 6/10** — tfvars.example and docs for a small real deployment;
   floor pin `~> 2.0`, no backend, no licence.
+- **Replayed 2026-08-18, `main@23f57c1`**: identical — 4 of 5 applied, the
+  provider's own pre-check still refuses `STARDUST1-S` against the
+  fictional type table, `0 to change`, clean destroy.
 
 ### Annex — surveyed and set aside
 
