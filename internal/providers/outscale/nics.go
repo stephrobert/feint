@@ -123,7 +123,7 @@ func (p *Pack) nicMatches(view map[string]any, f filterSet) bool {
 
 func (p *Pack) nicView(vm *resource.Resource, nicID, subnetID, netID string) map[string]any {
 	privateIP := stringOf(vm.Attrs["PrivateIp"])
-	dns := privateDNSName(privateIP)
+	dns := p.privateDNSName(privateIP)
 
 	// The groups on the interface are the machine's, resolved the same way the
 	// Vm view resolves them: what it asked for, or the Net's default group.
@@ -175,7 +175,7 @@ func (p *Pack) nicView(vm *resource.Resource, nicID, subnetID, netID string) map
 func (p *Pack) storedNicView(nic *resource.Resource) map[string]any {
 	netID := stringOf(nic.Attrs["NetId"])
 	privateIP := stringOf(nic.Attrs["PrivateIp"])
-	dns := privateDNSName(privateIP)
+	dns := p.privateDNSName(privateIP)
 
 	groups := make([]any, 0, 1)
 	for _, id := range stringsOf(nic.Attrs["SecurityGroupIds"]) {
@@ -212,7 +212,7 @@ func (p *Pack) storedNicView(nic *resource.Resource) map[string]any {
 		// (#172). Rebuilding the list from PrivateIp alone published one
 		// address whatever the NIC held, so LinkPrivateIps answered 200 and
 		// nothing changed — a write the API accepted and never showed.
-		"PrivateIps":     privateIPEntries(nic, dns, privateIP),
+		"PrivateIps":     p.privateIPEntries(nic, dns, privateIP),
 		"SecurityGroups": groups,
 		// The NIC's own tags, not a constant. This published `[]` whatever the
 		// NIC carried, so `CreateTags` on an interface answered 200 and
@@ -445,11 +445,11 @@ func (p *Pack) detachNicsOf(vmID string) {
 // publicDNSName renders the name the real cloud derives from a public address:
 // ows-203-0-113-1.<region>.compute.outscale.com, measured. Empty for no address,
 // because a name for an address that does not exist is an invention.
-func publicDNSName(ip string) string {
+func (p *Pack) publicDNSName(ip string) string {
 	if ip == "" {
 		return ""
 	}
-	return "ows-" + strings.ReplaceAll(ip, ".", "-") + "." + regionName + ".compute.outscale.com"
+	return "ows-" + strings.ReplaceAll(ip, ".", "-") + "." + p.region + ".compute.outscale.com"
 }
 
 // linkPublicIPView is the LinkPublicIp an interface carries when an address is
@@ -465,7 +465,7 @@ func (p *Pack) linkPublicIPView(vmID string) map[string]any {
 			"LinkPublicIpId":    stringOf(res.Attrs["LinkPublicIpId"]),
 			"PublicIpId":        res.ID,
 			"PublicIp":          address,
-			"PublicDnsName":     publicDNSName(address),
+			"PublicDnsName":     p.publicDNSName(address),
 			"PublicIpAccountId": accountID,
 		}
 	}
@@ -560,11 +560,11 @@ func (p *Pack) nicsOfVM(vm *resource.Resource) []any {
 // privateDNSName renders the name the real cloud derives from an address:
 // ip-10-0-1-10.<region>.compute.internal, measured. An empty address gives an
 // empty name rather than a name claiming an address that does not exist.
-func privateDNSName(ip string) string {
+func (p *Pack) privateDNSName(ip string) string {
 	if ip == "" {
 		return ""
 	}
-	return "ip-" + strings.ReplaceAll(ip, ".", "-") + "." + regionName + ".compute.internal"
+	return "ip-" + strings.ReplaceAll(ip, ".", "-") + "." + p.region + ".compute.internal"
 }
 
 // macOf derives a stable, locally-administered MAC from the NIC id's hex
@@ -583,7 +583,7 @@ func macOf(nicID string) string {
 //
 // The primary is derived rather than read back, because it is the one address a
 // NIC cannot lose: it comes with the interface and UnlinkPrivateIps refuses it.
-func privateIPEntries(nic *resource.Resource, dns, primary string) []any {
+func (p *Pack) privateIPEntries(nic *resource.Resource, dns, primary string) []any {
 	entries := []any{map[string]any{
 		"IsPrimary":      true,
 		"PrivateDnsName": dns,
@@ -592,7 +592,7 @@ func privateIPEntries(nic *resource.Resource, dns, primary string) []any {
 	for _, address := range secondaryAddresses(nic) {
 		entries = append(entries, map[string]any{
 			"IsPrimary":      false,
-			"PrivateDnsName": privateDNSName(address),
+			"PrivateDnsName": p.privateDNSName(address),
 			"PrivateIp":      address,
 		})
 	}

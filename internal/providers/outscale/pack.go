@@ -22,6 +22,7 @@ package outscale
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -43,6 +44,21 @@ const (
 // Pack implements emulator.Pack for Outscale.
 type Pack struct {
 	env *emulator.Env
+	// region is where this deployment claims to live — a datum, not a
+	// constant (#290). At Outscale every region speaks the same API, so the
+	// region is a property of the endpoint a client is pointed at, and an
+	// emulator with a single endpoint chooses one at construction. Fixed for
+	// the pack's lifetime, like a real endpoint: a region that moved mid-run
+	// would leave the store holding zones the write paths then refuse.
+	region string
+	// subregions is the catalogue of the region's own subregions, and the
+	// authority every write path validates against (knownSubregion): the
+	// #269 invariant, kept whichever region is in force.
+	subregions []map[string]any
+	// defaultSubregion is where anything lands when the client names no
+	// subregion — the API's own behaviour for a create outside a Net. The
+	// region's first zone, which is the "<region>a" every region publishes.
+	defaultSubregion string
 }
 
 // lockAddresses serialises the choice of a block or an address, which is
@@ -55,8 +71,35 @@ type Pack struct {
 // the machine binding, so the next pack does not have to rediscover it.
 func (p *Pack) lockAddresses() func() { return serialise.Lock(Name + "/addresses") }
 
-// New returns an Outscale pack backed by env.
-func New(env *emulator.Env) *Pack { return &Pack{env: env} }
+// New returns an Outscale pack backed by env, serving the default region.
+// Nothing configured keeps today's behaviour: eu-west-2, exactly as before
+// the region became selectable.
+func New(env *emulator.Env) *Pack { return newInRegion(env, defaultRegionName) }
+
+// NewInRegion returns a pack serving the named region, or an error naming
+// the regions Outscale publishes when it publishes no such region. Refusing
+// beats defaulting: an emulator that answered eu-west-2 to an operator who
+// asked for cloudgouv-eu-west-1 would be the exact lie #268 was about, moved
+// to startup.
+func NewInRegion(env *emulator.Env, region string) (*Pack, error) {
+	if _, ok := regionCatalogue[region]; !ok {
+		return nil, fmt.Errorf("outscale publishes no region %q (it publishes %s)",
+			region, strings.Join(regionNames(), ", "))
+	}
+	return newInRegion(env, region), nil
+}
+
+// newInRegion builds the pack with everything the region decides. Callers
+// guarantee the region is in the catalogue.
+func newInRegion(env *emulator.Env, region string) *Pack {
+	subs, _ := subregionsOf(region)
+	return &Pack{
+		env:              env,
+		region:           region,
+		subregions:       subs,
+		defaultSubregion: stringOf(subs[0]["SubregionName"]),
+	}
+}
 
 // Name implements emulator.Pack.
 func (p *Pack) Name() string { return Name }
@@ -401,7 +444,7 @@ func (p *Pack) Env(endpoint string) emulator.Environment {
 		Vars: map[string]string{
 			"OSC_ACCESS_KEY":   "AAAAAAAAAAAAAAAAAAAA",
 			"OSC_SECRET_KEY":   "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
-			"OSC_REGION":       regionName,
+			"OSC_REGION":       p.region,
 			"OSC_PROTOCOL":     "http",
 			"OSC_ENDPOINT_API": endpoint,
 		},

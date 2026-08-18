@@ -219,7 +219,11 @@ func TestEveryMountedOperationHasAnEvidenceRow(t *testing.T) {
 	}
 
 	env := emulator.DefaultEnv()
-	srv, err := emulator.NewServer(env, packsFor(env)...)
+	packs, err := packsFor(env)
+	if err != nil {
+		t.Fatalf("build the packs: %v", err)
+	}
+	srv, err := emulator.NewServer(env, packs...)
 	if err != nil {
 		t.Fatalf("build the emulator: %v", err)
 	}

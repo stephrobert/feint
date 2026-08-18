@@ -54,7 +54,8 @@ func (p *Pack) listVolumes(w http.ResponseWriter, r *http.Request) {
 	// here, `scw instance volume list name=vol` came back empty against a volume
 	// called myvolume, while the servers list next door had just been fixed to
 	// match the SDK. TestVolumesFilterByNameLikeTheSDKSays fails without this.
-	if name := r.URL.Query().Get("name"); name != "" {
+	q := r.URL.Query()
+	if name := q.Get("name"); name != "" {
 		filtered := all[:0]
 		for _, res := range all {
 			if stored, _ := res.Attrs["name"].(string); strings.Contains(stored, name) {
@@ -62,6 +63,17 @@ func (p *Pack) listVolumes(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		all = filtered
+	}
+	if volumeType := q.Get("volume_type"); volumeType != "" {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return textOf(res.Attrs["volume_type"]) == volumeType
+		})
+	}
+	// "With these exact tags", the instance/v1 conjunction.
+	if tags := csvValues(q, "tags"); len(tags) > 0 {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return hasEveryTag(res, tags)
+		})
 	}
 
 	page := parsePage(r)

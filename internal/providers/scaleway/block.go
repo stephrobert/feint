@@ -278,31 +278,86 @@ func referenceID(volumeID, serverID string) string {
 	return volumeID[:half] + serverID[half:]
 }
 
+// listBlockVolumes serves every filter the two block ListVolumes operations
+// declare — v1 and v1alpha1 share this handler, so the union of both contracts
+// is what it must read (#277). Reading the page and nothing else is exactly the
+// hole the per-operation gate names: `?order_by=name_desc` answered store
+// order, `?project_id=other` answered every project's volumes.
 func (p *Pack) listBlockVolumes(w http.ResponseWriter, r *http.Request) {
 	zone, ok := zoneOf(w, r)
 	if !ok {
 		return
 	}
-	name := r.URL.Query().Get("name")
-	out := make([]map[string]any, 0)
-	for _, res := range p.env.Store.List(kindBlockVolume, resource.Tenant{Provider: Name}) {
-		if textOf(res.Attrs["zone"]) != zone {
-			continue
-		}
-		if name != "" && !strings.Contains(textOf(res.Attrs["name"]), name) {
-			continue
-		}
-		out = append(out, p.blockVolumeView(res))
+	q := r.URL.Query()
+	scope := resource.Tenant{Provider: Name}
+	switch {
+	case q.Get("project_id") != "":
+		scope.Project = q.Get("project_id")
+	case q.Get("organization_id") != "":
+		// The whole account — one organization lives here (scopeOf's rule),
+		// and comparing the identifier against the pack's constant would
+		// deny a client its own volumes for a configuration detail.
 	}
+	all := p.env.Store.List(kindBlockVolume, scope)
+	all = filterResources(all, func(res *resource.Resource) bool {
+		return textOf(res.Attrs["zone"]) == zone
+	})
+	if name := q.Get("name"); name != "" {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return strings.Contains(textOf(res.Attrs["name"]), name)
+		})
+	}
+	// "One or more matching tags": block is a newer product, a disjunction.
+	if tags := csvValues(q, "tags"); len(tags) > 0 {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return hasAnyTag(res, tags)
+		})
+	}
+	// "A product resource ID linked to this volume (such as an Instance ID)":
+	// the server the volume is attached to.
+	if productID := q.Get("product_resource_id"); productID != "" {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return res.Runtime[runtimeServerKey] == productID
+		})
+	}
+	// Every volume this product serves reports the one class it has.
+	if volumeType := q.Get("volume_type"); volumeType != "" && volumeType != blockStorageClass {
+		all = all[:0]
+	}
+	if ids := idSet(q, "volume_ids"); ids != nil {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return ids[res.ID]
+		})
+	}
+	// "Display deleted volumes not erased yet": deletion is immediate here, so
+	// the store never holds one and the flag widens the answer by nothing. It
+	// is still read — the state filter is real — and docs/limits.md says why
+	// both values answer alike.
+	if includeDeleted, _ := queryBool(q, "include_deleted"); !includeDeleted {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return res.State != "deleted"
+		})
+	}
+	if !orderResources(w, r, "order_by", "created_at_asc", map[string]resourceCmp{
+		"created_at": cmpCreated,
+		"name":       cmpName,
+	}, all) {
+		return
+	}
+
 	// Paged like every other list of this pack. This list predates the helper
 	// and served everything whatever the client asked; invisible while the
 	// emulated account never held two block volumes, measured the day the
 	// probe seeded them (TestBlockListsHonourThePageSize fails without it).
 	page := parsePage(r)
-	start, end := page.slice(len(out))
+	start, end := page.slice(len(all))
+	out := make([]map[string]any, 0, end-start)
+	for _, res := range all[start:end] {
+		out = append(out, p.blockVolumeView(res))
+	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"volumes":     out[start:end],
-		"total_count": len(out),
+		"volumes":     out,
+		"total_count": len(all),
 	})
 }
 
@@ -477,28 +532,67 @@ func (p *Pack) blockSnapshotView(res *resource.Resource) map[string]any {
 	}
 }
 
+// listBlockSnapshots reads what its two operations declare, like
+// listBlockVolumes above and for the same reason (#277).
 func (p *Pack) listBlockSnapshots(w http.ResponseWriter, r *http.Request) {
 	zone, ok := zoneOf(w, r)
 	if !ok {
 		return
 	}
-	name := r.URL.Query().Get("name")
-	out := make([]map[string]any, 0)
-	for _, res := range p.env.Store.List(kindBlockSnapshot, resource.Tenant{Provider: Name}) {
-		if textOf(res.Attrs["zone"]) != zone {
-			continue
-		}
-		if name != "" && !strings.Contains(textOf(res.Attrs["name"]), name) {
-			continue
-		}
-		out = append(out, p.blockSnapshotView(res))
+	q := r.URL.Query()
+	scope := resource.Tenant{Provider: Name}
+	switch {
+	case q.Get("project_id") != "":
+		scope.Project = q.Get("project_id")
+	case q.Get("organization_id") != "":
+		// The whole account, like listBlockVolumes above and for the same
+		// reason.
 	}
+	all := p.env.Store.List(kindBlockSnapshot, scope)
+	all = filterResources(all, func(res *resource.Resource) bool {
+		return textOf(res.Attrs["zone"]) == zone
+	})
+	if name := q.Get("name"); name != "" {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return strings.Contains(textOf(res.Attrs["name"]), name)
+		})
+	}
+	if tags := csvValues(q, "tags"); len(tags) > 0 {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return hasAnyTag(res, tags)
+		})
+	}
+	// "Filter snapshots by the ID of the original volume."
+	if volumeID := q.Get("volume_id"); volumeID != "" {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			parent, _ := res.Attrs["parent_volume"].(map[string]any)
+			return parent != nil && parent["id"] == volumeID
+		})
+	}
+	// Same reading as listBlockVolumes: deletion is immediate, the filter is
+	// real, docs/limits.md carries the consequence.
+	if includeDeleted, _ := queryBool(q, "include_deleted"); !includeDeleted {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return res.State != "deleted"
+		})
+	}
+	if !orderResources(w, r, "order_by", "created_at_asc", map[string]resourceCmp{
+		"created_at": cmpCreated,
+		"name":       cmpName,
+	}, all) {
+		return
+	}
+
 	// Same paging, same reason as listBlockVolumes above.
 	page := parsePage(r)
-	start, end := page.slice(len(out))
+	start, end := page.slice(len(all))
+	out := make([]map[string]any, 0, end-start)
+	for _, res := range all[start:end] {
+		out = append(out, p.blockSnapshotView(res))
+	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"snapshots":   out[start:end],
-		"total_count": len(out),
+		"snapshots":   out,
+		"total_count": len(all),
 	})
 }
 

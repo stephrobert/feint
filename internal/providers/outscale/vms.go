@@ -230,7 +230,7 @@ func (p *Pack) vmMatches(res *resource.Resource, f filterSet) bool {
 		matchesStrings(f, "SubnetIds", attr("SubnetId")) &&
 		matchesStrings(f, "NetIds", attr("NetId")) &&
 		matchesStrings(f, "PrivateIps", p.addressOf(res)) &&
-		matchesStrings(f, "SubregionNames", vmSubregion(res)) &&
+		matchesStrings(f, "SubregionNames", p.vmSubregion(res)) &&
 		matchesAny(f, "SecurityGroupIds", groupIDs...) &&
 		matchesAny(f, "SecurityGroupNames", groupNames...)
 }
@@ -261,8 +261,8 @@ func (p *Pack) createVms(w http.ResponseWriter, r *http.Request) {
 	// A subregion the catalogue does not declare is refused here, not stored:
 	// accepting it would recreate the contradiction #269 measured, where the
 	// write path took any zone and ReadSubregions denied its existence.
-	if req.Placement != nil && req.Placement.SubregionName != "" && !knownSubregion(req.Placement.SubregionName) {
-		p.badRequest(w, "the Subregion "+req.Placement.SubregionName+" does not exist in "+regionName)
+	if req.Placement != nil && req.Placement.SubregionName != "" && !p.knownSubregion(req.Placement.SubregionName) {
+		p.badRequest(w, "the Subregion "+req.Placement.SubregionName+" does not exist in "+p.region)
 		return
 	}
 
@@ -430,7 +430,7 @@ func (p *Pack) allocateVms(req createVmsRequest, count int, now time.Time) ([]*r
 		// The placement the reads will answer, resolved once and stored — the
 		// chain #268 demands is request → store → response, never
 		// request → constant → response.
-		res.Attrs["Placement"] = resolvedPlacement(req.Placement, subnetSubregion)
+		res.Attrs["Placement"] = p.resolvedPlacement(req.Placement, subnetSubregion)
 		if req.KeypairName != "" {
 			res.Attrs["KeypairName"] = req.KeypairName
 		}
@@ -845,8 +845,8 @@ var errPlacementMismatch = errors.New("the Placement contradicts the Subnet")
 // TestAVmCreatedInANamedSubregionReadsBackInIt fails when the request's half
 // stops being read; TestAVmInheritsItsSubnetsSubregion when the Subnet's half
 // does.
-func resolvedPlacement(requested *vmPlacement, subnetSubregion string) map[string]any {
-	subregion := orDefault(subnetSubregion, defaultSubregionName)
+func (p *Pack) resolvedPlacement(requested *vmPlacement, subnetSubregion string) map[string]any {
+	subregion := orDefault(subnetSubregion, p.defaultSubregion)
 	tenancy := defaultTenancy
 	if requested != nil {
 		subregion = orDefault(requested.SubregionName, subregion)
@@ -863,18 +863,18 @@ func resolvedPlacement(requested *vmPlacement, subnetSubregion string) map[strin
 // snapshot from an older emulator — because the Vm schema declares Placement
 // on every machine (osc-sdk-go, client.gen.go:10576) and a client reads it
 // unconditionally.
-func vmPlacementView(res *resource.Resource) map[string]any {
+func (p *Pack) vmPlacementView(res *resource.Resource) map[string]any {
 	if placement, ok := res.Attrs["Placement"].(map[string]any); ok {
 		return placement
 	}
-	return resolvedPlacement(nil, "")
+	return p.resolvedPlacement(nil, "")
 }
 
 // vmSubregion is the zone a Vm's own reads answer, shared by every door that
 // publishes it — the view, the state view (readVmsState) and the filters — so
 // two doors cannot disagree about where a machine sits.
-func vmSubregion(res *resource.Resource) string {
-	return stringOf(vmPlacementView(res)["SubregionName"])
+func (p *Pack) vmSubregion(res *resource.Resource) string {
+	return stringOf(p.vmPlacementView(res)["SubregionName"])
 }
 
 // vmView renders a Vm. Only fields the pack actually knows are emitted: a
@@ -914,7 +914,7 @@ func (p *Pack) vmView(res *resource.Resource) map[string]any {
 	// absent is what "no public address" looks like.
 	if public := p.publicIPOf(res.ID); public != "" {
 		out["PublicIp"] = public
-		out["PublicDnsName"] = publicDNSName(public)
+		out["PublicDnsName"] = p.publicDNSName(public)
 	}
 
 	// What follows was found missing by comparing a real account's ReadVms to
@@ -960,7 +960,7 @@ func (p *Pack) vmView(res *resource.Resource) map[string]any {
 	// #250 had already named the pattern, "a constant in a view is a claim
 	// nobody checks". TestAVmCreatedInANamedSubregionReadsBackInIt fails
 	// without this.
-	out["Placement"] = vmPlacementView(res)
+	out["Placement"] = p.vmPlacementView(res)
 	// Derived from the machine's own id so it cannot move between two reads:
 	// anything Terraform stores has to be stable or it plans a change for ever.
 	out["ReservationId"] = "r-" + hexOf(strings.TrimPrefix(res.ID, "i-")+res.ID, idLen)
@@ -973,7 +973,7 @@ func (p *Pack) vmView(res *resource.Resource) map[string]any {
 	if dnsAddress == "" {
 		dnsAddress = stringOf(res.Attrs["PrivateIp"])
 	}
-	if dns := privateDNSName(dnsAddress); dns != "" {
+	if dns := p.privateDNSName(dnsAddress); dns != "" {
 		out["PrivateDnsName"] = dns
 	}
 	// The interfaces, in the Light shape the Vm schema declares. The provider

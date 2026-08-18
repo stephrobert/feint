@@ -29,7 +29,7 @@
 >
 > **Proven**: 264 of the 285 mounted operations are driven by a real client, on every pull request. `scw`, `oapi-cli`, `exo`, Terraform and OpenTofu run against the emulator in CI, and machines really boot: an ssh login on each provider's own default account, isolated subnets, a firewall that filters. The whole chain is described in [docs/conformance.md](docs/conformance.md).
 >
-> **Not proven**: quotas, prices, real capacity, identifier validation, authentication, eventual consistency. The 33 sections of [docs/limits.md](docs/limits.md) each say what one costs. An emulator with a single implicit account and no price list would have to invent those figures, and somebody would act on them.
+> **Not proven**: quotas, prices, real capacity, identifier validation, authentication, eventual consistency. The 34 sections of [docs/limits.md](docs/limits.md) each say what one costs. An emulator with a single implicit account and no price list would have to invent those figures, and somebody would act on them.
 >
 > **Unknown**: 21 operations are mounted and have never been driven by a client. Every one of them states why no official client reaches it, at the route and in [docs/routes.md](docs/routes.md). They are counted rather than glossed, one by one, in [coverage/evidence.json](coverage/evidence.json).
 >
@@ -385,6 +385,21 @@ oapi-cli --config /tmp/osc.json ReadVms
 `osc-cli` is deprecated and addresses `/api/latest/<Call>` where the current API
 is `/api/v1/<Call>`; pointing it here fails for a reason that says nothing about
 the emulator.
+
+At Outscale every region is served by the same API — the region is a property
+of the endpoint a client points at, not of the API surface — so the emulator's
+single endpoint chooses one region per process. It is `eu-west-2` unless
+`FEINT_OUTSCALE_REGION` selects another of the regions Outscale publishes:
+
+```bash
+FEINT_OUTSCALE_REGION=cloudgouv-eu-west-1 feint serve   # the SecNumCloud region
+```
+
+The subregion catalogue (`ReadSubregions`) and every write path that validates
+a `SubregionName` follow the selected region together, so a stack pinned to
+`cloudgouv-eu-west-1a/b/c` applies against a deployment that declares those
+zones. A value Outscale does not publish refuses to serve, naming what would
+have been accepted.
 
 ### Exoscale — the `exo` CLI
 

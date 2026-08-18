@@ -1262,6 +1262,67 @@ choice rather than an accident:
   publishes none, and listing the private groups under a public label would be
   the same lie #271 names, pointed the other way.
 
+## The per-parameter half: 18 Scaleway list operations, 72 parameters, each served or refused (#277)
+
+#271's gate catches a handler that never reads its query at all. Its comment
+names what it cannot see — a handler that reads *some* declared parameters and
+drops the rest — and #277 measured that residual class on this pack: every list
+read its page, so the gate was green, while `?order_by=created_at_desc`
+answered ascending. The per-operation gate
+(`TestNoDeclaredQueryParameterIsDroppedByItsHandler`) now requires every
+declared parameter to be named in its own handler's call graph, and everything
+it found is served, with these decisions where the emulator's model and the
+real cloud part ways:
+
+- **Every `order_by` (and instance/v1's `order`) is served with the SDK's
+  documented default.** A bare list answers `created_at_asc` where block, vpc
+  and iam declare it, `created_at_desc` where instance and ipam do — including
+  a bare `scw instance server list`, which now answers newest first like the
+  real API. A value outside the operation's enum is a 400 naming the
+  parameter, never a silently different order.
+- **`order_by=attached_at_*` on ipam ListIPs is refused with a 400.** This
+  emulator records no attachment time, and sorting by a stand-in would answer
+  an order nobody asked for.
+- **`include_deleted` on block lists is read and never widens the answer.**
+  Deletion here is immediate — the store retains no `deleted` volume or
+  snapshot for the flag to reveal. The state filter is real code on the
+  default path; the difference from the real cloud, which retains deleted
+  volumes for a while, is this line.
+- **`s3_integration_enabled=true` matches nothing.** No VPC or Private Network
+  here integrates with Object Storage, which is not emulated (see above), so
+  true truthfully answers an empty list and false answers everything.
+- **`arch` and `type` on marketplace ListLocalImages are equalities against
+  the one published image.** `arch=arm64` or `type=instance_local` answers an
+  empty list — the catalogue is x86_64 and `instance_sbs` — where dropping the
+  filter answered an image of the wrong architecture with a 200.
+- **`without_ip=false` on ListServers filters nothing.** The SDK documents
+  only the true direction ("list Instances that are not attached to a public
+  IP"); a complementary meaning for false would be invented.
+- **`disabled` on iam ListSSHKeys is an equality on the field when present.**
+  The SDK comment ("defines whether to include disabled SSH keys") could also
+  read as a widener over a default exclusion, but nothing upstream states that
+  default, and a bare list here has always answered every key.
+- **`organization`/`organization_id` filters scope to the whole account.**
+  One organization lives here and identifiers are unchecked by decision (see
+  above), so a named organization resolves to that account — `scopeOf`'s
+  long-standing rule, now applied to every list that declares the parameter.
+  The equality reading was tried first and the CLI refuted it within the
+  hour: `scw iam ssh-key list` names its configured organization on every
+  call, and nothing obliges a client's configuration to spell the emulator's
+  constant, so comparing answered "no keys" about keys the same client had
+  just created. `project`/`project_id` stay real filters: a project is an
+  isolation boundary this emulator does honour.
+
+`TestServersHonourTheDeclaredOrder`, `TestServersFilterByLinks`,
+`TestBlockListsHonourTheDeclaredFilters`, `TestVPCListsHonourTheDeclaredFilters`,
+`TestIPAMListHonoursOrderAndResourceFilters`,
+`TestInstanceListsHonourTheirRemainingFilters`,
+`TestSSHKeysHonourTheDeclaredParameters` and
+`TestLocalImagesHonourTheirDeclaredParameters` ask with non-default values —
+the whole class survived every suite that only asked for defaults — and
+`tools/falsify/specs/scaleway-list-parameters.json` proves each family's test
+red without its fix.
+
 ## ReadTags does not list an internet service, because upstream names no type for one
 
 Outscale's `Tag` carries a `ResourceType`, and their OpenAPI declares it as a

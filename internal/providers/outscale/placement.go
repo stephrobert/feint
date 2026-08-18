@@ -83,7 +83,7 @@ func (p *Pack) placeInSubnet(subnetID string) (placement, error) {
 		NetID:         netID,
 		Address:       address,
 		PrefixLen:     prefix.Bits(),
-		SubregionName: orDefault(stringOf(subnet.Attrs["SubregionName"]), defaultSubregionName),
+		SubregionName: orDefault(stringOf(subnet.Attrs["SubregionName"]), p.defaultSubregion),
 		Network:       subnet.Runtime[runtimeNetworkKey],
 	}, nil
 }

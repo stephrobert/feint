@@ -57,6 +57,12 @@ func (p *Pack) listPrivateNICs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	all := p.privateNICsOf(server.ID)
+	// "Private NIC tags", exact like the rest of instance/v1: a conjunction.
+	if tags := csvValues(r.URL.Query(), "tags"); len(tags) > 0 {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return hasEveryTag(res, tags)
+		})
+	}
 	page := parsePage(r)
 	start, end := page.slice(len(all))
 	nics := make([]map[string]any, 0, end-start)

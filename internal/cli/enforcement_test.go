@@ -52,7 +52,11 @@ func TestEveryPackThatWiresTheFirewallSaysSo(t *testing.T) {
 	}
 
 	declares := map[string]bool{}
-	for _, p := range packsFor(emulator.DefaultEnv()) {
+	mounted, err := packsFor(emulator.DefaultEnv())
+	if err != nil {
+		t.Fatalf("build the packs: %v", err)
+	}
+	for _, p := range mounted {
 		fe, ok := p.(emulator.FirewallEnforcer)
 		declares[p.Name()] = ok && fe.EnforcesFirewall()
 	}

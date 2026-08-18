@@ -277,7 +277,10 @@ func splitHosts(list string) []string {
 // cannot name an operation differently from the thing it is comparing against.
 func proxyTable(provider string) (*emulator.Table, error) {
 	env := emulator.DefaultEnv()
-	all := packsFor(env)
+	all, err := packsFor(env)
+	if err != nil {
+		return nil, err
+	}
 	if provider == "" {
 		return emulator.NewTable(all...)
 	}

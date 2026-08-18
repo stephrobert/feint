@@ -122,9 +122,16 @@ stack's quality.
   `endpoints.api = http://127.0.0.1:4611/api/v1`.
 - **Harness input** (two-tier): `image_id=ami-a3ca408c`,
   `vm_type=tinav5.c2r4p2`, `allowed_cidr=["0.0.0.0/0"]`, a public-key path.
-- **Note**: the templates hardcode `cloudgouv-eu-west-1a/b/c` zones; feint
-  stores any subregion string on a subnet verbatim, so this passed — see
-  #269 for where that asymmetry bites instead.
+- **Note**: the templates hardcode `cloudgouv-eu-west-1a/b/c` zones. On
+  2026-08-17 this passed only because feint stored any subregion string
+  verbatim — the write-path half of the #269 asymmetry. The #269 fix closed
+  that door and took this stack down with it (53 resources, 42 proposed
+  re-adds: the emulator was frozen to `eu-west-2`); #290 made the region a
+  datum instead. Replayed 2026-08-18 at this same commit against
+  `FEINT_OUTSCALE_REGION=cloudgouv-eu-west-1`, response contracts on:
+  **95 resources, empty second plan, clean destroy** — the survey's reference
+  figure, now reached with every zone declared by `ReadSubregions` and
+  validated by the write paths, instead of stored unchecked.
 - **Declined reached**: `CreateLoadBalancer` ×2.
 - **Score 8/10** — documented templates, no secret in the tree, floor-pinned
   provider (`>= 1.1.3`, not exact) and no backend keep it off 9.

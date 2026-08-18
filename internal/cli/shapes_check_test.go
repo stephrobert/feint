@@ -95,8 +95,12 @@ func TestADictionarysKeysAreNotMissingFields(t *testing.T) {
 func TestShapesCheckCoversEveryMountedPack(t *testing.T) {
 	original := packsFor
 	t.Cleanup(func() { packsFor = original })
-	packsFor = func(env *emulator.Env) []emulator.Pack {
-		return append(original(env), stubPack{name: "fourthcloud"})
+	packsFor = func(env *emulator.Env) ([]emulator.Pack, error) {
+		packs, err := original(env)
+		if err != nil {
+			return nil, err
+		}
+		return append(packs, stubPack{name: "fourthcloud"}), nil
 	}
 
 	var out, errOut strings.Builder
@@ -141,8 +145,8 @@ func declineScaleway(t *testing.T, fields ...emulator.FieldDecline) {
 	t.Helper()
 	original := packsFor
 	t.Cleanup(func() { packsFor = original })
-	packsFor = func(env *emulator.Env) []emulator.Pack {
-		return []emulator.Pack{fieldDecliningPack{Pack: scaleway.New(env), fields: fields}}
+	packsFor = func(env *emulator.Env) ([]emulator.Pack, error) {
+		return []emulator.Pack{fieldDecliningPack{Pack: scaleway.New(env), fields: fields}}, nil
 	}
 }
 

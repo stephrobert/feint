@@ -275,8 +275,8 @@ func (p *Pack) createSubnet(w http.ResponseWriter, r *http.Request) {
 	// create used to store `cloudgouv-eu-west-1a` verbatim while
 	// ReadSubregions declared one zone in another region: the two halves of
 	// the same API contradicting each other, measured in #269.
-	if req.SubregionName != "" && !knownSubregion(req.SubregionName) {
-		p.badRequest(w, "the Subregion "+req.SubregionName+" does not exist in "+regionName)
+	if req.SubregionName != "" && !p.knownSubregion(req.SubregionName) {
+		p.badRequest(w, "the Subregion "+req.SubregionName+" does not exist in "+p.region)
 		return
 	}
 	prefix, err := network.ParseCIDR(req.IPRange)
@@ -326,7 +326,7 @@ func (p *Pack) createSubnet(w http.ResponseWriter, r *http.Request) {
 	res.Attrs = map[string]any{
 		"IpRange":             prefix.String(),
 		"NetId":               req.NetID,
-		"SubregionName":       orDefault(req.SubregionName, defaultSubregionName),
+		"SubregionName":       orDefault(req.SubregionName, p.defaultSubregion),
 		"MapPublicIpOnLaunch": false,
 		"Tags":                []any{},
 	}
@@ -561,9 +561,9 @@ func (p *Pack) subnetsOf(netID string) []*resource.Resource {
 // same defect as #268 one resource over, merely not client-writable.
 func (p *Pack) subnetSubregion(subnetID string) string {
 	if subnet, found := p.env.Store.Get(Name, kindSubnet, subnetID); found {
-		return orDefault(stringOf(subnet.Attrs["SubregionName"]), defaultSubregionName)
+		return orDefault(stringOf(subnet.Attrs["SubregionName"]), p.defaultSubregion)
 	}
-	return defaultSubregionName
+	return p.defaultSubregion
 }
 
 // runtimeNetworkKey is the runtime network backing a subnet, kept out of Attrs.

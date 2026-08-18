@@ -133,7 +133,8 @@ func (p *Pack) listSecurityGroups(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	project := orDefault(r.URL.Query().Get("project"), defaultProject)
+	q := r.URL.Query()
+	project := orDefault(q.Get("project"), defaultProject)
 	p.ensureDefaultSecurityGroup(zone, project)
 
 	// Scoped to the project, not just to the zone. The SDK sends the configured
@@ -141,8 +142,16 @@ func (p *Pack) listSecurityGroups(w http.ResponseWriter, r *http.Request) {
 	// another one's groups: it would read several groups each claiming to be the
 	// project default, which is what a per-project lazy default produces as soon
 	// as a second project is named.
-	all := p.env.Store.List(kindSecurityGroup, resource.Tenant{Provider: Name, Project: project, Zone: zone})
-	if name := r.URL.Query().Get("name"); name != "" {
+	scope := resource.Tenant{Provider: Name, Project: project, Zone: zone}
+	// An organization filter alone scopes to the whole account instead —
+	// scopeOf's rule, one organization lives here — never an equality against
+	// the pack's constant, which would deny a client its own groups for a
+	// configuration detail (projectOf says why the identifier is not compared).
+	if q.Get("organization") != "" && q.Get("project") == "" {
+		scope.Project = ""
+	}
+	all := p.env.Store.List(kindSecurityGroup, scope)
+	if name := q.Get("name"); name != "" {
 		filtered := all[:0]
 		for _, res := range all {
 			if res.Attrs["name"] == name {
@@ -150,6 +159,18 @@ func (p *Pack) listSecurityGroups(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		all = filtered
+	}
+	// "With these exact tags", same conjunction as the servers list.
+	if tags := csvValues(q, "tags"); len(tags) > 0 {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return hasEveryTag(res, tags)
+		})
+	}
+	if wantDefault, present := queryBool(q, "project_default"); present {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			isDefault, _ := res.Attrs["project_default"].(bool)
+			return isDefault == wantDefault
+		})
 	}
 
 	page := parsePage(r)

@@ -136,20 +136,21 @@ func TestAVmWithoutAPlacementReadsBackTheDefault(t *testing.T) {
 	assertPlacement(t, created, "eu-west-2a", "default", "a Vm with no Placement")
 }
 
-// ReadSubregions declares the zones eu-west-2 really has — both of them, per
-// Outscale's own published reference. The index [1] is asserted directly
-// because it is the exact expression #269 measured failing: a stack that asks
-// the API where it may put things (`data "outscale_subregions"`, then
-// `subregions[1].subregion_name`) died on "list of object with 1 element"
-// while a stack hardcoding its zone sailed through.
+// ReadSubregions declares the zones eu-west-2 really has — all three of them,
+// per Outscale's own published reference (docs.outscale.com, "About Regions
+// and Subregions", fetched 2026-08-18: eu-west-2a/b/c). The index [1] is
+// asserted directly because it is the exact expression #269 measured failing:
+// a stack that asks the API where it may put things (`data
+// "outscale_subregions"`, then `subregions[1].subregion_name`) died on "list
+// of object with 1 element" while a stack hardcoding its zone sailed through.
 func TestReadSubregionsDeclaresTheRegionsSubregions(t *testing.T) {
 	ts := newServer(t)
 	doc := contractDoc(t)
 
 	out := call(t, ts, doc, "ReadSubregions", `{}`)
 	rows, _ := out["Subregions"].([]any)
-	if len(rows) != 2 {
-		t.Fatalf("ReadSubregions declares %d Subregions, want 2: %v", len(rows), out)
+	if len(rows) != 3 {
+		t.Fatalf("ReadSubregions declares %d Subregions, want 3: %v", len(rows), out)
 	}
 	second, _ := rows[1].(map[string]any)
 	if got, _ := second["SubregionName"].(string); got != "eu-west-2b" {

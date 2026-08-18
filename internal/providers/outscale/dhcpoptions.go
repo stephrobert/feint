@@ -41,7 +41,7 @@ func (p *Pack) defaultDhcpOptions() *resource.Resource {
 	res := resource.New(newID("dopt", p.env.NewID()), kindDhcpOptions, resource.Tenant{Provider: Name}, "available", now)
 	res.Attrs = map[string]any{
 		"Default":           true,
-		"DomainName":        regionName + ".compute.internal",
+		"DomainName":        p.region + ".compute.internal",
 		"DomainNameServers": []any{"OutscaleProvidedDNS"},
 		"Tags":              []any{},
 	}
