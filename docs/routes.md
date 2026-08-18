@@ -659,7 +659,7 @@ reason that outlived its cause.
 - `general` — 1 operation — every operation this pack answers is already terminal, so no client has anything to poll for; it stays served for the client that polls anyway
 - `quotas` — 1 operation — `exo limits` reads the whole quota list and prints it, so the per-name read has no client path even though the SDK declares one
 
-### Declined on purpose (254)
+### Declined on purpose (281)
 
 Operations this pack knowingly does not serve, and why. Declining is a
 decision the drift gate records, which is what separates it from having
@@ -669,6 +669,8 @@ how many it covers, and the reason they share. The per-operation verdicts
 are in `coverage/`, one artefact per provider.
 
 - `ai` — 22 operations — inference needs the accelerators and the model weights Exoscale hosts, neither of which exists on this station
+- `compute` — 16 operations — upstream marks all sixteen VPC operations beta, and none of the fifteen surveyed stacks asks for the product (2026-08); emulating a surface still allowed to rename its fields means chasing upstream instead of clients, and serving the VPC once it settles belongs to batch EXO-6 (#15)
+- `compute` — 11 operations — a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)
 - `compute` — 6 operations — authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet
 - `compute` — 3 operations — there is no console to proxy and no password to reveal: machines here are opened by the registered SSH key, and a URL or a password the emulator invented would claim an access nothing answers
 - `compute` — 1 operation — it answers a pre-signed URL into Object Storage, which this project does not emulate, and a URL resolving to nothing is worse than a refusal because a client follows it

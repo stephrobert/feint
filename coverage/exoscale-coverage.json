@@ -2,23 +2,23 @@
   "provider": "exoscale",
   "total": 374,
   "implemented": 93,
-  "declined": 254,
-  "unknown": 27,
+  "declined": 281,
+  "unknown": 0,
   "orphans": null,
   "products": [
     {
       "product": "exoscale",
       "total": 374,
       "implemented": 93,
-      "declined": 254,
-      "unknown": 27,
+      "declined": 281,
+      "unknown": 0,
       "versions": [
         {
           "version": "2.0.0",
           "total": 374,
           "implemented": 93,
-          "declined": 254,
-          "unknown": 27
+          "declined": 281,
+          "unknown": 0
         }
       ]
     }
@@ -49,8 +49,8 @@
       "group": "compute",
       "total": 111,
       "implemented": 74,
-      "declined": 10,
-      "unknown": 27
+      "declined": 37,
+      "unknown": 0
     },
     {
       "group": "dbaas",
@@ -148,9 +148,10 @@
     {
       "operation": "exoscale/v2.add-service-to-load-balancer",
       "product": "exoscale",
+      "reason": "a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.assume-iam-role",
@@ -199,9 +200,10 @@
     {
       "operation": "exoscale/v2.attach-instance-to-subnet",
       "product": "exoscale",
+      "reason": "upstream marks all sixteen VPC operations beta, and none of the fifteen surveyed stacks asks for the product (2026-08); emulating a surface still allowed to rename its fields means chasing upstream instead of clients, and serving the VPC once it settles belongs to batch EXO-6 (#15)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.cancel-kms-key-deletion",
@@ -535,9 +537,10 @@
     {
       "operation": "exoscale/v2.create-load-balancer",
       "product": "exoscale",
+      "reason": "a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.create-model",
@@ -557,9 +560,10 @@
     {
       "operation": "exoscale/v2.create-route",
       "product": "exoscale",
+      "reason": "upstream marks all sixteen VPC operations beta, and none of the fifteen surveyed stacks asks for the product (2026-08); emulating a surface still allowed to rename its fields means chasing upstream instead of clients, and serving the VPC once it settles belongs to batch EXO-6 (#15)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.create-security-group",
@@ -594,9 +598,10 @@
     {
       "operation": "exoscale/v2.create-subnet",
       "product": "exoscale",
+      "reason": "upstream marks all sixteen VPC operations beta, and none of the fifteen surveyed stacks asks for the product (2026-08); emulating a surface still allowed to rename its fields means chasing upstream instead of clients, and serving the VPC once it settles belongs to batch EXO-6 (#15)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.create-user",
@@ -609,9 +614,10 @@
     {
       "operation": "exoscale/v2.create-vpc",
       "product": "exoscale",
+      "reason": "upstream marks all sixteen VPC operations beta, and none of the fifteen surveyed stacks asks for the product (2026-08); emulating a surface still allowed to rename its fields means chasing upstream instead of clients, and serving the VPC once it settles belongs to batch EXO-6 (#15)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.decrypt",
@@ -930,16 +936,18 @@
     {
       "operation": "exoscale/v2.delete-load-balancer",
       "product": "exoscale",
+      "reason": "a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.delete-load-balancer-service",
       "product": "exoscale",
+      "reason": "a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.delete-model",
@@ -975,9 +983,10 @@
     {
       "operation": "exoscale/v2.delete-route",
       "product": "exoscale",
+      "reason": "upstream marks all sixteen VPC operations beta, and none of the fifteen surveyed stacks asks for the product (2026-08); emulating a surface still allowed to rename its fields means chasing upstream instead of clients, and serving the VPC once it settles belongs to batch EXO-6 (#15)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.delete-rule-from-security-group",
@@ -1026,9 +1035,10 @@
     {
       "operation": "exoscale/v2.delete-subnet",
       "product": "exoscale",
+      "reason": "upstream marks all sixteen VPC operations beta, and none of the fifteen surveyed stacks asks for the product (2026-08); emulating a surface still allowed to rename its fields means chasing upstream instead of clients, and serving the VPC once it settles belongs to batch EXO-6 (#15)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.delete-template",
@@ -1048,9 +1058,10 @@
     {
       "operation": "exoscale/v2.delete-vpc",
       "product": "exoscale",
+      "reason": "upstream marks all sixteen VPC operations beta, and none of the fifteen surveyed stacks asks for the product (2026-08); emulating a surface still allowed to rename its fields means chasing upstream instead of clients, and serving the VPC once it settles belongs to batch EXO-6 (#15)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.detach-block-storage-volume",
@@ -1091,9 +1102,10 @@
     {
       "operation": "exoscale/v2.detach-instance-from-subnet",
       "product": "exoscale",
+      "reason": "upstream marks all sixteen VPC operations beta, and none of the fifteen surveyed stacks asks for the product (2026-08); emulating a surface still allowed to rename its fields means chasing upstream instead of clients, and serving the VPC once it settles belongs to batch EXO-6 (#15)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.disable-kms-key",
@@ -1662,16 +1674,18 @@
     {
       "operation": "exoscale/v2.get-load-balancer",
       "product": "exoscale",
+      "reason": "a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.get-load-balancer-service",
       "product": "exoscale",
+      "reason": "a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.get-model",
@@ -1789,9 +1803,10 @@
     {
       "operation": "exoscale/v2.get-subnet",
       "product": "exoscale",
+      "reason": "upstream marks all sixteen VPC operations beta, and none of the fifteen surveyed stacks asks for the product (2026-08); emulating a surface still allowed to rename its fields means chasing upstream instead of clients, and serving the VPC once it settles belongs to batch EXO-6 (#15)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.get-template",
@@ -1819,9 +1834,10 @@
     {
       "operation": "exoscale/v2.get-vpc",
       "product": "exoscale",
+      "reason": "upstream marks all sixteen VPC operations beta, and none of the fifteen surveyed stacks asks for the product (2026-08); emulating a surface still allowed to rename its fields means chasing upstream instead of clients, and serving the VPC once it settles belongs to batch EXO-6 (#15)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.list-ai-api-keys",
@@ -2041,9 +2057,10 @@
     {
       "operation": "exoscale/v2.list-load-balancers",
       "product": "exoscale",
+      "reason": "a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.list-models",
@@ -2070,9 +2087,10 @@
     {
       "operation": "exoscale/v2.list-routes",
       "product": "exoscale",
+      "reason": "upstream marks all sixteen VPC operations beta, and none of the fifteen surveyed stacks asks for the product (2026-08); emulating a surface still allowed to rename its fields means chasing upstream instead of clients, and serving the VPC once it settles belongs to batch EXO-6 (#15)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.list-security-groups",
@@ -2130,9 +2148,10 @@
     {
       "operation": "exoscale/v2.list-subnets",
       "product": "exoscale",
+      "reason": "upstream marks all sixteen VPC operations beta, and none of the fifteen surveyed stacks asks for the product (2026-08); emulating a surface still allowed to rename its fields means chasing upstream instead of clients, and serving the VPC once it settles belongs to batch EXO-6 (#15)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.list-templates",
@@ -2152,16 +2171,18 @@
     {
       "operation": "exoscale/v2.list-vpc-routes",
       "product": "exoscale",
+      "reason": "upstream marks all sixteen VPC operations beta, and none of the fifteen surveyed stacks asks for the product (2026-08); emulating a surface still allowed to rename its fields means chasing upstream instead of clients, and serving the VPC once it settles belongs to batch EXO-6 (#15)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.list-vpcs",
       "product": "exoscale",
+      "reason": "upstream marks all sixteen VPC operations beta, and none of the fifteen surveyed stacks asks for the product (2026-08); emulating a surface still allowed to rename its fields means chasing upstream instead of clients, and serving the VPC once it settles belongs to batch EXO-6 (#15)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.list-zones",
@@ -2331,16 +2352,18 @@
     {
       "operation": "exoscale/v2.reset-load-balancer-field",
       "product": "exoscale",
+      "reason": "a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.reset-load-balancer-service-field",
       "product": "exoscale",
+      "reason": "a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.reset-private-network-field",
@@ -2892,16 +2915,18 @@
     {
       "operation": "exoscale/v2.update-load-balancer",
       "product": "exoscale",
+      "reason": "a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.update-load-balancer-service",
       "product": "exoscale",
+      "reason": "a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.update-private-network",
@@ -2952,9 +2977,10 @@
     {
       "operation": "exoscale/v2.update-subnet",
       "product": "exoscale",
+      "reason": "upstream marks all sixteen VPC operations beta, and none of the fifteen surveyed stacks asks for the product (2026-08); emulating a surface still allowed to rename its fields means chasing upstream instead of clients, and serving the VPC once it settles belongs to batch EXO-6 (#15)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.update-template",
@@ -2974,9 +3000,10 @@
     {
       "operation": "exoscale/v2.update-vpc",
       "product": "exoscale",
+      "reason": "upstream marks all sixteen VPC operations beta, and none of the fifteen surveyed stacks asks for the product (2026-08); emulating a surface still allowed to rename its fields means chasing upstream instead of clients, and serving the VPC once it settles belongs to batch EXO-6 (#15)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "unknown"
+      "status": "declined"
     },
     {
       "operation": "exoscale/v2.upgrade-sks-cluster",
