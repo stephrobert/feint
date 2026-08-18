@@ -33,8 +33,44 @@ type updateSSHKeyRequest struct {
 }
 
 func (p *Pack) listSSHKeys(w http.ResponseWriter, r *http.Request) {
-	project := r.URL.Query().Get("project_id")
-	all := p.env.Store.List(kindSSHKey, resource.Tenant{Provider: Name, Project: project})
+	q := r.URL.Query()
+	scope := resource.Tenant{Provider: Name}
+	switch {
+	case q.Get("project_id") != "":
+		scope.Project = q.Get("project_id")
+	case q.Get("organization_id") != "":
+		// The whole account, never an equality against the pack's own
+		// constant: one organization lives here (scopeOf's rule, and
+		// projectOf says why the identifier is not compared). Compared, it
+		// told `scw iam ssh-key list` the key it had just created did not
+		// exist — the CLI names its configured organization on every list,
+		// and nothing obliges that configuration to spell the emulator's.
+	}
+	all := p.env.Store.List(kindSSHKey, scope)
+	if name := q.Get("name"); name != "" {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return strings.Contains(textOf(res.Attrs["name"]), name)
+		})
+	}
+	// Read as an equality on the field when present, absent means everything:
+	// the same shape as vpc/v2's is_default and dhcp_enabled. The SDK comment
+	// ("defines whether to include disabled SSH keys") could also read as a
+	// widener over a default exclusion, but that default would be invented —
+	// nothing upstream states one, and this pack has always answered a bare
+	// list with every key.
+	if wantDisabled, present := queryBool(q, "disabled"); present {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			disabled, _ := res.Attrs["disabled"].(bool)
+			return disabled == wantDisabled
+		})
+	}
+	if !orderResources(w, r, "order_by", "created_at_asc", map[string]resourceCmp{
+		"created_at": cmpCreated,
+		"updated_at": cmpUpdated,
+		"name":       cmpName,
+	}, all) {
+		return
+	}
 
 	page := parsePage(r)
 	start, end := page.slice(len(all))

@@ -145,6 +145,33 @@ func (p *Pack) listIPAMIPs(w http.ResponseWriter, r *http.Request) {
 			return ipamResourceType(res) == rt
 		})
 	}
+	// The plural spellings of the two filters above: an IP matches when its
+	// holder is any of the named resources or types.
+	if ids := idSet(q, "resource_ids"); ids != nil {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return ids[res.Runtime[runtimeNICKey]]
+		})
+	}
+	if types := csvValues(q, "resource_types"); len(types) > 0 {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return contains(types, ipamResourceType(res))
+		})
+	}
+	// "IPs attached to a resource with this string within their name". The only
+	// holders that carry a name here are the custom resources a client attached
+	// by name; a NIC's holder publishes name: null, and null contains nothing.
+	if name := q.Get("resource_name"); name != "" {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			held, _ := res.Attrs[attrCustomName].(string)
+			return held != "" && strings.Contains(held, name)
+		})
+	}
+	// "One or more matching tags": a disjunction, unlike instance/v1's.
+	if tags := csvValues(q, "tags"); len(tags) > 0 {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return hasAnyTag(res, tags)
+		})
+	}
 	if mac := q.Get("mac_address"); mac != "" {
 		all = filterResources(all, func(res *resource.Resource) bool {
 			return ipamMAC(res) == mac
@@ -166,6 +193,26 @@ func (p *Pack) listIPAMIPs(w http.ResponseWriter, r *http.Request) {
 		all = all[:0]
 	}
 
+	// Four of the five orders their enum declares are served; attached_at is
+	// refused because this emulator records no attachment time, and sorting by
+	// a stand-in would answer an order nobody asked for (docs/limits.md).
+	if by := q.Get("order_by"); by == "attached_at_asc" || by == "attached_at_desc" {
+		writeInvalidArguments(w, ArgumentError{
+			ArgumentName: "order_by",
+			Reason:       "constraint",
+			HelpMessage:  "feint records no attachment time; order by created_at, updated_at, ip_address or mac_address instead",
+		})
+		return
+	}
+	if !orderResources(w, r, "order_by", "created_at_desc", map[string]resourceCmp{
+		"created_at":  cmpCreated,
+		"updated_at":  cmpUpdated,
+		"ip_address":  cmpIPAMAddress,
+		"mac_address": func(a, b *resource.Resource) int { return strings.Compare(ipamMAC(a), ipamMAC(b)) },
+	}, all) {
+		return
+	}
+
 	page := parsePage(r)
 	start, end := page.slice(len(all))
 	ips := make([]map[string]any, 0, end-start)
@@ -177,6 +224,17 @@ func (p *Pack) listIPAMIPs(w http.ResponseWriter, r *http.Request) {
 		"ips":         ips,
 		"total_count": len(all),
 	})
+}
+
+// cmpIPAMAddress orders by the address itself, numerically: "10.0.0.9" sorts
+// before "10.0.0.10", which a string comparison would invert.
+func cmpIPAMAddress(a, b *resource.Resource) int {
+	pa, errA := netip.ParsePrefix(textOf(a.Attrs["address"]))
+	pb, errB := netip.ParsePrefix(textOf(b.Attrs["address"]))
+	if errA != nil || errB != nil {
+		return strings.Compare(textOf(a.Attrs["address"]), textOf(b.Attrs["address"]))
+	}
+	return pa.Addr().Compare(pb.Addr())
 }
 
 func (p *Pack) getIPAMIP(w http.ResponseWriter, r *http.Request) {

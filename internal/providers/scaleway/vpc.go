@@ -116,6 +116,43 @@ func (p *Pack) listVPCs(w http.ResponseWriter, r *http.Request) {
 	p.ensureDefaultVPC(region, p.projectOfRequest(r))
 
 	all := p.env.Store.List(kindVPC, p.regionScopeOf(r, region))
+	q := r.URL.Query()
+	// "Only VPCs with names containing this string", the house LIKE.
+	if name := q.Get("name"); name != "" {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return strings.Contains(textOf(res.Attrs["name"]), name)
+		})
+	}
+	// "One or more matching tags": vpc/v2 disjoins.
+	if tags := csvValues(q, "tags"); len(tags) > 0 {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return hasAnyTag(res, tags)
+		})
+	}
+	if wantDefault, present := queryBool(q, "is_default"); present {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			isDefault, _ := res.Attrs["is_default"].(bool)
+			return isDefault == wantDefault
+		})
+	}
+	if wantRouting, present := queryBool(q, "routing_enabled"); present {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			enabled, _ := res.Attrs["routing_enabled"].(bool)
+			return enabled == wantRouting
+		})
+	}
+	// No VPC here integrates with Object Storage — the product is not emulated
+	// (docs/limits.md) — so true truthfully matches nothing.
+	if wantS3, present := queryBool(q, "s3_integration_enabled"); present && wantS3 {
+		all = all[:0]
+	}
+	if !orderResources(w, r, "order_by", "created_at_asc", map[string]resourceCmp{
+		"created_at": cmpCreated,
+		"name":       cmpName,
+	}, all) {
+		return
+	}
+
 	page := parsePage(r)
 	start, end := page.slice(len(all))
 	vpcs := make([]map[string]any, 0, end-start)
@@ -218,14 +255,45 @@ func (p *Pack) listPrivateNetworks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	all := p.env.Store.List(kindPrivateNetwork, p.regionScopeOf(r, region))
-	if vpcID := r.URL.Query().Get("vpc_id"); vpcID != "" {
-		filtered := all[:0]
-		for _, res := range all {
-			if res.Attrs["vpc_id"] == vpcID {
-				filtered = append(filtered, res)
-			}
-		}
-		all = filtered
+	q := r.URL.Query()
+	if vpcID := q.Get("vpc_id"); vpcID != "" {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return res.Attrs["vpc_id"] == vpcID
+		})
+	}
+	if name := q.Get("name"); name != "" {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return strings.Contains(textOf(res.Attrs["name"]), name)
+		})
+	}
+	if tags := csvValues(q, "tags"); len(tags) > 0 {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return hasAnyTag(res, tags)
+		})
+	}
+	if ids := idSet(q, "private_network_ids"); ids != nil {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return ids[res.ID]
+		})
+	}
+	// Every network here runs managed DHCP — createPrivateNetwork writes the
+	// field and a legacy one is upgraded on read — so the filter is an
+	// equality against that stored truth.
+	if wantDHCP, present := queryBool(q, "dhcp_enabled"); present {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			enabled, _ := res.Attrs["dhcp_enabled"].(bool)
+			return enabled == wantDHCP
+		})
+	}
+	// Same answer as ListVPCs: no Object Storage integration exists here.
+	if wantS3, present := queryBool(q, "s3_integration_enabled"); present && wantS3 {
+		all = all[:0]
+	}
+	if !orderResources(w, r, "order_by", "created_at_asc", map[string]resourceCmp{
+		"created_at": cmpCreated,
+		"name":       cmpName,
+	}, all) {
+		return
 	}
 
 	page := parsePage(r)
@@ -451,6 +519,15 @@ func (p *Pack) listSubnets(w http.ResponseWriter, r *http.Request) {
 		networks = filterResources(networks, func(res *resource.Resource) bool {
 			return res.Attrs["vpc_id"] == vpcID
 		})
+	}
+	// created_at is the only field this operation's enum orders by, and a
+	// subnet's created_at is its network's — so ordering the networks before
+	// flattening orders the subnets. Sorted here, while they are still
+	// resources, because that is the shape the shared helper reads.
+	if !orderResources(w, r, "order_by", "created_at_asc", map[string]resourceCmp{
+		"created_at": cmpCreated,
+	}, networks) {
+		return
 	}
 
 	// Flattened before filtering and paging: a Private Network carries two

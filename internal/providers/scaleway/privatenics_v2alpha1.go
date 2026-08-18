@@ -3,7 +3,6 @@ package scaleway
 import (
 	"net/http"
 	"net/url"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -95,11 +94,16 @@ func (p *Pack) listPrivateNetworkInterfaces(w http.ResponseWriter, r *http.Reque
 		matched = append(matched, res)
 	}
 
-	// created_at_desc is the SDK's own default, and the only order any observed
-	// client asks for. Anything else falls back to it rather than being refused:
-	// an emulator that 400s on an order it does not implement fails a client for
-	// a difference nobody can see in a list of two.
-	sortByCreatedDesc(matched)
+	// created_at_desc is the SDK's own default. Every value the enum declares
+	// is honoured — this list used to answer created_at_desc whatever the
+	// client asked, which is #277's shape — and a value outside the enum is
+	// refused rather than silently reordered.
+	if !orderResources(w, r, "order_by", "created_at_desc", map[string]resourceCmp{
+		"created_at": cmpCreated,
+		"updated_at": cmpUpdated,
+	}, matched) {
+		return
+	}
 
 	start, end, next := tokenPage(r, len(matched))
 	view := make([]map[string]any, 0, end-start)
@@ -308,20 +312,6 @@ func tokenPage(r *http.Request, total int) (start, end int, next any) {
 		return start, end, strconv.Itoa(end)
 	}
 	return start, end, nil
-}
-
-// sortByCreatedDesc orders newest first, ties broken by ID so two NICs created
-// in the same instant do not swap places between two reads. A list whose order
-// is not deterministic makes a client store one order and read back another,
-// which is a permanent diff in Terraform.
-func sortByCreatedDesc(list []*resource.Resource) {
-	sort.SliceStable(list, func(i, j int) bool {
-		a, b := list[i], list[j]
-		if a.Created.Equal(b.Created) {
-			return a.ID < b.ID
-		}
-		return a.Created.After(b.Created)
-	})
 }
 
 // csvValues reads a repeated-or-comma-joined query parameter.

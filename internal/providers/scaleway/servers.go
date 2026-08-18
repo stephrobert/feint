@@ -242,7 +242,19 @@ func (p *Pack) listServers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	all := filterServers(p.env.Store.List(kindServer, p.scopeOf(r, zone)), r.URL.Query())
+	q := r.URL.Query()
+	all := filterServers(p.env.Store.List(kindServer, p.scopeOf(r, zone)), q)
+	all = p.filterServersByLinks(all, q)
+	// creation_date_desc when the client names no order — not this pack's
+	// habit but the SDK's own default ("Default value: creation_date_desc"),
+	// and the empty value every instance/v1 list sends: the request's Order is
+	// a non-pointer enum, so its zero value marshals onto the wire as `order=`.
+	if !orderResources(w, r, "order", "creation_date_desc", map[string]resourceCmp{
+		"creation_date":     cmpCreated,
+		"modification_date": cmpUpdated,
+	}, all) {
+		return
+	}
 
 	page := parsePage(r)
 	start, end := page.slice(len(all))
@@ -1017,19 +1029,14 @@ func (p *Pack) setServerVolumes(server *resource.Resource, wanted map[string]vol
 	return nil
 }
 
-// filterServers applies the query filters ListServers accepts.
+// filterServers applies the ListServers filters a server's own record answers.
 //
 // It read `name` and nothing else, which is how `scw instance server list
 // state=running` came back with five stopped servers. A list that silently
 // ignores a filter is worse than one that refuses it: the caller gets an answer
-// shaped exactly like the right one.
-//
-// The filters implemented are the ones the SDK sends and a caller actually uses:
-// name, state, commercial_type and tags. The rest of what instance/v1 declares
-// (private_ip, with_ip, without_ip, private_network, order, servers) is left
-// alone rather than guessed at — an ignored filter and a wrongly implemented one
-// fail the same way, so the ones here are the ones whose semantics the SDK makes
-// unambiguous.
+// shaped exactly like the right one. The declared filters that reach beyond the
+// record — addresses and NICs — live in filterServersByLinks, so between the
+// two every parameter the operation declares is served (#277).
 //
 // tags is joined with commas by the SDK and treated as a conjunction: a server
 // matches when it carries every tag asked for. That is the reading the CLI's own
@@ -1039,10 +1046,10 @@ func filterServers(all []*resource.Resource, q url.Values) []*resource.Resource 
 	name := q.Get("name")
 	state := q.Get("state")
 	commercialType := q.Get("commercial_type")
-	var tags []string
-	if raw := q.Get("tags"); raw != "" {
-		tags = strings.Split(raw, ",")
-	}
+	// csvValues rather than a split on q.Get: the SDK's AddToQuery emits one
+	// `tags` key per element, and reading only the first counted one tag of
+	// two — every extra tag silently widened the filter.
+	tags := csvValues(q, "tags")
 	if name == "" && state == "" && commercialType == "" && len(tags) == 0 {
 		return all
 	}
@@ -1073,6 +1080,86 @@ func filterServers(all []*resource.Resource, q url.Values) []*resource.Resource 
 		kept = append(kept, res)
 	}
 	return kept
+}
+
+// filterServersByLinks applies the ListServers filters that reach beyond the
+// server's own record: its identifiers, its private NICs and its addresses.
+//
+// The SDK's own comments give each its semantics — `servers` and
+// `private_networks` are comma-separated lists, `private_nic_mac_address`
+// matches a NIC's MAC, `with_ip` matches "both private_ip and public_ip",
+// `without_ip` keeps the servers holding no public address, and the deprecated
+// `private_ip` matches the address a NIC holds, which is where this emulator's
+// machines carry their private address.
+//
+// `without_ip=false` keeps everything: the SDK documents only the true
+// direction ("list Instances that are not attached to a public IP"), and
+// serving an undocumented complement would be an invented semantic.
+func (p *Pack) filterServersByLinks(all []*resource.Resource, q url.Values) []*resource.Resource {
+	ids := idSet(q, "servers")
+	mac := q.Get("private_nic_mac_address")
+	networks := csvValues(q, "private_networks")
+	if pn := q.Get("private_network"); pn != "" {
+		networks = append(networks, pn)
+	}
+	withIP := q.Get("with_ip")
+	privateIP := q.Get("private_ip")
+	withoutIP, _ := queryBool(q, "without_ip")
+	if ids == nil && mac == "" && len(networks) == 0 && withIP == "" && privateIP == "" && !withoutIP {
+		return all
+	}
+
+	kept := make([]*resource.Resource, 0, len(all))
+	for _, res := range all {
+		if ids != nil && !ids[res.ID] {
+			continue
+		}
+		nics := p.privateNICsOf(res.ID)
+		if mac != "" && !nicWithMAC(nics, mac) {
+			continue
+		}
+		if len(networks) > 0 && !nicOnAnyNetwork(nics, networks) {
+			continue
+		}
+		if privateIP != "" && !p.nicHoldsAddress(nics, privateIP) {
+			continue
+		}
+		if withIP != "" && !contains(p.publicAddressesOf(res), withIP) && !p.nicHoldsAddress(nics, withIP) {
+			continue
+		}
+		if withoutIP && len(p.publicAddressesOf(res)) > 0 {
+			continue
+		}
+		kept = append(kept, res)
+	}
+	return kept
+}
+
+func nicWithMAC(nics []*resource.Resource, mac string) bool {
+	for _, nic := range nics {
+		if textOf(nic.Attrs["mac_address"]) == mac {
+			return true
+		}
+	}
+	return false
+}
+
+func nicOnAnyNetwork(nics []*resource.Resource, networks []string) bool {
+	for _, nic := range nics {
+		if contains(networks, nic.Runtime[runtimePrivateNetworkKey]) {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *Pack) nicHoldsAddress(nics []*resource.Resource, address string) bool {
+	for _, nic := range nics {
+		if p.addressOfNIC(nic.ID) == address {
+			return true
+		}
+	}
+	return false
 }
 
 // hasEveryTag reports whether the resource carries all of the wanted tags. The

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/netip"
+	"strings"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/machine"
@@ -207,6 +208,26 @@ func (p *Pack) listIPs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	all := p.env.Store.List(kindIP, p.scopeOf(r, zone))
+	q := r.URL.Query()
+	// `name` is the SDK's own reading, not this pack's: "filter on the IP
+	// address (Works as a LIKE operation on the IP address)". There is no name
+	// on a flexible IP to match against.
+	if name := q.Get("name"); name != "" {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return strings.Contains(textOf(res.Attrs["address"]), name)
+		})
+	}
+	if ipType := q.Get("type"); ipType != "" {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return textOf(res.Attrs["type"]) == ipType
+		})
+	}
+	// "With these exact tags", like the servers list next door: a conjunction.
+	if tags := csvValues(q, "tags"); len(tags) > 0 {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return hasEveryTag(res, tags)
+		})
+	}
 	page := parsePage(r)
 	start, end := page.slice(len(all))
 

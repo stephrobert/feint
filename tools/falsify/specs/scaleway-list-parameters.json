@@ -1,0 +1,55 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "every _desc order quietly answers ascending — the headline of #277: desc asked, asc served, 200 either way",
+      "file": "internal/providers/scaleway/listquery.go",
+      "find": "\t\treturn base, true",
+      "replace": "\t\treturn base, false",
+      "test": "TestBlockListsHonourTheDeclaredFilters"
+    },
+    {
+      "label": "ListServers' order reads a key nobody sends and the list falls back to store order",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\tif !orderResources(w, r, \"order\", \"creation_date_desc\", map[string]resourceCmp{",
+      "replace": "\tif !orderResources(w, r, \"order-never\", \"creation_date_desc\", map[string]resourceCmp{",
+      "test": "TestServersHonourTheDeclaredOrder"
+    },
+    {
+      "label": "the with_ip filter goes inert and asking for one address answers every server",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\twithIP := q.Get(\"with_ip\")",
+      "replace": "\twithIP := q.Get(\"with_ip-never\")",
+      "test": "TestServersFilterByLinks"
+    },
+    {
+      "label": "the block volume_ids filter goes inert and naming one volume answers them all",
+      "file": "internal/providers/scaleway/block.go",
+      "find": "\tif ids := idSet(q, \"volume_ids\"); ids != nil {",
+      "replace": "\tif ids := idSet(q, \"volume_ids-never\"); ids != nil {",
+      "test": "TestBlockListsHonourTheDeclaredFilters"
+    },
+    {
+      "label": "the ipam resource_ids filter goes inert and one NIC's addresses become the region's",
+      "file": "internal/providers/scaleway/ipam.go",
+      "find": "\tif ids := idSet(q, \"resource_ids\"); ids != nil {",
+      "replace": "\tif ids := idSet(q, \"resource_ids-never\"); ids != nil {",
+      "test": "TestIPAMListHonoursOrderAndResourceFilters"
+    },
+    {
+      "label": "the ssh-key disabled filter goes inert and disabled=true answers the enabled keys",
+      "file": "internal/providers/scaleway/sshkeys.go",
+      "find": "\tif wantDisabled, present := queryBool(q, \"disabled\"); present {",
+      "replace": "\tif wantDisabled, present := queryBool(q, \"disabled-never\"); present {",
+      "test": "TestSSHKeysHonourTheDeclaredParameters"
+    },
+    {
+      "label": "a handler that still reads its query drops one declared parameter — the half #271's gate cannot see, and the per-operation gate must",
+      "file": "internal/providers/scaleway/vpc.go",
+      "find": "\tif wantDHCP, present := queryBool(q, \"dhcp_enabled\"); present {",
+      "replace": "\tif wantDHCP, present := queryBool(q, \"dhcp_enabled-never\"); present {",
+      "test": "TestNoDeclaredQueryParameterIsDroppedByItsHandler",
+      "package": "./internal/core/emulator/"
+    }
+  ]
+}

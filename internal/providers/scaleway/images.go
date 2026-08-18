@@ -2,6 +2,7 @@ package scaleway
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -274,7 +275,8 @@ func (p *Pack) listImages(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	name := r.URL.Query().Get("name")
+	q := r.URL.Query()
+	name := q.Get("name")
 	out := make([]map[string]any, 0)
 	for _, res := range p.env.Store.List(kindImage, resource.Tenant{Provider: Name}) {
 		if textOf(res.Attrs["zone"]) != zone {
@@ -291,6 +293,11 @@ func (p *Pack) listImages(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, p.imageView(zone, entry.ID, label))
 	}
+	// The remaining declared filters read the assembled views, because the two
+	// image populations answer them from different places: a client image
+	// carries what its create stored, a catalogue image is public, x86_64 and
+	// untagged by construction (#277).
+	out = filterImageViews(out, q)
 	// Paged like every other list of this pack. This was the one that ignored
 	// per_page — five images whatever the client asked — found the day the
 	// probe started holding paged answers to the size they asked, which is the
@@ -302,6 +309,70 @@ func (p *Pack) listImages(w http.ResponseWriter, r *http.Request) {
 		"images":      out[start:end],
 		"total_count": len(out),
 	})
+}
+
+// filterImageViews applies the ListImages filters that read the image itself:
+// arch, public, organization, project and tags. The views carry every one of
+// those fields for both image populations, so the filter reads what the client
+// would.
+func filterImageViews(views []map[string]any, q url.Values) []map[string]any {
+	arch := q.Get("arch")
+	// organization scopes to the whole account rather than comparing the
+	// identifier — one organization lives here (scopeOf's rule), so a named
+	// one keeps both image populations. project stays an equality: a project
+	// is an isolation boundary this emulator does honour, and on the real
+	// cloud filtering by yours excludes the public catalogue the same way.
+	_ = q.Get("organization")
+	project := q.Get("project")
+	wantPublic, publicSet := queryBool(q, "public")
+	tags := csvValues(q, "tags")
+	if arch == "" && project == "" && !publicSet && len(tags) == 0 {
+		return views
+	}
+	kept := views[:0]
+	for _, view := range views {
+		if arch != "" && view["arch"] != arch {
+			continue
+		}
+		if project != "" && view["project"] != project {
+			continue
+		}
+		if publicSet {
+			isPublic, _ := view["public"].(bool)
+			if isPublic != wantPublic {
+				continue
+			}
+		}
+		if len(tags) > 0 && !viewHasEveryTag(view["tags"], tags) {
+			continue
+		}
+		kept = append(kept, view)
+	}
+	return kept
+}
+
+// viewHasEveryTag is hasEveryTag for a rendered view, whose tags are []string
+// on a live image and []any after a snapshot restore.
+func viewHasEveryTag(stored any, wanted []string) bool {
+	have := map[string]bool{}
+	switch tags := stored.(type) {
+	case []string:
+		for _, t := range tags {
+			have[t] = true
+		}
+	case []any:
+		for _, t := range tags {
+			if s, ok := t.(string); ok {
+				have[s] = true
+			}
+		}
+	}
+	for _, t := range wanted {
+		if !have[t] {
+			return false
+		}
+	}
+	return true
 }
 
 // updateImage carries the name and the tags, which is what the SDK's
