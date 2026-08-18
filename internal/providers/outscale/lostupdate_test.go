@@ -570,7 +570,7 @@ func TestUpdateNicDoesNotMutateTheStoredLinkInPlace(t *testing.T) {
 	}
 
 	status, _ := post(t, ts, "UpdateNic",
-		`{"NicId":"eni-restored1","LinkNic":{"DeleteOnVmDeletion":true}}`)
+		`{"NicId":"eni-restored1","LinkNic":{"LinkNicId":"eni-attach-restored1","DeleteOnVmDeletion":true}}`)
 	if status != http.StatusOK {
 		t.Fatalf("UpdateNic answered %d, so this test measures nothing", status)
 	}

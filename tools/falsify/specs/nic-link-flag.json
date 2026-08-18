@@ -1,0 +1,30 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "the view publishes DeleteOnVmDeletion:false as a constant again, so a stored true is denied by every read that follows",
+      "file": "internal/providers/outscale/nics.go",
+      "find": "\t\tflag, _ := nic.Attrs[\"DeleteOnVmDeletion\"].(bool)\n\t\tout[\"LinkNic\"] = map[string]any{\n\t\t\t\"DeleteOnVmDeletion\": flag,",
+      "replace": "\t\tflag, _ := nic.Attrs[\"DeleteOnVmDeletion\"].(bool)\n\t\tout[\"LinkNic\"] = map[string]any{\n\t\t\t\"DeleteOnVmDeletion\": flag && false,",
+      "test": "TestDeleteOnVmDeletionRoundTripsThroughUpdateNic",
+      "repeat": 2
+    },
+    {
+      "label": "updateNic stops seeing the flat attachment keys, which is the pre-#299 refusal: a NIC this pack itself attached answers 400 not-attached",
+      "file": "internal/providers/outscale/updates.go",
+      "find": "\t\t\tattachmentID := stringOf(stored.Attrs[\"LinkNicId\"])\n\t\t\tlink, hasMap := stored.Attrs[\"LinkNic\"].(map[string]any)",
+      "replace": "\t\t\tattachmentID := stringOf(stored.Attrs[\"LinkNicId\"])\n\t\t\tattachmentID = attachmentID[:0]\n\t\t\tlink, hasMap := stored.Attrs[\"LinkNic\"].(map[string]any)",
+      "test": "TestDeleteOnVmDeletionRoundTripsThroughUpdateNic",
+      "repeat": 2
+    },
+    {
+      "label": "the terminate stops honouring the flag, so DeleteOnVmDeletion round-trips perfectly and governs nothing",
+      "file": "internal/providers/outscale/nics.go",
+      "find": "\t\tif goes, _ := nic.Attrs[\"DeleteOnVmDeletion\"].(bool); goes {\n\t\t\tp.env.Store.Delete(Name, kindNic, nic.ID)\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif goes, _ := nic.Attrs[\"DeleteOnVmDeletion\"].(bool); goes && false {\n\t\t\tp.env.Store.Delete(Name, kindNic, nic.ID)\n\t\t\tcontinue\n\t\t}",
+      "test": "TestATrueDeleteOnVmDeletionDeletesTheNicWithItsVm",
+      "repeat": 2
+    }
+  ],
+  "note": "All three subjects are sequential — the tests provoke the update, the read-back and the terminate themselves, no scheduler bet — so `repeat: 2` is belt on deterministic braces. Verified 2026-08-18: with the emulator as fixed, the round-trip test fails when the view constant returns and when the flat attachment keys stop being read, and the terminate test fails when the delete branch is neutralised."
+}

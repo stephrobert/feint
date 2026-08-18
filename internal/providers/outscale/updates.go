@@ -8,10 +8,11 @@ import (
 	"github.com/stephrobert/feint/internal/core/resource"
 )
 
-// The refusals this file answers from inside the store lock (#295).
+// The refusals this file answers from inside the store lock (#295, #299).
 var (
-	errNicNotAttached = errors.New("the interface is not attached")
-	errRouteLinkMoved = errors.New("the link left this table while the request was deciding")
+	errNicNotAttached  = errors.New("the interface is not attached")
+	errWrongAttachment = errors.New("the request names another attachment")
+	errRouteLinkMoved  = errors.New("the link left this table while the request was deciding")
 )
 
 // The in-place half of resources this pack already creates, reads and deletes
@@ -198,16 +199,36 @@ func (p *Pack) updateNic(w http.ResponseWriter, r *http.Request) {
 			stored.Attrs["SecurityGroupIds"] = req.SecurityGroupIDs
 		}
 		if req.LinkNic != nil && req.LinkNic.DeleteOnVMDeletion != nil {
-			link, _ := stored.Attrs["LinkNic"].(map[string]any)
-			if link == nil {
+			// The attachment lives in the flat keys linkNic writes; the
+			// LinkNic map is the shape a foreign snapshot restores, and it
+			// stays readable rather than silently dropped — a restored state
+			// is untrusted input, not an invalid one. This branch answered
+			// 400 "not attached" for every NIC this pack itself attached,
+			// because it read only the map nothing here ever wrote (#299).
+			attachmentID := stringOf(stored.Attrs["LinkNicId"])
+			link, hasMap := stored.Attrs["LinkNic"].(map[string]any)
+			if attachmentID == "" && hasMap {
+				attachmentID = stringOf(link["LinkNicId"])
+			}
+			if attachmentID == "" {
 				return errNicNotAttached
 			}
-			fresh := make(map[string]any, len(link)+1)
-			for k, v := range link {
-				fresh[k] = v
+			// "If you are modifying the `DeleteOnVmDeletion` attribute, you
+			// must specify the ID of the NIC attachment" — LinkNicToUpdate,
+			// osc-sdk-go client.gen.go. An absent or foreign ID is refused,
+			// not guessed around.
+			if req.LinkNic.LinkNicID != attachmentID {
+				return errWrongAttachment
 			}
-			fresh["DeleteOnVmDeletion"] = *req.LinkNic.DeleteOnVMDeletion
-			stored.Attrs["LinkNic"] = fresh
+			stored.Attrs["DeleteOnVmDeletion"] = *req.LinkNic.DeleteOnVMDeletion
+			if hasMap {
+				fresh := make(map[string]any, len(link)+1)
+				for k, v := range link {
+					fresh[k] = v
+				}
+				fresh["DeleteOnVmDeletion"] = *req.LinkNic.DeleteOnVMDeletion
+				stored.Attrs["LinkNic"] = fresh
+			}
 		}
 		stored.Updated = p.env.Now()
 		updated = stored
@@ -216,6 +237,10 @@ func (p *Pack) updateNic(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, errNicNotAttached):
 		p.badRequest(w, "NicId "+req.NicID+" is not attached, so its attachment cannot be updated")
+		return
+	case errors.Is(err, errWrongAttachment):
+		p.badRequest(w, "LinkNic.LinkNicId must name the attachment of "+req.NicID+
+			": modifying DeleteOnVmDeletion requires the ID of the NIC attachment")
 		return
 	case err != nil:
 		p.notFound(w, "nic", req.NicID)

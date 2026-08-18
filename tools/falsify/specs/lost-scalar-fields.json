@@ -38,8 +38,8 @@
     {
       "label": "updateNic writes DeleteOnVmDeletion through the LinkNic map every reader shares with the store, the in-place mutation #295 names as the second defect on these lines",
       "file": "internal/providers/outscale/updates.go",
-      "find": "\t\t\tfresh := make(map[string]any, len(link)+1)\n\t\t\tfor k, v := range link {\n\t\t\t\tfresh[k] = v\n\t\t\t}\n\t\t\tfresh[\"DeleteOnVmDeletion\"] = *req.LinkNic.DeleteOnVMDeletion\n\t\t\tstored.Attrs[\"LinkNic\"] = fresh",
-      "replace": "\t\t\tfresh := make(map[string]any, len(link)+1)\n\t\t\tfor k, v := range link {\n\t\t\t\tfresh[k] = v\n\t\t\t}\n\t\t\tfresh[\"DeleteOnVmDeletion\"] = *req.LinkNic.DeleteOnVMDeletion\n\t\t\tlink[\"DeleteOnVmDeletion\"] = fresh[\"DeleteOnVmDeletion\"]\n\t\t\tstored.Attrs[\"LinkNic\"] = link",
+      "find": "\t\t\t\tfresh := make(map[string]any, len(link)+1)\n\t\t\t\tfor k, v := range link {\n\t\t\t\t\tfresh[k] = v\n\t\t\t\t}\n\t\t\t\tfresh[\"DeleteOnVmDeletion\"] = *req.LinkNic.DeleteOnVMDeletion\n\t\t\t\tstored.Attrs[\"LinkNic\"] = fresh",
+      "replace": "\t\t\t\tfresh := make(map[string]any, len(link)+1)\n\t\t\t\tfor k, v := range link {\n\t\t\t\t\tfresh[k] = v\n\t\t\t\t}\n\t\t\t\tfresh[\"DeleteOnVmDeletion\"] = *req.LinkNic.DeleteOnVMDeletion\n\t\t\t\tlink[\"DeleteOnVmDeletion\"] = fresh[\"DeleteOnVmDeletion\"]\n\t\t\t\tstored.Attrs[\"LinkNic\"] = link",
       "test": "TestUpdateNicDoesNotMutateTheStoredLinkInPlace",
       "repeat": 2
     },

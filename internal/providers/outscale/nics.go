@@ -241,8 +241,14 @@ func (p *Pack) storedNicView(nic *resource.Resource) map[string]any {
 	// and the destroy unable to finish.
 	// TestAnAttachedNicReportsTheLinkStateTheProviderWaitsFor fails without this.
 	if vmID := stringOf(nic.Attrs["LinkVmId"]); vmID != "" {
+		// The flag is the stored one, never a constant: this line published
+		// `false` whatever UpdateNic had stored, so the one request that sets
+		// it was denied by every read that followed — the same shape as the
+		// constant Tags before #99 (#299).
+		// TestDeleteOnVmDeletionRoundTripsThroughUpdateNic fails without it.
+		flag, _ := nic.Attrs["DeleteOnVmDeletion"].(bool)
 		out["LinkNic"] = map[string]any{
-			"DeleteOnVmDeletion": false,
+			"DeleteOnVmDeletion": flag,
 			"DeviceNumber":       numOf(nic.Attrs["DeviceNumber"]),
 			"LinkNicId":          stringOf(nic.Attrs["LinkNicId"]),
 			"State":              "attached",
@@ -399,6 +405,13 @@ func (p *Pack) linkNic(w http.ResponseWriter, r *http.Request) {
 		stored.Attrs["LinkVmId"] = req.VMID
 		stored.Attrs["DeviceNumber"] = *req.DeviceNumber
 		stored.Attrs["LinkNicId"] = linkID
+		// False at attach time, and that is the SDK's shape rather than a
+		// choice: LinkNicRequest (osc-sdk-go client.gen.go) carries no
+		// DeleteOnVmDeletion, so a fresh attachment can only start at the
+		// default — false, which is also what the 2026-08-08 lifecycle sweep
+		// recorded on a freshly linked interface. UpdateNic's LinkNicToUpdate
+		// is the one door that changes it (#299).
+		stored.Attrs["DeleteOnVmDeletion"] = false
 		stored.Attrs["State"] = "in-use"
 		stored.Updated = p.env.Now()
 		return nil
@@ -440,6 +453,7 @@ func (p *Pack) unlinkNic(w http.ResponseWriter, r *http.Request) {
 			delete(stored.Attrs, "LinkVmId")
 			delete(stored.Attrs, "DeviceNumber")
 			delete(stored.Attrs, "LinkNicId")
+			delete(stored.Attrs, "DeleteOnVmDeletion")
 			stored.Attrs["State"] = "available"
 			stored.Updated = p.env.Now()
 			return nil
@@ -454,11 +468,22 @@ func (p *Pack) unlinkNic(w http.ResponseWriter, r *http.Request) {
 	p.notFound(w, "network interface attachment", req.LinkNicID)
 }
 
-// detachNicsOf releases every secondary interface attached to a Vm, leaving the
-// interface itself in place. Called from the Vm delete path.
+// detachNicsOf releases every secondary interface attached to a Vm — or
+// deletes it, when its attachment says so. Called from the Vm delete path.
+//
+// The flag is the SDK's own contract, on LinkNic.DeleteOnVmDeletion: "If true,
+// the NIC is deleted when the VM is terminated. If false, the NIC is detached
+// from the VM" (osc-sdk-go client.gen.go). Detaching regardless would make the
+// flag a field that round-trips perfectly and governs nothing, the exact shape
+// #212 names. TestATrueDeleteOnVmDeletionDeletesTheNicWithItsVm fails without
+// the delete branch (#299).
 func (p *Pack) detachNicsOf(vmID string) {
 	for _, nic := range p.env.Store.List(kindNic, resource.Tenant{Provider: Name}) {
 		if stringOf(nic.Attrs["LinkVmId"]) != vmID {
+			continue
+		}
+		if goes, _ := nic.Attrs["DeleteOnVmDeletion"].(bool); goes {
+			p.env.Store.Delete(Name, kindNic, nic.ID)
 			continue
 		}
 		// Re-checked under the lock, same reason as detachVolumesOf (#295).
@@ -469,6 +494,7 @@ func (p *Pack) detachNicsOf(vmID string) {
 			delete(stored.Attrs, "LinkVmId")
 			delete(stored.Attrs, "DeviceNumber")
 			delete(stored.Attrs, "LinkNicId")
+			delete(stored.Attrs, "DeleteOnVmDeletion")
 			stored.Attrs["State"] = "available"
 			stored.Updated = p.env.Now()
 			return nil
