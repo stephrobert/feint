@@ -19,6 +19,19 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Une raison de refus modifiée dans un pack atteint désormais l'artefact
+  versionné, ou le gate le dit** (#298). `feint coverage --artefact` compare
+  `coverage/<provider>-coverage.json` avec ce que le pack déclare aujourd'hui,
+  statuts et raisons de refus, et sort en 2 au moindre écart ; `mise run
+  drift:check` le passe pour les trois providers, et
+  `TestTheCommittedArtefactCarriesWhatThePacksDeclare` échoue sur le même
+  écart dans `mise run check`. Cas mesuré : la raison réécrite par #260 est
+  restée périmée dans l'artefact pendant quatre jours, 67 occurrences, pendant
+  que `drift:check` comparait noms et statuts et que `docs:check` régénérait
+  le README depuis le même fichier périmé : deux gates d'accord entre eux et
+  en désaccord avec le code. Surface CLI v3 : un drapeau ajouté, rien de
+  déplacé ni retiré.
+
 - **Le stockage bloc Exoscale** (#12). Treize opérations — volumes, snapshots,
   le redimensionnement et la chaîne d'attachement — pilotées par le CLI `exo`
   dans la suite de conformance. Chaque nombre qu'un volume publie dit que le

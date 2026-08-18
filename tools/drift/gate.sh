@@ -37,17 +37,30 @@ case "$MODE" in
     # Every provider runs even when an earlier one drifts, so one report carries
     # everything that moved rather than one provider at a time. The exit code is
     # the worst of them.
+    #
+    # --artefact on every call, because the baseline only watches the upstream
+    # side. #298 measured the other side: a decline reason rewritten in a pack
+    # took four days to reach coverage/scaleway-coverage.json, while this gate
+    # passed (names and statuses, never reasons) and docs:check passed (the
+    # README regenerates from the same stale artefact) — two gates agreeing
+    # with each other while both disagreed with the code. The flag compares the
+    # committed artefact with what the pack declares today and exits 2 on any
+    # skew; TestTheCommittedArtefactCarriesWhatThePacksDeclare fails on the
+    # same skew, and tools/falsify/specs/artefact-reasons.json proves it bites.
     status=0
     "$FEINT" coverage --sdk "$SCALEWAY_SDK" --products "$SCALEWAY_PRODUCTS" \
-      --baseline coverage/scaleway-baseline.json || status=$?
+      --baseline coverage/scaleway-baseline.json \
+      --artefact coverage/scaleway-coverage.json || status=$?
     # --contract on top of --sdk: the SDK lists the operations, the contract
     # carries the tags their document files them under, which oapi-codegen
     # flattens away. Without it every artefact row collapses back into `osc`.
     "$FEINT" coverage --provider outscale --sdk "$OUTSCALE_SDK" \
       --contract contracts/outscale.json \
-      --baseline coverage/outscale-baseline.json || status=$?
+      --baseline coverage/outscale-baseline.json \
+      --artefact coverage/outscale-coverage.json || status=$?
     "$FEINT" coverage --provider exoscale --contract contracts/exoscale.json \
-      --baseline coverage/exoscale-baseline.json || status=$?
+      --baseline coverage/exoscale-baseline.json \
+      --artefact coverage/exoscale-coverage.json || status=$?
     exit $status
     ;;
   update)

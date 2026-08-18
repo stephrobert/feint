@@ -64,6 +64,28 @@ func applyBaseline(path string, write bool, rep drift.Report, products string, s
 	return exitOK, nil
 }
 
+// artefactSkew loads the committed coverage artefact and reports every verdict
+// in it that the pack no longer states. The comparison itself lives in
+// internal/drift (ArtefactSkew), where the test that reads the real repository
+// artefacts shares it — one comparison, two callers, so the gate and the test
+// cannot drift apart the way the two halves of the old drift gate did.
+func artefactSkew(path string, served []string, declined map[string]string) ([]string, error) {
+	f, err := os.Open(path) //nolint:gosec // a committed, non-secret artefact
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("coverage artefact %s does not exist; write it with drift:update", path)
+		}
+		return nil, fmt.Errorf("open coverage artefact: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	committed, err := drift.LoadCoverage(f)
+	if err != nil {
+		return nil, fmt.Errorf("read coverage artefact %s: %w", path, err)
+	}
+	return drift.ArtefactSkew(committed, served, declined), nil
+}
+
 func splitProducts(products string) []string {
 	if products == "" {
 		return nil
