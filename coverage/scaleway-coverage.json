@@ -1413,49 +1413,49 @@
     {
       "operation": "instance/v2alpha1/API.AddSecurityGroupRules",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.AttachServerFileSystem",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.AttachServerIP",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.AttachServerPrivateNetworkInterface",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.AttachServerVolume",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.CheckTemplate",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.CreatePlacementGroup",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
@@ -1468,35 +1468,35 @@
     {
       "operation": "instance/v2alpha1/API.CreateSecurityGroup",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.CreateServer",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.CreateServerFromTemplate",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.CreateTemplate",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.DeletePlacementGroup",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
@@ -1509,77 +1509,77 @@
     {
       "operation": "instance/v2alpha1/API.DeleteSecurityGroup",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.DeleteSecurityGroupRules",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.DeleteServer",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.DeleteTemplate",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.DeleteTemplateUserData",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.DeleteUserData",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.DetachServerFileSystem",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.DetachServerIP",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.DetachServerPrivateNetworkInterface",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.DetachServerVolume",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.GetPlacementGroup",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
@@ -1592,63 +1592,63 @@
     {
       "operation": "instance/v2alpha1/API.GetResourceCounts",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.GetSecurityGroup",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.GetServer",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.GetServerCloudInit",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.GetTemplate",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.GetTemplateCloudInit",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.GetTemplateUserData",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.GetUserData",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.ListPlacementGroups",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
@@ -1661,126 +1661,126 @@
     {
       "operation": "instance/v2alpha1/API.ListSecurityGroups",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.ListServerTypes",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.ListServers",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.ListTemplateUserDataKeys",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.ListTemplates",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.ListUserDataKeys",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.PauseServer",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.RebootServer",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.SetSecurityGroupRules",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.SetServerCloudInit",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.SetServerDefaultIP",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.SetTemplateCloudInit",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.SetTemplateUserData",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.SetUserData",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.StartServer",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.StopAndDeleteServer",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.StopServer",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.UpdatePlacementGroup",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
@@ -1793,119 +1793,119 @@
     {
       "operation": "instance/v2alpha1/API.UpdateSecurityGroup",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.UpdateSecurityGroupRule",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.UpdateServer",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/API.UpdateTemplate",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/VolumeAPI.CreateSnapshot",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/VolumeAPI.CreateVolume",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/VolumeAPI.DeleteSnapshot",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/VolumeAPI.DeleteVolume",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/VolumeAPI.ExportSnapshotToObjectStorage",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/VolumeAPI.GetSnapshot",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/VolumeAPI.GetVolume",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/VolumeAPI.ImportSnapshotFromObjectStorage",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/VolumeAPI.ListSnapshots",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/VolumeAPI.ListVolumeTypes",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/VolumeAPI.ListVolumes",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/VolumeAPI.UpdateSnapshot",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },
     {
       "operation": "instance/v2alpha1/VolumeAPI.UpdateVolume",
       "product": "instance",
-      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1",
+      "reason": "instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
       "version": "v2alpha1",
       "status": "declined"
     },

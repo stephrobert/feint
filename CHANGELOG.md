@@ -17,6 +17,18 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **A decline reason edited in a pack now reaches the committed artefact, or
+  the gate says so** (#298). `feint coverage --artefact` compares
+  `coverage/<provider>-coverage.json` with what the pack declares today —
+  statuses and decline reasons — and exits 2 on any skew; `mise run
+  drift:check` passes it for all three providers, and
+  `TestTheCommittedArtefactCarriesWhatThePacksDeclare` fails on the same skew
+  in `mise run check`. Measured case: the reason #260 rewrote sat stale in the
+  artefact for four days, 67 occurrences, while `drift:check` compared names
+  and statuses and `docs:check` regenerated the README from the same stale
+  file — two gates agreeing with each other while both disagreed with the
+  code. CLI surface v3: one flag added, nothing moved or removed.
+
 - **Exoscale block storage** (#12). Thirteen operations — volumes, snapshots,
   the resize and the attach chain — driven by the `exo` CLI in the conformance
   suite. Every number a volume publishes says the storage holds no bytes, and
