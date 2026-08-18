@@ -1,0 +1,11 @@
+# Copy to terraform.tfvars and adjust. Every value has a working default, so
+# the file is optional.
+
+# The emulated catalogue serves a single zone, and this is it — a measured
+# decision (internal/providers/exoscale/catalog.go). Three of the five
+# surveyed Exoscale stacks default to another zone and meet that wall; this
+# variable exists so a reader sees where the zone is chosen.
+zone = "ch-dk-2"
+
+# How many machines the application pool holds.
+pool_size = 2

@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars and adjust. Every value has a working default, so
+# the file is optional — which is exactly how the better surveyed stacks ship
+# theirs (Rookain-Kiwi/kiwinet-infra-cloud, PhilippeChepy/platform).
+
+# Where the emulator answers.
+endpoint = "http://127.0.0.1:4599"
+
+# The Vm type every machine uses.
+vm_type = "tinav5.c1r1p2"
