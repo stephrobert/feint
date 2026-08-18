@@ -84,7 +84,12 @@ Sleep 1200ms
 
 Type "terraform apply -auto-approve -input=false -no-color | tail -3"
 Enter
-Sleep 10s
+# 14s, not less: the apply takes between ten and fourteen seconds against the
+# published image, and at 10s the recording ended mid-apply — the four steps
+# after this one were typed into a shell that had not come back, so the GIF
+# stopped at the apply and the count and the teardown were never filmed. Found
+# by looking at the frames, which is the only way this is ever found.
+Sleep 14s
 
 Type "# What it actually drove, counted by the emulator itself."
 Enter
