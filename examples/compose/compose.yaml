@@ -28,8 +28,8 @@ services:
       timeout: 6s
       retries: 15
 
-  # Your application, or in this example the official Scaleway CLI proving the
-  # wiring. Replace the image and the command; keep the environment.
+  # Your application, or in this example a curl probe proving the wiring.
+  # Replace the image and the command; keep the environment.
   app:
     image: alpine:3.21
     depends_on:

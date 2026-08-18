@@ -114,14 +114,17 @@ the two above: it moves when somebody else contributes, not when a file changes.
 
 ## The CodeQL alerts, and why five of them are false
 
-The same code-scanning page carries five CodeQL findings, all `go/log-injection`,
-on the three packs that log an address they refused to route
-(`outscale/publicips.go`, `exoscale/elasticips.go` twice, `outscale/privateips.go`).
+The same code-scanning page carries five CodeQL findings, all `go/log-injection`
+(read live from the code-scanning API on 2026-08-18): one on
+`outscale/publicips.go`, three on `exoscale/elasticips.go` — the refusal to
+route, plus two flows into the route-failure error — and one on
+`outscale/privateips.go`, where an attach failure logs the values it could not
+carry.
 
-**The dataflow the query describes is real.** The value is client-controlled, and
-the branch that logs it is precisely the one where `netip.ParseAddr` refused it,
-so it can be any string at all — including one carrying a newline and a forged
-`level=ERROR` record.
+**The dataflow the query describes is real.** Every flagged value is
+client-controlled, and two of the five sit on the very branch where
+`netip.ParseAddr` refused it, so it can be any string at all — including one
+carrying a newline and a forged `level=ERROR` record.
 
 **The sink is what the query cannot see.** This emulator logs through
 `slog.TextHandler`, which quotes any value carrying a space, an `=` or a control

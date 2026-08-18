@@ -11,7 +11,7 @@
 #
 #     - uses: stephrobert/setup-feint@v1
 #       with:
-#         version: 0.9.0
+#         version: 0.8.0
 #         provider: scaleway
 #
 # which installs the verified binary and exports the client environment. Use the

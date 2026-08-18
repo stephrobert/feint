@@ -63,8 +63,8 @@ Two things would change what this project can prove about your cloud:
    here.
 
 What this project will not do, so the offer is not misread: invent quotas, prices
-or capacity. [docs/limits.md](limits.md) is thirty sections of what is refused
-and why, and that list is the reason the rest can be trusted.
+or capacity. [docs/limits.md](limits.md) states, section by section, what is
+refused and why, and that list is the reason the rest can be trusted.
 
 Adding a pack for a fourth cloud is measured work rather than a rewrite —
 [docs/fourth-pack.md](fourth-pack.md) counts what it costs, honestly, including
@@ -89,6 +89,15 @@ a marketing claim — which is the one thing this repository is built not to be.
 ## The list
 
 Empty, as of 2026-08-17. The first entry will be somebody else's.
+
+What exists already is the inverse exercise, and it does not count here on
+purpose: fifteen strangers' published stacks — five per provider — were pulled
+from GitHub and applied against Feint in-house
+([#262](https://github.com/stephrobert/feint/issues/262), the register is
+[examples/stacks/surveyed.md](../examples/stacks/surveyed.md), four defects
+filed). That measures what public configurations do to this emulator. This
+list measures the thing the survey cannot: somebody who is not the author
+choosing to run it.
 
 | Configuration | Provider | Result | Issue |
 |---|---|---|---|

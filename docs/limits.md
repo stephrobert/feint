@@ -30,6 +30,17 @@ The SDK and the CLI are better off: they honour `SCW_S3_ENDPOINT`. So an S3
 workflow driven by `scw` or by an SDK can already point at MinIO today; only the
 Terraform path is blocked.
 
+The consequence has since been observed live, from a stranger's stack rather
+than a fixture ([#262](https://github.com/stephrobert/feint/issues/262),
+[examples/stacks/surveyed.md](../examples/stacks/surveyed.md)): with
+`SCW_API_URL` pointing at this emulator, the provider still sent its
+`CreateBucket` to the real `s3.fr-par.scw.cloud`, which answered 403 on the
+fake credentials. Nothing was created and nothing was billed — but the request
+left the machine. A configuration carrying `scaleway_object_bucket` talks to
+the real endpoint no matter where the rest of it is pointed, and any sentence
+here promising that traffic never leaves your machine has to carve out this
+one product on this one client.
+
 ## The cost of DNS/TLS interception, measured (#76)
 
 The refusal above rested on an unmeasured cost. Measured against the real

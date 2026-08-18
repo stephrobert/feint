@@ -19,6 +19,54 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Le stockage bloc Exoscale** (#12). Treize opérations — volumes, snapshots,
+  le redimensionnement et la chaîne d'attachement — pilotées par le CLI `exo`
+  dans la suite de conformance. Chaque nombre qu'un volume publie dit que le
+  stockage ne contient aucun octet, et la section de `docs/limits.md` qui
+  l'énonce a été livrée avec les routes.
+
+- **Les instance pools Exoscale** (#232). Une écriture qui déplace plusieurs
+  machines : le pool crée, redimensionne et évince par le même cycle de vie
+  que l'instance seule, et la suite de conformance le pilote avec le CLI
+  officiel.
+
+- **Un réseau privé Exoscale est une plage, et un attachement y prend un
+  bail** (#161). Les adresses sortent du bloc déclaré au lieu d'être renvoyées
+  en écho, donc deux attachements ne peuvent pas revendiquer la même.
+
+- **Les colonnes non triées d'Exoscale et d'Outscale ont été décidées**
+  (#173, #198). Vingt-quatre opérations Exoscale et sept Outscale ont quitté
+  la colonne par les deux seules sorties possibles : servies avec un client
+  pour le prouver, ou déclinées nommément avec la raison dans le pack.
+
+- **Chaque opération montée est pilotée par un vrai client, ou dit pourquoi
+  pas** (#174). Les quarante-deux dernières ont soit gagné un client dans la
+  suite de conformance, soit déclarent, à la route, pourquoi aucun client
+  officiel ne les atteint (`Route.Undriven`) ; le bandeau du README compte les
+  deux séparément, et `TestEveryUndrivenOperationSaysWhy` fait échouer une
+  raison qui survit à sa cause.
+
+- **Une release est mesurée contre ses consommateurs avant d'être taguée**
+  (#170). `mise run compat:check` reconstruit la release précédente depuis
+  l'historique de ce dépôt, exécute contre les deux binaires des expressions
+  qu'un consommateur aurait légitimement pu écrire, et refuse le tag sur tout
+  verdict silencieusement faux non consigné. Contre la 0.8 elle en a trouvé
+  deux, toutes deux la lecture de `probed` comme booléen ; elles sont
+  consignées dans `tools/compat/accepted.json` avec la raison — un
+  consommateur de la 0.8 ne pouvait pas vérifier un signal qui n'existait pas
+  encore — et `RELEASING.md` porte le tableau.
+
+- **Un test Go peut demander un cloud, et la CI aussi** (#247, #245, #244,
+  #246, #251). `feinttest.Start(t)` démarre l'image publiée et rend
+  l'endpoint, sans aucune dépendance — délibérément pas testcontainers, et son
+  commentaire de paquet dit pourquoi. `stephrobert/setup-feint@v1` installe le
+  binaire publié, vérifie sa somme de contrôle avant de l'exécuter, et attend
+  que l'émulateur réponde ; le miroir Marketplace est gardé contre la copie de
+  ce dépôt. `examples/` a gagné le job GitHub Actions, le modèle GitLab
+  `services:`, le fichier compose et une stack de plateforme Exoscale — et les
+  stacks Scaleway et Outscale s'appliquent désormais contre l'image que la
+  release construit, à chaque pull request.
+
 - **Deux enregistrements, sur la page et non dans le dépôt** (#252). Ce que ce
   projet a de plus convaincant dure quarante-cinq secondes : une API cloud qui
   répond à un client officiel sans qu'aucun compte existe derrière. Le premier
@@ -341,6 +389,41 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Une subregion Outscale est une donnée que les lectures restituent, pas une
+  constante** (#268, #269). Une Vm placée en `eu-west-2b` se relisait
+  `eu-west-2a`, donc le second plan d'une stack étrangère ne convergeait
+  jamais ; et `ReadSubregions` répondait un élément là où une data source en
+  indexait deux. Les deux moitiés restituent désormais ce qui a été écrit,
+  attesté par deux des quinze stacks du relevé
+  (`examples/stacks/surveyed.md`).
+
+- **Un réseau privé Scaleway publie son /64 IPv6, double pile comme
+  l'upstream** (#270). Une stack lisant `one(pn.ipv6_subnets).subnet` n'en
+  trouvait aucun et bloquait jusqu'à son propre `terraform destroy` sur le
+  null ; le réseau porte désormais le /64 que le vrai cloud lui donne.
+
+- **Un paramètre de requête déclaré chez Exoscale est servi ou refusé, jamais
+  ignoré** (#271). `GET /v2/template?visibility=private` répondait le
+  catalogue public, parce que le handler jetait sa requête — et la même
+  signature pesait sur quatre autres opérations dont le contrat déclare des
+  filtres. Les cinq lisent désormais ce que leur opération déclare,
+  `TestDeclaredQueryParametersAreRead` tient la règle pour chaque route
+  montée, et le seul refus délibéré (`labels`, un filtre dont l'upstream
+  n'énonce jamais le format) répond 400 et est documenté dans
+  `docs/limits.md`.
+
+- **Une route Outscale atteint un Net peering, et une NIC garde ses tags**
+  (#249, #250). Deux défauts que deux stacks réalistes ont fait apparaître en
+  une heure, tous deux invisibles pour la suite de conformance du moment ; les
+  correctifs ont tenu sous la configuration d'un inconnu dans le relevé #262.
+
+- **L'`AvailableIpsCount` d'un subnet Outscale est lu depuis le pool qui
+  distribue les adresses** (#217), le drapeau de protection d'un serveur
+  Scaleway gouverne exactement les actions qu'il a été mesuré gouverner
+  (#212), et une ressource exclusive — une adresse, un attachement de volume —
+  a un seul propriétaire vivant, que la couche partagée impose désormais aux
+  trois packs d'un coup (#213, #214, #215).
+
 - **La matrice des clients crédite chaque fournisseur contre lequel la CI pilote
   un client** (#155). La colonne « Emulated provider » du tableau du README
   était une constante du générateur, sous un marqueur disant « Généré … ne pas
@@ -349,9 +432,10 @@ change ni l'un ni l'autre a sa place dans `git log`.
   pull request, sous les deux branches terraform et opentofu. Généré n'est pas
   dérivé : la colonne est désormais lue par le même balayage du workflow que la
   table de statut, et chaque ligne qui répond au travers d'un provider Terraform
-  affiche la contrainte que la fixture de ce fournisseur épingle
-  (`scaleway/scaleway ~> 2.79` et `outscale/outscale ~> 1.7`), aucune des deux
-  n'étant redite ici. Sous-estimer une preuve coûte autant que la surestimer :
+  affiche la contrainte que la fixture de ce fournisseur épingle, lue depuis la
+  fixture plutôt que redite ici — redite, elle s'est périmée en une release,
+  quand #257 a remplacé le flottant Scaleway par un épinglage exact.
+  Sous-estimer une preuve coûte autant que la surestimer :
   un audit externe a recommandé de retirer Terraform de la ligne Outscale du
   README sur la foi de cette colonne, ce qui aurait effacé une suite qui
   applique vingt et une ressources. Un client que la CI pilote et que le

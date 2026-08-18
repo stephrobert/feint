@@ -1,0 +1,19 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "an assumed policy renders its count as if the provider had declared it",
+      "file": "internal/cli/docs_closed.go",
+      "find": "\tif doc.ClosedPolicy != \"declared\" {",
+      "replace": "\tif doc.ClosedPolicy != \"declared\" && false {",
+      "test": "TestTheClosedSchemaFigureRefusesAnAssumedPolicy"
+    },
+    {
+      "label": "an empty artefact renders \"0 schemas\" instead of failing",
+      "file": "internal/cli/docs_closed.go",
+      "find": "\tif closed == 0 || len(doc.Schemas) == 0 {",
+      "replace": "\tif (closed == 0 || len(doc.Schemas) == 0) && false {",
+      "test": "TestTheClosedSchemaFigureRefusesToCountNothing"
+    }
+  ]
+}

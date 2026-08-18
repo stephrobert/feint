@@ -18,7 +18,13 @@ terraform {
   required_providers {
     outscale = {
       source  = "outscale/outscale"
-      version = "~> 1.3"
+      # The floor is 1.7, the same one the conformance fixture pins: the 1.7+
+      # generation reads its endpoint path from the value (OSC_ENDPOINT_API
+      # carries /api/v1), where 1.1.x appends the path itself — the boundary is
+      # measured, per generation, in examples/stacks/surveyed.md. A resolution
+      # below 1.7 would silently change how this stack must be pointed at the
+      # emulator.
+      version = "~> 1.7"
     }
   }
 }

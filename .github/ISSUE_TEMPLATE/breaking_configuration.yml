@@ -13,7 +13,8 @@ body:
         assert, and your configuration exercises what somebody actually writes.
 
         You do not need to diagnose anything. A configuration and an error message are enough;
-        working out which of the three cases below applies is our job, not yours.
+        working out which of the three cases it is — a defect in Feint, a documented limit, or a
+        product declined on purpose — is our job, not yours.
 
         Before filing, one thing worth checking: [docs/limits.md](https://github.com/stephrobert/feint/blob/main/docs/limits.md)
         lists what is deliberately not emulated, measured rather than guessed. A `501` naming a
@@ -58,7 +59,7 @@ body:
     attributes:
       label: Versions
       description: Feint, the client, and the provider — `feint version`, `terraform version`.
-      placeholder: "feint 0.9.0, terraform 1.13.3, scaleway/scaleway 2.81.0"
+      placeholder: "feint 0.8.0, terraform 1.13.3, scaleway/scaleway 2.81.0"
     validations:
       required: true
 

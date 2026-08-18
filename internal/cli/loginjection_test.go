@@ -9,13 +9,15 @@ import (
 
 // A value a client sent cannot forge a line in the emulator's log.
 //
-// CodeQL reports `go/log-injection` five times, on the three packs that log an
-// address they refused to route: `internal/providers/outscale/publicips.go`,
-// `internal/providers/exoscale/elasticips.go` (twice) and
-// `internal/providers/outscale/privateips.go`. The value really is
-// client-controlled and really does reach a log call, so the dataflow the query
-// describes is real — the branch that logs it is precisely the one where
-// `netip.ParseAddr` refused it, so it can be any string at all.
+// CodeQL reports `go/log-injection` five times (read live on 2026-08-18): once
+// on `internal/providers/outscale/publicips.go`, three times on
+// `internal/providers/exoscale/elasticips.go` — the refusal to route, plus two
+// flows into the route-failure error — and once on
+// `internal/providers/outscale/privateips.go`, where an attach failure logs the
+// values it could not carry. Every flagged value really is client-controlled
+// and really does reach a log call, so the dataflow the query describes is
+// real — two of the five sit on the very branch where `netip.ParseAddr`
+// refused the value, so it can be any string at all.
 //
 // What the query cannot see is the sink. `slog.TextHandler` quotes any value
 // carrying a space, an `=` or a control character, so a newline is written as
