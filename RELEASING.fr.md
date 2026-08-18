@@ -180,6 +180,38 @@ booléen à chaîne, et un pipeline qui le traitait comme vrai comptait chaque r
 comme un succès. C'est ce chemin que #170 mesure ; cette section est ce contre
 quoi il le mesure.
 
+### Ce que la mesure a trouvé, et la frontière qu'elle ne peut pas protéger
+
+`mise run compat:check` reconstruit la release précédente depuis l'historique de
+ce dépôt, démarre les deux binaires hors ligne, les amorce à l'identique, et
+exécute un jeu d'expressions qu'un consommateur aurait légitimement pu écrire.
+Chacune tombe dans exactement une case : compatible, cassée explicitement, ou
+**silencieusement fausse**. Un seul verdict silencieusement faux non consigné
+refuse le tag, et `tools/release/preflight.sh` l'applique.
+
+Contre la 0.8, elle en a trouvé deux, toutes deux l'expression `probed` sous ses
+deux formes naturelles :
+
+| ce que le consommateur a écrit | 0.8 | 0.9 |
+|---|---|---|
+| `select(.probed == true)` | certaines opérations | **aucune** |
+| `select(.probed)` | certaines opérations | **toutes** |
+
+La seconde est la pire : chaque opération se lit désormais comme sondée, refus
+compris, c'est-à-dire exactement la surestimation que #156 existait pour
+supprimer, réapparue dans le pipeline de quelqu'un d'autre.
+
+**Aucune des deux n'est réparable rétroactivement**, et cela vaut d'être écrit
+plutôt que laissé sous un gate vert. `schema_version` est arrivé avec #132,
+*après* la sortie de la 0.8. Un consommateur de la 0.8 ne pouvait pas vérifier
+un signal qui n'existait pas, donc la recette ci-dessus protège à partir de la
+0.9 et pas avant. Les deux constats sont consignés dans
+`tools/compat/accepted.json` avec cette raison, et ils s'impriment encore à
+chaque exécution — consignés, jamais cachés.
+
+Le gate porte sur la suite : à partir d'ici, un changement de forme fait bouger
+le `schema_version` de la surface, ou refuse la release.
+
 ## Versionnage
 
 [Semantic Versioning](https://semver.org/lang/fr/). Avant 1.0, la version mineure
@@ -227,6 +259,16 @@ listes qui grandissent quand des routes se montent), et les champs de trace que
 seuls certains échanges portent (`unread`, `violations`). Un gel qui attraperait
 l'un d'eux rougirait sur des exécutions de routine et serait désarmé dans la
 semaine.
+
+Le format de snapshot est celui d'entre eux qui énonce sa propre version.
+Depuis #133, un snapshot est
+`{"format": "feint-snapshot", "version": N, "resources": [...]}`, et `Restore`
+refuse tout ce dont il ne peut pas rendre compte : une autre version, un autre
+format, un champ inconnu. Faire bouger `snapshotVersion` dans
+`internal/core/store/store.go` est donc une rupture au sens de cette section —
+et un fichier écrit par un feint plus ancien échoue bruyamment à la frontière
+au lieu de restaurer les trois quarts de lui-même en silence, ce qu'il faisait
+avant.
 
 La seule exception qui mérite d'être signalée : **une forme de réponse corrigée
 pour correspondre au document du provider est un correctif, pas une rupture**,

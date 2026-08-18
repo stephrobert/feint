@@ -211,6 +211,7 @@ dans la semaine.
 | le runtime de machines, dans les deux modes | | | ✔ | |
 | chaque falsification déclarée mord encore | | | ✔ | |
 | les surfaces gelées et leurs versions | ✔ | ✔ | | ✔ |
+| les expressions d'un consommateur contre la release précédente (`compat:check`) | | | | ✔ |
 
 La preuve adossée au runtime n'est délibérément pas sur le chemin des pull
 requests. Un gate qui rougit selon la météo du runner finit désarmé, ce qui est
@@ -288,23 +289,27 @@ compilé, et le test nommé est resté vert.
 
 ## Ce qui n'est pas encore fermé
 
-Un maillon de la chaîne ci-dessus est énoncé sans être appliqué. C'est une issue
-ouverte, et elle est nommée ici parce qu'une page qui ne décrirait que la moitié
-terminée serait le défaut que ce projet supprime.
+Rien, au 2026-08-18 — et la date compte plus que la phrase : cette section
+s'est vidée une issue à la fois, et un nouveau maillon qui s'ouvre y prend
+place le jour où il est énoncé.
 
-- **Rien ne mesure ce qu'une release fait à un consommateur**
-  ([#170](https://github.com/stephrobert/feint/issues/170)). `schema_version` est
-  le signal qui permet à un pipeline de s'apercevoir d'une cassure ; rien ne
-  vérifie qu'un pipeline **puisse** s'en apercevoir. `probed` est passé de
-  booléen à chaîne, et un consommateur qui le lit comme vrai compte chaque refus
-  comme un succès.
+Le dernier s'est fermé avec
+[#170](https://github.com/stephrobert/feint/issues/170) : rien ne mesurait ce
+qu'une release fait à un consommateur. `schema_version` est le signal qui
+permet à un pipeline de s'apercevoir d'une cassure, et rien ne vérifiait qu'un
+pipeline **puisse** s'en apercevoir — `probed` est passé de booléen à chaîne,
+et un consommateur qui le lit comme vrai compte chaque refus comme un succès.
+`mise run compat:check` reconstruit désormais la release précédente depuis
+l'historique de ce dépôt, exécute contre les deux binaires des expressions
+qu'un consommateur aurait légitimement pu écrire, et classe chacune en
+compatible, cassée explicitement ou **silencieusement fausse** ; un seul
+verdict silencieusement faux non consigné refuse le tag, et
+`tools/release/preflight.sh` l'applique. Ce que la mesure a trouvé contre la
+0.8 — y compris la frontière qu'elle ne peut pas protéger — est dans
+[RELEASING.fr.md](../RELEASING.fr.md#ce-que-la-mesure-a-trouvé-et-la-frontière-quelle-ne-peut-pas-protéger).
 
-Tant qu'elle n'est pas fermée, l'énoncé honnête est celui par lequel cette page
-commence : la chaîne est mesurée, maillon par maillon, et ce maillon-là est
-mesuré par de la prose.
-
-Les deux autres que cette section listait sont fermées et repliées dans la page
-ci-dessus. [#171](https://github.com/stephrobert/feint/issues/171) a donné au
+Les deux fermées avant elle sont repliées dans la page ci-dessus.
+[#171](https://github.com/stephrobert/feint/issues/171) a donné au
 registre de preuves une provenance que la jointure compare, de sorte que
 supprimer une assertion de conformance rétrograde ce qu'elle prouvait au lieu de
 rester une phrase écrite deux fois ;

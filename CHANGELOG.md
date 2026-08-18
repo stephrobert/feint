@@ -17,6 +17,50 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **Exoscale block storage** (#12). Thirteen operations — volumes, snapshots,
+  the resize and the attach chain — driven by the `exo` CLI in the conformance
+  suite. Every number a volume publishes says the storage holds no bytes, and
+  the section of `docs/limits.md` that states so shipped with the routes.
+
+- **Exoscale instance pools** (#232). One write that moves several machines:
+  the pool creates, scales and evicts through the same lifecycle the single
+  instance uses, and the conformance suite drives it with the official CLI.
+
+- **An Exoscale private network is a range, and an attach leases from it**
+  (#161). Addresses come out of the declared block instead of being echoed
+  back, so two attachments cannot claim one address.
+
+- **The Exoscale and Outscale untriaged columns were decided** (#173, #198).
+  Twenty-four Exoscale operations and seven Outscale ones left the untriaged
+  column the only two ways out: served with a client to prove it, or declined
+  by name with the reason in the pack.
+
+- **Every mounted operation is driven by a real client, or says why not**
+  (#174). The last forty-two either gained a client in the conformance suite
+  or declare, at the route, why no official client reaches them
+  (`Route.Undriven`); the README banner counts the two apart, and
+  `TestEveryUndrivenOperationSaysWhy` fails a reason that outlives its cause.
+
+- **A release is measured against its consumers before it is tagged** (#170).
+  `mise run compat:check` rebuilds the previous release from this repository's
+  own history, runs expressions a consumer could legitimately have written
+  against both binaries, and refuses the tag on any unaccepted silently-wrong
+  verdict. Against 0.8 it found two, both the `probed`-as-boolean reading;
+  they are recorded in `tools/compat/accepted.json` with the reason a 0.8
+  consumer could not have checked a signal that did not exist yet, and
+  `RELEASING.md` carries the table.
+
+- **A Go test can ask for a cloud, and CI can too** (#247, #245, #244, #246,
+  #251). `feinttest.Start(t)` starts the published image and hands back the
+  endpoint, with zero dependencies — deliberately not testcontainers, and its
+  doc comment says why. `stephrobert/setup-feint@v1` installs the released
+  binary, verifies its checksum before running it, and waits until the
+  emulator answers; the Marketplace mirror is gated against this repository's
+  copy. `examples/` gained the GitHub Actions job, the GitLab `services:`
+  template, the compose file, and an Exoscale platform stack — and the
+  Scaleway and Outscale stacks now apply against the image the release builds,
+  on every pull request.
+
 - **Two recordings, on the page rather than in the repository** (#252). The
   strongest thing this project can show is forty-five seconds long: a cloud API
   answering an official client with no account behind it. One recording shows
@@ -312,6 +356,39 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **An Outscale subregion is a datum the reads restitute, not a constant**
+  (#268, #269). A Vm placed in `eu-west-2b` read back `eu-west-2a`, so a
+  stranger's second plan never converged; and `ReadSubregions` answered one
+  element where a data source indexed two. Both halves now round-trip what was
+  written, witnessed by two of the fifteen surveyed stacks
+  (`examples/stacks/surveyed.md`).
+
+- **A Scaleway Private Network publishes its IPv6 /64, dual-stack like
+  upstream** (#270). A stack reading `one(pn.ipv6_subnets).subnet` found none
+  and wedged even its own `terraform destroy` on the null; the network now
+  carries the /64 the real cloud gives it.
+
+- **An Exoscale declared query parameter is served or refused, never dropped**
+  (#271). `GET /v2/template?visibility=private` answered the public catalogue,
+  because the handler discarded its request — and the same signature sat on
+  four more operations whose contract declares filters. All five now read what
+  their operation declares, `TestDeclaredQueryParametersAreRead` holds the
+  rule for every mounted route, and the one deliberate refusal (`labels`, a
+  filter whose wire format upstream never states) answers 400 and is
+  documented in `docs/limits.md`.
+
+- **An Outscale route reaches a Net peering, and a NIC keeps its tags** (#249,
+  #250). Two defects two realistic stacks surfaced within an hour of being
+  written, both invisible to the conformance suite of the day; the fixes held
+  under a stranger's configuration in the #262 survey.
+
+- **An Outscale subnet's `AvailableIpsCount` is read from the pool that hands
+  the addresses out**
+  (#217), a Scaleway server's protection flag governs exactly the actions it
+  was measured to govern (#212), and an exclusive resource — an address, a
+  volume attachment — has one live owner that the shared layer now enforces
+  for all three packs at once (#213, #214, #215).
+
 - **The client matrix credits every provider CI drives a client against**
   (#155). The `Emulated provider` column of the README table was a constant in
   the generator, under a marker reading "Generated … Do not edit by hand", and
@@ -320,8 +397,9 @@ what this project is judged on: **a response shape a client can observe**, and
   both the terraform and the opentofu legs. Generated is not derived: the column
   is now read from the same workflow scan the status table uses, and each row
   answering through a Terraform provider states the constraint that provider's
-  own fixture pins — `scaleway/scaleway ~> 2.79` and `outscale/outscale ~> 1.7`,
-  neither of them restated here. Understating a proof costs as much as
+  own fixture pins, read from the fixture rather than restated here — restated,
+  it went stale within a release, when #257 turned the Scaleway float into an
+  exact pin. Understating a proof costs as much as
   overstating one: an external review recommended deleting Terraform from the
   README's Outscale row on the strength of that column, which would have erased
   a suite that applies twenty-one resources. A client CI drives and the

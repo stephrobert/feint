@@ -30,6 +30,17 @@ The SDK and the CLI are better off: they honour `SCW_S3_ENDPOINT`. So an S3
 workflow driven by `scw` or by an SDK can already point at MinIO today; only the
 Terraform path is blocked.
 
+The consequence has since been observed live, from a stranger's stack rather
+than a fixture ([#262](https://github.com/stephrobert/feint/issues/262),
+[examples/stacks/surveyed.md](../examples/stacks/surveyed.md)): with
+`SCW_API_URL` pointing at this emulator, the provider still sent its
+`CreateBucket` to the real `s3.fr-par.scw.cloud`, which answered 403 on the
+fake credentials. Nothing was created and nothing was billed — but the request
+left the machine. A configuration carrying `scaleway_object_bucket` talks to
+the real endpoint no matter where the rest of it is pointed, and any sentence
+here promising that traffic never leaves your machine has to carve out this
+one product on this one client.
+
 ## The cost of DNS/TLS interception, measured (#76)
 
 The refusal above rested on an unmeasured cost. Measured against the real
@@ -1251,6 +1262,67 @@ choice rather than an accident:
   publishes none, and listing the private groups under a public label would be
   the same lie #271 names, pointed the other way.
 
+## The per-parameter half: 18 Scaleway list operations, 72 parameters, each served or refused (#277)
+
+#271's gate catches a handler that never reads its query at all. Its comment
+names what it cannot see — a handler that reads *some* declared parameters and
+drops the rest — and #277 measured that residual class on this pack: every list
+read its page, so the gate was green, while `?order_by=created_at_desc`
+answered ascending. The per-operation gate
+(`TestNoDeclaredQueryParameterIsDroppedByItsHandler`) now requires every
+declared parameter to be named in its own handler's call graph, and everything
+it found is served, with these decisions where the emulator's model and the
+real cloud part ways:
+
+- **Every `order_by` (and instance/v1's `order`) is served with the SDK's
+  documented default.** A bare list answers `created_at_asc` where block, vpc
+  and iam declare it, `created_at_desc` where instance and ipam do — including
+  a bare `scw instance server list`, which now answers newest first like the
+  real API. A value outside the operation's enum is a 400 naming the
+  parameter, never a silently different order.
+- **`order_by=attached_at_*` on ipam ListIPs is refused with a 400.** This
+  emulator records no attachment time, and sorting by a stand-in would answer
+  an order nobody asked for.
+- **`include_deleted` on block lists is read and never widens the answer.**
+  Deletion here is immediate — the store retains no `deleted` volume or
+  snapshot for the flag to reveal. The state filter is real code on the
+  default path; the difference from the real cloud, which retains deleted
+  volumes for a while, is this line.
+- **`s3_integration_enabled=true` matches nothing.** No VPC or Private Network
+  here integrates with Object Storage, which is not emulated (see above), so
+  true truthfully answers an empty list and false answers everything.
+- **`arch` and `type` on marketplace ListLocalImages are equalities against
+  the one published image.** `arch=arm64` or `type=instance_local` answers an
+  empty list — the catalogue is x86_64 and `instance_sbs` — where dropping the
+  filter answered an image of the wrong architecture with a 200.
+- **`without_ip=false` on ListServers filters nothing.** The SDK documents
+  only the true direction ("list Instances that are not attached to a public
+  IP"); a complementary meaning for false would be invented.
+- **`disabled` on iam ListSSHKeys is an equality on the field when present.**
+  The SDK comment ("defines whether to include disabled SSH keys") could also
+  read as a widener over a default exclusion, but nothing upstream states that
+  default, and a bare list here has always answered every key.
+- **`organization`/`organization_id` filters scope to the whole account.**
+  One organization lives here and identifiers are unchecked by decision (see
+  above), so a named organization resolves to that account — `scopeOf`'s
+  long-standing rule, now applied to every list that declares the parameter.
+  The equality reading was tried first and the CLI refuted it within the
+  hour: `scw iam ssh-key list` names its configured organization on every
+  call, and nothing obliges a client's configuration to spell the emulator's
+  constant, so comparing answered "no keys" about keys the same client had
+  just created. `project`/`project_id` stay real filters: a project is an
+  isolation boundary this emulator does honour.
+
+`TestServersHonourTheDeclaredOrder`, `TestServersFilterByLinks`,
+`TestBlockListsHonourTheDeclaredFilters`, `TestVPCListsHonourTheDeclaredFilters`,
+`TestIPAMListHonoursOrderAndResourceFilters`,
+`TestInstanceListsHonourTheirRemainingFilters`,
+`TestSSHKeysHonourTheDeclaredParameters` and
+`TestLocalImagesHonourTheirDeclaredParameters` ask with non-default values —
+the whole class survived every suite that only asked for defaults — and
+`tools/falsify/specs/scaleway-list-parameters.json` proves each family's test
+red without its fix.
+
 ## ReadTags does not list an internet service, because upstream names no type for one
 
 Outscale's `Tag` carries a `ResourceType`, and their OpenAPI declares it as a
@@ -1312,6 +1384,41 @@ pass against this, which is exactly what those refusals are for.
 So: a plan that builds a routable topology applies, reads back and destroys
 correctly. A machine inside it still cannot reach the internet. Use the emulator
 to test the shape of your infrastructure, never its connectivity.
+
+## An Outscale Vm's options round-trip as data; their behavioural half has nothing to act on here
+
+`BootMode`, `Performance` and `VmInitiatedShutdownBehavior` used to be
+accepted at create with a 200 while every read answered a constant of the
+pack — the client asked `medium`/`restart`/`legacy`, the same create's answer
+said `high`/`stop`/`uefi`, and a Terraform stack setting any of them
+re-planned the same in-place change for ever (#276, the #268 pattern on
+per-machine scalars). They are stored and restituted now, on the create and
+on UpdateVm where upstream declares them, values validated against their
+enums, and `Performance` honours upstream's own precedence: a performance
+flag inside the `VmType` (`tinavW.cXrYpZ`) wins over the parameter. The same
+sweep covers the neighbours with the same symptom: `TpmEnabled`,
+`ActionsOnNextBoot.SecureBoot`, `ShutdownBehaviorConfiguration` (whose
+defaults are now the SDK's own "By default" lines — GuestAction `stop`,
+HostAction `restart`; the old constant said `stop`/`stop`) and UpdateVm's
+`IsSourceDestChecked`.
+
+What is served is the datum. The behavioural half of these fields has nothing
+to act on in this emulator, and saying so is the difference between an echo
+and a lie:
+
+- `VmInitiatedShutdownBehavior` and `ShutdownBehaviorConfiguration` describe
+  what the platform does when the **guest** shuts itself down. No path here
+  watches a guest-initiated shutdown — `StopVms` stops the machine whatever
+  the field says, which matches upstream, where the API stop is not a
+  VM-initiated one. A `terminate` behaviour will therefore never terminate a
+  machine here, because the event that would trigger it is never observed.
+- `TpmEnabled` and `ActionsOnNextBoot.SecureBoot` round-trip; no vTPM and no
+  secure-boot state is presented to any guest the runtime boots.
+- `IsSourceDestChecked` round-trips; nothing enforces the check on traffic.
+- `BsuOptimized` stays the constant `false` on every read, and that one is
+  upstream's own behaviour, not this pack's shortcut: "This parameter is not
+  available. It is present in our API for the sake of historical
+  compatibility with AWS" (osc-sdk-go client.gen.go:3029).
 
 ## An Outscale Net peering carries traffic under OVN, and only there
 

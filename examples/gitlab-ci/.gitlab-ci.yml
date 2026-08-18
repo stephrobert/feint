@@ -37,7 +37,7 @@ variables:
 terraform:
   image: hashicorp/terraform:1.15
   services:
-    - name: ghcr.io/stephrobert/feint:v0.8.0
+    - name: $FEINT_IMAGE
       alias: feint
   before_script:
     # The image carries its own healthcheck, and GitLab does not wait for it, so

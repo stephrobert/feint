@@ -145,26 +145,59 @@ func (p *Pack) snapshotView(res *resource.Resource) map[string]any {
 	}
 }
 
+// listSnapshots reads every parameter its operation declares — it read `name`
+// alone, so `?base_volume_id=…` answered every snapshot in the zone and
+// `?per_page=2` answered them all at once (#277).
 func (p *Pack) listSnapshots(w http.ResponseWriter, r *http.Request) {
 	zone, ok := zoneOf(w, r)
 	if !ok {
 		return
 	}
-	name := r.URL.Query().Get("name")
-	out := make([]map[string]any, 0)
-	for _, res := range p.env.Store.List(kindSnapshot, resource.Tenant{Provider: Name}) {
-		if textOf(res.Attrs["zone"]) != zone {
-			continue
-		}
-		// The SDK documents this filter as a substring, with that example: the
-		// same reading that fixed `scw instance volume list name=vol` coming
-		// back empty against a volume called myvolume.
-		if name != "" && !strings.Contains(textOf(res.Attrs["name"]), name) {
-			continue
-		}
+	q := r.URL.Query()
+	scope := resource.Tenant{Provider: Name}
+	switch {
+	case q.Get("project") != "":
+		scope.Project = q.Get("project")
+	case q.Get("organization") != "":
+		// The whole account — one organization lives here (scopeOf's rule),
+		// never an equality against the pack's constant.
+	}
+	all := p.env.Store.List(kindSnapshot, scope)
+	all = filterResources(all, func(res *resource.Resource) bool {
+		return textOf(res.Attrs["zone"]) == zone
+	})
+	// The SDK documents this filter as a substring, with its own example: the
+	// same reading that fixed `scw instance volume list name=vol` coming
+	// back empty against a volume called myvolume.
+	if name := q.Get("name"); name != "" {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return strings.Contains(textOf(res.Attrs["name"]), name)
+		})
+	}
+	// "With the requested tag", instance/v1's exact-tags conjunction.
+	if tags := csvValues(q, "tags"); len(tags) > 0 {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			return hasEveryTag(res, tags)
+		})
+	}
+	// "Snapshots originating only from this volume."
+	if baseVolumeID := q.Get("base_volume_id"); baseVolumeID != "" {
+		all = filterResources(all, func(res *resource.Resource) bool {
+			base, _ := res.Attrs["base_volume"].(map[string]any)
+			return base != nil && base["id"] == baseVolumeID
+		})
+	}
+
+	page := parsePage(r)
+	start, end := page.slice(len(all))
+	out := make([]map[string]any, 0, end-start)
+	for _, res := range all[start:end] {
 		out = append(out, p.snapshotView(res))
 	}
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{"snapshots": out})
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{
+		"snapshots":   out,
+		"total_count": len(all),
+	})
 }
 
 func (p *Pack) getSnapshot(w http.ResponseWriter, r *http.Request) {

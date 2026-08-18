@@ -204,13 +204,40 @@ func (p *Pack) listServerTypes(w http.ResponseWriter, r *http.Request) {
 // about (docs/limits.md) — but an unknown label maps onto unknownImageID, which
 // no boot resolves, rather than onto an image the client never named (#83).
 func (p *Pack) listLocalImages(w http.ResponseWriter, r *http.Request) {
-	label := r.URL.Query().Get("image_label")
+	q := r.URL.Query()
+	label := q.Get("image_label")
 	if label == "" {
 		label = defaultImageLabel
 	}
-	zone := r.URL.Query().Get("zone")
+	zone := q.Get("zone")
 	if zone == "" {
 		zone = "fr-par-1"
+	}
+	// The one local image answers as x86_64 and instance_sbs, so the two
+	// declared filters are equalities against those published values: asking
+	// for arm64 or instance_local truthfully finds nothing, where dropping the
+	// filter answered an image of the wrong architecture with a 200 (#277).
+	// unknown_type is ListLocalImagesRequest's own zero value, not a filter.
+	if arch := q.Get("arch"); arch != "" && arch != "x86_64" {
+		writeEmptyLocalImages(w)
+		return
+	}
+	if imageType := q.Get("type"); imageType != "" && imageType != "unknown_type" && imageType != "instance_sbs" {
+		writeEmptyLocalImages(w)
+		return
+	}
+	// One image, so every declared order serves it already — but the value is
+	// still validated against the enum, because "unknown order_by" must not
+	// become "silently unsorted" the day this catalogue grows a second entry.
+	switch q.Get("order_by") {
+	case "", "type_asc", "type_desc", "created_at_asc", "created_at_desc":
+	default:
+		writeInvalidArguments(w, ArgumentError{
+			ArgumentName: "order_by",
+			Reason:       "constraint",
+			HelpMessage:  "unknown order_by " + q.Get("order_by"),
+		})
+		return
 	}
 
 	compatible := make([]string, 0, len(catalogue))
@@ -225,16 +252,29 @@ func (p *Pack) listLocalImages(w http.ResponseWriter, r *http.Request) {
 		imageID = entry.ID
 	}
 
+	images := []map[string]any{{
+		"id":                          imageID,
+		"compatible_commercial_types": compatible,
+		"arch":                        "x86_64",
+		"zone":                        zone,
+		"label":                       label,
+		"type":                        "instance_sbs",
+	}}
+	// Paged like every list: page=2 must answer empty, not the same image
+	// again, or the SDK's pagination loop never terminates.
+	start, end := parsePage(r).slice(len(images))
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"local_images": []map[string]any{{
-			"id":                          imageID,
-			"compatible_commercial_types": compatible,
-			"arch":                        "x86_64",
-			"zone":                        zone,
-			"label":                       label,
-			"type":                        "instance_sbs",
-		}},
-		"total_count": 1,
+		"local_images": images[start:end],
+		"total_count":  len(images),
+	})
+}
+
+// writeEmptyLocalImages is the truthful answer to a filter the emulated
+// catalogue cannot match.
+func writeEmptyLocalImages(w http.ResponseWriter) {
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{
+		"local_images": []map[string]any{},
+		"total_count":  0,
 	})
 }
 

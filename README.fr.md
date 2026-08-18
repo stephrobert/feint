@@ -28,7 +28,7 @@
 >
 > **Prouvé** : 264 des 285 opérations montées sont pilotées par un vrai client, à chaque pull request. `scw`, `oapi-cli`, `exo`, Terraform et OpenTofu tournent contre l'émulateur en CI, et les machines démarrent réellement : connexion ssh sur le compte par défaut de chaque provider, subnets isolés, pare-feu qui filtre. La chaîne complète est décrite dans [docs/conformance.md](docs/conformance.md).
 >
-> **Pas prouvé** : quotas, prix, capacité réelle, validation des identifiants, authentification, cohérence à terme. Les 32 sections de [docs/limits.md](docs/limits.md) disent chacune ce qu'elle coûte. Un émulateur avec un seul compte implicite et aucune grille tarifaire devrait inventer ces chiffres, et quelqu'un agirait dessus.
+> **Pas prouvé** : quotas, prix, capacité réelle, validation des identifiants, authentification, cohérence à terme. Les 34 sections de [docs/limits.md](docs/limits.md) disent chacune ce qu'elle coûte. Un émulateur avec un seul compte implicite et aucune grille tarifaire devrait inventer ces chiffres, et quelqu'un agirait dessus.
 >
 > **Inconnu** : 21 opérations sont montées et n'ont jamais été pilotées par un client. Chacune dit pourquoi aucun client officiel ne l'atteint, à la route et dans [docs/routes.md](docs/routes.md). Elles sont comptées plutôt qu'escamotées, une par une, dans [coverage/evidence.json](coverage/evidence.json).
 >
@@ -389,7 +389,7 @@ sont pas encore appliqués : [docs/conformance.fr.md](docs/conformance.fr.md).
 
 ## Commandes
 
-`feint --help` donne les drapeaux. Les vingt-deux verbes sont ici : un verbe que
+`feint --help` donne les drapeaux. Tous les verbes sont ici : un verbe que
 cette page ne nomme pas est un verbe que seul un lecteur du code trouvera, et
 c'est arrivé à dix d'entre eux avant qu'un test compare les deux listes.
 
@@ -448,8 +448,11 @@ ressource créée se relise à l'identique, ce qu'un mock ne fait pas sans qu'on
 
 ### Pourquoi pas de l'émulation écrite à la main
 
-Parce que la surface bouge plus vite qu'une équipe. Scaleway a ajouté 453
-méthodes de SDK et en a retiré 26 en douze mois : personne ne suit cela de tête.
+Parce que la surface bouge plus vite qu'une équipe. Scaleway a ajouté 363
+opérations et en a retiré 25 dans les douze mois précédant le 2026-07-28 —
+mesuré en exécutant le scan de surface de ce dépôt sur deux checkouts datés de
+leur SDK et en comparant les listes d'opérations : personne ne suit cela de
+tête.
 
 C'est pourquoi ce projet **mesure** l'API au lieu de la suivre. Un scan lit le
 SDK officiel du provider, une baseline versionnée fait échouer la CI dès qu'une

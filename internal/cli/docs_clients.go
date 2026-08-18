@@ -12,8 +12,8 @@ import (
 // Which client, in which version, proved what.
 //
 // The README said which clients prove which provider and never in what version.
-// For a project whose whole argument is that the upstream moves — 453 SDK
-// methods added in twelve months — that is the one column a reader needs: a
+// For a project whose whole argument is that the upstream moves — 363 operations
+// added upstream in twelve months, measured — that is the one column a reader needs: a
 // `scw` newer than the last conformance run can reject an answer that passed,
 // and nothing on the page would say so.
 //

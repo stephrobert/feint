@@ -160,6 +160,22 @@ func docs(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
+	// The closed-schema figure, on the same optional terms. Its source is the
+	// API description artefact the contract gate reads, so the paragraph that
+	// argues for `--contracts` cannot quote a count the artefact disproves.
+	if strings.Contains(updated, closedStartMarker) {
+		rendered, cErr := renderClosedSchemas(filepath.Join(*contractsDir, "outscale.json"))
+		if cErr != nil {
+			fmt.Fprintf(stderr, "feint: %v\n", cErr)
+			return exitError
+		}
+		updated, err = spliceSection(updated, closedStartMarker, closedEndMarker, rendered)
+		if err != nil {
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
+	}
+
 	// The prerequisites, on the same optional terms. Their source is `go.mod`
 	// and the version constants the doctor checks against, so the page cannot
 	// recommend a version nothing measures.

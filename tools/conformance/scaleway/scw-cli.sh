@@ -362,6 +362,18 @@ blk_restored="$(scw block volume create name=conformance-blk-restored perf-iops=
   || fail "restore from a block snapshot rejected: $blk_restored"
 blk_restored_id="$(printf '%s' "$blk_restored" | jq -r '(.volume // .).id')"
 
+# The declared order, asked with the NON-default value — #277's class survived
+# every suite that only asked for defaults, because a dropped order_by and an
+# honoured one answer the same 200 there. Two volumes exist here
+# (conformance-blk-2, conformance-blk-restored); desc must answer the exact
+# reverse of asc, whatever else another suite seeded around them.
+scw block volume list order-by=name_desc zone="$ZONE" -o json \
+  | jq -e '[.[].name | select(startswith("conformance-blk"))] == ["conformance-blk-restored", "conformance-blk-2"]' >/dev/null \
+  || fail "order-by=name_desc did not answer the volumes in descending name order"
+scw block volume list order-by=name_asc zone="$ZONE" -o json \
+  | jq -e '[.[].name | select(startswith("conformance-blk"))] == ["conformance-blk-2", "conformance-blk-restored"]' >/dev/null \
+  || fail "order-by=name_asc did not answer the volumes in ascending name order"
+
 # The order the API imposes, and the refusal that makes it retryable.
 neg="$(prove_begin negative)"
 if scw block snapshot delete "$blk_snap_id" zone="$ZONE" >/dev/null 2>&1; then
