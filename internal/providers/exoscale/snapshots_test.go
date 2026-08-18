@@ -163,9 +163,10 @@ func TestASnapshotIsPromotedIntoATemplate(t *testing.T) {
 	ref, _ := out["reference"].(map[string]any)
 	id, _ := ref["id"].(string)
 
-	// It joins the list a client resolves a template out of, beside the fixed
-	// catalogue, because a client asking by name cannot tell the two apart.
-	status, list := callRaw(h, "GET", "/v2/template", "")
+	// It joins the organisation's own list, the one a client reaches with
+	// visibility=private — never the public catalogue, which is Exoscale's
+	// alone: the two worlds are split by the filter #271 restored.
+	status, list := callRaw(h, "GET", "/v2/template?visibility=private", "")
 	if status != http.StatusOK {
 		t.Fatalf("list templates: status %d", status)
 	}

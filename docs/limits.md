@@ -1221,6 +1221,36 @@ The consequence, stated rather than hidden: a client asking for `ch-gva-2` gets
 difference. The alternative — one endpoint pretending to be eight zones — is a
 silent, wrong one.
 
+## A declared query parameter is served or refused, never dropped — and `labels` is the refused one
+
+`GET /v2/template?visibility=private` used to answer the public catalogue,
+each entry declaring `"visibility": "public"` inside a response filtered to
+`private` (#271). The cause was a handler that discarded its request, so no
+query parameter could have an effect — and the same signature sat on four more
+Exoscale operations whose contract declares filters. All five now read what
+their operation declares: `visibility` and `family` on list-templates,
+`visibility` on list-security-groups, `manager-id`, `manager-type` and
+`ip-address` on list-instances, `instance-id` on list-block-storage-volumes,
+and list-events validates its `from`/`to` window (over an audit trail that is
+empty by design, see above). A gate holds the rule from here on:
+`TestDeclaredQueryParametersAreRead` fails any route whose contract declares
+query parameters while its handler never reads the query.
+
+Two answers differ from the real cloud, and both are the honest half of a
+choice rather than an accident:
+
+- **`labels` on list-instances is refused with a 400**, not implemented. Their
+  document types it as a bare string with no format and no description,
+  egoscale v3 exposes no option that sends it, so any wire encoding this
+  emulator picked would be an invented format — the thing rule 4 exists to
+  forbid. A client that sends it learns so at the moment it happens;
+  the real cloud would filter. `TestInstanceListRefusesTheLabelsFilter` holds
+  the refusal.
+- **`?visibility=public` on list-security-groups answers an empty list.** The
+  real cloud publishes public security groups of its own; this emulator
+  publishes none, and listing the private groups under a public label would be
+  the same lie #271 names, pointed the other way.
+
 ## ReadTags does not list an internet service, because upstream names no type for one
 
 Outscale's `Tag` carries a `ResourceType`, and their OpenAPI declares it as a

@@ -391,25 +391,43 @@ ok "snapshotted, reverted, removed, TPM enabled and reset while stopped"
 # catalogue this emulator publishes is fixed, and registering one is what a
 # client does when it builds its own image. Neither call had been driven — the
 # suite only ever listed the catalogue.
-echo "- a template is registered and removed"
+#
+# The listing goes through --visibility, because that is what the CLI sends on
+# every template list (its default is public) and what #271 proved the emulator
+# ignored: ?visibility=private answered the public catalogue, each entry
+# contradicting the filter it sat inside. The earlier form of this block listed
+# `--family custom` and found the registered template there — through two
+# filters the emulator dropped, so the assertion measured the defect and called
+# it conformance. A registered template is private; private is where it must
+# be, and the public list is where it must never appear.
+echo "- a template is registered, private, and removed"
 span_tmpl="$(prove_begin behaviour)"
+# Before anything is registered, the organisation owns no template, and the
+# honest answer is an empty list — this is the fresh-store case that lied.
+exoc -O json compute instance-template list --visibility private \
+  | jq -e 'length == 0' >/dev/null \
+  || fail "a fresh account already answers private templates"
 exoc -Q compute instance-template register conformance-tmpl \
   https://example.invalid/conformance.qcow2 \
   0000000000000000000000000000000000000000000000000000000000000000 \
   --description 'conformance' --disable-password --disable-ssh-key --username conformance \
   >/dev/null || fail "instance-template register rejected"
-# Registered means listed: the CLI resolves a template by name against the
-# catalogue, so a registration nothing lists is a registration no client can use.
-exoc -O json compute instance-template list --family custom \
+# Registered means listed where the organisation's templates live: private.
+exoc -O json compute instance-template list --visibility private \
   | jq -e 'any(.[]; .name == "conformance-tmpl")' >/dev/null \
-  || fail "the registered template is not in the custom list"
+  || fail "the registered template is not in the private list"
+# And never in the public catalogue, which is Exoscale's alone: a client
+# counting the provider's offer must not count the organisation's.
+exoc -O json compute instance-template list \
+  | jq -e 'all(.[]; .name != "conformance-tmpl")' >/dev/null \
+  || fail "the registered template leaked into the public catalogue"
 exoc -Q compute instance-template delete conformance-tmpl --force >/dev/null \
   || fail "instance-template delete rejected"
-exoc -O json compute instance-template list --family custom \
-  | jq -e 'all(.[]; .name != "conformance-tmpl")' >/dev/null \
+exoc -O json compute instance-template list --visibility private \
+  | jq -e 'length == 0' >/dev/null \
   || fail "the template survived its delete"
 prove_end "$span_tmpl"
-ok "registered, listed, removed"
+ok "registered, listed private and only private, removed"
 
 # Block Storage (EXO-4, #12), driven by `exo compute block-storage`.
 #

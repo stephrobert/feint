@@ -596,18 +596,26 @@ func (p *Pack) listBlockVolumeTypes(w http.ResponseWriter, r *http.Request) {
 			"nanos":         0,
 		}
 	}
+	// One type, and still paged: the SDK declares page and page_size on
+	// ListVolumeTypes, and a handler that drops a declared parameter is the
+	// class #271 names — page=2 answered the same type again, which is a list
+	// that never ends to the SDK's own pagination loop.
+	//
+	// TestBlockVolumeTypesArePaged fails without it.
+	types := []map[string]any{{
+		"type":             blockStorageClass,
+		"pricing":          price(),
+		"snapshot_pricing": price(),
+		"specs": map[string]any{
+			"class":     blockStorageClass,
+			"perf_iops": blockDefaultIOPS,
+		},
+		"zone": zone,
+	}}
+	start, end := parsePage(r).slice(len(types))
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"volume_types": []map[string]any{{
-			"type":             blockStorageClass,
-			"pricing":          price(),
-			"snapshot_pricing": price(),
-			"specs": map[string]any{
-				"class":     blockStorageClass,
-				"perf_iops": blockDefaultIOPS,
-			},
-			"zone": zone,
-		}},
-		"total_count": 1,
+		"volume_types": types[start:end],
+		"total_count":  len(types),
 	})
 }
 

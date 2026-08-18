@@ -2,6 +2,7 @@ package exoscale
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/resource"
@@ -45,7 +46,26 @@ const emulatedOrganizationID = "88888888-8888-4888-8888-888888888888"
 //
 // Inventing entries would be worse than either — a client would read a history
 // that never happened.
-func (p *Pack) listEvents(w http.ResponseWriter, _ *http.Request) {
+//
+// The from/to window their document declares on this operation
+// (.upstream/exoscale-openapi.yaml:12234-12246, both format date-time) is read
+// and checked rather than dropped: any window over an empty trail is the empty
+// trail, so honouring the filter costs nothing, and a malformed timestamp is
+// refused the way the real API refuses a value outside its declared format —
+// not swallowed by a handler that never looked (#271 names the class).
+//
+// TestEventWindowIsValidated fails without the check.
+func (p *Pack) listEvents(w http.ResponseWriter, r *http.Request) {
+	for _, key := range []string{"from", "to"} {
+		value := r.URL.Query().Get(key)
+		if value == "" {
+			continue
+		}
+		if _, err := time.Parse(time.RFC3339, value); err != nil {
+			writeError(w, http.StatusBadRequest, key+" must be a date-time")
+			return
+		}
+	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"events": []any{}})
 }
 

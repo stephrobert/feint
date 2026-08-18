@@ -265,11 +265,25 @@ func labelsOrEmpty(labels map[string]string) map[string]string {
 	return labels
 }
 
-func (p *Pack) listBlockVolumes(w http.ResponseWriter, _ *http.Request) {
+// listBlockVolumes answers the volumes, narrowed to one instance's when the
+// client asks: their document declares an instance-id filter on this operation
+// (.upstream/exoscale-openapi.yaml:24620-24626), and the handler used to
+// discard the request, so a client reading one machine's disks read the whole
+// account's (#271 names the class).
+//
+// TestBlockVolumeInstanceFilterIsHonoured fails without the filter.
+func (p *Pack) listBlockVolumes(w http.ResponseWriter, r *http.Request) {
+	instanceID := r.URL.Query().Get("instance-id")
 	list := p.env.Store.List(kindBlockVolume, resource.Tenant{Provider: Name})
 	sort.Slice(list, func(i, j int) bool { return list[i].ID < list[j].ID })
 	out := make([]map[string]any, 0, len(list))
 	for _, res := range list {
+		if instanceID != "" {
+			attached, _ := res.Attrs["instance"].(map[string]any)
+			if attached["id"] != instanceID {
+				continue
+			}
+		}
 		out = append(out, p.blockVolumeView(res))
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"block-storage-volumes": out})

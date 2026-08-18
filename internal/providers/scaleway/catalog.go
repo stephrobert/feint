@@ -2,6 +2,7 @@ package scaleway
 
 import (
 	"net/http"
+	"sort"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/machine"
@@ -169,12 +170,30 @@ var labelByID = func() map[string]string {
 	return out
 }()
 
+// listServerTypes pages like every other list here: the SDK declares page and
+// per_page on ListServersTypes, and the handler used to ignore both — the whole
+// catalogue fits under any client's default page size, so no real client saw
+// it, but a parameter the contract declares and a handler drops is the class
+// #271 names. The response's `servers` is an object keyed by type name in
+// their SDK, so the page is a window over the sorted names.
+//
+// TestServerTypesArePaged fails without it.
 func (p *Pack) listServerTypes(w http.ResponseWriter, r *http.Request) {
 	if _, ok := zoneOf(w, r); !ok {
 		return
 	}
+	names := make([]string, 0, len(catalogue))
+	for name := range catalogue {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	start, end := parsePage(r).slice(len(names))
+	page := make(map[string]*serverType, end-start)
+	for _, name := range names[start:end] {
+		page[name] = catalogue[name]
+	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"servers":     catalogue,
+		"servers":     page,
 		"total_count": len(catalogue),
 	})
 }

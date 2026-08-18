@@ -82,13 +82,36 @@ func (p *Pack) createSecurityGroup(w http.ResponseWriter, r *http.Request) {
 	p.writeOperation(w, p.operationReferring(nounSecurityGroup, res.ID))
 }
 
-func (p *Pack) listSecurityGroups(w http.ResponseWriter, _ *http.Request) {
-	p.ensureDefaultSecurityGroup()
-	list := p.env.Store.List(kindSecurityGroup, resource.Tenant{Provider: Name})
-	sort.Slice(list, func(i, j int) bool { return list[i].Created.Before(list[j].Created) })
-	groups := make([]map[string]any, 0, len(list))
-	for _, res := range list {
-		groups = append(groups, securityGroupView(res))
+// listSecurityGroups answers the organisation's own groups, which their document
+// calls the private ones: it declares a visibility filter on this operation,
+// enum private|public (.upstream/exoscale-openapi.yaml:12540-12547), and the
+// handler used to discard the request, so the filter had no effect — the same
+// defect as list-templates' (#271).
+//
+// The default is private, and that is measured rather than chosen: `exo compute
+// security-group list` documents private as its default and sends **no**
+// parameter for it (exo 1.95.1 through a recording proxy), so the paramless
+// answer must be the private one. public names the groups Exoscale itself
+// publishes, and this emulator publishes none — the empty list is the honest
+// answer, the way listDeployTargets already answers for a resource an emulated
+// account does not hold.
+//
+// TestSecurityGroupVisibilityIsHonoured fails without the filter.
+func (p *Pack) listSecurityGroups(w http.ResponseWriter, r *http.Request) {
+	groups := make([]map[string]any, 0)
+	switch r.URL.Query().Get("visibility") {
+	case "", "private":
+		p.ensureDefaultSecurityGroup()
+		list := p.env.Store.List(kindSecurityGroup, resource.Tenant{Provider: Name})
+		sort.Slice(list, func(i, j int) bool { return list[i].Created.Before(list[j].Created) })
+		for _, res := range list {
+			groups = append(groups, securityGroupView(res))
+		}
+	case "public":
+		// None to list: see above.
+	default:
+		writeError(w, http.StatusBadRequest, "visibility must be private or public")
+		return
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"security-groups": groups})
 }
