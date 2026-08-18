@@ -14,7 +14,7 @@ terraform {
   required_version = ">= 1.7.0"
   required_providers {
     scaleway = {
-      source  = "scaleway/scaleway"
+      source = "scaleway/scaleway"
       # Exact for the same reason the conformance fixture is exact: a floating
       # constraint turned CI red the hour 2.81.0 was published, with no change
       # on this side (#257). 2.81.0 is the pin rather than the 2.80.0 that made
@@ -36,9 +36,19 @@ variable "web_count" {
   default = 2
 }
 
-variable "app_count" {
-  type    = number
-  default = 3
+# A typed map rather than a count, because that is what the better surveyed
+# stacks do (sergelogvinov/terraform-talos drives every tier from typed maps):
+# each worker is named, and carries its own data-disk size. The default applies
+# as-is; terraform.tfvars.example shows what an override looks like.
+variable "app_servers" {
+  type = map(object({
+    data_gb = optional(number, 20)
+  }))
+  default = {
+    worker-a = {}
+    worker-b = {}
+    worker-c = { data_gb = 30 }
+  }
 }
 
 provider "scaleway" {
@@ -275,24 +285,24 @@ resource "scaleway_instance_private_nic" "web" {
 # ---------------------------------------------------------------------------
 
 resource "scaleway_block_volume" "app_data" {
-  count      = var.app_count
-  name       = "platform-app-data-${count.index}"
+  for_each   = var.app_servers
+  name       = "platform-app-data-${each.key}"
   iops       = 5000
-  size_in_gb = 20
+  size_in_gb = each.value.data_gb
   tags       = ["platform", "app"]
 }
 
 resource "scaleway_block_snapshot" "app_data" {
-  count     = var.app_count
-  name      = "platform-app-snap-${count.index}"
-  volume_id = scaleway_block_volume.app_data[count.index].id
+  for_each  = var.app_servers
+  name      = "platform-app-snap-${each.key}"
+  volume_id = scaleway_block_volume.app_data[each.key].id
   tags      = ["platform", "app"]
 }
 
 resource "scaleway_instance_server" "app" {
-  count = var.app_count
+  for_each = var.app_servers
 
-  name              = "platform-app-${count.index}"
+  name              = "platform-app-${each.key}"
   type              = "DEV1-S"
   image             = "ubuntu_jammy"
   security_group_id = scaleway_instance_security_group.app.id
@@ -302,9 +312,9 @@ resource "scaleway_instance_server" "app" {
 }
 
 resource "scaleway_instance_private_nic" "app" {
-  count = var.app_count
+  for_each = var.app_servers
 
-  server_id          = scaleway_instance_server.app[count.index].id
+  server_id          = scaleway_instance_server.app[each.key].id
   private_network_id = scaleway_vpc_private_network.app.id
 }
 
@@ -322,6 +332,20 @@ output "web_addresses" {
 
 output "golden_image_id" {
   value = scaleway_instance_image.golden.id
+}
+
+# The /64 each private network carries beside its declared IPv4 subnet.
+# sergelogvinov/terraform-talos consumes exactly this expression to build its
+# machine configs, and it is the expression that found #270: against an
+# emulator publishing no IPv6 subnet, one() yields null, this output dies on
+# apply — and a stack already applied cannot even destroy. Keeping it here
+# keeps that a permanent regression.
+output "ipv6_subnets" {
+  value = {
+    web   = one(scaleway_vpc_private_network.web.ipv6_subnets).subnet
+    app   = one(scaleway_vpc_private_network.app.ipv6_subnets).subnet
+    admin = one(scaleway_vpc_private_network.admin.ipv6_subnets).subnet
+  }
 }
 
 output "machines" {
