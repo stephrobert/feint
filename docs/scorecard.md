@@ -11,7 +11,9 @@ means here. The README's badge points at this page rather than at the viewer,
 because a reader who clicks a 7.7 wants to know why it is not a 10, and the
 viewer answers that with a list of check names.
 
-Measured on **2026-08-17**: score **7.7**, five checks below 10.
+Measured on **2026-08-18**: score **7.9**, five checks below 10
+(Branch-Protection 4, Code-Review 0, Maintained 0, CII-Best-Practices 5,
+Contributors 3).
 
 The rule this page is written under: **a check is not raised by satisfying its
 detector.** Every one of these has a shape that scores well and means nothing —
@@ -90,27 +92,50 @@ it does, and it clears itself on **2026-10-27** given continued activity. There
 is no action, and anything that looks like one — backdating, activity for the
 sake of the counter — is the gaming this page refuses.
 
-## CII-Best-Practices — 0/10, and it is one form away
+## CII-Best-Practices — 5/10, the Passing badge, earned 2026-08-17
 
-*"No effort to earn an OpenSSF best practices badge detected."* The badge is
-awarded by [bestpractices.dev](https://www.bestpractices.dev) after a
-self-assessment, and it needs an account this repository's tooling cannot create.
+*"badge detected: Passing."* The badge was earned on **2026-08-17** at
+[bestpractices.dev](https://www.bestpractices.dev/projects/14111) — 100% of the
+Passing questionnaire, 9% into Silver — by declaring only what exists here: the
+security policy, the public tracker, the documented contribution process, the
+build anybody can run, the tests that gate every change, static analysis in CI,
+the licence, and the signed releases with SBOM and SLSA provenance.
 
-It is worth doing, because most of the questionnaire is already answered by
-things that exist here: a stated security policy (`SECURITY.md`), a public bug
-tracker, a documented contribution process, a build that anybody can run
-(`mise run check`), tests that gate every change, static analysis in CI, a
-declared licence, signed releases with SBOM and SLSA provenance, and a
-vulnerability-disclosure process with a stated delay.
-
-**Declare only what is met.** The passing level asks for things this project does
-not have yet — notably two or more developers with commits in the last year,
-which is the Code-Review and Contributors ceiling again.
+Scorecard maps the tiers to 2 (In Progress), 5 (Passing), 7 (Silver) and
+10 (Gold). Silver is the next honest step and it is partly form-filling, partly
+the same ceiling as everything below: several of its criteria, and Gold's
+outright, ask for a second maintainer or review by someone other than the
+author. The form advances when those facts change, not before.
 
 ## Contributors — 3/10
 
 Contributors from at least two organisations. One author, so far. Same shape as
 the two above: it moves when somebody else contributes, not when a file changes.
+
+## The reference next door, and where its half-point lives
+
+`stephrobert/secure-python-pipeline` is this maintainer's hardened-pipeline
+reference. Compared check by check via the public API (its scan of 2026-08-17
+against this repository's scan of 2026-08-18): it scores **8.4** to this
+repository's **7.9**, and fifteen of the eighteen checks are identical —
+every workflow-earned check is 10/10 on both sides, so there is nothing left to
+transpose from its CI. The three that differ:
+
+- **CII-Best-Practices 5 here, 2 there** — this repository is ahead (Passing
+  against In Progress).
+- **Branch-Protection 10 there, 4 here** and **Code-Review 2 there, 0 here** —
+  the whole of its lead, and both come from one mechanism. Its ruleset requires
+  two approving reviews, code-owner review and last-push approval with zero
+  bypass actors; the approvals that let its pull requests merge come, on the
+  public record, from a second account of the same person (same name, same
+  company on the profile), plus one third-party approval. That satisfies the
+  detector; it does not add a second reader.
+
+Adopting those settings here would either freeze `main` — there is no second
+account — or manufacture approvals, which is the shape this page already refuses
+twice above. So the 0.5 gap to the reference is the price of that refusal, and
+it is paid knowingly: the honest exit is the same as for Code-Review and
+Contributors, a second human with write access, not a setting and not a login.
 
 ## The CodeQL alerts, and why five of them are false
 
