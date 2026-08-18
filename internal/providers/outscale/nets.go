@@ -333,8 +333,11 @@ func (p *Pack) createSubnet(w http.ResponseWriter, r *http.Request) {
 
 	// Stored before the runtime call and before the lock is released: this is the
 	// reservation, and it is what makes a concurrent create see the range as
-	// taken.
+	// taken. The clone is the base of the write-back below: the network
+	// creation owns the runtime name and nothing else, so a tag acknowledged
+	// while the network was being made survives it (#295).
 	p.env.Store.Put(res)
+	base := res.Clone()
 	unlock()
 
 	// The subnet is a real network on the runtime, which is what makes an
@@ -353,7 +356,7 @@ func (p *Pack) createSubnet(w http.ResponseWriter, r *http.Request) {
 	// The runtime wrote the network name into Runtime, so the reservation is
 	// updated rather than replaced: a Put would resurrect a subnet deleted while
 	// the network was being created.
-	if !p.env.Store.Commit(res, p.env.Now()) {
+	if !p.env.Store.Commit(base, res, p.env.Now()) {
 		// Deleted while its network was being made. Take the network back down
 		// rather than leave it on the host.
 		p.removeBackingNetwork(r.Context(), res)

@@ -195,17 +195,24 @@ func (p *Pack) updatePrivateNetworkInterface(w http.ResponseWriter, r *http.Requ
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
 		return
 	}
-	if req.Tags != nil {
-		res.Attrs["tags"] = orEmpty(*req.Tags)
-	}
-	// Commit rather than Put: an update racing a delete of the same interface
-	// would otherwise put it back, address and all. The rule is the repository's,
-	// and this is the third door onto the same object.
-	if !p.env.Store.Commit(res, p.env.Now()) {
+	// Inside the store lock: it keeps an update racing a delete of the same
+	// interface from putting it back, address and all, and it keeps this write
+	// from erasing a concurrent write to another field of the same NIC after
+	// its 200 (#295).
+	var updated *resource.Resource
+	err := p.env.Store.Update(Name, kindPrivateNIC, res.ID, func(stored *resource.Resource) error {
+		if req.Tags != nil {
+			stored.Attrs["tags"] = orEmpty(*req.Tags)
+		}
+		stored.Updated = p.env.Now()
+		updated = stored
+		return nil
+	})
+	if err != nil {
 		writeNotFound(w, "private_nic", res.ID)
 		return
 	}
-	emulator.WriteJSON(w, http.StatusOK, p.privateNetworkInterfaceView(res))
+	emulator.WriteJSON(w, http.StatusOK, p.privateNetworkInterfaceView(updated))
 }
 
 // deletePrivateNetworkInterface detaches through the v2alpha1 door.

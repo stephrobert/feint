@@ -4,22 +4,22 @@
     {
       "label": "accept no longer demands pending-acceptance",
       "file": "internal/providers/outscale/netpeerings.go",
-      "find": "\tif res.State != statePeeringPending {\n\t\tp.conflict(w, \"the Net peering \"+res.ID+\" is \"+res.State+\n\t\t\t\", only a pending-acceptance one can be accepted\")\n\t\treturn\n\t}",
-      "replace": "\tif res.State != statePeeringPending && false {\n\t\tp.conflict(w, \"the Net peering \"+res.ID+\" is \"+res.State+\n\t\t\t\", only a pending-acceptance one can be accepted\")\n\t\treturn\n\t}",
+      "find": "\t\tif stored.State != statePeeringPending {\n\t\t\twrongState = stored.State\n\t\t\treturn errPeeringNotPending\n\t\t}\n\t\tstored.State = statePeeringActive",
+      "replace": "\t\tif stored.State != statePeeringPending && false {\n\t\t\twrongState = stored.State\n\t\t\treturn errPeeringNotPending\n\t\t}\n\t\tstored.State = statePeeringActive",
       "test": "TestAcceptingANonPendingNetPeeringIsRefused"
     },
     {
       "label": "reject no longer demands pending-acceptance",
       "file": "internal/providers/outscale/netpeerings.go",
-      "find": "\tif res.State != statePeeringPending {\n\t\tp.conflict(w, \"the Net peering \"+res.ID+\" is \"+res.State+\n\t\t\t\", only a pending-acceptance one can be rejected\")\n\t\treturn\n\t}",
-      "replace": "\tif res.State != statePeeringPending && false {\n\t\tp.conflict(w, \"the Net peering \"+res.ID+\" is \"+res.State+\n\t\t\t\", only a pending-acceptance one can be rejected\")\n\t\treturn\n\t}",
+      "find": "\t\tif stored.State != statePeeringPending {\n\t\t\twrongState = stored.State\n\t\t\treturn errPeeringNotPending\n\t\t}\n\t\tstored.State = statePeeringRejected",
+      "replace": "\t\tif stored.State != statePeeringPending && false {\n\t\t\twrongState = stored.State\n\t\t\treturn errPeeringNotPending\n\t\t}\n\t\tstored.State = statePeeringRejected",
       "test": "TestRejectingANonPendingNetPeeringIsRefused"
     },
     {
       "label": "delete no longer refuses the undeletable states",
       "file": "internal/providers/outscale/netpeerings.go",
-      "find": "\tswitch res.State {\n\tcase statePeeringRejected, statePeeringFailed, statePeeringExpired, statePeeringDeleted:",
-      "replace": "\tswitch res.State + \"-never\" {\n\tcase statePeeringRejected, statePeeringFailed, statePeeringExpired, statePeeringDeleted:",
+      "find": "\t\tswitch stored.State {\n\t\tcase statePeeringRejected, statePeeringFailed, statePeeringExpired, statePeeringDeleted:",
+      "replace": "\t\tswitch stored.State + \"-never\" {\n\t\tcase statePeeringRejected, statePeeringFailed, statePeeringExpired, statePeeringDeleted:",
       "test": "TestDeletingARejectedNetPeeringIsRefused"
     },
     {
@@ -39,8 +39,8 @@
     {
       "label": "accepting A-to-B no longer auto-rejects the pending B-to-A",
       "file": "internal/providers/outscale/netpeerings.go",
-      "find": "\t\tif other.State == statePeeringPending &&\n\t\t\tstringOf(other.Attrs[\"SourceNetId\"]) == accepterID &&\n\t\t\tstringOf(other.Attrs[\"AccepterNetId\"]) == sourceID {",
-      "replace": "\t\tif other.State == statePeeringPending &&\n\t\t\tstringOf(other.Attrs[\"SourceNetId\"]) == accepterID &&\n\t\t\tstringOf(other.Attrs[\"AccepterNetId\"]) == sourceID && false {",
+      "find": "\t\tif other.State != statePeeringPending ||\n\t\t\tstringOf(other.Attrs[\"SourceNetId\"]) != accepterID ||\n\t\t\tstringOf(other.Attrs[\"AccepterNetId\"]) != sourceID {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif other.State != statePeeringPending ||\n\t\t\tstringOf(other.Attrs[\"SourceNetId\"]) != accepterID ||\n\t\t\tstringOf(other.Attrs[\"AccepterNetId\"]) != sourceID || true {\n\t\t\tcontinue\n\t\t}",
       "test": "TestAcceptAutoRejectsTheReversePendingPeering"
     },
     {

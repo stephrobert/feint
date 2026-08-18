@@ -289,7 +289,12 @@ func (p *Pack) attachNIC(w http.ResponseWriter, r *http.Request, serverID string
 	// narrowed, but it is a belt behind braces, and saying otherwise is the
 	// exact failure CLAUDE.md names: a sentence that reads like a proof and is
 	// not one.
-	if !p.env.Store.Commit(server, p.env.Now()) {
+	//
+	// The base is the server exactly as this handler holds it: the attachment
+	// changes nothing on the server itself, so the merge writes nothing but
+	// the modification date — a concurrent tag or user-data write survives
+	// where the old wholesale Commit erased it (#295).
+	if !p.env.Store.Commit(server.Clone(), server, p.env.Now()) {
 		writeNotFound(w, "server", server.ID)
 		return nil, false
 	}
@@ -321,8 +326,15 @@ func (p *Pack) attachNIC(w http.ResponseWriter, r *http.Request, serverID string
 	//
 	// TestARefusedAttachmentIsVisibleOnTheNIC fails without this.
 	if err := p.attachMachineToNetwork(r.Context(), server, pn, address); err != nil {
+		// Inside the store lock, and only the state: Put re-inserted a NIC
+		// deleted during the seconds the attachment took, and wrote the whole
+		// stale clone over anything else that landed meanwhile (#295).
+		_ = p.env.Store.Update(Name, kindPrivateNIC, res.ID, func(stored *resource.Resource) error {
+			stored.State = "syncing_error"
+			stored.Updated = p.env.Now()
+			return nil
+		})
 		res.State = "syncing_error"
-		p.env.Store.Put(res)
 	}
 
 	// The rule set binds to interfaces, so a NIC created after the server was
@@ -397,14 +409,19 @@ func (p *Pack) releaseNIC(res *resource.Resource) {
 	// which is what the Terraform destroy order depends on: the NIC goes first,
 	// the scaleway_ipam_ip after it. TestABookedAddressSurvivesItsNIC fails
 	// without this.
-	now := p.env.Now()
 	for _, ip := range p.ipamIPsOf(res.ID) {
 		if isBooked, _ := ip.Attrs[attrBooked].(bool); isBooked {
-			delete(ip.Runtime, runtimeNICKey)
-			delete(ip.Attrs, "mac_address")
-			delete(ip.Attrs, "zone")
-			ip.Updated = now
-			p.env.Store.Put(ip)
+			// Inside the store lock, never Get-mutate-Put: Put re-inserted an
+			// address released meanwhile, and the wholesale write erased a
+			// concurrent write to another field — its tags — after their 200
+			// (#295).
+			_ = p.env.Store.Update(Name, kindIPAMIP, ip.ID, func(stored *resource.Resource) error {
+				delete(stored.Runtime, runtimeNICKey)
+				delete(stored.Attrs, "mac_address")
+				delete(stored.Attrs, "zone")
+				stored.Updated = p.env.Now()
+				return nil
+			})
 			continue
 		}
 		p.env.Store.Delete(Name, kindIPAMIP, ip.ID)

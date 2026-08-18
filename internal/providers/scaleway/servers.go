@@ -2,6 +2,7 @@ package scaleway
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -12,6 +13,10 @@ import (
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/resource"
 )
+
+// errServerNotStopped is the retype refusal, answered from inside the store
+// lock where the state it judges cannot move (#295).
+var errServerNotStopped = errors.New("the server is not stopped")
 
 // kindServer is the store kind for Instance servers.
 const kindServer = "instance/server"
@@ -438,22 +443,20 @@ func (p *Pack) updateServer(w http.ResponseWriter, r *http.Request) {
 	}
 	id := r.PathValue("id")
 
-	// The read, the change and the write-back are one operation, so the target is
-	// held across all three.
+	// This hold was #211's answer to concurrent PATCHes losing each other's
+	// fields, and it stopped being that when #295 moved the read-check-write
+	// into Store.Update below — measured, not assumed: with this hold released
+	// and only the store's critical section left, the
+	// TestConcurrentUpdatesKeepEveryAcknowledgedField barrage stayed green
+	// (falsification run of 2026-08-18), so citing that test here would be a
+	// citation the test no longer backs.
 	//
-	// Commit was already conditional here, so a delete landing mid-update wins.
-	// Conditional is not ordered, though, and the store says so about itself:
-	// Commit "does not merge — State, Runtime and Attrs are taken from the copy
-	// wholesale, so a concurrent write to a *different* field of the same
-	// resource is still lost". Two updates, one naming the server and the other
-	// tagging it, each committed a whole Attrs map built from its own stale read,
-	// and the loser's field vanished with a 200 in hand.
-	//
-	// This is also the only one of the three packs' update paths that had no
-	// ordering: Outscale holds the same lock, and Exoscale mutates inside
-	// store.Update, which is read-modify-write under the store's own write lock.
-	//
-	// TestConcurrentUpdatesKeepEveryAcknowledgedField fails without this line.
+	// What the hold still buys is ordering against the lifecycle paths, whose
+	// windows span runtime calls this handler never sees: serverAction takes
+	// the same hold, boots for seconds, and commits — without this line a
+	// commercial_type change could pass its stopped-state check against a
+	// server whose boot is mid-flight and land on a running machine, which is
+	// the retype the check exists to refuse.
 	unlock := p.binding().Serialise(id)
 	defer unlock()
 
@@ -468,35 +471,10 @@ func (p *Pack) updateServer(w http.ResponseWriter, r *http.Request) {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
 		return
 	}
-	if req.Name != nil {
-		res.Attrs["name"] = *req.Name
-	}
-	if req.Tags != nil {
-		res.Attrs["tags"] = orEmpty(*req.Tags)
-	}
-	if req.Protected != nil {
-		res.Attrs["protected"] = *req.Protected
-		// The list travels with the flag. On fr-par-1, a PATCH that protects a
-		// running server makes the next GET answer ["backup"] alone, and the
-		// client that reads it to decide what to offer must see that without
-		// waiting for an action to be refused.
-		res.Attrs["allowed_actions"] = allowedActions(res.State, *req.Protected)
-	}
-	// The restriction is the SDK's own, quoted in UpdateServerRequest:
-	// "Cannot be changed if the Instance is not in `stopped` state." Refusing it
-	// matters more than accepting it — a test that resizes a running server and
-	// sees it work would ship code the real API rejects.
-	if req.CommercialType != nil {
-		if res.State != "stopped" {
-			writeInvalidArguments(w, ArgumentError{
-				ArgumentName: "commercial_type",
-				Reason:       "constraint",
-				HelpMessage:  "cannot be changed while the server is not stopped",
-			})
-			return
-		}
-		res.Attrs["commercial_type"] = *req.CommercialType
-	}
+	// The volume moves touch other resources and cannot run under the store
+	// lock, so they go first, on the clone; the map they computed is then
+	// written with the scalar fields in one critical section below.
+	var volumesView map[string]any
 	if req.Volumes != nil {
 		if err := p.setServerVolumes(res, *req.Volumes); err != nil {
 			writeInvalidArguments(w, ArgumentError{
@@ -506,13 +484,62 @@ func (p *Pack) updateServer(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		volumesView, _ = res.Attrs["volumes"].(map[string]any)
 	}
-	if !p.env.Store.Commit(res, p.env.Now()) {
+
+	// Inside the store lock: the clone-mutate-Commit shape this replaces
+	// erased a concurrent write to another field of the same server — the user
+	// data another handler had just acknowledged, the state a poweron had just
+	// reached — after its 200 (#295).
+	// TestConcurrentServerUpdateAndActionKeepBothWrites fails without it.
+	var updated *resource.Resource
+	err := p.env.Store.Update(Name, kindServer, id, func(stored *resource.Resource) error {
+		if req.Name != nil {
+			stored.Attrs["name"] = *req.Name
+		}
+		if req.Tags != nil {
+			stored.Attrs["tags"] = orEmpty(*req.Tags)
+		}
+		if req.Protected != nil {
+			stored.Attrs["protected"] = *req.Protected
+			// The list travels with the flag. On fr-par-1, a PATCH that protects a
+			// running server makes the next GET answer ["backup"] alone, and the
+			// client that reads it to decide what to offer must see that without
+			// waiting for an action to be refused.
+			stored.Attrs["allowed_actions"] = allowedActions(stored.State, *req.Protected)
+		}
+		// The restriction is the SDK's own, quoted in UpdateServerRequest:
+		// "Cannot be changed if the Instance is not in `stopped` state." Refusing it
+		// matters more than accepting it — a test that resizes a running server and
+		// sees it work would ship code the real API rejects. Judged on the stored
+		// state, inside the lock, where it cannot move underneath the check.
+		if req.CommercialType != nil {
+			if stored.State != "stopped" {
+				return errServerNotStopped
+			}
+			stored.Attrs["commercial_type"] = *req.CommercialType
+		}
+		if volumesView != nil {
+			stored.Attrs["volumes"] = volumesView
+		}
+		stored.Updated = p.env.Now()
+		updated = stored
+		return nil
+	})
+	switch {
+	case errors.Is(err, errServerNotStopped):
+		writeInvalidArguments(w, ArgumentError{
+			ArgumentName: "commercial_type",
+			Reason:       "constraint",
+			HelpMessage:  "cannot be changed while the server is not stopped",
+		})
+		return
+	case err != nil:
 		writeNotFound(w, "server", id)
 		return
 	}
 
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{"server": p.view(res)})
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{"server": p.view(updated)})
 }
 
 func (p *Pack) deleteServer(w http.ResponseWriter, r *http.Request) {
@@ -589,8 +616,7 @@ func (p *Pack) deleteServer(w http.ResponseWriter, r *http.Request) {
 // server.
 func (p *Pack) releaseServerResources(ctx context.Context, id, zone string) {
 	for _, vol := range p.volumesOf(id) {
-		p.detachVolume(vol)
-		p.env.Store.Put(vol)
+		p.detachStoredVolume(vol)
 	}
 	for _, nic := range p.privateNICsOf(id) {
 		p.releaseNIC(nic)
@@ -624,6 +650,12 @@ func (p *Pack) serverAction(w http.ResponseWriter, r *http.Request) {
 		writeNotFound(w, "server", id)
 		return
 	}
+	// The base of the write-back at the bottom: the action owns the state, the
+	// allowed actions and the machine's runtime entries, and nothing else — a
+	// tag or a user-data key acknowledged while the machine boots survives it
+	// (#295). TestConcurrentServerUpdateAndActionKeepBothWrites fails without
+	// it.
+	base := res.Clone()
 
 	var req serverActionRequest
 	if err := emulator.DecodeJSON(r, &req); err != nil {
@@ -737,7 +769,7 @@ func (p *Pack) serverAction(w http.ResponseWriter, r *http.Request) {
 	// Starting a machine takes tens of seconds and runs outside the lock. A
 	// terminate that landed meanwhile must stay landed: Put would bring the
 	// server back, address and all.
-	if !p.env.Store.Commit(res, now) {
+	if !p.env.Store.Commit(base, res, now) {
 		writeNotFound(w, "server", id)
 		return
 	}
@@ -993,10 +1025,9 @@ func (p *Pack) setServerVolumes(server *resource.Resource, wanted map[string]vol
 			// not asking, because the guard reads as present.
 			//
 			// TestAttachingDoesNotStealAnotherServersVolume fails without this.
-			if err := p.attachVolume(vol, server, name); err != nil {
+			if err := p.attachStoredVolume(vol, server, name); err != nil {
 				return err
 			}
-			p.env.Store.Put(vol)
 			keep[vol.ID] = true
 			view[key] = volumeView(vol)
 		case tmpl.Size > 0:
@@ -1021,8 +1052,7 @@ func (p *Pack) setServerVolumes(server *resource.Resource, wanted map[string]vol
 
 	for _, vol := range p.volumesOf(server.ID) {
 		if !keep[vol.ID] {
-			p.detachVolume(vol)
-			p.env.Store.Put(vol)
+			p.detachStoredVolume(vol)
 		}
 	}
 	server.Attrs["volumes"] = view
@@ -1244,10 +1274,9 @@ func (p *Pack) attachTemplateVolumes(templates map[string]volumeTemplate, root, 
 		// Skipped rather than refused, like an unknown id above: the answer says
 		// which volumes the server actually has, and a create must not take a
 		// disk from a running machine.
-		if err := p.attachVolume(vol, server, serverName); err != nil {
+		if err := p.attachStoredVolume(vol, server, serverName); err != nil {
 			continue
 		}
-		p.env.Store.Put(vol)
 		out[key] = volumeView(vol)
 	}
 	return out
@@ -1293,20 +1322,33 @@ func (p *Pack) attachServerVolume(w http.ResponseWriter, r *http.Request) {
 	// error rather than guessing.
 	key := p.nextVolumeKey(res)
 	serverName, _ := res.Attrs["name"].(string)
-	if err := p.attachVolume(vol, res, serverName); err != nil {
+	if err := p.attachStoredVolume(vol, res, serverName); err != nil {
 		writePrecondition(w, "volume", vol.ID, "the volume is attached to another server")
 		return
 	}
-	p.env.Store.Put(vol)
 
-	volumes := volumeMapOf(res)
-	volumes[key] = volumeView(vol)
-	res.Attrs["volumes"] = volumes
-	if !p.env.Store.Commit(res, p.env.Now()) {
+	// The server's map grows inside the store lock, on a fresh copy of the
+	// stored map — never through the clone's, which resource.Clone shares with
+	// the store, and never by Commit, whose wholesale write erased a concurrent
+	// write to another field of the same server after its 200 (#295).
+	entry := volumeView(vol)
+	var updated *resource.Resource
+	err := p.env.Store.Update(Name, kindServer, id, func(stored *resource.Resource) error {
+		volumes := make(map[string]any, len(volumeMapOf(stored))+1)
+		for k, v := range volumeMapOf(stored) {
+			volumes[k] = v
+		}
+		volumes[key] = entry
+		stored.Attrs["volumes"] = volumes
+		stored.Updated = p.env.Now()
+		updated = stored
+		return nil
+	})
+	if err != nil {
 		writeNotFound(w, "server", id)
 		return
 	}
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{"server": p.view(res)})
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{"server": p.view(updated)})
 }
 
 func (p *Pack) detachServerVolume(w http.ResponseWriter, r *http.Request) {
@@ -1331,26 +1373,48 @@ func (p *Pack) detachServerVolume(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	volumes := volumeMapOf(res)
-	for key, entry := range volumes {
-		view, _ := entry.(map[string]any)
-		if view == nil || view["id"] != req.VolumeID {
-			continue
-		}
-		delete(volumes, key)
-		if vol, ok := p.env.Store.Get(Name, kindVolume, req.VolumeID); ok {
-			p.detachVolume(vol)
-			p.env.Store.Put(vol)
-		}
-		res.Attrs["volumes"] = volumes
-		if !p.env.Store.Commit(res, p.env.Now()) {
-			writeNotFound(w, "server", id)
-			return
-		}
-		emulator.WriteJSON(w, http.StatusOK, map[string]any{"server": p.view(res)})
+	if !volumeMapHas(volumeMapOf(res), req.VolumeID) {
+		writeNotFound(w, "volume", req.VolumeID)
 		return
 	}
-	writeNotFound(w, "volume", req.VolumeID)
+	if vol, ok := p.env.Store.Get(Name, kindVolume, req.VolumeID); ok {
+		p.detachStoredVolume(vol)
+	}
+	// The server's map shrinks inside the store lock, on a fresh copy — the
+	// delete used to go through the clone's map, which resource.Clone shares
+	// with the store, and the Commit that followed erased a concurrent write
+	// to another field of the same server after its 200 (#295).
+	var updated *resource.Resource
+	err := p.env.Store.Update(Name, kindServer, id, func(stored *resource.Resource) error {
+		current := volumeMapOf(stored)
+		volumes := make(map[string]any, len(current))
+		for k, v := range current {
+			view, _ := v.(map[string]any)
+			if view != nil && view["id"] == req.VolumeID {
+				continue
+			}
+			volumes[k] = v
+		}
+		stored.Attrs["volumes"] = volumes
+		stored.Updated = p.env.Now()
+		updated = stored
+		return nil
+	})
+	if err != nil {
+		writeNotFound(w, "server", id)
+		return
+	}
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{"server": p.view(updated)})
+}
+
+// volumeMapHas reports whether the map lists a volume by id.
+func volumeMapHas(volumes map[string]any, volumeID string) bool {
+	for _, entry := range volumes {
+		if view, _ := entry.(map[string]any); view != nil && view["id"] == volumeID {
+			return true
+		}
+	}
+	return false
 }
 
 // volumeMapOf is the server's volume map, always a map even when the attribute

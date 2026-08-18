@@ -392,14 +392,24 @@ func (p *Pack) updateImage(w http.ResponseWriter, r *http.Request) {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
 		return
 	}
-	updated := res.Clone()
-	if req.Name != nil {
-		updated.Attrs["name"] = *req.Name
+	// Inside the store lock: the clone-mutate-Commit shape erased a concurrent
+	// write to the other field of the same image after its 200 (#295).
+	var updated *resource.Resource
+	err := p.env.Store.Update(Name, kindImage, res.ID, func(stored *resource.Resource) error {
+		if req.Name != nil {
+			stored.Attrs["name"] = *req.Name
+		}
+		if req.Tags != nil {
+			stored.Attrs["tags"] = *req.Tags
+		}
+		stored.Updated = p.env.Now()
+		updated = stored
+		return nil
+	})
+	if err != nil {
+		writeNotFound(w, "image", res.ID)
+		return
 	}
-	if req.Tags != nil {
-		updated.Attrs["tags"] = *req.Tags
-	}
-	p.env.Store.Commit(updated, p.env.Now())
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"image": p.clientImageView(updated)})
 }
 

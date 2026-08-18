@@ -1,6 +1,7 @@
 package outscale
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -159,32 +160,40 @@ func (p *Pack) updateVolume(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
-	res, found := p.env.Store.Get(Name, kindVolume, req.VolumeID)
-	if !found {
-		p.notFound(w, "volume", req.VolumeID)
-		return
-	}
-
-	if req.Size > 0 {
-		current, _ := res.Attrs["Size"].(int)
-		if req.Size < current {
-			p.conflict(w, "a volume cannot shrink: "+res.ID+" is already larger than the size requested")
-			return
+	// The read, the shrink check and the write are one critical section held
+	// by the store: as a Get-check-Commit sequence this lost a concurrent write
+	// to another field of the same volume — the tag the client had just been
+	// acknowledged, measured at 11/200 trials (#295).
+	// TestConcurrentTagAndLinkKeepBothVolumeWrites fails without this shape.
+	var updated *resource.Resource
+	err := p.env.Store.Update(Name, kindVolume, req.VolumeID, func(stored *resource.Resource) error {
+		if req.Size > 0 {
+			current, _ := stored.Attrs["Size"].(int)
+			if req.Size < current {
+				return errVolumeShrinks
+			}
+			stored.Attrs["Size"] = req.Size
 		}
-		res.Attrs["Size"] = req.Size
-	}
-	if req.VolumeType != "" {
-		res.Attrs["VolumeType"] = req.VolumeType
-	}
-	if req.Iops > 0 {
-		res.Attrs["Iops"] = req.Iops
-	}
-	if !p.env.Store.Commit(res, p.env.Now()) {
+		if req.VolumeType != "" {
+			stored.Attrs["VolumeType"] = req.VolumeType
+		}
+		if req.Iops > 0 {
+			stored.Attrs["Iops"] = req.Iops
+		}
+		stored.Updated = p.env.Now()
+		updated = stored
+		return nil
+	})
+	switch {
+	case errors.Is(err, errVolumeShrinks):
+		p.conflict(w, "a volume cannot shrink: "+req.VolumeID+" is already larger than the size requested")
+		return
+	case err != nil:
 		p.notFound(w, "volume", req.VolumeID)
 		return
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Volume":          p.volumeView(res),
+		"Volume":          p.volumeView(updated),
 		"ResponseContext": p.context(),
 	})
 }
@@ -231,23 +240,33 @@ func (p *Pack) linkVolume(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
-	res, found := p.env.Store.Get(Name, kindVolume, req.VolumeID)
-	if !found {
-		p.notFound(w, "volume", req.VolumeID)
-		return
-	}
 	if _, found := p.env.Store.Get(Name, kindVM, req.VMID); !found {
 		p.notFound(w, "Vm", req.VMID)
 		return
 	}
-	if holder, _ := res.Attrs["LinkedVmId"].(string); holder != "" && holder != req.VMID {
-		p.conflict(w, "the volume "+res.ID+" is already linked to "+holder)
+	// The holder check runs on the stored volume, under the lock, never on a
+	// stale clone: checked outside, two concurrent links on one free volume
+	// both passed and the loser's 200 was erased — and the erased write was
+	// sometimes the tag another handler had just acknowledged (#295, the
+	// measured pair of this file).
+	// TestConcurrentTagAndLinkKeepBothVolumeWrites fails without this shape.
+	var holder string
+	err := p.env.Store.Update(Name, kindVolume, req.VolumeID, func(stored *resource.Resource) error {
+		if held, _ := stored.Attrs["LinkedVmId"].(string); held != "" && held != req.VMID {
+			holder = held
+			return errVolumeHeld
+		}
+		stored.Attrs["LinkedVmId"] = req.VMID
+		stored.Attrs["DeviceName"] = req.DeviceName
+		stored.State = volumeStateInUse
+		stored.Updated = p.env.Now()
+		return nil
+	})
+	switch {
+	case errors.Is(err, errVolumeHeld):
+		p.conflict(w, "the volume "+req.VolumeID+" is already linked to "+holder)
 		return
-	}
-	res.Attrs["LinkedVmId"] = req.VMID
-	res.Attrs["DeviceName"] = req.DeviceName
-	res.State = volumeStateInUse
-	if !p.env.Store.Commit(res, p.env.Now()) {
+	case err != nil:
 		p.notFound(w, "volume", req.VolumeID)
 		return
 	}
@@ -279,15 +298,15 @@ func (p *Pack) unlinkVolume(w http.ResponseWriter, r *http.Request) {
 	}
 	emulator.MarkRead(r, "ForceUnlink")
 	_ = req.ForceUnlink
-	res, found := p.env.Store.Get(Name, kindVolume, req.VolumeID)
-	if !found {
-		p.notFound(w, "volume", req.VolumeID)
-		return
-	}
-	delete(res.Attrs, "LinkedVmId")
-	delete(res.Attrs, "DeviceName")
-	res.State = volumeStateAvailable
-	if !p.env.Store.Commit(res, p.env.Now()) {
+	// Same critical section as linkVolume, same reason (#295).
+	err := p.env.Store.Update(Name, kindVolume, req.VolumeID, func(stored *resource.Resource) error {
+		delete(stored.Attrs, "LinkedVmId")
+		delete(stored.Attrs, "DeviceName")
+		stored.State = volumeStateAvailable
+		stored.Updated = p.env.Now()
+		return nil
+	})
+	if err != nil {
 		p.notFound(w, "volume", req.VolumeID)
 		return
 	}
@@ -429,9 +448,25 @@ func (p *Pack) detachVolumesOf(vmID string) {
 		if stringOf(vol.Attrs["LinkedVmId"]) != vmID {
 			continue
 		}
-		delete(vol.Attrs, "LinkedVmId")
-		delete(vol.Attrs, "DeviceName")
-		vol.State = volumeStateAvailable
-		p.env.Store.Commit(vol, p.env.Now())
+		// Re-checked under the lock: the link may have moved between the List
+		// above and this write, and detaching somebody else's fresh link would
+		// be this loop erasing a 200 it never saw (#295).
+		_ = p.env.Store.Update(Name, kindVolume, vol.ID, func(stored *resource.Resource) error {
+			if stringOf(stored.Attrs["LinkedVmId"]) != vmID {
+				return errVolumeHeld
+			}
+			delete(stored.Attrs, "LinkedVmId")
+			delete(stored.Attrs, "DeviceName")
+			stored.State = volumeStateAvailable
+			stored.Updated = p.env.Now()
+			return nil
+		})
 	}
 }
+
+// The refusals updateVolume and linkVolume answer from inside the store lock,
+// where the state they judge cannot move (#295).
+var (
+	errVolumeShrinks = errors.New("a volume cannot shrink")
+	errVolumeHeld    = errors.New("the volume is linked elsewhere")
+)

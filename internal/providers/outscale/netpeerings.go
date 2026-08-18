@@ -2,6 +2,7 @@ package outscale
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -9,6 +10,11 @@ import (
 	"github.com/stephrobert/feint/internal/core/machine"
 	"github.com/stephrobert/feint/internal/core/resource"
 )
+
+// errPeeringNotPending is every state refusal of this file, answered from
+// inside the store lock where the state cannot move underneath the check
+// (#295). The message carries the state that was actually found.
+var errPeeringNotPending = errors.New("the Net peering is not in a state this operation accepts")
 
 // Net peerings: the link between two Nets this emulator itself created — which
 // is what pulled the family off the declined list, where an audit had found it
@@ -185,24 +191,36 @@ func (p *Pack) acceptNetPeering(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
-	res, found := p.env.Store.Get(Name, kindNetPeering, req.NetPeeringID)
-	if !found {
-		p.notFound(w, "Net peering", req.NetPeeringID)
-		return
-	}
 	// "The Net peering must be in the `pending-acceptance` state" — accepting
 	// a rejected, failed or deleted one is the state conflict the real cloud
 	// answers, in this pack's dialect (409 ResourceConflict, errors.go).
-	if res.State != statePeeringPending {
-		p.conflict(w, "the Net peering "+res.ID+" is "+res.State+
+	//
+	// The state check and the transition are one critical section held by the
+	// store: checked on a clone, two concurrent transitions both passed and
+	// the wholesale write-back erased a concurrent write to another field —
+	// the peering's tags — after its 200 (#295).
+	var updated *resource.Resource
+	var wrongState string
+	err := p.env.Store.Update(Name, kindNetPeering, req.NetPeeringID, func(stored *resource.Resource) error {
+		if stored.State != statePeeringPending {
+			wrongState = stored.State
+			return errPeeringNotPending
+		}
+		stored.State = statePeeringActive
+		stored.Updated = p.env.Now()
+		updated = stored
+		return nil
+	})
+	switch {
+	case errors.Is(err, errPeeringNotPending):
+		p.conflict(w, "the Net peering "+req.NetPeeringID+" is "+wrongState+
 			", only a pending-acceptance one can be accepted")
 		return
-	}
-	res.State = statePeeringActive
-	if !p.env.Store.Commit(res, p.env.Now()) {
+	case err != nil:
 		p.notFound(w, "Net peering", req.NetPeeringID)
 		return
 	}
+	res := updated
 
 	// "When an A-to-B peering connection is accepted, any pending B-to-A
 	// peering connection is automatically rejected as redundant."
@@ -210,12 +228,22 @@ func (p *Pack) acceptNetPeering(w http.ResponseWriter, r *http.Request) {
 	sourceID := stringOf(res.Attrs["SourceNetId"])
 	accepterID := stringOf(res.Attrs["AccepterNetId"])
 	for _, other := range p.env.Store.List(kindNetPeering, resource.Tenant{Provider: Name}) {
-		if other.State == statePeeringPending &&
-			stringOf(other.Attrs["SourceNetId"]) == accepterID &&
-			stringOf(other.Attrs["AccepterNetId"]) == sourceID {
-			other.State = statePeeringRejected
-			p.env.Store.Commit(other, p.env.Now())
+		if other.State != statePeeringPending ||
+			stringOf(other.Attrs["SourceNetId"]) != accepterID ||
+			stringOf(other.Attrs["AccepterNetId"]) != sourceID {
+			continue
 		}
+		// Re-checked under the lock: the counterpart may have transitioned
+		// between the List and this write, and rejecting over the stale clone
+		// erased whatever landed meanwhile (#295).
+		_ = p.env.Store.Update(Name, kindNetPeering, other.ID, func(stored *resource.Resource) error {
+			if stored.State != statePeeringPending {
+				return errPeeringNotPending
+			}
+			stored.State = statePeeringRejected
+			stored.Updated = p.env.Now()
+			return nil
+		})
 	}
 
 	// The reachability the acceptance granted, on the runtime, outside any
@@ -236,21 +264,26 @@ func (p *Pack) rejectNetPeering(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
-	res, found := p.env.Store.Get(Name, kindNetPeering, req.NetPeeringID)
-	if !found {
-		p.notFound(w, "Net peering", req.NetPeeringID)
-		return
-	}
 	// "The Net peering must be in the `pending-acceptance` state to be
 	// rejected." An active one is not un-accepted by rejecting it — the real
-	// API refuses, and so does this one.
-	if res.State != statePeeringPending {
-		p.conflict(w, "the Net peering "+res.ID+" is "+res.State+
+	// API refuses, and so does this one. Check and transition in one critical
+	// section, same reason as acceptNetPeering (#295).
+	var wrongState string
+	err := p.env.Store.Update(Name, kindNetPeering, req.NetPeeringID, func(stored *resource.Resource) error {
+		if stored.State != statePeeringPending {
+			wrongState = stored.State
+			return errPeeringNotPending
+		}
+		stored.State = statePeeringRejected
+		stored.Updated = p.env.Now()
+		return nil
+	})
+	switch {
+	case errors.Is(err, errPeeringNotPending):
+		p.conflict(w, "the Net peering "+req.NetPeeringID+" is "+wrongState+
 			", only a pending-acceptance one can be rejected")
 		return
-	}
-	res.State = statePeeringRejected
-	if !p.env.Store.Commit(res, p.env.Now()) {
+	case err != nil:
 		p.notFound(w, "Net peering", req.NetPeeringID)
 		return
 	}
@@ -265,25 +298,31 @@ func (p *Pack) deleteNetPeering(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
-	res, found := p.env.Store.Get(Name, kindNetPeering, req.NetPeeringID)
-	if !found {
-		p.notFound(w, "Net peering", req.NetPeeringID)
-		return
-	}
 	// "If it is in the `rejected`, `failed`, or `expired` states, it cannot be
 	// deleted." A deleted one is refused for the same reason: there is nothing
 	// left to delete, and answering success would say the call did something.
-	switch res.State {
-	case statePeeringRejected, statePeeringFailed, statePeeringExpired, statePeeringDeleted:
-		p.conflict(w, "the Net peering "+res.ID+" is "+res.State+" and cannot be deleted")
-		return
-	}
+	//
 	// The record stays, in the deleted state, which is a state the SDK's own
 	// StateNames filter enumerates: the real API keeps answering a deleted
 	// peering for a while rather than forgetting it, and a client reading it
-	// back must find the state, not a hole.
-	res.State = statePeeringDeleted
-	if !p.env.Store.Commit(res, p.env.Now()) {
+	// back must find the state, not a hole. Check and transition in one
+	// critical section, same reason as acceptNetPeering (#295).
+	var wrongState string
+	err := p.env.Store.Update(Name, kindNetPeering, req.NetPeeringID, func(stored *resource.Resource) error {
+		switch stored.State {
+		case statePeeringRejected, statePeeringFailed, statePeeringExpired, statePeeringDeleted:
+			wrongState = stored.State
+			return errPeeringNotPending
+		}
+		stored.State = statePeeringDeleted
+		stored.Updated = p.env.Now()
+		return nil
+	})
+	switch {
+	case errors.Is(err, errPeeringNotPending):
+		p.conflict(w, "the Net peering "+req.NetPeeringID+" is "+wrongState+" and cannot be deleted")
+		return
+	case err != nil:
 		p.notFound(w, "Net peering", req.NetPeeringID)
 		return
 	}

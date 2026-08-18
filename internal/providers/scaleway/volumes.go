@@ -137,19 +137,30 @@ func (p *Pack) updateVolume(w http.ResponseWriter, r *http.Request) {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
 		return
 	}
-	if req.Name != nil {
-		res.Attrs["name"] = *req.Name
+	// Inside the store lock, never Get-mutate-Put: Put re-inserted a volume
+	// deleted while this PATCH was decoding, and the wholesale write erased a
+	// concurrent write to another field of the same volume after its 200 —
+	// the scalar half of the lost-update family (#295).
+	var updated *resource.Resource
+	err := p.env.Store.Update(Name, kindVolume, res.ID, func(stored *resource.Resource) error {
+		if req.Name != nil {
+			stored.Attrs["name"] = *req.Name
+		}
+		if req.Tags != nil {
+			stored.Attrs["tags"] = orEmpty(*req.Tags)
+		}
+		if req.Size != nil {
+			stored.Attrs["size"] = *req.Size
+		}
+		stored.Updated = p.env.Now()
+		updated = stored
+		return nil
+	})
+	if err != nil {
+		writeNotFound(w, "volume", res.ID)
+		return
 	}
-	if req.Tags != nil {
-		res.Attrs["tags"] = orEmpty(*req.Tags)
-	}
-	if req.Size != nil {
-		res.Attrs["size"] = *req.Size
-	}
-
-	res.Updated = p.env.Now()
-	p.env.Store.Put(res)
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{"volume": volumeView(res)})
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{"volume": volumeView(updated)})
 }
 
 func (p *Pack) deleteVolume(w http.ResponseWriter, r *http.Request) {
@@ -231,6 +242,62 @@ func (p *Pack) detachVolume(vol *resource.Resource) {
 	delete(vol.Runtime, runtimeServerKey)
 	delete(vol.Attrs, "server_name")
 	vol.Updated = p.env.Now()
+}
+
+// attachStoredVolume is attachVolume for a volume that already lives in the
+// store: the ownership check re-runs on the stored volume, inside the same
+// critical section as the write. As attachVolume-on-a-clone followed by Put,
+// the write re-inserted a volume deleted meanwhile and erased a concurrent
+// write to another field of the same volume — its tags — after their 200
+// (#295). The caller's clone is mirrored on success, because the views are
+// built from it.
+//
+// The liveness of a previous owner is measured outside the lock — the store
+// cannot be re-entered under it — and the owner itself is re-checked inside:
+// only the exact owner measured dead may be displaced.
+func (p *Pack) attachStoredVolume(vol *resource.Resource, server *resource.Resource, serverName string) error {
+	releasable := ""
+	if owner := vol.Runtime[runtimeServerKey]; owner != "" && owner != server.ID {
+		if _, alive := p.env.Store.Get(Name, kindServer, owner); alive {
+			return fmt.Errorf("volume %s is attached to server %s", vol.ID, owner)
+		}
+		releasable = owner
+	}
+	err := p.env.Store.Update(vol.Tenant.Provider, vol.Kind, vol.ID, func(stored *resource.Resource) error {
+		if owner := stored.Runtime[runtimeServerKey]; owner != "" && owner != server.ID && owner != releasable {
+			return fmt.Errorf("volume %s is attached to server %s", stored.ID, owner)
+		}
+		if stored.Runtime == nil {
+			stored.Runtime = map[string]string{}
+		}
+		stored.Runtime[runtimeServerKey] = server.ID
+		stored.Attrs["server_name"] = serverName
+		stored.Updated = p.env.Now()
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if vol.Runtime == nil {
+		vol.Runtime = map[string]string{}
+	}
+	vol.Runtime[runtimeServerKey] = server.ID
+	vol.Attrs["server_name"] = serverName
+	return nil
+}
+
+// detachStoredVolume is detachVolume for a volume that already lives in the
+// store, for the same reason attachStoredVolume exists (#295). Releasing a
+// volume that vanished meanwhile is not an error: the state the caller wanted
+// is reached.
+func (p *Pack) detachStoredVolume(vol *resource.Resource) {
+	_ = p.env.Store.Update(vol.Tenant.Provider, vol.Kind, vol.ID, func(stored *resource.Resource) error {
+		delete(stored.Runtime, runtimeServerKey)
+		delete(stored.Attrs, "server_name")
+		stored.Updated = p.env.Now()
+		return nil
+	})
+	p.detachVolume(vol)
 }
 
 // volumesOf returns the volumes attached to a server.

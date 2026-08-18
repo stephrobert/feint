@@ -209,8 +209,9 @@ func TestAPoisonedPublicIpIsNeverRouted(t *testing.T) {
 	if !found {
 		t.Fatal("the public IP is not in the store")
 	}
+	base := stored.Clone()
 	stored.Attrs["PublicIp"] = poison
-	env.Store.Commit(stored, env.Now())
+	env.Store.Commit(base, stored, env.Now())
 
 	_, out = post(t, ts, "CreateVms", `{"ImageId":"ami-00000001","VmType":"tinav6.c1r1p2"}`)
 	vms, _ := out["Vms"].([]any)

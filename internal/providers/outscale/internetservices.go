@@ -1,10 +1,17 @@
 package outscale
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/resource"
+)
+
+// The refusals the link paths answer from inside the store lock (#295).
+var (
+	errGatewayLinked    = errors.New("the internet service is already linked")
+	errGatewayElsewhere = errors.New("the internet service is not linked to that Net")
 )
 
 // Internet services: the gateway a Net attaches to reach outside.
@@ -94,10 +101,6 @@ func (p *Pack) linkInternetService(w http.ResponseWriter, r *http.Request) {
 		p.notFound(w, "Net", req.NetID)
 		return
 	}
-	if held := stringOf(res.Attrs["NetId"]); held != "" && held != req.NetID {
-		p.conflict(w, "the internet service "+res.ID+" is already linked to "+held)
-		return
-	}
 	// One gateway per Net, which the real API enforces: a second link answers a
 	// resource conflict, and Terraform's replace flow depends on the refusal.
 	for _, other := range p.env.Store.List(kindInternetService, resource.Tenant{Provider: Name}) {
@@ -106,8 +109,25 @@ func (p *Pack) linkInternetService(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	res.Attrs["NetId"] = req.NetID
-	if !p.env.Store.Commit(res, p.env.Now()) {
+	// The holder check re-runs on the stored gateway, in the same critical
+	// section as the write: checked on the clone and committed wholesale, this
+	// erased a concurrent write to another field — the gateway's tags — after
+	// its 200 (#295).
+	var holder string
+	err := p.env.Store.Update(Name, kindInternetService, req.InternetServiceID, func(stored *resource.Resource) error {
+		if held := stringOf(stored.Attrs["NetId"]); held != "" && held != req.NetID {
+			holder = held
+			return errGatewayLinked
+		}
+		stored.Attrs["NetId"] = req.NetID
+		stored.Updated = p.env.Now()
+		return nil
+	})
+	switch {
+	case errors.Is(err, errGatewayLinked):
+		p.conflict(w, "the internet service "+res.ID+" is already linked to "+holder)
+		return
+	case err != nil:
 		p.notFound(w, "internet service", req.InternetServiceID)
 		return
 	}
@@ -124,17 +144,21 @@ func (p *Pack) unlinkInternetService(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
-	res, found := p.env.Store.Get(Name, kindInternetService, req.InternetServiceID)
-	if !found {
-		p.notFound(w, "internet service", req.InternetServiceID)
+	// The linked-to check and the unlink are one critical section, same reason
+	// as the link path (#295).
+	err := p.env.Store.Update(Name, kindInternetService, req.InternetServiceID, func(stored *resource.Resource) error {
+		if stringOf(stored.Attrs["NetId"]) != req.NetID {
+			return errGatewayElsewhere
+		}
+		delete(stored.Attrs, "NetId")
+		stored.Updated = p.env.Now()
+		return nil
+	})
+	switch {
+	case errors.Is(err, errGatewayElsewhere):
+		p.badRequest(w, "the internet service "+req.InternetServiceID+" is not linked to "+req.NetID)
 		return
-	}
-	if stringOf(res.Attrs["NetId"]) != req.NetID {
-		p.badRequest(w, "the internet service "+res.ID+" is not linked to "+req.NetID)
-		return
-	}
-	delete(res.Attrs, "NetId")
-	if !p.env.Store.Commit(res, p.env.Now()) {
+	case err != nil:
 		p.notFound(w, "internet service", req.InternetServiceID)
 		return
 	}

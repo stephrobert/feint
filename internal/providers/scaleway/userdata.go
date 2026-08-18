@@ -1,6 +1,7 @@
 package scaleway
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"sort"
@@ -98,12 +99,22 @@ func (p *Pack) setServerUserData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if res.Runtime == nil {
-		res.Runtime = map[string]string{}
+	// Inside the store lock, never Get-mutate-Put: Put re-inserted a server
+	// deleted while the body was uploading, and the wholesale write erased a
+	// concurrent write to any other field of the same server after its 200 —
+	// the scalar half of the lost-update family (#295).
+	err = p.env.Store.Update(Name, kindServer, res.ID, func(stored *resource.Resource) error {
+		if stored.Runtime == nil {
+			stored.Runtime = map[string]string{}
+		}
+		stored.Runtime[userDataPrefix+key] = string(body)
+		stored.Updated = p.env.Now()
+		return nil
+	})
+	if err != nil {
+		writeNotFound(w, "server", res.ID)
+		return
 	}
-	res.Runtime[userDataPrefix+key] = string(body)
-	res.Updated = p.env.Now()
-	p.env.Store.Put(res)
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -114,16 +125,27 @@ func (p *Pack) deleteServerUserData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	key := r.PathValue("key")
-	if _, found := res.Runtime[userDataPrefix+key]; !found {
+	// The existence check and the removal are one critical section, same
+	// reason as setServerUserData (#295).
+	err := p.env.Store.Update(Name, kindServer, res.ID, func(stored *resource.Resource) error {
+		if _, found := stored.Runtime[userDataPrefix+key]; !found {
+			return errUserDataMissing
+		}
+		delete(stored.Runtime, userDataPrefix+key)
+		stored.Updated = p.env.Now()
+		return nil
+	})
+	if err != nil {
 		writeNotFound(w, "user_data", key)
 		return
 	}
-	delete(res.Runtime, userDataPrefix+key)
-	res.Updated = p.env.Now()
-	p.env.Store.Put(res)
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// errUserDataMissing is the not-found the delete answers from inside the store
+// lock, where the key it judges cannot move (#295).
+var errUserDataMissing = errors.New("no user data under that key")
 
 // userDataOf returns the value a client stored under key, empty when there is
 // none. The machine driver reads "cloud-init" through it.

@@ -428,6 +428,13 @@ func (p *Pack) updatePrivateNetwork(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "resource not found")
 		return
 	}
+	// The base of the write-back below. This handler was the one Put left in
+	// this pack's update paths, and it sat on the slowest window of all: a
+	// range change rebuilds the backing network on the runtime, and the Put
+	// that followed re-inserted a network deleted meanwhile and erased a
+	// concurrent write to any other field after its 200 — the issue's claim
+	// that this pack was clean did not survive the audit (#295).
+	base := res.Clone()
 
 	// The effective range is the stored one with the sent fields applied, and
 	// the whole triple is re-validated: an update that leaves start above end
@@ -509,8 +516,10 @@ func (p *Pack) updatePrivateNetwork(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	res.Updated = p.env.Now()
-	p.env.Store.Put(res)
+	if !p.env.Store.Commit(base, res, p.env.Now()) {
+		writeError(w, http.StatusNotFound, "resource not found")
+		return
+	}
 	p.isolatePrivateNetworks(r.Context())
 	p.writeOperation(w, p.operationReferring(nounPrivateNetwork, id))
 }

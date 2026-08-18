@@ -247,8 +247,9 @@ func TestAPoisonedStoredAddressIsNeverRouted(t *testing.T) {
 	if !found {
 		t.Fatal("the flexible IP is not in the store")
 	}
+	base := stored.Clone()
 	stored.Attrs["address"] = poison
-	env.Store.Commit(stored, time.Unix(1700000001, 0))
+	env.Store.Commit(base, stored, time.Unix(1700000001, 0))
 
 	do(t, ts, "PATCH", zone+"/ips/"+ipID, `{"server":"`+id+`"}`)
 
@@ -257,8 +258,9 @@ func TestAPoisonedStoredAddressIsNeverRouted(t *testing.T) {
 	if !found {
 		t.Fatal("the server is not in the store")
 	}
+	serverBase := server.Clone()
 	server.Runtime["dynamic-ip"] = poison
-	env.Store.Commit(server, time.Unix(1700000002, 0))
+	env.Store.Commit(serverBase, server, time.Unix(1700000002, 0))
 	do(t, ts, "POST", zone+"/servers/"+id+"/action", `{"action":"reboot"}`)
 
 	if contains(rt.routedAddresses(), poison) {

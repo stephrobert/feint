@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"sort"
 	"sync"
 	"time"
@@ -166,7 +167,8 @@ func (s *Store) Update(provider, kind, id string, change func(*resource.Resource
 }
 
 // Commit writes back a resource that was worked on outside the lock, and reports
-// whether it still exists.
+// whether it still exists. base is the clone the caller read before it started;
+// only what the caller changed relative to that clone is written.
 //
 // This is the shape every pack needs and only one of them had. Starting a
 // machine takes tens of seconds, so no pack holds the store lock across it: it
@@ -181,19 +183,74 @@ func (s *Store) Update(provider, kind, id string, change func(*resource.Resource
 // its machine was starting, and the caller should drop it from its answer rather
 // than report a state nobody can read back.
 //
-// What this does not do is merge. State, Runtime and Attrs are taken from the
-// copy wholesale, so a concurrent write to a *different* field of the same
-// resource is still lost. That is a narrower race than resurrection and it needs
-// per-field intent to fix; Update is there for a caller that has it.
-func (s *Store) Commit(res *resource.Resource, now time.Time) bool {
+// The merge is the second half, added by #295 after the first half had shipped
+// without it. The old Commit took State, Runtime and Attrs from the copy
+// wholesale, and its own comment named the consequence: a concurrent write to a
+// *different* field of the same resource was lost. Measured, not feared — a
+// CreateTags answered 200 while a lifecycle action was between its read and its
+// write, and the following read no longer had the tag: 5 of 200 trials with no
+// machine runtime configured, every trial with one, since a launch holds the
+// window open for seconds. Per-field intent closes it: a field the caller left
+// alone keeps whatever a concurrent writer put there, a field the caller
+// changed — set, or deleted — is the caller's to write, because Serialise
+// orders the writers that share a field and this merge is for the writers that
+// do not.
+//
+// The diff is per top-level unit: State, each Attrs key, each Runtime key.
+// Nested values need no deeper diff because packs never mutate them in place —
+// resource.Clone shares them with the store, so an in-place write is already a
+// defect on its own (updateNic paid for it, #295) — and a changed nested value
+// therefore always arrives as a fresh top-level assignment.
+//
+// TestCommitKeepsAConcurrentWriteToAnotherField and
+// TestCommitDoesNotResurrectADeletedResource fail without the two halves.
+func (s *Store) Commit(base, res *resource.Resource, now time.Time) bool {
 	err := s.Update(res.Tenant.Provider, res.Kind, res.ID, func(stored *resource.Resource) error {
-		stored.State = res.State
-		stored.Runtime = res.Runtime
-		stored.Attrs = res.Attrs
+		if base.State != res.State {
+			stored.State = res.State
+		}
+		mergeMap(stored.Attrs, base.Attrs, res.Attrs)
+		if stored.Runtime == nil && len(res.Runtime) > 0 {
+			stored.Runtime = map[string]string{}
+		}
+		mergeRuntime(stored.Runtime, base.Runtime, res.Runtime)
 		stored.Updated = now
 		return nil
 	})
 	return err == nil
+}
+
+// mergeMap applies to stored every top-level change between base and res:
+// a key res added or rewrote wins, a key res deleted goes, and a key res left
+// alone keeps the stored value — which is the concurrent writer's, if one came
+// through while the caller worked.
+func mergeMap(stored, base, res map[string]any) {
+	for key, value := range res {
+		before, had := base[key]
+		if !had || !reflect.DeepEqual(before, value) {
+			stored[key] = value
+		}
+	}
+	for key := range base {
+		if _, still := res[key]; !still {
+			delete(stored, key)
+		}
+	}
+}
+
+// mergeRuntime is mergeMap for the Runtime map, whose values compare as
+// strings.
+func mergeRuntime(stored, base, res map[string]string) {
+	for key, value := range res {
+		if before, had := base[key]; !had || before != value {
+			stored[key] = value
+		}
+	}
+	for key := range base {
+		if _, still := res[key]; !still {
+			delete(stored, key)
+		}
+	}
 }
 
 // Delete removes a resource and reports whether it existed.

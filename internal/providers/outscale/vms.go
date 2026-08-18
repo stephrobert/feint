@@ -344,8 +344,12 @@ func (p *Pack) createVms(w http.ResponseWriter, r *http.Request) {
 			// so a delete arriving mid-boot raced the start it was meant to
 			// cancel.
 			unlock := p.binding().Serialise(res.ID)
+			// The base of the write-back: the boot owns the state and the
+			// runtime name, and nothing else — a tag acknowledged between the
+			// Put above and this Commit survives it (#295).
+			base := res.Clone()
 			p.powerOn(r.Context(), res)
-			if !p.env.Store.Commit(res, p.env.Now()) {
+			if !p.env.Store.Commit(base, res, p.env.Now()) {
 				// Gone while it was starting — a delete, or a snapshot restored
 				// over it, which `PUT /_feint/state` does and snapshot.go
 				// documents as a designed path. The machine has to go with it:
@@ -552,50 +556,63 @@ func (p *Pack) updateVm(w http.ResponseWriter, r *http.Request) {
 	unlock := p.binding().Serialise(req.VMID)
 	defer unlock()
 
-	res, ok := p.env.Store.Get(Name, kindVM, req.VMID)
-	if !ok {
+	if _, ok := p.env.Store.Get(Name, kindVM, req.VMID); !ok {
 		p.notFound(w, "VM", req.VMID)
 		return
 	}
+	if len(req.SecurityGroupIDs) > 0 && !p.checkVMSecurityGroups(w, req.SecurityGroupIDs) {
+		return
+	}
 
-	// Outscale refuses to retype a running machine, and so does every other
-	// cloud: the guest would have to be rebuilt underneath itself.
-	if req.VMType != "" && req.VMType != res.Attrs["VmType"] {
-		if res.State == stateRunning {
-			p.conflict(w, "the VM "+res.ID+" must be stopped before its type can change")
-			return
+	// The hold above orders this against the lifecycle paths; the store lock
+	// below is what keeps a concurrent CreateTags on the same Vm intact. The
+	// two are not redundant: the hold cannot cover a writer that does not take
+	// it, and the wholesale Commit this used to end with erased exactly such a
+	// writer's acknowledged tag (#295).
+	var updated *resource.Resource
+	err := p.env.Store.Update(Name, kindVM, req.VMID, func(stored *resource.Resource) error {
+		// Outscale refuses to retype a running machine, and so does every other
+		// cloud: the guest would have to be rebuilt underneath itself.
+		if req.VMType != "" && req.VMType != stored.Attrs["VmType"] {
+			if stored.State == stateRunning {
+				return errVmRunning
+			}
+			stored.Attrs["VmType"] = req.VMType
 		}
-		res.Attrs["VmType"] = req.VMType
-	}
-	if len(req.SecurityGroupIDs) > 0 {
-		if !p.checkVMSecurityGroups(w, req.SecurityGroupIDs) {
-			return
+		if len(req.SecurityGroupIDs) > 0 {
+			stored.Attrs["SecurityGroupIds"] = req.SecurityGroupIDs
 		}
-		res.Attrs["SecurityGroupIds"] = req.SecurityGroupIDs
-	}
-	if req.KeypairName != "" {
-		res.Attrs["KeypairName"] = req.KeypairName
-	}
-	if req.UserData != "" {
-		res.Attrs["UserData"] = req.UserData
-	}
-	// TestDeletionProtectionCanBeClearedByAnUpdate fails without this.
-	if req.DeletionProtection != nil {
-		res.Attrs["DeletionProtection"] = *req.DeletionProtection
-	}
-	if req.IsSourceDestChecked != nil {
-		res.Attrs[attrSourceDestChecked] = *req.IsSourceDestChecked
-	}
-	// After the VmType block above, so a retype's performance flag wins over
-	// whatever was stored — upstream's own precedence (vmoptions.go).
-	storeVmOptions(res, req.vmOptionsRequest, stringOf(res.Attrs["VmType"]))
-	if !p.env.Store.Commit(res, p.env.Now()) {
-		p.notFound(w, "Vm", res.ID)
+		if req.KeypairName != "" {
+			stored.Attrs["KeypairName"] = req.KeypairName
+		}
+		if req.UserData != "" {
+			stored.Attrs["UserData"] = req.UserData
+		}
+		// TestDeletionProtectionCanBeClearedByAnUpdate fails without this.
+		if req.DeletionProtection != nil {
+			stored.Attrs["DeletionProtection"] = *req.DeletionProtection
+		}
+		if req.IsSourceDestChecked != nil {
+			stored.Attrs[attrSourceDestChecked] = *req.IsSourceDestChecked
+		}
+		// After the VmType block above, so a retype's performance flag wins over
+		// whatever was stored — upstream's own precedence (vmoptions.go).
+		storeVmOptions(stored, req.vmOptionsRequest, stringOf(stored.Attrs["VmType"]))
+		stored.Updated = p.env.Now()
+		updated = stored
+		return nil
+	})
+	switch {
+	case errors.Is(err, errVmRunning):
+		p.conflict(w, "the VM "+req.VMID+" must be stopped before its type can change")
+		return
+	case err != nil:
+		p.notFound(w, "Vm", req.VMID)
 		return
 	}
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Vm":              p.vmView(res),
+		"Vm":              p.vmView(updated),
 		"ResponseContext": p.context(),
 	})
 }
@@ -774,6 +791,10 @@ func (p *Pack) deleteVms(w http.ResponseWriter, r *http.Request) {
 			unlock := p.binding().Serialise(res.ID)
 			defer unlock()
 
+			// The base of the write-back: the terminate owns the state, and a
+			// tag acknowledged while the machine was being destroyed survives
+			// it (#295).
+			base := res.Clone()
 			previous := res.State
 			// Terminating releases the machine's public address, which is
 			// upstream's own behaviour: the address stays allocated and stops
@@ -792,7 +813,7 @@ func (p *Pack) deleteVms(w http.ResponseWriter, r *http.Request) {
 			// TestATerminatedVmStaysReadable fails without this.
 			res.State = stateTerminated
 			res.Attrs["State"] = stateTerminated
-			if !p.env.Store.Commit(res, p.env.Now()) {
+			if !p.env.Store.Commit(base, res, p.env.Now()) {
 				// Deleted underneath: nothing left to mark.
 				return
 			}
@@ -836,6 +857,10 @@ func Gone(res *resource.Resource) bool {
 // errPlacementMismatch is what a create gets for a Placement naming a zone its
 // own Subnet does not sit in.
 var errPlacementMismatch = errors.New("the Placement contradicts the Subnet")
+
+// errVmRunning is the retype refusal, answered from inside the store lock
+// where the state cannot move underneath the check (#295).
+var errVmRunning = errors.New("the VM is running")
 
 // resolvedPlacement is the placement a create stores: what the client asked,
 // else the Subnet's own zone, else the default — in that order, because the

@@ -137,8 +137,7 @@ func (p *Pack) getSSHKey(w http.ResponseWriter, r *http.Request) {
 
 func (p *Pack) updateSSHKey(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	res, ok := p.env.Store.Get(Name, kindSSHKey, id)
-	if !ok {
+	if _, ok := p.env.Store.Get(Name, kindSSHKey, id); !ok {
 		writeNotFound(w, "ssh_key", id)
 		return
 	}
@@ -148,18 +147,27 @@ func (p *Pack) updateSSHKey(w http.ResponseWriter, r *http.Request) {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
 		return
 	}
-	if req.Name != nil {
-		res.Attrs["name"] = *req.Name
-	}
-	if req.Disabled != nil {
-		res.Attrs["disabled"] = *req.Disabled
-	}
-	if !p.env.Store.Commit(res, p.env.Now()) {
-		writeNotFound(w, "ssh key", res.ID)
+	// Inside the store lock: as a Get-mutate-Commit sequence, a concurrent
+	// update to the other field of the same key was erased after its 200 —
+	// the scalar half of the lost-update family (#295).
+	var updated *resource.Resource
+	err := p.env.Store.Update(Name, kindSSHKey, id, func(stored *resource.Resource) error {
+		if req.Name != nil {
+			stored.Attrs["name"] = *req.Name
+		}
+		if req.Disabled != nil {
+			stored.Attrs["disabled"] = *req.Disabled
+		}
+		stored.Updated = p.env.Now()
+		updated = stored
+		return nil
+	})
+	if err != nil {
+		writeNotFound(w, "ssh key", id)
 		return
 	}
 
-	emulator.WriteJSON(w, http.StatusOK, sshKeyView(res))
+	emulator.WriteJSON(w, http.StatusOK, sshKeyView(updated))
 }
 
 func (p *Pack) deleteSSHKey(w http.ResponseWriter, r *http.Request) {

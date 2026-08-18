@@ -286,6 +286,11 @@ func (p *Pack) updateIP(w http.ResponseWriter, r *http.Request) {
 		writeNotFound(w, "ip", id)
 		return
 	}
+	// The base of the write-back below: this handler owns the fields the
+	// request names and the attachment, and nothing else — a tag written on
+	// the same address through another door while the runtime routes survives
+	// it (#295).
+	base := res.Clone()
 
 	var req updateIPRequest
 	if err := emulator.DecodeJSON(r, &req); err != nil {
@@ -330,7 +335,7 @@ func (p *Pack) updateIP(w http.ResponseWriter, r *http.Request) {
 
 	// attachAddress talks to the runtime outside the lock, so a release that
 	// landed meanwhile must not be undone here.
-	if !p.env.Store.Commit(res, p.env.Now()) {
+	if !p.env.Store.Commit(base, res, p.env.Now()) {
 		writeNotFound(w, "ip", res.ID)
 		return
 	}
@@ -477,9 +482,16 @@ func ipView(res *resource.Resource) map[string]any {
 func (p *Pack) releaseAddressesOf(ctx context.Context, serverID, zone string) {
 	for _, ip := range p.attachedIPsOf(serverID, zone) {
 		p.detachAddress(ctx, ip)
-		ip.Attrs["server"] = nil
-		ip.State = "detached"
-		p.env.Store.Commit(ip, p.env.Now())
+		// Inside the store lock, on the two fields this release owns: the
+		// Commit this replaces wrote the whole clone back and erased a
+		// concurrent write to another field of the same address — its tags —
+		// after their 200 (#295).
+		_ = p.env.Store.Update(Name, kindIP, ip.ID, func(stored *resource.Resource) error {
+			stored.Attrs["server"] = nil
+			stored.State = "detached"
+			stored.Updated = p.env.Now()
+			return nil
+		})
 	}
 }
 
@@ -527,12 +539,16 @@ func (p *Pack) ensureDynamicAddress(res *resource.Resource) {
 			"server", res.ID, "error", err)
 		return
 	}
+	// The base of the write-back: the allocation owns its two runtime keys and
+	// nothing else — the caller's own pending changes ride along untouched on
+	// res, and a concurrent write to any other field survives (#295).
+	base := res.Clone()
 	if res.Runtime == nil {
 		res.Runtime = map[string]string{}
 	}
 	res.Runtime[runtimeDynamicIPKey] = address.String()
 	res.Runtime[runtimeDynamicIPIDKey] = p.env.NewID()
-	p.env.Store.Commit(res, p.env.Now())
+	p.env.Store.Commit(base, res, p.env.Now())
 }
 
 // releaseDynamicAddress takes the ephemeral address back: on poweroff, standby,

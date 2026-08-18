@@ -1,0 +1,57 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "linkVolume writes the stale pre-lock clone back through the store lock, which is byte-for-byte the base the pre-#295 Get-mutate-Commit shape wrote wholesale, so a concurrent CreateTags on the same volume is erased after its 200",
+      "file": "internal/providers/outscale/volumes.go",
+      "find": "\tif _, found := p.env.Store.Get(Name, kindVM, req.VMID); !found {\n\t\tp.notFound(w, \"Vm\", req.VMID)\n\t\treturn\n\t}\n\t// The holder check runs on the stored volume, under the lock, never on a\n\t// stale clone: checked outside, two concurrent links on one free volume\n\t// both passed and the loser's 200 was erased — and the erased write was\n\t// sometimes the tag another handler had just acknowledged (#295, the\n\t// measured pair of this file).\n\t// TestConcurrentTagAndLinkKeepBothVolumeWrites fails without this shape.\n\tvar holder string\n\terr := p.env.Store.Update(Name, kindVolume, req.VolumeID, func(stored *resource.Resource) error {\n\t\tif held, _ := stored.Attrs[\"LinkedVmId\"].(string); held != \"\" && held != req.VMID {",
+      "replace": "\tstale, _ := p.env.Store.Get(Name, kindVolume, req.VolumeID)\n\tif _, found := p.env.Store.Get(Name, kindVM, req.VMID); !found {\n\t\tp.notFound(w, \"Vm\", req.VMID)\n\t\treturn\n\t}\n\t// The holder check runs on the stored volume, under the lock, never on a\n\t// stale clone: checked outside, two concurrent links on one free volume\n\t// both passed and the loser's 200 was erased — and the erased write was\n\t// sometimes the tag another handler had just acknowledged (#295, the\n\t// measured pair of this file).\n\t// TestConcurrentTagAndLinkKeepBothVolumeWrites fails without this shape.\n\tvar holder string\n\terr := p.env.Store.Update(Name, kindVolume, req.VolumeID, func(stored *resource.Resource) error {\n\t\tif stale != nil {\n\t\t\tstored.Attrs = stale.Attrs\n\t\t}\n\t\tif held, _ := stored.Attrs[\"LinkedVmId\"].(string); held != \"\" && held != req.VMID {",
+      "test": "TestConcurrentTagAndLinkKeepBothVolumeWrites",
+      "repeat": 10
+    },
+    {
+      "label": "store.Commit stops merging and takes State, Attrs and Runtime from the copy wholesale, which is the pre-#295 Commit, proven deterministically at the store layer",
+      "file": "internal/core/store/store.go",
+      "find": "\t\tif base.State != res.State {\n\t\t\tstored.State = res.State\n\t\t}\n\t\tmergeMap(stored.Attrs, base.Attrs, res.Attrs)",
+      "replace": "\t\tif base.State != res.State {\n\t\t\tstored.State = res.State\n\t\t}\n\t\tstored.State = res.State\n\t\tstored.Attrs = res.Attrs\n\t\tstored.Runtime = res.Runtime\n\t\tmergeMap(stored.Attrs, base.Attrs, res.Attrs)",
+      "test": "TestCommitKeepsAConcurrentWriteToAnotherField",
+      "package": "./internal/core/store/",
+      "repeat": 2
+    },
+    {
+      "label": "the same wholesale Commit, proven through a real client pair: a CreateTags racing a StopVms on one Vm loses the acknowledged tag under Binding.Observe's write-back",
+      "file": "internal/core/store/store.go",
+      "find": "\t\tif base.State != res.State {\n\t\t\tstored.State = res.State\n\t\t}\n\t\tmergeMap(stored.Attrs, base.Attrs, res.Attrs)",
+      "replace": "\t\tif base.State != res.State {\n\t\t\tstored.State = res.State\n\t\t}\n\t\tstored.State = res.State\n\t\tstored.Attrs = res.Attrs\n\t\tstored.Runtime = res.Runtime\n\t\tmergeMap(stored.Attrs, base.Attrs, res.Attrs)",
+      "test": "TestConcurrentTagAndStopKeepBothVmWrites",
+      "repeat": 15
+    },
+    {
+      "label": "setServerUserData writes the clone it read before the body upload back through the store lock, the pre-#295 Get-mutate-Put shape minus the resurrection, so a concurrent PATCH or action on the same server is erased after its 200",
+      "file": "internal/providers/scaleway/userdata.go",
+      "find": "\terr = p.env.Store.Update(Name, kindServer, res.ID, func(stored *resource.Resource) error {\n\t\tif stored.Runtime == nil {\n\t\t\tstored.Runtime = map[string]string{}\n\t\t}\n\t\tstored.Runtime[userDataPrefix+key] = string(body)",
+      "replace": "\terr = p.env.Store.Update(Name, kindServer, res.ID, func(stored *resource.Resource) error {\n\t\tstored.State = res.State\n\t\tstored.Attrs = res.Attrs\n\t\tstored.Runtime = res.Runtime\n\t\tif stored.Runtime == nil {\n\t\t\tstored.Runtime = map[string]string{}\n\t\t}\n\t\tstored.Runtime[userDataPrefix+key] = string(body)",
+      "test": "TestAUserDataUploadDoesNotRevertAConcurrentTagWrite",
+      "package": "./internal/providers/scaleway/",
+      "repeat": 2
+    },
+    {
+      "label": "updateNic writes DeleteOnVmDeletion through the LinkNic map every reader shares with the store, the in-place mutation #295 names as the second defect on these lines",
+      "file": "internal/providers/outscale/updates.go",
+      "find": "\t\t\tfresh := make(map[string]any, len(link)+1)\n\t\t\tfor k, v := range link {\n\t\t\t\tfresh[k] = v\n\t\t\t}\n\t\t\tfresh[\"DeleteOnVmDeletion\"] = *req.LinkNic.DeleteOnVMDeletion\n\t\t\tstored.Attrs[\"LinkNic\"] = fresh",
+      "replace": "\t\t\tfresh := make(map[string]any, len(link)+1)\n\t\t\tfor k, v := range link {\n\t\t\t\tfresh[k] = v\n\t\t\t}\n\t\t\tfresh[\"DeleteOnVmDeletion\"] = *req.LinkNic.DeleteOnVMDeletion\n\t\t\tlink[\"DeleteOnVmDeletion\"] = fresh[\"DeleteOnVmDeletion\"]\n\t\t\tstored.Attrs[\"LinkNic\"] = link",
+      "test": "TestUpdateNicDoesNotMutateTheStoredLinkInPlace",
+      "repeat": 2
+    },
+    {
+      "label": "updatePrivateNetwork goes back to Put, the write-back #295's own text wrongly called clean: the whole clone is re-inserted after the runtime work, erasing both concurrent fields and concurrent deletes",
+      "file": "internal/providers/exoscale/privatenetworks.go",
+      "find": "\tif !p.env.Store.Commit(base, res, p.env.Now()) {\n\t\twriteError(w, http.StatusNotFound, \"resource not found\")\n\t\treturn\n\t}\n\tp.isolatePrivateNetworks(r.Context())",
+      "replace": "\tres.Updated = p.env.Now()\n\tp.env.Store.Put(res)\n\tif base == nil && !p.env.Store.Commit(base, res, p.env.Now()) {\n\t\twriteError(w, http.StatusNotFound, \"resource not found\")\n\t\treturn\n\t}\n\tp.isolatePrivateNetworks(r.Context())",
+      "test": "TestConcurrentPrivateNetworkUpdatesKeepBothFields",
+      "package": "./internal/providers/exoscale/",
+      "repeat": 2
+    }
+  ],
+  "note": "The subjects are races, so each `repeat` is sized to a measured red rate, never chosen: with only its mutation applied and 10 consecutive -count=1 runs on 2026-08-18, the linkVolume rewrite went red 7/10 (repeat 10 puts a false TEST STILL PASSED at 0.3^10, under 1e-5), the wholesale Commit went red 10/10 at the store layer (deterministic: one concurrent Update lands between the clone and the Commit) and 6/10 through the outscale tag-versus-stop pair (repeat 15: 0.4^15, about 1e-6), the userdata rewrite 10/10 against the streamed-upload test, whose io.Pipe holds the pre-#295 window open deterministically instead of racing for it, the updateNic in-place write 10/10 (deterministic: a witness clone shares the map), and the exoscale Put 10/10 (three writers on one fresh network lose a field almost surely when every write is wholesale). The pre-fix defect the first mutation reproduces measured 11/200 trials on the issue's own CreateTags-versus-LinkVolume pair (5 runs of 40, 2026-08-18) and 0/200 after; the lifecycle half measured 5/200 on CreateTags-versus-StopVms after the fast paths were fixed and 0/200 with the merging Commit."
+}

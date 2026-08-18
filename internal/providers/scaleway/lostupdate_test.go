@@ -2,6 +2,7 @@ package scaleway_test
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -269,5 +270,177 @@ func TestDeletingAServerReleasesItsPrivateNICs(t *testing.T) {
 	if total, _ := out["total_count"].(float64); total != 0 {
 		t.Errorf("the network still holds %v address(es) after its only server was deleted: %v",
 			total, out)
+	}
+}
+
+// The cross-handler shape of #295, on this pack's server. Three writers, three
+// different handlers, disjoint fields:
+//
+//   - PATCH /servers/{id} holds the per-target lifecycle lock and writes tags;
+//   - PATCH /servers/{id}/user_data/{key} holds nothing — it wrote the whole
+//     server back with Put, from a clone read before the body had even been
+//     uploaded, which both erased any concurrent write and resurrected a
+//     deleted server;
+//   - POST /servers/{id}/action poweron holds the lock but committed the whole
+//     clone it took before the boot, so the unordered user-data writer's key
+//     vanished under it.
+//
+// The per-target hold cannot order a writer that does not take it, which is
+// what makes this trio different from the per-field barrage above: there the
+// writers were three copies of one ordered handler, here two of the three
+// windows are real. Each acknowledged write must survive the other two.
+func TestConcurrentServerUpdateAndActionKeepBothWrites(t *testing.T) {
+	ts := newTestServer(t)
+	const zone = "/instance/v1/zones/fr-par-1"
+	const cloudConfig = "#cloud-config probe"
+
+	found := storetest.NoLostUpdate(40, func(trial int) []storetest.Write {
+		status, out := do(t, ts, "POST", zone+"/servers",
+			fmt.Sprintf(`{"name":"cross-%d","commercial_type":"DEV1-S"}`, trial))
+		if status != http.StatusCreated {
+			t.Fatalf("trial %d create: status %d", trial, status)
+		}
+		server, _ := out["server"].(map[string]any)
+		id, _ := server["id"].(string)
+
+		readField := func(name string) string {
+			status, out := do(t, ts, "GET", zone+"/servers/"+id, "")
+			if status != http.StatusOK {
+				t.Fatalf("get: status %d", status)
+			}
+			server, _ := out["server"].(map[string]any)
+			switch value := server[name].(type) {
+			case string:
+				return value
+			case []any:
+				parts := make([]string, 0, len(value))
+				for _, v := range value {
+					parts = append(parts, fmt.Sprintf("%v", v))
+				}
+				return strings.Join(parts, ",")
+			default:
+				return fmt.Sprintf("%v", value)
+			}
+		}
+
+		return []storetest.Write{
+			{
+				Field: "tags",
+				Apply: func() bool {
+					status, _ := doRaw(ts, "PATCH", zone+"/servers/"+id, `{"tags":["probe"]}`)
+					return status == http.StatusOK
+				},
+				Got:  func() string { return readField("tags") },
+				Want: "probe",
+			},
+			{
+				Field: "user_data cloud-init",
+				Apply: func() bool {
+					status, _ := doRaw(ts, "PATCH", zone+"/servers/"+id+"/user_data/cloud-init", cloudConfig)
+					return status == http.StatusNoContent
+				},
+				Got: func() string {
+					req, err := http.NewRequest(http.MethodGet,
+						ts.URL+zone+"/servers/"+id+"/user_data/cloud-init", nil)
+					if err != nil {
+						return "<request failed>"
+					}
+					resp, err := ts.Client().Do(req)
+					if err != nil {
+						return "<request failed>"
+					}
+					defer func() { _ = resp.Body.Close() }()
+					if resp.StatusCode != http.StatusOK {
+						return fmt.Sprintf("<get answered %d>", resp.StatusCode)
+					}
+					raw, _ := io.ReadAll(resp.Body)
+					return string(raw)
+				},
+				Want: cloudConfig,
+			},
+			{
+				Field: "state",
+				Apply: func() bool {
+					status, _ := doRaw(ts, "POST", zone+"/servers/"+id+"/action", `{"action":"poweron"}`)
+					return status == http.StatusAccepted
+				},
+				Got:  func() string { return readField("state") },
+				Want: "running",
+			},
+		}
+	})
+
+	if len(found) > 0 {
+		t.Errorf("three handlers on one server lost an acknowledged write:\n%s", strings.Join(found, "\n"))
+	}
+}
+
+// The same defect, held open instead of raced: the user-data handler reads the
+// server, then reads the request body, then writes — and its pre-#295 shape
+// wrote the whole clone from before the upload. A body that arrives slowly is
+// the window at its natural width (a cloud-config is kilobytes on a WAN), and
+// this test streams one: the first chunk proves the handler is past its read
+// and inside the upload, a tag lands through PATCH /servers/{id}, then the
+// upload finishes. Both writes must survive, deterministically — no trial
+// count, no coin toss.
+func TestAUserDataUploadDoesNotRevertAConcurrentTagWrite(t *testing.T) {
+	ts := newTestServer(t)
+	const zone = "/instance/v1/zones/fr-par-1"
+
+	status, out := do(t, ts, "POST", zone+"/servers",
+		`{"name":"slow-upload","commercial_type":"DEV1-S"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("create: status %d", status)
+	}
+	server, _ := out["server"].(map[string]any)
+	id, _ := server["id"].(string)
+
+	pr, pw := io.Pipe()
+	req, err := http.NewRequest(http.MethodPatch,
+		ts.URL+zone+"/servers/"+id+"/user_data/cloud-init", pr)
+	if err != nil {
+		t.Fatalf("build the upload: %v", err)
+	}
+	req.Header.Set("X-Auth-Token", "irrelevant-the-emulator-ignores-it")
+
+	uploaded := make(chan int, 1)
+	go func() {
+		resp, err := ts.Client().Do(req)
+		if err != nil {
+			uploaded <- -1
+			return
+		}
+		_ = resp.Body.Close()
+		uploaded <- resp.StatusCode
+	}()
+
+	// The handler resolves the server before it reads the body, so once this
+	// chunk is consumed the handler is provably past its read and mid-upload.
+	if _, err := pw.Write([]byte("#cloud-config ")); err != nil {
+		t.Fatalf("stream the first chunk: %v", err)
+	}
+
+	// The tag lands while the upload is in flight — a full round trip, so the
+	// upload handler has long resolved its clone by the time this returns.
+	if status, _ := doRaw(ts, "PATCH", zone+"/servers/"+id, `{"tags":["probe"]}`); status != http.StatusOK {
+		t.Fatalf("the tag write answered %d, so this test measures nothing", status)
+	}
+
+	if _, err := pw.Write([]byte("probe")); err != nil {
+		t.Fatalf("stream the second chunk: %v", err)
+	}
+	_ = pw.Close()
+	if status := <-uploaded; status != http.StatusNoContent {
+		t.Fatalf("the upload answered %d, so this test measures nothing", status)
+	}
+
+	status, out = do(t, ts, "GET", zone+"/servers/"+id, "")
+	if status != http.StatusOK {
+		t.Fatalf("get: status %d", status)
+	}
+	server, _ = out["server"].(map[string]any)
+	tags, _ := server["tags"].([]any)
+	if len(tags) != 1 || tags[0] != "probe" {
+		t.Errorf("the upload erased the acknowledged tag: tags are %v", tags)
 	}
 }

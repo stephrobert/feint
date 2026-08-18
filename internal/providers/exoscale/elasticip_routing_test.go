@@ -171,8 +171,9 @@ func TestAPoisonedElasticIPIsNeverRouted(t *testing.T) {
 	if !found {
 		t.Fatal("the elastic IP is not in the store")
 	}
+	base := stored.Clone()
 	stored.Attrs["ip"] = poison
-	env.Store.Commit(stored, env.Now())
+	env.Store.Commit(base, stored, env.Now())
 
 	call(t, h, "PUT", "/v2/elastic-ip/"+eipID+":attach", `{"instance":{"id":"`+instanceID+`"}}`)
 	call(t, h, "PUT", "/v2/instance/"+instanceID+":stop", "{}")

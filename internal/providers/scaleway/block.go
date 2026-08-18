@@ -1,6 +1,7 @@
 package scaleway
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -8,6 +9,10 @@ import (
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/resource"
 )
+
+// errBlockVolumeShrinks is the shrink refusal, answered from inside the store
+// lock where the size it judges cannot move (#295).
+var errBlockVolumeShrinks = errors.New("a volume grows and does not shrink")
 
 // Block Storage (block/v1), Scaleway's SBS product.
 //
@@ -391,29 +396,43 @@ func (p *Pack) updateBlockVolume(w http.ResponseWriter, r *http.Request) {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
 		return
 	}
-	current, _ := res.Attrs["size"].(uint64)
-	if req.Size != nil && *req.Size < current {
+	// The shrink check and the write are one critical section held by the
+	// store: as a clone-mutate-Commit sequence this erased a concurrent write
+	// to another field of the same volume after its 200 (#295).
+	var updated *resource.Resource
+	err := p.env.Store.Update(Name, kindBlockVolume, res.ID, func(stored *resource.Resource) error {
+		current, _ := stored.Attrs["size"].(uint64)
+		if req.Size != nil && *req.Size < current {
+			return errBlockVolumeShrinks
+		}
+		if req.Name != nil {
+			stored.Attrs["name"] = *req.Name
+		}
+		if req.Size != nil {
+			stored.Attrs["size"] = *req.Size
+		}
+		if req.Tags != nil {
+			stored.Attrs["tags"] = *req.Tags
+		}
+		if req.PerfIops != nil {
+			stored.Attrs["perf_iops"] = *req.PerfIops
+		}
+		stored.Updated = p.env.Now()
+		updated = stored
+		return nil
+	})
+	switch {
+	case errors.Is(err, errBlockVolumeShrinks):
 		writeInvalidArguments(w, ArgumentError{
 			ArgumentName: "size",
 			Reason:       "constraint",
 			HelpMessage:  "a volume grows and does not shrink",
 		})
 		return
+	case err != nil:
+		writeNotFound(w, "volume", res.ID)
+		return
 	}
-	updated := res.Clone()
-	if req.Name != nil {
-		updated.Attrs["name"] = *req.Name
-	}
-	if req.Size != nil {
-		updated.Attrs["size"] = *req.Size
-	}
-	if req.Tags != nil {
-		updated.Attrs["tags"] = *req.Tags
-	}
-	if req.PerfIops != nil {
-		updated.Attrs["perf_iops"] = *req.PerfIops
-	}
-	p.env.Store.Commit(updated, p.env.Now())
 	emulator.WriteJSON(w, http.StatusOK, p.blockVolumeView(updated))
 }
 
@@ -617,14 +636,23 @@ func (p *Pack) updateBlockSnapshot(w http.ResponseWriter, r *http.Request) {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
 		return
 	}
-	updated := res.Clone()
-	if req.Name != nil {
-		updated.Attrs["name"] = *req.Name
+	// Inside the store lock, same reason as updateBlockVolume (#295).
+	var updated *resource.Resource
+	err := p.env.Store.Update(Name, kindBlockSnapshot, res.ID, func(stored *resource.Resource) error {
+		if req.Name != nil {
+			stored.Attrs["name"] = *req.Name
+		}
+		if req.Tags != nil {
+			stored.Attrs["tags"] = *req.Tags
+		}
+		stored.Updated = p.env.Now()
+		updated = stored
+		return nil
+	})
+	if err != nil {
+		writeNotFound(w, "snapshot", res.ID)
+		return
 	}
-	if req.Tags != nil {
-		updated.Attrs["tags"] = *req.Tags
-	}
-	p.env.Store.Commit(updated, p.env.Now())
 	emulator.WriteJSON(w, http.StatusOK, p.blockSnapshotView(updated))
 }
 

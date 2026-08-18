@@ -146,3 +146,77 @@ func TestConcurrentRuleCreatesKeepEveryAcknowledgedRule(t *testing.T) {
 		t.Errorf("the rule create path lost a rule it had acknowledged:\n%s", strings.Join(found, "\n"))
 	}
 }
+
+// The one update path of this pack that did NOT mutate inside store.Update —
+// #295 called the pack clean, and the audit that fixed the family found this
+// one: updatePrivateNetwork read a clone, possibly rebuilt the backing network
+// on the runtime, and wrote the whole clone back with Put. Two writers on
+// disjoint fields of one private network therefore erased each other after
+// their 200s, and the Put also resurrected a network deleted meanwhile. The
+// write-back is a per-field Commit now, and each writer's field must survive
+// the other.
+func TestConcurrentPrivateNetworkUpdatesKeepBothFields(t *testing.T) {
+	h, _ := newExoscaleBarrageServer(t)
+
+	found := storetest.NoLostUpdate(40, func(trial int) []storetest.Write {
+		status, created := callRaw(h, "POST", "/v2/private-network",
+			fmt.Sprintf(`{"name":"cross-%d"}`, trial))
+		if status != http.StatusOK {
+			t.Fatalf("trial %d create: status %d (%v)", trial, status, created)
+		}
+		ref, _ := created["reference"].(map[string]any)
+		id, _ := ref["id"].(string)
+		if id == "" {
+			t.Fatalf("the create operation names no resource: %v", created)
+		}
+
+		update := func(body string) bool {
+			status, _ := callRaw(h, "PUT", "/v2/private-network/"+id, body)
+			return status == http.StatusOK
+		}
+		field := func(read func(map[string]any) string) func() string {
+			return func() string {
+				status, out := callRaw(h, "GET", "/v2/private-network/"+id, "")
+				if status != http.StatusOK {
+					return fmt.Sprintf("<get answered %d>", status)
+				}
+				return read(out)
+			}
+		}
+
+		return []storetest.Write{
+			{
+				Field: "name",
+				Apply: func() bool { return update(`{"name":"after"}`) },
+				Got: field(func(out map[string]any) string {
+					name, _ := out["name"].(string)
+					return name
+				}),
+				Want: "after",
+			},
+			{
+				Field: "description",
+				Apply: func() bool { return update(`{"description":"held"}`) },
+				Got: field(func(out map[string]any) string {
+					description, _ := out["description"].(string)
+					return description
+				}),
+				Want: "held",
+			},
+			{
+				Field: "labels",
+				Apply: func() bool { return update(`{"labels":{"probe":"held"}}`) },
+				Got: field(func(out map[string]any) string {
+					labels, _ := out["labels"].(map[string]any)
+					value, _ := labels["probe"].(string)
+					return value
+				}),
+				Want: "held",
+			},
+		}
+	})
+
+	if len(found) > 0 {
+		t.Errorf("the private network update lost a field it had acknowledged:\n%s", strings.Join(found, "\n"))
+	}
+}

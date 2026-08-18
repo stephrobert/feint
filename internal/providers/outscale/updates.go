@@ -1,10 +1,17 @@
 package outscale
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/resource"
+)
+
+// The refusals this file answers from inside the store lock (#295).
+var (
+	errNicNotAttached = errors.New("the interface is not attached")
+	errRouteLinkMoved = errors.New("the link left this table while the request was deciding")
 )
 
 // The in-place half of resources this pack already creates, reads and deletes
@@ -48,8 +55,7 @@ func (p *Pack) updateNet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, found := p.env.Store.Get(Name, kindNet, req.NetID)
-	if !found {
+	if _, found := p.env.Store.Get(Name, kindNet, req.NetID); !found {
 		p.notFound(w, "net", req.NetID)
 		return
 	}
@@ -74,15 +80,23 @@ func (p *Pack) updateNet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res.Attrs["DhcpOptionsSetId"] = req.DhcpOptionsSetID
-	// Commit rather than Put: the Net may have been deleted while this request
-	// was decoding, and Put would bring it back carrying the new value.
-	if !p.env.Store.Commit(res, p.env.Now()) {
+	// Inside the store lock, on the stored Net: written back wholesale from a
+	// clone, this erased a concurrent write to another field of the same Net —
+	// its tags — after their 200 (#295). Update also keeps a Net deleted while
+	// this request was deciding deleted, which is what Commit was here for.
+	var updated *resource.Resource
+	err := p.env.Store.Update(Name, kindNet, req.NetID, func(stored *resource.Resource) error {
+		stored.Attrs["DhcpOptionsSetId"] = req.DhcpOptionsSetID
+		stored.Updated = p.env.Now()
+		updated = stored
+		return nil
+	})
+	if err != nil {
 		p.notFound(w, "net", req.NetID)
 		return
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Net":             netView(res),
+		"Net":             netView(updated),
 		"ResponseContext": p.context(),
 	})
 }
@@ -111,18 +125,20 @@ func (p *Pack) updateSubnet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, found := p.env.Store.Get(Name, kindSubnet, req.SubnetID)
-	if !found {
-		p.notFound(w, "subnet", req.SubnetID)
-		return
-	}
-	res.Attrs["MapPublicIpOnLaunch"] = *req.MapPublicIPOnLaunch
-	if !p.env.Store.Commit(res, p.env.Now()) {
+	// Inside the store lock, same reason as updateNet (#295).
+	var updated *resource.Resource
+	err := p.env.Store.Update(Name, kindSubnet, req.SubnetID, func(stored *resource.Resource) error {
+		stored.Attrs["MapPublicIpOnLaunch"] = *req.MapPublicIPOnLaunch
+		stored.Updated = p.env.Now()
+		updated = stored
+		return nil
+	})
+	if err != nil {
 		p.notFound(w, "subnet", req.SubnetID)
 		return
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Subnet":          p.subnetView(res),
+		"Subnet":          p.subnetView(updated),
 		"ResponseContext": p.context(),
 	})
 }
@@ -153,14 +169,9 @@ func (p *Pack) updateNic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, found := p.env.Store.Get(Name, kindNic, req.NicID)
-	if !found {
+	if _, found := p.env.Store.Get(Name, kindNic, req.NicID); !found {
 		p.notFound(w, "nic", req.NicID)
 		return
-	}
-
-	if req.Description != nil {
-		res.Attrs["Description"] = *req.Description
 	}
 	if req.SecurityGroupIDs != nil {
 		// Checked by the same helper createNic uses, so a group that does not
@@ -170,24 +181,48 @@ func (p *Pack) updateNic(w http.ResponseWriter, r *http.Request) {
 		if !p.checkVMSecurityGroups(w, req.SecurityGroupIDs) {
 			return
 		}
-		res.Attrs["SecurityGroupIds"] = req.SecurityGroupIDs
-	}
-	if req.LinkNic != nil && req.LinkNic.DeleteOnVMDeletion != nil {
-		link, _ := res.Attrs["LinkNic"].(map[string]any)
-		if link == nil {
-			p.badRequest(w, "NicId "+req.NicID+" is not attached, so its attachment cannot be updated")
-			return
-		}
-		link["DeleteOnVmDeletion"] = *req.LinkNic.DeleteOnVMDeletion
-		res.Attrs["LinkNic"] = link
 	}
 
-	if !p.env.Store.Commit(res, p.env.Now()) {
+	// Inside the store lock, same reason as updateNet (#295). The LinkNic map
+	// is copied before it changes, never written through: resource.Clone is
+	// shallow on Attrs values, so `link["DeleteOnVmDeletion"] = …` on the clone
+	// mutated the stored map in place — visible to every concurrent reader
+	// before the write-back, and left behind even when the write-back failed.
+	// TestUpdateNicDoesNotMutateTheStoredLinkInPlace fails without the copy.
+	var updated *resource.Resource
+	err := p.env.Store.Update(Name, kindNic, req.NicID, func(stored *resource.Resource) error {
+		if req.Description != nil {
+			stored.Attrs["Description"] = *req.Description
+		}
+		if req.SecurityGroupIDs != nil {
+			stored.Attrs["SecurityGroupIds"] = req.SecurityGroupIDs
+		}
+		if req.LinkNic != nil && req.LinkNic.DeleteOnVMDeletion != nil {
+			link, _ := stored.Attrs["LinkNic"].(map[string]any)
+			if link == nil {
+				return errNicNotAttached
+			}
+			fresh := make(map[string]any, len(link)+1)
+			for k, v := range link {
+				fresh[k] = v
+			}
+			fresh["DeleteOnVmDeletion"] = *req.LinkNic.DeleteOnVMDeletion
+			stored.Attrs["LinkNic"] = fresh
+		}
+		stored.Updated = p.env.Now()
+		updated = stored
+		return nil
+	})
+	switch {
+	case errors.Is(err, errNicNotAttached):
+		p.badRequest(w, "NicId "+req.NicID+" is not attached, so its attachment cannot be updated")
+		return
+	case err != nil:
 		p.notFound(w, "nic", req.NicID)
 		return
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Nic":             p.storedNicView(res),
+		"Nic":             p.storedNicView(updated),
 		"ResponseContext": p.context(),
 	})
 }
@@ -221,7 +256,7 @@ func (p *Pack) updateRouteTableLink(w http.ResponseWriter, r *http.Request) {
 	// client that knew that would not need this call.
 	for _, table := range p.env.Store.List(kindRouteTable, resource.Tenant{Provider: Name}) {
 		links := listOf(table.Attrs["LinkRouteTables"])
-		for i, raw := range links {
+		for _, raw := range links {
 			link, _ := raw.(map[string]any)
 			if stringOf(link["LinkRouteTableId"]) != req.LinkRouteTableID {
 				continue
@@ -252,23 +287,48 @@ func (p *Pack) updateRouteTableLink(w http.ResponseWriter, r *http.Request) {
 			// fails without this.
 			//
 			// Copies, not mutations: nested values inside Attrs are shared with
-			// the store until Commit (resource.Clone documents it), so both the
-			// shrunk list and the moved link are built fresh.
-			rest := make([]any, 0, len(links)-1)
-			rest = append(rest, links[:i]...)
-			rest = append(rest, links[i+1:]...)
-			table.Attrs["LinkRouteTables"] = rest
-			if !p.env.Store.Commit(table, p.env.Now()) {
-				p.notFound(w, "route table", table.ID)
+			// the store (resource.Clone documents it), so the shrunk list, the
+			// grown list and the moved link are all built fresh. And each write
+			// runs inside the store lock, re-finding the link on the stored
+			// table: written back wholesale from the walk's clones, this erased
+			// a concurrent write to another field of either table — a route, a
+			// tag — after its 200 (#295).
+			var moved map[string]any
+			err := p.env.Store.Update(Name, kindRouteTable, table.ID, func(stored *resource.Resource) error {
+				held := listOf(stored.Attrs["LinkRouteTables"])
+				for j, rawHeld := range held {
+					current, _ := rawHeld.(map[string]any)
+					if stringOf(current["LinkRouteTableId"]) != req.LinkRouteTableID {
+						continue
+					}
+					rest := make([]any, 0, len(held)-1)
+					rest = append(rest, held[:j]...)
+					rest = append(rest, held[j+1:]...)
+					stored.Attrs["LinkRouteTables"] = rest
+					stored.Updated = p.env.Now()
+					moved = make(map[string]any, len(current)+1)
+					for k, v := range current {
+						moved[k] = v
+					}
+					return nil
+				}
+				return errRouteLinkMoved
+			})
+			if err != nil {
+				p.notFound(w, "route table link", req.LinkRouteTableID)
 				return
 			}
-			moved := make(map[string]any, len(link))
-			for k, v := range link {
-				moved[k] = v
-			}
 			moved["RouteTableId"] = req.RouteTableID
-			target.Attrs["LinkRouteTables"] = append(listOf(target.Attrs["LinkRouteTables"]), moved)
-			if !p.env.Store.Commit(target, p.env.Now()) {
+			err = p.env.Store.Update(Name, kindRouteTable, req.RouteTableID, func(stored *resource.Resource) error {
+				held := listOf(stored.Attrs["LinkRouteTables"])
+				grown := make([]any, 0, len(held)+1)
+				grown = append(grown, held...)
+				grown = append(grown, moved)
+				stored.Attrs["LinkRouteTables"] = grown
+				stored.Updated = p.env.Now()
+				return nil
+			})
+			if err != nil {
 				p.notFound(w, "route table", req.RouteTableID)
 				return
 			}

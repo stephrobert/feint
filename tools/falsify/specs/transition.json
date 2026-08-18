@@ -12,8 +12,8 @@
     {
       "label": "a failed write-back is retried unconditionally, and a deleted resource comes back",
       "file": "internal/core/machine/observe.go",
-      "find": "\t}); err != nil {\n\t\treturn nil, err\n\t}",
-      "replace": "\t}); err != nil {\n\t\tst.Put(res)\n\t\treturn res, nil\n\t}",
+      "find": "\tif !st.Commit(base, res, now()) {\n\t\treturn nil, store.ErrNotFound\n\t}",
+      "replace": "\tif !st.Commit(base, res, now()) {\n\t\tst.Put(res)\n\t\t_ = store.ErrNotFound\n\t\treturn res, nil\n\t}",
       "test": "TestADeleteLandingMidTransitionWins"
     },
     {

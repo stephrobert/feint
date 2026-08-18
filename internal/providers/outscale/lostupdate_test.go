@@ -7,7 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stephrobert/feint/internal/core/resource"
 	"github.com/stephrobert/feint/internal/core/store/storetest"
+	"github.com/stephrobert/feint/internal/providers/outscale"
 )
 
 // The same property as the two packs beside it, driven with this pack's own
@@ -368,4 +370,218 @@ func TestConcurrentTagCreatesKeepEveryAcknowledgedTag(t *testing.T) {
 func listAny(v any) []any {
 	out, _ := v.([]any)
 	return out
+}
+
+// The scalar half of the family, in the exact pair #295 measured: CreateTags,
+// under the store lock since #289, against LinkVolume, a clone-mutate-Commit
+// until this fix — two *different* handlers on one volume, which is the shape
+// the per-handler barrages above cannot see. Before the fix the issue's
+// reproduction lost the acknowledged tag 7/200 trials, and this repository's
+// re-measurement 11/200 (5 runs of 40, 2026-08-18); after it, 0/200.
+func TestConcurrentTagAndLinkKeepBothVolumeWrites(t *testing.T) {
+	ts, _ := newOutscaleBarrageServer(t)
+
+	_, out := post(t, ts, "CreateVms", `{"ImageId":"ami-12345678","VmType":"tinav4.c1r1p2"}`)
+	vms, _ := out["Vms"].([]any)
+	vm, _ := vms[0].(map[string]any)
+	vmID, _ := vm["VmId"].(string)
+	if vmID == "" {
+		t.Fatalf("create: no VmId in %v", out)
+	}
+
+	found := storetest.NoLostUpdate(40, func(trial int) []storetest.Write {
+		_, out := post(t, ts, "CreateVolume", `{"SubregionName":"eu-west-2a","Size":10}`)
+		volume, _ := out["Volume"].(map[string]any)
+		volID, _ := volume["VolumeId"].(string)
+		if volID == "" {
+			t.Fatalf("trial %d: no VolumeId in %v", trial, out)
+		}
+
+		readVolume := func() map[string]any {
+			_, out := post(t, ts, "ReadVolumes", `{"Filters":{"VolumeIds":["`+volID+`"]}}`)
+			volumes, _ := out["Volumes"].([]any)
+			if len(volumes) == 0 {
+				return nil
+			}
+			view, _ := volumes[0].(map[string]any)
+			return view
+		}
+
+		return []storetest.Write{
+			{
+				Field: "tag probe on " + volID,
+				Apply: func() bool {
+					status, _ := postRaw(ts, "CreateTags",
+						`{"ResourceIds":["`+volID+`"],"Tags":[{"Key":"probe","Value":"held"}]}`)
+					return status == http.StatusOK
+				},
+				Got: func() string {
+					view := readVolume()
+					if view == nil {
+						return "<the volume is gone>"
+					}
+					for _, raw := range listAny(view["Tags"]) {
+						tag, _ := raw.(map[string]any)
+						if tag["Key"] == "probe" {
+							return "stored"
+						}
+					}
+					return "lost"
+				},
+				Want: "stored",
+			},
+			{
+				Field: "link to " + vmID,
+				Apply: func() bool {
+					status, _ := postRaw(ts, "LinkVolume",
+						`{"VolumeId":"`+volID+`","VmId":"`+vmID+`","DeviceName":"/dev/xvdb"}`)
+					return status == http.StatusOK
+				},
+				Got: func() string {
+					view := readVolume()
+					if view == nil {
+						return "<the volume is gone>"
+					}
+					if len(listAny(view["LinkedVolumes"])) > 0 {
+						return "linked"
+					}
+					return "lost"
+				},
+				Want: "linked",
+			},
+		}
+	})
+
+	if len(found) > 0 {
+		t.Errorf("two different handlers on one volume lost an acknowledged write:\n%s", strings.Join(found, "\n"))
+	}
+}
+
+// The lifecycle half of #295: a tag write against a state transition on the
+// same Vm. StopVms goes through Binding.Observe, whose write-back replaced
+// State, Runtime and Attrs wholesale from the clone it took before the runtime
+// call — with no runtime configured the window is one handler's decode and the
+// loss measured 5/200 trials (2026-08-18); with a machine runtime, a launch
+// holds it open for seconds. The per-field merge in store.Commit closes it,
+// and this test drives both directions: the tag must survive the stop, and
+// the stop's state must survive the tag.
+func TestConcurrentTagAndStopKeepBothVmWrites(t *testing.T) {
+	ts, _ := newOutscaleBarrageServer(t)
+
+	found := storetest.NoLostUpdate(40, func(trial int) []storetest.Write {
+		_, out := post(t, ts, "CreateVms", `{"ImageId":"ami-12345678","VmType":"tinav4.c1r1p2"}`)
+		vms, _ := out["Vms"].([]any)
+		vm, _ := vms[0].(map[string]any)
+		vmID, _ := vm["VmId"].(string)
+		if vmID == "" {
+			t.Fatalf("trial %d: no VmId in %v", trial, out)
+		}
+
+		readVM := func() map[string]any {
+			_, out := post(t, ts, "ReadVms", `{"Filters":{"VmIds":["`+vmID+`"]}}`)
+			read, _ := out["Vms"].([]any)
+			if len(read) == 0 {
+				return nil
+			}
+			view, _ := read[0].(map[string]any)
+			return view
+		}
+
+		return []storetest.Write{
+			{
+				Field: "tag probe on " + vmID,
+				Apply: func() bool {
+					status, _ := postRaw(ts, "CreateTags",
+						`{"ResourceIds":["`+vmID+`"],"Tags":[{"Key":"probe","Value":"held"}]}`)
+					return status == http.StatusOK
+				},
+				Got: func() string {
+					view := readVM()
+					if view == nil {
+						return "<the Vm is gone>"
+					}
+					for _, raw := range listAny(view["Tags"]) {
+						tag, _ := raw.(map[string]any)
+						if tag["Key"] == "probe" {
+							return "stored"
+						}
+					}
+					return "lost"
+				},
+				Want: "stored",
+			},
+			{
+				Field: "stop of " + vmID,
+				Apply: func() bool {
+					status, _ := postRaw(ts, "StopVms", `{"VmIds":["`+vmID+`"]}`)
+					return status == http.StatusOK
+				},
+				Got: func() string {
+					view := readVM()
+					if view == nil {
+						return "<the Vm is gone>"
+					}
+					state, _ := view["State"].(string)
+					return state
+				},
+				Want: "stopped",
+			},
+		}
+	})
+
+	if len(found) > 0 {
+		t.Errorf("a lifecycle transition and a tag write on one Vm lost an acknowledged write:\n%s", strings.Join(found, "\n"))
+	}
+}
+
+// The second defect #295 named in updateNic, distinct from the lost update:
+// the handler wrote `link["DeleteOnVmDeletion"] = …` straight through the
+// clone's LinkNic map, and resource.Clone is shallow on Attrs values — that
+// map IS the stored one. The write was visible to every concurrent reader
+// before the write-back, and stayed behind even when the write-back failed.
+//
+// The stored LinkNic map only exists on state that arrived from outside —
+// PUT /_feint/state, `feint snapshot load` — because linkNic itself stores the
+// attachment as flat keys; the seeding below is that restore path, reduced.
+func TestUpdateNicDoesNotMutateTheStoredLinkInPlace(t *testing.T) {
+	ts, st := newOutscaleBarrageServer(t)
+
+	st.Put(&resource.Resource{
+		ID:     "eni-restored1",
+		Kind:   "nic",
+		Tenant: resource.Tenant{Provider: outscale.Name},
+		State:  "in-use",
+		Attrs: map[string]any{
+			"State": "in-use",
+			"LinkNic": map[string]any{
+				"LinkNicId":          "eni-attach-restored1",
+				"DeleteOnVmDeletion": false,
+			},
+			"Tags": []any{},
+		},
+	})
+
+	// A reader that resolved the NIC before the update: its clone shares the
+	// nested LinkNic map with the store, which is exactly why the handler must
+	// never write through it.
+	witness, found := st.Get(outscale.Name, "nic", "eni-restored1")
+	if !found {
+		t.Fatal("the seeded NIC is not in the store")
+	}
+
+	status, _ := post(t, ts, "UpdateNic",
+		`{"NicId":"eni-restored1","LinkNic":{"DeleteOnVmDeletion":true}}`)
+	if status != http.StatusOK {
+		t.Fatalf("UpdateNic answered %d, so this test measures nothing", status)
+	}
+
+	link, _ := witness.Attrs["LinkNic"].(map[string]any)
+	if flag, _ := link["DeleteOnVmDeletion"].(bool); flag {
+		t.Fatal("the update wrote through the shared map: a reader that resolved the NIC before the update saw the new value without any store write")
+	}
+	stored, _ := st.Get(outscale.Name, "nic", "eni-restored1")
+	storedLink, _ := stored.Attrs["LinkNic"].(map[string]any)
+	if flag, _ := storedLink["DeleteOnVmDeletion"].(bool); !flag {
+		t.Fatal("the update did not land at all")
+	}
 }

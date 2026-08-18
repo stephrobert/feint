@@ -149,9 +149,10 @@ func TestCommitDoesNotResurrectAReleasedAddress(t *testing.T) {
 	}
 	env.Store.Delete(Name, kindIPAMIP, id)
 
-	// What updateIPAMIP does with that clone.
+	// What updateIPAMIP did with that clone, before it moved under Store.Update.
+	base := stale.Clone()
 	stale.Attrs["tags"] = []string{"late"}
-	if pack.env.Store.Commit(stale, pack.env.Now()) {
+	if pack.env.Store.Commit(base, stale, pack.env.Now()) {
 		t.Error("Commit reported success on a resource the client had released")
 	}
 	if _, back := env.Store.Get(Name, kindIPAMIP, id); back {

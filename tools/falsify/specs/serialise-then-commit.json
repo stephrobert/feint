@@ -2,14 +2,6 @@
   "package": "./internal/providers/scaleway/",
   "mutations": [
     {
-      "label": "the update path stops ordering its target, and concurrent updates lose each other's fields",
-      "file": "internal/providers/scaleway/servers.go",
-      "find": "\t// TestConcurrentUpdatesKeepEveryAcknowledgedField fails without this line.\n\tunlock := p.binding().Serialise(id)\n\tdefer unlock()\n\n\tres, found := p.env.Store.Get(Name, kindServer, id)",
-      "replace": "\t// TestConcurrentUpdatesKeepEveryAcknowledgedField fails without this line.\n\tunlock := p.binding().Serialise(id)\n\tunlock()\n\n\tres, found := p.env.Store.Get(Name, kindServer, id)",
-      "test": "TestConcurrentUpdatesKeepEveryAcknowledgedField",
-      "repeat": 3
-    },
-    {
       "label": "a NIC create trusts nothing the hold could tell it, so a finished delete goes unseen",
       "file": "internal/providers/scaleway/privatenics.go",
       "find": "\tserver, found := p.env.Store.Get(Name, kindServer, serverID)\n\tif !found {\n\t\twriteNotFound(w, \"server\", serverID)\n\t\treturn nil, false\n\t}",
@@ -37,8 +29,8 @@
       "label": "Observe reinserts unconditionally, so a read resurrects a deleted resource",
       "package": "./internal/core/machine/",
       "file": "internal/core/machine/observe.go",
-      "find": "\tif err := st.Update(b.Provider, kind, id, func(stored *resource.Resource) error {",
-      "replace": "\tst.Put(res)\n\tif err := st.Update(b.Provider, kind, id, func(stored *resource.Resource) error {",
+      "find": "\tif !st.Commit(base, res, now()) {\n\t\treturn nil, store.ErrNotFound\n\t}",
+      "replace": "\tst.Put(res)\n\tif !st.Commit(base, res, now()) && false {\n\t\treturn nil, store.ErrNotFound\n\t}",
       "test": "TestObserveDoesNotResurrectADeletedTarget"
     },
     {
@@ -60,10 +52,10 @@
       "label": "UpdateVm goes back to dropping DeletionProtection, so protection cannot be cleared",
       "package": "./internal/providers/outscale/",
       "file": "internal/providers/outscale/vms.go",
-      "find": "\tif req.DeletionProtection != nil {\n\t\tres.Attrs[\"DeletionProtection\"] = *req.DeletionProtection\n\t}",
-      "replace": "\tif req.DeletionProtection != nil && false {\n\t\tres.Attrs[\"DeletionProtection\"] = *req.DeletionProtection\n\t}",
+      "find": "\t\tif req.DeletionProtection != nil {\n\t\t\tstored.Attrs[\"DeletionProtection\"] = *req.DeletionProtection\n\t\t}",
+      "replace": "\t\tif req.DeletionProtection != nil && false {\n\t\t\tstored.Attrs[\"DeletionProtection\"] = *req.DeletionProtection\n\t\t}",
       "test": "TestDeletionProtectionCanBeClearedByAnUpdate"
     }
   ],
-  "note": "Two mutations here went stale when #257 merged the two NIC doors into attachNIC and renamed server.ID to serverID: their fragments matched nothing, so they had silently stopped measuring. The per-server hold of attachNIC is falsified by one-attachment-two-doors.json (with `repeat`, the race being a coin toss per run) and is not repeated here. The re-read mutation cannot literally 'trust the pre-hold copy' any more — attachNIC receives only the id — so it does the equivalent: when the re-read answers not-found, it fabricates the server the way the old stale copy stood in for it, which is exactly what a handler working from a pre-delete read did. Measured 2026-08-17, thirty -count=1 runs per race in the harness's own out-of-tree copy: the update-path and re-read barrages both went red 30/30 — scheduler bets all the same, so `repeat: 3` turns the 10% false-green bound (rule of three, 95%) into under 0.1%. The Observe mutations carry no repeat: their tests stage the interleaving with channels or provoke it sequentially, and the reorder went red 5/5."
+  "note": "Two mutations here went stale when #257 merged the two NIC doors into attachNIC and renamed server.ID to serverID: their fragments matched nothing, so they had silently stopped measuring. The per-server hold of attachNIC is falsified by one-attachment-two-doors.json (with `repeat`, the race being a coin toss per run) and is not repeated here. The re-read mutation cannot literally 'trust the pre-hold copy' any more — attachNIC receives only the id — so it does the equivalent: when the re-read answers not-found, it fabricates the server the way the old stale copy stood in for it, which is exactly what a handler working from a pre-delete read did. Measured 2026-08-17, thirty -count=1 runs per race in the harness's own out-of-tree copy: the update-path and re-read barrages both went red 30/30 — scheduler bets all the same, so `repeat: 3` turns the 10% false-green bound (rule of three, 95%) into under 0.1%. The Observe mutations carry no repeat: their tests stage the interleaving with channels or provoke it sequentially, and the reorder went red 5/5. The update-path mutation was deleted on 2026-08-18, when #295 moved updateServer's read-check-write into Store.Update: with the hold released and only the store's critical section left, TestConcurrentUpdatesKeepEveryAcknowledgedField stayed green in the harness's copy, so the hold no longer carries that property and mutating it measured nothing. The property's guard today is falsified by lost-scalar-fields.json (the store-layer Commit merge and the stale-clone rewrites); the hold itself remains in the code for ordering the PATCH against serverAction's runtime window, a subject no current test stages."
 }

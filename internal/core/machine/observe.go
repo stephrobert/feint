@@ -58,6 +58,12 @@ func (b Binding) Observe(
 	if !found {
 		return nil, store.ErrNotFound
 	}
+	// The base of the write-back below: what look() changes relative to this
+	// clone is what gets written, and nothing else. The hold above orders the
+	// lifecycle writers; it cannot order a writer that does not take it — a
+	// CreateTags, a PATCH on another field — and the wholesale write this used
+	// to do erased exactly such a writer's acknowledged field (#295).
+	base := res.Clone()
 
 	// Outside the store lock on purpose: look() reaches the runtime, and holding
 	// a store-wide lock across a runtime call would queue every other request in
@@ -66,14 +72,8 @@ func (b Binding) Observe(
 		return res, nil
 	}
 
-	if err := st.Update(b.Provider, kind, id, func(stored *resource.Resource) error {
-		stored.State = res.State
-		stored.Runtime = res.Runtime
-		stored.Attrs = res.Attrs
-		stored.Updated = now()
-		return nil
-	}); err != nil {
-		return nil, err
+	if !st.Commit(base, res, now()) {
+		return nil, store.ErrNotFound
 	}
 	return res, nil
 }

@@ -2,6 +2,7 @@ package outscale
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/netip"
@@ -368,13 +369,29 @@ func (p *Pack) linkPublicIP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	linkID := newID("eipassoc", p.env.NewID())
-	address.Attrs["VmId"] = req.VMID
-	address.Attrs["NicId"] = nicID
-	address.Attrs["LinkPublicIpId"] = linkID
-	if privateIP != "" {
-		address.Attrs["PrivateIp"] = privateIP
-	}
-	if !p.env.Store.Commit(address, p.env.Now()) {
+	// The link is written in one critical section held by the store: as a
+	// Get-mutate-Commit sequence it erased a concurrent write to another field
+	// of the same address — its tags — after their 200 (#295). The NAT hold is
+	// re-checked in the same section, because it can appear between the check
+	// above and this write.
+	err := p.env.Store.Update(Name, kindPublicIP, address.ID, func(stored *resource.Resource) error {
+		if natID := stringOf(stored.Attrs["NatServiceId"]); natID != "" {
+			return errAddressHeldByNat
+		}
+		stored.Attrs["VmId"] = req.VMID
+		stored.Attrs["NicId"] = nicID
+		stored.Attrs["LinkPublicIpId"] = linkID
+		if privateIP != "" {
+			stored.Attrs["PrivateIp"] = privateIP
+		}
+		stored.Updated = p.env.Now()
+		return nil
+	})
+	switch {
+	case errors.Is(err, errAddressHeldByNat):
+		p.conflict(w, "the public IP "+address.ID+" is held by a NAT service")
+		return
+	case err != nil:
 		p.notFound(w, "public IP", address.ID)
 		return
 	}
@@ -422,12 +439,19 @@ func (p *Pack) unlinkPublicIP(w http.ResponseWriter, r *http.Request) {
 }
 
 // releasePublicIP drops the machine-side link, leaving the address allocated.
+//
+// Inside the store lock, on the stored address: releasing over the caller's
+// clone wrote the whole resource back and erased a concurrent write to another
+// field — a tag landing while a Vm terminates — after its 200 (#295).
 func (p *Pack) releasePublicIP(address *resource.Resource) {
-	delete(address.Attrs, "VmId")
-	delete(address.Attrs, "NicId")
-	delete(address.Attrs, "LinkPublicIpId")
-	delete(address.Attrs, "PrivateIp")
-	_ = p.env.Store.Commit(address, p.env.Now())
+	_ = p.env.Store.Update(Name, kindPublicIP, address.ID, func(stored *resource.Resource) error {
+		delete(stored.Attrs, "VmId")
+		delete(stored.Attrs, "NicId")
+		delete(stored.Attrs, "LinkPublicIpId")
+		delete(stored.Attrs, "PrivateIp")
+		stored.Updated = p.env.Now()
+		return nil
+	})
 }
 
 // publicIPByRef resolves an address by id or by value, the two ways every

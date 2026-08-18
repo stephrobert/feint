@@ -1,11 +1,17 @@
 package outscale
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/resource"
 )
+
+// errAddressHeldByNat is the refusal the NAT hold answers from inside the
+// store lock, where the holder cannot change underneath it (#295). The public
+// IP link path shares it: both are asking the same question of the same field.
+var errAddressHeldByNat = errors.New("the public IP is held by a NAT service")
 
 // NAT services: the egress a private subnet buys with a public IP.
 //
@@ -66,14 +72,28 @@ func (p *Pack) createNatService(w http.ResponseWriter, r *http.Request) {
 	}
 	p.env.Store.Put(res)
 
-	// The address is marked held. Commit rather than Put: a concurrent delete
-	// of the address must not be resurrected by this write.
-	address.Attrs["NatServiceId"] = res.ID
-	address.Attrs["LinkPublicIpId"] = newID("eipassoc", p.env.NewID())
-	if !p.env.Store.Commit(address, now) {
-		// The address vanished between the check and the write; the NAT service
-		// cannot hold what no longer exists.
+	// The address is marked held inside the store lock, holder re-checked
+	// there: as a Get-check-Commit sequence a concurrent hold could double-book
+	// the address, and the wholesale write erased a concurrent write to another
+	// field — the address's tags — after their 200 (#295). Update rather than
+	// Put also keeps a concurrent delete of the address deleted.
+	err := p.env.Store.Update(Name, kindPublicIP, address.ID, func(stored *resource.Resource) error {
+		if holder := stringOf(stored.Attrs["NatServiceId"]); holder != "" {
+			return errAddressHeldByNat
+		}
+		stored.Attrs["NatServiceId"] = res.ID
+		stored.Attrs["LinkPublicIpId"] = newID("eipassoc", p.env.NewID())
+		stored.Updated = now
+		return nil
+	})
+	if err != nil {
+		// Held or vanished between the check and the write; the NAT service
+		// cannot hold what it did not get.
 		p.env.Store.Delete(Name, kindNatService, res.ID)
+		if errors.Is(err, errAddressHeldByNat) {
+			p.conflict(w, "the public IP "+address.ID+" is already held by a NAT service")
+			return
+		}
 		p.notFound(w, "public IP", req.PublicIPID)
 		return
 	}
@@ -134,13 +154,21 @@ func (p *Pack) deleteNatService(w http.ResponseWriter, r *http.Request) {
 
 	// The address is released, exactly as the real teardown releases it. Best
 	// effort by construction: if the address is gone too, there is nothing to
-	// release.
+	// release. The hold is re-checked inside the lock, so a release cannot
+	// erase a hold — or any other field — written after the List (#295).
 	for _, address := range p.env.Store.List(kindPublicIP, resource.Tenant{Provider: Name}) {
-		if stringOf(address.Attrs["NatServiceId"]) == res.ID {
-			delete(address.Attrs, "NatServiceId")
-			delete(address.Attrs, "LinkPublicIpId")
-			_ = p.env.Store.Commit(address, p.env.Now())
+		if stringOf(address.Attrs["NatServiceId"]) != res.ID {
+			continue
 		}
+		_ = p.env.Store.Update(Name, kindPublicIP, address.ID, func(stored *resource.Resource) error {
+			if stringOf(stored.Attrs["NatServiceId"]) != res.ID {
+				return errAddressHeldByNat
+			}
+			delete(stored.Attrs, "NatServiceId")
+			delete(stored.Attrs, "LinkPublicIpId")
+			stored.Updated = p.env.Now()
+			return nil
+		})
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
 }

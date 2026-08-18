@@ -115,19 +115,30 @@ func (p *Pack) linkPrivateIps(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Written by Commit rather than Put: the NIC may have been deleted while the
-	// addresses were being computed, and Put would resurrect it.
-	added := secondaryAddresses(nic)
-	for _, address := range wanted {
-		if !contains(added, address) {
-			added = append(added, address)
+	// The merge runs under the store lock, on the stored address list rather
+	// than on the clone resolved above: merged into the clone and committed
+	// wholesale, this erased a concurrent write to another field of the same
+	// NIC — its tags, its description — after their 200 (#295). Update also
+	// keeps a NIC deleted while the addresses were being computed deleted,
+	// which is what Commit was here for.
+	var updated *resource.Resource
+	err = p.env.Store.Update(Name, kindNic, req.NicID, func(stored *resource.Resource) error {
+		added := secondaryAddresses(stored)
+		for _, address := range wanted {
+			if !contains(added, address) {
+				added = append(added, address)
+			}
 		}
-	}
-	p.setSecondaryAddresses(nic, added)
-	if !p.env.Store.Commit(nic, p.env.Now()) {
+		p.setSecondaryAddresses(stored, added)
+		stored.Updated = p.env.Now()
+		updated = stored
+		return nil
+	})
+	if err != nil {
 		p.notFound(w, "network interface", req.NicID)
 		return
 	}
+	nic = updated
 
 	// Released before the runtime is touched, and this line is the fix for a
 	// comment that described the opposite of what the code did (#216).
@@ -184,17 +195,27 @@ func (p *Pack) unlinkPrivateIps(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	kept := make([]string, 0, len(held))
-	for _, address := range held {
-		if !contains(req.PrivateIps, address) {
-			kept = append(kept, address)
+	// The removal recomputes from the stored list, under the lock, same reason
+	// as linkPrivateIps (#295).
+	var updated *resource.Resource
+	err := p.env.Store.Update(Name, kindNic, req.NicID, func(stored *resource.Resource) error {
+		current := secondaryAddresses(stored)
+		kept := make([]string, 0, len(current))
+		for _, address := range current {
+			if !contains(req.PrivateIps, address) {
+				kept = append(kept, address)
+			}
 		}
-	}
-	p.setSecondaryAddresses(nic, kept)
-	if !p.env.Store.Commit(nic, p.env.Now()) {
+		p.setSecondaryAddresses(stored, kept)
+		stored.Updated = p.env.Now()
+		updated = stored
+		return nil
+	})
+	if err != nil {
 		p.notFound(w, "network interface", req.NicID)
 		return
 	}
+	nic = updated
 	// Same release as the link path, and for the same reason.
 	unlock()
 	p.carrySecondary(r.Context(), nic)

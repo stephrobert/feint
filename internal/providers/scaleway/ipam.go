@@ -1,6 +1,7 @@
 package scaleway
 
 import (
+	"errors"
 	"net"
 	"net/http"
 	"net/netip"
@@ -10,6 +11,14 @@ import (
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/resource"
+)
+
+// The refusals the attachment paths answer from inside the store lock, where
+// the attachment they judge cannot move underneath them (#295).
+var (
+	errIPOnStandardResource = errors.New("the IP is attached to a standard resource")
+	errIPNotAttached        = errors.New("the IP is not attached to a resource")
+	errIPOnAnotherResource  = errors.New("the IP is attached to another resource")
 )
 
 // IPAM is how a client learns the address of a private NIC, and serving it is
@@ -517,33 +526,37 @@ func (p *Pack) updateIPAMIP(w http.ResponseWriter, r *http.Request) {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
 		return
 	}
-	if req.Tags != nil {
-		res.Attrs["tags"] = orEmpty(*req.Tags)
-	}
-	if req.Reverses != nil {
-		reverses := make([]any, 0, len(req.Reverses))
-		for _, reverse := range req.Reverses {
-			reverses = append(reverses, map[string]any{
-				"hostname": reverse["hostname"],
-				"address":  reverse["address"],
-			})
+	// Inside the store lock: the clone-mutate-Commit shape erased a concurrent
+	// write to another field of the same address — the attachment another
+	// handler had just acknowledged — after its 200 (#295). Update also keeps
+	// an address released while this PATCH was decoding released, which is
+	// what Commit was here for (TestCommitDoesNotResurrectAReleasedAddress
+	// holds that store-level half).
+	var updated *resource.Resource
+	err := p.env.Store.Update(Name, kindIPAMIP, res.ID, func(stored *resource.Resource) error {
+		if req.Tags != nil {
+			stored.Attrs["tags"] = orEmpty(*req.Tags)
 		}
-		res.Attrs["reverses"] = reverses
-	}
-	// Commit rather than Put: an address released while this PATCH was decoding
-	// must stay released, not come back carrying new tags.
-	//
-	// TestCommitDoesNotResurrectAReleasedAddress holds the store-level half. The
-	// handler-level race has no deterministic seam — a concurrent-HTTP test of it
-	// stayed green with Put restored — so this call site is the connection, read
-	// rather than triggered. Said plainly instead of citing a test that would not
-	// fail.
-	if !p.env.Store.Commit(res, p.env.Now()) {
+		if req.Reverses != nil {
+			reverses := make([]any, 0, len(req.Reverses))
+			for _, reverse := range req.Reverses {
+				reverses = append(reverses, map[string]any{
+					"hostname": reverse["hostname"],
+					"address":  reverse["address"],
+				})
+			}
+			stored.Attrs["reverses"] = reverses
+		}
+		stored.Updated = p.env.Now()
+		updated = stored
+		return nil
+	})
+	if err != nil {
 		writeNotFound(w, "ip", res.ID)
 		return
 	}
 
-	emulator.WriteJSON(w, http.StatusOK, p.ipamIPView(res))
+	emulator.WriteJSON(w, http.StatusOK, p.ipamIPView(updated))
 }
 
 // attachIPAMIP attaches a custom resource — a MAC the emulator does not manage.
@@ -568,7 +581,9 @@ func (p *Pack) attachIPAMIP(w http.ResponseWriter, r *http.Request) {
 		writePrecondition(w, "ip", res.ID, "IP is already attached to a resource")
 		return
 	}
-	p.setCustomAttachment(res, custom)
+	if !p.setCustomAttachment(w, res, custom) {
+		return
+	}
 	emulator.WriteJSON(w, http.StatusOK, p.ipamIPView(res))
 }
 
@@ -610,7 +625,9 @@ func (p *Pack) moveIPAMIP(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
-		p.setCustomAttachment(res, custom)
+		if !p.setCustomAttachment(w, res, custom) {
+			return
+		}
 	}
 	emulator.WriteJSON(w, http.StatusOK, p.ipamIPView(res))
 }
@@ -624,41 +641,88 @@ func (p *Pack) detachCustom(w http.ResponseWriter, res *resource.Resource, req *
 	if !ok {
 		return false
 	}
-	if res.Runtime[runtimeNICKey] != "" {
+	// The checks and the removal run on the stored address, under the store
+	// lock, never on the caller's clone: checked outside and committed
+	// wholesale, this erased a concurrent write to another field of the same
+	// address — its tags — after their 200 (#295). Update also keeps an
+	// address released while this was deciding released, which is what the
+	// Commit it replaces was here for.
+	err := p.env.Store.Update(Name, kindIPAMIP, res.ID, func(stored *resource.Resource) error {
+		if stored.Runtime[runtimeNICKey] != "" {
+			return errIPOnStandardResource
+		}
+		current, _ := stored.Attrs[attrCustomMAC].(string)
+		if current == "" {
+			return errIPNotAttached
+		}
+		if current != custom.MacAddress {
+			return errIPOnAnotherResource
+		}
+		delete(stored.Attrs, attrCustomMAC)
+		delete(stored.Attrs, attrCustomName)
+		stored.Updated = p.env.Now()
+		return nil
+	})
+	switch {
+	case errors.Is(err, errIPOnStandardResource):
 		writePrecondition(w, "ip", res.ID, "IP is attached to a standard resource, managed by its own product")
 		return false
-	}
-	current, _ := res.Attrs[attrCustomMAC].(string)
-	if current == "" {
+	case errors.Is(err, errIPNotAttached):
 		writePrecondition(w, "ip", res.ID, "IP is not attached to a resource")
 		return false
-	}
-	if current != custom.MacAddress {
+	case errors.Is(err, errIPOnAnotherResource):
 		writeInvalidArguments(w, ArgumentError{
 			ArgumentName: argument + ".mac_address",
 			Reason:       "constraint",
 			HelpMessage:  "the IP is not attached to this resource",
 		})
 		return false
+	case err != nil:
+		// Released while this was deciding, which is not an error: the client
+		// asked for a detached address and the address is gone entirely.
+		return true
 	}
+	// The caller's clone keeps rendering the view, so it follows the store.
 	delete(res.Attrs, attrCustomMAC)
 	delete(res.Attrs, attrCustomName)
-	// Commit, never Put. Put re-inserts unconditionally, so a release that landed
-	// while this was deciding is undone and the address comes back — the
-	// resurrection CLAUDE.md records as already paid for three times. A false
-	// return means the client released it meanwhile, which is not an error.
-	p.env.Store.Commit(res, p.env.Now())
 	return true
 }
 
-func (p *Pack) setCustomAttachment(res *resource.Resource, custom *customResourceRequest) {
+// setCustomAttachment writes the attachment and reports whether the address
+// was still free to take. The exclusivity check runs inside the same critical
+// section as the write: on the caller's clone, two concurrent attaches both
+// passed it and the loser silently overwrote the winner (#295).
+func (p *Pack) setCustomAttachment(w http.ResponseWriter, res *resource.Resource, custom *customResourceRequest) bool {
+	err := p.env.Store.Update(Name, kindIPAMIP, res.ID, func(stored *resource.Resource) error {
+		if ipamAttached(stored) {
+			mac, _ := stored.Attrs[attrCustomMAC].(string)
+			if mac != custom.MacAddress {
+				return errIPOnAnotherResource
+			}
+		}
+		stored.Attrs[attrCustomMAC] = custom.MacAddress
+		delete(stored.Attrs, attrCustomName)
+		if custom.Name != nil {
+			stored.Attrs[attrCustomName] = *custom.Name
+		}
+		stored.Updated = p.env.Now()
+		return nil
+	})
+	switch {
+	case errors.Is(err, errIPOnAnotherResource):
+		writePrecondition(w, "ip", res.ID, "IP is already attached to a resource")
+		return false
+	case err != nil:
+		writeNotFound(w, "ip", res.ID)
+		return false
+	}
+	// The caller's clone keeps rendering the view, so it follows the store.
 	res.Attrs[attrCustomMAC] = custom.MacAddress
 	delete(res.Attrs, attrCustomName)
 	if custom.Name != nil {
 		res.Attrs[attrCustomName] = *custom.Name
 	}
-	// Commit rather than Put, for the reason detachCustom gives.
-	p.env.Store.Commit(res, p.env.Now())
+	return true
 }
 
 // newIPAMIP records the address a private NIC received, as the resource a

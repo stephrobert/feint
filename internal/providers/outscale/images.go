@@ -170,8 +170,7 @@ func (p *Pack) updateImage(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
-	res, found := p.env.Store.Get(Name, kindImage, req.ImageID)
-	if !found {
+	if _, found := p.env.Store.Get(Name, kindImage, req.ImageID); !found {
 		// A catalogue image is not the client's to change, and saying so beats
 		// answering success on an object that will read back unchanged.
 		if isCatalogueImage(req.ImageID) {
@@ -181,12 +180,6 @@ func (p *Pack) updateImage(w http.ResponseWriter, r *http.Request) {
 		p.notFound(w, "image", req.ImageID)
 		return
 	}
-	if req.Description != "" {
-		res.Attrs["Description"] = req.Description
-	}
-	if len(req.ProductCodes) > 0 {
-		res.Attrs["ProductCodes"] = toAnySlice(req.ProductCodes)
-	}
 	// PermissionsToLaunch is the cross-account grant, and this emulator has one
 	// implicit account: the additions name nobody it knows. Refused rather than
 	// recorded, for the reason UpdateSnapshot is declined outright.
@@ -194,12 +187,27 @@ func (p *Pack) updateImage(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, "PermissionsToLaunch grants to another account, and this emulator has one implicit account")
 		return
 	}
-	if !p.env.Store.Commit(res, p.env.Now()) {
+	// Inside the store lock: written back wholesale from a clone, this erased a
+	// concurrent write to another field of the same image — its tags — after
+	// their 200 (#295).
+	var updated *resource.Resource
+	err := p.env.Store.Update(Name, kindImage, req.ImageID, func(stored *resource.Resource) error {
+		if req.Description != "" {
+			stored.Attrs["Description"] = req.Description
+		}
+		if len(req.ProductCodes) > 0 {
+			stored.Attrs["ProductCodes"] = toAnySlice(req.ProductCodes)
+		}
+		stored.Updated = p.env.Now()
+		updated = stored
+		return nil
+	})
+	if err != nil {
 		p.notFound(w, "image", req.ImageID)
 		return
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Image":           imageView(res),
+		"Image":           imageView(updated),
 		"ResponseContext": p.context(),
 	})
 }
