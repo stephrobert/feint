@@ -306,11 +306,16 @@ func (p *Pack) Declined() []emulator.Decline {
 	// of this file is that additions are seen. The scan reports a new operation
 	// as untriaged even inside a family already refused, and somebody decides.
 	//
-	// What is NOT here is the IaaS surface — instances, block storage, private
-	// networks, elastic IPs, security groups, load balancers, snapshots,
-	// templates, anti-affinity groups, VPCs. Those are the work list this pack is
-	// built to serve, and declining them to flatten the report would be the
-	// widened denominator docs/roadmap.md forbids.
+	// What is NOT here is the served IaaS surface — instances, block storage,
+	// private networks, elastic IPs, security groups, snapshots, templates,
+	// anti-affinity groups. Declining any of those to flatten the report would
+	// be the widened denominator docs/roadmap.md forbids.
+	//
+	// Two IaaS families ARE here, and they are not that: the network load
+	// balancer and the VPC each carry the demand measured by the fifteen-stack
+	// survey (examples/stacks/surveyed.md) and name the roadmap batch that owns
+	// the decision to serve them. Their refusal replaces silence until that
+	// decision is made; it does not make it.
 	return slices.Concat(
 		// Managed databases: PostgreSQL, MySQL, Kafka, OpenSearch, Valkey,
 		// ClickHouse, Grafana, their users, their settings, their integrations
@@ -633,6 +638,65 @@ func (p *Pack) Declined() []emulator.Decline {
 			"exoscale/v2.get-impact-report",
 			"exoscale/v2.get-live-balance",
 			"exoscale/v2.get-usage-report"),
+
+		// The network load balancer, whole: the balancer, its services, and
+		// the two per-field resets.
+		//
+		// Not out of scope — batch EXO-5 (#14) is scoped to serve it, and #284
+		// holds the decision. This entry does not make that decision; it only
+		// ends the silence around it, which is the one state this file exists
+		// to forbid. What blocks a cheap serve today is the schema itself:
+		// `load-balancer-service.healthcheck-status` is a read-only,
+		// per-backend verdict whose enum is `success` or `failure` with no
+		// third value, so an emulator that probes no backend has to invent one
+		// of the two for every server of every pool a service targets. The
+		// survey puts a number on the demand: one stack of the fifteen reaches
+		// this refusal (PhilippeChepy/platform, `exoscale_nlb` plus five
+		// `exoscale_nlb_service`, replayed 2026-08-18), and its apply survives
+		// it — 19 resources, the NLB branch alone refused by name.
+		emulator.Because("a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
+			"exoscale/v2.add-service-to-load-balancer",
+			"exoscale/v2.create-load-balancer",
+			"exoscale/v2.delete-load-balancer",
+			"exoscale/v2.delete-load-balancer-service",
+			"exoscale/v2.get-load-balancer",
+			"exoscale/v2.get-load-balancer-service",
+			"exoscale/v2.list-load-balancers",
+			"exoscale/v2.reset-load-balancer-field",
+			"exoscale/v2.reset-load-balancer-service-field",
+			"exoscale/v2.update-load-balancer",
+			"exoscale/v2.update-load-balancer-service"),
+
+		// The VPC family: VPCs, their subnets, instance attachment and
+		// detachment, and routes at both the VPC and the subnet level. A
+		// different product from the private networks this pack serves —
+		// upstream publishes /private-network and /vpc side by side.
+		//
+		// Every summary of the family reads "[BETA]" in the upstream API
+		// description (source.yaml, synced 2026-08-18), and no stack of the
+		// fifteen surveyed asks for the product at all
+		// (examples/stacks/surveyed.md). Batch EXO-6 (#15) owns serving it —
+		// scoped when the family counted 9 operations; it counts 16 now, which
+		// is exactly the drift this gate exists to surface, and is recorded on
+		// the issue. The beta marker is in the reason on purpose: upstream
+		// removing it is the event that re-opens the question here.
+		emulator.Because("upstream marks all sixteen VPC operations beta, and none of the fifteen surveyed stacks asks for the product (2026-08); emulating a surface still allowed to rename its fields means chasing upstream instead of clients, and serving the VPC once it settles belongs to batch EXO-6 (#15)",
+			"exoscale/v2.attach-instance-to-subnet",
+			"exoscale/v2.create-route",
+			"exoscale/v2.create-subnet",
+			"exoscale/v2.create-vpc",
+			"exoscale/v2.delete-route",
+			"exoscale/v2.delete-subnet",
+			"exoscale/v2.delete-vpc",
+			"exoscale/v2.detach-instance-from-subnet",
+			"exoscale/v2.get-subnet",
+			"exoscale/v2.get-vpc",
+			"exoscale/v2.list-routes",
+			"exoscale/v2.list-subnets",
+			"exoscale/v2.list-vpc-routes",
+			"exoscale/v2.list-vpcs",
+			"exoscale/v2.update-subnet",
+			"exoscale/v2.update-vpc"),
 	)
 }
 

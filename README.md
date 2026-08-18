@@ -686,12 +686,12 @@ what this emulator serves, declines on purpose, or has not triaged yet.
 #### Exoscale
 
 93 routes mounted. Of the 374 operations upstream declares: 24% served,
-67% declined on purpose, 7% untriaged.
+75% declined on purpose, 0% untriaged.
 
 | Group | Served | Declined | Untriaged | Upstream |
 |---|--:|--:|--:|--:|
 | `dbaas` | 0 | 146 | 0 | 146 |
-| `compute` | 74 | 10 | 27 | 111 |
+| `compute` | 74 | 37 | 0 | 111 |
 | `sks` | 0 | 25 | 0 | 25 |
 | `ai` | 0 | 22 | 0 | 22 |
 | `iam` | 0 | 18 | 0 | 18 |
@@ -699,7 +699,7 @@ what this emulator serves, declines on purpose, or has not triaged yet.
 | `block-storage` | 13 | 0 | 0 | 13 |
 | `dns` | 0 | 10 | 0 | 10 |
 | *… 6 smaller groups* | 6 | 7 | 0 | 13 |
-| **Total** | **93** | **254** | **27** | **374** |
+| **Total** | **93** | **281** | **0** | **374** |
 
 #### Outscale
 
