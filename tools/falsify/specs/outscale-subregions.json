@@ -18,9 +18,16 @@
     {
       "label": "the catalogue declares one subregion again, and subregions[1] — the index the ocp stack reads — names nothing (#269)",
       "file": "internal/providers/outscale/catalog.go",
-      "find": "\tout := make([]map[string]any, 0, len(subregions))\n\tfor _, subregion := range subregions {",
-      "replace": "\tout := make([]map[string]any, 0, len(subregions))\n\tfor _, subregion := range subregions[:1] {",
+      "find": "\tout := make([]map[string]any, 0, len(p.subregions))\n\tfor _, subregion := range p.subregions {",
+      "replace": "\tout := make([]map[string]any, 0, len(p.subregions))\n\tfor _, subregion := range p.subregions[:1] {",
       "test": "TestReadSubregionsDeclaresTheRegionsSubregions"
+    },
+    {
+      "label": "the region is a constant again: whatever a caller selects, the pack builds eu-west-2, which is the #269 defect one level up (#290)",
+      "file": "internal/providers/outscale/pack.go",
+      "find": "\tsubs, _ := subregionsOf(region)",
+      "replace": "\tregion = defaultRegionName + region[:0]\n\tsubs, _ := subregionsOf(region)",
+      "test": "TestANonDefaultRegionAgreesWithItself"
     }
   ]
 }

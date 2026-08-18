@@ -54,7 +54,12 @@ import (
 //     never omitted, and keeping it would let the list rot into fiction.
 func checkShapes(dir string, providers []string, stdout, stderr io.Writer) int {
 	env := emulator.DefaultEnv()
-	srv, err := emulator.NewServer(env, packsFor(env)...)
+	packs, err := packsFor(env)
+	if err != nil {
+		fmt.Fprintf(stderr, "feint: build the emulator: %v\n", err)
+		return exitError
+	}
+	srv, err := emulator.NewServer(env, packs...)
 	if err != nil {
 		fmt.Fprintf(stderr, "feint: build the emulator: %v\n", err)
 		return exitError

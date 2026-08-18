@@ -461,8 +461,27 @@ func loadContracts(dir string) (map[string]*contract.Doc, error) {
 // so a test can hand over a pack of its own — the hardwired list was what made
 // coverage()'s own gate untestable, and an audit named it three times before it
 // was worth the seam. Production never assigns it.
-var packsFor = func(env *emulator.Env) []emulator.Pack {
-	return []emulator.Pack{scaleway.New(env), outscale.New(env), exoscale.New(env)}
+//
+// FEINT_OUTSCALE_REGION selects the Outscale region, because at Outscale a
+// region is a property of the deployment — which endpoint a client points at —
+// never of the API surface, and #269 had frozen it into a constant (#290). An
+// environment variable rather than a flag because every entry point that
+// mounts packs (serve, probe, proxy, shapes) must agree on it without each
+// growing an option, and it is read here, in the composition root, so the
+// packs stay constructor-configured and the core learns no provider name.
+// Unset keeps eu-west-2, exactly the previous behaviour; a region Outscale
+// does not publish refuses to serve rather than silently answering the
+// default, which would be #268's lie moved to startup.
+// TestAnUnknownOutscaleRegionRefusesToServe fails without the refusal.
+var packsFor = func(env *emulator.Env) ([]emulator.Pack, error) {
+	osc := outscale.New(env)
+	if region := os.Getenv("FEINT_OUTSCALE_REGION"); region != "" {
+		var err error
+		if osc, err = outscale.NewInRegion(env, region); err != nil {
+			return nil, fmt.Errorf("FEINT_OUTSCALE_REGION: %w", err)
+		}
+	}
+	return []emulator.Pack{scaleway.New(env), osc, exoscale.New(env)}, nil
 }
 
 // newServer builds the emulator with every pack mounted. With contracts, every
@@ -470,7 +489,11 @@ var packsFor = func(env *emulator.Env) []emulator.Pack {
 func newServer(contracts map[string]*contract.Doc) (*emulator.Server, *emulator.Env, error) {
 	env := emulator.DefaultEnv()
 	env.Contracts = contracts
-	srv, err := emulator.NewServer(env, packsFor(env)...)
+	packs, err := packsFor(env)
+	if err != nil {
+		return nil, nil, err
+	}
+	srv, err := emulator.NewServer(env, packs...)
 	if err != nil {
 		return nil, nil, err
 	}

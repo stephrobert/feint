@@ -386,6 +386,21 @@ oapi-cli --config /tmp/osc.json ReadVms
 is `/api/v1/<Call>`; pointing it here fails for a reason that says nothing about
 the emulator.
 
+At Outscale every region is served by the same API — the region is a property
+of the endpoint a client points at, not of the API surface — so the emulator's
+single endpoint chooses one region per process. It is `eu-west-2` unless
+`FEINT_OUTSCALE_REGION` selects another of the regions Outscale publishes:
+
+```bash
+FEINT_OUTSCALE_REGION=cloudgouv-eu-west-1 feint serve   # the SecNumCloud region
+```
+
+The subregion catalogue (`ReadSubregions`) and every write path that validates
+a `SubregionName` follow the selected region together, so a stack pinned to
+`cloudgouv-eu-west-1a/b/c` applies against a deployment that declares those
+zones. A value Outscale does not publish refuses to serve, naming what would
+have been accepted.
+
 ### Exoscale — the `exo` CLI
 
 `exo` is redirected through the `EXOSCALE_API_ENDPOINT` environment variable, or

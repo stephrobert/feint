@@ -27,7 +27,11 @@ import (
 // It fails on the code before the fix.
 func TestStatusCountsWhatAClientDrove(t *testing.T) {
 	env := emulator.DefaultEnv()
-	srv, err := emulator.NewServer(env, packsFor(env)...)
+	packs, err := packsFor(env)
+	if err != nil {
+		t.Fatalf("build the packs: %v", err)
+	}
+	srv, err := emulator.NewServer(env, packs...)
 	if err != nil {
 		t.Fatalf("build the server: %v", err)
 	}

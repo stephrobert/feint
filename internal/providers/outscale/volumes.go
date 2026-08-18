@@ -54,8 +54,8 @@ func (p *Pack) createVolume(w http.ResponseWriter, r *http.Request) {
 	// Required is not enough: a zone the catalogue does not declare is refused
 	// rather than stored, so the write path and ReadSubregions cannot
 	// contradict each other (#269).
-	if !knownSubregion(req.SubregionName) {
-		p.badRequest(w, "the Subregion "+req.SubregionName+" does not exist in "+regionName)
+	if !p.knownSubregion(req.SubregionName) {
+		p.badRequest(w, "the Subregion "+req.SubregionName+" does not exist in "+p.region)
 		return
 	}
 	size := req.Size
@@ -389,7 +389,7 @@ func (p *Pack) readVmsState(w http.ResponseWriter, r *http.Request) {
 		// report, and a client filtering by zone got every zone back.
 		if !matchesStrings(req.Filters, "VmIds", res.ID) ||
 			!matchesStrings(req.Filters, "VmStates", res.State) ||
-			!matchesStrings(req.Filters, "SubregionNames", vmSubregion(res)) {
+			!matchesStrings(req.Filters, "SubregionNames", p.vmSubregion(res)) {
 			continue
 		}
 		out = append(out, map[string]any{
@@ -397,7 +397,7 @@ func (p *Pack) readVmsState(w http.ResponseWriter, r *http.Request) {
 			"VmState": res.State,
 			// The machine's own zone, through the same door every other read
 			// answers from (#268) — this was the pack's constant too.
-			"SubregionName":     vmSubregion(res),
+			"SubregionName":     p.vmSubregion(res),
 			"MaintenanceEvents": []any{},
 		})
 	}

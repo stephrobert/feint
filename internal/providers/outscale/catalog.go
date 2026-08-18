@@ -2,6 +2,7 @@ package outscale
 
 import (
 	"net/http"
+	"sort"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/machine"
@@ -20,40 +21,76 @@ import (
 // numbers beside them are plausible rather than measured, and docs/limits.md
 // says so: an emulator has no capacity to report.
 
-// Region is where the emulated account lives. One region, because a second one
-// would need its own store scoping and buys nothing until something tests it.
-const (
-	regionName = "eu-west-2"
-	// defaultSubregionName is where anything lands when the client names no
-	// subregion — the API's own behaviour for a create outside a Net.
-	defaultSubregionName = "eu-west-2a"
-)
+// defaultRegionName is where the emulated account lives when nobody chooses:
+// one region per emulator instance, because at Outscale a region is not a
+// property of the API surface — every region speaks the same API — but of the
+// deployment, i.e. which endpoint a client is pointed at. What #290 corrected
+// is the *which*: #269 rightly made the catalogue the authority every write
+// path checks, then froze it on this constant, which re-created the defect
+// #268/#269 were about one level up — a datum written as a constant. The
+// region is now the pack's datum (Pack.region), selected at construction, and
+// everything regional follows it.
+const defaultRegionName = "eu-west-2"
 
-// subregions is the catalogue of the region's own subregions: both of them,
-// because Outscale's published reference ("Regions, Endpoints, and Subregions
-// Reference", docs.outscale.com) lists exactly two for eu-west-2, mapped to
-// the physical zones PAR1 and PAR2. One region was a justified constant (store
-// scoping); one *subregion* never was, and #269 measured what the gap breaks:
-// a stack that asks ReadSubregions where it may put things — the recommended
-// pattern, `data "outscale_subregions"` indexed at [1] — died on "list of
-// object with 1 element" while a stack hardcoding its zone sailed through.
-//
-// This table is also the authority the write paths check against
-// (knownSubregion): CreateSubnet used to accept `cloudgouv-eu-west-1a`
-// verbatim while this catalogue claimed one AZ existed, so what a create
-// accepted and what the catalogue declared contradicted each other. Whichever
-// side a client believed, the other one lied to it.
-var subregions = []map[string]any{
-	{"SubregionName": "eu-west-2a", "RegionName": regionName, "LocationCode": "PAR1", "State": "available"},
-	{"SubregionName": "eu-west-2b", "RegionName": regionName, "LocationCode": "PAR2", "State": "available"},
+// regionCatalogue is every region Outscale publishes, with its physical zones
+// in subregion order. Source: docs.outscale.com, "About Regions and
+// Subregions", "Mapping Between Subregions and Physical Zones" (fetched
+// 2026-08-18). Subregion names are the region plus a letter, which is the
+// published naming for all five regions. The reference also says the
+// subregion-to-zone mapping is randomly drawn per account; this account maps
+// them in table order, which is one of the mappings a real account can get.
+var regionCatalogue = map[string][]string{
+	"eu-west-2":           {"PAR1", "PAR4", "PAR7"},
+	"us-east-2":           {"NJ1", "NJ2"},
+	"us-west-1":           {"SV1", "SV2"},
+	"cloudgouv-eu-west-1": {"SEC1", "SEC2", "SEC3"},
+	"ap-northeast-1":      {"JPN1", "JPN2"},
+}
+
+// regionNames lists what regionCatalogue knows, sorted, for the error a
+// misspelt selection gets: a refusal that does not say what would have been
+// accepted sends the operator back to the source code.
+func regionNames() []string {
+	names := make([]string, 0, len(regionCatalogue))
+	for name := range regionCatalogue {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// subregionsOf renders the region's subregions in the ReadSubregions shape,
+// and reports whether Outscale publishes such a region at all. The rows of
+// the region actually in force, never a union across regions: a catalogue
+// declaring zones its own write paths refuse would be #269 in the other
+// direction.
+func subregionsOf(region string) ([]map[string]any, bool) {
+	codes, ok := regionCatalogue[region]
+	if !ok {
+		return nil, false
+	}
+	out := make([]map[string]any, 0, len(codes))
+	for i, code := range codes {
+		out = append(out, map[string]any{
+			"SubregionName": region + string(rune('a'+i)),
+			"RegionName":    region,
+			"LocationCode":  code,
+			"State":         "available",
+		})
+	}
+	return out, true
 }
 
 // knownSubregion reports whether the catalogue declares the subregion. Every
 // write path that takes a SubregionName asks this before storing, so the
 // catalogue and the creates cannot disagree about which zones exist —
-// TestWhatACreateAcceptsTheCatalogueDeclares fails without it.
-func knownSubregion(name string) bool {
-	for _, subregion := range subregions {
+// TestWhatACreateAcceptsTheCatalogueDeclares fails without it, and
+// TestANonDefaultRegionAgreesWithItself holds it whichever region is in
+// force. #269 measured the contradiction it closes: CreateSubnet accepted
+// `cloudgouv-eu-west-1a` verbatim while ReadSubregions declared one AZ, and
+// whichever side a client believed, the other one lied to it.
+func (p *Pack) knownSubregion(name string) bool {
+	for _, subregion := range p.subregions {
 		if subregion["SubregionName"] == name {
 			return true
 		}
@@ -268,7 +305,7 @@ func (p *Pack) readRegions(w http.ResponseWriter, r *http.Request) {
 	// real cloud, which is the one thing an emulator must never do.
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"Regions": []map[string]any{
-			{"RegionName": regionName, "Endpoint": emulator.EndpointOf(r)},
+			{"RegionName": p.region, "Endpoint": emulator.EndpointOf(r)},
 		},
 		"ResponseContext": p.context(),
 	})
@@ -292,8 +329,8 @@ func (p *Pack) readSubregions(w http.ResponseWriter, r *http.Request) {
 	if p.refuseUnsupported(w, req.Filters, "SubregionNames", "RegionNames", "States") {
 		return
 	}
-	out := make([]map[string]any, 0, len(subregions))
-	for _, subregion := range subregions {
+	out := make([]map[string]any, 0, len(p.subregions))
+	for _, subregion := range p.subregions {
 		if !matchesStrings(req.Filters, "SubregionNames", stringOf(subregion["SubregionName"])) ||
 			!matchesStrings(req.Filters, "RegionNames", stringOf(subregion["RegionName"])) ||
 			!matchesStrings(req.Filters, "States", stringOf(subregion["State"])) {
@@ -315,14 +352,19 @@ func (p *Pack) readSubregions(w http.ResponseWriter, r *http.Request) {
 // it. The ids are stable so a client can hardcode one, and the ranges are
 // TEST-NET blocks (RFC 5737): a documented-fictional address for a fictional
 // facility, matching what ReadPublicIpRanges publishes.
-var netAccessPointServices = []map[string]any{
-	{"ServiceId": "pl-00000001", "ServiceName": "com.outscale." + regionName + ".api", "IpRanges": []any{"192.0.2.0/24"}},
-	{"ServiceId": "pl-00000002", "ServiceName": "com.outscale." + regionName + ".fcu", "IpRanges": []any{"192.0.2.0/24"}},
-	{"ServiceId": "pl-00000003", "ServiceName": "com.outscale." + regionName + ".lbu", "IpRanges": []any{"192.0.2.0/24"}},
-	{"ServiceId": "pl-00000004", "ServiceName": "com.outscale." + regionName + ".eim", "IpRanges": []any{"192.0.2.0/24"}},
-	{"ServiceId": "pl-00000005", "ServiceName": "com.outscale." + regionName + ".icu", "IpRanges": []any{"192.0.2.0/24"}},
-	{"ServiceId": "pl-00000006", "ServiceName": "com.outscale." + regionName + ".oos", "IpRanges": []any{"198.51.100.0/24"}},
-	{"ServiceId": "pl-00000007", "ServiceName": "com.outscale." + regionName + ".directlink", "IpRanges": []any{"198.51.100.0/24"}},
+//
+// Built per pack rather than held in a package variable since #290, because
+// the region the names carry is the pack's datum, not the package's constant.
+func netAccessPointServices(region string) []map[string]any {
+	return []map[string]any{
+		{"ServiceId": "pl-00000001", "ServiceName": "com.outscale." + region + ".api", "IpRanges": []any{"192.0.2.0/24"}},
+		{"ServiceId": "pl-00000002", "ServiceName": "com.outscale." + region + ".fcu", "IpRanges": []any{"192.0.2.0/24"}},
+		{"ServiceId": "pl-00000003", "ServiceName": "com.outscale." + region + ".lbu", "IpRanges": []any{"192.0.2.0/24"}},
+		{"ServiceId": "pl-00000004", "ServiceName": "com.outscale." + region + ".eim", "IpRanges": []any{"192.0.2.0/24"}},
+		{"ServiceId": "pl-00000005", "ServiceName": "com.outscale." + region + ".icu", "IpRanges": []any{"192.0.2.0/24"}},
+		{"ServiceId": "pl-00000006", "ServiceName": "com.outscale." + region + ".oos", "IpRanges": []any{"198.51.100.0/24"}},
+		{"ServiceId": "pl-00000007", "ServiceName": "com.outscale." + region + ".directlink", "IpRanges": []any{"198.51.100.0/24"}},
+	}
 }
 
 func (p *Pack) readNetAccessPointServices(w http.ResponseWriter, r *http.Request) {
@@ -338,8 +380,9 @@ func (p *Pack) readNetAccessPointServices(w http.ResponseWriter, r *http.Request
 	if p.refuseUnsupported(w, req.Filters, "ServiceIds", "ServiceNames") {
 		return
 	}
-	out := make([]map[string]any, 0, len(netAccessPointServices))
-	for _, service := range netAccessPointServices {
+	services := netAccessPointServices(p.region)
+	out := make([]map[string]any, 0, len(services))
+	for _, service := range services {
 		if !matchesStrings(req.Filters, "ServiceIds", service["ServiceId"].(string)) ||
 			!matchesStrings(req.Filters, "ServiceNames", service["ServiceName"].(string)) {
 			continue

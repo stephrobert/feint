@@ -42,7 +42,11 @@ func TestEveryUndrivenOperationSaysWhy(t *testing.T) {
 	}
 
 	env := emulator.DefaultEnv()
-	srv, err := emulator.NewServer(env, packsFor(env)...)
+	packs, err := packsFor(env)
+	if err != nil {
+		t.Fatalf("build the packs: %v", err)
+	}
+	srv, err := emulator.NewServer(env, packs...)
 	if err != nil {
 		t.Fatalf("build the emulator: %v", err)
 	}
@@ -98,7 +102,11 @@ func TestEveryUndrivenOperationSaysWhy(t *testing.T) {
 // happened to the declines before they were folded into one shape.
 func TestAnUndrivenReasonReadsOnItsOwn(t *testing.T) {
 	env := emulator.DefaultEnv()
-	srv, err := emulator.NewServer(env, packsFor(env)...)
+	packs, err := packsFor(env)
+	if err != nil {
+		t.Fatalf("build the packs: %v", err)
+	}
+	srv, err := emulator.NewServer(env, packs...)
 	if err != nil {
 		t.Fatalf("build the emulator: %v", err)
 	}

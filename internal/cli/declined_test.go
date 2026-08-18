@@ -148,8 +148,8 @@ func TestCoverageRefusesAPackWithUnusableRefusals(t *testing.T) {
 	original := packsFor
 	t.Cleanup(func() { packsFor = original })
 
-	packsFor = func(env *emulator.Env) []emulator.Pack {
-		return []emulator.Pack{brokenPack{Pack: scaleway.New(env)}}
+	packsFor = func(env *emulator.Env) ([]emulator.Pack, error) {
+		return []emulator.Pack{brokenPack{Pack: scaleway.New(env)}}, nil
 	}
 
 	// The gate runs after the SDK scan, so the scan has to succeed for the gate

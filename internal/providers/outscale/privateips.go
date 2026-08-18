@@ -123,7 +123,7 @@ func (p *Pack) linkPrivateIps(w http.ResponseWriter, r *http.Request) {
 			added = append(added, address)
 		}
 	}
-	setSecondaryAddresses(nic, added)
+	p.setSecondaryAddresses(nic, added)
 	if !p.env.Store.Commit(nic, p.env.Now()) {
 		p.notFound(w, "network interface", req.NicID)
 		return
@@ -190,7 +190,7 @@ func (p *Pack) unlinkPrivateIps(w http.ResponseWriter, r *http.Request) {
 			kept = append(kept, address)
 		}
 	}
-	setSecondaryAddresses(nic, kept)
+	p.setSecondaryAddresses(nic, kept)
 	if !p.env.Store.Commit(nic, p.env.Now()) {
 		p.notFound(w, "network interface", req.NicID)
 		return
@@ -275,7 +275,7 @@ func secondaryAddresses(nic *resource.Resource) []string {
 // setSecondaryAddresses rewrites the list, keeping the primary entry exactly as
 // it was: it carries a DNS name the client reads back, and rebuilding it would
 // change a field nobody asked to change.
-func setSecondaryAddresses(nic *resource.Resource, addresses []string) {
+func (p *Pack) setSecondaryAddresses(nic *resource.Resource, addresses []string) {
 	entries, _ := nic.Attrs["PrivateIps"].([]any)
 	rebuilt := make([]any, 0, len(addresses)+1)
 	for _, raw := range entries {
@@ -289,7 +289,7 @@ func setSecondaryAddresses(nic *resource.Resource, addresses []string) {
 	for _, address := range addresses {
 		rebuilt = append(rebuilt, map[string]any{
 			"IsPrimary":      false,
-			"PrivateDnsName": privateDNSName(address),
+			"PrivateDnsName": p.privateDNSName(address),
 			"PrivateIp":      address,
 		})
 	}
