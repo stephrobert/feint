@@ -89,7 +89,13 @@ run_stack() { # name
   WORK="$(mktemp -d)"
   STACK="$name"
   DESTROYED=0
+  # *.tf and modules/ explicitly, never the whole directory: a reader who ran
+  # a stack in place leaves .terraform/ and terraform.tfstate behind, and
+  # copying those would hand this run somebody else's state.
   cp "$src"/*.tf "$WORK/"
+  if [ -d "$src/modules" ]; then
+    cp -R "$src/modules" "$WORK/"
+  fi
 
   cd "$WORK"
   export TF_IN_AUTOMATION=1 TF_INPUT=0

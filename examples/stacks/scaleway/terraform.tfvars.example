@@ -1,0 +1,17 @@
+# Copy to terraform.tfvars and adjust. Every value has a working default, so
+# the file is optional — the shape the better surveyed stacks ship
+# (Rookain-Kiwi/kiwinet-infra-cloud carries exactly this file).
+
+# Where the emulator answers.
+endpoint = "http://127.0.0.1:4599"
+
+# How many web machines carry a public address and an IPAM-booked one.
+web_count = 2
+
+# The application tier: one entry per named worker, each with its own
+# block-storage data disk.
+app_servers = {
+  worker-a = {}
+  worker-b = {}
+  worker-c = { data_gb = 30 }
+}
