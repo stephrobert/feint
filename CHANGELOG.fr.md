@@ -15,7 +15,17 @@ parce que c'est là-dessus que ce projet est jugé : **une forme de réponse qu'
 client peut observer**, et **une limite qui a bougé**. Une refactorisation qui ne
 change ni l'un ni l'autre a sa place dans `git log`.
 
-## [Non publié]
+## [0.9.0]
+
+La version du contrat. Feint se consomme désormais directement depuis un test Go
+ou un job de CI — `feinttest.Start(t)`, `stephrobert/setup-feint@v1`, l'image OCI
+en service — et chacune des 285 opérations montées est soit pilotée par un vrai
+client, soit accompagnée, à la route, de la raison pour laquelle aucun client
+officiel ne l'atteint. Le modèle de compatibilité a cessé d'être une promesse :
+surfaces gelées, contrôle de compatibilité joué contre les consommateurs avant le
+tag, vérification des réponses qui cherche aussi ce qui *manque*, et quinze stacks
+Terraform tierces appliquées contre l'émulateur. Exoscale gagne le stockage bloc
+et les instance pools.
 
 ### Ajouté
 
@@ -393,7 +403,7 @@ change ni l'un ni l'autre a sa place dans `git log`.
   `docs/limits.md` énonce le manque pour les deux packs qui ne le livrent pas,
   dont l'un n'avait aucune phrase nulle part.
 
-- **`/_feint/conformance` passe en version de schéma 2.** `evidence.*[].probed`
+- **`/_feint/conformance` passe en version de schéma 3**, en deux étapes additives prises pendant cette version. `evidence.*[].probed`
   était un booléen et vaut désormais `response`, `refusal` ou `none` (#156). Un
   consommateur testant `probed === true` lirait une chaîne toujours vraie et
   compterait chaque refus comme un succès — la surestimation que #156 supprime,
@@ -429,6 +439,75 @@ change ni l'un ni l'autre a sa place dans `git log`.
   (#249, #250). Deux défauts que deux stacks réalistes ont fait apparaître en
   une heure, tous deux invisibles pour la suite de conformance du moment ; les
   correctifs ont tenu sous la configuration d'un inconnu dans le relevé #262.
+
+- **Quinze stacks Terraform écrites par des gens qui n'ont jamais vu ce dépôt ont
+  été appliquées contre l'émulateur** — cinq par fournisseur, choisies pour leur
+  taille et non pour leur commodité, chacune consignée avec son dépôt, son commit
+  et sa licence dans `examples/stacks/surveyed.md` (#262). **Six n'ont demandé
+  aucune modification. Cinq n'en ont demandé qu'une, et dans tous les cas la cause
+  était le provider tiers ou l'âge de la stack, jamais Feint.**
+
+  Ce que cela prouve : des configurations écrites indépendamment de ce projet
+  peuvent lui être pointées et fonctionner. Ce que cela ne prouve pas : que les
+  produits que ces stacks n'utilisent *pas* fonctionnent, ni que quinze dépôts
+  représentent un écosystème. Le registre sépare strictement les produits déclinés
+  — SKS, LBU, DBaaS, stockage objet, Kapsule — des défauts de Feint, et les compte
+  par fournisseur : un `501` qui nomme une route non servie est le comportement
+  voulu, un `200` faux ne l'est pas.
+
+  L'exercice a trouvé quatre défauts, tous de la seconde espèce. Il a aussi produit
+  une contre-preuve qui vaut autant : une stack de 95 ressources, trois VPC, un
+  peering et des routes au travers s'applique, se replanifie à vide et se détruit.
+
+- **Le `BootMode`, la `Performance` et le `VmInitiatedShutdownBehavior` d'une Vm
+  font l'aller-retour** (#276). Acceptés avec un 200 et relus comme des constantes
+  du pack — la forme de #268, trois champs plus loin, et le même plan qui ne
+  converge jamais. Le balayage qui a suivi a aussi corrigé
+  `ShutdownBehaviorConfiguration`, dont la constante contredisait les valeurs par
+  défaut documentées par le SDK lui-même. Ce que l'émulateur répète sans l'imposer
+  est écrit dans `docs/limits.md`.
+
+- **Dix-huit opérations de liste Scaleway honorent les 72 paramètres de requête
+  qu'elles déclarent** (#277). La règle de #271 ne tenait que là où un handler ne
+  lisait *rien* ; celles-ci en lisaient certains et en laissaient tomber d'autres,
+  si bien que `order_by=…_desc` répondait en ordre croissant. Chaque `order_by`
+  s'applique désormais avec le défaut documenté par le SDK pour son opération — un
+  simple `scw instance server list` répond du plus récent au plus ancien, comme la
+  vraie API. Ce qui ne peut pas être servi honnêtement est refusé par un 400 qui
+  nomme le paramètre, et consigné dans `docs/limits.md`.
+
+- **Une règle, une route ou une étiquette acquittée survit à sa jumelle
+  concurrente** (#289, #295). Deux `CreateSecurityGroupRule` sur un même groupe
+  Outscale répondaient chacun 200 et une règle n'était jamais stockée — huit
+  acquittements, cinq règles — après quoi `terraform destroy` mourait sur le
+  fantôme. La moitié « collections » puis la moitié « champs scalaires » (mesurée à
+  11 essais sur 200) tiennent maintenant lecture, contrôle et écriture dans une
+  seule section critique. Le barrage partagé qui aurait dû l'attraper existait :
+  sa doctrine cadrait la propriété comme *un champ par écrivain*, si bien qu'aucun
+  pack ne pilotait de collection. Elle nomme désormais les deux formes.
+
+- **La région Outscale est une donnée, et ses subregions la suivent** (#290).
+  Toutes les régions Outscale sont servies par la même API — une région est une
+  propriété de l'endpoint auquel un client est pointé, pas de la surface — donc
+  figer une seule région refusait les stacks écrites pour une autre, dont la région
+  SecNumCloud que vise le public de ce projet. `FEINT_OUTSCALE_REGION` la
+  sélectionne ; ne rien configurer conserve le comportement précédent. Lire la
+  publication plutôt que la table précédente l'a aussi corrigée : **`eu-west-2`
+  publie aujourd'hui trois subregions (PAR1, PAR4, PAR7), pas deux.**
+
+- **`UpdateNic` sert `DeleteOnVmDeletion` sur une NIC que ce pack a lui-même
+  attachée** (#299). Le handler cherchait une carte d'attachement que rien
+  n'écrivait, si bien que la seule requête prévue en amont pour basculer le drapeau
+  répondait *400, non attachée* sur une interface que l'émulateur venait
+  d'attacher avec un 200 — et `outscale_nic_link` envoie exactement cette requête.
+
+- **Les dernières opérations non triées du dépôt ont été décidées** (#300). Les
+  onze opérations NLB d'Exoscale et les seize du VPC étaient les seules entrées
+  `unknown` restantes des trois fournisseurs ; les deux familles sont désormais
+  déclinées par leur nom, avec des raisons ancrées sur des faits plutôt que sur des
+  intentions — `healthcheck-status` est un verdict par backend dont l'énumération
+  n'a pas de troisième valeur, donc un émulateur qui ne sonde rien devrait en
+  inventer un.
 
 - **L'`AvailableIpsCount` d'un subnet Outscale est lu depuis le pool qui
   distribue les adresses** (#217), le drapeau de protection d'un serveur

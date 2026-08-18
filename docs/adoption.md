@@ -62,6 +62,27 @@ Two things would change what this project can prove about your cloud:
    your repositories, reaches more of the people who need this than any feature
    here.
 
+### The three doors, if you want to try it before answering
+
+Nothing here needs an account, and none of the three takes longer than a minute:
+
+- **In a Go test** — `feinttest.Start(t)` starts the published image and hands
+  back the endpoint, adding **zero dependencies** to your module
+  ([feinttest/](../feinttest/)).
+- **In GitHub Actions** — `uses: stephrobert/setup-feint@v1` installs the
+  released binary, verifies its checksum before running it, and exports what
+  your client needs
+  ([marketplace](https://github.com/marketplace/actions/set-up-feint),
+  [examples/github-actions/](../examples/github-actions/)).
+- **Anywhere a container runs** — `ghcr.io/stephrobert/feint` as a service, with
+  the GitLab and compose forms in [docs/install.md](install.md) and
+  [examples/](../examples/).
+
+And if you would rather see what it does to a real configuration than run it:
+[examples/stacks/surveyed.md](../examples/stacks/surveyed.md) is fifteen
+third-party Terraform stacks applied against this emulator, with what worked,
+what did not, and which of your products they reached for.
+
 What this project will not do, so the offer is not misread: invent quotas, prices
 or capacity. [docs/limits.md](limits.md) states, section by section, what is
 refused and why, and that list is the reason the rest can be trusted.

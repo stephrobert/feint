@@ -28,7 +28,7 @@ Set FontSize 16
 Set Width 1100
 Set Height 620
 Set Padding 12
-Set TypingSpeed 35ms
+Set TypingSpeed 25ms
 Set Theme "Catppuccin Mocha"
 
 Hide
@@ -63,16 +63,16 @@ Show
 
 Type "# A cloud API in a container. No account, no credentials, no bill."
 Enter
-Sleep 1500ms
+Sleep 1200ms
 
 # The version is written out rather than expanded, and that is deliberate: vhs
 # types the literal text, so `$TAG` reached the screen as `$TAG` — the command
 # worked, and no viewer could copy the line. A hard-coded version in a recording
 # is the kind of figure this repository refuses, so tools/demo/ci.sh fails when
 # this line and the CHANGELOG disagree.
-Type "docker run -d --rm --name feint -p 4599:4599 ghcr.io/stephrobert/feint:v0.8.0"
+Type "docker run -d --rm --name feint -p 4599:4599 ghcr.io/stephrobert/feint:v0.9.0"
 Enter
-Sleep 6s
+Sleep 4s
 
 Type "curl -s localhost:4599/_feint/health | jq -c '{providers, machines}'"
 Enter
@@ -80,15 +80,15 @@ Sleep 4s
 
 Type "# The real Scaleway Terraform provider, pointed at it."
 Enter
-Sleep 1500ms
+Sleep 1200ms
 
 Type "terraform apply -auto-approve -input=false -no-color | tail -3"
 Enter
-Sleep 14s
+Sleep 10s
 
 Type "# What it actually drove, counted by the emulator itself."
 Enter
-Sleep 1500ms
+Sleep 1200ms
 
 Type "curl -s localhost:4599/_feint/conformance | jq -c '{driven: (.calls | length), violations: (.violations | length)}'"
 Enter
@@ -96,11 +96,11 @@ Sleep 4s
 
 Type "# And nothing survives it."
 Enter
-Sleep 1500ms
+Sleep 1200ms
 
 Type "docker stop feint >/dev/null && docker ps --filter name=feint --format '{{.Names}}' | wc -l"
 Enter
-Sleep 5s
+Sleep 4s
 
 Type "curl -s --max-time 2 localhost:4599/_feint/health || echo 'nothing answers on 4599'"
 Enter

@@ -43,13 +43,19 @@ func TestEveryExampleNamesTheReleasedVersion(t *testing.T) {
 	}
 
 	var files []string
-	for _, dir := range []string{"examples", filepath.Join(".github", "ISSUE_TEMPLATE")} {
+	// tools/demo carries the VHS tapes, and a tape names the image tag the
+	// recording *shows*. It sat outside this walk while matching one of the
+	// patterns above exactly: ci.tape pinned v0.8.0 and the released version had
+	// moved, so the demo on the front page would have advertised the previous
+	// release. Found while closing #252; the control existed and the path did
+	// not.
+	for _, dir := range []string{"examples", filepath.Join(".github", "ISSUE_TEMPLATE"), filepath.Join("tools", "demo")} {
 		err := filepath.WalkDir(filepath.Join(root, dir), func(path string, d os.DirEntry, err error) error {
 			if err != nil || d.IsDir() {
 				return err
 			}
 			switch filepath.Ext(path) {
-			case ".md", ".yml", ".yaml", ".tf":
+			case ".md", ".yml", ".yaml", ".tf", ".tape":
 				files = append(files, path)
 			}
 			return nil
