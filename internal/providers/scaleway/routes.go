@@ -124,13 +124,14 @@ func (p *Pack) updateRoute(w http.ResponseWriter, r *http.Request) {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
 		return
 	}
+	destination := ""
 	if req.Destination != nil {
-		destination, err := network.ParseCIDR(*req.Destination)
+		parsed, err := network.ParseCIDR(*req.Destination)
 		if err != nil {
 			writeInvalidArguments(w, ArgumentError{ArgumentName: "destination", Reason: "format", HelpMessage: err.Error()})
 			return
 		}
-		res.Attrs["destination"] = destination.String()
+		destination = parsed.String()
 	}
 	if req.NexthopVpcConnectorID != nil && *req.NexthopVpcConnectorID != "" {
 		writeInvalidArguments(w, ArgumentError{
@@ -140,29 +141,44 @@ func (p *Pack) updateRoute(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if req.Description != nil {
-		res.Attrs["description"] = *req.Description
-	}
-	if req.Tags != nil {
-		res.Attrs["tags"] = orEmpty(*req.Tags)
-	}
-	if req.NexthopResourceID != nil {
-		setOrDelete(res.Attrs, "nexthop_resource_id", *req.NexthopResourceID)
-	}
-	if req.NexthopPrivateNetworkID != nil {
-		if *req.NexthopPrivateNetworkID != "" {
-			pn, found := p.env.Store.Get(Name, kindPrivateNetwork, *req.NexthopPrivateNetworkID)
-			if !found || pn.Attrs["vpc_id"] != res.Attrs["vpc_id"] {
-				writeNotFound(w, "private_network", *req.NexthopPrivateNetworkID)
-				return
-			}
+	if req.NexthopPrivateNetworkID != nil && *req.NexthopPrivateNetworkID != "" {
+		pn, found := p.env.Store.Get(Name, kindPrivateNetwork, *req.NexthopPrivateNetworkID)
+		if !found || pn.Attrs["vpc_id"] != res.Attrs["vpc_id"] {
+			writeNotFound(w, "private_network", *req.NexthopPrivateNetworkID)
+			return
 		}
-		setOrDelete(res.Attrs, "nexthop_private_network_id", *req.NexthopPrivateNetworkID)
 	}
-	res.Updated = p.env.Now()
-	p.env.Store.Put(res)
 
-	emulator.WriteJSON(w, http.StatusOK, routeView(res))
+	// Inside Store.Update rather than mutate-then-Put: Put resurrects a route
+	// deleted while this PATCH was decoding, and its whole-Attrs write-back
+	// from a stale clone loses a concurrent writer's field (#289).
+	var final *resource.Resource
+	err := p.env.Store.Update(Name, kindVPCRoute, res.ID, func(stored *resource.Resource) error {
+		if req.Destination != nil {
+			stored.Attrs["destination"] = destination
+		}
+		if req.Description != nil {
+			stored.Attrs["description"] = *req.Description
+		}
+		if req.Tags != nil {
+			stored.Attrs["tags"] = orEmpty(*req.Tags)
+		}
+		if req.NexthopResourceID != nil {
+			setOrDelete(stored.Attrs, "nexthop_resource_id", *req.NexthopResourceID)
+		}
+		if req.NexthopPrivateNetworkID != nil {
+			setOrDelete(stored.Attrs, "nexthop_private_network_id", *req.NexthopPrivateNetworkID)
+		}
+		stored.Updated = p.env.Now()
+		final = stored
+		return nil
+	})
+	if err != nil {
+		writeNotFound(w, "route", res.ID)
+		return
+	}
+
+	emulator.WriteJSON(w, http.StatusOK, routeView(final))
 }
 
 func (p *Pack) deleteRoute(w http.ResponseWriter, r *http.Request) {

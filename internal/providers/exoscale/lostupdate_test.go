@@ -90,3 +90,59 @@ func TestConcurrentUpdatesKeepEveryAcknowledgedField(t *testing.T) {
 		t.Errorf("the update path lost a field it had acknowledged:\n%s", strings.Join(found, "\n"))
 	}
 }
+
+// The same control on the other shape a lost update takes: an acknowledged
+// *element* of one collection (#289). This pack already appends its rules
+// inside store.Update, so this is a regression test for a correct handler —
+// exactly what the Outscale pack lacked when the k3s replay measured 8 rule
+// creates acknowledged and 5 rules stored on the group next door.
+func TestConcurrentRuleCreatesKeepEveryAcknowledgedRule(t *testing.T) {
+	h, _ := newExoscaleBarrageServer(t)
+
+	found := storetest.NoLostUpdate(40, func(trial int) []storetest.Write {
+		status, created := callRaw(h, "POST", "/v2/security-group",
+			fmt.Sprintf(`{"name":"race-%d","description":"membership barrage"}`, trial))
+		if status != http.StatusOK {
+			t.Fatalf("trial %d create: status %d (%v)", trial, status, created)
+		}
+		ref, _ := created["reference"].(map[string]any)
+		id, _ := ref["id"].(string)
+		if id == "" {
+			t.Fatalf("the create operation names no resource: %v", created)
+		}
+
+		writes := make([]storetest.Write, 0, 8)
+		for i := range 8 {
+			port := 1001 + i
+			writes = append(writes, storetest.Write{
+				Field: fmt.Sprintf("ingress tcp %d on %s", port, id),
+				Apply: func() bool {
+					status, _ := callRaw(h, "POST", "/v2/security-group/"+id+"/rules", fmt.Sprintf(
+						`{"flow-direction":"ingress","protocol":"tcp","network":"10.0.0.0/24","start-port":%d,"end-port":%d}`,
+						port, port))
+					return status == http.StatusOK
+				},
+				Got: func() string {
+					status, out := callRaw(h, "GET", "/v2/security-group/"+id, "")
+					if status != http.StatusOK {
+						return fmt.Sprintf("<get answered %d>", status)
+					}
+					rules, _ := out["rules"].([]any)
+					for _, raw := range rules {
+						rule, _ := raw.(map[string]any)
+						if start, _ := rule["start-port"].(float64); int(start) == port {
+							return "stored"
+						}
+					}
+					return "lost"
+				},
+				Want: "stored",
+			})
+		}
+		return writes
+	})
+
+	if len(found) > 0 {
+		t.Errorf("the rule create path lost a rule it had acknowledged:\n%s", strings.Join(found, "\n"))
+	}
+}

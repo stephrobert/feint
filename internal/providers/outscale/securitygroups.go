@@ -2,6 +2,7 @@ package outscale
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -323,6 +324,13 @@ func (p *Pack) asRules(req *securityGroupRuleRequest, mint bool) ([]map[string]a
 	}
 }
 
+// errRuleExists and errRuleMissing carry a rule check out of a Store.Update
+// change function, so the handler can answer the right HTTP shape.
+var (
+	errRuleExists  = errors.New("the rule already exists")
+	errRuleMissing = errors.New("the rule does not exist")
+)
+
 func (p *Pack) createSecurityGroupRule(w http.ResponseWriter, r *http.Request) {
 	var req securityGroupRuleRequest
 	if err := emulator.DecodeJSON(r, &req); err != nil {
@@ -338,26 +346,47 @@ func (p *Pack) createSecurityGroupRule(w http.ResponseWriter, r *http.Request) {
 		p.notFound(w, "security group", missing)
 		return
 	}
-	existing, _ := res.Attrs[side].([]any)
-	for _, rule := range rules {
-		// A rule that already exists is a conflict, not a second copy: the real
-		// API refuses the duplicate, and a client retrying a create depends on
-		// the refusal to converge.
-		for _, raw := range existing {
-			if sameRule(raw, rule) {
-				p.conflict(w, "the rule already exists on "+res.ID)
-				return
+	// The read, the duplicate check and the append happen inside Store.Update,
+	// under the store lock. As a Get-clone-append-Commit sequence, two
+	// concurrent creates on one group each appended to their own stale copy and
+	// the second Commit erased the first: replaying terraform-outscale-k3s
+	// measured 8 CreateSecurityGroupRule acknowledged with 200 and 5 rules
+	// stored, then destroy died on the phantom (#289).
+	// TestConcurrentRuleCreatesKeepEveryAcknowledgedRule fails without this.
+	var final *resource.Resource
+	err := p.env.Store.Update(Name, kindSecurityGroup, res.ID, func(stored *resource.Resource) error {
+		existing, _ := stored.Attrs[side].([]any)
+		// A fresh slice, never an append into the stored backing array: clones
+		// share the nested values, so in-place growth is a write other readers
+		// can see mid-request.
+		merged := make([]any, len(existing), len(existing)+len(rules))
+		copy(merged, existing)
+		for _, rule := range rules {
+			// A rule that already exists is a conflict, not a second copy: the
+			// real API refuses the duplicate, and a client retrying a create
+			// depends on the refusal to converge.
+			for _, raw := range merged {
+				if sameRule(raw, rule) {
+					return errRuleExists
+				}
 			}
+			merged = append(merged, rule)
 		}
-		existing = append(existing, rule)
-	}
-	res.Attrs[side] = existing
-	if !p.env.Store.Commit(res, p.env.Now()) {
+		stored.Attrs[side] = merged
+		stored.Updated = p.env.Now()
+		final = stored
+		return nil
+	})
+	switch {
+	case errors.Is(err, errRuleExists):
+		p.conflict(w, "the rule already exists on "+res.ID)
+		return
+	case err != nil:
 		p.notFound(w, "security group", res.ID)
 		return
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"SecurityGroup":   securityGroupView(res),
+		"SecurityGroup":   securityGroupView(final),
 		"ResponseContext": p.context(),
 	})
 }
@@ -377,34 +406,46 @@ func (p *Pack) deleteSecurityGroupRule(w http.ResponseWriter, r *http.Request) {
 		p.notFound(w, "security group", missing)
 		return
 	}
-	existing, _ := res.Attrs[side].([]any)
-	kept := make([]any, 0, len(existing))
-	removed := 0
-	for _, raw := range existing {
-		matched := false
-		for _, candidate := range wanted {
-			if sameRule(raw, candidate) {
-				matched = true
-				break
+	// Same ordering as the create: the match and the removal run under the
+	// store lock, or a delete racing a create on the other side of the group
+	// commits a stale copy and one acknowledged change vanishes (#289).
+	var final *resource.Resource
+	err := p.env.Store.Update(Name, kindSecurityGroup, res.ID, func(stored *resource.Resource) error {
+		existing, _ := stored.Attrs[side].([]any)
+		kept := make([]any, 0, len(existing))
+		removed := 0
+		for _, raw := range existing {
+			matched := false
+			for _, candidate := range wanted {
+				if sameRule(raw, candidate) {
+					matched = true
+					break
+				}
 			}
+			if matched {
+				removed++
+				continue
+			}
+			kept = append(kept, raw)
 		}
-		if matched {
-			removed++
-			continue
+		if removed == 0 {
+			return errRuleMissing
 		}
-		kept = append(kept, raw)
-	}
-	if removed == 0 {
+		stored.Attrs[side] = kept
+		stored.Updated = p.env.Now()
+		final = stored
+		return nil
+	})
+	switch {
+	case errors.Is(err, errRuleMissing):
 		p.notFound(w, "security group rule on", res.ID)
 		return
-	}
-	res.Attrs[side] = kept
-	if !p.env.Store.Commit(res, p.env.Now()) {
+	case err != nil:
 		p.notFound(w, "security group", res.ID)
 		return
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"SecurityGroup":   securityGroupView(res),
+		"SecurityGroup":   securityGroupView(final),
 		"ResponseContext": p.context(),
 	})
 }

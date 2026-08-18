@@ -379,19 +379,29 @@ func (p *Pack) updatePrivateNetwork(w http.ResponseWriter, r *http.Request) {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
 		return
 	}
-	if req.Name != nil {
-		res.Attrs["name"] = *req.Name
+	// Inside Store.Update rather than mutate-then-Put: Put resurrects a network
+	// deleted while this PATCH was decoding, and its whole-Attrs write-back from
+	// a stale clone loses a concurrent writer's field (#289).
+	var final *resource.Resource
+	err := p.env.Store.Update(Name, kindPrivateNetwork, res.ID, func(stored *resource.Resource) error {
+		if req.Name != nil {
+			stored.Attrs["name"] = *req.Name
+		}
+		if req.Tags != nil {
+			stored.Attrs["tags"] = orEmpty(*req.Tags)
+		}
+		if req.DefaultRoutePropagationEnabled != nil {
+			stored.Attrs["default_route_propagation_enabled"] = *req.DefaultRoutePropagationEnabled
+		}
+		stored.Updated = p.env.Now()
+		final = stored
+		return nil
+	})
+	if err != nil {
+		writeNotFound(w, "private_network", res.ID)
+		return
 	}
-	if req.Tags != nil {
-		res.Attrs["tags"] = orEmpty(*req.Tags)
-	}
-	if req.DefaultRoutePropagationEnabled != nil {
-		res.Attrs["default_route_propagation_enabled"] = *req.DefaultRoutePropagationEnabled
-	}
-
-	res.Updated = p.env.Now()
-	p.env.Store.Put(res)
-	emulator.WriteJSON(w, http.StatusOK, privateNetworkView(res))
+	emulator.WriteJSON(w, http.StatusOK, privateNetworkView(final))
 }
 
 func (p *Pack) deletePrivateNetwork(w http.ResponseWriter, r *http.Request) {
@@ -523,13 +533,23 @@ func (p *Pack) enableRouting(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	res.Attrs["routing_enabled"] = true
-	res.Updated = p.env.Now()
-	p.env.Store.Put(res)
+	// Update rather than Put, like every write to an existing resource: a Put
+	// here resurrected a VPC deleted meanwhile, routing enabled (#289).
+	var final *resource.Resource
+	err := p.env.Store.Update(Name, kindVPC, res.ID, func(stored *resource.Resource) error {
+		stored.Attrs["routing_enabled"] = true
+		stored.Updated = p.env.Now()
+		final = stored
+		return nil
+	})
+	if err != nil {
+		writeNotFound(w, "vpc", res.ID)
+		return
+	}
 	// What was isolated may now be reachable: the rule sets carried by the
 	// backing networks must say what the control plane just said.
 	p.isolateNetworks(r.Context())
-	emulator.WriteJSON(w, http.StatusOK, p.vpcView(res))
+	emulator.WriteJSON(w, http.StatusOK, p.vpcView(final))
 }
 
 // enableDHCP exists for Private Networks created before DHCP was the default.
@@ -541,10 +561,19 @@ func (p *Pack) enableDHCP(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	res.Attrs["dhcp_enabled"] = true
-	res.Updated = p.env.Now()
-	p.env.Store.Put(res)
-	emulator.WriteJSON(w, http.StatusOK, privateNetworkView(res))
+	// Update rather than Put, same reasoning as enableRouting above (#289).
+	var final *resource.Resource
+	err := p.env.Store.Update(Name, kindPrivateNetwork, res.ID, func(stored *resource.Resource) error {
+		stored.Attrs["dhcp_enabled"] = true
+		stored.Updated = p.env.Now()
+		final = stored
+		return nil
+	})
+	if err != nil {
+		writeNotFound(w, "private_network", res.ID)
+		return
+	}
+	emulator.WriteJSON(w, http.StatusOK, privateNetworkView(final))
 }
 
 // ---- Default inventory ------------------------------------------------------

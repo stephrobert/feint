@@ -133,13 +133,26 @@ func (p *Pack) createTags(w http.ResponseWriter, r *http.Request) {
 		targets = append(targets, res)
 	}
 
+	// The merge runs under the store lock, on the stored tags rather than on
+	// the clone resolved above. As a Get-merge-Put sequence this lost every
+	// concurrent key — two CreateTags on one resource each merged into their
+	// own stale copy — and Put re-inserts unconditionally, so it also
+	// resurrected a resource deleted meanwhile, tags and all (#289).
+	// TestConcurrentTagCreatesKeepEveryAcknowledgedTag fails without this.
 	for _, res := range targets {
-		tags := tagsOf(res)
-		for _, want := range req.Tags {
-			tags[want.Key] = want.Value
+		err := p.env.Store.Update(Name, res.Kind, res.ID, func(stored *resource.Resource) error {
+			tags := tagsOf(stored)
+			for _, want := range req.Tags {
+				tags[want.Key] = want.Value
+			}
+			stored.Attrs["Tags"] = tagsList(tags)
+			stored.Updated = p.env.Now()
+			return nil
+		})
+		if err != nil {
+			p.notFound(w, "resource", res.ID)
+			return
 		}
-		res.Attrs["Tags"] = tagsList(tags)
-		p.env.Store.Put(res)
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
 }
@@ -158,18 +171,27 @@ func (p *Pack) deleteTags(w http.ResponseWriter, r *http.Request) {
 			p.notFound(w, "resource", id)
 			return
 		}
-		tags := tagsOf(res)
-		for _, want := range req.Tags {
-			// A value given must match: DeleteTags removes a key only when the
-			// value matches, which is how the API refuses to drop a tag someone
-			// else changed under you.
-			if want.Value != "" && tags[want.Key] != want.Value {
-				continue
+		// Same ordering as createTags: the value check and the removal run on
+		// the stored tags, under the lock, never on the stale clone (#289).
+		err := p.env.Store.Update(Name, res.Kind, res.ID, func(stored *resource.Resource) error {
+			tags := tagsOf(stored)
+			for _, want := range req.Tags {
+				// A value given must match: DeleteTags removes a key only when
+				// the value matches, which is how the API refuses to drop a tag
+				// someone else changed under you.
+				if want.Value != "" && tags[want.Key] != want.Value {
+					continue
+				}
+				delete(tags, want.Key)
 			}
-			delete(tags, want.Key)
+			stored.Attrs["Tags"] = tagsList(tags)
+			stored.Updated = p.env.Now()
+			return nil
+		})
+		if err != nil {
+			p.notFound(w, "resource", id)
+			return
 		}
-		res.Attrs["Tags"] = tagsList(tags)
-		p.env.Store.Put(res)
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
 }

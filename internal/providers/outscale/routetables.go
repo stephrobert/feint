@@ -1,6 +1,7 @@
 package outscale
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
@@ -284,15 +285,38 @@ func (p *Pack) linkRouteTable(w http.ResponseWriter, r *http.Request) {
 	}
 	// The recorded response is {LinkRouteTableId, ResponseContext} alone; the
 	// link itself appears in the table on the next read.
+	//
+	// Appended inside Store.Update, under the lock: Terraform links one table
+	// to its subnets ten at a time, and the clone-append-Commit shape this had
+	// loses an acknowledged link exactly as it lost a security group rule
+	// (#289). The one-link-per-subnet scan re-runs on this table's own links,
+	// because two identical concurrent links both pass the scan above.
 	linkID := newID("rtbassoc", p.env.NewID())
-	res.Attrs["LinkRouteTables"] = append(listOf(res.Attrs["LinkRouteTables"]), map[string]any{
-		"LinkRouteTableId": linkID,
-		"Main":             false,
-		"NetId":            stringOf(res.Attrs["NetId"]),
-		"RouteTableId":     res.ID,
-		"SubnetId":         req.SubnetID,
+	err := p.env.Store.Update(Name, kindRouteTable, res.ID, func(stored *resource.Resource) error {
+		links := listOf(stored.Attrs["LinkRouteTables"])
+		for _, raw := range links {
+			link, _ := raw.(map[string]any)
+			if stringOf(link["SubnetId"]) == req.SubnetID {
+				return errAlreadyLinked
+			}
+		}
+		merged := make([]any, len(links), len(links)+1)
+		copy(merged, links)
+		stored.Attrs["LinkRouteTables"] = append(merged, map[string]any{
+			"LinkRouteTableId": linkID,
+			"Main":             false,
+			"NetId":            stringOf(stored.Attrs["NetId"]),
+			"RouteTableId":     stored.ID,
+			"SubnetId":         req.SubnetID,
+		})
+		stored.Updated = p.env.Now()
+		return nil
 	})
-	if !p.env.Store.Commit(res, p.env.Now()) {
+	switch {
+	case errors.Is(err, errAlreadyLinked):
+		p.conflict(w, "the Subnet "+req.SubnetID+" is already linked to "+res.ID)
+		return
+	case err != nil:
 		p.notFound(w, "route table", req.RouteTableID)
 		return
 	}
@@ -312,27 +336,68 @@ func (p *Pack) unlinkRouteTable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, res := range p.env.Store.List(kindRouteTable, resource.Tenant{Provider: Name}) {
-		links := listOf(res.Attrs["LinkRouteTables"])
-		for i, raw := range links {
+		holds := false
+		for _, raw := range listOf(res.Attrs["LinkRouteTables"]) {
 			link, _ := raw.(map[string]any)
-			if stringOf(link["LinkRouteTableId"]) != req.LinkRouteTableID {
-				continue
+			if stringOf(link["LinkRouteTableId"]) == req.LinkRouteTableID {
+				holds = true
+				break
 			}
-			if main, _ := link["Main"].(bool); main {
-				p.conflict(w, "the main link of "+res.ID+" cannot be unlinked")
-				return
+		}
+		if !holds {
+			continue
+		}
+		// The link is re-found and removed under the lock: the List clone
+		// above is stale by construction, and committing it wholesale is the
+		// lost-update shape #289 measured on rules.
+		err := p.env.Store.Update(Name, kindRouteTable, res.ID, func(stored *resource.Resource) error {
+			links := listOf(stored.Attrs["LinkRouteTables"])
+			kept := make([]any, 0, len(links))
+			removed := false
+			for _, raw := range links {
+				link, _ := raw.(map[string]any)
+				if stringOf(link["LinkRouteTableId"]) == req.LinkRouteTableID {
+					if main, _ := link["Main"].(bool); main {
+						return errMainLink
+					}
+					removed = true
+					continue
+				}
+				kept = append(kept, raw)
 			}
-			res.Attrs["LinkRouteTables"] = append(links[:i:i], links[i+1:]...)
-			if !p.env.Store.Commit(res, p.env.Now()) {
-				p.notFound(w, "route table", res.ID)
-				return
+			if !removed {
+				return errLinkMissing
 			}
-			emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
+			stored.Attrs["LinkRouteTables"] = kept
+			stored.Updated = p.env.Now()
+			return nil
+		})
+		switch {
+		case errors.Is(err, errMainLink):
+			p.conflict(w, "the main link of "+res.ID+" cannot be unlinked")
+			return
+		case err != nil:
+			// Gone between the scan and the lock — deleted table or already
+			// unlinked; either way the link no longer exists.
+			p.notFound(w, "route table link", req.LinkRouteTableID)
 			return
 		}
+		emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
+		return
 	}
 	p.notFound(w, "route table link", req.LinkRouteTableID)
 }
+
+// The sentinels that carry a check out of a Store.Update change function, so
+// the handler can answer the HTTP shape the check calls for.
+var (
+	errAlreadyLinked = errors.New("the subnet is already linked")
+	errMainLink      = errors.New("the main link cannot go")
+	errLinkMissing   = errors.New("the link does not exist")
+	errRouteExists   = errors.New("the destination already has a route")
+	errRouteMissing  = errors.New("the destination has no route")
+	errLocalRoute    = errors.New("the local route cannot go")
+)
 
 // routeRequest is CreateRoute, DeleteRoute and UpdateRoute: one shape, three
 // verbs, keyed by the destination inside one table.
@@ -424,31 +489,48 @@ func (p *Pack) createRoute(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, "DestinationIpRange: "+err.Error())
 		return
 	}
-	for _, raw := range listOf(res.Attrs["Routes"]) {
-		route, _ := raw.(map[string]any)
-		if stringOf(route["DestinationIpRange"]) == req.DestinationIPRange {
-			p.conflict(w, "the destination "+req.DestinationIPRange+" already has a route in "+res.ID)
-			return
-		}
-	}
 	key, value, ok := p.routeTarget(w, &req, stringOf(res.Attrs["NetId"]))
 	if !ok {
 		return
 	}
-	// The recorded created route: CreationMethod "CreateRoute", State
-	// "active", the target under its own key, nothing else.
-	res.Attrs["Routes"] = append(listOf(res.Attrs["Routes"]), map[string]any{
-		"CreationMethod":     "CreateRoute",
-		"DestinationIpRange": req.DestinationIPRange,
-		key:                  value,
-		"State":              "active",
+	// The duplicate check and the append run under the store lock: ten
+	// concurrent CreateRoute on one table is Terraform's default parallelism,
+	// and the clone-append-Commit shape this had loses acknowledged routes the
+	// way it lost security group rules (#289).
+	// TestConcurrentRouteCreatesKeepEveryAcknowledgedRoute fails without this.
+	var final *resource.Resource
+	err := p.env.Store.Update(Name, kindRouteTable, res.ID, func(stored *resource.Resource) error {
+		routes := listOf(stored.Attrs["Routes"])
+		for _, raw := range routes {
+			route, _ := raw.(map[string]any)
+			if stringOf(route["DestinationIpRange"]) == req.DestinationIPRange {
+				return errRouteExists
+			}
+		}
+		merged := make([]any, len(routes), len(routes)+1)
+		copy(merged, routes)
+		// The recorded created route: CreationMethod "CreateRoute", State
+		// "active", the target under its own key, nothing else.
+		stored.Attrs["Routes"] = append(merged, map[string]any{
+			"CreationMethod":     "CreateRoute",
+			"DestinationIpRange": req.DestinationIPRange,
+			key:                  value,
+			"State":              "active",
+		})
+		stored.Updated = p.env.Now()
+		final = stored
+		return nil
 	})
-	if !p.env.Store.Commit(res, p.env.Now()) {
+	switch {
+	case errors.Is(err, errRouteExists):
+		p.conflict(w, "the destination "+req.DestinationIPRange+" already has a route in "+res.ID)
+		return
+	case err != nil:
 		p.notFound(w, "route table", req.RouteTableID)
 		return
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"RouteTable":      routeTableView(res),
+		"RouteTable":      routeTableView(final),
 		"ResponseContext": p.context(),
 	})
 }
@@ -464,27 +546,43 @@ func (p *Pack) deleteRoute(w http.ResponseWriter, r *http.Request) {
 		p.notFound(w, "route table", req.RouteTableID)
 		return
 	}
-	routes := listOf(res.Attrs["Routes"])
-	for i, raw := range routes {
-		route, _ := raw.(map[string]any)
-		if stringOf(route["DestinationIpRange"]) != req.DestinationIPRange {
-			continue
+	// Found and removed under the lock, same reasoning as createRoute (#289).
+	err := p.env.Store.Update(Name, kindRouteTable, res.ID, func(stored *resource.Resource) error {
+		routes := listOf(stored.Attrs["Routes"])
+		kept := make([]any, 0, len(routes))
+		removed := false
+		for _, raw := range routes {
+			route, _ := raw.(map[string]any)
+			if stringOf(route["DestinationIpRange"]) == req.DestinationIPRange {
+				// The local route is the Net's own and never goes; the real
+				// API refuses, whatever the table.
+				if stringOf(route["GatewayId"]) == "local" {
+					return errLocalRoute
+				}
+				removed = true
+				continue
+			}
+			kept = append(kept, raw)
 		}
-		// The local route is the Net's own and never goes; the real API
-		// refuses, whatever the table.
-		if stringOf(route["GatewayId"]) == "local" {
-			p.conflict(w, "the local route of "+res.ID+" cannot be deleted")
-			return
+		if !removed {
+			return errRouteMissing
 		}
-		res.Attrs["Routes"] = append(routes[:i:i], routes[i+1:]...)
-		if !p.env.Store.Commit(res, p.env.Now()) {
-			p.notFound(w, "route table", req.RouteTableID)
-			return
-		}
-		emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
+		stored.Attrs["Routes"] = kept
+		stored.Updated = p.env.Now()
+		return nil
+	})
+	switch {
+	case errors.Is(err, errLocalRoute):
+		p.conflict(w, "the local route of "+res.ID+" cannot be deleted")
+		return
+	case errors.Is(err, errRouteMissing):
+		p.notFound(w, "route to", req.DestinationIPRange)
+		return
+	case err != nil:
+		p.notFound(w, "route table", req.RouteTableID)
 		return
 	}
-	p.notFound(w, "route to", req.DestinationIPRange)
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
 }
 
 func (p *Pack) updateRoute(w http.ResponseWriter, r *http.Request) {
@@ -502,36 +600,55 @@ func (p *Pack) updateRoute(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	for i, raw := range listOf(res.Attrs["Routes"]) {
-		route, _ := raw.(map[string]any)
-		if stringOf(route["DestinationIpRange"]) != req.DestinationIPRange {
-			continue
+	// Found and replaced under the lock, and into a fresh slice: writing
+	// routes[i] on the clone mutates the backing array every other reader's
+	// clone shares, which is a torn write even before the Commit lands (#289).
+	var final *resource.Resource
+	err := p.env.Store.Update(Name, kindRouteTable, res.ID, func(stored *resource.Resource) error {
+		routes := listOf(stored.Attrs["Routes"])
+		replaced := false
+		merged := make([]any, 0, len(routes))
+		for _, raw := range routes {
+			route, _ := raw.(map[string]any)
+			if stringOf(route["DestinationIpRange"]) != req.DestinationIPRange {
+				merged = append(merged, raw)
+				continue
+			}
+			if stringOf(route["GatewayId"]) == "local" {
+				return errLocalRoute
+			}
+			// Replaced whole rather than patched: a route is its destination
+			// and its target, and leaving the old target key beside the new
+			// one would answer a route pointing two ways at once.
+			merged = append(merged, map[string]any{
+				"CreationMethod":     stringOf(route["CreationMethod"]),
+				"DestinationIpRange": req.DestinationIPRange,
+				key:                  value,
+				"State":              "active",
+			})
+			replaced = true
 		}
-		if stringOf(route["GatewayId"]) == "local" {
-			p.conflict(w, "the local route of "+res.ID+" cannot be redirected")
-			return
+		if !replaced {
+			return errRouteMissing
 		}
-		// Replaced whole rather than patched: a route is its destination and
-		// its target, and leaving the old target key beside the new one would
-		// answer a route pointing two ways at once.
-		replaced := map[string]any{
-			"CreationMethod":     stringOf(route["CreationMethod"]),
-			"DestinationIpRange": req.DestinationIPRange,
-			key:                  value,
-			"State":              "active",
-		}
-		routes := listOf(res.Attrs["Routes"])
-		routes[i] = replaced
-		res.Attrs["Routes"] = routes
-		if !p.env.Store.Commit(res, p.env.Now()) {
-			p.notFound(w, "route table", req.RouteTableID)
-			return
-		}
-		emulator.WriteJSON(w, http.StatusOK, map[string]any{
-			"RouteTable":      routeTableView(res),
-			"ResponseContext": p.context(),
-		})
+		stored.Attrs["Routes"] = merged
+		stored.Updated = p.env.Now()
+		final = stored
+		return nil
+	})
+	switch {
+	case errors.Is(err, errLocalRoute):
+		p.conflict(w, "the local route of "+res.ID+" cannot be redirected")
+		return
+	case errors.Is(err, errRouteMissing):
+		p.notFound(w, "route to", req.DestinationIPRange)
+		return
+	case err != nil:
+		p.notFound(w, "route table", req.RouteTableID)
 		return
 	}
-	p.notFound(w, "route to", req.DestinationIPRange)
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{
+		"RouteTable":      routeTableView(final),
+		"ResponseContext": p.context(),
+	})
 }

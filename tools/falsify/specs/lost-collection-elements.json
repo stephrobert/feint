@@ -1,0 +1,30 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "the rule create merges from the stale pre-lock clone, so two concurrent creates on one group each append to their own copy and the last write erases the other's acknowledged rule",
+      "file": "internal/providers/outscale/securitygroups.go",
+      "find": "\t\texisting, _ := stored.Attrs[side].([]any)\n\t\t// A fresh slice, never an append into the stored backing array: clones",
+      "replace": "\t\texisting, _ := stored.Attrs[side].([]any)\n\t\texisting, _ = res.Attrs[side].([]any)\n\t\t// A fresh slice, never an append into the stored backing array: clones",
+      "test": "TestConcurrentRuleCreatesKeepEveryAcknowledgedRule",
+      "repeat": 5
+    },
+    {
+      "label": "the route create merges from the stale pre-lock clone, the same lost-update shape on the table's Routes",
+      "file": "internal/providers/outscale/routetables.go",
+      "find": "\t\troutes := listOf(stored.Attrs[\"Routes\"])\n\t\tfor _, raw := range routes {\n\t\t\troute, _ := raw.(map[string]any)\n\t\t\tif stringOf(route[\"DestinationIpRange\"]) == req.DestinationIPRange {\n\t\t\t\treturn errRouteExists",
+      "replace": "\t\troutes := listOf(stored.Attrs[\"Routes\"])\n\t\troutes = listOf(res.Attrs[\"Routes\"])\n\t\tfor _, raw := range routes {\n\t\t\troute, _ := raw.(map[string]any)\n\t\t\tif stringOf(route[\"DestinationIpRange\"]) == req.DestinationIPRange {\n\t\t\t\treturn errRouteExists",
+      "test": "TestConcurrentRouteCreatesKeepEveryAcknowledgedRoute",
+      "repeat": 5
+    },
+    {
+      "label": "the tag create merges from the stale pre-lock clone, so a concurrent key on the same resource is erased after its 200",
+      "file": "internal/providers/outscale/tags.go",
+      "find": "\t\t\ttags := tagsOf(stored)\n\t\t\tfor _, want := range req.Tags {\n\t\t\t\ttags[want.Key] = want.Value",
+      "replace": "\t\t\ttags := tagsOf(stored)\n\t\t\ttags = tagsOf(res)\n\t\t\tfor _, want := range req.Tags {\n\t\t\t\ttags[want.Key] = want.Value",
+      "test": "TestConcurrentTagCreatesKeepEveryAcknowledgedTag",
+      "repeat": 5
+    }
+  ],
+  "note": "Each mutation re-reads the collection from the clone taken before the lock, which is byte-for-byte the base the pre-#289 Commit shape merged from; the stored read stays on the line above so every name survives, per this harness's own rule. The subject is a race, so `repeat` is declared and the rate behind it is measured, not chosen: without the fix, each of the three tests went red 10 of 10 consecutive -count=1 runs on 2026-08-18 (the 40-trial structure of storetest.NoLostUpdate makes a single run nearly deterministic — the original #289 replay lost 3 rules of 8 in one shot). At a measured red rate of at least 9 in 10, five repeats put a false TEST STILL PASSED below 1e-5."
+}

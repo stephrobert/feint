@@ -24,6 +24,18 @@ import (
 // a *different* field of the same resource is still lost". Two handlers reading
 // the same resource, changing one field each and committing whole maps built
 // from their own stale read: the second erases the first, and both answered 200.
+//
+// The lost thing is not always a field. A collection on one resource — the
+// rules of a security group, the routes of a table, the tags of anything — is
+// one Attrs value, and two writers appending one element each to their own
+// stale clone are the same race wearing the same 200s. That shape escaped this
+// control for a whole milestone because every pack's trials drove fields only,
+// and it was a real client that measured it first: replaying a Terraform k3s
+// stack against the Outscale pack acknowledged 8 CreateSecurityGroupRule and
+// stored 5 rules, then destroy died on the phantom (#289). A pack's trials must
+// therefore drive both shapes: one writer per field, and one writer per element
+// of every collection its clients grow concurrently — Terraform's default
+// 10-way parallelism does exactly that to rules, routes and links.
 
 // Write is one concurrent updater in a NoLostUpdate run: how to send its change,
 // and how to read back the field it must have left behind.

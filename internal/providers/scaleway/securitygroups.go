@@ -227,45 +227,63 @@ func (p *Pack) updateSecurityGroup(w http.ResponseWriter, r *http.Request) {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
 		return
 	}
-	if req.InboundDefaultPolicy != "" {
-		if !validPolicies[req.InboundDefaultPolicy] {
-			writePolicyError(w, "inbound_default_policy", req.InboundDefaultPolicy)
-			return
-		}
-		res.Attrs["inbound_default_policy"] = req.InboundDefaultPolicy
+	if req.InboundDefaultPolicy != "" && !validPolicies[req.InboundDefaultPolicy] {
+		writePolicyError(w, "inbound_default_policy", req.InboundDefaultPolicy)
+		return
 	}
-	if req.OutboundDefaultPolicy != "" {
-		if !validPolicies[req.OutboundDefaultPolicy] {
-			writePolicyError(w, "outbound_default_policy", req.OutboundDefaultPolicy)
-			return
-		}
-		res.Attrs["outbound_default_policy"] = req.OutboundDefaultPolicy
+	if req.OutboundDefaultPolicy != "" && !validPolicies[req.OutboundDefaultPolicy] {
+		writePolicyError(w, "outbound_default_policy", req.OutboundDefaultPolicy)
+		return
 	}
-	if req.Name != nil {
-		res.Attrs["name"] = *req.Name
-	}
-	if req.Description != nil {
-		res.Attrs["description"] = *req.Description
-	}
-	if req.Tags != nil {
-		res.Attrs["tags"] = orEmpty(*req.Tags)
-	}
-	if req.Stateful != nil {
-		res.Attrs["stateful"] = *req.Stateful
-	}
-	if req.EnableDefaultSecurity != nil {
-		res.Attrs["enable_default_security"] = *req.EnableDefaultSecurity
-	}
-	if deref(req.ProjectDefault, false) || deref(req.OrganizationDefault, false) {
+	becomesDefault := deref(req.ProjectDefault, false) || deref(req.OrganizationDefault, false)
+	if becomesDefault {
+		// A group asking to become the project default demotes the previous
+		// one first, exactly as on create: two defaults in a project is a
+		// state the API cannot return.
 		p.clearProjectDefault(res.Tenant.Zone, res.Tenant.Project)
-		res.Attrs["project_default"] = true
-		res.Attrs["organization_default"] = true
 	}
 
-	res.Updated = p.env.Now()
-	p.env.Store.Put(res)
-	p.syncSecurityGroup(r.Context(), res)
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{"security_group": p.securityGroupView(res)})
+	// Written inside Store.Update rather than mutate-the-clone-then-Put: Put
+	// re-inserts unconditionally, so it resurrected a group deleted while this
+	// PATCH was decoding, and a concurrent writer of another field — the tags,
+	// say — was erased by the stale whole-Attrs write-back (#289).
+	var final *resource.Resource
+	err := p.env.Store.Update(Name, kindSecurityGroup, res.ID, func(stored *resource.Resource) error {
+		if req.InboundDefaultPolicy != "" {
+			stored.Attrs["inbound_default_policy"] = req.InboundDefaultPolicy
+		}
+		if req.OutboundDefaultPolicy != "" {
+			stored.Attrs["outbound_default_policy"] = req.OutboundDefaultPolicy
+		}
+		if req.Name != nil {
+			stored.Attrs["name"] = *req.Name
+		}
+		if req.Description != nil {
+			stored.Attrs["description"] = *req.Description
+		}
+		if req.Tags != nil {
+			stored.Attrs["tags"] = orEmpty(*req.Tags)
+		}
+		if req.Stateful != nil {
+			stored.Attrs["stateful"] = *req.Stateful
+		}
+		if req.EnableDefaultSecurity != nil {
+			stored.Attrs["enable_default_security"] = *req.EnableDefaultSecurity
+		}
+		if becomesDefault {
+			stored.Attrs["project_default"] = true
+			stored.Attrs["organization_default"] = true
+		}
+		stored.Updated = p.env.Now()
+		final = stored
+		return nil
+	})
+	if err != nil {
+		writeNotFound(w, "security_group", res.ID)
+		return
+	}
+	p.syncSecurityGroup(r.Context(), final)
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{"security_group": p.securityGroupView(final)})
 }
 
 func (p *Pack) deleteSecurityGroup(w http.ResponseWriter, r *http.Request) {
@@ -418,29 +436,21 @@ func (p *Pack) updateSecurityGroupRule(w http.ResponseWriter, r *http.Request) {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
 		return
 	}
-	if req.Protocol != "" {
-		if !validProtocols[req.Protocol] {
-			writeEnumError(w, "protocol", req.Protocol)
-			return
-		}
-		res.Attrs["protocol"] = req.Protocol
+	if req.Protocol != "" && !validProtocols[req.Protocol] {
+		writeEnumError(w, "protocol", req.Protocol)
+		return
 	}
-	if req.Direction != "" {
-		if !validDirections[req.Direction] {
-			writeEnumError(w, "direction", req.Direction)
-			return
-		}
-		res.Attrs["direction"] = req.Direction
+	if req.Direction != "" && !validDirections[req.Direction] {
+		writeEnumError(w, "direction", req.Direction)
+		return
 	}
-	if req.Action != "" {
-		if !validActions[req.Action] {
-			writeEnumError(w, "action", req.Action)
-			return
-		}
-		res.Attrs["action"] = req.Action
+	if req.Action != "" && !validActions[req.Action] {
+		writeEnumError(w, "action", req.Action)
+		return
 	}
+	ipRange := ""
 	if req.IPRange != "" {
-		ipRange, ok := normalizeIPRange(req.IPRange)
+		normalized, ok := normalizeIPRange(req.IPRange)
 		if !ok {
 			writeInvalidArguments(w, ArgumentError{
 				ArgumentName: "ip_range",
@@ -449,26 +459,50 @@ func (p *Pack) updateSecurityGroupRule(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		res.Attrs["ip_range"] = ipRange
-	}
-	// A zero port unsets the bound, which the SDK documents on the update
-	// request. Anything else would leave a rule Terraform cannot narrow back.
-	if req.DestPortFrom != nil {
-		res.Attrs["dest_port_from"] = portOrNil(req.DestPortFrom)
-	}
-	if req.DestPortTo != nil {
-		res.Attrs["dest_port_to"] = portOrNil(req.DestPortTo)
-	}
-	if req.Position != nil {
-		res.Attrs["position"] = *req.Position
+		ipRange = normalized
 	}
 
-	res.Updated = p.env.Now()
-	p.env.Store.Put(res)
-	if group, found := p.env.Store.Get(Name, kindSecurityGroup, res.Runtime[runtimeGroupKey]); found {
+	// Written inside Store.Update rather than mutate-the-clone-then-Put: Put
+	// re-inserts unconditionally, so it resurrected a rule deleted while this
+	// PATCH was decoding, and it wrote back a whole Attrs built from a stale
+	// read, which is the lost-update shape #289 measured on the pack next door.
+	var final *resource.Resource
+	err := p.env.Store.Update(Name, kindSecurityGroupRule, res.ID, func(stored *resource.Resource) error {
+		if req.Protocol != "" {
+			stored.Attrs["protocol"] = req.Protocol
+		}
+		if req.Direction != "" {
+			stored.Attrs["direction"] = req.Direction
+		}
+		if req.Action != "" {
+			stored.Attrs["action"] = req.Action
+		}
+		if req.IPRange != "" {
+			stored.Attrs["ip_range"] = ipRange
+		}
+		// A zero port unsets the bound, which the SDK documents on the update
+		// request. Anything else would leave a rule Terraform cannot narrow back.
+		if req.DestPortFrom != nil {
+			stored.Attrs["dest_port_from"] = portOrNil(req.DestPortFrom)
+		}
+		if req.DestPortTo != nil {
+			stored.Attrs["dest_port_to"] = portOrNil(req.DestPortTo)
+		}
+		if req.Position != nil {
+			stored.Attrs["position"] = *req.Position
+		}
+		stored.Updated = p.env.Now()
+		final = stored
+		return nil
+	})
+	if err != nil {
+		writeNotFound(w, "security_group_rule", res.ID)
+		return
+	}
+	if group, found := p.env.Store.Get(Name, kindSecurityGroup, final.Runtime[runtimeGroupKey]); found {
 		p.syncSecurityGroup(r.Context(), group)
 	}
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{"rule": ruleView(res)})
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{"rule": ruleView(final)})
 }
 
 func (p *Pack) deleteSecurityGroupRule(w http.ResponseWriter, r *http.Request) {
@@ -683,9 +717,15 @@ func (p *Pack) serversUsing(group *resource.Resource) []serverSummary {
 func (p *Pack) clearProjectDefault(zone, project string) {
 	for _, res := range p.env.Store.List(kindSecurityGroup, resource.Tenant{Provider: Name, Project: project, Zone: zone}) {
 		if isProjectDefault(res) {
-			res.Attrs["project_default"] = false
-			res.Attrs["organization_default"] = false
-			p.env.Store.Put(res)
+			// Update rather than Put: a Put here resurrected a group deleted
+			// between the List and the write, and erased any field a
+			// concurrent request had just stored on it (#289).
+			_ = p.env.Store.Update(Name, kindSecurityGroup, res.ID, func(stored *resource.Resource) error {
+				stored.Attrs["project_default"] = false
+				stored.Attrs["organization_default"] = false
+				stored.Updated = p.env.Now()
+				return nil
+			})
 		}
 	}
 }

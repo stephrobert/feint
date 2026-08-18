@@ -183,3 +183,189 @@ func TestTerminatingAVmFreesItsVolumes(t *testing.T) {
 		t.Fatalf("the volume is still held by a terminated Vm: status %d (%v)", status, out)
 	}
 }
+
+// The same control, on the other shape a lost update takes: an acknowledged
+// *element* of one collection, not an acknowledged field (#289).
+//
+// Replaying pli01/terraform-outscale-k3s measured it: Terraform creates 15
+// security group rules through its default 10-way parallelism, the group
+// received seven CreateSecurityGroupRule answering 200 each, and only six
+// rules survived — the reduced reproduction acknowledged 8 and stored 5. The
+// handler read a clone, appended to the clone's list and committed the whole
+// resource, which is exactly the non-merge store.Commit documents. Each writer
+// below owns one rule of one group, the way each writer above owns one field
+// of one Vm.
+func TestConcurrentRuleCreatesKeepEveryAcknowledgedRule(t *testing.T) {
+	ts, _ := newOutscaleBarrageServer(t)
+
+	found := storetest.NoLostUpdate(40, func(trial int) []storetest.Write {
+		_, out := post(t, ts, "CreateSecurityGroup", fmt.Sprintf(
+			`{"SecurityGroupName":"race-%d","Description":"membership barrage"}`, trial))
+		sg, _ := out["SecurityGroup"].(map[string]any)
+		id, _ := sg["SecurityGroupId"].(string)
+		if id == "" {
+			t.Fatalf("create: no SecurityGroupId in %v", out)
+		}
+
+		writes := make([]storetest.Write, 0, 8)
+		for i := range 8 {
+			port := 1001 + i
+			writes = append(writes, storetest.Write{
+				Field: fmt.Sprintf("inbound tcp %d on %s", port, id),
+				Apply: func() bool {
+					status, _ := postRaw(ts, "CreateSecurityGroupRule", fmt.Sprintf(
+						`{"Flow":"Inbound","IpProtocol":"tcp","FromPortRange":%d,"ToPortRange":%d,"IpRange":"10.0.0.0/24","SecurityGroupId":%q}`,
+						port, port, id))
+					return status == http.StatusOK
+				},
+				Got: func() string {
+					_, out := post(t, ts, "ReadSecurityGroups",
+						`{"Filters":{"SecurityGroupIds":["`+id+`"]}}`)
+					groups, _ := out["SecurityGroups"].([]any)
+					if len(groups) == 0 {
+						return "<the group is gone>"
+					}
+					group, _ := groups[0].(map[string]any)
+					for _, raw := range listAny(group["InboundRules"]) {
+						rule, _ := raw.(map[string]any)
+						if from, _ := rule["FromPortRange"].(float64); int(from) == port {
+							return "stored"
+						}
+					}
+					return "lost"
+				},
+				Want: "stored",
+			})
+		}
+		return writes
+	})
+
+	if len(found) > 0 {
+		t.Errorf("the rule create path lost a rule it had acknowledged:\n%s", strings.Join(found, "\n"))
+	}
+}
+
+// Routes are the same collection shape on the same stack: a route table takes
+// its routes through Terraform's parallelism exactly as a group takes its
+// rules, and createRoute had the same clone-append-Commit body.
+func TestConcurrentRouteCreatesKeepEveryAcknowledgedRoute(t *testing.T) {
+	ts, _ := newOutscaleBarrageServer(t)
+
+	found := storetest.NoLostUpdate(40, func(trial int) []storetest.Write {
+		// One block per trial: Nets whose ranges overlap are refused, and every
+		// trial must build on a target nothing else has touched anyway.
+		_, out := post(t, ts, "CreateNet", fmt.Sprintf(`{"IpRange":"10.%d.0.0/24"}`, trial))
+		net, _ := out["Net"].(map[string]any)
+		netID, _ := net["NetId"].(string)
+		if netID == "" {
+			t.Fatalf("create: no NetId in %v", out)
+		}
+		_, out = post(t, ts, "CreateRouteTable", `{"NetId":"`+netID+`"}`)
+		table, _ := out["RouteTable"].(map[string]any)
+		tableID, _ := table["RouteTableId"].(string)
+		if tableID == "" {
+			t.Fatalf("create: no RouteTableId in %v", out)
+		}
+		_, out = post(t, ts, "CreateInternetService", `{}`)
+		gateway, _ := out["InternetService"].(map[string]any)
+		gatewayID, _ := gateway["InternetServiceId"].(string)
+		if gatewayID == "" {
+			t.Fatalf("create: no InternetServiceId in %v", out)
+		}
+		post(t, ts, "LinkInternetService",
+			`{"InternetServiceId":"`+gatewayID+`","NetId":"`+netID+`"}`)
+
+		writes := make([]storetest.Write, 0, 8)
+		for i := range 8 {
+			destination := fmt.Sprintf("198.51.%d.0/24", 100+i)
+			writes = append(writes, storetest.Write{
+				Field: "route to " + destination,
+				Apply: func() bool {
+					status, _ := postRaw(ts, "CreateRoute", fmt.Sprintf(
+						`{"RouteTableId":%q,"DestinationIpRange":%q,"GatewayId":%q}`,
+						tableID, destination, gatewayID))
+					return status == http.StatusOK
+				},
+				Got: func() string {
+					_, out := post(t, ts, "ReadRouteTables",
+						`{"Filters":{"RouteTableIds":["`+tableID+`"]}}`)
+					tables, _ := out["RouteTables"].([]any)
+					if len(tables) == 0 {
+						return "<the table is gone>"
+					}
+					table, _ := tables[0].(map[string]any)
+					for _, raw := range listAny(table["Routes"]) {
+						route, _ := raw.(map[string]any)
+						if route["DestinationIpRange"] == destination {
+							return "stored"
+						}
+					}
+					return "lost"
+				},
+				Want: "stored",
+			})
+		}
+		return writes
+	})
+
+	if len(found) > 0 {
+		t.Errorf("the route create path lost a route it had acknowledged:\n%s", strings.Join(found, "\n"))
+	}
+}
+
+// Tags are the third member: CreateTags wrote its merge back with Put, which
+// loses a concurrent key the way Commit does and resurrects a deleted resource
+// on top of it. Each writer owns one key of one Net's tag collection.
+func TestConcurrentTagCreatesKeepEveryAcknowledgedTag(t *testing.T) {
+	ts, _ := newOutscaleBarrageServer(t)
+
+	found := storetest.NoLostUpdate(40, func(trial int) []storetest.Write {
+		// One block per trial, as above: overlapping Nets are refused.
+		_, out := post(t, ts, "CreateNet", fmt.Sprintf(`{"IpRange":"10.%d.1.0/24"}`, trial))
+		net, _ := out["Net"].(map[string]any)
+		netID, _ := net["NetId"].(string)
+		if netID == "" {
+			t.Fatalf("create: no NetId in %v", out)
+		}
+
+		writes := make([]storetest.Write, 0, 8)
+		for i := range 8 {
+			key := fmt.Sprintf("barrage-%d", i)
+			writes = append(writes, storetest.Write{
+				Field: "tag " + key + " on " + netID,
+				Apply: func() bool {
+					status, _ := postRaw(ts, "CreateTags", fmt.Sprintf(
+						`{"ResourceIds":[%q],"Tags":[{"Key":%q,"Value":"held"}]}`, netID, key))
+					return status == http.StatusOK
+				},
+				Got: func() string {
+					_, out := post(t, ts, "ReadNets", `{"Filters":{"NetIds":["`+netID+`"]}}`)
+					nets, _ := out["Nets"].([]any)
+					if len(nets) == 0 {
+						return "<the Net is gone>"
+					}
+					net, _ := nets[0].(map[string]any)
+					for _, raw := range listAny(net["Tags"]) {
+						tag, _ := raw.(map[string]any)
+						if tag["Key"] == key {
+							return "stored"
+						}
+					}
+					return "lost"
+				},
+				Want: "stored",
+			})
+		}
+		return writes
+	})
+
+	if len(found) > 0 {
+		t.Errorf("the tag create path lost a key it had acknowledged:\n%s", strings.Join(found, "\n"))
+	}
+}
+
+// listAny reads a decoded JSON list, nil included.
+func listAny(v any) []any {
+	out, _ := v.([]any)
+	return out
+}
