@@ -191,10 +191,30 @@ data "scaleway_block_snapshot" "by_name" {
   zone = "fr-par-1"
 }
 
+# Two reserved addresses the server below names in the opposite of their
+# creation order — the sergelogvinov/terraform-talos ip_ids pattern (#320).
+# Server.public_ips is a list the provider stores index by index, so an
+# emulator answering it in store order made every such stack re-plan the same
+# two-way swap for ever; the apply path is set-based UpdateIP calls and cannot
+# reorder, so the diff never converged. The depends_on forces the creation
+# order, so a regression is a deterministic second-plan diff rather than a
+# coin-flip on two same-second timestamps.
+resource "scaleway_instance_ip" "ordered_first" {
+  zone = "fr-par-1"
+}
+
+resource "scaleway_instance_ip" "ordered_second" {
+  zone       = "fr-par-1"
+  depends_on = [scaleway_instance_ip.ordered_first]
+}
+
 resource "scaleway_instance_server" "conformance" {
   name = "conformance-tf"
   type = "DEV1-S"
   zone = "fr-par-1"
+
+  # Named against the store: the second-created address first (#320).
+  ip_ids = [scaleway_instance_ip.ordered_second.id, scaleway_instance_ip.ordered_first.id]
 
   # The path both defects lived on: the provider attaches it at create and
   # detaches it at destroy, through terminate rather than delete.
@@ -265,6 +285,13 @@ output "volume_id" {
 
 output "ipam_ip_id" {
   value = scaleway_ipam_ip.conformance.id
+}
+
+# The two reserved addresses in the order the server named them, so the suite
+# can ask the emulator — not the state file — whether public_ips serves the
+# client's order (#320).
+output "ordered_ip_ids" {
+  value = [scaleway_instance_ip.ordered_second.id, scaleway_instance_ip.ordered_first.id]
 }
 
 output "route_id" {

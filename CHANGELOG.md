@@ -26,6 +26,21 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **`server.public_ips` answers in the order the create named** (#320).
+  Scaleway's `Server.public_ips` is a list and Terraform stores it as one: the
+  provider rebuilds `ip_ids` from it index by index, and its apply path is
+  set-based `UpdateIP` calls that cannot reorder — so an emulator answering
+  the attached addresses in store order made every `ip_ids = [a, b]` whose
+  store order was `[b, a]` re-plan the same two-way swap for ever, measured on
+  `sergelogvinov/terraform-talos` the moment its servers first applied. Each
+  attach now records the position the client gave it, on create
+  (`public_ips`/`public_ip`), on `UpdateServer.public_ips` — which was
+  declared by the SDK and read by nobody here, a PATCH naming it answered 200
+  and changed nothing — and on a bare `PATCH /ips` attach, which joins the end
+  of the list. The identifiers themselves were already the API's own bare
+  UUIDs; the `id → fr-par-1/id` half of the observed diff is the provider
+  normalising its own state, and goes with the swap.
+
 - **`feint start` refuses an answer from a process it did not spawn** (#309).
   Before, when something already held the address, the spawned child died on
   the bind error while `start` took the incumbent's health answer as the

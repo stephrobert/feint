@@ -461,6 +461,23 @@ platform entry.
   (21 to add) and the apply stops at the same two declined walls —
   placement groups and vpc-gw — before any server names its type. Both
   seeded talos images resolve, the arm64 one included.
+- **Replayed 2026-08-19, `fix/320-address-order-and-shape`**: the fourth
+  wall, revealed the moment #285's replay let the servers apply — the
+  stack's `ip_ids = [v4.id, v6.id]` re-planned the same two-way swap for
+  ever (#320) — no longer stands. Measured through `feint proxy --record`
+  at the stack's own pin (`~> 2.43.0`) on the reduced witness of
+  instances-controlplane.tf (two reserved IPs, one server naming them
+  against their creation order): the create sends `public_ips` in the
+  config's order, the answer now carries that same order, and the witness
+  applies, plans empty and destroys. The cause was order alone:
+  `Server.public_ips` answered in store order, the provider rebuilds
+  `ip_ids` from it index by index (2.43.0 `flattenServerIPIDs`,
+  types.go:99) and its apply path is set-based `UpdateIP` calls that
+  cannot reorder. The `id → fr-par-1/id` half of the diff travels with
+  the swap: `dsf.Locality` (locality.go:10) suppresses a bare-vs-zoned
+  pair at the same index, and the bare id is what the real API serves
+  (`ServerIP.ID`, instance_sdk.go:1476). The full stack's servers still
+  wait on the placement-group wall (#285, in flight).
 
 ### 2. ioandev/scaleway-flatcar-k3s — applied in part
 

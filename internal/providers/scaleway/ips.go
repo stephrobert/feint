@@ -3,8 +3,11 @@ package scaleway
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/netip"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
@@ -170,10 +173,62 @@ func emulatedAddress(address string) bool {
 	return prefix.Contains(addr)
 }
 
+// runtimeAttachSeqKey holds the position the client gave this address in the
+// list that attached it — CreateServer.public_ips, UpdateServer.public_ips, or
+// the end of the line for a PATCH /ips attach. Runtime rather than Attrs: the
+// position shapes public_ips but is not itself a field the API serves.
+//
+// It exists because Server.public_ips is a list and Terraform stores it as
+// one: the provider rebuilds ip_ids index by index from it (flattenServerIPIDs,
+// provider 2.43.0 types.go:99), so answering the same set in store order made
+// every ip_ids = [a, b] whose store order was [b, a] re-plan the same swap for
+// ever — and the apply path could not fix it, being set-based UpdateIP calls
+// that never reorder (#320).
+const runtimeAttachSeqKey = "attach-seq"
+
+// recordAttachOrder stamps the address with its position in the client-named
+// list. Every path that writes ip.Attrs["server"] writes this beside it.
+func recordAttachOrder(ip *resource.Resource, seq int) {
+	if ip.Runtime == nil {
+		ip.Runtime = map[string]string{}
+	}
+	ip.Runtime[runtimeAttachSeqKey] = strconv.Itoa(seq)
+}
+
+// attachOrderOf reads the stamped position back. An address without one — a
+// snapshot from before the stamp existed, or a hand-edited state — sorts after
+// every stamped address, in store order: deterministic, never refused, because
+// the value can only reorder a list the server already owns.
+func attachOrderOf(ip *resource.Resource) int {
+	seq, err := strconv.Atoi(ip.Runtime[runtimeAttachSeqKey])
+	if err != nil || seq < 0 {
+		return math.MaxInt
+	}
+	return seq
+}
+
+// nextAttachOrder is the position after every address the server already
+// carries: an address attached on its own joins the end of the list rather
+// than shuffling what the client already ordered.
+func (p *Pack) nextAttachOrder(serverID, zone string) int {
+	next := 0
+	for _, ip := range p.attachedIPsOf(serverID, zone) {
+		if seq := attachOrderOf(ip); seq != math.MaxInt && seq >= next {
+			next = seq + 1
+		}
+	}
+	return next
+}
+
 // attachedIPsOf lists the flexible IPs attached to a server. One walk for the
 // view, the release path, the boot and the replay — four callers, one loop,
 // because the copies had already started to disagree once (an audit found the
 // create path and updateIP setting different halves of the same link).
+//
+// The order is the client's, not the store's: the position each attach stamped
+// (recordAttachOrder), which is what makes public_ips answer in the order the
+// create named and a Terraform ip_ids list converge.
+// TestPublicIPsKeepTheOrderTheCreateNamed fails without the sort.
 func (p *Pack) attachedIPsOf(serverID, zone string) []*resource.Resource {
 	out := make([]*resource.Resource, 0, 1)
 	for _, ip := range p.env.Store.List(kindIP, resource.Tenant{Provider: Name, Zone: zone}) {
@@ -182,6 +237,9 @@ func (p *Pack) attachedIPsOf(serverID, zone string) []*resource.Resource {
 			out = append(out, ip)
 		}
 	}
+	sort.SliceStable(out, func(i, j int) bool {
+		return attachOrderOf(out[i]) < attachOrderOf(out[j])
+	})
 	return out
 }
 
@@ -311,6 +369,7 @@ func (p *Pack) updateIP(w http.ResponseWriter, r *http.Request) {
 			p.detachAddress(r.Context(), res)
 			res.Attrs["server"] = nil
 			res.State = "detached"
+			delete(res.Runtime, runtimeAttachSeqKey)
 		} else {
 			server, ok := p.env.Store.Get(Name, kindServer, serverID)
 			if !ok || server.Tenant.Zone != zone {
@@ -321,10 +380,18 @@ func (p *Pack) updateIP(w http.ResponseWriter, r *http.Request) {
 			// the previous machine's device, and attaching elsewhere without
 			// unrouting leaves two machines claiming the same /32, the old one
 			// winning or losing by ARP order.
+			previousHolder := ""
 			if summary, _ := res.Attrs["server"].(map[string]any); summary != nil {
-				if previous, _ := summary["id"].(string); previous != "" && previous != server.ID {
+				previousHolder, _ = summary["id"].(string)
+				if previousHolder != "" && previousHolder != server.ID {
 					p.detachAddress(r.Context(), res)
 				}
+			}
+			// An address attached on its own joins the end of the server's
+			// list; one re-attached to the same server keeps its place, so a
+			// replayed PATCH cannot shuffle what the client ordered.
+			if previousHolder != server.ID || res.Runtime[runtimeAttachSeqKey] == "" {
+				recordAttachOrder(res, p.nextAttachOrder(server.ID, zone))
 			}
 			name, _ := server.Attrs["name"].(string)
 			res.Attrs["server"] = map[string]any{"id": server.ID, "name": name}
@@ -489,6 +556,7 @@ func (p *Pack) releaseAddressesOf(ctx context.Context, serverID, zone string) {
 		_ = p.env.Store.Update(Name, kindIP, ip.ID, func(stored *resource.Resource) error {
 			stored.Attrs["server"] = nil
 			stored.State = "detached"
+			delete(stored.Runtime, runtimeAttachSeqKey)
 			stored.Updated = p.env.Now()
 			return nil
 		})

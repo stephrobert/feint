@@ -29,6 +29,23 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **`server.public_ips` répond dans l'ordre que la création a nommé** (#320).
+  `Server.public_ips` chez Scaleway est une liste et Terraform la stocke comme
+  telle : le provider reconstruit `ip_ids` index par index depuis elle, et son
+  chemin d'application est une suite d'appels `UpdateIP` par ensembles,
+  incapable de réordonner. Un émulateur répondant les adresses attachées dans
+  l'ordre du store faisait donc replanifier sans fin la même permutation à
+  tout `ip_ids = [a, b]` dont l'ordre du store était `[b, a]` ; mesuré sur
+  `sergelogvinov/terraform-talos` au moment où ses serveurs se sont appliqués
+  pour la première fois. Chaque attachement enregistre désormais la position
+  que le client lui a donnée : à la création (`public_ips`/`public_ip`), sur
+  `UpdateServer.public_ips` (déclaré par le SDK et lu par personne ici : un
+  PATCH le nommant répondait 200 sans rien changer), et sur un attachement nu
+  par `PATCH /ips`, qui rejoint la fin de la liste. Les identifiants
+  eux-mêmes étaient déjà les UUID nus de l'API ; la moitié `id → fr-par-1/id`
+  du diff observé est le provider qui normalise son propre état, et elle part
+  avec la permutation.
+
 - **`feint start` refuse une réponse venant d'un processus qu'il n'a pas
   lancé** (#309). Avant, quand quelque chose tenait déjà l'adresse, l'enfant
   lancé mourait sur l'erreur de bind pendant que `start` prenait la réponse de

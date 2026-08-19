@@ -111,6 +111,12 @@ type updateServerRequest struct {
 	// run, and nothing turned that into a failure.
 	CommercialType *string                    `json:"commercial_type"`
 	Volumes        *map[string]volumeTemplate `json:"volumes"`
+	// PublicIPs is "a list of reserved IP IDs to attach to the Instance"
+	// (UpdateServerRequest.PublicIPs, instance_sdk.go:3961) — the same field
+	// the create reads, on the update door. It was declared upstream and read
+	// by nobody here, the commercial_type defect one field over: a PATCH
+	// naming it answered 200 and changed nothing (#320).
+	PublicIPs *[]string `json:"public_ips"`
 }
 
 type serverActionRequest struct {
@@ -365,32 +371,8 @@ func (p *Pack) createServer(w http.ResponseWriter, r *http.Request) {
 
 	p.env.Store.Put(rootVol)
 	p.env.Store.Put(res)
-	for _, ip := range attach {
-		// Taken from whoever held it, the way updateIP does: it unroutes the
-		// previous machine before it routes the new one. This loop set the new
-		// owner and left the old machine carrying the address, so under a
-		// runtime two machines claimed the same /32 — and the first server lost
-		// its address with no error anywhere.
-		//
-		// TestCreatingAServerDoesNotStealALiveAddress fails without this.
-		// detachAddress reads the previous holder out of the record itself, so
-		// it has to run before the record is rewritten — the first version
-		// passed it the new server, which type-checks and reads no address at
-		// all, and the falsification caught it because the test kept passing
-		// with the call removed.
-		if previous, _ := ip.Attrs["server"].(map[string]any); previous != nil {
-			if id, _ := previous["id"].(string); id != "" && id != res.ID {
-				p.detachAddress(r.Context(), ip)
-			}
-		}
-		ip.Attrs["server"] = map[string]any{"id": res.ID, "name": req.Name}
-		// The state moves with the attachment. This path used to set the server
-		// and leave the state at "detached", so every address attached at create
-		// described itself as free while carrying a machine — updateIP has always
-		// set both, and an audit found the two paths disagreeing.
-		ip.State = "attached"
-		p.env.Store.Put(ip)
-		p.attachAddress(r.Context(), ip, res)
+	for i, ip := range attach {
+		p.attachIPToServer(r.Context(), ip, res, i)
 	}
 
 	emulator.WriteJSON(w, http.StatusCreated, map[string]any{"server": p.view(res)})
@@ -485,6 +467,17 @@ func (p *Pack) updateServer(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		volumesView, _ = res.Attrs["volumes"].(map[string]any)
+	}
+
+	// Like the volume moves above: the attachments live on the IP resources
+	// and the reconciliation talks to the runtime, so it cannot run inside the
+	// store lock. The order of the list is part of what is being written —
+	// public_ips answers in this order from now on (#320).
+	if req.PublicIPs != nil {
+		if badID, ok := p.setServerIPs(r.Context(), res, *req.PublicIPs); !ok {
+			writeNotFound(w, "ip", badID)
+			return
+		}
 	}
 
 	// Inside the store lock: the clone-mutate-Commit shape this replaces
@@ -966,6 +959,80 @@ func (p *Pack) publicIPsOf(server *resource.Resource) []any {
 		out = append(out, serverIPView(server.Runtime[runtimeDynamicIPIDKey], address, true))
 	}
 	return out
+}
+
+// attachIPToServer gives the server one flexible IP, at position seq in its
+// public_ips list. One body for the create loop and the update reconciliation,
+// because the attach mechanics had already diverged between two paths once
+// (create left State at "detached" while updateIP set it).
+//
+// Taken from whoever held it, the way updateIP does: it unroutes the previous
+// machine before it routes the new one. Setting the new owner without that
+// left the old machine carrying the address, so under a runtime two machines
+// claimed the same /32 — and the first server lost its address with no error
+// anywhere.
+//
+// TestCreatingAServerDoesNotStealALiveAddress fails without this.
+// detachAddress reads the previous holder out of the record itself, so it has
+// to run before the record is rewritten — the first version passed it the new
+// server, which type-checks and reads no address at all, and the falsification
+// caught it because the test kept passing with the call removed.
+func (p *Pack) attachIPToServer(ctx context.Context, ip, server *resource.Resource, seq int) {
+	if previous, _ := ip.Attrs["server"].(map[string]any); previous != nil {
+		if id, _ := previous["id"].(string); id != "" && id != server.ID {
+			p.detachAddress(ctx, ip)
+		}
+	}
+	name, _ := server.Attrs["name"].(string)
+	ip.Attrs["server"] = map[string]any{"id": server.ID, "name": name}
+	// The state moves with the attachment. The create path used to set the
+	// server and leave the state at "detached", so every address attached at
+	// create described itself as free while carrying a machine — updateIP has
+	// always set both, and an audit found the two paths disagreeing.
+	ip.State = "attached"
+	// The position travels with the attachment too: public_ips answers in the
+	// order the client named, not the order the store holds (#320).
+	recordAttachOrder(ip, seq)
+	p.env.Store.Put(ip)
+	p.attachAddress(ctx, ip, server)
+}
+
+// setServerIPs makes the server's attached flexible IPs be exactly the given
+// list, in the given order — which is what the field means upstream: "A list
+// of reserved IP IDs to attach to the Instance" (UpdateServerRequest.PublicIPs,
+// instance_sdk.go:3961). An address dropped from the list detaches; it is not
+// deleted, because on Scaleway a reserved address outlives its attachment.
+//
+// An unknown id is refused before anything is written, so a 404 cannot leave
+// the reconciliation half-done.
+func (p *Pack) setServerIPs(ctx context.Context, server *resource.Resource, ids []string) (badID string, ok bool) {
+	attach := make([]*resource.Resource, 0, len(ids))
+	wanted := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		ip, found := p.env.Store.Get(Name, kindIP, id)
+		if !found || ip.Tenant.Zone != server.Tenant.Zone {
+			return id, false
+		}
+		attach = append(attach, ip)
+		wanted[ip.ID] = true
+	}
+	for _, ip := range p.attachedIPsOf(server.ID, server.Tenant.Zone) {
+		if wanted[ip.ID] {
+			continue
+		}
+		p.detachAddress(ctx, ip)
+		_ = p.env.Store.Update(Name, kindIP, ip.ID, func(stored *resource.Resource) error {
+			stored.Attrs["server"] = nil
+			stored.State = "detached"
+			delete(stored.Runtime, runtimeAttachSeqKey)
+			stored.Updated = p.env.Now()
+			return nil
+		})
+	}
+	for i, ip := range attach {
+		p.attachIPToServer(ctx, ip, server, i)
+	}
+	return "", true
 }
 
 // serverIPView is one ServerIP entry. routed_ip_enabled is this emulator's
