@@ -219,6 +219,68 @@ scw instance ip delete "$ip_id" zone="$ZONE" >/dev/null || fail "cleanup: ip del
 prove_end "$span"
 ok "reserved, attached, and reported"
 
+# Placement groups (#285): the record is served, the effect is not, and the CLI
+# walks all nine v1 operations. The one field that could turn the record into a
+# promise is policy_respected, and the assertion that matters here is the
+# honest one: a max_availability group whose two members are running must read
+# false, because every emulated machine shares the single host that started
+# feint (docs/limits.md). The declined era's reason was "any policy would be
+# reported satisfied whatever it asked"; this section is that sentence kept
+# false.
+echo "- placement group: create, get, update, set"
+span="$(prove_begin behaviour)"
+pg="$(scw instance placement-group create name=conformance-pg policy-mode=enforced \
+        policy-type=max_availability zone="$ZONE" -o json)" || fail "placement group create rejected: $pg"
+pg_id="$(printf '%s' "$pg" | jq -r '(.placement_group // .).id // empty')"
+[ -n "$pg_id" ] || fail "no id in the placement group create response: $pg"
+# The CLI's get is a custom command that joins GetPlacementGroup and
+# GetPlacementGroupServers, so one call drives both operations.
+read_back="$(scw instance placement-group get "$pg_id" zone="$ZONE" -o json)" || fail "get rejected: $read_back"
+printf '%s' "$read_back" | jq -e '(.placement_group // .) | .policy_mode == "enforced" and .policy_type == "max_availability" and .policy_respected == true' >/dev/null \
+  || fail "the empty group did not round-trip (a group with nothing running violates nothing): $read_back"
+scw instance placement-group update placement-group-id="$pg_id" name=conformance-pg-2 zone="$ZONE" -o json >/dev/null \
+  || fail "update rejected"
+scw instance placement-group set placement-group-id="$pg_id" name=conformance-pg-3 \
+  policy-mode=optional policy-type=max_availability zone="$ZONE" -o json >/dev/null || fail "set rejected"
+listed="$(scw instance placement-group list zone="$ZONE" -o json)" || fail "list rejected: $listed"
+printf '%s' "$listed" | jq -e --arg id "$pg_id" 'any(.[]; .id == $id and .name == "conformance-pg-3" and .policy_mode == "optional")' >/dev/null \
+  || fail "the set did not stick in the list: $listed"
+ok "group $pg_id"
+
+echo "- placement group: two running members on one host read policy_respected=false"
+pg_a="$(scw instance server create name=conformance-pg-a type=DEV1-S zone="$ZONE" \
+          placement-group-id="$pg_id" -o json)" || fail "create in the group rejected: $pg_a"
+pg_a_id="$(printf '%s' "$pg_a" | jq -r '.id')"
+printf '%s' "$pg_a" | jq -e --arg id "$pg_id" '.placement_group.id == $id' >/dev/null \
+  || fail "the server did not take the group: $pg_a"
+pg_b="$(scw instance server create name=conformance-pg-b type=DEV1-S zone="$ZONE" -o json)" \
+  || fail "create for the membership test rejected: $pg_b"
+pg_b_id="$(printf '%s' "$pg_b" | jq -r '.id')"
+scw instance placement-group set-servers placement-group-id="$pg_id" servers.0="$pg_a_id" servers.1="$pg_b_id" \
+  zone="$ZONE" -o json >/dev/null || fail "set-servers rejected"
+members="$(scw instance placement-group get-servers placement-group-id="$pg_id" zone="$ZONE" -o json)" \
+  || fail "get-servers rejected: $members"
+printf '%s' "$members" | jq -e --arg a "$pg_a_id" --arg b "$pg_b_id" \
+  '(.servers // .) | any(.[]; .id == $a) and any(.[]; .id == $b)' >/dev/null || fail "set-servers did not stick: $members"
+# Both members are running: the CLI boots a server right after creating it,
+# which the very first block of this file depends on.
+honest="$(scw instance placement-group get "$pg_id" zone="$ZONE" -o json)" || fail "get rejected: $honest"
+printf '%s' "$honest" | jq -e '(.placement_group // .).policy_respected == false' >/dev/null \
+  || fail "two running members of a spread group on one host read respected — the record became a promise nothing honours: $honest"
+scw instance placement-group update-servers placement-group-id="$pg_id" servers.0="$pg_a_id" \
+  zone="$ZONE" -o json >/dev/null || fail "update-servers rejected"
+members="$(scw instance placement-group get-servers placement-group-id="$pg_id" zone="$ZONE" -o json)" \
+  || fail "get-servers rejected after update: $members"
+printf '%s' "$members" | jq -e --arg b "$pg_b_id" '(.servers // .) | any(.[]; .id == $b) | not' >/dev/null \
+  || fail "update-servers kept an evicted member: $members"
+scw instance server stop "$pg_a_id" zone="$ZONE" >/dev/null || fail "cleanup: poweroff rejected"
+scw instance server stop "$pg_b_id" zone="$ZONE" >/dev/null || fail "cleanup: poweroff rejected"
+scw instance server delete "$pg_a_id" zone="$ZONE" >/dev/null || fail "cleanup: server delete rejected"
+scw instance server delete "$pg_b_id" zone="$ZONE" >/dev/null || fail "cleanup: server delete rejected"
+scw instance placement-group delete "$pg_id" zone="$ZONE" >/dev/null || fail "placement group delete rejected"
+prove_end "$span"
+ok "membership walked, and the spread policy told the truth"
+
 # The volume and address lifecycles, walked by the CLI rather than asserted in a
 # unit test. Two whole-pack audits found every one of their defects in the gap
 # between this fixture and what the pack claimed: an attached volume answering a

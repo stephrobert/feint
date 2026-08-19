@@ -87,8 +87,10 @@ func TestTheLogKeepsTheOrderAClientWalked(t *testing.T) {
 	drive(http.MethodGet, zone+"/products/servers", "")
 	drive(http.MethodGet, "/marketplace/v2/local-images", "")
 	// One field the handler does not declare, on a call that succeeds. This is
-	// the line the log exists for.
-	drive(http.MethodPost, zone+"/servers", `{"name":"demo","commercial_type":"DEV1-S","placement_group":"nope"}`)
+	// the line the log exists for. The field is real upstream
+	// (CreateServerRequest.AdminPasswordEncryptionSSHKeyID) and read by no
+	// handler here; placement_group played this role until #285 served it.
+	drive(http.MethodPost, zone+"/servers", `{"name":"demo","commercial_type":"DEV1-S","admin_password_encryption_ssh_key_id":"nope"}`)
 	drive(http.MethodGet, zone+"/servers", "")
 	// And one route nobody mounted, in the middle of the walk.
 	drive(http.MethodPost, "/instance/v1/zones/fr-par-1/does-not-exist", `{}`)

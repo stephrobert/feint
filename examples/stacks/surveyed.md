@@ -461,6 +461,27 @@ platform entry.
   (21 to add) and the apply stops at the same two declined walls —
   placement groups and vpc-gw — before any server names its type. Both
   seeded talos images resolve, the arm64 one included.
+- **Replayed 2026-08-19, `feat/285-placement-groups`**: the placement
+  wall fell. Same harness (fresh age key, re-seeded talos images,
+  `controlplane = {count=2, type="DEV1-L"}`), 17 resources applied —
+  both placement groups (`controlplane` enforced/max_availability, `web`),
+  **both controlplane servers**, their IPs, IPAM bookings and SGs — where
+  every earlier replay died on the placement-group 501 before any server
+  existed. The recording shows what the pinned provider (~> 2.43.0) does
+  with the group: v1 create ×2, get ×8, delete ×2, plus
+  `placement_group` on each server create and the detach-on-destroy
+  `PATCH {"placement_group": null}` ×2 — record and read-back only,
+  nothing that depends on machines landing apart, which is the
+  measurement #285 turned into `docs/limits.md`'s "recorded, never
+  enforced" entry. The stack's `policy_respected` reads honest: `true` on
+  the group at create (nothing running), `false` per server (the SDK pins
+  the server-embedded value false). One wall stands: vpc-gw (#282's
+  family) — the apply stops on `scaleway_vpc_public_gateway_ip.main`'s
+  501 and `terraform destroy` completes cleanly, 17 of 17. One new
+  finding, visible only now that servers apply: `ip_ids` re-plans as an
+  in-place swap because `server.public_ips` does not preserve the order
+  the create named (v4 first, v6 second in the config; read back
+  reversed) — filed as [#320](https://github.com/stephrobert/feint/issues/320).
 
 ### 2. ioandev/scaleway-flatcar-k3s — applied in part
 

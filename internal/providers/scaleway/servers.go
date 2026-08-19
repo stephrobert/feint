@@ -2,6 +2,7 @@ package scaleway
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -17,6 +18,13 @@ import (
 // errServerNotStopped is the retype refusal, answered from inside the store
 // lock where the state it judges cannot move (#295).
 var errServerNotStopped = errors.New("the server is not stopped")
+
+// errServerNotStoppedForPlacement is the same refusal for joining a placement
+// group: the provider's own update path guards it client-side ("instance must
+// be stopped to change placement group"), so the emulator refusing it is the
+// real API's behaviour, not an invention. Leaving a group has no such guard —
+// the provider detaches on destroy "even if instance won't stop".
+var errServerNotStoppedForPlacement = errors.New("the server is not stopped")
 
 // kindServer is the store kind for Instance servers.
 const kindServer = "instance/server"
@@ -85,6 +93,12 @@ type createServerRequest struct {
 	// catalogue's 20 and nothing said so — found by the report of fields a
 	// client sends and no handler declares.
 	Volumes map[string]volumeTemplate `json:"volumes"`
+	// PlacementGroup is a bare ID on the way in and a full object on the way
+	// out, the same asymmetry SecurityGroup carries (CreateServerRequest's
+	// field is *string, Server.PlacementGroup is *PlacementGroup). The
+	// Terraform provider sends it whenever the configuration names a
+	// placement_group_id (#285).
+	PlacementGroup string `json:"placement_group"`
 }
 
 // volumeTemplate is VolumeServerTemplate, cut to what the emulator honours.
@@ -111,6 +125,12 @@ type updateServerRequest struct {
 	// run, and nothing turned that into a failure.
 	CommercialType *string                    `json:"commercial_type"`
 	Volumes        *map[string]volumeTemplate `json:"volumes"`
+	// PlacementGroup is a NullableStringValue upstream: `null` detaches, a
+	// string attaches. RawMessage for the reason createIPRequest.Server is —
+	// a *string cannot tell `"placement_group": null` from an absent field,
+	// and the provider's own destroy path sends the null to free the group
+	// before stopping the server.
+	PlacementGroup json.RawMessage `json:"placement_group"`
 }
 
 type serverActionRequest struct {
@@ -310,6 +330,23 @@ func (p *Pack) createServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The placement group is resolved before anything is stored, for the same
+	// reason the flexible IPs below are: refusing after the Put would leave a
+	// phantom server behind on the 400.
+	var placementGroup any
+	if req.PlacementGroup != "" {
+		group, found := p.env.Store.Get(Name, kindPlacementGroup, req.PlacementGroup)
+		if !found || group.Tenant.Zone != zone {
+			writeInvalidArguments(w, ArgumentError{
+				ArgumentName: "placement_group",
+				Reason:       "constraint",
+				HelpMessage:  "unknown placement group " + req.PlacementGroup,
+			})
+			return
+		}
+		placementGroup = req.PlacementGroup
+	}
+
 	resolvedImageID, imageDisplay, imageLabel := resolveImage(req.Image)
 
 	res := resource.New(p.env.NewID(), kindServer, resource.Tenant{Provider: Name, Project: project, Zone: zone}, "stopped", now)
@@ -336,8 +373,12 @@ func (p *Pack) createServer(w http.ResponseWriter, r *http.Request) {
 		"enable_ipv6":         deref(req.EnableIPv6, false),
 		"state_detail":        "",
 		"security_group":      securityGroup,
-		"allowed_actions":     allowedActions(res.State, deref(req.Protected, false)),
-		"maintenances":        []any{},
+		// The stored value is the bare ID (or nil); view() serves the object
+		// shape the SDK declares. Stored under the response key on purpose,
+		// so a snapshot round-trips the membership without a second name.
+		attrServerPlacementGroup: placementGroup,
+		"allowed_actions":        allowedActions(res.State, deref(req.Protected, false)),
+		"maintenances":           []any{},
 		// Kept so the machine driver knows which catalogue image stands in for
 		// the requested cloud image. Empty when the identifier resolved to
 		// nothing, which a boot refuses rather than substituting (#83).
@@ -471,6 +512,19 @@ func (p *Pack) updateServer(w http.ResponseWriter, r *http.Request) {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
 		return
 	}
+	// An attach names a group that must exist in this zone, and the lookup
+	// happens out here because the store's critical section is below.
+	pgID, pgPresent, pgClears := serverField(req.PlacementGroup)
+	if pgPresent && !pgClears {
+		if group, found := p.env.Store.Get(Name, kindPlacementGroup, pgID); !found || group.Tenant.Zone != zone {
+			writeInvalidArguments(w, ArgumentError{
+				ArgumentName: "placement_group",
+				Reason:       "constraint",
+				HelpMessage:  "unknown placement group " + pgID,
+			})
+			return
+		}
+	}
 	// The volume moves touch other resources and cannot run under the store
 	// lock, so they go first, on the clone; the map they computed is then
 	// written with the scalar fields in one critical section below.
@@ -519,6 +573,18 @@ func (p *Pack) updateServer(w http.ResponseWriter, r *http.Request) {
 			}
 			stored.Attrs["commercial_type"] = *req.CommercialType
 		}
+		if pgPresent {
+			if pgClears {
+				// Leaving a group is allowed in any state: the provider's
+				// destroy path frees the group before it stops the server.
+				stored.Attrs[attrServerPlacementGroup] = nil
+			} else {
+				if stored.State != "stopped" {
+					return errServerNotStoppedForPlacement
+				}
+				stored.Attrs[attrServerPlacementGroup] = pgID
+			}
+		}
 		if volumesView != nil {
 			stored.Attrs["volumes"] = volumesView
 		}
@@ -530,6 +596,13 @@ func (p *Pack) updateServer(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, errServerNotStopped):
 		writeInvalidArguments(w, ArgumentError{
 			ArgumentName: "commercial_type",
+			Reason:       "constraint",
+			HelpMessage:  "cannot be changed while the server is not stopped",
+		})
+		return
+	case errors.Is(err, errServerNotStoppedForPlacement):
+		writeInvalidArguments(w, ArgumentError{
+			ArgumentName: "placement_group",
 			Reason:       "constraint",
 			HelpMessage:  "cannot be changed while the server is not stopped",
 		})
@@ -906,7 +979,12 @@ func (p *Pack) view(res *resource.Resource) map[string]any {
 	// Deprecated upstream and always null in routed IP mode, which is this
 	// emulator's default; the real API still serves the key.
 	out["ipv6"] = nil
-	out["placement_group"] = nil
+	// The stored attribute is the bare group ID; what the SDK declares on a
+	// server is the object (Server.PlacementGroup is *PlacementGroup), with
+	// policy_respected pinned false because the SDK says the server endpoints
+	// always answer false there. Null for a server in no group, which is what
+	// the Terraform provider branches on (`if server.PlacementGroup != nil`).
+	out[attrServerPlacementGroup] = p.serverPlacementGroupView(res)
 	nics := make([]any, 0)
 	for _, nic := range p.privateNICsOf(res.ID) {
 		nics = append(nics, p.privateNICView(nic))

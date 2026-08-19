@@ -705,6 +705,48 @@ misreading its own probe, not the firewall: a dropped connection is killed by
 `timeout` with an empty output, which the assertion then matched as a successful
 answer. The verdict of every probe in `network.sh` is now an exit code.
 
+## Placement is recorded, never enforced (#285)
+
+A placement group is a scheduling constraint, and this emulator has no
+scheduler: with `--vm off` nothing runs anywhere, and with a runtime every
+machine is a container or VM on the single host that started feint. There is no
+second hypervisor for `max_availability` to spread onto, and `policy_mode:
+enforced` refuses nothing here — a server in an enforced spread group boots
+exactly like any other. A stack that needs machines to actually land apart is
+not testing that property against feint.
+
+The family is served anyway, for the reason security groups are served without
+a runtime: everything a driven client does with a placement group is
+create, read back and store. Measured on the Terraform provider at both pins
+this repository drives — 2.43.0 (the surveyed terraform-talos stack) and
+2.81.0 (the conformance fixture) — `policy_respected` is a Computed attribute
+the provider only ever `d.Set`s; nothing waits on it, branches on it, or fails
+an apply over it.
+
+What keeps the record honest is that one field. `policy_respected` is computed
+from the single-host reality at read time, never from the policy's wish:
+
+- `low_latency` reads **true** — machines grouped on the same hardware is the
+  one thing this emulator delivers by construction;
+- `max_availability` reads **true** until two of the group's servers are
+  running, and **false** from then on — two running members of a spread group
+  share the only host there is, and saying otherwise is the lie the family was
+  declined over before #285.
+
+A server that is not running counts for nothing: it sits on no hypervisor, the
+same doctrine that makes the server view answer `location: null` for it. On
+the server endpoints (`Server.placement_group.policy_respected`) the value is
+pinned **false**, because the SDK documents that the real API always answers
+false there.
+
+The same limit covers **Exoscale anti-affinity groups**, served since the
+starter pack and used by the surveyed Exoscale stack: membership is recorded
+and read back, and no machine is refused for exhausting hosts the way the real
+platform refuses one when its anti-affinity group runs out of hypervisors.
+Exoscale's API exposes no `policy_respected` equivalent, so there is no field
+to keep honest — the record is the whole surface, and this section is where
+its non-effect is stated.
+
 ## A public address is the provider's value, made to answer on the host
 
 Two defensible answers existed for which address a client reads on a server

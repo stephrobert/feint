@@ -120,9 +120,10 @@ func TestAnUnservedProductAnswersInScalewaysDialect(t *testing.T) {
 func TestAnUnservedOperationIsReadableByTheSDK(t *testing.T) {
 	ts := newTestServer(t)
 
-	// Placement groups exist upstream and are on the triage list, so this is the
-	// answer a real caller meets today for a third of the instance product.
-	status, body := do(t, ts, "POST", "/instance/v1/zones/fr-par-1/placement_groups", "{}")
+	// The dashboard exists upstream and is declined (its counters span
+	// products this pack does not serve), so this is the answer a real caller
+	// meets today. Placement groups played this role until #285 served them.
+	status, body := do(t, ts, "GET", "/instance/v1/zones/fr-par-1/dashboard", "")
 
 	if status != http.StatusNotImplemented {
 		t.Errorf("status = %d, want 501: the operation exists upstream, it is not served here", status)
@@ -136,7 +137,7 @@ func TestAnUnservedOperationIsReadableByTheSDK(t *testing.T) {
 	if body["type"] != "not_emulated" {
 		t.Errorf("type = %v, want not_emulated", body["type"])
 	}
-	if msg, _ := body["message"].(string); !strings.Contains(msg, "placement_groups") {
+	if msg, _ := body["message"].(string); !strings.Contains(msg, "dashboard") {
 		t.Errorf("message = %q, want it to name the path", msg)
 	}
 }

@@ -191,10 +191,37 @@ data "scaleway_block_snapshot" "by_name" {
   zone = "fr-par-1"
 }
 
+# Placement groups (#285): the record without the effect, stated in
+# docs/limits.md. At this provider pin the resource's CRUD runs through
+# instance/v2alpha1 while policy_mode is written and policy_respected read
+# through instance/v1 on the same ID — one apply exercises both doors, which is
+# the mixed-halves shape that broke the NIC family on 2.81.0's release day.
+# The surveyed terraform-talos stack (#262) is the client this unblocks: its
+# controlplane and web tiers each create one of these and attach servers.
+resource "scaleway_instance_placement_group" "conformance" {
+  name        = "conformance-pg"
+  policy_type = "max_availability"
+  policy_mode = "enforced"
+  zone        = "fr-par-1"
+}
+
+# The name lookup of the provider's data source reads the v2alpha1 list, the
+# one operation of the family no resource lifecycle touches.
+data "scaleway_instance_placement_group" "by_name" {
+  name       = scaleway_instance_placement_group.conformance.name
+  zone       = "fr-par-1"
+  depends_on = [scaleway_instance_placement_group.conformance]
+}
+
 resource "scaleway_instance_server" "conformance" {
   name = "conformance-tf"
   type = "DEV1-S"
   zone = "fr-par-1"
+
+  # The membership travels on the server (CreateServer's placement_group), and
+  # the read-back is the embedded object the provider branches on — a server
+  # view without it would detach the group at every refresh.
+  placement_group_id = scaleway_instance_placement_group.conformance.id
 
   # The path both defects lived on: the provider attaches it at create and
   # detaches it at destroy, through terminate rather than delete.

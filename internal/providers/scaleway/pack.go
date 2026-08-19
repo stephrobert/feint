@@ -95,6 +95,24 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "PATCH", Path: zones + "/security_groups/{id}/rules/{ruleID}", Operation: "instance/v1/API.UpdateSecurityGroupRule", Handler: p.updateSecurityGroupRule},
 		{Method: "DELETE", Path: zones + "/security_groups/{id}/rules/{ruleID}", Operation: "instance/v1/API.DeleteSecurityGroupRule", Handler: p.deleteSecurityGroupRule},
 
+		// Placement groups: a record served, an effect this emulator cannot
+		// have. Everything a driven client does with one is create, read back
+		// and store — measured on the Terraform provider at 2.43.0 (the
+		// surveyed terraform-talos pin) and 2.81.0 — and the one field that
+		// could turn the record into a promise, policy_respected, answers the
+		// single-host truth instead of the policy's wish (#285,
+		// placementgroups.go). docs/limits.md carries the limit: nothing is
+		// scheduled, nothing lands apart.
+		{Method: "GET", Path: zones + "/placement_groups", Operation: "instance/v1/API.ListPlacementGroups", Handler: p.listPlacementGroups},
+		{Method: "POST", Path: zones + "/placement_groups", Operation: "instance/v1/API.CreatePlacementGroup", Handler: p.createPlacementGroup},
+		{Method: "GET", Path: zones + "/placement_groups/{id}", Operation: "instance/v1/API.GetPlacementGroup", Handler: p.getPlacementGroup},
+		{Method: "PUT", Path: zones + "/placement_groups/{id}", Operation: "instance/v1/API.SetPlacementGroup", Handler: p.setPlacementGroupFull},
+		{Method: "PATCH", Path: zones + "/placement_groups/{id}", Operation: "instance/v1/API.UpdatePlacementGroup", Handler: p.updatePlacementGroup},
+		{Method: "DELETE", Path: zones + "/placement_groups/{id}", Operation: "instance/v1/API.DeletePlacementGroup", Handler: p.deletePlacementGroup},
+		{Method: "GET", Path: zones + "/placement_groups/{id}/servers", Operation: "instance/v1/API.GetPlacementGroupServers", Handler: p.getPlacementGroupServers},
+		{Method: "PUT", Path: zones + "/placement_groups/{id}/servers", Operation: "instance/v1/API.SetPlacementGroupServers", Handler: p.setPlacementGroupServers},
+		{Method: "PATCH", Path: zones + "/placement_groups/{id}/servers", Operation: "instance/v1/API.UpdatePlacementGroupServers", Handler: p.updatePlacementGroupServers},
+
 		// Private NICs: where the addressing plan becomes a real interface. The
 		// address comes from the Private Network's own block, and the machine
 		// driver puts the machine on the backing bridge carrying it.
@@ -129,6 +147,26 @@ func (p *Pack) Routes() []emulator.Route {
 			// one.
 			Undriven: "no client this project drives edits the tags of an interface after creating it; mounted because the Terraform resource exposes them and a 501 would break the first apply that changes one"},
 		{Method: "DELETE", Path: privateNICsV2Path + "/{id}", Operation: "instance/v2alpha1/API.DeletePrivateNetworkInterface", Handler: p.deletePrivateNetworkInterface},
+
+		// Placement groups through the alpha door. Same forcing client as the
+		// interfaces above: provider 2.81.0 moved the resource's CRUD onto
+		// v2alpha1 (placement_group.go at that tag) while policy_mode and
+		// policy_respected stay readable only through v1, so one apply mixes
+		// both halves on one resource. The list is the name lookup of the
+		// provider's data source (DataSourcePlacementGroupRead calls
+		// ListPlacementGroups when no ID is given).
+		{Method: "GET", Path: placementGroupsV2Path, Operation: "instance/v2alpha1/API.ListPlacementGroups", Handler: p.listPlacementGroupsV2},
+		{Method: "POST", Path: placementGroupsV2Path, Operation: "instance/v2alpha1/API.CreatePlacementGroup", Handler: p.createPlacementGroupV2},
+		{Method: "GET", Path: placementGroupsV2Path + "/{id}", Operation: "instance/v2alpha1/API.GetPlacementGroup", Handler: p.getPlacementGroupV2},
+		{Method: "PATCH", Path: placementGroupsV2Path + "/{id}", Operation: "instance/v2alpha1/API.UpdatePlacementGroup", Handler: p.updatePlacementGroupV2,
+			// The conformance fixture applies once and destroys: nothing in it
+			// renames a placement group between two applies, and the CLI edits
+			// through v1. Mounted rather than declined for the NIC precedent's
+			// reason — the Terraform resource PATCHes name, policy type and
+			// tags through this door, and a 501 would fail the first apply
+			// that changes one.
+			Undriven: "no client this project drives edits a placement group between two applies, and the CLI edits through v1; mounted because the Terraform resource PATCHes name, policy type and tags through this door, and a 501 would fail the first apply that changes one"},
+		{Method: "DELETE", Path: placementGroupsV2Path + "/{id}", Operation: "instance/v2alpha1/API.DeletePlacementGroup", Handler: p.deletePlacementGroupV2},
 
 		// IPAM. Not a convenience: instance/v1.PrivateNIC carries no address, only
 		// ipam_ip_ids, so this is the only way a client learns the address of a
@@ -440,16 +478,15 @@ func (p *Pack) Declined() []emulator.Decline {
 		// ExportSnapshot writes bytes into Object Storage, which is the part
 		// this emulator really cannot answer.
 
-		emulator.Because("placement constrains which physical hosts run a machine, and every emulated machine runs on the single host that started feint, so any policy would be reported satisfied whatever it asked",
-			"instance/v1/API.CreatePlacementGroup",
-			"instance/v1/API.DeletePlacementGroup",
-			"instance/v1/API.GetPlacementGroup",
-			"instance/v1/API.GetPlacementGroupServers",
-			"instance/v1/API.ListPlacementGroups",
-			"instance/v1/API.SetPlacementGroup",
-			"instance/v1/API.SetPlacementGroupServers",
-			"instance/v1/API.UpdatePlacementGroup",
-			"instance/v1/API.UpdatePlacementGroupServers"),
+		// Placement groups were declined here until #285, with the reason
+		// "any policy would be reported satisfied whatever it asked". The
+		// sentence about the single host stays true, and it stopped being a
+		// reason once measured against what a client does with the group:
+		// the Terraform provider stores policy_respected and never gates on
+		// it, exactly the security-group profile this pack already serves.
+		// The risk the old reason named is now carried by the field itself —
+		// placementPolicyRespected answers the single-host truth, so a spread
+		// policy with two running members reads false rather than satisfied.
 
 		emulator.Because("it mounts Scaleway's File Storage product, and there is no filesystem service behind this emulator for a machine to mount",
 			"instance/v1/API.AttachServerFileSystem",
@@ -759,15 +796,18 @@ func (p *Pack) Declined() []emulator.Decline {
 		// creating them through v1. Within four hours every apply against this
 		// emulator failed on a 501. The five private-network-interface
 		// operations moved out of this list and into the pack (see
-		// privatenics_v2alpha1.go); the rest stay, now standing on the second
-		// leg alone, and the reason below says so rather than repeating a
-		// sentence the measurement has already contradicted once.
+		// privatenics_v2alpha1.go), and the placement-group family followed
+		// for the same reason when #285 measured that the provider's CRUD for
+		// that resource lives here since the same release
+		// (placementgroups_v2alpha1.go). The rest stay, now standing on the
+		// second leg alone, and the reason below says so rather than
+		// repeating a sentence the measurement has already contradicted once.
 		//
 		// Listed one by one on purpose. A prefix rule would swallow whatever
 		// upstream adds here, and the point of this file is that additions are
 		// seen. When the surface stabilises into an instance/v2, the scan
 		// reports it as new and this decision gets taken again.
-		emulator.Because("instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not",
+		emulator.Because("instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces and placement groups onto it, which is why those two families are served and these are not",
 			"instance/v2alpha1/VolumeAPI.CreateSnapshot",
 			"instance/v2alpha1/VolumeAPI.CreateVolume",
 			"instance/v2alpha1/VolumeAPI.DeleteSnapshot",
@@ -787,12 +827,10 @@ func (p *Pack) Declined() []emulator.Decline {
 			"instance/v2alpha1/API.AttachServerPrivateNetworkInterface",
 			"instance/v2alpha1/API.AttachServerVolume",
 			"instance/v2alpha1/API.CheckTemplate",
-			"instance/v2alpha1/API.CreatePlacementGroup",
 			"instance/v2alpha1/API.CreateSecurityGroup",
 			"instance/v2alpha1/API.CreateServer",
 			"instance/v2alpha1/API.CreateServerFromTemplate",
 			"instance/v2alpha1/API.CreateTemplate",
-			"instance/v2alpha1/API.DeletePlacementGroup",
 			"instance/v2alpha1/API.DeleteSecurityGroup",
 			"instance/v2alpha1/API.DeleteSecurityGroupRules",
 			"instance/v2alpha1/API.DeleteServer",
@@ -803,7 +841,6 @@ func (p *Pack) Declined() []emulator.Decline {
 			"instance/v2alpha1/API.DetachServerIP",
 			"instance/v2alpha1/API.DetachServerPrivateNetworkInterface",
 			"instance/v2alpha1/API.DetachServerVolume",
-			"instance/v2alpha1/API.GetPlacementGroup",
 			"instance/v2alpha1/API.GetResourceCounts",
 			"instance/v2alpha1/API.GetSecurityGroup",
 			"instance/v2alpha1/API.GetServer",
@@ -812,7 +849,6 @@ func (p *Pack) Declined() []emulator.Decline {
 			"instance/v2alpha1/API.GetTemplateCloudInit",
 			"instance/v2alpha1/API.GetTemplateUserData",
 			"instance/v2alpha1/API.GetUserData",
-			"instance/v2alpha1/API.ListPlacementGroups",
 			"instance/v2alpha1/API.ListSecurityGroups",
 			"instance/v2alpha1/API.ListServerTypes",
 			"instance/v2alpha1/API.ListServers",
@@ -830,7 +866,6 @@ func (p *Pack) Declined() []emulator.Decline {
 			"instance/v2alpha1/API.StartServer",
 			"instance/v2alpha1/API.StopAndDeleteServer",
 			"instance/v2alpha1/API.StopServer",
-			"instance/v2alpha1/API.UpdatePlacementGroup",
 			"instance/v2alpha1/API.UpdateSecurityGroup",
 			"instance/v2alpha1/API.UpdateSecurityGroupRule",
 			"instance/v2alpha1/API.UpdateServer",

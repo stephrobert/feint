@@ -4,7 +4,7 @@
     {
       "label": "a pack edits a decline reason and the committed artefact keeps printing the old sentence (#298, replayed with #260's own edit)",
       "file": "internal/providers/scaleway/pack.go",
-      "find": "\t\temulator.Because(\"instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces onto it, which is why those five are served and these are not\",",
+      "find": "\t\temulator.Because(\"instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for these operations — a claim that held for the whole API until provider 2.81.0 moved private network interfaces and placement groups onto it, which is why those two families are served and these are not\",",
       "replace": "\t\temulator.Because(\"instance/v2alpha1 is an alpha rewrite Scaleway is still free to change, and no client this project drives reaches for it: every instance request the conformance suite makes lands on v1\",",
       "test": "TestTheCommittedArtefactCarriesWhatThePacksDeclare"
     },

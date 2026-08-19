@@ -1,0 +1,40 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the spread policy reports satisfied whatever it asked, which is the exact lie the family was declined over",
+      "file": "internal/providers/scaleway/placementgroups.go",
+      "find": "\treturn running < 2\n}",
+      "replace": "\treturn running < 2 || true\n}",
+      "test": "TestASpreadPolicyOnTheSingleHostReadsUnrespected"
+    },
+    {
+      "label": "low_latency loses its by-construction truth and falls through to the spread arithmetic",
+      "file": "internal/providers/scaleway/placementgroups.go",
+      "find": "\tif policy, _ := res.Attrs[\"policy_type\"].(string); policy == \"low_latency\" {",
+      "replace": "\tif policy, _ := res.Attrs[\"policy_type\"].(string); policy == \"low_latency\" && false {",
+      "test": "TestASpreadPolicyOnTheSingleHostReadsUnrespected"
+    },
+    {
+      "label": "stopped members count as placed, though they sit on no hypervisor (location: null)",
+      "file": "internal/providers/scaleway/placementgroups.go",
+      "find": "\t\tif member.State == \"running\" {\n\t\t\trunning++\n\t\t}",
+      "replace": "\t\tif member.State == \"running\" || true {\n\t\t\trunning++\n\t\t}",
+      "test": "TestASpreadPolicyOnTheSingleHostReadsUnrespected"
+    },
+    {
+      "label": "the server-embedded view serves the computed value where the SDK documents an always-false",
+      "file": "internal/providers/scaleway/placementgroups.go",
+      "find": "\tview := p.placementGroupView(group)\n\tview[\"policy_respected\"] = false\n\treturn view",
+      "replace": "\tview := p.placementGroupView(group)\n\tview[\"policy_respected\"] = view[\"policy_respected\"] == true\n\treturn view",
+      "test": "TestServerEmbeddedPlacementGroupPinsPolicyRespectedFalse"
+    },
+    {
+      "label": "a running server joins a placement group, which the real API refuses and the provider never sends",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\t\t\t\tif stored.State != \"stopped\" {\n\t\t\t\t\treturn errServerNotStoppedForPlacement\n\t\t\t\t}",
+      "replace": "\t\t\t\tif stored.State != \"stopped\" && false {\n\t\t\t\t\treturn errServerNotStoppedForPlacement\n\t\t\t\t}",
+      "test": "TestPlacementGroupMembershipTravelsTheWholeLifecycle"
+    }
+  ]
+}
