@@ -61,6 +61,7 @@ func doctor(args []string, stdout, stderr io.Writer) int {
 	checks = append(checks, checkLeftoverDHCP())
 	checks = append(checks, checkClients()...)
 	checks = append(checks, checkEnvHazards()...)
+	checks = append(checks, checkStackHazards()...)
 	checks = append(checks, checkSSHConfig())
 
 	failed := 0
@@ -406,6 +407,60 @@ func checkEnvHazards() []check {
 				fix:   warning,
 			})
 		}
+	}
+	return out
+}
+
+// checkStackHazards reads the Terraform configuration around the operator —
+// doctor is documented to run from the stack directory — and asks each pack
+// whether its text names something measured to reach the real cloud no matter
+// where the exports point. scaleway_object_* is the measured case (#262,
+// #280): the provider hardcodes s3.<region>.scw.cloud for Object Storage, so a
+// run that looks local sends those calls out with whatever credentials it
+// holds, and the emulator cannot see a request that never arrives. The
+// signatures are provider knowledge and live in each pack; doctor only walks
+// the files and relays.
+//
+// Silence rules, in order: no Terraform files here means no rows at all — a
+// doctor run from a home directory must not gain noise — and a stack carrying
+// no signature gets one row saying what was checked, worded as the measured
+// list it is rather than as a guarantee nobody can give.
+// TestDoctorNamesTheObjectStorageEscape fails without the warning, and
+// TestDoctorStaysSilentOffAStack without the silence.
+func checkStackHazards() []check {
+	dir, err := os.Getwd()
+	if err != nil {
+		return nil
+	}
+	config, files := stackConfig(dir)
+	if files == 0 {
+		return nil
+	}
+	srv, _, err := newServer(nil)
+	if err != nil {
+		// Some other check owns reporting a server that cannot be built.
+		return nil
+	}
+	var out []check
+	for _, p := range srv.Packs() {
+		hazards, ok := p.(packStackHazards)
+		if !ok {
+			continue
+		}
+		for _, warning := range hazards.StackHazards(config) {
+			out = append(out, check{
+				title: "this Terraform configuration can reach the real " + p.Name() + " cloud",
+				state: verdictWarn,
+				fix:   warning,
+			})
+		}
+	}
+	if len(out) == 0 {
+		out = append(out, check{
+			title:  fmt.Sprintf("no known escape signature in the %d Terraform file(s) here", files),
+			state:  verdictOK,
+			detail: "this checks the measured list (docs/limits.md), not every path a client could compose",
+		})
 	}
 	return out
 }

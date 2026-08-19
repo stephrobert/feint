@@ -60,7 +60,7 @@ edit **except** where the table below says so:
 
 | provider | environment that reaches the emulator | trap, measured |
 |---|---|---|
-| Scaleway (provider 2.x) | `feint env scaleway`, with `SCW_API_URL` pointing at the proxy | Object Storage still goes to the real `s3.<region>.scw.cloud` (docs/limits.md); measured live on flatcar-k3s, a 403 from the real endpoint |
+| Scaleway (provider 2.x) | `feint env scaleway`, with `SCW_API_URL` pointing at the proxy | Object Storage still goes to the real `s3.<region>.scw.cloud` (docs/limits.md); measured live on flatcar-k3s, a 403 from the real endpoint. Since #280, `feint doctor` and `feint env scaleway` warn from the stack directory when its text carries `scaleway_object_*` or a real `*.scw.cloud` host |
 | Outscale 1.7+ | `OSC_ENDPOINT_API=http://…:4611/api/v1` — the path belongs in the value | without the path: six-minute retry backoff |
 | Outscale 1.1.x | `OSC_ENDPOINT_API=http://…:4611` — **no path**; both its HTTP clients append `/api/v1` themselves | with the path: `invalid port ":4611%2Fapi%2Fv1"` — the legacy client URL-escapes it |
 | Outscale 0.x (`outscale-dev/*`) | none exists. Zero exchanges reached the recorder with `OSC_ENDPOINT_API` and `OUTSCALE_OAPI_URL` both set | 0.5.3 honours only the `endpoints{api=…}` block, prepends `https://` to it, and needs `feint proxy --intercept localhost` + `SSL_CERT_FILE`; 0.7.0 honours nothing found and SIGSEGVs in its own create-retry error path |
@@ -482,6 +482,24 @@ platform entry.
   in-place swap because `server.public_ips` does not preserve the order
   the create named (v4 first, v6 second in the config; read back
   reversed) — filed as [#320](https://github.com/stephrobert/feint/issues/320).
+
+- **Replayed 2026-08-19, `fix/320-address-order-and-shape`**: the fourth
+  wall, revealed the moment #285's replay let the servers apply — the
+  stack's `ip_ids = [v4.id, v6.id]` re-planned the same two-way swap for
+  ever (#320) — no longer stands. Measured through `feint proxy --record`
+  at the stack's own pin (`~> 2.43.0`) on the reduced witness of
+  instances-controlplane.tf (two reserved IPs, one server naming them
+  against their creation order): the create sends `public_ips` in the
+  config's order, the answer now carries that same order, and the witness
+  applies, plans empty and destroys. The cause was order alone:
+  `Server.public_ips` answered in store order, the provider rebuilds
+  `ip_ids` from it index by index (2.43.0 `flattenServerIPIDs`,
+  types.go:99) and its apply path is set-based `UpdateIP` calls that
+  cannot reorder. The `id → fr-par-1/id` half of the diff travels with
+  the swap: `dsf.Locality` (locality.go:10) suppresses a bare-vs-zoned
+  pair at the same index, and the bare id is what the real API serves
+  (`ServerIP.ID`, instance_sdk.go:1476). The full stack's servers still
+  wait on the placement-group wall (#285, in flight).
 
 ### 2. ioandev/scaleway-flatcar-k3s — applied in part
 

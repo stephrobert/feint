@@ -39,7 +39,9 @@ fake credentials. Nothing was created and nothing was billed — but the request
 left the machine. A configuration carrying `scaleway_object_bucket` talks to
 the real endpoint no matter where the rest of it is pointed, and any sentence
 here promising that traffic never leaves your machine has to carve out this
-one product on this one client.
+one product on this one client. The escape-path section below (#280) carries
+the full measured list, what warns before the run, and the egress cuts that
+were tested rather than described.
 
 ## The cost of DNS/TLS interception, measured (#76)
 
@@ -254,6 +256,95 @@ explicit, disposable name redirect the operator opts into (a devcontainer or a
 temporary hosts entry) — never a system trust-store install, never a hosts file
 this binary edits itself. Whether that corner is worth the operator ceremony is a
 product call; it is no longer an unmeasured one.
+
+## A run presented as local can still reach the real cloud (#280)
+
+Every sentence this project writes about locality has to be the one that is
+true: **the APIs Feint serves run locally; a client can compose its own
+endpoint for a product outside that scope, and then its requests go where they
+always went.** From the outside the two runs are indistinguishable — that is
+the whole problem — and the failure that would actually hurt is not the 403
+the survey measured on fake credentials. It is somebody with real credentials
+in their environment — a developer's shell, a CI job that also deploys —
+running a stack they believe is sandboxed.
+
+### The measured escape paths, and what says something today
+
+| path | measured | what warns today |
+|---|---|---|
+| Scaleway Object Storage through Terraform: `scaleway_object_*` hardcodes `https://s3.<region>.scw.cloud` (top of this file) | live on a surveyed stack (#262, flatcar-k3s): `CreateBucket` at the real endpoint, 403 on fake credentials. Reproduced for #280 with egress cut to a dead proxy: **the same apply created its instance IP on this emulator and died on `Put "https://<bucket>.s3.fr-par.scw.cloud/"` — one run, half local, half not** | `feint doctor` and `feint env scaleway`, from the stack directory: the configuration's own text names the resource family |
+| an S3 state backend or an aws provider pointed at real object storage | three surveyed stacks: kubic (state on Object Storage, endpoint in `backend.conf`), eu-data-platform (state on `sos-ch-gva-2.exo.io`, inline), platform (aws provider at `sos-<zone>.exo.io`, 403 at the real endpoint) | the same scan, when the host is written in the `.tf` text — the kubic shape keeps its endpoint in a `backend.conf` the scan does not read, and stays invisible to it |
+| Outscale, `OSC_PROFILE` set: provider 1.1.x reads `~/.osc/config.json` and ignores `OSC_ENDPOINT_API` | #286, on 1.1.3: the plan left for `api.<region>.outscale.com` while the emulator received nothing | `feint doctor` and `feint env outscale`, since #286 — this one lives in the shell, not in the stack |
+| the Exoscale Terraform provider's split client: egoscale v2 built with no endpoint option | #262/#284, section below: an apply splits between this emulator and the real cloud | **the emulator itself refuses that client by user agent** — the one escape that must pass through the front door to do damage, so the front door is where it is stopped |
+
+The scan behind the first two rows reads the Terraform files around `feint
+doctor` and `feint env` (`*.tf`, `*.tf.json`, `*.tofu`, comment-stripped, dot
+directories skipped) and matches the measured signatures each pack declares —
+`internal/providers/*/stackhazards.go`. Warnings, never failures, and three
+silence rules the tests hold: a directory whose own top level carries no
+Terraform file produces nothing — Terraform only runs where root module files
+sit, so a workspace that merely *contains* projects is not a stack
+(`TestADirectoryOfProjectsIsNotAStack`, while a rooted stack's `modules/` are
+scanned); a commented-out resource produces nothing
+(`TestAStackHazardInACommentStaysSilent`) — a warning that fires on dead text
+is a warning people learn to ignore; and this repository's own fixtures scan
+clean. The `ok` row states its own scope ("checks the measured list") because
+that is all it checks.
+
+### What is out of reach, and why no guard here can promise more
+
+Feint controls neither the client's process nor its DNS. `feint proxy` sees
+every request that reaches it and, by construction, none that does not. The
+scan above reads text, so it cannot see a value passed at runtime
+(`-backend-config`, a variable), a module fetched at init, or the next product
+whose client composes its endpoint upstream tomorrow — the weekly drift scan
+reads SDK surfaces, not endpoint construction, so it will not see that one
+either. **In general, the escape is undetectable from inside the emulator, and
+an approximate guard would be worse than none: it would license exactly the
+belief it fails to protect.** What exists is a measured list, said as such,
+plus the one boundary that does not depend on the client cooperating — the
+network the run executes in.
+
+### Cutting egress, measured both ways
+
+The tripwire costs one line and no privilege, and it is how the reproduction
+above was run — the escape became a loud failure naming its destination
+instead of a silent success:
+
+```bash
+HTTPS_PROXY=http://127.0.0.1:9 NO_PROXY=127.0.0.1,localhost terraform apply
+```
+
+```text
+Error: … CreateBucket, … Put "https://feint-escape-repro.s3.fr-par.scw.cloud/":
+proxyconnect tcp: dial tcp 127.0.0.1:9: connect: connection refused
+```
+
+The emulator, on loopback, is reached directly through `NO_PROXY`; everything
+else dies on a proxy that is not listening, and the error names the host that
+was contacted. Scope, honestly: proxy variables are honoured, not enforced —
+measured on Terraform with the Scaleway provider (above) and on the Exoscale
+provider (#284, same technique); a client that ignores them walks straight
+past. A tripwire, not a boundary.
+
+The boundary is a network with no route out. Measured on rootless podman
+(4.9.3, netavark), no privilege and no host trace:
+
+```bash
+podman network create --internal feint-noegress
+# feint on it (feint serve --addr 0.0.0.0:4599 --expose-to-network), the client beside it:
+# GET /_feint/health → HTTP/1.0 200 OK
+# connect s3.fr-par.scw.cloud:443 → "Network is unreachable", immediately
+```
+
+One caveat the measurement exposed: on an `--internal` network the container's
+DNS still *resolves* real names (aardvark-dns forwards to the host's
+resolver), so the cut is at connect, not at lookup — a name leaks as a query,
+a connection goes nowhere. In CI the same property is whatever your runner's
+egress policy provides; a hosted runner with open egress protects nothing, and
+no flag here can change that. That sentence is the honest end of this section:
+where the network permits the escape, Feint can at most name the measured
+paths before the run — which is what `feint doctor` now does.
 
 ## Managed Kubernetes is not emulated, and a CRUD-only version is refused (#283)
 

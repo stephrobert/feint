@@ -124,6 +124,17 @@ case "$ipv6_subnet" in
   *) fail "expected a unique-local /64 in ipv6_subnets, got '$ipv6_subnet'" ;;
 esac
 
+# public_ips answers in the order the create named, asked of the emulator
+# directly (#320): the fixture reserves two addresses and names them in the
+# opposite of their creation order, so an emulator that serves store order
+# fails here — and re-plans the same ip_ids swap for ever in any stack that
+# orders a list, which is how sergelogvinov/terraform-talos found it.
+echo "- public_ips keeps the order the create named"
+named="$("$TF" output -json ordered_ip_ids | jq -r '[.[] | split("/") | last] | join(",")')"
+served="$(curl -s "$ENDPOINT/instance/v1/zones/$ZONE/servers/$server_uuid" | jq -r '[.server.public_ips[].id] | join(",")')"
+[ "$served" = "$named" ] || fail "the create named [$named], the emulator serves [$served]"
+ok "served in the client's order: $served"
+
 route_id="$("$TF" output -raw route_id)"
 route_uuid="${route_id##*/}"
 code="$(curl -s -o /dev/null -w '%{http_code}' "$ENDPOINT/vpc/v2/regions/fr-par/routes/$route_uuid")"

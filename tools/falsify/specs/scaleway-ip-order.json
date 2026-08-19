@@ -1,0 +1,33 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "attachedIPsOf serves store order again, and a create that named [c, a] reads back [a, c] — the talos two-way swap that never converges (#320)",
+      "file": "internal/providers/scaleway/ips.go",
+      "find": "\t\treturn attachOrderOf(out[i]) < attachOrderOf(out[j])",
+      "replace": "\t\treturn attachOrderOf(out[i]) < attachOrderOf(out[j]) && false",
+      "test": "TestPublicIPsKeepTheOrderTheCreateNamed"
+    },
+    {
+      "label": "the attach stops stamping the client's position, so every address ties at zero and the stable sort falls back to store order (#320)",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\trecordAttachOrder(ip, seq)",
+      "replace": "\trecordAttachOrder(ip, seq*0)",
+      "test": "TestPublicIPsKeepTheOrderTheCreateNamed"
+    },
+    {
+      "label": "a later PATCH /ips attach lands at position zero instead of the end, shuffling what the create ordered (#320)",
+      "file": "internal/providers/scaleway/ips.go",
+      "find": "\treturn next",
+      "replace": "\treturn next * 0",
+      "test": "TestALaterAttachJoinsTheEndOfTheList"
+    },
+    {
+      "label": "UpdateServer.public_ips is declared and read by nobody again: the PATCH answers 200 and changes nothing, which is the lying half of #320",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\tif req.PublicIPs != nil {\n\t\tif badID, ok := p.setServerIPs(r.Context(), res, *req.PublicIPs); !ok {",
+      "replace": "\tif req.PublicIPs != nil && false {\n\t\tif badID, ok := p.setServerIPs(r.Context(), res, *req.PublicIPs); !ok {",
+      "test": "TestUpdateServerPublicIPsReconcilesAttachmentsInOrder"
+    }
+  ]
+}
