@@ -55,7 +55,7 @@ post() { curl -sf -X POST -H 'Content-Type: application/json' -d "$2" "$ENDPOINT
 echo "page: driving the emulator"
 Z="/instance/v1/zones/fr-par-1"
 post "$Z/servers" '{"name":"web-1","commercial_type":"DEV1-S","tags":["demo","web"]}'
-post "$Z/servers" '{"name":"db-1","commercial_type":"DEV1-M","placement_group":"nope"}'
+post "$Z/servers" '{"name":"db-1","commercial_type":"DEV1-M","admin_password_encryption_ssh_key_id":"11111111-1111-1111-1111-111111111111"}'
 post "$Z/ips" '{"project":"11111111-1111-1111-1111-111111111111"}'
 post "/vpc/v2/regions/fr-par/vpcs" '{"name":"demo-vpc"}'
 post "/vpc/v2/regions/fr-par/private-networks" '{"name":"demo-net","subnets":["10.10.0.0/24"]}'

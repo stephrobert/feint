@@ -547,7 +547,19 @@ def assert_page(page: Page, endpoint: str, checks: Checks, opened_product: str |
         last = trace[-1]
         path_shown = any_text_equals(page, "#log .path", last["path"])
         checks.truthy(f"the log shows the call to {last['path']}", path_shown)
+    # Asserted rather than skipped when empty. The fixture picks its unread
+    # field on purpose, and the pick expires: screenshots.sh sent
+    # placement_group for a year because no handler read it, and #285 made a
+    # handler read it. That change was loud only because an unknown group is a
+    # 400 and curl -sf died; a field that simply starts being read is silent,
+    # and this branch would have stopped checking anything without a word.
+    # Failing here says the fixture needs a new field, which is a two-minute
+    # edit, instead of leaving the page's own defect report unproven.
     unread = [x for x in trace if x.get("unread")]
+    checks.truthy(
+        "the fixture still sends a field no handler reads",
+        bool(unread),
+    )
     if unread:
         field_name = unread[0]["unread"][0]
         shown = any_text_contains(page, "#log .verdict.unread .fields", field_name)
