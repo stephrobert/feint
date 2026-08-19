@@ -23,6 +23,15 @@ Nothing to install beyond one binary, no account, no credentials, nothing
 billed. If your configuration applies, re-plans empty and destroys, say so — that
 is a data point too, and it is the one this project cannot generate for itself.
 
+One honest sentence before you point anything here: **the APIs Feint serves run
+locally; a product outside that scope is reached by your client at the real
+endpoint**, with whatever credentials your shell holds — Object Storage is the
+measured case, and only fake credentials made the measured escape harmless.
+`feint doctor`, run from the stack directory, warns about the measured escape
+paths before the apply does, and
+[docs/limits.md](limits.md#a-run-presented-as-local-can-still-reach-the-real-cloud-280)
+names them all, with the tested ways to cut egress for the run.
+
 ### Pointing an Outscale stack here, per provider generation
 
 The fifteen-stack survey ([the register](../examples/stacks/surveyed.md))

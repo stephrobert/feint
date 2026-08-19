@@ -29,7 +29,7 @@
 >
 > **Proven**: 270 of the 291 mounted operations are driven by a real client, on every pull request. `scw`, `oapi-cli`, `exo`, Terraform and OpenTofu run against the emulator in CI, and machines really boot: an ssh login on each provider's own default account, isolated subnets, a firewall that filters. The whole chain is described in [docs/conformance.md](docs/conformance.md).
 >
-> **Not proven**: quotas, prices, real capacity, identifier validation, authentication, eventual consistency. The 36 sections of [docs/limits.md](docs/limits.md) each say what one costs. An emulator with a single implicit account and no price list would have to invent those figures, and somebody would act on them.
+> **Not proven**: quotas, prices, real capacity, identifier validation, authentication, eventual consistency. The 37 sections of [docs/limits.md](docs/limits.md) each say what one costs. An emulator with a single implicit account and no price list would have to invent those figures, and somebody would act on them.
 >
 > **Unknown**: 21 operations are mounted and have never been driven by a client. Every one of them states why no official client reaches it, at the route and in [docs/routes.md](docs/routes.md). They are counted rather than glossed, one by one, in [coverage/evidence.json](coverage/evidence.json).
 >
@@ -85,11 +85,16 @@ Copy-paste pipelines for both, with nothing to configure and no secret to add:
 [**examples/**](examples/) — GitHub Actions, GitLab CI, and a `setup-feint`
 action that verifies the binary before it runs it.
 
-No account. No credentials. Nothing billed, and nothing left running anywhere but
-your machine. The provider that produced that line is the real one from the
-registry — this repository's whole argument is that it cannot tell the
-difference, and [what you can validate](docs/confidence.md) says where that
-claim stops.
+No account. No credentials. Nothing billed, and nothing left running anywhere
+but your machine — **for every API Feint serves**. A product outside that scope
+(Object Storage is the measured case) is reached by its client at the real
+endpoint no matter where the rest of the run points:
+[docs/limits.md](docs/limits.md#a-run-presented-as-local-can-still-reach-the-real-cloud-280)
+names those escape paths, and `feint doctor`, run from the stack directory,
+warns about the measured ones before the apply does. The provider that produced
+that line is the real one from the registry — this repository's whole argument
+is that it cannot tell the difference, and
+[what you can validate](docs/confidence.md) says where that claim stops.
 
 ![Starting Feint, pointing the official Scaleway CLI at it, and applying a Terraform configuration against it](docs/assets/quickstart.gif)
 

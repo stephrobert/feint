@@ -1,6 +1,8 @@
 package cli_test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -203,5 +205,45 @@ func TestEnvHazardWarningsReachStderrNeverStdout(t *testing.T) {
 	_, _, errOut = run("env", "outscale", "--unset")
 	if strings.Contains(errOut, "OSC_PROFILE") {
 		t.Fatalf("--unset still warns about the shell it is restoring: %q", errOut)
+	}
+}
+
+// The stack's own text can defeat every export env prints: a
+// scaleway_object_* resource reaches the real s3.<region>.scw.cloud no matter
+// what SCW_API_URL says (measured, #262/#280). env is eval'd from the stack
+// directory, so it is the last voice before the apply that escapes — on
+// stderr, where the eval cannot swallow it, and silent when the directory
+// carries no Terraform at all.
+func TestEnvNamesTheEscapeInTheStackNextToIt(t *testing.T) {
+	dir := t.TempDir()
+	stack := `
+resource "scaleway_instance_ip" "local" {}
+resource "scaleway_object_bucket" "escapes" { name = "x" }
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(stack), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+
+	code, printed, errOut := run("env", "scaleway")
+	if code != 0 {
+		t.Fatalf("exited %d: %s", code, errOut)
+	}
+	if !strings.Contains(errOut, "warning:") || !strings.Contains(errOut, "scaleway_object") {
+		t.Fatalf("the stack next to this shell escapes and stderr says nothing: %q", errOut)
+	}
+	for _, line := range strings.Split(strings.TrimSpace(printed), "\n") {
+		if !strings.HasPrefix(line, "export ") {
+			t.Fatalf("a warning leaked onto stdout, where eval would execute it: %q", line)
+		}
+	}
+
+	// A directory with no Terraform files stays silent: env runs from plenty
+	// of places that are not stacks, and noise there teaches people to
+	// ignore the warning where it is true.
+	t.Chdir(t.TempDir())
+	_, _, errOut = run("env", "scaleway")
+	if strings.Contains(errOut, "warning:") {
+		t.Fatalf("an empty directory drew a warning: %q", errOut)
 	}
 }

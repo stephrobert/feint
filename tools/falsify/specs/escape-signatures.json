@@ -1,0 +1,36 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the Object Storage signature never matches: a stack carrying scaleway_object_* gets no warning, and its apply reaches the real s3.<region>.scw.cloud exactly as #262 measured, with nothing said beforehand",
+      "file": "internal/providers/scaleway/stackhazards.go",
+      "find": "\tif strings.Contains(config, `\"scaleway_object`) {",
+      "replace": "\tif strings.Contains(config, `\"scaleway_object_never`) {",
+      "test": "TestStackHazardsNameTheObjectStorageEscape"
+    },
+    {
+      "label": "the *.exo.io signature never matches: an S3-on-SOS state backend or an aws provider pointed at sos-<zone>.exo.io goes unnamed, the two surveyed shapes of #262/#284",
+      "package": "./internal/providers/exoscale/",
+      "file": "internal/providers/exoscale/stackhazards.go",
+      "find": "\tif strings.Contains(config, \".exo.io\") {",
+      "replace": "\tif strings.Contains(config, \".exo.io.never\") {",
+      "test": "TestStackHazardsNameTheSOSEscape"
+    },
+    {
+      "label": "# comments are no longer stripped: a commented-out scaleway_object_bucket triggers the warning, which is the false positive that teaches people to ignore the true one",
+      "package": "./internal/cli/",
+      "file": "internal/cli/stack.go",
+      "find": "\t\t\tcase c == '#':\n\t\t\t\tinLineComment = true",
+      "replace": "\t\t\tcase c == '#' && false:\n\t\t\t\tinLineComment = true",
+      "test": "TestAStackHazardInACommentStaysSilent"
+    },
+    {
+      "label": "env no longer relays the stack hazards: the eval prints its exports and says nothing about the resource next to it that ignores them all",
+      "package": "./internal/cli/",
+      "file": "internal/cli/env.go",
+      "find": "\t\tif hazards, ok := pack.(packStackHazards); ok {",
+      "replace": "\t\tif hazards, ok := pack.(packStackHazards); ok && false {",
+      "test": "TestEnvNamesTheEscapeInTheStackNextToIt"
+    }
+  ]
+}
