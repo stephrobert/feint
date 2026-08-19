@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "a463dc43468c67f8",
     "shapes": "c73ca6ca03ceac5b",
-    "suites": "6c865c37f2fdbaa8"
+    "suites": "6013c3c0ecdf94a9"
   },
   "operations": {
     "block/v1/API.CreateSnapshot": {
@@ -26,7 +26,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": true,
+      "behaviour": false,
       "negative": false
     },
     "block/v1/API.DeleteSnapshot": {
@@ -1118,6 +1118,15 @@
       "behaviour": true,
       "negative": false
     },
+    "instance/v1/API.CreatePlacementGroup": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "instance/v1/API.CreatePrivateNIC": {
       "driven": true,
       "probed": "response",
@@ -1182,6 +1191,15 @@
       "negative": false
     },
     "instance/v1/API.DeleteImage": {
+      "driven": true,
+      "probed": "none",
+      "contract": "unchecked",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "instance/v1/API.DeletePlacementGroup": {
       "driven": true,
       "probed": "none",
       "contract": "unchecked",
@@ -1280,6 +1298,24 @@
       "behaviour": true,
       "negative": false
     },
+    "instance/v1/API.GetPlacementGroup": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "instance/v1/API.GetPlacementGroupServers": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "instance/v1/API.GetPrivateNIC": {
       "driven": true,
       "probed": "response",
@@ -1353,6 +1389,15 @@
       "negative": false
     },
     "instance/v1/API.ListImages": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "observed",
+      "behaviour": true,
+      "negative": false
+    },
+    "instance/v1/API.ListPlacementGroups": {
       "driven": true,
       "probed": "response",
       "contract": "clean",
@@ -1442,6 +1487,24 @@
       "behaviour": true,
       "negative": true
     },
+    "instance/v1/API.SetPlacementGroup": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "instance/v1/API.SetPlacementGroupServers": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "instance/v1/API.SetSecurityGroupRules": {
       "driven": true,
       "probed": "response",
@@ -1472,6 +1535,24 @@
     "instance/v1/API.UpdateImage": {
       "driven": true,
       "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "instance/v1/API.UpdatePlacementGroup": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "instance/v1/API.UpdatePlacementGroupServers": {
+      "driven": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
@@ -1523,10 +1604,28 @@
       "behaviour": true,
       "negative": false
     },
+    "instance/v2alpha1/API.CreatePlacementGroup": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
     "instance/v2alpha1/API.CreatePrivateNetworkInterface": {
       "driven": true,
       "probed": "refusal",
       "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "instance/v2alpha1/API.DeletePlacementGroup": {
+      "driven": true,
+      "probed": "none",
+      "contract": "unchecked",
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
@@ -1541,9 +1640,27 @@
       "behaviour": true,
       "negative": false
     },
+    "instance/v2alpha1/API.GetPlacementGroup": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "instance/v2alpha1/API.GetPrivateNetworkInterface": {
       "driven": true,
       "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "instance/v2alpha1/API.ListPlacementGroups": {
+      "driven": true,
+      "probed": "response",
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
@@ -1557,6 +1674,15 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
+      "negative": false
+    },
+    "instance/v2alpha1/API.UpdatePlacementGroup": {
+      "driven": false,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
       "negative": false
     },
     "instance/v2alpha1/API.UpdatePrivateNetworkInterface": {
@@ -2348,7 +2474,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": true,
+      "behaviour": false,
       "negative": false
     },
     "osc/Client.UnlinkNic": {
@@ -2393,7 +2519,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": true,
+      "behaviour": false,
       "negative": false
     },
     "osc/Client.UpdateImage": {

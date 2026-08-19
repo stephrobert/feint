@@ -100,7 +100,7 @@ disappears from the suite.
 | `PATCH` | `/block/v1alpha1/zones/{zone}/snapshots/{id}` | `block/v1alpha1/API.UpdateSnapshot` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PATCH` | `/block/v1alpha1/zones/{zone}/volumes/{id}` | `block/v1alpha1/API.UpdateVolume` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/block/v1/zones/{zone}/snapshots` | `block/v1/API.CreateSnapshot` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/block/v1/zones/{zone}/volumes` | `block/v1/API.CreateVolume` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/block/v1/zones/{zone}/volumes` | `block/v1/API.CreateVolume` | `client` `contract` `runtime` `probe` |
 | `POST` | `/block/v1alpha1/zones/{zone}/snapshots` | `block/v1alpha1/API.CreateSnapshot` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/block/v1alpha1/zones/{zone}/volumes` | `block/v1alpha1/API.CreateVolume` | `client` `contract` `runtime` `probe` `behaviour` |
 
@@ -120,7 +120,7 @@ disappears from the suite.
 |---|---|---|---|
 | `DELETE` | `/instance/v1/zones/{zone}/images/{id}` | `instance/v1/API.DeleteImage` | `client` `runtime` `behaviour` |
 | `DELETE` | `/instance/v1/zones/{zone}/ips/{id}` | `instance/v1/API.DeleteIP` | `client` `runtime` `behaviour` |
-| `DELETE` | `/instance/v1/zones/{zone}/placement_groups/{id}` | `instance/v1/API.DeletePlacementGroup` | — |
+| `DELETE` | `/instance/v1/zones/{zone}/placement_groups/{id}` | `instance/v1/API.DeletePlacementGroup` | `client` `runtime` `behaviour` |
 | `DELETE` | `/instance/v1/zones/{zone}/security_groups/{id}/rules/{ruleID}` | `instance/v1/API.DeleteSecurityGroupRule` | `client` `runtime` `behaviour` |
 | `DELETE` | `/instance/v1/zones/{zone}/security_groups/{id}` | `instance/v1/API.DeleteSecurityGroup` | `client` `runtime` `behaviour` `negative` |
 | `DELETE` | `/instance/v1/zones/{zone}/servers/{id}/private_nics/{nicID}` | `instance/v1/API.DeletePrivateNIC` | `client` `runtime` `behaviour` |
@@ -128,15 +128,15 @@ disappears from the suite.
 | `DELETE` | `/instance/v1/zones/{zone}/servers/{id}` | `instance/v1/API.DeleteServer` | `client` `runtime` `behaviour` |
 | `DELETE` | `/instance/v1/zones/{zone}/snapshots/{id}` | `instance/v1/API.DeleteSnapshot` | `client` `runtime` `behaviour` `negative` |
 | `DELETE` | `/instance/v1/zones/{zone}/volumes/{id}` | `instance/v1/API.DeleteVolume` | `client` `runtime` `behaviour` `negative` |
-| `DELETE` | `/instance/v2alpha1/zones/{zone}/placement-groups/{id}` | `instance/v2alpha1/API.DeletePlacementGroup` | — |
+| `DELETE` | `/instance/v2alpha1/zones/{zone}/placement-groups/{id}` | `instance/v2alpha1/API.DeletePlacementGroup` | `client` `runtime` `behaviour` |
 | `DELETE` | `/instance/v2alpha1/zones/{zone}/private-network-interfaces/{id}` | `instance/v2alpha1/API.DeletePrivateNetworkInterface` | `client` `runtime` `behaviour` |
 | `GET` | `/instance/v1/zones/{zone}/images/{id}` | `instance/v1/API.GetImage` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/instance/v1/zones/{zone}/images` | `instance/v1/API.ListImages` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/instance/v1/zones/{zone}/ips/{id}` | `instance/v1/API.GetIP` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/instance/v1/zones/{zone}/ips` | `instance/v1/API.ListIPs` | `client` `contract` `shape` `runtime` `probe` |
-| `GET` | `/instance/v1/zones/{zone}/placement_groups/{id}/servers` | `instance/v1/API.GetPlacementGroupServers` | — |
-| `GET` | `/instance/v1/zones/{zone}/placement_groups/{id}` | `instance/v1/API.GetPlacementGroup` | — |
-| `GET` | `/instance/v1/zones/{zone}/placement_groups` | `instance/v1/API.ListPlacementGroups` | — |
+| `GET` | `/instance/v1/zones/{zone}/placement_groups/{id}/servers` | `instance/v1/API.GetPlacementGroupServers` | `client` `contract` `runtime` `probe` `behaviour` |
+| `GET` | `/instance/v1/zones/{zone}/placement_groups/{id}` | `instance/v1/API.GetPlacementGroup` | `client` `contract` `runtime` `probe` `behaviour` |
+| `GET` | `/instance/v1/zones/{zone}/placement_groups` | `instance/v1/API.ListPlacementGroups` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/instance/v1/zones/{zone}/products/servers` | `instance/v1/API.ListServersTypes` | `client` `contract` `shape` `runtime` `probe` |
 | `GET` | `/instance/v1/zones/{zone}/security_groups/{id}/rules/{ruleID}` | `instance/v1/API.GetSecurityGroupRule` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/instance/v1/zones/{zone}/security_groups/{id}/rules` | `instance/v1/API.ListSecurityGroupRules` | `client` `contract` `runtime` `probe` `behaviour` |
@@ -152,25 +152,25 @@ disappears from the suite.
 | `GET` | `/instance/v1/zones/{zone}/snapshots` | `instance/v1/API.ListSnapshots` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/instance/v1/zones/{zone}/volumes/{id}` | `instance/v1/API.GetVolume` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/instance/v1/zones/{zone}/volumes` | `instance/v1/API.ListVolumes` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
-| `GET` | `/instance/v2alpha1/zones/{zone}/placement-groups/{id}` | `instance/v2alpha1/API.GetPlacementGroup` | — |
-| `GET` | `/instance/v2alpha1/zones/{zone}/placement-groups` | `instance/v2alpha1/API.ListPlacementGroups` | — |
+| `GET` | `/instance/v2alpha1/zones/{zone}/placement-groups/{id}` | `instance/v2alpha1/API.GetPlacementGroup` | `client` `contract` `runtime` `probe` `behaviour` |
+| `GET` | `/instance/v2alpha1/zones/{zone}/placement-groups` | `instance/v2alpha1/API.ListPlacementGroups` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/instance/v2alpha1/zones/{zone}/private-network-interfaces/{id}` | `instance/v2alpha1/API.GetPrivateNetworkInterface` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
 | `GET` | `/instance/v2alpha1/zones/{zone}/private-network-interfaces` | `instance/v2alpha1/API.ListPrivateNetworkInterfaces` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PATCH` | `/instance/v1/zones/{zone}/images/{id}` | `instance/v1/API.UpdateImage` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PATCH` | `/instance/v1/zones/{zone}/ips/{id}` | `instance/v1/API.UpdateIP` | `client` `contract` `runtime` `probe` |
-| `PATCH` | `/instance/v1/zones/{zone}/placement_groups/{id}/servers` | `instance/v1/API.UpdatePlacementGroupServers` | — |
-| `PATCH` | `/instance/v1/zones/{zone}/placement_groups/{id}` | `instance/v1/API.UpdatePlacementGroup` | — |
+| `PATCH` | `/instance/v1/zones/{zone}/placement_groups/{id}/servers` | `instance/v1/API.UpdatePlacementGroupServers` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `PATCH` | `/instance/v1/zones/{zone}/placement_groups/{id}` | `instance/v1/API.UpdatePlacementGroup` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PATCH` | `/instance/v1/zones/{zone}/security_groups/{id}/rules/{ruleID}` | `instance/v1/API.UpdateSecurityGroupRule` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PATCH` | `/instance/v1/zones/{zone}/security_groups/{id}` | `instance/v1/API.UpdateSecurityGroup` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PATCH` | `/instance/v1/zones/{zone}/servers/{id}/user_data/{key}` | `instance/v1/API.SetServerUserData` | `client` `runtime` `behaviour` |
 | `PATCH` | `/instance/v1/zones/{zone}/servers/{id}` | `instance/v1/API.UpdateServer` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PATCH` | `/instance/v1/zones/{zone}/snapshots/{id}` | `instance/v1/API.UpdateSnapshot` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PATCH` | `/instance/v1/zones/{zone}/volumes/{id}` | `instance/v1/API.UpdateVolume` | `client` `contract` `runtime` `probe` `behaviour` |
-| `PATCH` | `/instance/v2alpha1/zones/{zone}/placement-groups/{id}` | `instance/v2alpha1/API.UpdatePlacementGroup` | `no-client` |
+| `PATCH` | `/instance/v2alpha1/zones/{zone}/placement-groups/{id}` | `instance/v2alpha1/API.UpdatePlacementGroup` | `no-client` `contract` `probe` |
 | `PATCH` | `/instance/v2alpha1/zones/{zone}/private-network-interfaces/{id}` | `instance/v2alpha1/API.UpdatePrivateNetworkInterface` | `no-client` `probe-refusal` |
 | `POST` | `/instance/v1/zones/{zone}/images` | `instance/v1/API.CreateImage` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/instance/v1/zones/{zone}/ips` | `instance/v1/API.CreateIP` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/instance/v1/zones/{zone}/placement_groups` | `instance/v1/API.CreatePlacementGroup` | — |
+| `POST` | `/instance/v1/zones/{zone}/placement_groups` | `instance/v1/API.CreatePlacementGroup` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/instance/v1/zones/{zone}/security_groups/{id}/rules` | `instance/v1/API.CreateSecurityGroupRule` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/instance/v1/zones/{zone}/security_groups` | `instance/v1/API.CreateSecurityGroup` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/instance/v1/zones/{zone}/servers/{id}/action` | `instance/v1/API.ServerAction` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
@@ -180,10 +180,10 @@ disappears from the suite.
 | `POST` | `/instance/v1/zones/{zone}/servers` | `instance/v1/API.CreateServer` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/instance/v1/zones/{zone}/snapshots` | `instance/v1/API.CreateSnapshot` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/instance/v1/zones/{zone}/volumes` | `instance/v1/API.CreateVolume` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/instance/v2alpha1/zones/{zone}/placement-groups` | `instance/v2alpha1/API.CreatePlacementGroup` | — |
+| `POST` | `/instance/v2alpha1/zones/{zone}/placement-groups` | `instance/v2alpha1/API.CreatePlacementGroup` | `client` `contract` `runtime` `probe` |
 | `POST` | `/instance/v2alpha1/zones/{zone}/private-network-interfaces` | `instance/v2alpha1/API.CreatePrivateNetworkInterface` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `PUT` | `/instance/v1/zones/{zone}/placement_groups/{id}/servers` | `instance/v1/API.SetPlacementGroupServers` | — |
-| `PUT` | `/instance/v1/zones/{zone}/placement_groups/{id}` | `instance/v1/API.SetPlacementGroup` | — |
+| `PUT` | `/instance/v1/zones/{zone}/placement_groups/{id}/servers` | `instance/v1/API.SetPlacementGroupServers` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `PUT` | `/instance/v1/zones/{zone}/placement_groups/{id}` | `instance/v1/API.SetPlacementGroup` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PUT` | `/instance/v1/zones/{zone}/security_groups/{id}/rules` | `instance/v1/API.SetSecurityGroupRules` | `client` `contract` `runtime` `probe` `behaviour` |
 
 ### `ipam`
@@ -325,7 +325,7 @@ are in `coverage/`, one artefact per provider.
 | `POST` | `/api/v1/LinkLoadBalancerBackendMachines` | `osc/Client.LinkLoadBalancerBackendMachines` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
 | `POST` | `/api/v1/ReadLoadBalancers` | `osc/Client.ReadLoadBalancers` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/RegisterVmsInLoadBalancer` | `osc/Client.RegisterVmsInLoadBalancer` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `POST` | `/api/v1/UnlinkLoadBalancerBackendMachines` | `osc/Client.UnlinkLoadBalancerBackendMachines` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/api/v1/UnlinkLoadBalancerBackendMachines` | `osc/Client.UnlinkLoadBalancerBackendMachines` | `client` `contract` `runtime` `probe-refusal` |
 | `POST` | `/api/v1/UpdateLoadBalancer` | `osc/Client.UpdateLoadBalancer` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
 
 ### `NatService`
@@ -479,7 +479,7 @@ are in `coverage/`, one artefact per provider.
 | `POST` | `/api/v1/DeleteVolume` | `osc/Client.DeleteVolume` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/LinkVolume` | `osc/Client.LinkVolume` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/ReadVolumes` | `osc/Client.ReadVolumes` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
-| `POST` | `/api/v1/UnlinkVolume` | `osc/Client.UnlinkVolume` | `client` `contract` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/UnlinkVolume` | `osc/Client.UnlinkVolume` | `client` `contract` `runtime` `probe` |
 | `POST` | `/api/v1/UpdateVolume` | `osc/Client.UpdateVolume` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 
 ### Declined on purpose (172)
