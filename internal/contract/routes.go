@@ -33,6 +33,11 @@ type MountedRoute struct {
 	Method    string
 	Path      string
 	Operation string
+	// Legacy marks a route mounted at a path an earlier SDK generation used
+	// (emulator.Route.Legacy carries the measurement). The document describes
+	// only the current spelling, so the check requires the operation to exist
+	// and leaves the method and path to the primary mounting.
+	Legacy bool
 }
 
 // CheckRoutes reports every mounted route the contract disagrees with: an
@@ -44,6 +49,11 @@ func (d *Doc) CheckRoutes(routes []MountedRoute) []RouteMismatch {
 		op, _, known := d.OperationFor(r.Operation)
 		if !known {
 			out = append(out, RouteMismatch{r.Operation, "the API defines no such operation"})
+			continue
+		}
+		if r.Legacy {
+			// An old spelling the document no longer carries: the operation's
+			// existence is all the document can vouch for.
 			continue
 		}
 		if op.Method != r.Method {

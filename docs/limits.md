@@ -1368,7 +1368,7 @@ proof.
 |---|---|--:|---|
 | Exoscale | `2.0.0` | 473 | *assumed* by this emulator |
 | Outscale | `1.42.0` | 655 | **declared** by the provider |
-| Scaleway | `instance/v1, instance/v2alpha1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2, block/v1, block/v1alpha1` | 476 | **declared** by the provider |
+| Scaleway | `instance/v1, instance/v2alpha1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2, block/v1, block/v1alpha1, lb/v1, vpcgw/v2` | 604 | **declared** by the provider |
 <!-- contracts:end -->
 
 **Declared** means the provider wrote `additionalProperties: false` themselves:
@@ -1751,6 +1751,59 @@ measured about what it answers), access-log enablement (there is no OOS
 bucket here to publish into), listener policies, listener rules, LBU tag
 CRUD, and server certificates. Each answers a refusal naming the line, never
 a silent 200.
+
+## A Scaleway load balancer and public gateway record their configuration; nothing forwards packets
+
+The lb/v1 ZonedAPI and vpc-gw/v2 families are served as far as the measured
+clients exercise them (#282): the surveyed kubic and terraform-talos stacks,
+Scaleway's own LB and VPC modules, `scw lb` and `scw vpc-gw`. The decision is
+the one #315 measured for the Outscale LBU, and the Scaleway case does not
+differ — the same runtime would carry the packets that nothing carries.
+
+What a `200` means here, stated rather than implied:
+
+- **The configuration is recorded and round-trips.** The balancer, its
+  backends (pools, millisecond timeouts, the one-of-seven health-check
+  config), frontends, inline ACLs and routes come back field for field; so do
+  the gateway, its IP and the GatewayNetwork. The wrong destroy order gets a
+  refusal — a backend under a frontend, a gateway under a connection — never
+  a silent success.
+- **No traffic is forwarded.** A balancer's IPv4 comes from `198.51.100.0/24`
+  (TEST-NET-2), a gateway's from `192.0.2.0/24` (TEST-NET-1) — RFC 5737,
+  routed nowhere on purpose, distinct from the instance flexible block so no
+  two products ever publish the same address. The gateway NATs nothing, pushes
+  no route into a machine, and its bastion accepts no connection, which is why
+  the bastion allow-list operations are declined rather than recorded.
+- **No backend health exists, and none is invented.** `GetLBStats` and
+  `ListBackendStats` stay declined: nothing probes a backend, and a backend
+  reported `UP` that nothing checked is the exact answer this project exists
+  to refuse. The health-check *settings* round-trip because Terraform plans
+  on them; the health *states* do not exist until something measures them.
+- **Both attachment spellings are served.** SDK generations up to
+  v1.0.0-beta.29 attach a Private Network at
+  `/lbs/{id}/private-networks/{pnID}/attach`; the current one says
+  `/lbs/{id}/attach-private-network`. terraform-provider-scaleway v2.43 — the
+  pin of a surveyed stack — sends the old one, production still accepts it,
+  and the emulator does too (`Route.Legacy` carries the measurement).
+- **The attachment's address is a first-class IPAM citizen.** An attach
+  without `ipam_ids` books an address from the Private Network's own pool; a
+  GatewayNetwork does the same, or holds the `ipam_ip_id` the client booked
+  first. Both read back through `/ipam/v1` filtered by
+  `resource_type=lb_server` or `vpc_gateway_network`, which is exactly how
+  the Terraform provider resolves them.
+
+Only vpc-gw **v2** is served. The portal publishes no v1 document any more
+(measured 2026-08-19) and every mounted route here is checked against the
+portal's document, so v1 is declined wholesale, by name: a provider pinned
+below 2.52 — terraform-talos's `~> 2.43.0` among them — meets a named 501 on
+`/vpc-gw/v1/...`, and the recorded fix is the provider bump to ≥ 2.52, the
+release that moved the product onto v2. Also declined by name: MigrateLB and
+UpgradeGateway (a capacity move nothing performs), certificates (nothing
+terminates TLS), subscribers (no event to deliver), the PAT rules (a rule
+recorded and never applied is indistinguishable from protection), and both
+type catalogues (`ListLBTypes`, `ListGatewayTypes` — unmeasured inventory; the
+gateway create still refuses an offer outside VPC-GW-S/M/L/XL, the #279
+lesson).
 
 ## An Outscale Vm's options round-trip as data; their behavioural half has nothing to act on here
 

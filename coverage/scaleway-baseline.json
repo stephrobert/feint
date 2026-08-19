@@ -5,8 +5,10 @@
     "iam",
     "instance",
     "ipam",
+    "lb",
     "marketplace",
-    "vpc"
+    "vpc",
+    "vpcgw"
   ],
   "unknown": []
 }

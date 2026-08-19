@@ -810,4 +810,185 @@ scw instance volume delete "$ivol_id" zone="$ZONE" >/dev/null || fail "instance 
 prove_end "$span"
 ok "three lists paged, three renames carried back"
 
+# The Load Balancer chain (#282): the shape two surveyed stacks and Scaleway's
+# own module reach for — an IP, the balancer, a backend with a health check, a
+# frontend with an ACL, the Private Network attachment resolved back through
+# IPAM. The emulator records this configuration and forwards nothing, so the
+# only honest assertions are round-trips and refusals; stats stay declined.
+echo "- the load balancer chain"
+span="$(prove_begin behaviour)"
+lb_ip="$(scw lb ip create is-ipv6=false zone="$ZONE" -o json 2>&1)" || fail "lb ip create rejected: $lb_ip"
+lb_ip_id="$(printf '%s' "$lb_ip" | jq -r '.id // empty')"
+[ -n "$lb_ip_id" ] || fail "no id in the lb ip response: $lb_ip"
+
+lb="$(scw lb lb create name=conformance-lb type=LB-S ip-ids.0="$lb_ip_id" zone="$ZONE" -o json 2>&1)" \
+  || fail "lb create rejected: $lb"
+lb_id="$(printf '%s' "$lb" | jq -r '.id // empty')"
+[ -n "$lb_id" ] || fail "no id in the lb response: $lb"
+printf '%s' "$lb" | jq -e '.status == "ready"' >/dev/null || fail "the balancer is not ready: $lb"
+scw lb lb list zone="$ZONE" -o json | jq -e --arg id "$lb_id" 'any(.[]; .id == $id)' >/dev/null \
+  || fail "the balancer is missing from the list"
+
+backend="$(scw lb backend create lb-id="$lb_id" name=conformance-be forward-protocol=tcp \
+  forward-port=8080 server-ip.0=172.16.8.10 health-check.port=8080 zone="$ZONE" -o json 2>&1)" \
+  || fail "backend create rejected: $backend"
+backend_id="$(printf '%s' "$backend" | jq -r '.id // empty')"
+[ -n "$backend_id" ] || fail "no id in the backend response: $backend"
+scw lb backend get "$backend_id" zone="$ZONE" -o json \
+  | jq -e '.pool == ["172.16.8.10"]' >/dev/null || fail "the backend pool did not round-trip"
+
+frontend="$(scw lb frontend create lb-id="$lb_id" backend-id="$backend_id" name=conformance-fe \
+  inbound-port=8080 zone="$ZONE" -o json 2>&1)" || fail "frontend create rejected: $frontend"
+frontend_id="$(printf '%s' "$frontend" | jq -r '.id // empty')"
+[ -n "$frontend_id" ] || fail "no id in the frontend response: $frontend"
+
+acl="$(scw lb acl create frontend-id="$frontend_id" name=conformance-deny index=0 \
+  action.type=deny match.ip-subnet.0=0.0.0.0/0 zone="$ZONE" -o json 2>&1)" \
+  || fail "acl create rejected: $acl"
+acl_id="$(printf '%s' "$acl" | jq -r '.id // empty')"
+[ -n "$acl_id" ] || fail "no id in the acl response: $acl"
+
+route="$(scw lb route create frontend-id="$frontend_id" backend-id="$backend_id" \
+  match.host-header=app.example.org zone="$ZONE" -o json 2>&1)" || fail "route create rejected: $route"
+route_id="$(printf '%s' "$route" | jq -r '.id // empty')"
+[ -n "$route_id" ] || fail "no id in the route response: $route"
+
+# The attachment books an address in the network's own pool, and the provider
+# reads it back through IPAM filtered by resource_type=lb_server: both halves
+# asserted, because an attach whose address IPAM cannot resolve is half a product.
+lb_pn="$(scw vpc private-network create name=conformance-lb-pn subnets.0=172.16.8.0/24 region=fr-par -o json)" \
+  || fail "private network create rejected: $lb_pn"
+lb_pn_id="$(printf '%s' "$lb_pn" | jq -r '.id // empty')"
+scw lb private-network attach "$lb_id" private-network-id="$lb_pn_id" zone="$ZONE" -o json >/dev/null \
+  || fail "private-network attach rejected"
+scw lb private-network list "$lb_id" zone="$ZONE" -o json \
+  | jq -e --arg pn "$lb_pn_id" 'any(.[]; .private_network_id == $pn and .status == "ready")' >/dev/null \
+  || fail "the attachment is missing or not ready"
+scw ipam ip list resource-type=lb_server resource-id="$lb_id" region=fr-par -o json \
+  | jq -e 'length == 1' >/dev/null || fail "IPAM does not resolve the balancer's private address"
+
+# The lists a client pages through and the edits a rename goes through, one
+# call each — the #174 lesson: the create-and-delete path leaves every edit
+# path unproven.
+scw lb ip list zone="$ZONE" -o json | jq -e --arg id "$lb_ip_id" 'any(.[]; .id == $id)' >/dev/null \
+  || fail "the lb ip is missing from the list"
+scw lb ip update "$lb_ip_id" reverse=lb.example.org zone="$ZONE" -o json \
+  | jq -e '.reverse == "lb.example.org"' >/dev/null || fail "lb ip update did not carry the reverse"
+scw lb backend list lb-id="$lb_id" zone="$ZONE" -o json \
+  | jq -e --arg id "$backend_id" 'any(.[]; .id == $id)' >/dev/null || fail "the backend is missing from the list"
+scw lb backend update "$backend_id" name=conformance-be-2 forward-protocol=tcp forward-port=8080 \
+  forward-port-algorithm=roundrobin sticky-sessions=none on-marked-down-action=on_marked_down_action_none \
+  zone="$ZONE" -o json | jq -e '.name == "conformance-be-2"' >/dev/null \
+  || fail "backend update did not carry the name"
+scw lb backend set-servers "$backend_id" server-ip.0=172.16.8.11 zone="$ZONE" -o json \
+  | jq -e '.pool == ["172.16.8.11"]' >/dev/null || fail "set-servers did not replace the pool"
+scw lb backend update-healthcheck backend-id="$backend_id" port=8081 check-max-retries=3 check-delay=3s check-timeout=1s zone="$ZONE" -o json \
+  | jq -e '.port == 8081' >/dev/null || fail "update-healthcheck did not carry the port"
+scw lb frontend list lb-id="$lb_id" zone="$ZONE" -o json \
+  | jq -e --arg id "$frontend_id" 'any(.[]; .id == $id)' >/dev/null || fail "the frontend is missing from the list"
+scw lb frontend update "$frontend_id" name=conformance-fe-2 inbound-port=8080 backend-id="$backend_id" \
+  zone="$ZONE" -o json | jq -e '.name == "conformance-fe-2"' >/dev/null \
+  || fail "frontend update did not carry the name"
+scw lb acl get "$acl_id" zone="$ZONE" -o json | jq -e '.name == "conformance-deny"' >/dev/null \
+  || fail "acl get did not answer the acl"
+scw lb acl update "$acl_id" name=conformance-deny-2 action.type=deny index=0 zone="$ZONE" -o json \
+  | jq -e '.name == "conformance-deny-2"' >/dev/null || fail "acl update did not carry the name"
+scw lb route get "$route_id" zone="$ZONE" -o json \
+  | jq -e '.match.host_header == "app.example.org"' >/dev/null || fail "route get lost its match"
+scw lb route update "$route_id" backend-id="$backend_id" match.host-header=app2.example.org \
+  zone="$ZONE" -o json | jq -e '.match.host_header == "app2.example.org"' >/dev/null \
+  || fail "route update did not carry the match"
+scw lb route list zone="$ZONE" -o json | jq -e --arg id "$route_id" 'any(.[]; .id == $id)' >/dev/null \
+  || fail "the route is missing from the list"
+
+# The wrong destroy order gets a refusal, never a silent success: a backend a
+# frontend forwards to must not vanish under it.
+neg="$(prove_begin negative)"
+if scw lb backend delete "$backend_id" zone="$ZONE" >/dev/null 2>&1; then
+  fail "deleting a backend still used by a frontend was accepted"
+fi
+prove_end "$neg"
+
+scw lb route delete "$route_id" zone="$ZONE" >/dev/null || fail "route delete rejected"
+scw lb acl delete "$acl_id" zone="$ZONE" >/dev/null || fail "acl delete rejected"
+scw lb frontend delete "$frontend_id" zone="$ZONE" >/dev/null || fail "frontend delete rejected"
+scw lb backend delete "$backend_id" zone="$ZONE" >/dev/null || fail "backend delete rejected"
+scw lb private-network detach "$lb_id" private-network-id="$lb_pn_id" zone="$ZONE" >/dev/null \
+  || fail "private-network detach rejected"
+scw lb lb delete "$lb_id" zone="$ZONE" >/dev/null || fail "lb delete rejected"
+# The address survives its balancer unless released: kubic's whole demand.
+scw lb ip get "$lb_ip_id" zone="$ZONE" -o json | jq -e '.lb_id == null' >/dev/null \
+  || fail "the address did not survive its balancer detached"
+scw lb ip delete "$lb_ip_id" zone="$ZONE" >/dev/null || fail "lb ip delete rejected"
+scw vpc private-network delete "$lb_pn_id" region=fr-par >/dev/null \
+  || fail "cleanup: private network delete rejected"
+prove_end "$span"
+ok "the balancer chain round-tripped, its address resolved through IPAM, and the wrong destroy order was refused"
+
+# The Public Gateway chain (#282): IP, gateway, connection with the IPAM
+# config — the path terraform-talos and Scaleway's own VPC module walk. Only
+# vpc-gw/v2 is served, which is what scw 2.56.3 drives (measured with -D).
+echo "- the public gateway chain"
+span="$(prove_begin behaviour)"
+gw_ip="$(scw vpc-gw ip create zone="$ZONE" -o json 2>&1)" || fail "vpc-gw ip create rejected: $gw_ip"
+gw_ip_id="$(printf '%s' "$gw_ip" | jq -r '.id // empty')"
+[ -n "$gw_ip_id" ] || fail "no id in the gateway ip response: $gw_ip"
+
+gw="$(scw vpc-gw gateway create name=conformance-gw type=VPC-GW-S ip-id="$gw_ip_id" zone="$ZONE" -o json 2>&1)" \
+  || fail "gateway create rejected: $gw"
+gw_id="$(printf '%s' "$gw" | jq -r '.id // empty')"
+[ -n "$gw_id" ] || fail "no id in the gateway response: $gw"
+printf '%s' "$gw" | jq -e '.status == "running"' >/dev/null || fail "the gateway is not running: $gw"
+
+gw_pn="$(scw vpc private-network create name=conformance-gw-pn subnets.0=172.16.9.0/24 region=fr-par -o json)" \
+  || fail "private network create rejected: $gw_pn"
+gw_pn_id="$(printf '%s' "$gw_pn" | jq -r '.id // empty')"
+
+gn="$(scw vpc-gw gateway-network create gateway-id="$gw_id" private-network-id="$gw_pn_id" \
+  enable-masquerade=true push-default-route=true zone="$ZONE" -o json 2>&1)" \
+  || fail "gateway-network create rejected: $gn"
+gn_id="$(printf '%s' "$gn" | jq -r '.id // empty')"
+[ -n "$gn_id" ] || fail "no id in the gateway-network response: $gn"
+printf '%s' "$gn" | jq -e '.status == "ready"' >/dev/null || fail "the connection is not ready: $gn"
+# The connection's address is a first-class IPAM citizen, exactly what the
+# Terraform provider reads back (resource_type=vpc_gateway_network).
+scw ipam ip list resource-type=vpc_gateway_network resource-id="$gn_id" region=fr-par -o json \
+  | jq -e 'length == 1' >/dev/null || fail "IPAM does not resolve the connection's address"
+
+# The same #174 discipline for this family: every list paged, every edit
+# carried back.
+scw vpc-gw ip list zone="$ZONE" -o json | jq -e --arg id "$gw_ip_id" 'any(.[]; .id == $id)' >/dev/null \
+  || fail "the gateway ip is missing from the list"
+scw vpc-gw ip update "$gw_ip_id" reverse=gw.example.org zone="$ZONE" -o json \
+  | jq -e '.reverse == "gw.example.org"' >/dev/null || fail "gateway ip update did not carry the reverse"
+scw vpc-gw gateway list zone="$ZONE" -o json | jq -e --arg id "$gw_id" 'any(.[]; .id == $id)' >/dev/null \
+  || fail "the gateway is missing from the list"
+scw vpc-gw gateway update "$gw_id" name=conformance-gw-2 zone="$ZONE" -o json \
+  | jq -e '.name == "conformance-gw-2"' >/dev/null || fail "gateway update did not carry the name"
+scw vpc-gw gateway-network list zone="$ZONE" -o json \
+  | jq -e --arg id "$gn_id" 'any(.[]; .id == $id)' >/dev/null || fail "the connection is missing from the list"
+scw vpc-gw gateway-network get "$gn_id" zone="$ZONE" -o json \
+  | jq -e '.push_default_route == true' >/dev/null || fail "the connection lost its default route flag"
+scw vpc-gw gateway-network update "$gn_id" enable-masquerade=false zone="$ZONE" -o json \
+  | jq -e '.masquerade_enabled == false' >/dev/null || fail "gateway-network update did not carry masquerade"
+
+# A gateway that still carries a connection does not vanish under it.
+neg="$(prove_begin negative)"
+if scw vpc-gw gateway delete "$gw_id" zone="$ZONE" >/dev/null 2>&1; then
+  fail "deleting a connected gateway was accepted"
+fi
+prove_end "$neg"
+
+scw vpc-gw gateway-network delete "$gn_id" zone="$ZONE" >/dev/null || fail "gateway-network delete rejected"
+scw vpc-gw gateway delete "$gw_id" delete-ip=true zone="$ZONE" >/dev/null || fail "gateway delete rejected"
+neg="$(prove_begin negative)"
+if scw vpc-gw gateway get "$gw_id" zone="$ZONE" -o json >/dev/null 2>&1; then
+  fail "the gateway still exists after delete"
+fi
+prove_end "$neg"
+scw vpc private-network delete "$gw_pn_id" region=fr-par >/dev/null \
+  || fail "cleanup: private network delete rejected"
+prove_end "$span"
+ok "the gateway chain round-tripped, its address resolved through IPAM, and the wrong destroy order was refused"
+
 echo "conformance: scw CLI passed"

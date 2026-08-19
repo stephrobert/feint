@@ -53,6 +53,15 @@ const resourceTypePrivateNIC = "instance_private_nic"
 // MAC and an optional name, attached through AttachIP rather than by a product.
 const resourceTypeCustom = "custom"
 
+// The two product holders this pack serves beside the NICs, named exactly as
+// ipam/v1's ResourceType enum spells them (ipam_sdk.go: ResourceTypeLBServer,
+// ResourceTypeVpcGatewayNetwork). The Terraform provider filters ListIPs on
+// these strings, so a different spelling would answer an empty list.
+const (
+	resourceTypeLBServer       = "lb_server"
+	resourceTypeGatewayNetwork = "vpc_gateway_network"
+)
+
 // attrBooked marks an address a client reserved through BookIP, as opposed to
 // one the pack allocated for a NIC. The difference decides what a NIC delete
 // does: a booked address is detached and survives, an allocated one goes back
@@ -65,6 +74,21 @@ const attrBooked = "booked"
 const (
 	attrCustomMAC  = "custom_mac"
 	attrCustomName = "custom_name"
+)
+
+// Product-holder attachment: an address held by another emulated product — a
+// Load Balancer attached to a Private Network (resource type `lb_server`), or
+// a Public Gateway's connection (`vpc_gateway_network`). Stored as attrs for
+// the same reason the custom attachment is: the wire shape rebuilds the
+// resource object from them, and the Terraform provider reads these addresses
+// back through ListIPs filtered by resource_id + resource_type (measured in
+// its services/vpcgw/helpers.go setPrivateIPs and services/lb/helpers_lb.go
+// getLBPrivateIPs).
+const (
+	attrHolderType = "holder_type" // an ipam/v1 ResourceType name, e.g. lb_server
+	attrHolderID   = "holder_id"   // ID of the holding resource
+	attrHolderName = "holder_name" // name the holder publishes, when it has one
+	attrHolderMAC  = "holder_mac"  // MAC of the holder's interface in the network
 )
 
 type ipamSourceRequest struct {
@@ -120,7 +144,7 @@ func (p *Pack) listIPAMIPs(w http.ResponseWriter, r *http.Request) {
 	// private_network_id + project_id, and `scw ipam ip list` adds the rest.
 	if id := q.Get("resource_id"); id != "" {
 		all = filterResources(all, func(res *resource.Resource) bool {
-			return res.Runtime[runtimeNICKey] == id
+			return res.Runtime[runtimeNICKey] == id || res.Attrs[attrHolderID] == id
 		})
 	}
 	if id := q.Get("private_network_id"); id != "" {
@@ -158,7 +182,8 @@ func (p *Pack) listIPAMIPs(w http.ResponseWriter, r *http.Request) {
 	// holder is any of the named resources or types.
 	if ids := idSet(q, "resource_ids"); ids != nil {
 		all = filterResources(all, func(res *resource.Resource) bool {
-			return ids[res.Runtime[runtimeNICKey]]
+			held, _ := res.Attrs[attrHolderID].(string)
+			return ids[res.Runtime[runtimeNICKey]] || (held != "" && ids[held])
 		})
 	}
 	if types := csvValues(q, "resource_types"); len(types) > 0 {
@@ -166,12 +191,16 @@ func (p *Pack) listIPAMIPs(w http.ResponseWriter, r *http.Request) {
 			return contains(types, ipamResourceType(res))
 		})
 	}
-	// "IPs attached to a resource with this string within their name". The only
+	// "IPs attached to a resource with this string within their name". The
 	// holders that carry a name here are the custom resources a client attached
-	// by name; a NIC's holder publishes name: null, and null contains nothing.
+	// by name and the product holders that publish one (a Load Balancer's name);
+	// a NIC's holder publishes name: null, and null contains nothing.
 	if name := q.Get("resource_name"); name != "" {
 		all = filterResources(all, func(res *resource.Resource) bool {
 			held, _ := res.Attrs[attrCustomName].(string)
+			if held == "" {
+				held, _ = res.Attrs[attrHolderName].(string)
+			}
 			return held != "" && strings.Contains(held, name)
 		})
 	}
@@ -751,6 +780,79 @@ func (p *Pack) newIPAMIP(region, project string, address netip.Prefix, nic, pn *
 	}
 }
 
+// newHeldIPAMIP records the address a product resource received in a Private
+// Network — a Load Balancer attachment, a Public Gateway connection — as the
+// resource the Terraform provider resolves it through (ListIPs filtered by
+// resource_id + resource_type). The caller holds the allocation lock and has
+// already reserved the address.
+func (p *Pack) newHeldIPAMIP(region, project string, address netip.Prefix, pn *resource.Resource, holderType, holderID, holderName, mac string) *resource.Resource {
+	now := p.env.Now()
+	return &resource.Resource{
+		ID:      p.env.NewID(),
+		Kind:    kindIPAMIP,
+		Tenant:  resource.Tenant{Provider: Name, Project: project, Zone: region},
+		State:   "available",
+		Created: now,
+		Updated: now,
+		Attrs: map[string]any{
+			"address":            address.String(),
+			"project_id":         project,
+			"is_ipv6":            false,
+			"tags":               []string{},
+			"private_network_id": pn.ID,
+			"vpc_id":             pn.Attrs["vpc_id"],
+			"subnet_id":          subnetIDOf(pn.ID),
+			attrHolderType:       holderType,
+			attrHolderID:         holderID,
+			attrHolderName:       holderName,
+			attrHolderMAC:        mac,
+		},
+	}
+}
+
+// holdIPAMIP marks a booked address as held by a product resource, refusing an
+// address that is already someone else's. The exclusivity check runs inside
+// the store's own critical section, the #295 discipline: on a clone, two
+// concurrent holders both pass it and the loser silently overwrites the winner.
+func (p *Pack) holdIPAMIP(id, holderType, holderID, holderName, mac string) error {
+	return p.env.Store.Update(Name, kindIPAMIP, id, func(stored *resource.Resource) error {
+		if ipamAttached(stored) && stored.Attrs[attrHolderID] != holderID {
+			return errIPOnAnotherResource
+		}
+		stored.Attrs[attrHolderType] = holderType
+		stored.Attrs[attrHolderID] = holderID
+		stored.Attrs[attrHolderName] = holderName
+		stored.Attrs[attrHolderMAC] = mac
+		stored.Updated = p.env.Now()
+		return nil
+	})
+}
+
+// releaseHeldIPAMIPs undoes what an attachment did to IPAM: an address the
+// pack created for the holder disappears, an address the client booked first
+// survives, unheld, exactly as a NIC delete treats a booked address.
+func (p *Pack) releaseHeldIPAMIPs(holderID string) {
+	unlock := p.lockAddresses()
+	defer unlock()
+	for _, res := range p.env.Store.List(kindIPAMIP, resource.Tenant{Provider: Name}) {
+		if held, _ := res.Attrs[attrHolderID].(string); held != holderID {
+			continue
+		}
+		if booked, _ := res.Attrs[attrBooked].(bool); booked {
+			_ = p.env.Store.Update(Name, kindIPAMIP, res.ID, func(stored *resource.Resource) error {
+				delete(stored.Attrs, attrHolderType)
+				delete(stored.Attrs, attrHolderID)
+				delete(stored.Attrs, attrHolderName)
+				delete(stored.Attrs, attrHolderMAC)
+				stored.Updated = p.env.Now()
+				return nil
+			})
+			continue
+		}
+		p.env.Store.Delete(Name, kindIPAMIP, res.ID)
+	}
+}
+
 // ipamIPsOf returns the addresses held by a NIC, which is what the NIC view
 // publishes as ipam_ip_ids.
 func (p *Pack) ipamIPsOf(nicID string) []*resource.Resource {
@@ -796,6 +898,9 @@ func ipamAttached(res *resource.Resource) bool {
 	if res.Runtime[runtimeNICKey] != "" {
 		return true
 	}
+	if holder, _ := res.Attrs[attrHolderType].(string); holder != "" {
+		return true
+	}
 	mac, _ := res.Attrs[attrCustomMAC].(string)
 	return mac != ""
 }
@@ -803,6 +908,9 @@ func ipamAttached(res *resource.Resource) bool {
 func ipamResourceType(res *resource.Resource) string {
 	if res.Runtime[runtimeNICKey] != "" {
 		return resourceTypePrivateNIC
+	}
+	if holder, _ := res.Attrs[attrHolderType].(string); holder != "" {
+		return holder
 	}
 	if mac, _ := res.Attrs[attrCustomMAC].(string); mac != "" {
 		return resourceTypeCustom
@@ -813,6 +921,10 @@ func ipamResourceType(res *resource.Resource) string {
 func ipamMAC(res *resource.Resource) string {
 	if res.Runtime[runtimeNICKey] != "" {
 		mac, _ := res.Attrs["mac_address"].(string)
+		return mac
+	}
+	if holder, _ := res.Attrs[attrHolderType].(string); holder != "" {
+		mac, _ := res.Attrs[attrHolderMAC].(string)
 		return mac
 	}
 	mac, _ := res.Attrs[attrCustomMAC].(string)
@@ -845,13 +957,24 @@ func (p *Pack) ipamIPView(res *resource.Resource) map[string]any {
 	// An unattached address carries no resource, which the SDK reads as a nil
 	// pointer. An object of zero values instead would tell a client the IP is
 	// held by a nameless something.
-	switch ipamResourceType(res) {
+	switch holderType := ipamResourceType(res); holderType {
 	case resourceTypePrivateNIC:
 		out["resource"] = map[string]any{
 			"type":        resourceTypePrivateNIC,
 			"id":          res.Runtime[runtimeNICKey],
 			"mac_address": res.Attrs["mac_address"],
 			"name":        nil,
+		}
+	case resourceTypeLBServer, resourceTypeGatewayNetwork:
+		var name any
+		if v, ok := res.Attrs[attrHolderName].(string); ok && v != "" {
+			name = v
+		}
+		out["resource"] = map[string]any{
+			"type":        holderType,
+			"id":          res.Attrs[attrHolderID],
+			"mac_address": res.Attrs[attrHolderMAC],
+			"name":        name,
 		}
 	case resourceTypeCustom:
 		var name any

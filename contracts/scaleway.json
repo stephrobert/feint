@@ -1,7 +1,7 @@
 {
  "provider": "scaleway",
  "source": "https://www.scaleway.com/en/developers/api/<product>/schema.yml",
- "apiVersion": "instance/v1, instance/v2alpha1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2, block/v1, block/v1alpha1",
+ "apiVersion": "instance/v1, instance/v2alpha1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2, block/v1, block/v1alpha1, lb/v1, vpcgw/v2",
  "pathPrefix": "",
  "closedPolicy": "declared",
  "errorSchema": "scw.ResponseError",
@@ -2519,6 +2519,534 @@
    "request": "ipam/v1.UpdateIP.Request",
    "response": "ipam/v1.scaleway.ipam.v1.IP"
   },
+  "lb/v1.AddBackendServers": {
+   "path": "/lb/v1/zones/{zone}/backends/{backend_id}/servers",
+   "method": "POST",
+   "group": "Backends",
+   "request": "lb/v1.AddBackendServers.Request",
+   "response": "lb/v1.scaleway.lb.v1.Backend"
+  },
+  "lb/v1.AttachPrivateNetwork": {
+   "path": "/lb/v1/zones/{zone}/lbs/{lb_id}/attach-private-network",
+   "method": "POST",
+   "group": "Private Networks",
+   "request": "lb/v1.AttachPrivateNetwork.Request",
+   "response": "lb/v1.scaleway.lb.v1.PrivateNetwork"
+  },
+  "lb/v1.CreateAcl": {
+   "path": "/lb/v1/zones/{zone}/frontends/{frontend_id}/acls",
+   "method": "POST",
+   "group": "ACLs",
+   "request": "lb/v1.CreateAcl.Request",
+   "response": "lb/v1.scaleway.lb.v1.Acl"
+  },
+  "lb/v1.CreateBackend": {
+   "path": "/lb/v1/zones/{zone}/lbs/{lb_id}/backends",
+   "method": "POST",
+   "group": "Backends",
+   "request": "lb/v1.CreateBackend.Request",
+   "response": "lb/v1.scaleway.lb.v1.Backend"
+  },
+  "lb/v1.CreateCertificate": {
+   "path": "/lb/v1/zones/{zone}/lbs/{lb_id}/certificates",
+   "method": "POST",
+   "group": "Certificate",
+   "request": "lb/v1.CreateCertificate.Request",
+   "response": "lb/v1.scaleway.lb.v1.Certificate"
+  },
+  "lb/v1.CreateFrontend": {
+   "path": "/lb/v1/zones/{zone}/lbs/{lb_id}/frontends",
+   "method": "POST",
+   "group": "Frontends",
+   "request": "lb/v1.CreateFrontend.Request",
+   "response": "lb/v1.scaleway.lb.v1.Frontend"
+  },
+  "lb/v1.CreateIp": {
+   "path": "/lb/v1/zones/{zone}/ips",
+   "method": "POST",
+   "group": "IP addresses",
+   "request": "lb/v1.CreateIp.Request",
+   "response": "lb/v1.scaleway.lb.v1.Ip"
+  },
+  "lb/v1.CreateLb": {
+   "path": "/lb/v1/zones/{zone}/lbs",
+   "method": "POST",
+   "group": "Load Balancer",
+   "request": "lb/v1.CreateLb.Request",
+   "response": "lb/v1.scaleway.lb.v1.Lb"
+  },
+  "lb/v1.CreateRoute": {
+   "path": "/lb/v1/zones/{zone}/routes",
+   "method": "POST",
+   "group": "Route",
+   "request": "lb/v1.CreateRoute.Request",
+   "response": "lb/v1.scaleway.lb.v1.Route"
+  },
+  "lb/v1.CreateSubscriber": {
+   "path": "/lb/v1/zones/{zone}/subscribers",
+   "method": "POST",
+   "group": "Alert Subscribers",
+   "request": "lb/v1.CreateSubscriber.Request",
+   "response": "lb/v1.scaleway.lb.v1.Subscriber"
+  },
+  "lb/v1.DeleteAcl": {
+   "path": "/lb/v1/zones/{zone}/acls/{acl_id}",
+   "method": "DELETE",
+   "group": "ACLs"
+  },
+  "lb/v1.DeleteBackend": {
+   "path": "/lb/v1/zones/{zone}/backends/{backend_id}",
+   "method": "DELETE",
+   "group": "Backends"
+  },
+  "lb/v1.DeleteCertificate": {
+   "path": "/lb/v1/zones/{zone}/certificates/{certificate_id}",
+   "method": "DELETE",
+   "group": "Certificate"
+  },
+  "lb/v1.DeleteFrontend": {
+   "path": "/lb/v1/zones/{zone}/frontends/{frontend_id}",
+   "method": "DELETE",
+   "group": "Frontends"
+  },
+  "lb/v1.DeleteLb": {
+   "path": "/lb/v1/zones/{zone}/lbs/{lb_id}",
+   "method": "DELETE",
+   "group": "Load Balancer",
+   "query": {
+    "release_ip": {
+     "type": "boolean"
+    }
+   }
+  },
+  "lb/v1.DeleteRoute": {
+   "path": "/lb/v1/zones/{zone}/routes/{route_id}",
+   "method": "DELETE",
+   "group": "Route"
+  },
+  "lb/v1.DeleteSubscriber": {
+   "path": "/lb/v1/zones/{zone}/lb/subscription/{subscriber_id}",
+   "method": "DELETE",
+   "group": "Alert Subscribers"
+  },
+  "lb/v1.DetachPrivateNetwork": {
+   "path": "/lb/v1/zones/{zone}/lbs/{lb_id}/detach-private-network",
+   "method": "POST",
+   "group": "Private Networks",
+   "request": "lb/v1.DetachPrivateNetwork.Request"
+  },
+  "lb/v1.GetAcl": {
+   "path": "/lb/v1/zones/{zone}/acls/{acl_id}",
+   "method": "GET",
+   "group": "ACLs",
+   "response": "lb/v1.scaleway.lb.v1.Acl"
+  },
+  "lb/v1.GetBackend": {
+   "path": "/lb/v1/zones/{zone}/backends/{backend_id}",
+   "method": "GET",
+   "group": "Backends",
+   "response": "lb/v1.scaleway.lb.v1.Backend"
+  },
+  "lb/v1.GetCertificate": {
+   "path": "/lb/v1/zones/{zone}/certificates/{certificate_id}",
+   "method": "GET",
+   "group": "Certificate",
+   "response": "lb/v1.scaleway.lb.v1.Certificate"
+  },
+  "lb/v1.GetFrontend": {
+   "path": "/lb/v1/zones/{zone}/frontends/{frontend_id}",
+   "method": "GET",
+   "group": "Frontends",
+   "response": "lb/v1.scaleway.lb.v1.Frontend"
+  },
+  "lb/v1.GetIp": {
+   "path": "/lb/v1/zones/{zone}/ips/{ip_id}",
+   "method": "GET",
+   "group": "IP addresses",
+   "response": "lb/v1.scaleway.lb.v1.Ip"
+  },
+  "lb/v1.GetLb": {
+   "path": "/lb/v1/zones/{zone}/lbs/{lb_id}",
+   "method": "GET",
+   "group": "Load Balancer",
+   "response": "lb/v1.scaleway.lb.v1.Lb"
+  },
+  "lb/v1.GetLbStats": {
+   "path": "/lb/v1/zones/{zone}/lbs/{lb_id}/stats",
+   "method": "GET",
+   "group": "Stats",
+   "response": "lb/v1.scaleway.lb.v1.LbStats",
+   "query": {
+    "backend_id": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.GetRoute": {
+   "path": "/lb/v1/zones/{zone}/routes/{route_id}",
+   "method": "GET",
+   "group": "Route",
+   "response": "lb/v1.scaleway.lb.v1.Route"
+  },
+  "lb/v1.GetSubscriber": {
+   "path": "/lb/v1/zones/{zone}/subscribers/{subscriber_id}",
+   "method": "GET",
+   "group": "Alert Subscribers",
+   "response": "lb/v1.scaleway.lb.v1.Subscriber"
+  },
+  "lb/v1.ListAcls": {
+   "path": "/lb/v1/zones/{zone}/frontends/{frontend_id}/acls",
+   "method": "GET",
+   "group": "ACLs",
+   "response": "lb/v1.scaleway.lb.v1.ListAclResponse",
+   "query": {
+    "order_by": {
+     "ref": "lb/v1.scaleway.lb.v1.ListAclRequest.OrderBy"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "name": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.ListBackendStats": {
+   "path": "/lb/v1/zones/{zone}/lbs/{lb_id}/backend-stats",
+   "method": "GET",
+   "group": "Backends",
+   "response": "lb/v1.scaleway.lb.v1.ListBackendStatsResponse",
+   "query": {
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "backend_id": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.ListBackends": {
+   "path": "/lb/v1/zones/{zone}/lbs/{lb_id}/backends",
+   "method": "GET",
+   "group": "Backends",
+   "response": "lb/v1.scaleway.lb.v1.ListBackendsResponse",
+   "query": {
+    "name": {
+     "type": "string"
+    },
+    "order_by": {
+     "ref": "lb/v1.scaleway.lb.v1.ListBackendsRequest.OrderBy"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    }
+   }
+  },
+  "lb/v1.ListCertificates": {
+   "path": "/lb/v1/zones/{zone}/lbs/{lb_id}/certificates",
+   "method": "GET",
+   "group": "Certificate",
+   "response": "lb/v1.scaleway.lb.v1.ListCertificatesResponse",
+   "query": {
+    "order_by": {
+     "ref": "lb/v1.scaleway.lb.v1.ListCertificatesRequest.OrderBy"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "name": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.ListFrontends": {
+   "path": "/lb/v1/zones/{zone}/lbs/{lb_id}/frontends",
+   "method": "GET",
+   "group": "Frontends",
+   "response": "lb/v1.scaleway.lb.v1.ListFrontendsResponse",
+   "query": {
+    "name": {
+     "type": "string"
+    },
+    "order_by": {
+     "ref": "lb/v1.scaleway.lb.v1.ListFrontendsRequest.OrderBy"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    }
+   }
+  },
+  "lb/v1.ListIPs": {
+   "path": "/lb/v1/zones/{zone}/ips",
+   "method": "GET",
+   "group": "IP addresses",
+   "response": "lb/v1.scaleway.lb.v1.ListIpsResponse",
+   "query": {
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "ip_address": {
+     "type": "string"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "ip_type": {
+     "ref": "lb/v1.scaleway.lb.v1.ListIpsRequest.IpType"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "lb/v1.ListLbPrivateNetworks": {
+   "path": "/lb/v1/zones/{zone}/lbs/{lb_id}/private-networks",
+   "method": "GET",
+   "group": "Private Networks",
+   "response": "lb/v1.scaleway.lb.v1.ListLbPrivateNetworksResponse",
+   "query": {
+    "order_by": {
+     "ref": "lb/v1.scaleway.lb.v1.ListPrivateNetworksRequest.OrderBy"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    }
+   }
+  },
+  "lb/v1.ListLbTypes": {
+   "path": "/lb/v1/zones/{zone}/lb-types",
+   "method": "GET",
+   "group": "Load Balancer Types",
+   "response": "lb/v1.scaleway.lb.v1.ListLbTypesResponse",
+   "query": {
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    }
+   }
+  },
+  "lb/v1.ListLbs": {
+   "path": "/lb/v1/zones/{zone}/lbs",
+   "method": "GET",
+   "group": "Load Balancer",
+   "response": "lb/v1.scaleway.lb.v1.ListLbsResponse",
+   "query": {
+    "name": {
+     "type": "string"
+    },
+    "order_by": {
+     "ref": "lb/v1.scaleway.lb.v1.ListLbsRequest.OrderBy"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "lb_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "lb/v1.ListRoutes": {
+   "path": "/lb/v1/zones/{zone}/routes",
+   "method": "GET",
+   "group": "Route",
+   "response": "lb/v1.scaleway.lb.v1.ListRoutesResponse",
+   "query": {
+    "order_by": {
+     "ref": "lb/v1.scaleway.lb.v1.ListRoutesRequest.OrderBy"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "frontend_id": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.ListSubscriber": {
+   "path": "/lb/v1/zones/{zone}/subscribers",
+   "method": "GET",
+   "group": "Alert Subscribers",
+   "response": "lb/v1.scaleway.lb.v1.ListSubscriberResponse",
+   "query": {
+    "order_by": {
+     "ref": "lb/v1.scaleway.lb.v1.ListSubscriberRequest.OrderBy"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "name": {
+     "type": "string"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.MigrateLb": {
+   "path": "/lb/v1/zones/{zone}/lbs/{lb_id}/migrate",
+   "method": "POST",
+   "group": "Load Balancer",
+   "request": "lb/v1.MigrateLb.Request",
+   "response": "lb/v1.scaleway.lb.v1.Lb"
+  },
+  "lb/v1.ReleaseIp": {
+   "path": "/lb/v1/zones/{zone}/ips/{ip_id}",
+   "method": "DELETE",
+   "group": "IP addresses"
+  },
+  "lb/v1.RemoveBackendServers": {
+   "path": "/lb/v1/zones/{zone}/backends/{backend_id}/servers",
+   "method": "DELETE",
+   "group": "Backends",
+   "request": "lb/v1.RemoveBackendServers.Request",
+   "response": "lb/v1.scaleway.lb.v1.Backend"
+  },
+  "lb/v1.SetAcls": {
+   "path": "/lb/v1/zones/{zone}/frontends/{frontend_id}/acls",
+   "method": "PUT",
+   "group": "ACLs",
+   "request": "lb/v1.SetAcls.Request",
+   "response": "lb/v1.scaleway.lb.v1.SetAclsResponse"
+  },
+  "lb/v1.SetBackendServers": {
+   "path": "/lb/v1/zones/{zone}/backends/{backend_id}/servers",
+   "method": "PUT",
+   "group": "Backends",
+   "request": "lb/v1.SetBackendServers.Request",
+   "response": "lb/v1.scaleway.lb.v1.Backend"
+  },
+  "lb/v1.SubscribeToLb": {
+   "path": "/lb/v1/zones/{zone}/lb/{lb_id}/subscribe",
+   "method": "POST",
+   "group": "Alert Subscribers",
+   "request": "lb/v1.SubscribeToLb.Request",
+   "response": "lb/v1.scaleway.lb.v1.Lb"
+  },
+  "lb/v1.UnsubscribeFromLb": {
+   "path": "/lb/v1/zones/{zone}/lb/{lb_id}/unsubscribe",
+   "method": "DELETE",
+   "group": "Alert Subscribers",
+   "response": "lb/v1.scaleway.lb.v1.Lb"
+  },
+  "lb/v1.UpdateAcl": {
+   "path": "/lb/v1/zones/{zone}/acls/{acl_id}",
+   "method": "PUT",
+   "group": "ACLs",
+   "request": "lb/v1.UpdateAcl.Request",
+   "response": "lb/v1.scaleway.lb.v1.Acl"
+  },
+  "lb/v1.UpdateBackend": {
+   "path": "/lb/v1/zones/{zone}/backends/{backend_id}",
+   "method": "PUT",
+   "group": "Backends",
+   "request": "lb/v1.UpdateBackend.Request",
+   "response": "lb/v1.scaleway.lb.v1.Backend"
+  },
+  "lb/v1.UpdateCertificate": {
+   "path": "/lb/v1/zones/{zone}/certificates/{certificate_id}",
+   "method": "PUT",
+   "group": "Certificate",
+   "request": "lb/v1.UpdateCertificate.Request",
+   "response": "lb/v1.scaleway.lb.v1.Certificate"
+  },
+  "lb/v1.UpdateFrontend": {
+   "path": "/lb/v1/zones/{zone}/frontends/{frontend_id}",
+   "method": "PUT",
+   "group": "Frontends",
+   "request": "lb/v1.UpdateFrontend.Request",
+   "response": "lb/v1.scaleway.lb.v1.Frontend"
+  },
+  "lb/v1.UpdateHealthCheck": {
+   "path": "/lb/v1/zones/{zone}/backends/{backend_id}/healthcheck",
+   "method": "PUT",
+   "group": "Backends",
+   "request": "lb/v1.UpdateHealthCheck.Request",
+   "response": "lb/v1.scaleway.lb.v1.HealthCheck"
+  },
+  "lb/v1.UpdateIp": {
+   "path": "/lb/v1/zones/{zone}/ips/{ip_id}",
+   "method": "PATCH",
+   "group": "IP addresses",
+   "request": "lb/v1.UpdateIp.Request",
+   "response": "lb/v1.scaleway.lb.v1.Ip"
+  },
+  "lb/v1.UpdateLb": {
+   "path": "/lb/v1/zones/{zone}/lbs/{lb_id}",
+   "method": "PUT",
+   "group": "Load Balancer",
+   "request": "lb/v1.UpdateLb.Request",
+   "response": "lb/v1.scaleway.lb.v1.Lb"
+  },
+  "lb/v1.UpdateRoute": {
+   "path": "/lb/v1/zones/{zone}/routes/{route_id}",
+   "method": "PUT",
+   "group": "Route",
+   "request": "lb/v1.UpdateRoute.Request",
+   "response": "lb/v1.scaleway.lb.v1.Route"
+  },
+  "lb/v1.UpdateSubscriber": {
+   "path": "/lb/v1/zones/{zone}/subscribers/{subscriber_id}",
+   "method": "PUT",
+   "group": "Alert Subscribers",
+   "request": "lb/v1.UpdateSubscriber.Request",
+   "response": "lb/v1.scaleway.lb.v1.Subscriber"
+  },
   "marketplace/v2.GetCategory": {
    "path": "/marketplace/v2/categories/{category_id}",
    "method": "GET",
@@ -3041,6 +3569,316 @@
    "group": "VPC Connectors",
    "request": "vpc/v2.UpdateVPCConnector.Request",
    "response": "vpc/v2.scaleway.vpc.v2.VPCConnector"
+  },
+  "vpcgw/v2.AddBastionAllowedIPs": {
+   "path": "/vpc-gw/v2/zones/{zone}/gateways/{gateway_id}/bastion-allowed-ips",
+   "method": "POST",
+   "group": "Allowed IPs",
+   "request": "vpcgw/v2.AddBastionAllowedIPs.Request",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.AddBastionAllowedIPsResponse"
+  },
+  "vpcgw/v2.CreateGateway": {
+   "path": "/vpc-gw/v2/zones/{zone}/gateways",
+   "method": "POST",
+   "group": "Gateways",
+   "request": "vpcgw/v2.CreateGateway.Request",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.Gateway"
+  },
+  "vpcgw/v2.CreateGatewayNetwork": {
+   "path": "/vpc-gw/v2/zones/{zone}/gateway-networks",
+   "method": "POST",
+   "group": "Gateway Networks",
+   "request": "vpcgw/v2.CreateGatewayNetwork.Request",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.GatewayNetwork"
+  },
+  "vpcgw/v2.CreateIP": {
+   "path": "/vpc-gw/v2/zones/{zone}/ips",
+   "method": "POST",
+   "group": "IPs",
+   "request": "vpcgw/v2.CreateIP.Request",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.IP"
+  },
+  "vpcgw/v2.CreatePatRule": {
+   "path": "/vpc-gw/v2/zones/{zone}/pat-rules",
+   "method": "POST",
+   "group": "PAT Rules",
+   "request": "vpcgw/v2.CreatePatRule.Request",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.PatRule"
+  },
+  "vpcgw/v2.DeleteBastionAllowedIPs": {
+   "path": "/vpc-gw/v2/zones/{zone}/gateways/{gateway_id}/bastion-allowed-ips/{ip_range}",
+   "method": "DELETE",
+   "group": "Allowed IPs"
+  },
+  "vpcgw/v2.DeleteGateway": {
+   "path": "/vpc-gw/v2/zones/{zone}/gateways/{gateway_id}",
+   "method": "DELETE",
+   "group": "Gateways",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.Gateway",
+   "query": {
+    "delete_ip": {
+     "type": "boolean"
+    }
+   }
+  },
+  "vpcgw/v2.DeleteGatewayNetwork": {
+   "path": "/vpc-gw/v2/zones/{zone}/gateway-networks/{gateway_network_id}",
+   "method": "DELETE",
+   "group": "Gateway Networks",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.GatewayNetwork"
+  },
+  "vpcgw/v2.DeleteIP": {
+   "path": "/vpc-gw/v2/zones/{zone}/ips/{ip_id}",
+   "method": "DELETE",
+   "group": "IPs"
+  },
+  "vpcgw/v2.DeletePatRule": {
+   "path": "/vpc-gw/v2/zones/{zone}/pat-rules/{pat_rule_id}",
+   "method": "DELETE",
+   "group": "PAT Rules"
+  },
+  "vpcgw/v2.GetGateway": {
+   "path": "/vpc-gw/v2/zones/{zone}/gateways/{gateway_id}",
+   "method": "GET",
+   "group": "Gateways",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.Gateway"
+  },
+  "vpcgw/v2.GetGatewayNetwork": {
+   "path": "/vpc-gw/v2/zones/{zone}/gateway-networks/{gateway_network_id}",
+   "method": "GET",
+   "group": "Gateway Networks",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.GatewayNetwork"
+  },
+  "vpcgw/v2.GetIP": {
+   "path": "/vpc-gw/v2/zones/{zone}/ips/{ip_id}",
+   "method": "GET",
+   "group": "IPs",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.IP"
+  },
+  "vpcgw/v2.GetPatRule": {
+   "path": "/vpc-gw/v2/zones/{zone}/pat-rules/{pat_rule_id}",
+   "method": "GET",
+   "group": "PAT Rules",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.PatRule"
+  },
+  "vpcgw/v2.ListGatewayNetworks": {
+   "path": "/vpc-gw/v2/zones/{zone}/gateway-networks",
+   "method": "GET",
+   "group": "Gateway Networks",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.ListGatewayNetworksResponse",
+   "query": {
+    "order_by": {
+     "ref": "vpcgw/v2.scaleway.vpc_gw.v2.ListGatewayNetworksRequest.OrderBy"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "status": {
+     "type": "array",
+     "items": {
+      "ref": "vpcgw/v2.scaleway.vpc_gw.v2.GatewayNetwork.Status"
+     }
+    },
+    "gateway_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "private_network_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "masquerade_enabled": {
+     "type": "boolean"
+    }
+   }
+  },
+  "vpcgw/v2.ListGatewayTypes": {
+   "path": "/vpc-gw/v2/zones/{zone}/gateway-types",
+   "method": "GET",
+   "group": "Gateway Types",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.ListGatewayTypesResponse"
+  },
+  "vpcgw/v2.ListGateways": {
+   "path": "/vpc-gw/v2/zones/{zone}/gateways",
+   "method": "GET",
+   "group": "Gateways",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.ListGatewaysResponse",
+   "query": {
+    "order_by": {
+     "ref": "vpcgw/v2.scaleway.vpc_gw.v2.ListGatewaysRequest.OrderBy"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "types": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "status": {
+     "type": "array",
+     "items": {
+      "ref": "vpcgw/v2.scaleway.vpc_gw.v2.Gateway.Status"
+     }
+    },
+    "private_network_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "include_legacy": {
+     "type": "boolean"
+    }
+   }
+  },
+  "vpcgw/v2.ListIPs": {
+   "path": "/vpc-gw/v2/zones/{zone}/ips",
+   "method": "GET",
+   "group": "IPs",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.ListIPsResponse",
+   "query": {
+    "order_by": {
+     "ref": "vpcgw/v2.scaleway.vpc_gw.v2.ListIPsRequest.OrderBy"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "reverse": {
+     "type": "string"
+    },
+    "is_free": {
+     "type": "boolean"
+    }
+   }
+  },
+  "vpcgw/v2.ListPatRules": {
+   "path": "/vpc-gw/v2/zones/{zone}/pat-rules",
+   "method": "GET",
+   "group": "PAT Rules",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.ListPatRulesResponse",
+   "query": {
+    "order_by": {
+     "ref": "vpcgw/v2.scaleway.vpc_gw.v2.ListPatRulesRequest.OrderBy"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "gateway_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "private_ips": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "protocol": {
+     "ref": "vpcgw/v2.scaleway.vpc_gw.v2.PatRule.Protocol"
+    }
+   }
+  },
+  "vpcgw/v2.RefreshSSHKeys": {
+   "path": "/vpc-gw/v2/zones/{zone}/gateways/{gateway_id}/refresh-ssh-keys",
+   "method": "POST",
+   "group": "Gateways",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.Gateway"
+  },
+  "vpcgw/v2.SetBastionAllowedIPs": {
+   "path": "/vpc-gw/v2/zones/{zone}/gateways/{gateway_id}/bastion-allowed-ips",
+   "method": "PUT",
+   "group": "Allowed IPs",
+   "request": "vpcgw/v2.SetBastionAllowedIPs.Request",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.SetBastionAllowedIPsResponse"
+  },
+  "vpcgw/v2.SetPatRules": {
+   "path": "/vpc-gw/v2/zones/{zone}/pat-rules",
+   "method": "PUT",
+   "group": "PAT Rules",
+   "request": "vpcgw/v2.SetPatRules.Request",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.SetPatRulesResponse"
+  },
+  "vpcgw/v2.UpdateGateway": {
+   "path": "/vpc-gw/v2/zones/{zone}/gateways/{gateway_id}",
+   "method": "PATCH",
+   "group": "Gateways",
+   "request": "vpcgw/v2.UpdateGateway.Request",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.Gateway"
+  },
+  "vpcgw/v2.UpdateGatewayNetwork": {
+   "path": "/vpc-gw/v2/zones/{zone}/gateway-networks/{gateway_network_id}",
+   "method": "PATCH",
+   "group": "Gateway Networks",
+   "request": "vpcgw/v2.UpdateGatewayNetwork.Request",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.GatewayNetwork"
+  },
+  "vpcgw/v2.UpdateIP": {
+   "path": "/vpc-gw/v2/zones/{zone}/ips/{ip_id}",
+   "method": "PATCH",
+   "group": "IPs",
+   "request": "vpcgw/v2.UpdateIP.Request",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.IP"
+  },
+  "vpcgw/v2.UpdatePatRule": {
+   "path": "/vpc-gw/v2/zones/{zone}/pat-rules/{pat_rule_id}",
+   "method": "PATCH",
+   "group": "PAT Rules",
+   "request": "vpcgw/v2.UpdatePatRule.Request",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.PatRule"
+  },
+  "vpcgw/v2.UpgradeGateway": {
+   "path": "/vpc-gw/v2/zones/{zone}/gateways/{gateway_id}/upgrade",
+   "method": "POST",
+   "group": "Gateways",
+   "request": "vpcgw/v2.UpgradeGateway.Request",
+   "response": "vpcgw/v2.scaleway.vpc_gw.v2.Gateway"
   }
  },
  "schemas": {
@@ -10503,6 +11341,1803 @@
     }
    }
   },
+  "lb/v1.AddBackendServers.Request": {
+   "closed": false,
+   "required": [
+    "server_ip"
+   ],
+   "properties": {
+    "server_ip": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "lb/v1.AttachPrivateNetwork.Request": {
+   "closed": false,
+   "required": [
+    "private_network_id"
+   ],
+   "properties": {
+    "ipam_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "private_network_id": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.CreateAcl.Request": {
+   "closed": false,
+   "required": [
+    "action",
+    "index",
+    "name"
+   ],
+   "properties": {
+    "action": {
+     "ref": "lb/v1.scaleway.lb.v1.AclAction"
+    },
+    "description": {
+     "type": "string"
+    },
+    "index": {
+     "type": "integer"
+    },
+    "match": {
+     "ref": "lb/v1.scaleway.lb.v1.AclMatch"
+    },
+    "name": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.CreateBackend.Request": {
+   "closed": false,
+   "required": [
+    "forward_port",
+    "forward_port_algorithm",
+    "forward_protocol",
+    "health_check",
+    "name",
+    "server_ip",
+    "sticky_sessions"
+   ],
+   "properties": {
+    "failover_host": {
+     "type": "string"
+    },
+    "forward_port": {
+     "type": "integer"
+    },
+    "forward_port_algorithm": {
+     "ref": "lb/v1.scaleway.lb.v1.ForwardPortAlgorithm"
+    },
+    "forward_protocol": {
+     "ref": "lb/v1.scaleway.lb.v1.Protocol"
+    },
+    "health_check": {
+     "ref": "lb/v1.scaleway.lb.v1.HealthCheck"
+    },
+    "ignore_ssl_server_verify": {
+     "type": "boolean"
+    },
+    "max_connections": {
+     "type": "integer"
+    },
+    "max_retries": {
+     "type": "integer"
+    },
+    "name": {
+     "type": "string"
+    },
+    "on_marked_down_action": {
+     "ref": "lb/v1.scaleway.lb.v1.OnMarkedDownAction"
+    },
+    "proxy_protocol": {
+     "ref": "lb/v1.scaleway.lb.v1.ProxyProtocol"
+    },
+    "redispatch_attempt_count": {
+     "type": "integer"
+    },
+    "send_proxy_v2": {
+     "type": "boolean"
+    },
+    "server_ip": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "ssl_bridging": {
+     "type": "boolean"
+    },
+    "sticky_sessions": {
+     "ref": "lb/v1.scaleway.lb.v1.StickySessionsType"
+    },
+    "sticky_sessions_cookie_name": {
+     "type": "string"
+    },
+    "timeout_connect": {
+     "type": "number"
+    },
+    "timeout_queue": {
+     "type": "string"
+    },
+    "timeout_server": {
+     "type": "number"
+    },
+    "timeout_tunnel": {
+     "type": "number"
+    }
+   }
+  },
+  "lb/v1.CreateCertificate.Request": {
+   "closed": false,
+   "required": [
+    "name"
+   ],
+   "properties": {
+    "custom_certificate": {
+     "ref": "lb/v1.scaleway.lb.v1.CreateCertificateRequest.CustomCertificate"
+    },
+    "letsencrypt": {
+     "ref": "lb/v1.scaleway.lb.v1.CreateCertificateRequest.LetsencryptConfig"
+    },
+    "name": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.CreateFrontend.Request": {
+   "closed": false,
+   "required": [
+    "backend_id",
+    "inbound_port",
+    "name"
+   ],
+   "properties": {
+    "backend_id": {
+     "type": "string"
+    },
+    "certificate_id": {
+     "type": "string"
+    },
+    "certificate_ids": {
+     "type": "array"
+    },
+    "connection_rate_limit": {
+     "type": "integer"
+    },
+    "enable_access_logs": {
+     "type": "boolean"
+    },
+    "enable_http3": {
+     "type": "boolean"
+    },
+    "inbound_port": {
+     "type": "integer"
+    },
+    "name": {
+     "type": "string"
+    },
+    "timeout_client": {
+     "type": "number"
+    }
+   }
+  },
+  "lb/v1.CreateIp.Request": {
+   "closed": false,
+   "properties": {
+    "is_ipv6": {
+     "type": "boolean"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "reverse": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "lb/v1.CreateLb.Request": {
+   "closed": false,
+   "required": [
+    "name"
+   ],
+   "properties": {
+    "assign_flexible_ip": {
+     "type": "boolean"
+    },
+    "assign_flexible_ipv6": {
+     "type": "boolean"
+    },
+    "description": {
+     "type": "string"
+    },
+    "ip_id": {
+     "type": "string"
+    },
+    "ip_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "name": {
+     "type": "string"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "ssl_compatibility_level": {
+     "ref": "lb/v1.scaleway.lb.v1.SSLCompatibilityLevel"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "type": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.CreateRoute.Request": {
+   "closed": false,
+   "properties": {
+    "backend_id": {
+     "type": "string"
+    },
+    "frontend_id": {
+     "type": "string"
+    },
+    "match": {
+     "ref": "lb/v1.scaleway.lb.v1.Route.Match"
+    }
+   }
+  },
+  "lb/v1.CreateSubscriber.Request": {
+   "closed": false,
+   "required": [
+    "name"
+   ],
+   "properties": {
+    "email_config": {
+     "ref": "lb/v1.scaleway.lb.v1.Subscriber.EmailConfig"
+    },
+    "name": {
+     "type": "string"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "webhook_config": {
+     "ref": "lb/v1.scaleway.lb.v1.Subscriber.WebhookConfig"
+    }
+   }
+  },
+  "lb/v1.DetachPrivateNetwork.Request": {
+   "closed": false,
+   "required": [
+    "private_network_id"
+   ],
+   "properties": {
+    "private_network_id": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.MigrateLb.Request": {
+   "closed": false,
+   "required": [
+    "type"
+   ],
+   "properties": {
+    "type": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.RemoveBackendServers.Request": {
+   "closed": false,
+   "required": [
+    "server_ip"
+   ],
+   "properties": {
+    "server_ip": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "lb/v1.SetAcls.Request": {
+   "closed": false,
+   "required": [
+    "acls"
+   ],
+   "properties": {
+    "acls": {
+     "type": "array",
+     "items": {
+      "ref": "lb/v1.scaleway.lb.v1.AclSpec"
+     }
+    }
+   }
+  },
+  "lb/v1.SetBackendServers.Request": {
+   "closed": false,
+   "required": [
+    "server_ip"
+   ],
+   "properties": {
+    "server_ip": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "lb/v1.SubscribeToLb.Request": {
+   "closed": false,
+   "required": [
+    "subscriber_id"
+   ],
+   "properties": {
+    "subscriber_id": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.UpdateAcl.Request": {
+   "closed": false,
+   "required": [
+    "action",
+    "index",
+    "name"
+   ],
+   "properties": {
+    "action": {
+     "ref": "lb/v1.scaleway.lb.v1.AclAction"
+    },
+    "description": {
+     "type": "string"
+    },
+    "index": {
+     "type": "integer"
+    },
+    "match": {
+     "ref": "lb/v1.scaleway.lb.v1.AclMatch"
+    },
+    "name": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.UpdateBackend.Request": {
+   "closed": false,
+   "required": [
+    "forward_port",
+    "forward_port_algorithm",
+    "forward_protocol",
+    "name",
+    "sticky_sessions"
+   ],
+   "properties": {
+    "failover_host": {
+     "type": "string"
+    },
+    "forward_port": {
+     "type": "integer"
+    },
+    "forward_port_algorithm": {
+     "ref": "lb/v1.scaleway.lb.v1.ForwardPortAlgorithm"
+    },
+    "forward_protocol": {
+     "ref": "lb/v1.scaleway.lb.v1.Protocol"
+    },
+    "ignore_ssl_server_verify": {
+     "type": "boolean"
+    },
+    "max_connections": {
+     "type": "integer"
+    },
+    "max_retries": {
+     "type": "integer"
+    },
+    "name": {
+     "type": "string"
+    },
+    "on_marked_down_action": {
+     "ref": "lb/v1.scaleway.lb.v1.OnMarkedDownAction"
+    },
+    "proxy_protocol": {
+     "ref": "lb/v1.scaleway.lb.v1.ProxyProtocol"
+    },
+    "redispatch_attempt_count": {
+     "type": "integer"
+    },
+    "send_proxy_v2": {
+     "type": "boolean"
+    },
+    "ssl_bridging": {
+     "type": "boolean"
+    },
+    "sticky_sessions": {
+     "ref": "lb/v1.scaleway.lb.v1.StickySessionsType"
+    },
+    "sticky_sessions_cookie_name": {
+     "type": "string"
+    },
+    "timeout_connect": {
+     "type": "number"
+    },
+    "timeout_queue": {
+     "type": "string"
+    },
+    "timeout_server": {
+     "type": "number"
+    },
+    "timeout_tunnel": {
+     "type": "number"
+    }
+   }
+  },
+  "lb/v1.UpdateCertificate.Request": {
+   "closed": false,
+   "required": [
+    "name"
+   ],
+   "properties": {
+    "name": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.UpdateFrontend.Request": {
+   "closed": false,
+   "required": [
+    "backend_id",
+    "inbound_port",
+    "name"
+   ],
+   "properties": {
+    "backend_id": {
+     "type": "string"
+    },
+    "certificate_id": {
+     "type": "string"
+    },
+    "certificate_ids": {
+     "type": "array"
+    },
+    "connection_rate_limit": {
+     "type": "integer"
+    },
+    "enable_access_logs": {
+     "type": "boolean"
+    },
+    "enable_http3": {
+     "type": "boolean"
+    },
+    "inbound_port": {
+     "type": "integer"
+    },
+    "name": {
+     "type": "string"
+    },
+    "timeout_client": {
+     "type": "number"
+    }
+   }
+  },
+  "lb/v1.UpdateHealthCheck.Request": {
+   "closed": false,
+   "required": [
+    "check_delay",
+    "check_max_retries",
+    "check_timeout",
+    "port"
+   ],
+   "properties": {
+    "check_delay": {
+     "type": "number"
+    },
+    "check_max_retries": {
+     "type": "integer"
+    },
+    "check_send_proxy": {
+     "type": "boolean"
+    },
+    "check_timeout": {
+     "type": "number"
+    },
+    "http_config": {
+     "ref": "lb/v1.scaleway.lb.v1.HealthCheck.HttpConfig"
+    },
+    "https_config": {
+     "ref": "lb/v1.scaleway.lb.v1.HealthCheck.HttpsConfig"
+    },
+    "ldap_config": {
+     "ref": "lb/v1.scaleway.lb.v1.HealthCheck.LdapConfig"
+    },
+    "mysql_config": {
+     "ref": "lb/v1.scaleway.lb.v1.HealthCheck.MysqlConfig"
+    },
+    "pgsql_config": {
+     "ref": "lb/v1.scaleway.lb.v1.HealthCheck.PgsqlConfig"
+    },
+    "port": {
+     "type": "integer"
+    },
+    "redis_config": {
+     "ref": "lb/v1.scaleway.lb.v1.HealthCheck.RedisConfig"
+    },
+    "tcp_config": {
+     "ref": "lb/v1.scaleway.lb.v1.HealthCheck.TcpConfig"
+    },
+    "transient_check_delay": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.UpdateIp.Request": {
+   "closed": false,
+   "properties": {
+    "lb_id": {
+     "type": "string"
+    },
+    "reverse": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array"
+    }
+   }
+  },
+  "lb/v1.UpdateLb.Request": {
+   "closed": false,
+   "required": [
+    "description",
+    "name"
+   ],
+   "properties": {
+    "description": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "ssl_compatibility_level": {
+     "ref": "lb/v1.scaleway.lb.v1.SSLCompatibilityLevel"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "lb/v1.UpdateRoute.Request": {
+   "closed": false,
+   "properties": {
+    "backend_id": {
+     "type": "string"
+    },
+    "match": {
+     "ref": "lb/v1.scaleway.lb.v1.Route.Match"
+    }
+   }
+  },
+  "lb/v1.UpdateSubscriber.Request": {
+   "closed": false,
+   "required": [
+    "name"
+   ],
+   "properties": {
+    "email_config": {
+     "ref": "lb/v1.scaleway.lb.v1.Subscriber.EmailConfig"
+    },
+    "name": {
+     "type": "string"
+    },
+    "webhook_config": {
+     "ref": "lb/v1.scaleway.lb.v1.Subscriber.WebhookConfig"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.Acl": {
+   "closed": false,
+   "properties": {
+    "action": {
+     "ref": "lb/v1.scaleway.lb.v1.AclAction"
+    },
+    "created_at": {
+     "type": "string"
+    },
+    "description": {
+     "type": "string"
+    },
+    "frontend": {
+     "ref": "lb/v1.scaleway.lb.v1.Frontend"
+    },
+    "id": {
+     "type": "string"
+    },
+    "index": {
+     "type": "integer"
+    },
+    "match": {
+     "ref": "lb/v1.scaleway.lb.v1.AclMatch"
+    },
+    "name": {
+     "type": "string"
+    },
+    "updated_at": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.AclAction": {
+   "closed": false,
+   "properties": {
+    "redirect": {
+     "ref": "lb/v1.scaleway.lb.v1.AclActionRedirect"
+    },
+    "type": {
+     "ref": "lb/v1.scaleway.lb.v1.AclActionType"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.AclActionRedirect": {
+   "closed": false,
+   "properties": {
+    "code": {
+     "type": "integer"
+    },
+    "target": {
+     "type": "string"
+    },
+    "type": {
+     "ref": "lb/v1.scaleway.lb.v1.AclActionRedirect.RedirectType"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.AclActionRedirect.RedirectType": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "location",
+    "scheme"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.AclActionType": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "allow",
+    "deny",
+    "redirect"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.AclHttpFilter": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "acl_http_filter_none",
+    "path_begin",
+    "path_end",
+    "regex",
+    "http_header_match"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.AclMatch": {
+   "closed": false,
+   "properties": {
+    "http_filter": {
+     "ref": "lb/v1.scaleway.lb.v1.AclHttpFilter"
+    },
+    "http_filter_option": {
+     "type": "string"
+    },
+    "http_filter_value": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "invert": {
+     "type": "boolean"
+    },
+    "ip_subnet": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "ips_edge_services": {
+     "type": "boolean"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.AclSpec": {
+   "closed": false,
+   "required": [
+    "action",
+    "index",
+    "name"
+   ],
+   "properties": {
+    "action": {
+     "ref": "lb/v1.scaleway.lb.v1.AclAction"
+    },
+    "description": {
+     "type": "string"
+    },
+    "index": {
+     "type": "integer"
+    },
+    "match": {
+     "ref": "lb/v1.scaleway.lb.v1.AclMatch"
+    },
+    "name": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.Backend": {
+   "closed": false,
+   "properties": {
+    "created_at": {
+     "type": "string"
+    },
+    "failover_host": {
+     "type": "string"
+    },
+    "forward_port": {
+     "type": "integer"
+    },
+    "forward_port_algorithm": {
+     "ref": "lb/v1.scaleway.lb.v1.ForwardPortAlgorithm"
+    },
+    "forward_protocol": {
+     "ref": "lb/v1.scaleway.lb.v1.Protocol"
+    },
+    "health_check": {
+     "ref": "lb/v1.scaleway.lb.v1.HealthCheck"
+    },
+    "id": {
+     "type": "string"
+    },
+    "ignore_ssl_server_verify": {
+     "type": "boolean"
+    },
+    "lb": {
+     "ref": "lb/v1.scaleway.lb.v1.Lb"
+    },
+    "max_connections": {
+     "type": "integer"
+    },
+    "max_retries": {
+     "type": "integer"
+    },
+    "name": {
+     "type": "string"
+    },
+    "on_marked_down_action": {
+     "ref": "lb/v1.scaleway.lb.v1.OnMarkedDownAction"
+    },
+    "pool": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "proxy_protocol": {
+     "ref": "lb/v1.scaleway.lb.v1.ProxyProtocol"
+    },
+    "redispatch_attempt_count": {
+     "type": "integer"
+    },
+    "send_proxy_v2": {
+     "type": "boolean"
+    },
+    "ssl_bridging": {
+     "type": "boolean"
+    },
+    "sticky_sessions": {
+     "ref": "lb/v1.scaleway.lb.v1.StickySessionsType"
+    },
+    "sticky_sessions_cookie_name": {
+     "type": "string"
+    },
+    "timeout_connect": {
+     "type": "number"
+    },
+    "timeout_queue": {
+     "type": "string"
+    },
+    "timeout_server": {
+     "type": "number"
+    },
+    "timeout_tunnel": {
+     "type": "number"
+    },
+    "updated_at": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.BackendServerStats": {
+   "closed": false,
+   "properties": {
+    "backend_id": {
+     "type": "string"
+    },
+    "instance_id": {
+     "type": "string"
+    },
+    "ip": {
+     "type": "string"
+    },
+    "last_health_check_status": {
+     "ref": "lb/v1.scaleway.lb.v1.BackendServerStats.HealthCheckStatus"
+    },
+    "server_state": {
+     "ref": "lb/v1.scaleway.lb.v1.BackendServerStats.ServerState"
+    },
+    "server_state_changed_at": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.BackendServerStats.HealthCheckStatus": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown",
+    "neutral",
+    "failed",
+    "passed",
+    "condpass"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.BackendServerStats.ServerState": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "stopped",
+    "starting",
+    "running",
+    "stopping"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.Certificate": {
+   "closed": false,
+   "properties": {
+    "common_name": {
+     "type": "string"
+    },
+    "created_at": {
+     "type": "string"
+    },
+    "fingerprint": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "lb": {
+     "ref": "lb/v1.scaleway.lb.v1.Lb"
+    },
+    "name": {
+     "type": "string"
+    },
+    "not_valid_after": {
+     "type": "string"
+    },
+    "not_valid_before": {
+     "type": "string"
+    },
+    "status": {
+     "ref": "lb/v1.scaleway.lb.v1.Certificate.Status"
+    },
+    "status_details": {
+     "type": "string"
+    },
+    "subject_alternative_name": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "type": {
+     "ref": "lb/v1.scaleway.lb.v1.Certificate.Type"
+    },
+    "updated_at": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.Certificate.Status": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "pending",
+    "ready",
+    "error"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.Certificate.Type": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "letsencryt",
+    "custom",
+    "letsencrypt"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.CreateCertificateRequest.CustomCertificate": {
+   "closed": false,
+   "required": [
+    "certificate_chain"
+   ],
+   "properties": {
+    "certificate_chain": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.CreateCertificateRequest.LetsencryptConfig": {
+   "closed": false,
+   "required": [
+    "common_name"
+   ],
+   "properties": {
+    "common_name": {
+     "type": "string"
+    },
+    "subject_alternative_name": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.ForwardPortAlgorithm": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "roundrobin",
+    "leastconn",
+    "first"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.Frontend": {
+   "closed": false,
+   "properties": {
+    "backend": {
+     "ref": "lb/v1.scaleway.lb.v1.Backend"
+    },
+    "certificate": {
+     "ref": "lb/v1.scaleway.lb.v1.Certificate"
+    },
+    "certificate_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "connection_rate_limit": {
+     "type": "integer"
+    },
+    "created_at": {
+     "type": "string"
+    },
+    "enable_access_logs": {
+     "type": "boolean"
+    },
+    "enable_http3": {
+     "type": "boolean"
+    },
+    "id": {
+     "type": "string"
+    },
+    "inbound_port": {
+     "type": "integer"
+    },
+    "lb": {
+     "ref": "lb/v1.scaleway.lb.v1.Lb"
+    },
+    "name": {
+     "type": "string"
+    },
+    "timeout_client": {
+     "type": "number"
+    },
+    "updated_at": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.HealthCheck": {
+   "closed": false,
+   "properties": {
+    "check_delay": {
+     "type": "number"
+    },
+    "check_max_retries": {
+     "type": "integer"
+    },
+    "check_send_proxy": {
+     "type": "boolean"
+    },
+    "check_timeout": {
+     "type": "number"
+    },
+    "http_config": {
+     "ref": "lb/v1.scaleway.lb.v1.HealthCheck.HttpConfig"
+    },
+    "https_config": {
+     "ref": "lb/v1.scaleway.lb.v1.HealthCheck.HttpsConfig"
+    },
+    "ldap_config": {
+     "ref": "lb/v1.scaleway.lb.v1.HealthCheck.LdapConfig"
+    },
+    "mysql_config": {
+     "ref": "lb/v1.scaleway.lb.v1.HealthCheck.MysqlConfig"
+    },
+    "pgsql_config": {
+     "ref": "lb/v1.scaleway.lb.v1.HealthCheck.PgsqlConfig"
+    },
+    "port": {
+     "type": "integer"
+    },
+    "redis_config": {
+     "ref": "lb/v1.scaleway.lb.v1.HealthCheck.RedisConfig"
+    },
+    "tcp_config": {
+     "ref": "lb/v1.scaleway.lb.v1.HealthCheck.TcpConfig"
+    },
+    "transient_check_delay": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.HealthCheck.HttpConfig": {
+   "closed": false,
+   "properties": {
+    "code": {
+     "type": "integer"
+    },
+    "host_header": {
+     "type": "string"
+    },
+    "method": {
+     "type": "string"
+    },
+    "uri": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.HealthCheck.HttpsConfig": {
+   "closed": false,
+   "properties": {
+    "code": {
+     "type": "integer"
+    },
+    "host_header": {
+     "type": "string"
+    },
+    "method": {
+     "type": "string"
+    },
+    "sni": {
+     "type": "string"
+    },
+    "uri": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.HealthCheck.LdapConfig": {
+   "closed": false
+  },
+  "lb/v1.scaleway.lb.v1.HealthCheck.MysqlConfig": {
+   "closed": false,
+   "properties": {
+    "user": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.HealthCheck.PgsqlConfig": {
+   "closed": false,
+   "properties": {
+    "user": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.HealthCheck.RedisConfig": {
+   "closed": false
+  },
+  "lb/v1.scaleway.lb.v1.HealthCheck.TcpConfig": {
+   "closed": false
+  },
+  "lb/v1.scaleway.lb.v1.Instance": {
+   "closed": false,
+   "properties": {
+    "created_at": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "ip_address": {
+     "type": "string"
+    },
+    "region": {
+     "type": "string"
+    },
+    "status": {
+     "ref": "lb/v1.scaleway.lb.v1.Instance.Status"
+    },
+    "updated_at": {
+     "type": "string"
+    },
+    "zone": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.Instance.Status": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown",
+    "ready",
+    "pending",
+    "stopped",
+    "error",
+    "locked",
+    "migrating"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.Ip": {
+   "closed": false,
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "ip_address": {
+     "type": "string"
+    },
+    "lb_id": {
+     "type": "string"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "region": {
+     "type": "string"
+    },
+    "reverse": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "zone": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.Lb": {
+   "closed": false,
+   "properties": {
+    "backend_count": {
+     "type": "integer"
+    },
+    "created_at": {
+     "type": "string"
+    },
+    "description": {
+     "type": "string"
+    },
+    "frontend_count": {
+     "type": "integer"
+    },
+    "id": {
+     "type": "string"
+    },
+    "instances": {
+     "type": "array",
+     "items": {
+      "ref": "lb/v1.scaleway.lb.v1.Instance"
+     }
+    },
+    "ip": {
+     "type": "array",
+     "items": {
+      "ref": "lb/v1.scaleway.lb.v1.Ip"
+     }
+    },
+    "name": {
+     "type": "string"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "private_network_count": {
+     "type": "integer"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "region": {
+     "type": "string"
+    },
+    "route_count": {
+     "type": "integer"
+    },
+    "ssl_compatibility_level": {
+     "ref": "lb/v1.scaleway.lb.v1.SSLCompatibilityLevel"
+    },
+    "status": {
+     "ref": "lb/v1.scaleway.lb.v1.Lb.Status"
+    },
+    "subscriber": {
+     "ref": "lb/v1.scaleway.lb.v1.Subscriber"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "type": {
+     "type": "string"
+    },
+    "updated_at": {
+     "type": "string"
+    },
+    "zone": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.Lb.Status": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown",
+    "ready",
+    "pending",
+    "stopped",
+    "error",
+    "locked",
+    "migrating",
+    "to_create",
+    "creating",
+    "to_delete",
+    "deleting"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.LbStats": {
+   "closed": false,
+   "properties": {
+    "backend_servers_stats": {
+     "type": "array",
+     "items": {
+      "ref": "lb/v1.scaleway.lb.v1.BackendServerStats"
+     }
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.LbType": {
+   "closed": false,
+   "properties": {
+    "bandwidth": {
+     "type": "integer"
+    },
+    "description": {
+     "type": "string"
+    },
+    "multicloud": {
+     "type": "boolean"
+    },
+    "name": {
+     "type": "string"
+    },
+    "region": {
+     "type": "string"
+    },
+    "stock_status": {
+     "ref": "lb/v1.scaleway.lb.v1.LbType.Stock"
+    },
+    "zone": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.LbType.Stock": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown",
+    "low_stock",
+    "out_of_stock",
+    "available"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.ListAclRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "name_asc",
+    "name_desc"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.ListAclResponse": {
+   "closed": false,
+   "properties": {
+    "acls": {
+     "type": "array",
+     "items": {
+      "ref": "lb/v1.scaleway.lb.v1.Acl"
+     }
+    },
+    "total_count": {
+     "type": "integer"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.ListBackendStatsResponse": {
+   "closed": false,
+   "properties": {
+    "backend_servers_stats": {
+     "type": "array",
+     "items": {
+      "ref": "lb/v1.scaleway.lb.v1.BackendServerStats"
+     }
+    },
+    "total_count": {
+     "type": "integer"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.ListBackendsRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "name_asc",
+    "name_desc"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.ListBackendsResponse": {
+   "closed": false,
+   "properties": {
+    "backends": {
+     "type": "array",
+     "items": {
+      "ref": "lb/v1.scaleway.lb.v1.Backend"
+     }
+    },
+    "total_count": {
+     "type": "integer"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.ListCertificatesRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "name_asc",
+    "name_desc"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.ListCertificatesResponse": {
+   "closed": false,
+   "properties": {
+    "certificates": {
+     "type": "array",
+     "items": {
+      "ref": "lb/v1.scaleway.lb.v1.Certificate"
+     }
+    },
+    "total_count": {
+     "type": "integer"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.ListFrontendsRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "name_asc",
+    "name_desc"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.ListFrontendsResponse": {
+   "closed": false,
+   "properties": {
+    "frontends": {
+     "type": "array",
+     "items": {
+      "ref": "lb/v1.scaleway.lb.v1.Frontend"
+     }
+    },
+    "total_count": {
+     "type": "integer"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.ListIpsRequest.IpType": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "all",
+    "ipv4",
+    "ipv6"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.ListIpsResponse": {
+   "closed": false,
+   "properties": {
+    "ips": {
+     "type": "array",
+     "items": {
+      "ref": "lb/v1.scaleway.lb.v1.Ip"
+     }
+    },
+    "total_count": {
+     "type": "integer"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.ListLbPrivateNetworksResponse": {
+   "closed": false,
+   "properties": {
+    "private_network": {
+     "type": "array",
+     "items": {
+      "ref": "lb/v1.scaleway.lb.v1.PrivateNetwork"
+     }
+    },
+    "total_count": {
+     "type": "integer"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.ListLbTypesResponse": {
+   "closed": false,
+   "properties": {
+    "lb_types": {
+     "type": "array",
+     "items": {
+      "ref": "lb/v1.scaleway.lb.v1.LbType"
+     }
+    },
+    "total_count": {
+     "type": "integer"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.ListLbsRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "name_asc",
+    "name_desc"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.ListLbsResponse": {
+   "closed": false,
+   "properties": {
+    "lbs": {
+     "type": "array",
+     "items": {
+      "ref": "lb/v1.scaleway.lb.v1.Lb"
+     }
+    },
+    "total_count": {
+     "type": "integer"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.ListPrivateNetworksRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.ListRoutesRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.ListRoutesResponse": {
+   "closed": false,
+   "properties": {
+    "routes": {
+     "type": "array",
+     "items": {
+      "ref": "lb/v1.scaleway.lb.v1.Route"
+     }
+    },
+    "total_count": {
+     "type": "integer"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.ListSubscriberRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "name_asc",
+    "name_desc"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.ListSubscriberResponse": {
+   "closed": false,
+   "properties": {
+    "subscribers": {
+     "type": "array",
+     "items": {
+      "ref": "lb/v1.scaleway.lb.v1.Subscriber"
+     }
+    },
+    "total_count": {
+     "type": "integer"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.OnMarkedDownAction": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "on_marked_down_action_none",
+    "shutdown_sessions"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.PrivateNetwork": {
+   "closed": false,
+   "properties": {
+    "created_at": {
+     "type": "string"
+    },
+    "dhcp_config": {
+     "ref": "lb/v1.scaleway.lb.v1.PrivateNetwork.DHCPConfig"
+    },
+    "ipam_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "lb": {
+     "ref": "lb/v1.scaleway.lb.v1.Lb"
+    },
+    "private_network_id": {
+     "type": "string"
+    },
+    "static_config": {
+     "ref": "lb/v1.scaleway.lb.v1.PrivateNetwork.StaticConfig"
+    },
+    "status": {
+     "ref": "lb/v1.scaleway.lb.v1.PrivateNetwork.Status"
+    },
+    "updated_at": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.PrivateNetwork.DHCPConfig": {
+   "closed": false,
+   "properties": {
+    "ip_id": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.PrivateNetwork.StaticConfig": {
+   "closed": false,
+   "properties": {
+    "ip_address": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.PrivateNetwork.Status": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown",
+    "ready",
+    "pending",
+    "error"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.Protocol": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "tcp",
+    "http"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.ProxyProtocol": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "proxy_protocol_unknown",
+    "proxy_protocol_none",
+    "proxy_protocol_v1",
+    "proxy_protocol_v2",
+    "proxy_protocol_v2_ssl",
+    "proxy_protocol_v2_ssl_cn"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.Route": {
+   "closed": false,
+   "properties": {
+    "backend_id": {
+     "type": "string"
+    },
+    "created_at": {
+     "type": "string"
+    },
+    "frontend_id": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "match": {
+     "ref": "lb/v1.scaleway.lb.v1.Route.Match"
+    },
+    "updated_at": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.Route.Match": {
+   "closed": false,
+   "properties": {
+    "host_header": {
+     "type": "string"
+    },
+    "match_subdomains": {
+     "type": "boolean"
+    },
+    "path_begin": {
+     "type": "string"
+    },
+    "sni": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.SSLCompatibilityLevel": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "ssl_compatibility_level_unknown",
+    "ssl_compatibility_level_intermediate",
+    "ssl_compatibility_level_modern",
+    "ssl_compatibility_level_old"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.SetAclsResponse": {
+   "closed": false,
+   "properties": {
+    "acls": {
+     "type": "array",
+     "items": {
+      "ref": "lb/v1.scaleway.lb.v1.Acl"
+     }
+    },
+    "total_count": {
+     "type": "integer"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.StickySessionsType": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "none",
+    "cookie",
+    "table"
+   ]
+  },
+  "lb/v1.scaleway.lb.v1.Subscriber": {
+   "closed": false,
+   "properties": {
+    "email_config": {
+     "ref": "lb/v1.scaleway.lb.v1.Subscriber.EmailConfig"
+    },
+    "id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "webhook_config": {
+     "ref": "lb/v1.scaleway.lb.v1.Subscriber.WebhookConfig"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.Subscriber.EmailConfig": {
+   "closed": false,
+   "properties": {
+    "email": {
+     "type": "string"
+    }
+   }
+  },
+  "lb/v1.scaleway.lb.v1.Subscriber.WebhookConfig": {
+   "closed": false,
+   "properties": {
+    "uri": {
+     "type": "string"
+    }
+   }
+  },
   "marketplace/v2.scaleway.marketplace.v2.Category": {
    "closed": false,
    "properties": {
@@ -11582,6 +14217,597 @@
     "peered",
     "conflict"
    ]
+  },
+  "vpcgw/v2.AddBastionAllowedIPs.Request": {
+   "closed": false,
+   "properties": {
+    "ip_range": {
+     "type": "string"
+    }
+   }
+  },
+  "vpcgw/v2.CreateGateway.Request": {
+   "closed": false,
+   "properties": {
+    "bastion_port": {
+     "type": "integer"
+    },
+    "enable_bastion": {
+     "type": "boolean"
+    },
+    "enable_smtp": {
+     "type": "boolean"
+    },
+    "ip_id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "type": {
+     "type": "string"
+    }
+   }
+  },
+  "vpcgw/v2.CreateGatewayNetwork.Request": {
+   "closed": false,
+   "properties": {
+    "enable_masquerade": {
+     "type": "boolean"
+    },
+    "gateway_id": {
+     "type": "string"
+    },
+    "ipam_ip_id": {
+     "type": "string"
+    },
+    "private_network_id": {
+     "type": "string"
+    },
+    "push_default_route": {
+     "type": "boolean"
+    }
+   }
+  },
+  "vpcgw/v2.CreateIP.Request": {
+   "closed": false,
+   "properties": {
+    "project_id": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "vpcgw/v2.CreatePatRule.Request": {
+   "closed": false,
+   "properties": {
+    "gateway_id": {
+     "type": "string"
+    },
+    "private_ip": {
+     "type": "string"
+    },
+    "private_port": {
+     "type": "integer"
+    },
+    "protocol": {
+     "ref": "vpcgw/v2.scaleway.vpc_gw.v2.PatRule.Protocol"
+    },
+    "public_port": {
+     "type": "integer"
+    }
+   }
+  },
+  "vpcgw/v2.SetBastionAllowedIPs.Request": {
+   "closed": false,
+   "properties": {
+    "ip_ranges": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "vpcgw/v2.SetPatRules.Request": {
+   "closed": false,
+   "required": [
+    "pat_rules"
+   ],
+   "properties": {
+    "gateway_id": {
+     "type": "string"
+    },
+    "pat_rules": {
+     "type": "array",
+     "items": {
+      "ref": "vpcgw/v2.scaleway.vpc_gw.v2.SetPatRulesRequest.Rule"
+     }
+    }
+   }
+  },
+  "vpcgw/v2.UpdateGateway.Request": {
+   "closed": false,
+   "properties": {
+    "bastion_port": {
+     "type": "integer"
+    },
+    "enable_bastion": {
+     "type": "boolean"
+    },
+    "enable_smtp": {
+     "type": "boolean"
+    },
+    "name": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array"
+    }
+   }
+  },
+  "vpcgw/v2.UpdateGatewayNetwork.Request": {
+   "closed": false,
+   "properties": {
+    "enable_masquerade": {
+     "type": "boolean"
+    },
+    "ipam_ip_id": {
+     "type": "string"
+    },
+    "push_default_route": {
+     "type": "boolean"
+    }
+   }
+  },
+  "vpcgw/v2.UpdateIP.Request": {
+   "closed": false,
+   "properties": {
+    "gateway_id": {
+     "type": "string"
+    },
+    "reverse": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array"
+    }
+   }
+  },
+  "vpcgw/v2.UpdatePatRule.Request": {
+   "closed": false,
+   "properties": {
+    "private_ip": {
+     "type": "string"
+    },
+    "private_port": {
+     "type": "integer"
+    },
+    "protocol": {
+     "ref": "vpcgw/v2.scaleway.vpc_gw.v2.PatRule.Protocol"
+    },
+    "public_port": {
+     "type": "integer"
+    }
+   }
+  },
+  "vpcgw/v2.UpgradeGateway.Request": {
+   "closed": false,
+   "properties": {
+    "type": {
+     "type": "string"
+    }
+   }
+  },
+  "vpcgw/v2.scaleway.vpc_gw.v2.AddBastionAllowedIPsResponse": {
+   "closed": false,
+   "properties": {
+    "ip_ranges": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "vpcgw/v2.scaleway.vpc_gw.v2.Gateway": {
+   "closed": false,
+   "properties": {
+    "bandwidth": {
+     "type": "integer"
+    },
+    "bastion_allowed_ips": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "bastion_enabled": {
+     "type": "boolean"
+    },
+    "bastion_port": {
+     "type": "integer"
+    },
+    "can_upgrade_to": {
+     "type": "string"
+    },
+    "created_at": {
+     "type": "string"
+    },
+    "gateway_networks": {
+     "type": "array",
+     "items": {
+      "ref": "vpcgw/v2.scaleway.vpc_gw.v2.GatewayNetwork"
+     }
+    },
+    "id": {
+     "type": "string"
+    },
+    "ipv4": {
+     "ref": "vpcgw/v2.scaleway.vpc_gw.v2.IP"
+    },
+    "is_legacy": {
+     "type": "boolean"
+    },
+    "name": {
+     "type": "string"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "smtp_enabled": {
+     "type": "boolean"
+    },
+    "status": {
+     "ref": "vpcgw/v2.scaleway.vpc_gw.v2.Gateway.Status"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "type": {
+     "type": "string"
+    },
+    "updated_at": {
+     "type": "string"
+    },
+    "version": {
+     "type": "string"
+    },
+    "zone": {
+     "type": "string"
+    }
+   }
+  },
+  "vpcgw/v2.scaleway.vpc_gw.v2.Gateway.Status": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_status",
+    "stopped",
+    "allocating",
+    "configuring",
+    "running",
+    "stopping",
+    "failed",
+    "deleting",
+    "locked"
+   ]
+  },
+  "vpcgw/v2.scaleway.vpc_gw.v2.GatewayNetwork": {
+   "closed": false,
+   "properties": {
+    "created_at": {
+     "type": "string"
+    },
+    "gateway_id": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "ipam_ip_id": {
+     "type": "string"
+    },
+    "mac_address": {
+     "type": "string"
+    },
+    "masquerade_enabled": {
+     "type": "boolean"
+    },
+    "private_network_id": {
+     "type": "string"
+    },
+    "push_default_route": {
+     "type": "boolean"
+    },
+    "status": {
+     "ref": "vpcgw/v2.scaleway.vpc_gw.v2.GatewayNetwork.Status"
+    },
+    "updated_at": {
+     "type": "string"
+    },
+    "zone": {
+     "type": "string"
+    }
+   }
+  },
+  "vpcgw/v2.scaleway.vpc_gw.v2.GatewayNetwork.Status": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_status",
+    "created",
+    "attaching",
+    "configuring",
+    "ready",
+    "detaching"
+   ]
+  },
+  "vpcgw/v2.scaleway.vpc_gw.v2.GatewayType": {
+   "closed": false,
+   "properties": {
+    "bandwidth": {
+     "type": "integer"
+    },
+    "name": {
+     "type": "string"
+    },
+    "zone": {
+     "type": "string"
+    }
+   }
+  },
+  "vpcgw/v2.scaleway.vpc_gw.v2.IP": {
+   "closed": false,
+   "properties": {
+    "address": {
+     "type": "string"
+    },
+    "created_at": {
+     "type": "string"
+    },
+    "gateway_id": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "project_id": {
+     "type": "string"
+    },
+    "reverse": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "updated_at": {
+     "type": "string"
+    },
+    "zone": {
+     "type": "string"
+    }
+   }
+  },
+  "vpcgw/v2.scaleway.vpc_gw.v2.ListGatewayNetworksRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "status_asc",
+    "status_desc"
+   ]
+  },
+  "vpcgw/v2.scaleway.vpc_gw.v2.ListGatewayNetworksResponse": {
+   "closed": false,
+   "properties": {
+    "gateway_networks": {
+     "type": "array",
+     "items": {
+      "ref": "vpcgw/v2.scaleway.vpc_gw.v2.GatewayNetwork"
+     }
+    },
+    "total_count": {
+     "type": "integer"
+    }
+   }
+  },
+  "vpcgw/v2.scaleway.vpc_gw.v2.ListGatewayTypesResponse": {
+   "closed": false,
+   "properties": {
+    "types": {
+     "type": "array",
+     "items": {
+      "ref": "vpcgw/v2.scaleway.vpc_gw.v2.GatewayType"
+     }
+    }
+   }
+  },
+  "vpcgw/v2.scaleway.vpc_gw.v2.ListGatewaysRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "name_asc",
+    "name_desc",
+    "type_asc",
+    "type_desc",
+    "status_asc",
+    "status_desc"
+   ]
+  },
+  "vpcgw/v2.scaleway.vpc_gw.v2.ListGatewaysResponse": {
+   "closed": false,
+   "properties": {
+    "gateways": {
+     "type": "array",
+     "items": {
+      "ref": "vpcgw/v2.scaleway.vpc_gw.v2.Gateway"
+     }
+    },
+    "total_count": {
+     "type": "integer"
+    }
+   }
+  },
+  "vpcgw/v2.scaleway.vpc_gw.v2.ListIPsRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "address_asc",
+    "address_desc",
+    "reverse_asc",
+    "reverse_desc"
+   ]
+  },
+  "vpcgw/v2.scaleway.vpc_gw.v2.ListIPsResponse": {
+   "closed": false,
+   "properties": {
+    "ips": {
+     "type": "array",
+     "items": {
+      "ref": "vpcgw/v2.scaleway.vpc_gw.v2.IP"
+     }
+    },
+    "total_count": {
+     "type": "integer"
+    }
+   }
+  },
+  "vpcgw/v2.scaleway.vpc_gw.v2.ListPatRulesRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "public_port_asc",
+    "public_port_desc"
+   ]
+  },
+  "vpcgw/v2.scaleway.vpc_gw.v2.ListPatRulesResponse": {
+   "closed": false,
+   "properties": {
+    "pat_rules": {
+     "type": "array",
+     "items": {
+      "ref": "vpcgw/v2.scaleway.vpc_gw.v2.PatRule"
+     }
+    },
+    "total_count": {
+     "type": "integer"
+    }
+   }
+  },
+  "vpcgw/v2.scaleway.vpc_gw.v2.PatRule": {
+   "closed": false,
+   "properties": {
+    "created_at": {
+     "type": "string"
+    },
+    "gateway_id": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "private_ip": {
+     "type": "string"
+    },
+    "private_port": {
+     "type": "integer"
+    },
+    "protocol": {
+     "ref": "vpcgw/v2.scaleway.vpc_gw.v2.PatRule.Protocol"
+    },
+    "public_port": {
+     "type": "integer"
+    },
+    "updated_at": {
+     "type": "string"
+    },
+    "zone": {
+     "type": "string"
+    }
+   }
+  },
+  "vpcgw/v2.scaleway.vpc_gw.v2.PatRule.Protocol": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_protocol",
+    "both",
+    "tcp",
+    "udp"
+   ]
+  },
+  "vpcgw/v2.scaleway.vpc_gw.v2.SetBastionAllowedIPsResponse": {
+   "closed": false,
+   "properties": {
+    "ip_ranges": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "vpcgw/v2.scaleway.vpc_gw.v2.SetPatRulesRequest.Rule": {
+   "closed": false,
+   "properties": {
+    "private_ip": {
+     "type": "string"
+    },
+    "private_port": {
+     "type": "integer"
+    },
+    "protocol": {
+     "ref": "vpcgw/v2.scaleway.vpc_gw.v2.PatRule.Protocol"
+    },
+    "public_port": {
+     "type": "integer"
+    }
+   }
+  },
+  "vpcgw/v2.scaleway.vpc_gw.v2.SetPatRulesResponse": {
+   "closed": false,
+   "properties": {
+    "pat_rules": {
+     "type": "array",
+     "items": {
+      "ref": "vpcgw/v2.scaleway.vpc_gw.v2.PatRule"
+     }
+    }
+   }
   }
  }
 }

@@ -15,6 +15,11 @@
 # from the Go SDK, and upstream:sync fails loudly on a 404 instead of leaving a
 # stale file behind.
 #
+# When the slug and the SDK name differ, the line carries both: the portal path
+# first (it names the download), the SDK's <package>/<version> second (it
+# namespaces the contract, and the route check resolves operations under that
+# name). A line with one field uses it for both, which is the common case.
+#
 # Restricted to the products the emulator has actually started, the same way the
 # drift gate is: pulling all of Scaleway's surface would produce a contract
 # describing an API nobody serves.
@@ -35,3 +40,11 @@ block/v1
 # emulator serves both and both must be checked against their own description.
 # Measured on the first conformance run of SW-3, not assumed.
 block/v1alpha1
+# The Load Balancer's zoned API (#282). The portal path measured 2026-08-19:
+# /en/developers/api/load-balancer/zoned/v1/schema.yml; the SDK calls the
+# package lb and the routes live under /lb/v1/zones/.
+load-balancer/zoned/v1 lb/v1
+# The Public Gateway (#282). v2 only: the portal publishes no v1 document any
+# more (measured 2026-08-19, /en/developers/api/public-gateway offers v2
+# alone), which is why the whole vpcgw/v1 family is declined in the pack.
+public-gateway/v2 vpcgw/v2

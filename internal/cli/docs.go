@@ -496,6 +496,13 @@ func routesByProvider() ([]string, map[string]map[string]int, error) {
 	for _, p := range srv.Packs() {
 		byProduct := make(map[string]int)
 		for _, r := range p.Routes() {
+			// A legacy route is a second spelling of an operation its primary
+			// route already counts (emulator.Route.Legacy); counting it would
+			// break the one-route-per-operation equality staleCoverage stands
+			// on and report every regeneration as stale.
+			if r.Legacy != "" {
+				continue
+			}
 			byProduct[productOf(r.Operation)]++
 		}
 		order = append(order, p.Name())

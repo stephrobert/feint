@@ -47,9 +47,13 @@ extract contracts/exoscale.json --provider exoscale \
 # assuming the schemas closed would report a violation on every list response the
 # emulator answers correctly. docs/limits.md records what each contract is worth.
 specs=""
-while read -r product; do
+# Two fields per line since #282: the portal path names the downloaded file,
+# the optional SDK name namespaces the contract (lb's slug is
+# load-balancer/zoned/v1 while its routes declare lb/v1 operations). One field
+# means the two names agree.
+while read -r product sdkname; do
   case "$product" in ''|\#*) continue ;; esac
-  specs="$specs --spec $product=$SPEC_SCALEWAY/$(echo "$product" | tr / -).yml"
+  specs="$specs --spec ${sdkname:-$product}=$SPEC_SCALEWAY/$(echo "$product" | tr / -).yml"
 done < tools/contract/scaleway-products.txt
 
 # --error-shape because their documents declare no error response at all; the

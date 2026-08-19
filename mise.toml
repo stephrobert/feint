@@ -123,7 +123,9 @@ curl -sSfL https://openapi-v2.exoscale.com/source.yaml -o "$FEINT_SPEC_EXOSCALE"
 # each product page. No repository carries them and there is no machine-readable
 # index, so tools/contract/scaleway-products.txt is the index.
 mkdir -p "$FEINT_SPEC_SCALEWAY"
-grep -v '^\\s*#' tools/contract/scaleway-products.txt | grep -v '^\\s*$' | while read -r product; do
+# The second field, when a line carries one, is the SDK name the contract uses;
+# only the first names the portal download (tools/contract/scaleway-products.txt).
+grep -v '^\\s*#' tools/contract/scaleway-products.txt | grep -v '^\\s*$' | while read -r product _sdkname; do
   curl -sSfL "https://www.scaleway.com/en/developers/api/$product/schema.yml" \\
     -o "$FEINT_SPEC_SCALEWAY/$(echo "$product" | tr / -).yml"
 done

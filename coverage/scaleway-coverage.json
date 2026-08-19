@@ -1,8 +1,8 @@
 {
   "provider": "scaleway",
-  "total": 315,
-  "implemented": 121,
-  "declined": 194,
+  "total": 486,
+  "implemented": 171,
+  "declined": 315,
   "unknown": 0,
   "orphans": null,
   "products": [
@@ -92,6 +92,22 @@
       ]
     },
     {
+      "product": "lb",
+      "total": 107,
+      "implemented": 35,
+      "declined": 72,
+      "unknown": 0,
+      "versions": [
+        {
+          "version": "v1",
+          "total": 107,
+          "implemented": 35,
+          "declined": 72,
+          "unknown": 0
+        }
+      ]
+    },
+    {
       "product": "marketplace",
       "total": 8,
       "implemented": 1,
@@ -119,6 +135,29 @@
           "total": 37,
           "implemented": 17,
           "declined": 20,
+          "unknown": 0
+        }
+      ]
+    },
+    {
+      "product": "vpcgw",
+      "total": 64,
+      "implemented": 15,
+      "declined": 49,
+      "unknown": 0,
+      "versions": [
+        {
+          "version": "v1",
+          "total": 37,
+          "implemented": 0,
+          "declined": 37,
+          "unknown": 0
+        },
+        {
+          "version": "v2",
+          "total": 27,
+          "implemented": 15,
+          "declined": 12,
           "unknown": 0
         }
       ]
@@ -154,6 +193,13 @@
       "unknown": 0
     },
     {
+      "group": "lb",
+      "total": 107,
+      "implemented": 35,
+      "declined": 72,
+      "unknown": 0
+    },
+    {
       "group": "marketplace",
       "total": 8,
       "implemented": 1,
@@ -165,6 +211,13 @@
       "total": 37,
       "implemented": 17,
       "declined": 20,
+      "unknown": 0
+    },
+    {
+      "group": "vpcgw",
+      "total": 64,
+      "implemented": 15,
+      "declined": 49,
       "unknown": 0
     }
   ],
@@ -1957,6 +2010,720 @@
       "status": "declined"
     },
     {
+      "operation": "lb/v1/API.AddBackendServers",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.AttachPrivateNetwork",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.CreateACL",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.CreateBackend",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.CreateCertificate",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.CreateFrontend",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.CreateIP",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.CreateLB",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.CreateRoute",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.CreateSubscriber",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.DeleteACL",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.DeleteBackend",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.DeleteCertificate",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.DeleteFrontend",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.DeleteLB",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.DeleteRoute",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.DeleteSubscriber",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.DetachPrivateNetwork",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.GetACL",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.GetBackend",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.GetCertificate",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.GetFrontend",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.GetIP",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.GetLB",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.GetLBStats",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.GetRoute",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.GetSubscriber",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.ListACLs",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.ListBackendStats",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.ListBackends",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.ListCertificates",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.ListFrontends",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.ListIPs",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.ListLBPrivateNetworks",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.ListLBTypes",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.ListLBs",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.ListRoutes",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.ListSubscriber",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.MigrateLB",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.ReleaseIP",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.RemoveBackendServers",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.SetBackendServers",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.SubscribeToLB",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.UnsubscribeFromLB",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.UpdateACL",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.UpdateBackend",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.UpdateCertificate",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.UpdateFrontend",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.UpdateHealthCheck",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.UpdateIP",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.UpdateLB",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.UpdateRoute",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/API.UpdateSubscriber",
+      "product": "lb",
+      "reason": "the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.AddBackendServers",
+      "product": "lb",
+      "reason": "the Terraform provider reconciles a backend's pool through SetBackendServers alone (measured in its services/lb/backend.go, v2.43.0 and v2.81.0), and no surveyed stack edits a pool incrementally",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.AttachPrivateNetwork",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.CreateACL",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.CreateBackend",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.CreateCertificate",
+      "product": "lb",
+      "reason": "nothing here terminates TLS: a certificate served by this emulator would be an ID over key material that signs nothing, and the Let's Encrypt half issues against domains this emulator does not hold",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.CreateFrontend",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.CreateIP",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.CreateLB",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.CreateRoute",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.CreateSubscriber",
+      "product": "lb",
+      "reason": "subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.DeleteACL",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.DeleteBackend",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.DeleteCertificate",
+      "product": "lb",
+      "reason": "nothing here terminates TLS: a certificate served by this emulator would be an ID over key material that signs nothing, and the Let's Encrypt half issues against domains this emulator does not hold",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.DeleteFrontend",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.DeleteLB",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.DeleteRoute",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.DeleteSubscriber",
+      "product": "lb",
+      "reason": "subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.DetachPrivateNetwork",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.GetACL",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.GetBackend",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.GetCertificate",
+      "product": "lb",
+      "reason": "nothing here terminates TLS: a certificate served by this emulator would be an ID over key material that signs nothing, and the Let's Encrypt half issues against domains this emulator does not hold",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.GetFrontend",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.GetIP",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.GetLB",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.GetLBStats",
+      "product": "lb",
+      "reason": "nothing here probes a backend or forwards a packet, so stats would report a health nothing measured — a backend published UP that nothing checked is the lie this emulator exists to refuse (#315 measured the same for the Outscale LBU)",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.GetRoute",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.GetSubscriber",
+      "product": "lb",
+      "reason": "subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.ListACLs",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.ListBackendStats",
+      "product": "lb",
+      "reason": "nothing here probes a backend or forwards a packet, so stats would report a health nothing measured — a backend published UP that nothing checked is the lie this emulator exists to refuse (#315 measured the same for the Outscale LBU)",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.ListBackends",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.ListCertificates",
+      "product": "lb",
+      "reason": "nothing here terminates TLS: a certificate served by this emulator would be an ID over key material that signs nothing, and the Let's Encrypt half issues against domains this emulator does not hold",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.ListFrontends",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.ListIPs",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.ListLBPrivateNetworks",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.ListLBTypes",
+      "product": "lb",
+      "reason": "the offer table is the provider's inventory and no measured client reads it before creating — the Terraform provider sends the type the configuration names — so a served list would be an invented catalogue (the ListVolumesTypes argument)",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.ListLBs",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.ListRoutes",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.ListSubscriber",
+      "product": "lb",
+      "reason": "subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.MigrateLB",
+      "product": "lb",
+      "reason": "migrating changes the commercial offer of the balancer, and an emulated balancer has no capacity to move: answering would confirm a resize nothing performed",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.ReleaseIP",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.RemoveBackendServers",
+      "product": "lb",
+      "reason": "the Terraform provider reconciles a backend's pool through SetBackendServers alone (measured in its services/lb/backend.go, v2.43.0 and v2.81.0), and no surveyed stack edits a pool incrementally",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.SetACLs",
+      "product": "lb",
+      "reason": "the Terraform provider reconciles a frontend's ACLs one by one — CreateACL, ListACLs, UpdateACL, DeleteACL, measured in its services/lb/frontend.go — and never calls the bulk set",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.SetBackendServers",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.SubscribeToLB",
+      "product": "lb",
+      "reason": "subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.UnsubscribeFromLB",
+      "product": "lb",
+      "reason": "subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.UpdateACL",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.UpdateBackend",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.UpdateCertificate",
+      "product": "lb",
+      "reason": "nothing here terminates TLS: a certificate served by this emulator would be an ID over key material that signs nothing, and the Let's Encrypt half issues against domains this emulator does not hold",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.UpdateFrontend",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.UpdateHealthCheck",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.UpdateIP",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.UpdateLB",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.UpdateRoute",
+      "product": "lb",
+      "version": "v1",
+      "status": "implemented"
+    },
+    {
+      "operation": "lb/v1/ZonedAPI.UpdateSubscriber",
+      "product": "lb",
+      "reason": "subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
       "operation": "marketplace/v2/API.GetCategory",
       "product": "marketplace",
       "reason": "the global image index spans every image Scaleway publishes in every zone, and the emulator answers from a small fixed table that would either list images it cannot boot or claim the catalogue is six entries long",
@@ -2250,6 +3017,439 @@
       "operation": "vpc/v2/RoutesWithNexthopAPI.ListRoutesWithNexthop",
       "product": "vpc",
       "reason": "the portal's API document does not describe it yet, and every route mounted here is checked against that document, so it cannot be served until the document catches up with the SDK",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.CreateDHCP",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.CreateDHCPEntry",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.CreateGateway",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.CreateGatewayNetwork",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.CreateIP",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.CreatePATRule",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.DeleteDHCP",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.DeleteDHCPEntry",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.DeleteGateway",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.DeleteGatewayNetwork",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.DeleteIP",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.DeletePATRule",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.EnableIPMobility",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.GetDHCP",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.GetDHCPEntry",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.GetGateway",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.GetGatewayNetwork",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.GetIP",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.GetPATRule",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.ListDHCPEntries",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.ListDHCPs",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.ListGatewayNetworks",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.ListGatewayTypes",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.ListGateways",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.ListIPs",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.ListPATRules",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.MigrateToV2",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.RefreshSSHKeys",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.SetDHCPEntries",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.SetPATRules",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.UpdateDHCP",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.UpdateDHCPEntry",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.UpdateGateway",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.UpdateGatewayNetwork",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.UpdateIP",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.UpdatePATRule",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v1/API.UpgradeGateway",
+      "product": "vpcgw",
+      "reason": "the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+      "version": "v1",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v2/API.AddBastionAllowedIPs",
+      "product": "vpcgw",
+      "reason": "the bastion allow-list filters connections to a bastion that accepts none here, so a recorded range would claim a filter nothing enforces; served the day the gateway carries a real bastion",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v2/API.CreateGateway",
+      "product": "vpcgw",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpcgw/v2/API.CreateGatewayNetwork",
+      "product": "vpcgw",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpcgw/v2/API.CreateIP",
+      "product": "vpcgw",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpcgw/v2/API.CreatePatRule",
+      "product": "vpcgw",
+      "reason": "a PAT rule recorded and never applied is indistinguishable from protection — the vpc/v2 ingress-rule argument — and no surveyed stack creates one: terraform-talos carries its pat_rule block commented out",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v2/API.DeleteBastionAllowedIPs",
+      "product": "vpcgw",
+      "reason": "the bastion allow-list filters connections to a bastion that accepts none here, so a recorded range would claim a filter nothing enforces; served the day the gateway carries a real bastion",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v2/API.DeleteGateway",
+      "product": "vpcgw",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpcgw/v2/API.DeleteGatewayNetwork",
+      "product": "vpcgw",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpcgw/v2/API.DeleteIP",
+      "product": "vpcgw",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpcgw/v2/API.DeletePatRule",
+      "product": "vpcgw",
+      "reason": "a PAT rule recorded and never applied is indistinguishable from protection — the vpc/v2 ingress-rule argument — and no surveyed stack creates one: terraform-talos carries its pat_rule block commented out",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v2/API.GetGateway",
+      "product": "vpcgw",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpcgw/v2/API.GetGatewayNetwork",
+      "product": "vpcgw",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpcgw/v2/API.GetIP",
+      "product": "vpcgw",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpcgw/v2/API.GetPatRule",
+      "product": "vpcgw",
+      "reason": "a PAT rule recorded and never applied is indistinguishable from protection — the vpc/v2 ingress-rule argument — and no surveyed stack creates one: terraform-talos carries its pat_rule block commented out",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v2/API.ListGatewayNetworks",
+      "product": "vpcgw",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpcgw/v2/API.ListGatewayTypes",
+      "product": "vpcgw",
+      "reason": "the offer table is the provider's inventory and no measured client reads it before creating — the Terraform provider sends the type the configuration names — so a served list would be an invented catalogue",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v2/API.ListGateways",
+      "product": "vpcgw",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpcgw/v2/API.ListIPs",
+      "product": "vpcgw",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpcgw/v2/API.ListPatRules",
+      "product": "vpcgw",
+      "reason": "a PAT rule recorded and never applied is indistinguishable from protection — the vpc/v2 ingress-rule argument — and no surveyed stack creates one: terraform-talos carries its pat_rule block commented out",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v2/API.RefreshSSHKeys",
+      "product": "vpcgw",
+      "reason": "the gateway's SSH bastion accepts no connection here — nothing forwards a packet — so refreshing the keys it would present is a rotation over a door that does not open",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v2/API.SetBastionAllowedIPs",
+      "product": "vpcgw",
+      "reason": "the bastion allow-list filters connections to a bastion that accepts none here, so a recorded range would claim a filter nothing enforces; served the day the gateway carries a real bastion",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v2/API.SetPatRules",
+      "product": "vpcgw",
+      "reason": "a PAT rule recorded and never applied is indistinguishable from protection — the vpc/v2 ingress-rule argument — and no surveyed stack creates one: terraform-talos carries its pat_rule block commented out",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v2/API.UpdateGateway",
+      "product": "vpcgw",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpcgw/v2/API.UpdateGatewayNetwork",
+      "product": "vpcgw",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpcgw/v2/API.UpdateIP",
+      "product": "vpcgw",
+      "version": "v2",
+      "status": "implemented"
+    },
+    {
+      "operation": "vpcgw/v2/API.UpdatePatRule",
+      "product": "vpcgw",
+      "reason": "a PAT rule recorded and never applied is indistinguishable from protection — the vpc/v2 ingress-rule argument — and no surveyed stack creates one: terraform-talos carries its pat_rule block commented out",
+      "version": "v2",
+      "status": "declined"
+    },
+    {
+      "operation": "vpcgw/v2/API.UpgradeGateway",
+      "product": "vpcgw",
+      "reason": "upgrading changes the gateway's commercial offer in place, and an emulated gateway has no capacity to move: answering would confirm a resize nothing performed (the MigrateLB argument)",
       "version": "v2",
       "status": "declined"
     }

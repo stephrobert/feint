@@ -38,6 +38,7 @@ func TestEveryRouteMatchesItsContract(t *testing.T) {
 		for _, r := range pack.Routes() {
 			mounted = append(mounted, contract.MountedRoute{
 				Method: r.Method, Path: r.Path, Operation: r.Operation,
+				Legacy: r.Legacy != "",
 			})
 		}
 

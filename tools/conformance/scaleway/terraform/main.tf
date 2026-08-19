@@ -342,3 +342,104 @@ output "block_volume_id_by_name" {
 output "block_snapshot_id_by_name" {
   value = data.scaleway_block_snapshot.by_name.id
 }
+
+# The Load Balancer chain (#282), in the shape the surveyed stacks wrote it:
+# kubic's standalone lb_ip, talos's balancer on a Private Network with a
+# tcp backend, an HTTPS health check and a frontend carrying an inline ACL.
+# The tag carrying var.phase is what makes the second apply exercise UpdateLB.
+resource "scaleway_lb_ip" "conformance" {
+  zone = "fr-par-1"
+}
+
+resource "scaleway_lb" "conformance" {
+  name   = "conformance-lb"
+  type   = "LB-S"
+  ip_ids = [scaleway_lb_ip.conformance.id]
+  zone   = "fr-par-1"
+  tags   = ["conformance", var.phase]
+
+  private_network {
+    private_network_id = scaleway_vpc_private_network.conformance.id
+  }
+}
+
+resource "scaleway_lb_backend" "conformance" {
+  lb_id            = scaleway_lb.conformance.id
+  name             = "conformance-backend"
+  forward_protocol = "tcp"
+  forward_port     = 6443
+  server_ips       = ["10.42.0.11", "10.42.0.12"]
+
+  health_check_timeout = "5s"
+  health_check_delay   = "30s"
+  health_check_https {
+    uri  = "/readyz"
+    code = 401
+  }
+}
+
+resource "scaleway_lb_frontend" "conformance" {
+  lb_id        = scaleway_lb.conformance.id
+  backend_id   = scaleway_lb_backend.conformance.id
+  name         = "conformance-frontend"
+  inbound_port = 6443
+
+  acl {
+    name = "deny-all"
+    action {
+      type = "deny"
+    }
+    match {
+      ip_subnet = ["0.0.0.0/0"]
+    }
+  }
+}
+
+# The Public Gateway chain (#282): the path terraform-talos and Scaleway's own
+# VPC module walk — a gateway IP, the gateway, the connection with its
+# IPAM-booked address and the pushed default route.
+resource "scaleway_vpc_public_gateway_ip" "conformance" {
+  zone = "fr-par-1"
+}
+
+resource "scaleway_ipam_ip" "gateway" {
+  source {
+    private_network_id = scaleway_vpc_private_network.conformance.id
+  }
+}
+
+resource "scaleway_vpc_public_gateway" "conformance" {
+  name  = "conformance-gateway"
+  type  = "VPC-GW-S"
+  ip_id = scaleway_vpc_public_gateway_ip.conformance.id
+  zone  = "fr-par-1"
+  tags  = ["conformance", var.phase]
+}
+
+resource "scaleway_vpc_gateway_network" "conformance" {
+  gateway_id         = scaleway_vpc_public_gateway.conformance.id
+  private_network_id = scaleway_vpc_private_network.conformance.id
+  enable_masquerade  = true
+  zone               = "fr-par-1"
+
+  ipam_config {
+    push_default_route = true
+    ipam_ip_id         = scaleway_ipam_ip.gateway.id
+  }
+}
+
+output "lb_ip_address" {
+  value = scaleway_lb_ip.conformance.ip_address
+}
+
+output "lb_id" {
+  value = scaleway_lb.conformance.id
+}
+
+output "gateway_ip_address" {
+  value = scaleway_vpc_public_gateway_ip.conformance.address
+}
+
+output "gateway_network_id" {
+  value = scaleway_vpc_gateway_network.conformance.id
+}

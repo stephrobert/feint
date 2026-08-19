@@ -104,6 +104,19 @@ type Route struct {
 	// again when a reason survives the client that came to drive it — a stale
 	// excuse reads exactly like a considered one.
 	Undriven string
+	// Legacy marks a second mounting of an operation at the path an earlier
+	// SDK generation used, and says which client still calls it. The real
+	// APIs keep serving their old spellings after a rename — measured:
+	// terraform-provider-scaleway v2.43, the pin of a surveyed stack,
+	// attaches a Load Balancer's Private Network at
+	// /lbs/{id}/private-networks/{pnID}/attach, while the current SDK and
+	// the portal document both say /lbs/{id}/attach-private-network — and a
+	// client pinned there works against production today, so it must not
+	// meet a 404 here. The contract check validates the documented path on
+	// the primary route; on a legacy one it requires only that the operation
+	// exists, since the document no longer describes the old spelling by
+	// definition (contract.CheckRoutes).
+	Legacy string
 }
 
 // Pack is one provider implementation.

@@ -28,7 +28,7 @@ OUTSCALE_SDK="${FEINT_SDK_OUTSCALE:-.upstream/osc-sdk-go}"
 # asking it to account for all 1700 upstream operations would fail forever and
 # teach everyone to ignore it. Adding a product here is what puts it under the
 # gate — in both callers at once.
-SCALEWAY_PRODUCTS="${FEINT_PRODUCTS:-instance,vpc,ipam,iam,marketplace,block}"
+SCALEWAY_PRODUCTS="${FEINT_PRODUCTS:-instance,vpc,ipam,iam,marketplace,block,lb,vpcgw}"
 
 [ -x "$FEINT" ] || { echo "no feint binary at $FEINT (build it: mise run build)" >&2; exit 1; }
 

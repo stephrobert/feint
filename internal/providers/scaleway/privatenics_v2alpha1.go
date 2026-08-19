@@ -375,3 +375,15 @@ func hasAnyTag(res *resource.Resource, wanted []string) bool {
 	}
 	return false
 }
+
+// hasAllTags is the conjunction the vpc-gw and lb lists document ("gateways
+// with these tags"), where ipam/v1's filter is a disjunction.
+func hasAllTags(res *resource.Resource, wanted []string) bool {
+	held := tagsOf(res)
+	for _, tag := range wanted {
+		if !contains(held, tag) {
+			return false
+		}
+	}
+	return true
+}

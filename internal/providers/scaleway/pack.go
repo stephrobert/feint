@@ -63,6 +63,10 @@ func (p *Pack) Routes() []emulator.Route {
 	// The alpha the CLI is still pinned to, measured rather than assumed: see the
 	// routes below.
 	const blockAlphaZones = "/block/v1alpha1/zones/{zone}"
+	// The Load Balancer's zoned API and the Public Gateway's v2, both zonal.
+	// Note the URL says vpc-gw where the SDK package says vpcgw.
+	const lbZones = "/lb/v1/zones/{zone}"
+	const gwZones = "/vpc-gw/v2/zones/{zone}"
 	return []emulator.Route{
 		{Method: "GET", Path: zones + "/servers", Operation: "instance/v1/API.ListServers", Handler: p.listServers},
 		{Method: "POST", Path: zones + "/servers", Operation: "instance/v1/API.CreateServer", Handler: p.createServer},
@@ -333,6 +337,99 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "GET", Path: zones + "/images/{id}", Operation: "instance/v1/API.GetImage", Handler: p.getImage},
 		{Method: "GET", Path: "/marketplace/v2/local-images", Operation: "marketplace/v2/API.ListLocalImages", Handler: p.listLocalImages},
 
+		// Load Balancers (lb/v1, ZonedAPI), SW-5 scoped by the #262 survey:
+		// what kubic, terraform-talos and Scaleway's own LB module call, plus
+		// the lists `scw lb` reads. The measurement and the shapes live in
+		// loadbalancer.go; the rest of the family is declined below by name.
+		{Method: "GET", Path: lbZones + "/lbs", Operation: "lb/v1/ZonedAPI.ListLBs", Handler: p.listLBs},
+		{Method: "POST", Path: lbZones + "/lbs", Operation: "lb/v1/ZonedAPI.CreateLB", Handler: p.createLB},
+		{Method: "GET", Path: lbZones + "/lbs/{lbID}", Operation: "lb/v1/ZonedAPI.GetLB", Handler: p.getLB},
+		{Method: "PUT", Path: lbZones + "/lbs/{lbID}", Operation: "lb/v1/ZonedAPI.UpdateLB", Handler: p.updateLB},
+		{Method: "DELETE", Path: lbZones + "/lbs/{lbID}", Operation: "lb/v1/ZonedAPI.DeleteLB", Handler: p.deleteLB},
+
+		// The balancer's flexible IPs. This is the exact route the #74
+		// OpenTofu recording died on with a plain-text 404, and the whole of
+		// kubic's measured demand: one `scaleway_lb_ip` for its ingress.
+		{Method: "GET", Path: lbZones + "/ips", Operation: "lb/v1/ZonedAPI.ListIPs", Handler: p.listLBIPs},
+		{Method: "POST", Path: lbZones + "/ips", Operation: "lb/v1/ZonedAPI.CreateIP", Handler: p.createLBIP},
+		{Method: "GET", Path: lbZones + "/ips/{ipID}", Operation: "lb/v1/ZonedAPI.GetIP", Handler: p.getLBIP},
+		{Method: "PATCH", Path: lbZones + "/ips/{ipID}", Operation: "lb/v1/ZonedAPI.UpdateIP", Handler: p.updateLBIP},
+		{Method: "DELETE", Path: lbZones + "/ips/{ipID}", Operation: "lb/v1/ZonedAPI.ReleaseIP", Handler: p.releaseLBIP},
+
+		{Method: "GET", Path: lbZones + "/lbs/{lbID}/backends", Operation: "lb/v1/ZonedAPI.ListBackends", Handler: p.listLBBackends},
+		{Method: "POST", Path: lbZones + "/lbs/{lbID}/backends", Operation: "lb/v1/ZonedAPI.CreateBackend", Handler: p.createLBBackend},
+		{Method: "GET", Path: lbZones + "/backends/{backendID}", Operation: "lb/v1/ZonedAPI.GetBackend", Handler: p.getLBBackend},
+		{Method: "PUT", Path: lbZones + "/backends/{backendID}", Operation: "lb/v1/ZonedAPI.UpdateBackend", Handler: p.updateLBBackend},
+		{Method: "DELETE", Path: lbZones + "/backends/{backendID}", Operation: "lb/v1/ZonedAPI.DeleteBackend", Handler: p.deleteLBBackend},
+		{Method: "PUT", Path: lbZones + "/backends/{backendID}/servers", Operation: "lb/v1/ZonedAPI.SetBackendServers", Handler: p.setLBBackendServers},
+		{Method: "PUT", Path: lbZones + "/backends/{backendID}/healthcheck", Operation: "lb/v1/ZonedAPI.UpdateHealthCheck", Handler: p.updateLBHealthCheck},
+
+		{Method: "GET", Path: lbZones + "/lbs/{lbID}/frontends", Operation: "lb/v1/ZonedAPI.ListFrontends", Handler: p.listLBFrontends},
+		{Method: "POST", Path: lbZones + "/lbs/{lbID}/frontends", Operation: "lb/v1/ZonedAPI.CreateFrontend", Handler: p.createLBFrontend},
+		{Method: "GET", Path: lbZones + "/frontends/{frontendID}", Operation: "lb/v1/ZonedAPI.GetFrontend", Handler: p.getLBFrontend},
+		{Method: "PUT", Path: lbZones + "/frontends/{frontendID}", Operation: "lb/v1/ZonedAPI.UpdateFrontend", Handler: p.updateLBFrontend},
+		{Method: "DELETE", Path: lbZones + "/frontends/{frontendID}", Operation: "lb/v1/ZonedAPI.DeleteFrontend", Handler: p.deleteLBFrontend},
+
+		// The ACLs a frontend carries inline in Terraform: the provider
+		// reconciles them one by one (CreateACL/ListACLs/UpdateACL/DeleteACL,
+		// measured in its services/lb/frontend.go), never through SetACLs,
+		// which stays declined.
+		{Method: "GET", Path: lbZones + "/frontends/{frontendID}/acls", Operation: "lb/v1/ZonedAPI.ListACLs", Handler: p.listLBACLs},
+		{Method: "POST", Path: lbZones + "/frontends/{frontendID}/acls", Operation: "lb/v1/ZonedAPI.CreateACL", Handler: p.createLBACL},
+		{Method: "GET", Path: lbZones + "/acls/{aclID}", Operation: "lb/v1/ZonedAPI.GetACL", Handler: p.getLBACL},
+		{Method: "PUT", Path: lbZones + "/acls/{aclID}", Operation: "lb/v1/ZonedAPI.UpdateACL", Handler: p.updateLBACL},
+		{Method: "DELETE", Path: lbZones + "/acls/{aclID}", Operation: "lb/v1/ZonedAPI.DeleteACL", Handler: p.deleteLBACL},
+
+		// Routes, for the official LB module's `scaleway_lb_route`.
+		{Method: "GET", Path: lbZones + "/routes", Operation: "lb/v1/ZonedAPI.ListRoutes", Handler: p.listLBRoutes},
+		{Method: "POST", Path: lbZones + "/routes", Operation: "lb/v1/ZonedAPI.CreateRoute", Handler: p.createLBRoute},
+		{Method: "GET", Path: lbZones + "/routes/{routeID}", Operation: "lb/v1/ZonedAPI.GetRoute", Handler: p.getLBRoute},
+		{Method: "PUT", Path: lbZones + "/routes/{routeID}", Operation: "lb/v1/ZonedAPI.UpdateRoute", Handler: p.updateLBRoute},
+		{Method: "DELETE", Path: lbZones + "/routes/{routeID}", Operation: "lb/v1/ZonedAPI.DeleteRoute", Handler: p.deleteLBRoute},
+
+		// The Private Network attachment, which is where the balancer meets
+		// the addressing plan: an attach without ipam_ids books an address
+		// from the network's own pool, with ipam_ids it holds the booked one,
+		// and the provider reads both back through /ipam/v1 ListIPs filtered
+		// by resource_type=lb_server.
+		{Method: "GET", Path: lbZones + "/lbs/{lbID}/private-networks", Operation: "lb/v1/ZonedAPI.ListLBPrivateNetworks", Handler: p.listLBPrivateNetworks},
+		{Method: "POST", Path: lbZones + "/lbs/{lbID}/attach-private-network", Operation: "lb/v1/ZonedAPI.AttachPrivateNetwork", Handler: p.attachLBPrivateNetwork},
+		{Method: "POST", Path: lbZones + "/lbs/{lbID}/detach-private-network", Operation: "lb/v1/ZonedAPI.DetachPrivateNetwork", Handler: p.detachLBPrivateNetwork},
+		// The same two operations at the spelling SDK generations up to
+		// v1.0.0-beta.29 emit, with the network in the path. Not a guess: the
+		// surveyed terraform-talos stack pins provider ~>2.43.0, and its
+		// apply died here on a 501 while its vendored SDK's code reads the
+		// current spelling — the wire overturned the code reading, the exact
+		// LBU lesson (Link… vs Register…) replayed on Scaleway.
+		{Method: "POST", Path: lbZones + "/lbs/{lbID}/private-networks/{pnID}/attach", Operation: "lb/v1/ZonedAPI.AttachPrivateNetwork", Handler: p.attachLBPrivateNetworkLegacy,
+			Legacy: "terraform-provider-scaleway v2.43.0 (SDK v1.0.0-beta.29) sends the network in the path; measured with feint proxy --record under the surveyed terraform-talos stack"},
+		{Method: "POST", Path: lbZones + "/lbs/{lbID}/private-networks/{pnID}/detach", Operation: "lb/v1/ZonedAPI.DetachPrivateNetwork", Handler: p.detachLBPrivateNetworkLegacy,
+			Legacy: "the detach of the same SDK generation as the legacy attach above"},
+
+		// Public Gateways (vpc-gw/v2), SW-6 scoped the same way: what
+		// terraform-talos and Scaleway's own VPC module walk —
+		// gateway IP → gateway → gateway network with its IPAM config — plus
+		// the lists `scw vpc-gw` reads (the CLI drives v2 since at least
+		// 2.56.3, measured with -D). gateways.go carries the shapes and the
+		// reason only v2 is served.
+		{Method: "GET", Path: gwZones + "/gateways", Operation: "vpcgw/v2/API.ListGateways", Handler: p.listGateways},
+		{Method: "POST", Path: gwZones + "/gateways", Operation: "vpcgw/v2/API.CreateGateway", Handler: p.createGateway},
+		{Method: "GET", Path: gwZones + "/gateways/{gatewayID}", Operation: "vpcgw/v2/API.GetGateway", Handler: p.getGateway},
+		{Method: "PATCH", Path: gwZones + "/gateways/{gatewayID}", Operation: "vpcgw/v2/API.UpdateGateway", Handler: p.updateGateway},
+		{Method: "DELETE", Path: gwZones + "/gateways/{gatewayID}", Operation: "vpcgw/v2/API.DeleteGateway", Handler: p.deleteGateway},
+
+		{Method: "GET", Path: gwZones + "/gateway-networks", Operation: "vpcgw/v2/API.ListGatewayNetworks", Handler: p.listGatewayNetworks},
+		{Method: "POST", Path: gwZones + "/gateway-networks", Operation: "vpcgw/v2/API.CreateGatewayNetwork", Handler: p.createGatewayNetwork},
+		{Method: "GET", Path: gwZones + "/gateway-networks/{gatewayNetworkID}", Operation: "vpcgw/v2/API.GetGatewayNetwork", Handler: p.getGatewayNetwork},
+		{Method: "PATCH", Path: gwZones + "/gateway-networks/{gatewayNetworkID}", Operation: "vpcgw/v2/API.UpdateGatewayNetwork", Handler: p.updateGatewayNetwork},
+		{Method: "DELETE", Path: gwZones + "/gateway-networks/{gatewayNetworkID}", Operation: "vpcgw/v2/API.DeleteGatewayNetwork", Handler: p.deleteGatewayNetwork},
+
+		{Method: "GET", Path: gwZones + "/ips", Operation: "vpcgw/v2/API.ListIPs", Handler: p.listGatewayIPs},
+		{Method: "POST", Path: gwZones + "/ips", Operation: "vpcgw/v2/API.CreateIP", Handler: p.createGatewayIP},
+		{Method: "GET", Path: gwZones + "/ips/{ipID}", Operation: "vpcgw/v2/API.GetIP", Handler: p.getGatewayIP},
+		{Method: "PATCH", Path: gwZones + "/ips/{ipID}", Operation: "vpcgw/v2/API.UpdateIP", Handler: p.updateGatewayIP},
+		{Method: "DELETE", Path: gwZones + "/ips/{ipID}", Operation: "vpcgw/v2/API.DeleteIP", Handler: p.deleteGatewayIP},
+
 		// IAM SSH keys. Scaleway attaches keys to the project, not to the server,
 		// so every key of the project is injected into every machine it boots.
 		// Without this product a server can run but nobody can log into it.
@@ -381,6 +478,10 @@ var productPrefixes = []string{
 	"/ipam/v1/",
 	"/iam/v1alpha1/",
 	"/marketplace/v2/",
+	// Since #282: the balancer's zoned API and the gateway's v2, the two
+	// products the #74 report measured answering in plain text.
+	"/lb/v1/",
+	"/vpc-gw/v2/",
 
 	// Published by Scaleway and not served here. They are declared so that a
 	// client reaching one gets a Scaleway error envelope rather than net/http's
@@ -417,7 +518,6 @@ var productPrefixes = []string{
 	"/k8s/v1/",
 	"/kafka/v1alpha1/",
 	"/key-manager/v1alpha1/",
-	"/lb/v1/",
 	"/mailbox/v1alpha1/",
 	"/messageq/v1alpha1/",
 	"/mnq/v1beta1/",
@@ -439,7 +539,6 @@ var productPrefixes = []string{
 	"/test/v1/",
 	"/transactional-email/v1alpha1/",
 	"/vpc-gw/v1/",
-	"/vpc-gw/v2/",
 	"/webhosting/v1/",
 }
 
@@ -763,6 +862,175 @@ func (p *Pack) Declined() []emulator.Decline {
 			"marketplace/v2/API.ListCategories",
 			"marketplace/v2/API.ListImages",
 			"marketplace/v2/API.ListVersions"),
+
+		// ---- lb/v1, the part the measured clients do not call (#282) ----------
+
+		emulator.Because("nothing here probes a backend or forwards a packet, so stats would report a health nothing measured — a backend published UP that nothing checked is the lie this emulator exists to refuse (#315 measured the same for the Outscale LBU)",
+			"lb/v1/ZonedAPI.GetLBStats",
+			"lb/v1/ZonedAPI.ListBackendStats"),
+
+		emulator.Because("the Terraform provider reconciles a backend's pool through SetBackendServers alone (measured in its services/lb/backend.go, v2.43.0 and v2.81.0), and no surveyed stack edits a pool incrementally",
+			"lb/v1/ZonedAPI.AddBackendServers",
+			"lb/v1/ZonedAPI.RemoveBackendServers"),
+
+		emulator.Because("the Terraform provider reconciles a frontend's ACLs one by one — CreateACL, ListACLs, UpdateACL, DeleteACL, measured in its services/lb/frontend.go — and never calls the bulk set",
+			"lb/v1/ZonedAPI.SetACLs"),
+
+		emulator.Because("migrating changes the commercial offer of the balancer, and an emulated balancer has no capacity to move: answering would confirm a resize nothing performed",
+			"lb/v1/ZonedAPI.MigrateLB"),
+
+		emulator.Because("the offer table is the provider's inventory and no measured client reads it before creating — the Terraform provider sends the type the configuration names — so a served list would be an invented catalogue (the ListVolumesTypes argument)",
+			"lb/v1/ZonedAPI.ListLBTypes"),
+
+		emulator.Because("nothing here terminates TLS: a certificate served by this emulator would be an ID over key material that signs nothing, and the Let's Encrypt half issues against domains this emulator does not hold",
+			"lb/v1/ZonedAPI.CreateCertificate",
+			"lb/v1/ZonedAPI.ListCertificates",
+			"lb/v1/ZonedAPI.GetCertificate",
+			"lb/v1/ZonedAPI.UpdateCertificate",
+			"lb/v1/ZonedAPI.DeleteCertificate"),
+
+		emulator.Because("subscribers are an alerting channel, and an emulator whose balancer never degrades has no event to deliver: a subscription recorded here would be a promise nothing can keep",
+			"lb/v1/ZonedAPI.CreateSubscriber",
+			"lb/v1/ZonedAPI.GetSubscriber",
+			"lb/v1/ZonedAPI.ListSubscriber",
+			"lb/v1/ZonedAPI.UpdateSubscriber",
+			"lb/v1/ZonedAPI.DeleteSubscriber",
+			"lb/v1/ZonedAPI.SubscribeToLB",
+			"lb/v1/ZonedAPI.UnsubscribeFromLB"),
+
+		// The regional lb/v1 API, deprecated upstream in favour of the zoned
+		// one: the SDK's own doc comments say so, the portal documents the
+		// zoned spelling only (load-balancer/zoned/v1), and every measured
+		// client — the Terraform provider since 2.x, `scw lb` — calls
+		// ZonedAPI. Declined as one family; the first client measured on a
+		// regional path reopens the entry.
+		emulator.Because("the regional lb/v1 API is deprecated upstream in favour of the zoned one, which is served: the portal publishes only the zoned document, and every measured client calls ZonedAPI",
+			"lb/v1/API.AddBackendServers",
+			"lb/v1/API.AttachPrivateNetwork",
+			"lb/v1/API.CreateACL",
+			"lb/v1/API.CreateBackend",
+			"lb/v1/API.CreateCertificate",
+			"lb/v1/API.CreateFrontend",
+			"lb/v1/API.CreateIP",
+			"lb/v1/API.CreateLB",
+			"lb/v1/API.CreateRoute",
+			"lb/v1/API.CreateSubscriber",
+			"lb/v1/API.DeleteACL",
+			"lb/v1/API.DeleteBackend",
+			"lb/v1/API.DeleteCertificate",
+			"lb/v1/API.DeleteFrontend",
+			"lb/v1/API.DeleteLB",
+			"lb/v1/API.DeleteRoute",
+			"lb/v1/API.DeleteSubscriber",
+			"lb/v1/API.DetachPrivateNetwork",
+			"lb/v1/API.GetACL",
+			"lb/v1/API.GetBackend",
+			"lb/v1/API.GetCertificate",
+			"lb/v1/API.GetFrontend",
+			"lb/v1/API.GetIP",
+			"lb/v1/API.GetLB",
+			"lb/v1/API.GetLBStats",
+			"lb/v1/API.GetRoute",
+			"lb/v1/API.GetSubscriber",
+			"lb/v1/API.ListACLs",
+			"lb/v1/API.ListBackendStats",
+			"lb/v1/API.ListBackends",
+			"lb/v1/API.ListCertificates",
+			"lb/v1/API.ListFrontends",
+			"lb/v1/API.ListIPs",
+			"lb/v1/API.ListLBPrivateNetworks",
+			"lb/v1/API.ListLBTypes",
+			"lb/v1/API.ListLBs",
+			"lb/v1/API.ListRoutes",
+			"lb/v1/API.ListSubscriber",
+			"lb/v1/API.MigrateLB",
+			"lb/v1/API.ReleaseIP",
+			"lb/v1/API.RemoveBackendServers",
+			"lb/v1/API.SetBackendServers",
+			"lb/v1/API.SubscribeToLB",
+			"lb/v1/API.UnsubscribeFromLB",
+			"lb/v1/API.UpdateACL",
+			"lb/v1/API.UpdateBackend",
+			"lb/v1/API.UpdateCertificate",
+			"lb/v1/API.UpdateFrontend",
+			"lb/v1/API.UpdateHealthCheck",
+			"lb/v1/API.UpdateIP",
+			"lb/v1/API.UpdateLB",
+			"lb/v1/API.UpdateRoute",
+			"lb/v1/API.UpdateSubscriber"),
+
+		// ---- vpcgw, the halves the measured clients do not call (#282) --------
+
+		emulator.Because("upgrading changes the gateway's commercial offer in place, and an emulated gateway has no capacity to move: answering would confirm a resize nothing performed (the MigrateLB argument)",
+			"vpcgw/v2/API.UpgradeGateway"),
+
+		emulator.Because("the gateway's SSH bastion accepts no connection here — nothing forwards a packet — so refreshing the keys it would present is a rotation over a door that does not open",
+			"vpcgw/v2/API.RefreshSSHKeys"),
+
+		emulator.Because("the offer table is the provider's inventory and no measured client reads it before creating — the Terraform provider sends the type the configuration names — so a served list would be an invented catalogue",
+			"vpcgw/v2/API.ListGatewayTypes"),
+
+		emulator.Because("a PAT rule recorded and never applied is indistinguishable from protection — the vpc/v2 ingress-rule argument — and no surveyed stack creates one: terraform-talos carries its pat_rule block commented out",
+			"vpcgw/v2/API.ListPatRules",
+			"vpcgw/v2/API.GetPatRule",
+			"vpcgw/v2/API.CreatePatRule",
+			"vpcgw/v2/API.UpdatePatRule",
+			"vpcgw/v2/API.SetPatRules",
+			"vpcgw/v2/API.DeletePatRule"),
+
+		emulator.Because("the bastion allow-list filters connections to a bastion that accepts none here, so a recorded range would claim a filter nothing enforces; served the day the gateway carries a real bastion",
+			"vpcgw/v2/API.AddBastionAllowedIPs",
+			"vpcgw/v2/API.SetBastionAllowedIPs",
+			"vpcgw/v2/API.DeleteBastionAllowedIPs"),
+
+		// The whole of vpcgw/v1, declined for a reason that is not "v2
+		// supersedes it": the portal publishes no v1 document any more
+		// (measured 2026-08-19, /en/developers/api/public-gateway offers v2
+		// alone), and every route mounted in this pack is checked against the
+		// portal's document — the same constraint that keeps
+		// vpc/v2.EnableCustomRoutesPropagation declined. A client pinned to
+		// v1 — the Terraform provider up to 2.51, terraform-talos's ~>2.43
+		// pin among them — gets a named 501 pointing here rather than a
+		// plain-text 404; the recorded fix for such a stack is the provider
+		// bump to ≥2.52, the release that moved vpcgw onto v2.
+		emulator.Because("the portal publishes no vpc-gw v1 document any more and every mounted route is checked against that document, so v1 cannot be served; v2 is, and provider releases since 2.52 (March 2025) call it",
+			"vpcgw/v1/API.CreateDHCP",
+			"vpcgw/v1/API.CreateDHCPEntry",
+			"vpcgw/v1/API.CreateGateway",
+			"vpcgw/v1/API.CreateGatewayNetwork",
+			"vpcgw/v1/API.CreateIP",
+			"vpcgw/v1/API.CreatePATRule",
+			"vpcgw/v1/API.DeleteDHCP",
+			"vpcgw/v1/API.DeleteDHCPEntry",
+			"vpcgw/v1/API.DeleteGateway",
+			"vpcgw/v1/API.DeleteGatewayNetwork",
+			"vpcgw/v1/API.DeleteIP",
+			"vpcgw/v1/API.DeletePATRule",
+			"vpcgw/v1/API.EnableIPMobility",
+			"vpcgw/v1/API.GetDHCP",
+			"vpcgw/v1/API.GetDHCPEntry",
+			"vpcgw/v1/API.GetGateway",
+			"vpcgw/v1/API.GetGatewayNetwork",
+			"vpcgw/v1/API.GetIP",
+			"vpcgw/v1/API.GetPATRule",
+			"vpcgw/v1/API.ListDHCPEntries",
+			"vpcgw/v1/API.ListDHCPs",
+			"vpcgw/v1/API.ListGatewayNetworks",
+			"vpcgw/v1/API.ListGateways",
+			"vpcgw/v1/API.ListGatewayTypes",
+			"vpcgw/v1/API.ListIPs",
+			"vpcgw/v1/API.ListPATRules",
+			"vpcgw/v1/API.MigrateToV2",
+			"vpcgw/v1/API.RefreshSSHKeys",
+			"vpcgw/v1/API.SetDHCPEntries",
+			"vpcgw/v1/API.SetPATRules",
+			"vpcgw/v1/API.UpdateDHCP",
+			"vpcgw/v1/API.UpdateDHCPEntry",
+			"vpcgw/v1/API.UpdateGateway",
+			"vpcgw/v1/API.UpdateGatewayNetwork",
+			"vpcgw/v1/API.UpdateIP",
+			"vpcgw/v1/API.UpdatePATRule",
+			"vpcgw/v1/API.UpgradeGateway"),
 
 		// The five S3 endpoints vpc/v2 grew since the last scan. They attach a
 		// private network to Object Storage, and Object Storage is refused here

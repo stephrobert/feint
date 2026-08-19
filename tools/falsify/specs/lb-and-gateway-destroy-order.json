@@ -1,0 +1,27 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the gateway delete stops asking whether a connection still rides it, and a connected gateway vanishes under its private network (#282)",
+      "file": "internal/providers/scaleway/gateways.go",
+      "find": "\t\tif gn.Attrs[\"gateway_id\"] == res.ID {\n\t\t\twritePrecondition(w, \"gateway\", res.ID, \"gateway is still attached to a private network; delete the gateway network first\")\n\t\t\treturn\n\t\t}",
+      "replace": "\t\tif gn.Attrs[\"gateway_id\"] == res.ID && false {\n\t\t\twritePrecondition(w, \"gateway\", res.ID, \"gateway is still attached to a private network; delete the gateway network first\")\n\t\t\treturn\n\t\t}",
+      "test": "TestDeletingAConnectedGatewayIsRefused"
+    },
+    {
+      "label": "the backend delete stops asking whether a frontend still forwards to it, and the wrong destroy order silently succeeds",
+      "file": "internal/providers/scaleway/loadbalancer_children.go",
+      "find": "\t\tif fe.Attrs[\"backend_id\"] == res.ID {\n\t\t\twritePrecondition(w, \"backend\", res.ID, \"backend is still used by a frontend; delete the frontend first\")\n\t\t\treturn\n\t\t}",
+      "replace": "\t\tif fe.Attrs[\"backend_id\"] == res.ID && false {\n\t\t\twritePrecondition(w, \"backend\", res.ID, \"backend is still used by a frontend; delete the frontend first\")\n\t\t\treturn\n\t\t}",
+      "test": "TestDeletingAUsedBackendIsRefused"
+    },
+    {
+      "label": "a detach stops releasing the address the attach booked, and the private network's pool leaks one address per balancer lifecycle",
+      "file": "internal/providers/scaleway/loadbalancer.go",
+      "find": "\t\tp.releaseAttachmentIPs(lb.ID, at.ID, stringsOf(at.Attrs[\"ipam_ids\"]))",
+      "replace": "\t\tif false {\n\t\t\tp.releaseAttachmentIPs(lb.ID, at.ID, stringsOf(at.Attrs[\"ipam_ids\"]))\n\t\t}",
+      "test": "TestAnAttachedBalancerIsResolvableThroughIPAM"
+    }
+  ],
+  "note": "The two delete guards are the family the ownership audits singled out: creation paths are checked by habit, destruction paths are the ones that destroy. Terraform never triggers either refusal — it destroys children first — so nothing in the conformance suite would notice their removal; only these tests bite. The third mutation is the leak the shared IPAM pool makes expensive: the attach books a real address out of the same allocator the NICs draw from, and a detach that forgets it strands the address for every later NIC and booking."
+}

@@ -501,6 +501,37 @@ platform entry.
   (`ServerIP.ID`, instance_sdk.go:1476). The full stack's servers still
   wait on the placement-group wall (#285, in flight).
 
+- **Replayed 2026-08-19, `feat/282-scaleway-lb-and-gateway`** — with
+  `type_lb = "LB-S"` added to the controlplane override, so the LB half the
+  survey never exercised runs. **The LB wall fell**: 17 of 30 applied at the
+  pinned `~> 2.43.0` — both `scaleway_lb_ip` (v4 and v6), the balancer on
+  the Private Network through the *pre-beta.30 attach spelling*
+  (`/lbs/{id}/private-networks/{pn}/attach`, which the 2.43-vendored SDK
+  sends and the register's `feint proxy` transcript caught; the emulator
+  serves both spellings, `Route.Legacy`), the api backend with its HTTPS
+  health check, the api frontend with two inline ACLs. Second plan:
+  `0 to change`. Destroy: 17 of 17. Two walls stand: placement groups
+  (#285's, in flight) and `vpc-gw/v1` — declined **by name** now, because
+  the portal publishes no v1 document any more. Replayed again with the
+  recorded edits a v1-pinned user must make anyway (provider `~> 2.52.0`,
+  the release that moved vpcgw onto v2, and dropping `routed_ip_enabled`,
+  which ≥ 2.52 removed from the schema): **the gateway wall fell too** —
+  20 applied, `scaleway_vpc_public_gateway_ip` →
+  `scaleway_vpc_public_gateway` → `scaleway_vpc_gateway_network` with
+  `ipam_config` included, `0 to change`, 20 destroyed. The one wall left in
+  either variant is placement groups; the four http/https LB children sit
+  behind it through the `data.scaleway_ipam_ips.web` edge.
+
+- **Both walls fell on separate branches, and nothing has yet replayed
+  them together.** The two entries above were measured the same day on
+  `feat/285-placement-groups` and `feat/282-scaleway-lb-and-gateway`:
+  each names as its remaining wall exactly what the other removed —
+  placement groups for one, `vpc-gw` for the other. That the stack now
+  applies end to end is therefore an inference, not a measurement, and
+  this register does not record inferences. The next replay on a `main`
+  carrying both is what will say, and it is what this line exists to
+  demand.
+
 ### 2. ioandev/scaleway-flatcar-k3s — applied in part
 
 - **Repo** <https://github.com/ioandev/scaleway-flatcar-k3s> @
@@ -566,6 +597,17 @@ platform entry.
 - **Replayed 2026-08-18, `main@23f57c1`**: identical by inspection — the S3
   backend and the Kapsule/LB resources are unchanged at the pinned commit;
   recorded rather than half-run, as in the survey.
+- **Replayed 2026-08-19, `feat/282-scaleway-lb-and-gateway`** — run rather
+  than recorded this time, with two harness inputs: a
+  `backend_override.tf` switching the S3 backend to `local` (its published
+  backend is Object Storage, the documented DNS/TLS gap) and dummy values
+  for its 21 required helm/argocd variables. The apply reaches the emulator
+  and dies on its first resource: `scaleway_k8s_cluster` →
+  `/k8s/v1/regions/fr-par/clusters`, a named 501. The next wall is Kapsule
+  by name. Its `scaleway_lb_ip` — the LB demand this stack carries — is
+  served since #282, but this stack wires it behind the cluster
+  (`project_id = scaleway_k8s_cluster…`), so it is never attempted here;
+  the same resource applies standalone in the conformance fixture.
 
 ### 5. Rookain-Kiwi/kiwinet-infra-cloud — applied in part
 
@@ -613,8 +655,8 @@ public Scaleway ecosystem lives in Kapsule, RDB, LB and Object Storage.
 | Outscale | ≥2 subregions | 2 (ocp, kasten) | #269 / #268 |
 | Scaleway | Object Storage | 3 (flatcar, kubic, ducklake*) | the documented DNS/TLS gap, seen live |
 | Scaleway | Kapsule / managed k8s | 1 of 5 + most of the rejected pool | dominates the public ecosystem |
-| Scaleway | LB | 2 (kubic, talos') | |
-| Scaleway | vpc-gw (public gateway) | 2 (talos, vpc-module*) | |
+| Scaleway | LB | 2 (kubic, talos') | **served since #282**: talos's whole chain applied 2026-08-19 (both attach spellings — its ~>2.43 pin sends the pre-beta.30 one); kubic's lb_ip is served but sits behind Kapsule in its own graph |
+| Scaleway | vpc-gw (public gateway) | 2 (talos, vpc-module*) | **v2 served since #282**: the talos chain applied 2026-08-19 under a ≥2.52 provider; v1 declined by name (the portal withdrew its document), so the pinned 2.43 meets a named 501 |
 | Scaleway | placement groups | 1 (talos) | declined today |
 | Scaleway | instance types outside the table (`STARDUST1-S`, `COPARM1-*`) | 2 (kiwinet, talos) | the provider pre-validates against `/products/servers`, so the fictional table is a hard whitelist — resolved by #279: `STARDUST1-S` is served from the measured catalogue (kiwinet applies whole), and `COPARM1-*` is refused because the real cloud withdrew the family |
 | Exoscale | SKS | 3 (camptocamp, eu-data, WhizUs*) | dominates that ecosystem |
