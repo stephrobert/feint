@@ -38,17 +38,20 @@ func foreignEmulator(t *testing.T, pid int, started string) *httptest.Server {
 
 // selfInstance builds an Instance whose pid is this test process, so that
 // alive() reports Alive and awaitHealthy keeps polling instead of declaring
-// the child dead.
+// the child dead. In practice the fake emulator answers the first probe, so
+// awaitHealthy returns before consulting alive() at all — the Binary is only
+// there for the losing side of that race. Without /proc (macOS is in the CI
+// matrix) alive()'s own fallback is the health probe, which the fake answers.
 func selfInstance(t *testing.T, addr string) *Instance {
 	t.Helper()
-	comm, err := os.ReadFile("/proc/self/comm")
-	if err != nil {
-		t.Skipf("no /proc on this host: %v", err)
+	name := "feint"
+	if comm, err := os.ReadFile("/proc/self/comm"); err == nil {
+		name = strings.TrimSpace(string(comm))
 	}
 	return &Instance{
 		PID:    os.Getpid(),
 		Addr:   addr,
-		Binary: "/x/" + strings.TrimSpace(string(comm)),
+		Binary: "/x/" + name,
 		Log:    "/dev/null",
 	}
 }
