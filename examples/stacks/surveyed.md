@@ -119,6 +119,17 @@ stack's quality.
 - **Replayed 2026-08-18, `main@23f57c1`**: identical — 50 created, the local
   RKE/ansible tail times out against the fictional bastion, re-plan
   `17 to add / 0 to change` (all behind that tail), 50 destroyed.
+- **Replayed 2026-08-19, `feat/281-outscale-lbu`**: the LBU wall is down —
+  `outscale_load_balancer.lb-kube-apiserver` and its
+  `outscale_load_balancer_attributes` health check (TCP 6443) now apply,
+  and `local_file.kube-apiserver-url` receives a well-formed
+  `dns_name`; 53 created, re-plan `14 to add / 0 to change` (the three
+  fewer are exactly the LBU trio), 53 destroyed cleanly (`DeleteLoadBalancer`
+  then the SG and subnet it stood on). The remaining residue is the recorded
+  RKE/ansible tail against the fictional bastion, unchanged;
+  `outscale_load_balancer_vms.backend_vms` still sits behind it (its
+  control-plane Vms need the image that tail builds), so this stack's
+  measured LBU trace is Create ×1, Read ×7, Update ×1, Delete ×1.
 
 ### 2. chimere-eu/ztiac — applied as-is, both templates
 
@@ -162,6 +173,18 @@ stack's quality.
   25 of 49, re-plan `29 to add / 0 to change`, 25 destroyed. An explicit
   refusal replacing a verbatim 200, and the register's only fully
   converging stranger stack lost to it: the decision is #290's.
+- **Replayed 2026-08-19, `feat/281-outscale-lbu`** (`two-tier-architecture`,
+  emulator started with `FEINT_OUTSCALE_REGION=cloudgouv-eu-west-1` per
+  #290): **converged, LBU included** — applied **54 of 54** (the 49 as
+  surveyed plus the internal and public `outscale_load_balancer`, their two
+  `outscale_load_balancer_vms` and the `outscale_load_balancer_attributes`
+  health check), second plan `No changes.`, 54 destroyed. The replay also
+  overturned a source reading: provider 1.8.0 attaches backends through
+  `LinkLoadBalancerBackendMachines`, where 1.1.3's code says
+  `RegisterVmsInLoadBalancer` — both are served because both were measured
+  (#281). Provider 1.8.0's destroy sweep asks `ReadLoadBalancers` with an
+  empty body before every `DeleteSecurityGroup`; the pack's SG delete guard
+  is the refusal that sweep exists for.
 
 ### 3. davmartini/ocp_outscale — could not be applied (plan-blocked), filed #269
 
@@ -216,6 +239,13 @@ stack's quality.
   rule the emulator never held (`[5063] the security group rule on
   sg-08bf69ac does not exist`), 34 of 37 destroyed. The one new lying 200
   of this replay; reduced and re-verified in the issue.
+- **Replayed 2026-08-19, `feat/281-outscale-lbu`**: **converged** — the LBU
+  wall is down (#281). Applied **41 of 41** (the 37 as surveyed plus the two
+  `outscale_load_balancer` and their two `outscale_load_balancer_vms`),
+  second plan `No changes.`, 41 destroyed. Provider 1.1.3's measured LBU
+  sequence: CreateLoadBalancer ×2, RegisterVmsInLoadBalancer ×2,
+  ReadLoadBalancers ×14, then UnlinkLoadBalancerBackendMachines ×2 and
+  DeleteLoadBalancer ×2 on destroy.
 
 ### 5. michaelcourcy/kasten-on-outscale — applied after a recorded edit, filed #268
 
@@ -540,7 +570,7 @@ public Scaleway ecosystem lives in Kapsule, RDB, LB and Object Storage.
 
 | provider | product/behaviour | stacks that asked | note |
 |---|---|---|---|
-| Outscale | LBU (`CreateLoadBalancer`) | 3 (ztiac, k3s, rke-cluster) | the one Outscale product every substantial stack wants |
+| Outscale | LBU (`CreateLoadBalancer`) | 3 (ztiac, k3s, rke-cluster) | the one Outscale product every substantial stack wants — **served since #281**: all three replayed 2026-08-19, LBU resources included, second plans empty |
 | Outscale | ≥2 subregions | 2 (ocp, kasten) | #269 / #268 |
 | Scaleway | Object Storage | 3 (flatcar, kubic, ducklake*) | the documented DNS/TLS gap, seen live |
 | Scaleway | Kapsule / managed k8s | 1 of 5 + most of the rejected pool | dominates the public ecosystem |

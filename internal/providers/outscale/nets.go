@@ -460,6 +460,13 @@ func (p *Pack) deleteSubnet(w http.ResponseWriter, r *http.Request) {
 		p.conflict(w, "the Subnet "+req.SubnetID+" still holds "+nats[0].ID)
 		return
 	}
+	// A load balancer anchored in the subnet blocks it for the same reason.
+	// TestASubnetDoesNotDeleteUnderALoadBalancer fails without this guard.
+	if holders := p.loadBalancersOn("Subnets", req.SubnetID); len(holders) > 0 {
+		unlock()
+		p.conflict(w, "the Subnet "+req.SubnetID+" still holds the load balancer "+holders[0])
+		return
+	}
 	// Removed from the store under the lock, so a create that wakes up next
 	// fails to resolve it rather than placing a Vm in a Subnet being deleted.
 	p.env.Store.Delete(Name, kindSubnet, req.SubnetID)

@@ -1573,6 +1573,52 @@ So: a plan that builds a routable topology applies, reads back and destroys
 correctly. A machine inside it still cannot reach the internet. Use the emulator
 to test the shape of your infrastructure, never its connectivity.
 
+## An Outscale load balancer records its configuration; nothing distributes packets
+
+The LBU family is served as far as the surveyed stacks exercise it (#281):
+create, read, update (health check, security groups, secured cookies),
+register/link and unlink backend Vms, delete. Three of the five surveyed
+Outscale stacks (#262) stand on exactly that lifecycle, and all three apply,
+re-plan empty and destroy against it.
+
+What a `200` from `CreateLoadBalancer` means here, stated rather than implied:
+
+- **The configuration is recorded and round-trips.** Listeners, backends,
+  health-check settings, tags, the security groups and the subnet come back
+  field for field, and the delete guards hold the same algebra as the rest of
+  the pack: a subnet or a security group under a balancer refuses to go.
+- **No traffic is distributed, in any current mode.** The `DnsName` follows
+  the measured format (`<name>-<digits>.<region>.lbu.outscale.com`,
+  `internal-` prefix included) and resolves nowhere; the public address of an
+  internet-facing balancer comes from `203.0.113.0/24` — TEST-NET-3,
+  RFC 5737, routed nowhere on purpose, and deliberately not the block
+  ReadPublicIps allocates from, because the real service associates an
+  address the account does not own. The OVN path was measured rather than
+  waved at (#315): `incus network load-balancer` on an emulator-owned
+  network genuinely balanced connections across two backends, kept doing so
+  indefinitely for **in-network** clients, and its host-side VIP went dark
+  within three minutes — the same announcement defect the routed-address
+  path exists to avoid. The internal-LBU dataplane is therefore buildable
+  and is #315's; the internet-facing one waits on the VIP holding.
+- **No backend health exists, and none is invented.** `ReadVmsHealth` stays
+  declined: under every current runtime mode nothing probes a backend, and a
+  backend reported `UP` that nothing checked is the exact answer this project
+  exists to refuse. The health-check *settings* round-trip because Terraform
+  plans on them; the health *states* do not exist until something measures
+  them.
+- **The stored health-check defaults are the vendor's own** (interval 30,
+  timeout 5, unhealthy 2, healthy 10, TCP on the first listener's backend
+  port — the defaults Outscale's user guide documents), so a stack that never
+  touches `outscale_load_balancer_attributes` reads back what a fresh real
+  balancer would say.
+
+What is not served, by name and on purpose: the public-Cloud form
+(`SubregionNames` without a Net — no surveyed stack takes it, and nothing is
+measured about what it answers), access-log enablement (there is no OOS
+bucket here to publish into), listener policies, listener rules, LBU tag
+CRUD, and server certificates. Each answers a refusal naming the line, never
+a silent 200.
+
 ## An Outscale Vm's options round-trip as data; their behavioural half has nothing to act on here
 
 `BootMode`, `Performance` and `VmInitiatedShutdownBehavior` used to be

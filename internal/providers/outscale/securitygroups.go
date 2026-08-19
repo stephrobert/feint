@@ -229,6 +229,14 @@ func (p *Pack) deleteSecurityGroup(w http.ResponseWriter, r *http.Request) {
 	}
 	// A group a machine wears does not go either; the machine releases it
 	// first, and the refusal is what destroy ordering retries on.
+	// A group a load balancer carries does not go either — the sweep the
+	// provider runs before each group delete (ReadLoadBalancers, measured on
+	// 1.8.0) exists precisely because the real API refuses this.
+	// TestASecurityGroupDoesNotDeleteUnderALoadBalancer fails without it.
+	if holders := p.loadBalancersOn("SecurityGroups", res.ID); len(holders) > 0 {
+		p.conflict(w, "the security group "+res.ID+" is still carried by the load balancer "+holders[0])
+		return
+	}
 	for _, vm := range p.env.Store.List(kindVM, resource.Tenant{Provider: Name}) {
 		if vm.State == stateTerminated {
 			continue

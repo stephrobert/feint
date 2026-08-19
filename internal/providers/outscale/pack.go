@@ -299,9 +299,16 @@ func (p *Pack) Routes() []emulator.Route {
 		// The region's fixed catalogues, same rule as ReadVmTypes: what a
 		// client reads on its way to creating something is served, small and
 		// fixed.
-		// The inventory of load balancers, which is none. The rest of the
-		// family stays declined; loadbalancers.go draws the line.
+		// The LBU family, exactly as far as the surveyed stacks exercise it
+		// (#281): loadbalancers.go carries the measurement, declined.go the
+		// remainder.
+		p.route("CreateLoadBalancer", p.createLoadBalancer),
 		p.route("ReadLoadBalancers", p.readLoadBalancers),
+		p.route("UpdateLoadBalancer", p.updateLoadBalancer),
+		p.route("RegisterVmsInLoadBalancer", p.registerVmsInLoadBalancer),
+		p.route("LinkLoadBalancerBackendMachines", p.registerVmsInLoadBalancer),
+		p.route("UnlinkLoadBalancerBackendMachines", p.unlinkLoadBalancerBackendMachines),
+		p.route("DeleteLoadBalancer", p.deleteLoadBalancer),
 
 		p.route("ReadNetAccessPointServices", p.readNetAccessPointServices),
 		p.route("ReadPublicIpRanges", p.readPublicIPRanges),
