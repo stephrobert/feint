@@ -20,6 +20,7 @@
 package exoscale
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"slices"
@@ -58,6 +59,20 @@ const (
 // Pack implements emulator.Pack for Exoscale.
 type Pack struct {
 	env *emulator.Env
+	// zone is where this deployment claims to live — a datum, not a constant
+	// (#278). Exoscale serves every zone from its own endpoint
+	// (api-<zone>.exoscale.com), so an emulator with a single endpoint
+	// chooses one zone at construction, exactly as the Outscale pack chooses
+	// its region (#290). Fixed for the pack's lifetime, like a real endpoint:
+	// a zone that moved mid-run would strand every stored resource in a zone
+	// the list no longer names.
+	zone string
+	// templates and instanceTypes are the fixed catalogue stamped with the
+	// zone in force (stampedWithZone), so what an entry declares it is
+	// available in and what this deployment serves cannot disagree — the
+	// #269 invariant, this pack's turn.
+	templates     []map[string]any
+	instanceTypes []map[string]any
 }
 
 // lockAddresses serializes elastic IP and lease allocation, which is
@@ -76,8 +91,32 @@ type Pack struct {
 // TestAnExoscaleBarrageLeavesTheStoreCoherent fails without this.
 func (p *Pack) lockAddresses() func() { return serialise.Lock(Name + "/addresses") }
 
-// New returns an Exoscale pack backed by env.
-func New(env *emulator.Env) *Pack { return &Pack{env: env} }
+// New returns an Exoscale pack backed by env, serving the default zone.
+// Nothing configured keeps today's behaviour: ch-dk-2, the official CLI's own
+// default, exactly as before the zone became selectable.
+func New(env *emulator.Env) *Pack { return newInZone(env, defaultZoneName) }
+
+// NewInZone returns a pack serving the named zone, or an error naming the
+// zones Exoscale publishes when it publishes no such zone. Refusing beats
+// defaulting: an emulator that answered ch-dk-2 to an operator who asked for
+// ch-gva-2 would be the exact lie #268 was about, moved to startup.
+func NewInZone(env *emulator.Env, zone string) (*Pack, error) {
+	if !publishedZone(zone) {
+		return nil, fmt.Errorf("exoscale publishes no zone %q (it publishes %s)", zone, zoneList())
+	}
+	return newInZone(env, zone), nil
+}
+
+// newInZone builds the pack with everything the zone decides. Callers
+// guarantee the zone is one Exoscale publishes.
+func newInZone(env *emulator.Env, zone string) *Pack {
+	return &Pack{
+		env:           env,
+		zone:          zone,
+		templates:     stampedWithZone(templates, zone),
+		instanceTypes: stampedWithZone(instanceTypes, zone),
+	}
+}
 
 // Name implements emulator.Pack.
 func (p *Pack) Name() string { return Name }
@@ -1397,7 +1436,7 @@ func (p *Pack) Env(endpoint string) emulator.Environment {
 			"EXOSCALE_API_KEY":      "EXOxxxxxxxxxxxxxxxxxxxx",
 			"EXOSCALE_API_SECRET":   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			"EXOSCALE_API_ENDPOINT": endpoint + apiPrefix,
-			"EXOSCALE_ZONE":         zoneName,
+			"EXOSCALE_ZONE":         p.zone,
 		},
 		Note: "the exo CLI reads these. The Terraform provider only half does: it honours " +
 			"EXOSCALE_API_ENDPOINT for its egoscale v3 client and not for its v2 one, so an " +

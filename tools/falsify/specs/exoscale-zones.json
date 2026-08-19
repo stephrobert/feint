@@ -1,0 +1,19 @@
+{
+  "package": "./internal/providers/exoscale/",
+  "mutations": [
+    {
+      "label": "the zone is a constant again: whatever a caller selects, the pack builds ch-dk-2, which is the #269 defect one level up, this pack's turn (#278)",
+      "file": "internal/providers/exoscale/pack.go",
+      "find": "func newInZone(env *emulator.Env, zone string) *Pack {\n\treturn &Pack{",
+      "replace": "func newInZone(env *emulator.Env, zone string) *Pack {\n\tzone = defaultZoneName + zone[:0]\n\treturn &Pack{",
+      "test": "TestANonDefaultZoneAgreesWithItself"
+    },
+    {
+      "label": "the catalogue declares the default zone whatever the pack serves: list-zones and every entry's zones field contradict the deployment (#278)",
+      "file": "internal/providers/exoscale/catalog.go",
+      "find": "\t\tentry[\"zones\"] = []any{zone}",
+      "replace": "\t\tentry[\"zones\"] = []any{defaultZoneName + zone[:0]}",
+      "test": "TestANonDefaultZoneAgreesWithItself"
+    }
+  ]
+}

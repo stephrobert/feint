@@ -478,6 +478,14 @@ func loadContracts(dir string) (map[string]*contract.Doc, error) {
 // does not publish refuses to serve rather than silently answering the
 // default, which would be #268's lie moved to startup.
 // TestAnUnknownOutscaleRegionRefusesToServe fails without the refusal.
+//
+// FEINT_EXOSCALE_ZONE is the same knob for the Exoscale zone (#278): at
+// Exoscale a zone is a property of the endpoint a client points at
+// (api-<zone>.exoscale.com), so the emulator's single endpoint serves one
+// zone per process, chosen here. Unset keeps ch-dk-2, the official CLI's own
+// default; a zone Exoscale does not publish refuses to serve, naming the
+// accepted list. TestAnUnknownExoscaleZoneRefusesToServe fails without the
+// refusal.
 var packsFor = func(env *emulator.Env) ([]emulator.Pack, error) {
 	osc := outscale.New(env)
 	if region := os.Getenv("FEINT_OUTSCALE_REGION"); region != "" {
@@ -486,7 +494,14 @@ var packsFor = func(env *emulator.Env) ([]emulator.Pack, error) {
 			return nil, fmt.Errorf("FEINT_OUTSCALE_REGION: %w", err)
 		}
 	}
-	return []emulator.Pack{scaleway.New(env), osc, exoscale.New(env)}, nil
+	exo := exoscale.New(env)
+	if zone := os.Getenv("FEINT_EXOSCALE_ZONE"); zone != "" {
+		var err error
+		if exo, err = exoscale.NewInZone(env, zone); err != nil {
+			return nil, fmt.Errorf("FEINT_EXOSCALE_ZONE: %w", err)
+		}
+	}
+	return []emulator.Pack{scaleway.New(env), osc, exo}, nil
 }
 
 // newServer builds the emulator with every pack mounted. With contracts, every

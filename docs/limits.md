@@ -1210,27 +1210,42 @@ account for all 1700 upstream operations would fail forever and train everyone t
 ignore it. Widening the scope is a decision to make when a product is started,
 not before.
 
-## Exoscale has one zone, and the reason is the client
+## Exoscale has one zone per process, and the reason is the client
 
-The API description enumerates eight zone names and this emulator publishes one:
-`ch-dk-2`. It is not an oversight and it is not laziness — it is what the
-official CLI forced.
-
-Serving a zone the CLI does not default to makes every unflagged command fail
-before it calls anything: `exo` resolves its zone first and stops on
-`find zone: not found in ListZonesResponse`. So the emulated zone has to be
-`ch-dk-2`, the CLI's own default.
+The API description enumerates eight zone names and this emulator publishes
+one per process. It is not an oversight and it is not laziness — it is what
+the official CLI forced.
 
 Serving all eight was the obvious fix and it was worse. The CLI queries **every**
 zone it is told about and merges the answers, so eight zone entries pointing at
 one emulator turned a single instance into eight identical rows in
 `exo compute instance list`. A resource duplicated per zone is a defect a user
-sees on their first command.
+sees on their first command. At Exoscale a zone is a property of the endpoint
+(`api-<zone>.exoscale.com`), so one endpoint honestly serves one zone.
 
-The consequence, stated rather than hidden: a client asking for `ch-gva-2` gets
-`no such zone`, where the real cloud would serve it. That is a visible, honest
-difference. The alternative — one endpoint pretending to be eight zones — is a
-silent, wrong one.
+*Which* zone is the operator's choice since #278: `FEINT_EXOSCALE_ZONE`
+selects any zone their document publishes, and unset keeps `ch-dk-2`, the
+CLI's own default — serving a zone the CLI does not default to makes every
+unflagged command fail before it calls anything, on
+`find zone: not found in ListZonesResponse`. Three of the five surveyed
+Exoscale stacks target another zone (#262), which is what made the choice
+worth a knob.
+
+Two consequences, stated rather than hidden:
+
+- a client asking for a zone the process does not serve gets `no such zone`,
+  where the real cloud would serve it. That is a visible, honest difference.
+  The alternative — one endpoint pretending to be eight zones — is a silent,
+  wrong one.
+- on any zone but `ch-dk-2`, `exo compute instance-type list` and `show` fail
+  with `find zone: "ch-dk-2" not found`, and that is the client, measured at
+  its source: exo 1.95.1 passes its compiled default to the v3 zone switch
+  (`cmd/compute/instance_type/instance_type_list.go:85`, with
+  `cmd/common.go:15` fixing `DefaultZone = "ch-dk-2"`); no flag, config or
+  env reaches it. Invisible against the real cloud, whose zone list always
+  names `ch-dk-2`. Every other command of the driven flows takes `--zone` or
+  honours the account default; `tools/conformance/exoscale/zones.sh` pins
+  the exact failure so the day exo heals it, the suite says so.
 
 ## A declared query parameter is served or refused, never dropped — and `labels` is the refused one
 

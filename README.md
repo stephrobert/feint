@@ -420,6 +420,22 @@ exo compute instance create demo \
 exo compute instance list
 ```
 
+At Exoscale a zone is a property of the endpoint a client points at
+(`api-<zone>.exoscale.com`), so the emulator's single endpoint serves one zone
+per process — publishing several turns one instance into one row per zone in
+`exo compute instance list`, measured and recorded in `docs/limits.md`. It is
+`ch-dk-2`, the CLI's own default, unless `FEINT_EXOSCALE_ZONE` selects another
+of the zones Exoscale publishes:
+
+```bash
+FEINT_EXOSCALE_ZONE=ch-gva-2 feint serve   # where three of five surveyed stacks live
+```
+
+The zone list, the zones every template and instance type declare, and the
+`EXOSCALE_ZONE` that `feint env exoscale` prints follow the selection
+together. A value Exoscale does not publish refuses to serve, naming what
+would have been accepted.
+
 ### Ask the emulator what it is doing
 
 ```bash

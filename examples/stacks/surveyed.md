@@ -241,8 +241,12 @@ answered everything the modern provider sent.
   and the failure surfaces as `find zone "ch-gva-2" not found in
   ListZonesResponse` because the DNS client resolves through the zone list
   (single-zone catalogue, `internal/providers/exoscale/catalog.go` — a
-  measured decision). Its `visibility=private` template reads produced the
-  #271 transcript.
+  measured decision). Since #278, a deployment configured with
+  `FEINT_EXOSCALE_ZONE=ch-gva-2` answers that resolution, and the same
+  branch fails naming its real cause instead — `feint does not serve
+  /v2/dns-domain` (measured on the route, 2026-08-19); on an unconfigured
+  deployment the misleading message stands, which is #284's business. Its
+  `visibility=private` template reads produced the #271 transcript.
 - **Recorded edit** (`security_groups.tf`): `icmp_code = 0` beside
   `icmp_type = 8` — the stack pins provider 0.68.0, only the 0.70-based
   patched fork reaches the emulator, and 0.70 refuses the pair client-side.
@@ -286,6 +290,15 @@ answered everything the modern provider sent.
 - **Replayed 2026-08-18, `main@23f57c1`**: identical — 19 applied, NLB
   refused by name, SOS at the real endpoint on fake credentials, re-plan
   `6 to add / 0 to change`, 19 destroyed.
+- **Replayed 2026-08-19 on the #278 branch, against
+  `FEINT_EXOSCALE_ZONE=de-fra-1`**: the zone pin is gone from the harness.
+  `locals.tf` keeps the example's own `platform_zone = "de-fra-1"` — the
+  default the survey had to overwrite, because the emulator froze `ch-dk-2` —
+  and the operator file's only remaining input is the admin-network pin.
+  Same figures as the reference: **19 applied, re-plan `6 to add / 0 to
+  change`, 19 destroyed**; the six re-adds are the NLB branch (refused, its
+  five services behind it) and the SOS pair at the real
+  `sos-de-muc-1.exo.io` on fake credentials, exactly as on `ch-dk-2`.
 
 ### 3. PhilippeChepy/terraform-exoscale-vault — applied after a recorded edit, fully green
 
@@ -346,7 +359,9 @@ answered everything the modern provider sent.
 **Exoscale mean: 6.0.** The ecosystem splits cleanly in two: compute-shaped
 stacks (instance pools, SGs, EIPs) apply and converge; platform-shaped ones
 live in SKS/DBaaS/SOS and cannot start. Three of five pin or default to a
-zone other than `ch-dk-2`.
+zone other than `ch-dk-2` — the measurement that became
+`FEINT_EXOSCALE_ZONE` (#278), verified above on this register's own
+platform entry.
 
 ## Scaleway — four applied in part, one not applicable
 
