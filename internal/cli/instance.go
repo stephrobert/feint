@@ -286,40 +286,64 @@ func (i *Instance) alive() Liveness {
 		return Foreign
 	}
 
-	// No /proc: ask the address whether this emulator answers on it. A stranger
-	// holding the pid will not.
-	if healthy(i.Addr, 500*time.Millisecond) {
+	// No /proc: ask the address whether this emulator answers on it, and
+	// require the answer to name this pid. Any emulator answering was enough
+	// here once, and it is exactly what #309 measured the cost of: a stranger
+	// on the port reads as "alive" and everything downstream drives it.
+	if id, ok := probeIdentity(i.Addr, 500*time.Millisecond); ok && id != nil && id.PID == i.PID {
 		return Alive
 	}
 	return Foreign
 }
 
-// healthy probes the emulator's own health endpoint.
+// identity is what /_feint/health names about the process answering, under
+// `instance` since schema_version 3 (#309).
+type identity struct {
+	PID     int    `json:"pid"`
+	Started string `json:"started_at"`
+}
+
+// probeIdentity probes the emulator's own health endpoint and reports who
+// answered. ok says an emulator answered at all; the identity is nil when the
+// answer named none, which an emulator older than schema_version 3 does.
 //
-// It is the only check that proves the thing listening is this emulator rather
-// than anything else that happened to bind the port, which matters for `wait`:
-// waiting for a port to open would return as soon as an unrelated server bound
-// it, and the caller would then drive a stranger.
-func healthy(addr string, timeout time.Duration) bool {
+// The health check is the only probe that proves the thing listening is a feint
+// emulator rather than anything else that happened to bind the port. The
+// identity is the other half: *which* emulator, because a measurement that
+// cannot say who answered is how a stale build's catalogue got measured as this
+// build's on 2026-08-19 (#309).
+func probeIdentity(addr string, timeout time.Duration) (*identity, bool) {
 	client := &http.Client{Timeout: timeout}
 	resp, err := client.Get(healthURL(addr)) //nolint:noctx // the timeout is the client's
 	if err != nil {
-		return false
+		return nil, false
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return false
+		return nil, false
 	}
 	var body struct {
-		Status    string   `json:"status"`
-		Providers []string `json:"providers"`
+		Status    string    `json:"status"`
+		Providers []string  `json:"providers"`
+		Instance  *identity `json:"instance"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return false
+		return nil, false
 	}
 	// Both fields, because a bare 200 with "ok" in it could come from anything.
-	return body.Status == "ok" && len(body.Providers) > 0
+	if body.Status != "ok" || len(body.Providers) == 0 {
+		return nil, false
+	}
+	return body.Instance, true
+}
+
+// healthy reports whether an emulator — any emulator — answers on the address.
+// `wait` and `doctor` want exactly that; a caller that spawned the process it
+// is waiting for wants probeIdentity, so it can refuse a stranger.
+func healthy(addr string, timeout time.Duration) bool {
+	_, ok := probeIdentity(addr, timeout)
+	return ok
 }
 
 // healthURL builds the health address from a listen address, filling in the

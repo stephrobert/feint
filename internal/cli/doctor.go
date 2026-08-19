@@ -59,6 +59,7 @@ func doctor(args []string, stdout, stderr io.Writer) int {
 	}
 	checks = append(checks, checkRuntime(ctx, *vm)...)
 	checks = append(checks, checkClients()...)
+	checks = append(checks, checkEnvHazards()...)
 	checks = append(checks, checkSSHConfig())
 
 	failed := 0
@@ -331,6 +332,43 @@ func checkClients() []check {
 		}
 		version := firstLine(runQuiet(c.binary, c.args))
 		out = append(out, check{title: c.binary + " " + version, state: verdictOK, detail: path})
+	}
+	return out
+}
+
+// checkEnvHazards asks each mounted pack whether the operator's shell carries
+// a value that would send that provider's clients to the real cloud no matter
+// what `feint env` prints — OSC_PROFILE is the measured case (#286): with it
+// set, the Outscale Terraform provider 1.1.x ignores OSC_ENDPOINT_API and a
+// run that looks local reaches api.<region>.outscale.com. The variable names
+// are provider knowledge and live in each pack; doctor only relays.
+//
+// Warnings, never failures: the shell may be configured that way on purpose,
+// and a diagnostic that fails builds is a diagnostic people stop running.
+func checkEnvHazards() []check {
+	srv, _, err := newServer(nil)
+	if err != nil {
+		// Some other check owns reporting a server that cannot be built.
+		return nil
+	}
+	var out []check
+	for _, p := range srv.Packs() {
+		hazards, ok := p.(packEnvHazards)
+		if !ok {
+			continue
+		}
+		warnings := hazards.EnvHazards(os.LookupEnv)
+		if len(warnings) == 0 {
+			out = append(out, check{title: "nothing in this shell reroutes " + p.Name() + " clients", state: verdictOK})
+			continue
+		}
+		for _, warning := range warnings {
+			out = append(out, check{
+				title: "this shell can reroute " + p.Name() + " clients to the real cloud",
+				state: verdictWarn,
+				fix:   warning,
+			})
+		}
 	}
 	return out
 }

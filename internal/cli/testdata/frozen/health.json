@@ -129,6 +129,89 @@
           }
         ]
       }
+    },
+    {
+      "schema_version": 3,
+      "content": {
+        "fields": [
+          {
+            "path": "capabilities",
+            "type": "object"
+          },
+          {
+            "path": "capabilities.addresses",
+            "type": "bool"
+          },
+          {
+            "path": "capabilities.firewall",
+            "type": "bool"
+          },
+          {
+            "path": "capabilities.isolation",
+            "type": "bool"
+          },
+          {
+            "path": "capabilities.machines",
+            "type": "bool"
+          },
+          {
+            "path": "capabilities.own_kernel",
+            "type": "bool"
+          },
+          {
+            "path": "capabilities.private_from_host",
+            "type": "bool"
+          },
+          {
+            "path": "enforced",
+            "type": "object"
+          },
+          {
+            "path": "enforced.firewall",
+            "type": "array"
+          },
+          {
+            "path": "enforced.firewall[]",
+            "type": "string"
+          },
+          {
+            "path": "instance",
+            "type": "object"
+          },
+          {
+            "path": "instance.pid",
+            "type": "number"
+          },
+          {
+            "path": "instance.started_at",
+            "type": "string"
+          },
+          {
+            "path": "machines",
+            "type": "string"
+          },
+          {
+            "path": "providers",
+            "type": "array"
+          },
+          {
+            "path": "providers[]",
+            "type": "string"
+          },
+          {
+            "path": "resources",
+            "type": "number"
+          },
+          {
+            "path": "schema_version",
+            "type": "number"
+          },
+          {
+            "path": "status",
+            "type": "string"
+          }
+        ]
+      }
     }
   ]
 }

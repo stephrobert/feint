@@ -231,6 +231,11 @@ jobs:
         run: |
           go build -o /tmp/feint ./cmd/feint
           /tmp/feint start --addr 127.0.0.1:4599 --contracts contracts --timeout 60s
+          # The doorway step of the Outscale Terraform suite evals the real
+          # output of `feint env` rather than restating it, so the script needs
+          # the binary this job just built — the repo-root default it falls
+          # back to only exists where `mise run build` ran (#286).
+          echo "FEINT_BIN=/tmp/feint" >> "$GITHUB_ENV"
 
       # Every client below is verified before it runs, and the reason is what
       # this repository is: a conformance suite is a machine that downloads four

@@ -9,7 +9,14 @@ uv = "0.11.26"           # brings the extraction its one dependency without a ve
 ruff = "0.14.9"          # Python lint + format, mirrors .pre-commit-config.yaml
 
 [env]
-FEINT_ADDR = "127.0.0.1:4599"
+# get_env, not a literal: a value declared here beats an exported variable, so
+# `FEINT_ADDR=127.0.0.1:4699 mise run conformance` silently used 4599 — a knob
+# that read as configurable and was not (#309). Measured on 2026-08-19: with the
+# literal, `mise env` answers 4599 under that export; with get_env it answers
+# 4699, and stays 4599 when nothing is exported. Every parallel run converging
+# on one port is the precondition for a stale emulator answering somebody
+# else's measurement, which is the incident the rest of #309 guards against.
+FEINT_ADDR = "{{ get_env(name='FEINT_ADDR', default='127.0.0.1:4599') }}"
 # Where the upstream SDK checkouts live. The drift scan reads them as source; it never imports them.
 FEINT_SDK_SCALEWAY = "{{config_root}}/.upstream/scaleway-sdk-go"
 FEINT_SDK_OUTSCALE = "{{config_root}}/.upstream/osc-sdk-go"
