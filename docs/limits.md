@@ -255,6 +255,84 @@ temporary hosts entry) — never a system trust-store install, never a hosts fil
 this binary edits itself. Whether that corner is worth the operator ceremony is a
 product call; it is no longer an unmeasured one.
 
+## Managed Kubernetes is not emulated, and a CRUD-only version is refused (#283)
+
+Kapsule (Scaleway) and SKS (Exoscale) are the most-demanded unserved surface
+the survey measured ([#262](https://github.com/stephrobert/feint/issues/262)):
+SKS alone made two of the five Exoscale stacks *not applicable*, and the
+survey's own conclusion is that the public Scaleway ecosystem lives in Kapsule,
+RDB, LB and Object Storage. High demand does not say what "supporting it"
+means, so [#283](https://github.com/stephrobert/feint/issues/283) asked the
+question that decides the cost: **how far must the cluster work after it is
+created?**
+
+That is measurable, and it was measured twice, on 2026-08-19.
+
+**On the surveyed stacks: three of three continue past Terraform.**
+CentraleSupelec/kubic wires `kubernetes` and `helm` providers from
+`kubeconfig[0]` and installs nine Helm releases (Argo CD, cert-manager,
+Prometheus, Loki, Vault, Velero). datamindedbe/eu-data-platform feeds a `kubernetes` provider from
+`exoscale_sks_kubeconfig` and creates namespaces and secrets in the same
+layer. camptocamp/terraform-exoscale-sks does not even wait for a provider: a
+`null_resource` polls the cluster endpoint's `/healthz` for five minutes and
+fails the apply on timeout, then shells out to the `exo` CLI for a kubeconfig.
+Not one observed stack treats the cluster as a record.
+
+**On the wild population: about half of Kapsule and two thirds of SKS.** A
+GitHub code search for `resource "scaleway_k8s_cluster"` and `resource
+"exoscale_sks_cluster"` in HCL returned 127 and 37 repositories. After
+excluding the providers' own repositories and demos, verbatim copies, one
+Scaleway mock, and collapsing classroom, interview-task and same-author
+duplicates into one unit each:
+
+| provider | distinct units | continue into `kubernetes`/`helm`/`kubectl` in the same configuration | stop at cluster + pool + outputs |
+|---|---|---|---|
+| Scaleway Kapsule | 102 | 50 | 52 |
+| Exoscale SKS | 20 | 13 | 7 |
+
+The stop column is a floor, not a population that a CRUD emulation would
+serve: it is dominated by classroom exercises, and the substantial stacks in
+it output the kubeconfig with instructions to run `kubectl` next
+(jpetazzo/container.training's lab harness consumes it seconds later). A
+cluster is created to be talked to.
+
+**The verdict, and it is the same for both providers: refused at every level
+short of a real control plane.**
+
+- **CRUD-only (create, read, update, delete, answer the stored attributes) is
+  refused.** The clients themselves force the lie: `scaleway_k8s_pool` waits
+  for the pool — nodes included — to reach `ready` by default
+  (`wait_for_pool_ready`, measured in the provider's `pool.go`), and the
+  camptocamp module blocks on a live `/healthz`. Serving
+  the API without a control plane means answering `ready` for an API server
+  that does not exist and issuing a kubeconfig that points nowhere — a lying
+  200 by construction, on exactly the field the majority of the measured
+  demand consumes one resource later. A 501 naming the product is honest; a
+  ready cluster with no API server is not, and that distinction is this
+  project's founding rule.
+- **Reproducing the managed service** (versions, autoscaling, CNI, CCM, CSI,
+  upgrades, maintenance windows) is refused permanently: feint would become a
+  different product.
+- **The only admissible shape is a real local control plane** behind `--vm`,
+  through the machine runtime, handing back a kubeconfig that answers — the
+  same rule that makes a public address here "the provider's value, made to
+  answer on the host". That shape is not scheduled: it puts somebody else's
+  software lifecycle inside this project (the version the API claims versus
+  the one the runtime ships, nodepools as real joined nodes, a
+  `LoadBalancer` service with no CCM behind it sitting `pending` forever),
+  and each of those is a place to start lying at one remove. If it is ever
+  built, it is its own issue with those costs measured first.
+
+Until then the refusal is served where a reader's client hits it: the Exoscale
+pack declines every `sks-*` operation by name with this reason
+(`internal/providers/exoscale/pack.go`), and `/k8s/v1/` answers with a
+Scaleway error envelope from the not-served prefix list
+(`internal/providers/scaleway/pack.go`). The measured cost of the refusal is
+the survey's: platform-shaped stacks stay not applicable, and serving the rest
+of their products would not free them — eu-data-platform needs SKS *and*
+DBaaS *and* SOS, so it stays blocked whatever
+[#284](https://github.com/stephrobert/feint/issues/284) decides.
+
 ## The catalogue is a whitelist, and its values are measured
 
 Server types, prices and images are a small fixed table
