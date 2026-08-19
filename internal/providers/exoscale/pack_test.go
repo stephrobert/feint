@@ -108,6 +108,77 @@ func TestZonesCarryThisEmulatorsAddress(t *testing.T) {
 	}
 }
 
+// The split client resolves its global products through one hardcoded zone —
+// the Terraform provider pins ch-gva-2 for DNS — and against a one-row zone
+// list naming any other zone that resolution dies inside the client as
+// `find zone: "ch-gva-2" not found in ListZonesResponse`, which sends the
+// reader after their zone configuration (#262, #284). So its zone list, and
+// only its, signposts every published zone this deployment does not serve,
+// each row pointing at a path this pack refuses with the mismatch named.
+func TestTheSplitClientsZoneListSignpostsTheOtherZones(t *testing.T) {
+	t.Setenv("FEINT_EXOSCALE_ALLOW_TERRAFORM", "1")
+	h := serve(t)
+
+	req := httptest.NewRequest("GET", "/v2/zone", strings.NewReader(""))
+	req.Header.Set("User-Agent", "Exoscale-Terraform-Provider/0.70.0 (something) Terraform-SDK/2.31.0")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	body := map[string]any{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("not JSON: %s", rec.Body.String())
+	}
+	zones, _ := body["zones"].([]any)
+	// Eight published zones: the served one plus seven signposts. Fewer means
+	// a zone the provider can hardcode is missing and its resolution dies
+	// client-side again.
+	if len(zones) != 8 {
+		t.Fatalf("%d zones for the split client, want all 8 published: a missing row fails inside the client as a zone-lookup error", len(zones))
+	}
+	for _, entry := range zones {
+		zone, _ := entry.(map[string]any)
+		name, _ := zone["name"].(string)
+		endpoint, _ := zone["api-endpoint"].(string)
+		if strings.Contains(endpoint, "exoscale.com") {
+			t.Fatalf("api-endpoint %q points at the real cloud", endpoint)
+		}
+		switch name {
+		case "ch-dk-2": // the zone in force keeps its real endpoint
+			if !strings.HasSuffix(endpoint, "/v2") {
+				t.Fatalf("the served zone's api-endpoint %q does not end in /v2", endpoint)
+			}
+		default: // every other zone points at the refusal that names the mismatch
+			if !strings.Contains(endpoint, "/v2/unserved-zone/"+name) {
+				t.Fatalf("zone %s api-endpoint %q is not a signpost: a call through it would be served as the wrong zone or die client-side", name, endpoint)
+			}
+		}
+	}
+}
+
+// A call that arrives through a signpost row is refused with the mismatch
+// named: the deployment's zone, the zone the client resolved, and the knob
+// that reconciles them. Without this the reader of the refusal is exactly
+// where the client-side zone-lookup error left them.
+func TestAnUnservedZoneSignpostNamesTheMismatch(t *testing.T) {
+	rec, body := call(t, serve(t), "POST", "/v2/unserved-zone/ch-gva-2/dns-domain", `{"unicode-name":"example.org"}`)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status %d, want 404", rec.Code)
+	}
+	message, _ := body["message"].(string)
+	for _, want := range []string{
+		"ch-dk-2",                      // the zone this deployment serves
+		"resolved zone ch-gva-2",       // the zone the client asked for
+		"FEINT_EXOSCALE_ZONE=ch-gva-2", // the remedy, verbatim
+		"/v2/dns-domain",               // the call the client was making
+	} {
+		if !strings.Contains(message, want) {
+			t.Fatalf("the diagnosis does not name %q: %q", want, message)
+		}
+	}
+}
+
 // A create walks the catalogue first. Every one of these was declined until the
 // CLI was watched making the calls.
 func TestTheCatalogueACreateWalksIsServed(t *testing.T) {

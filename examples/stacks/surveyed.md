@@ -260,8 +260,13 @@ answered everything the modern provider sent.
   measured decision). Since #278, a deployment configured with
   `FEINT_EXOSCALE_ZONE=ch-gva-2` answers that resolution, and the same
   branch fails naming its real cause instead — `feint does not serve
-  /v2/dns-domain` (measured on the route, 2026-08-19); on an unconfigured
-  deployment the misleading message stands, which is #284's business. Its
+  /v2/dns-domain` (measured on the route, 2026-08-19). Since #284 the
+  unconfigured deployment stopped misleading too: its zone list signposts
+  the zones it does not serve to the Terraform provider, and the same
+  `exoscale_domain` apply is refused with the mismatch named — "this
+  deployment serves zone ch-dk-2, and the client resolved zone ch-gva-2 …
+  Restart with FEINT_EXOSCALE_ZONE=ch-gva-2 …" (measured with the patched
+  provider against both deployments, 2026-08-19). Its
   `visibility=private` template reads produced the #271 transcript.
 - **Recorded edit** (`security_groups.tf`): `icmp_code = 0` beside
   `icmp_type = 8` — the stack pins provider 0.68.0, only the 0.70-based

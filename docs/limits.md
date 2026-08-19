@@ -1285,10 +1285,25 @@ worth a knob.
 
 Two consequences, stated rather than hidden:
 
-- a client asking for a zone the process does not serve gets `no such zone`,
-  where the real cloud would serve it. That is a visible, honest difference.
-  The alternative — one endpoint pretending to be eight zones — is a silent,
-  wrong one.
+- a client asking for a zone the process does not serve is refused, where the
+  real cloud would serve it. That is a visible, honest difference; the
+  alternative — one endpoint pretending to be eight zones — is a silent, wrong
+  one. *Where* the refusal lands depends on the client, because the two
+  families do opposite things with the zone list. The exo CLI merges every row
+  into every listing, so it keeps the single row and a mismatch dies inside it
+  as `find zone: not found in ListZonesResponse`. The Terraform provider
+  (behind `FEINT_EXOSCALE_ALLOW_TERRAFORM=1`) resolves endpoints by name and
+  never merges, so its zone list also carries a signpost row for each of the
+  seven other published zones, pointing at `/v2/unserved-zone/<zone>` — and
+  the next call is refused naming the deployment's zone, the resolved zone and
+  the `FEINT_EXOSCALE_ZONE` remedy. Measured on `exoscale_domain`, which the
+  provider resolves through a hardcoded `ch-gva-2`: before the signpost its
+  apply died client-side as `find zone: "ch-gva-2" not found in
+  ListZonesResponse`, a message that sends the reader after their zone
+  configuration when DNS is simply not served (#262, #284); after it, the same
+  apply is refused with the mismatch named, and a wrong-zone create is refused
+  instead of silently served as the deployment's zone
+  (`TestAnUnservedZoneSignpostNamesTheMismatch`).
 - on any zone but `ch-dk-2`, `exo compute instance-type list` and `show` fail
   with `find zone: "ch-dk-2" not found`, and that is the client, measured at
   its source: exo 1.95.1 passes its compiled default to the v3 zone switch
