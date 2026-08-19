@@ -13,6 +13,63 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
+## [Unreleased]
+
+### Added
+
+- **A measurement can now tell who answered it** (#309). `GET /_feint/health`
+  gains `instance` — the pid and start time of the process answering — and its
+  `schema_version` moves to 3 (additive; every field of version 2 is unchanged).
+  The field exists because its absence was measured: on 2026-08-19 a stale
+  emulator on a shared port answered a probe with the previous build's
+  catalogue, and nothing in the answer could say so.
+
+### Fixed
+
+- **`feint start` refuses an answer from a process it did not spawn** (#309).
+  Before, when something already held the address, the spawned child died on
+  the bind error while `start` took the incumbent's health answer as the
+  child's: it printed "listening (pid N)" about a dead pid, `feint wait` said
+  ready, and every suite then measured whatever the incumbent served —
+  reproduced against a stale build before the fix. `start` now compares
+  `instance.pid` against the child it spawned and exits 1 naming the incumbent
+  (pid, start time); `feint serve` refuses up front an address where an
+  emulator already answers, instead of leaving the fact in a bind error a
+  wrapper reads past. A second run after a clean stop is unaffected: the guard
+  compares identities, it does not count runs.
+- **`FEINT_ADDR` is honoured again** (#309). It was declared as a literal in
+  `mise.toml`'s `[env]`, which beats an exported variable:
+  `FEINT_ADDR=127.0.0.1:4699 mise run conformance` silently used 4599, so every
+  parallel run converged on the port a stale emulator was most likely to hold.
+  The declaration now reads the environment first and keeps 4599 only as the
+  default.
+
+- **`feint env outscale` now opens the door its own documentation points at**
+  (#286). The printed `OSC_ENDPOINT_API` carries `/api/v1` — the shape the
+  current Terraform provider line (>= 1.7) reads, measured on 1.8.0, which
+  died on a 404 given the bare host the command used to print. The clients
+  that append the path themselves get `--client oapi-cli` (alias
+  `terraform-1.1`): measured on oapi-cli 0.13.0 and provider 1.1.3, which
+  URL-escapes a path'd value into `invalid port ":4599%2Fapi%2Fv1"`
+  client-side. Either mispairing now fails in seconds with the remedy named;
+  the conformance suite drives provider 1.8.0 to a plan from a shell holding
+  nothing but the command's exports. CLI surface v4: one flag added
+  (`env --client`), nothing moved or removed — but the flagless
+  `feint env outscale` value changed shape, which is the point.
+
+- **The escape a shell can carry is named before the apply, not after**
+  (#286; the cheapest instance of #280). With `OSC_PROFILE` set, the Outscale
+  Terraform provider 1.1.x reads `~/.osc/config.json` and ignores
+  `OSC_ENDPOINT_API` entirely — reproduced on 1.1.3: the plan left for
+  `https://api.<region>.outscale.com` while the emulator received nothing.
+  `feint env outscale` and `feint doctor` now warn when the shell carries it,
+  on stderr, where an `eval` cannot swallow the warning. The legacy credential
+  names (`OUTSCALE_ACCESSKEYID`/`OUTSCALE_SECRETKEYID`) are warned about too,
+  with exactly what was measured: they do **not** override the endpoint on
+  1.1.3 or 1.8.0 — four combinations, all reaching the emulator, refuting the
+  survey register's earlier reading — but they are real-cloud credentials one
+  lost export away from being signed with.
+
 ## [0.9.0]
 
 The contract release. Feint can be consumed directly from a Go test or a CI job

@@ -192,8 +192,14 @@ func writeInstance(t *testing.T, addr string, pid int) string {
 	return dir
 }
 
-// healthOnly serves what healthy() demands and nothing more: status and
-// providers, both checked, because a bare 200 could come from anything.
+// healthOnly serves what alive()'s health fallback demands and nothing more:
+// status and providers, both checked because a bare 200 could come from
+// anything, and since #309 the identity of the answering process — a real live
+// emulator publishes its own pid, so the stand-in for one must too, or on the
+// platforms without /proc it reads as a stranger on the port and is reaped.
+// That is not hypothetical: this fixture broke exactly that way on the macOS
+// leg when the identity check landed, the second time this comment's history
+// repeats itself (see TestCleanReapsOnlyDeadInstances).
 //
 // A real emulator would do, and is not used on purpose — building one drags the
 // packs into a test about directory collection, and a fixture that needs the
@@ -207,6 +213,10 @@ func healthOnly(t *testing.T) http.Handler {
 		if err := json.NewEncoder(w).Encode(map[string]any{
 			"status":    "ok",
 			"providers": []string{"scaleway"},
+			"instance": map[string]any{
+				"pid":        os.Getpid(),
+				"started_at": "2026-08-19T08:00:00Z",
+			},
 		}); err != nil {
 			t.Errorf("encode health: %v", err)
 		}

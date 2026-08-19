@@ -43,7 +43,7 @@ prints the reason under the pack that owns it.
 | Retry and backoff against 429s, 5xx or a control-plane outage | **no** | nothing injects a fault yet; it is scoped rather than forgotten — [roadmap.md](roadmap.md#3-fault-injection--26) |
 | Object Storage, and anything addressed as `s3.<region>` | **no** | [limits.md](limits.md#object-storage-is-not-emulated) |
 | A Terraform run against Exoscale | **no**, and refused rather than half-served | the provider splits between this emulator and a paying account — [limits.md](limits.md#the-exoscale-terraform-provider-is-refused-and-why) |
-| Multi-zone or multi-region behaviour on Exoscale | **no** | one zone, and the reason is the client — [limits.md](limits.md#exoscale-has-one-zone-and-the-reason-is-the-client) |
+| Multi-zone or multi-region behaviour on Exoscale | **no** | one zone per process, selectable with `FEINT_EXOSCALE_ZONE`, and the reason is the client — [limits.md](limits.md#exoscale-has-one-zone-per-process-and-the-reason-is-the-client) |
 | Traffic actually flowing through a gateway or a NAT | **no** | records move, packets do not — [limits.md](limits.md#outscales-gateways-and-nat-move-records-not-packets) |
 
 ## How to read a verdict

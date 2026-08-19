@@ -231,6 +231,11 @@ jobs:
         run: |
           go build -o /tmp/feint ./cmd/feint
           /tmp/feint start --addr 127.0.0.1:4599 --contracts contracts --timeout 60s
+          # The doorway step of the Outscale Terraform suite evals the real
+          # output of `feint env` rather than restating it, so the script needs
+          # the binary this job just built — the repo-root default it falls
+          # back to only exists where `mise run build` ran (#286).
+          echo "FEINT_BIN=/tmp/feint" >> "$GITHUB_ENV"
 
       # Every client below is verified before it runs, and the reason is what
       # this repository is: a conformance suite is a machine that downloads four
@@ -324,6 +329,15 @@ jobs:
       - name: Run the Exoscale CLI conformance suite
         if: matrix.client == 'exo-cli' || matrix.client == 'fields'
         run: tools/conformance/exoscale/exo-cli.sh http://127.0.0.1:4599
+
+      # The two-zone proof (#278): the same real CLI against a second emulator
+      # this suite starts itself, configured for ch-gva-2 on its own port. Not
+      # on the `fields` leg: the field gate judges the shared emulator's run,
+      # and this suite's traffic goes to its own — adding it there would prove
+      # nothing about that verdict.
+      - name: Run the Exoscale two-zone suite
+        if: matrix.client == 'exo-cli'
+        run: FEINT_BIN=/tmp/feint tools/conformance/exoscale/zones.sh
 
       # The release zip and its checksum, verified before anything runs — not a
       # key piped from a URL into gpg. The apt route asked this job to trust a

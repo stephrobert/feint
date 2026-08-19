@@ -9,7 +9,14 @@ uv = "0.11.26"           # brings the extraction its one dependency without a ve
 ruff = "0.14.9"          # Python lint + format, mirrors .pre-commit-config.yaml
 
 [env]
-FEINT_ADDR = "127.0.0.1:4599"
+# get_env, not a literal: a value declared here beats an exported variable, so
+# `FEINT_ADDR=127.0.0.1:4699 mise run conformance` silently used 4599 — a knob
+# that read as configurable and was not (#309). Measured on 2026-08-19: with the
+# literal, `mise env` answers 4599 under that export; with get_env it answers
+# 4699, and stays 4599 when nothing is exported. Every parallel run converging
+# on one port is the precondition for a stale emulator answering somebody
+# else's measurement, which is the incident the rest of #309 guards against.
+FEINT_ADDR = "{{ get_env(name='FEINT_ADDR', default='127.0.0.1:4599') }}"
 # Where the upstream SDK checkouts live. The drift scan reads them as source; it never imports them.
 FEINT_SDK_SCALEWAY = "{{config_root}}/.upstream/scaleway-sdk-go"
 FEINT_SDK_OUTSCALE = "{{config_root}}/.upstream/osc-sdk-go"
@@ -267,6 +274,11 @@ run = "./feint docs --check"
 description = "Drive the running emulator with the real Exoscale CLI"
 run = "tools/conformance/exoscale/exo-cli.sh http://$FEINT_ADDR"
 
+[tasks."conformance:zones"]
+description = "Prove the Exoscale zone is a datum: an emulator of its own on ch-gva-2, driven by exo (#278)"
+depends = ["build"]
+run = "tools/conformance/exoscale/zones.sh"
+
 [tasks.probe]
 description = "Drive every mounted route from its provider's API description and check the answers"
 depends = ["build"]
@@ -308,6 +320,10 @@ tools/conformance/outscale/terraform.sh "http://$FEINT_ADDR"
 # they found two defects every other gate was blind to (#249, #250).
 tools/conformance/stacks.sh "http://$FEINT_ADDR"
 tools/conformance/exoscale/exo-cli.sh "http://$FEINT_ADDR"
+# The Exoscale zone is a datum (#278): a second emulator, on its own port and
+# configured for ch-gva-2, driven by the same real CLI. Two zones, two
+# processes — the way a real client meets a second zone: another endpoint.
+tools/conformance/exoscale/zones.sh
 # Every route driven from its provider's API description. Skipped when a machine
 # runtime is on: a synthetic walk of every Create* would start a container each.
 if [ "${FEINT_VM:-off}" = "off" ]; then ./feint probe --endpoint "http://$FEINT_ADDR" --contracts contracts; fi

@@ -643,7 +643,7 @@ func (p *Pack) templateByID(id string) (map[string]any, bool) {
 	if id == "" {
 		return nil, false
 	}
-	for _, t := range templates {
+	for _, t := range p.templates {
 		if t["id"] == id {
 			return t, true
 		}

@@ -12,8 +12,8 @@
       "label": "the inventory is mounted and empty, which fails a client exactly as a 404 does",
       "package": "./internal/cli/",
       "file": "internal/providers/exoscale/catalog.go",
-      "find": "\temulator.WriteJSON(w, http.StatusOK, map[string]any{\"instance-types\": instanceTypes})",
-      "replace": "\temulator.WriteJSON(w, http.StatusOK, map[string]any{\"instance-types\": instanceTypes[:0]})",
+      "find": "\temulator.WriteJSON(w, http.StatusOK, map[string]any{\"instance-types\": p.instanceTypes})",
+      "replace": "\temulator.WriteJSON(w, http.StatusOK, map[string]any{\"instance-types\": p.instanceTypes[:0]})",
       "test": "TestEveryDeclaredCatalogueAnswersSomething"
     },
     {

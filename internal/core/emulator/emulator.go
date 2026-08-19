@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -194,6 +195,11 @@ type Server struct {
 	// live. It is the corroboration the omission check fails on (omissions.go);
 	// nil narrows that check to nothing rather than inventing a proof.
 	observedFields map[string]map[string]bool
+	// started is when this server was built, published under `instance` on
+	// /_feint/health. Identity, not uptime: on 2026-08-19 a stale emulator on a
+	// shared port answered a probe with the previous build's catalogue, and
+	// nothing in the answer could say which process produced it (#309).
+	started time.Time
 }
 
 // NewServer mounts the packs. It fails when two packs claim the same route,
@@ -206,6 +212,12 @@ func NewServer(env *Env, packs ...Pack) (*Server, error) {
 		mux:      http.NewServeMux(),
 		stream:   events,
 		observer: newObserver(env.Contracts, events),
+		started:  time.Now().UTC(),
+	}
+	// The injected clock wins when there is one, so golden tests stay stable;
+	// the wall clock is only the fallback for an Env built literally.
+	if env.Now != nil {
+		s.started = env.Now()
 	}
 
 	// The table both indexes the routes and rejects a pattern two packs claim.
@@ -471,6 +483,12 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	// first told a user the firewall was delivered for three packs when one
 	// delivered it. The honest check is both: capabilities.firewall says the
 	// runtime can, enforced.firewall says who asks it to.
+	// `instance` is identity, and it exists because its absence was measured
+	// (#309): a stale emulator on a shared port answered a probe with the
+	// previous build's catalogue, and nothing in the answer said which process
+	// produced it. The pid is what a caller that spawned this process can
+	// compare against something it already knows; started_at is for the human
+	// reading the refusal. TestHealthNamesItsOwnProcess fails if either lies.
 	writeJSON(w, http.StatusOK, map[string]any{
 		"schema_version": HealthSchemaVersion,
 		"status":         "ok",
@@ -479,6 +497,10 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 		"machines":       driver,
 		"capabilities":   capabilities,
 		"enforced":       enforcement(s.packs),
+		"instance": map[string]any{
+			"pid":        os.Getpid(),
+			"started_at": s.started.Format(time.RFC3339),
+		},
 	})
 }
 

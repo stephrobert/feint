@@ -92,7 +92,7 @@ const (
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 3
+const cliSurfaceVersion = 4
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -226,9 +226,13 @@ Usage:
                     what is missing and exits 2, building nothing.
 
   feint env <provider> [--shell bash|fish|powershell] [--endpoint <url>] [--unset]
+                       [--client <family>]
                     The environment a real client of that provider needs.
                     Exports on stdout, everything else on stderr, so
-                    eval "$(feint env scaleway)" is safe.
+                    eval "$(feint env scaleway)" is safe. --client selects a
+                    family when a provider's clients disagree about a value:
+                    outscale serves terraform (>= 1.7, the default) and
+                    oapi-cli / terraform-1.1, which want the bare host.
 
   feint snapshot   save <name> [--addr :4599] [--force]
                    load <name> [--addr :4599]
@@ -478,6 +482,14 @@ func loadContracts(dir string) (map[string]*contract.Doc, error) {
 // does not publish refuses to serve rather than silently answering the
 // default, which would be #268's lie moved to startup.
 // TestAnUnknownOutscaleRegionRefusesToServe fails without the refusal.
+//
+// FEINT_EXOSCALE_ZONE is the same knob for the Exoscale zone (#278): at
+// Exoscale a zone is a property of the endpoint a client points at
+// (api-<zone>.exoscale.com), so the emulator's single endpoint serves one
+// zone per process, chosen here. Unset keeps ch-dk-2, the official CLI's own
+// default; a zone Exoscale does not publish refuses to serve, naming the
+// accepted list. TestAnUnknownExoscaleZoneRefusesToServe fails without the
+// refusal.
 var packsFor = func(env *emulator.Env) ([]emulator.Pack, error) {
 	osc := outscale.New(env)
 	if region := os.Getenv("FEINT_OUTSCALE_REGION"); region != "" {
@@ -486,7 +498,14 @@ var packsFor = func(env *emulator.Env) ([]emulator.Pack, error) {
 			return nil, fmt.Errorf("FEINT_OUTSCALE_REGION: %w", err)
 		}
 	}
-	return []emulator.Pack{scaleway.New(env), osc, exoscale.New(env)}, nil
+	exo := exoscale.New(env)
+	if zone := os.Getenv("FEINT_EXOSCALE_ZONE"); zone != "" {
+		var err error
+		if exo, err = exoscale.NewInZone(env, zone); err != nil {
+			return nil, fmt.Errorf("FEINT_EXOSCALE_ZONE: %w", err)
+		}
+	}
+	return []emulator.Pack{scaleway.New(env), osc, exo}, nil
 }
 
 // newServer builds the emulator with every pack mounted. With contracts, every
@@ -532,6 +551,27 @@ func checkListenAddr(addr string, expose bool) error {
 		"Pass --expose-to-network if that is what you want", addr)
 }
 
+// checkAddrUnclaimed refuses to serve on an address where an emulator already
+// answers, naming the process instead of losing the fact in a bind error.
+//
+// The bind error alone was the failure mode #309 measured: a wrapper that
+// spawns `serve` and then polls health takes the incumbent's answer as its
+// child's, and the bind error dies with the child, unread in a log. Refusing
+// here puts the incumbent's pid and start time where the operator is looking,
+// and does so identically for `serve` in a terminal and for the detached child
+// of `start`. Same shape as checkListenAddr, and for the reason that function
+// documents: the decision is separated from the act, and only the decision is
+// tested. TestServeRefusesAnAddressAnotherEmulatorClaims fails without it.
+func checkAddrUnclaimed(addr string) error {
+	id, ok := probeIdentity(addr, 500*time.Millisecond)
+	if !ok {
+		return nil
+	}
+	return fmt.Errorf("refusing to serve on %s: it is already served by %s. "+
+		"Stop it first (feint stop --addr %s, or kill it), or pick another address",
+		addr, describeForeign(id), addr)
+}
+
 func serve(args []string, stdout io.Writer) error {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	addr := fs.String("addr", DefaultAddr, "listen address")
@@ -548,6 +588,9 @@ func serve(args []string, stdout io.Writer) error {
 	}
 
 	if err := checkListenAddr(*addr, *expose); err != nil {
+		return err
+	}
+	if err := checkAddrUnclaimed(*addr); err != nil {
 		return err
 	}
 

@@ -23,6 +23,34 @@ Nothing to install beyond one binary, no account, no credentials, nothing
 billed. If your configuration applies, re-plans empty and destroys, say so — that
 is a data point too, and it is the one this project cannot generate for itself.
 
+### Pointing an Outscale stack here, per provider generation
+
+The fifteen-stack survey ([the register](../examples/stacks/surveyed.md))
+measured four Outscale provider generations and three endpoint mechanisms.
+This table is that knowledge, moved to the page that invites the pointing;
+every row was re-measured against the emulator on 2026-08-19 ([#286]):
+
+| your provider | the recipe | given the other shape |
+|---|---|---|
+| `outscale/outscale` >= 1.7 (current; 1.8.0 measured) | `eval "$(feint env outscale)"` — the printed `OSC_ENDPOINT_API` carries `/api/v1`, which this generation wants in the value | a fast 404 naming the missing prefix (a six-minute retry backoff before the emulator learned to say so) |
+| `outscale/outscale` 1.1.x (1.1.3 measured), or oapi-cli | `eval "$(feint env outscale --client oapi-cli)"` — the bare host; these clients append `/api/v1` themselves | 1.1.x dies client-side in seconds: `invalid port ":4599%2Fapi%2Fv1"`; oapi-cli gets a 404 saying the endpoint carries `/api/v1` twice |
+| `outscale-dev/*` 0.x | none exists: these read no endpoint variable at all. 0.5.3 honours only an `endpoints { api = … }` block and needs TLS interception; 0.7.0 crashes in its own error path. Measured once in the survey register, not replayed since | — |
+
+Two values in one shell cannot both win, which is why the flag exists rather
+than a second variable. And one escape is worth knowing before the apply,
+because it ignores every value feint prints: **with `OSC_PROFILE` set, the
+1.1.x provider reads `~/.osc/config.json` and never reads
+`OSC_ENDPOINT_API`** — a run that looks local reaches
+`https://api.<region>.outscale.com` with that profile's credentials
+(measured on 1.1.3; 1.8.0 honours the endpoint despite the profile).
+`feint env outscale` and `feint doctor` now warn when the shell carries it.
+The legacy credential names (`OUTSCALE_ACCESSKEYID`/`OUTSCALE_SECRETKEYID`)
+were measured too: they do **not** override the endpoint on 1.1.3 or 1.8.0
+while the exports stand, but they are real-cloud credentials one lost export
+away from being used, and the same warning names them.
+
+[#286]: https://github.com/stephrobert/feint/issues/286
+
 **The goal for 1.0: ten real configurations that apply, re-plan empty and destroy
 with no cloud account.**
 

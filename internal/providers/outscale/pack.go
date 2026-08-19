@@ -364,7 +364,8 @@ func (p *Pack) NotFound(w http.ResponseWriter, r *http.Request) {
 		p.writeError(w, http.StatusNotFound, "", "OperationNotEmulated",
 			"the endpoint carries "+strings.TrimSuffix(pathPrefix, "/")+" twice: point the "+
 				"client at the bare host, oapi-cli appends "+strings.TrimSuffix(pathPrefix, "/")+
-				"/<Call> itself. `feint env outscale` prints the endpoint to use")
+				"/<Call> itself. `feint env outscale --client oapi-cli` prints the endpoint to "+
+				"use — the flagless default carries the path, for the Terraform provider >= 1.7")
 		return
 	}
 
@@ -428,6 +429,35 @@ func orDefault(v, fallback string) string {
 	return v
 }
 
+// The client families this pack can point at the emulator, and the one fact
+// that forces the split: they read the same variable, OSC_ENDPOINT_API, and
+// disagree about its shape. Measured on 2026-08-19, each cell by running the
+// real client against this emulator (#286):
+//
+//   - Terraform provider 1.8.0 (the current line, >= 1.7) wants the /api/v1
+//     path IN the value; given the bare host it posts /<Action> at the root
+//     and dies on a 404 that used to be a six-minute retry backoff before
+//     the mispointed hint (#185) made it fast.
+//   - Terraform provider 1.1.3 and oapi-cli append /api/v1 themselves; given
+//     the path, 1.1.3 URL-escapes it and dies client-side on
+//     `invalid port ":4599%2Fapi%2Fv1"`.
+//
+// One variable, two shapes: no single printed value serves both families, so
+// the choice is a client parameter rather than a Note a reader has to reverse-
+// engineer. The default is the family a stranger meets first — the current
+// Terraform provider line, which is what docs/adoption.md invites them to run.
+const (
+	clientTerraform   = "terraform"     // provider >= 1.7: the path belongs in the value
+	clientOAPICLI     = "oapi-cli"      // bare host: the CLI appends /api/v1 itself
+	clientTerraform11 = "terraform-1.1" // bare host: the 1.1.x provider appends it too
+)
+
+// apiPath is what the modern Terraform provider expects to find inside
+// OSC_ENDPOINT_API, and what the other two clients insist on appending
+// themselves. It is pathPrefix without the trailing slash, kept as one
+// declaration so the URL space and the environment cannot drift apart.
+var apiPath = strings.TrimSuffix(pathPrefix, "/")
+
 // Env implements emulator.Pack.
 //
 // The values come from tools/conformance/outscale/fake-credentials.env, so the
@@ -435,20 +465,100 @@ func orDefault(v, fallback string) string {
 // nothing: the emulator accepts any signature without checking it, but the
 // client still refuses to sign a request whose credentials are not well-formed.
 //
-// OSC_ENDPOINT_API takes the bare host. The CLI appends /api/v1/<Call> itself,
-// so an endpoint carrying that prefix produces a request for
-// /api/v1/api/v1/<Call> — a 404 that reads exactly like a missing route, and an
-// afternoon to diagnose the first time.
+// The default serves the current Terraform provider line (>= 1.7), because the
+// documented first contact is `eval "$(feint env outscale)"` then `terraform
+// plan` — and until #286 that exact recipe printed the bare host, which the
+// modern provider cannot use. The other families are one --client away, and
+// the Note names them; a client that gets the wrong shape fails fast and named
+// on both sides (the pack's doubled-prefix 404 for oapi-cli, the provider's
+// own parse error for 1.1.x), never with a silent stall.
 func (p *Pack) Env(endpoint string) emulator.Environment {
-	return emulator.Environment{
-		Vars: map[string]string{
+	env, _ := p.EnvFor(endpoint, clientTerraform)
+	return env
+}
+
+// EnvClients names the client families EnvFor accepts, sorted, for the CLI to
+// print when a caller asks for one it does not know.
+func (p *Pack) EnvClients() []string {
+	return []string{clientOAPICLI, clientTerraform, clientTerraform11}
+}
+
+// EnvFor answers the environment one client family needs, or ok=false for a
+// family this pack has never measured — refusing beats guessing, because a
+// guessed shape is exactly the wall #286 is about.
+func (p *Pack) EnvFor(endpoint, client string) (emulator.Environment, bool) {
+	bare := strings.TrimRight(endpoint, "/")
+	vars := func(endpointAPI string) map[string]string {
+		return map[string]string{
 			"OSC_ACCESS_KEY":   "AAAAAAAAAAAAAAAAAAAA",
 			"OSC_SECRET_KEY":   "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
 			"OSC_REGION":       p.region,
 			"OSC_PROTOCOL":     "http",
-			"OSC_ENDPOINT_API": endpoint,
-		},
-		Note: "oapi-cli reads a JSON profile rather than the environment: --config, with endpoints.api set to " +
-			endpoint + " (the bare host; it appends /api/v1 itself).",
+			"OSC_ENDPOINT_API": endpointAPI,
+		}
 	}
+	switch client {
+	case clientTerraform:
+		return emulator.Environment{
+			Vars: vars(bare + apiPath),
+			Note: "this endpoint carries " + apiPath + ": the shape the Terraform provider >= 1.7 reads. " +
+				"oapi-cli and the Terraform provider 1.1.x append " + apiPath + " themselves and want the " +
+				"bare host instead: eval \"$(feint env outscale --client oapi-cli)\". " +
+				"The 0.x providers (outscale-dev/*) read no endpoint variable at all " +
+				"(examples/stacks/surveyed.md).",
+		}, true
+	case clientOAPICLI, clientTerraform11:
+		return emulator.Environment{
+			Vars: vars(bare),
+			Note: "the bare host: oapi-cli and the Terraform provider 1.1.x append " + apiPath + " themselves. " +
+				"The Terraform provider >= 1.7 wants the path in the value: drop --client for that one. " +
+				"With --config, oapi-cli wants endpoints.api set to " + bare + ".",
+		}, true
+	}
+	return emulator.Environment{}, false
+}
+
+// EnvHazards names what, in the caller's own shell, would send this provider's
+// clients to the real cloud no matter which values feint prints. The lookup is
+// injected so the check is testable; the CLI passes os.LookupEnv.
+//
+// Both hazards were measured rather than assumed, on 2026-08-19 (#286):
+//
+//   - OSC_PROFILE set: provider 1.1.3 reads ~/.osc/config.json and skips the
+//     environment entirely — its providerConfigureClient calls
+//     setProviderDefaultEnv, the only reader of OSC_ENDPOINT_API, only when
+//     IsOldProfileSet says no profile is in force. Reproduced: with
+//     OSC_PROFILE=default and OSC_ENDPOINT_API pointing at this emulator, the
+//     plan left for https://api.<region>.outscale.com and the emulator
+//     received nothing. Provider 1.8.0 honours the endpoint despite the
+//     profile, so the escape selects exactly the users on the legacy line.
+//   - The legacy credential names alone do NOT redirect — four combinations
+//     of OUTSCALE_ACCESSKEYID/OUTSCALE_SECRETKEYID against 1.1.3 all reached
+//     the emulator while OSC_ENDPOINT_API was set, refuting the survey
+//     register's earlier reading — but they are real-cloud credentials
+//     sitting in the shell, and every Outscale client falls back to them the
+//     moment the endpoint export is lost (a new terminal, an eval that
+//     printed nothing). The warning says which of the two situations this is.
+//
+// TestEnvHazardsNameTheProfileEscape fails without the first check, and
+// TestEnvHazardsNameLegacyCredentials without the second.
+func (p *Pack) EnvHazards(lookup func(string) (string, bool)) []string {
+	var warnings []string
+	if _, ok := lookup("OSC_PROFILE"); ok {
+		warnings = append(warnings,
+			"OSC_PROFILE is set: the Outscale Terraform provider 1.1.x then reads ~/.osc/config.json and "+
+				"ignores OSC_ENDPOINT_API entirely, so a run that looks local reaches "+
+				"https://api.<region>.outscale.com with that profile's credentials (measured on 1.1.3). "+
+				"unset OSC_PROFILE before running terraform against this emulator")
+	}
+	_, hasLegacyAccess := lookup("OUTSCALE_ACCESSKEYID")
+	_, hasLegacySecret := lookup("OUTSCALE_SECRETKEYID")
+	if hasLegacyAccess || hasLegacySecret {
+		warnings = append(warnings,
+			"OUTSCALE_ACCESSKEYID/OUTSCALE_SECRETKEYID are set: real-cloud credentials every Outscale "+
+				"client falls back to when the endpoint export is missing. They lose to the values printed "+
+				"here as long as this shell keeps them (measured on providers 1.1.3 and 1.8.0); a new "+
+				"terminal or a failed eval does not. unset them for emulator work")
+	}
+	return warnings
 }

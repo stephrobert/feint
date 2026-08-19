@@ -3,6 +3,7 @@ package exoscale
 import (
 	"net/http"
 	"sort"
+	"strings"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/resource"
@@ -20,25 +21,64 @@ import (
 // This is the Scaleway catalogue trap in another dialect. An emulator has no
 // inventory, and it must serve one anyway.
 
-// zoneName is the one zone this emulator has, and it is ch-dk-2 because that is
-// the official CLI's own default. Serving any other single zone makes every
-// unflagged command fail with "find zone: not found in ListZonesResponse" before
-// it calls anything.
+// The emulator serves ONE zone per process, and which one is a datum, not a
+// constant (#278). Both halves of that sentence were measured:
 //
-// Publishing all eight names the API description enumerates was the second
-// attempt, and the CLI showed why it is wrong: it queries **every** zone it is
-// told about and merges the answers. Eight zones pointing at one emulator turned
-// one instance into eight identical rows in `exo compute instance list`. A
-// resource duplicated per zone is a defect a user sees immediately.
+// One zone, because publishing all eight names the API description enumerates
+// was tried, and the CLI showed why it is wrong: it queries **every** zone it
+// is told about and merges the answers. Eight zones pointing at one emulator
+// turned one instance into eight identical rows in `exo compute instance
+// list`. A resource duplicated per zone is a defect a user sees immediately.
+// At Exoscale a zone is a property of the endpoint (api-<zone>.exoscale.com),
+// so one endpoint honestly serves one zone — the same reasoning that fixed the
+// Outscale region one pack over (#290).
 //
-// The honest emulation is therefore one zone. Their zone-name enum has eight
-// entries and this account has one of them, which is a difference from the real
-// cloud that docs/limits.md records rather than papers over: a client asking for
-// ch-gva-2 gets a clear "no such zone" instead of a silent duplicate.
-var zoneNames = []string{zoneName}
+// A datum, because freezing that one zone on ch-dk-2 had a measured cost:
+// three of the five surveyed Exoscale stacks target another zone —
+// eu-data-platform hardcodes ch-gva-2, PhilippeChepy/platform defaults to
+// de-fra-1, openshift4-exoscale's DNS client resolves ch-gva-2 (#262, #278).
+// The zone is now Pack.zone, chosen at construction, and everything the
+// catalogue declares follows it. A client asking for a zone this deployment
+// does not serve still gets a clear "not found in ListZonesResponse" instead
+// of a silent duplicate, which docs/limits.md records.
 
-// zoneName is the emulated zone, and the CLI's default.
-const zoneName = "ch-dk-2"
+// defaultZoneName is where the emulated account lives when nobody chooses:
+// ch-dk-2, because that is the official CLI's own default. Serving any other
+// single zone by default makes every unflagged command fail with "find zone:
+// not found in ListZonesResponse" before it calls anything.
+const defaultZoneName = "ch-dk-2"
+
+// publishedZoneNames is every zone Exoscale publishes, in their document's own
+// order. Source: .upstream/exoscale-openapi.yaml, the `zone-name` schema enum,
+// which is also — reordered — the `zone` enum of the server URL the same
+// document declares (`https://api-{zone}.exoscale.com/v2`); fetched from
+// openapi-v2.exoscale.com by `mise run upstream:sync` on 2026-08-18. A
+// selection outside this list is refused at construction (NewInZone), naming
+// these: silently answering the default to an operator who asked for
+// something else would be the #268 lie moved to startup.
+var publishedZoneNames = []string{
+	"ch-dk-2", "de-muc-1", "ch-gva-2", "at-vie-1", "de-fra-1", "bg-sof-1", "at-vie-2", "hr-zag-1",
+}
+
+// publishedZone reports whether Exoscale publishes the zone.
+func publishedZone(name string) bool {
+	for _, zone := range publishedZoneNames {
+		if zone == name {
+			return true
+		}
+	}
+	return false
+}
+
+// zoneList renders what would have been accepted, sorted, for the error a
+// misspelt selection gets: a refusal that does not say what it accepts sends
+// the operator back to the source code.
+func zoneList() string {
+	names := make([]string, len(publishedZoneNames))
+	copy(names, publishedZoneNames)
+	sort.Strings(names)
+	return strings.Join(names, ", ")
+}
 
 // apiPrefix is the version segment every Exoscale route sits under, and the
 // suffix a client needs on the address it is handed.
@@ -62,31 +102,29 @@ const apiPrefix = "/v2"
 // upload to a route that does not exist. An empty string is what "not here"
 // looks like; an invented address is a promise the emulator cannot keep.
 func (p *Pack) listZones(w http.ResponseWriter, r *http.Request) {
-	zones := make([]map[string]any, 0, len(zoneNames))
-	for _, name := range zoneNames {
-		// The real answer also carries an id per zone, measured on 2026-08-10
-		// and absent from their published schema, which this emulator's
-		// contract check enforces as closed. The field stays off the wire for
-		// the same reason as security-group's visibility: a response the
-		// emulator would refuse itself is not one it may send.
-		zones = append(zones, map[string]any{
-			"name": name,
-			// No id, and that is measured rather than an oversight. The live API
-			// sends one on every zone — recorded in shapes/exoscale.json — while
-			// their published OpenAPI declares no such field on `zone`. Emitting
-			// it fails this emulator's own contract check, which is the gate that
-			// keeps every other answer honest.
-			//
-			// Same call as start/stop's `resource` envelope in lifecycle.go: the
-			// live API is ahead of its own description in four measured places,
-			// and the rule is to serve what clients decode and what the contract
-			// accepts. Raised as #94 from a shape diff and closed as not-a-defect
-			// on that basis: TestEveryRouteAnswersItsContract in internal/probe fails
-			// the moment the field is added.
-			"api-endpoint": emulator.EndpointOf(r) + apiPrefix,
-			"sos-endpoint": "",
-		})
-	}
+	// One row: the zone this deployment serves (Pack.zone, #278). The real
+	// answer also carries an id per zone, measured on 2026-08-10 and absent
+	// from their published schema, which this emulator's contract check
+	// enforces as closed. The field stays off the wire for the same reason as
+	// security-group's visibility: a response the emulator would refuse itself
+	// is not one it may send.
+	zones := []map[string]any{{
+		"name": p.zone,
+		// No id, and that is measured rather than an oversight. The live API
+		// sends one on every zone — recorded in shapes/exoscale.json — while
+		// their published OpenAPI declares no such field on `zone`. Emitting
+		// it fails this emulator's own contract check, which is the gate that
+		// keeps every other answer honest.
+		//
+		// Same call as start/stop's `resource` envelope in lifecycle.go: the
+		// live API is ahead of its own description in four measured places,
+		// and the rule is to serve what clients decode and what the contract
+		// accepts. Raised as #94 from a shape diff and closed as not-a-defect
+		// on that basis: TestEveryRouteAnswersItsContract in internal/probe fails
+		// the moment the field is added.
+		"api-endpoint": emulator.EndpointOf(r) + apiPrefix,
+		"sos-endpoint": "",
+	}}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"zones": zones})
 }
 
@@ -110,16 +148,18 @@ func (p *Pack) getDeployTarget(w http.ResponseWriter, _ *http.Request) {
 // family and size are closed enums in the API description, so the values here
 // are theirs. memory is in bytes, which is the unit their own schema uses; a
 // value in mebibytes would display as a machine four thousand times too small.
+//
+// No "zones" key here: which zone an entry is available in follows the pack's
+// datum, stamped at construction (stampedWithZone), so the catalogue cannot
+// declare a zone this deployment does not serve.
 var instanceTypes = []map[string]any{
 	{
 		"id": "21624abb-764e-4def-81d7-9fc54b5957fb", "family": "standard", "size": "tiny",
 		"cpus": 1, "memory": 1073741824, "gpus": 0, "authorized": true,
-		"zones": allZones(),
 	},
 	{
 		"id": "b6cd1ff5-3a2f-4e9d-a4d1-8988c1191fe8", "family": "standard", "size": "small",
 		"cpus": 2, "memory": 2147483648, "gpus": 0, "authorized": true,
-		"zones": allZones(),
 	},
 }
 
@@ -153,10 +193,10 @@ func (p *Pack) listTemplates(w http.ResponseWriter, r *http.Request) {
 		return family == "" || view["family"] == family
 	}
 
-	out := make([]map[string]any, 0, len(templates))
+	out := make([]map[string]any, 0, len(p.templates))
 	switch visibility {
 	case "", "public":
-		for _, t := range templates {
+		for _, t := range p.templates {
 			if matches(t) {
 				out = append(out, t)
 			}
@@ -186,7 +226,7 @@ func (p *Pack) storedTemplates() []*resource.Resource {
 }
 
 func (p *Pack) listInstanceTypes(w http.ResponseWriter, _ *http.Request) {
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{"instance-types": instanceTypes})
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{"instance-types": p.instanceTypes})
 }
 
 // getTemplate and getInstanceType answer the by-id reads a client makes once it
@@ -195,7 +235,7 @@ func (p *Pack) listInstanceTypes(w http.ResponseWriter, _ *http.Request) {
 // client walks before it posts anything.
 func (p *Pack) getTemplate(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	for _, t := range templates {
+	for _, t := range p.templates {
 		if t["id"] == id {
 			emulator.WriteJSON(w, http.StatusOK, t)
 			return
@@ -211,7 +251,7 @@ func (p *Pack) getTemplate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Pack) getInstanceType(w http.ResponseWriter, r *http.Request) {
-	for _, t := range instanceTypes {
+	for _, t := range p.instanceTypes {
 		if t["id"] == r.PathValue("id") {
 			emulator.WriteJSON(w, http.StatusOK, t)
 			return
@@ -220,13 +260,23 @@ func (p *Pack) getInstanceType(w http.ResponseWriter, r *http.Request) {
 	writeError(w, http.StatusNotFound, "no instance type "+r.PathValue("id"))
 }
 
-// allZones is what a catalogue entry declares it is available in: everywhere,
-// because the emulator has one store and no zone scoping. A client filtering a
-// template or a type by zone must find it wherever it looks.
-func allZones() []any {
-	out := make([]any, 0, len(zoneNames))
-	for _, name := range zoneNames {
-		out = append(out, name)
+// stampedWithZone renders catalogue rows for the zone in force: each entry
+// declares it is available exactly where this deployment lives, because the
+// emulator has one store and one zone per process. A client filtering a
+// template or a type by zone must find it in the zone it was told about by
+// list-zones, and must not find it anywhere else — a catalogue declaring
+// zones the deployment does not serve is the #269 contradiction, this pack's
+// dialect. Copies, never the base rows: stamping in place would leak one
+// pack's zone into the next pack built from the same tables.
+func stampedWithZone(rows []map[string]any, zone string) []map[string]any {
+	out := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		entry := make(map[string]any, len(row)+1)
+		for key, value := range row {
+			entry[key] = value
+		}
+		entry["zones"] = []any{zone}
+		out = append(out, entry)
 	}
 	return out
 }
