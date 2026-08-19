@@ -58,6 +58,7 @@ func doctor(args []string, stdout, stderr io.Writer) int {
 		checkContracts(),
 	}
 	checks = append(checks, checkRuntime(ctx, *vm)...)
+	checks = append(checks, checkLeftoverDHCP())
 	checks = append(checks, checkClients()...)
 	checks = append(checks, checkEnvHazards()...)
 	checks = append(checks, checkSSHConfig())
@@ -303,6 +304,42 @@ func checkIncusVersion(ctx context.Context) check {
 		}
 	}
 	return check{title: fmt.Sprintf("Incus %d.%d.%d, new enough for NIC ACLs", got[0], got[1], got[2]), state: verdictOK}
+}
+
+// checkLeftoverDHCP reports the DHCP services an interrupted run left holding
+// an address block (#316): dnsmasq processes whose fnt- interface no longer
+// exists. The condition is invisible to `ip addr` and `incus network list`,
+// and knowing that `ss -lnp` is the third place to look cost three ten-minute
+// runs the first time; this check is that knowledge, one line, before the run
+// starts. It reports and never signals — ending the process is `feint clean`'s
+// job, and touching the host is not what a diagnostic is for.
+//
+// Independent of --vm on purpose: the leftover is a host fact, and it blocks a
+// future machines-on run whatever mode this invocation asked about.
+//
+// TestDoctorNamesTheDHCPServiceThatOutlivedItsInterface fails without this.
+func checkLeftoverDHCP() check {
+	leftovers, err := findLeftoverDHCP()
+	if err != nil {
+		return check{
+			title:  "could not look for leftover DHCP services",
+			state:  verdictWarn,
+			detail: err.Error(),
+		}
+	}
+	if len(leftovers) == 0 {
+		return check{title: "no DHCP service outlives its interface", state: verdictOK}
+	}
+	held := make([]string, 0, len(leftovers))
+	for _, leftover := range leftovers {
+		held = append(held, leftover.String())
+	}
+	return check{
+		title:  fmt.Sprintf("%d DHCP service(s) from an interrupted run still hold an address block", len(leftovers)),
+		state:  verdictWarn,
+		detail: strings.Join(held, "; "),
+		fix:    "the next run on such a block dies on 'Address already in use'; feint clean ends them (sudo kill <pid> if they belong to another user)",
+	}
 }
 
 // checkClients reports which conformance clients are installed, with versions.

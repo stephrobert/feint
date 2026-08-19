@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stephrobert/feint/internal/core/machine"
 )
 
 // Stale instance directories are collected; live ones are not.
@@ -110,6 +112,13 @@ func TestCleanReapsWithoutAMachineRuntime(t *testing.T) {
 // --vm off is the default of `serve` and the majority of runs, so this is the
 // common path rather than an edge.
 func TestCleanSucceedsWithNoRuntimeToSweep(t *testing.T) {
+	// This test is about the runtime verdict, not the host's processes: the
+	// DHCP sweep (#316) reads the tester's real /proc, and a leftover on the
+	// station would fail it for the station's reasons.
+	swapLeftoverSeams(t,
+		func() ([]machine.DHCPLeftover, error) { return nil, nil },
+		machine.TerminateLeftover)
+
 	home := t.TempDir()
 	t.Setenv("XDG_RUNTIME_DIR", home)
 	t.Setenv("XDG_STATE_HOME", "")
@@ -149,6 +158,12 @@ func TestCleanSucceedsWithNoRuntimeToSweep(t *testing.T) {
 // script this test cannot import.
 func TestCleanAlwaysReportsTheRuntimeVerdict(t *testing.T) {
 	const asserted = "nothing was left behind" // tools/conformance/scaleway/network.sh:105
+
+	// Same reason as TestCleanSucceedsWithNoRuntimeToSweep: this is about the
+	// sentence, not about what the tester's own /proc happens to hold.
+	swapLeftoverSeams(t,
+		func() ([]machine.DHCPLeftover, error) { return nil, nil },
+		machine.TerminateLeftover)
 
 	home := t.TempDir()
 	t.Setenv("XDG_RUNTIME_DIR", home)

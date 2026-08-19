@@ -581,6 +581,34 @@ as a block conflict out loud, the OVN uplink is deliberately kept across runs,
 and a warning that fired on every healthy restart would train everyone to
 ignore it — the exact way a gate dies, already measured on this repository.
 
+### One leftover lives below the table: a DHCP service without its interface
+
+Every row above sweeps *objects* — machines, networks, rule sets the runtime
+can list. #316 measured, twice (2026-08-18 and 2026-08-19), a leftover no
+object listing shows: a network's interface disappears while its `dnsmasq`
+lives on, still bound to the gateway address. `ip addr` shows nothing, `incus
+network list` shows nothing; only `ss -lnp` disagrees, and the next run that
+wants the block dies minutes in on `dnsmasq: failed to create listening
+socket: Address already in use`. Knowing that `ss` is the third place to look
+cost three ten-minute runs the first time.
+
+The attribution criterion is stricter than a label, because a process carries
+none: a `dnsmasq` is the emulator's leftover only when its `--interface`
+carries the `fnt-` prefix only this emulator derives **and** that interface no
+longer exists. One whose interface is alive is somebody's working service,
+whoever owns it — this station runs libvirt's and two other Incus projects'
+`dnsmasq` beside feint's, and none of them is ours to name, let alone signal.
+
+Three consumers share the one check (`internal/core/machine/leftover.go`):
+`feint doctor` reports it and touches nothing; `feint clean` ends it, after
+re-checking at the moment of the signal that the pid still is that leftover
+(pids are reused), and when the process belongs to another user — the
+runtime's `dnsmasq` runs as the `incus` user — it prints the exact `sudo kill`
+command and exits 1 instead of claiming a clean host; and the network-create
+error names the process when its listen address falls inside the failing
+block. `TestLeftoverDHCPRefusesAProcessItCannotAttribute` holds the refusal,
+and `tools/falsify/specs/dhcp-leftover-ownership.json` proves the test bites.
+
 ## Authentication is accepted, never verified
 
 No signature is checked, on any provider. Credentials must merely be well-formed,

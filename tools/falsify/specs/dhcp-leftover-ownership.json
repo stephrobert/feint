@@ -1,0 +1,19 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the ownership question is no longer asked before a DHCP service is attributed to the emulator",
+      "file": "internal/core/machine/leftover.go",
+      "find": "\t\tif !ownedNetwork(name) || !safeName.MatchString(name) || !gone(name) {\n\t\t\treturn DHCPLeftover{}, false\n\t\t}",
+      "replace": "\t\tif false && (!ownedNetwork(name) || !safeName.MatchString(name)) || !gone(name) {\n\t\t\treturn DHCPLeftover{}, false\n\t\t}",
+      "test": "TestLeftoverDHCPRefusesAProcessItCannotAttribute"
+    },
+    {
+      "label": "the pid is no longer re-checked at the moment of the signal, so a recycled pid is shot",
+      "file": "internal/core/machine/leftover.go",
+      "find": "\tif !ok || current.Interface != leftover.Interface {\n\t\treturn fmt.Errorf(\"pid %d is no longer the DHCP service that outlived %s; refusing to signal it\",\n\t\t\tleftover.PID, leftover.Interface)\n\t}",
+      "replace": "\tif (!ok || current.Interface != leftover.Interface) && false {\n\t\treturn fmt.Errorf(\"pid %d is no longer the DHCP service that outlived %s; refusing to signal it\",\n\t\t\tleftover.PID, leftover.Interface)\n\t}",
+      "test": "TestTerminateLeftoverRefusesAPidThatIsNoLongerTheLeftover"
+    }
+  ]
+}

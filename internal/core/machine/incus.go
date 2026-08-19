@@ -78,6 +78,11 @@ type Incus struct {
 	// can hold in milliseconds.
 	agentPoll time.Duration
 
+	// leftoverScan replaces the host process scan behind networkCreateError,
+	// and is only ever set by a test: which processes a diagnostic may name is
+	// an argument-level fact, and the real scan reads the tester's own /proc.
+	leftoverScan func() []DHCPLeftover
+
 	// verified is what the host answered when Verify ran, and it is what
 	// Capabilities publishes once it is set. Nil means nobody asked, which is
 	// the case in a test that builds a driver directly: the declared set is then
@@ -965,9 +970,60 @@ func (d *Incus) EnsureNetwork(ctx context.Context, spec NetworkSpec) error {
 		args = append(args, "user."+k+"="+v)
 	}
 	if _, err := d.run(ctx, args...); err != nil {
-		return fmt.Errorf("create network %s (%s): %w", spec.Name, address, err)
+		return d.networkCreateError(spec.Name, address, spec.CIDR, err)
 	}
 	return nil
+}
+
+// networkCreateError wraps a failed network create, and names the leftover
+// DHCP service when one still holds an address inside the requested block
+// (#316). The bare failure reads "Address already in use" while `ip addr` and
+// `incus network list` both show a clean host, and finding the cause cost
+// three ten-minute runs the first time; the process that holds the block is
+// the one fact worth adding, so the error carries it.
+func (d *Incus) networkCreateError(name, address, cidr string, err error) error {
+	base := fmt.Errorf("create network %s (%s): %w", name, address, err)
+	block, parseErr := netip.ParsePrefix(cidr)
+	if parseErr != nil {
+		return base
+	}
+	for _, leftover := range d.leftovers() {
+		if !leftoverHolds(leftover, block) {
+			continue
+		}
+		return fmt.Errorf("%w; a DHCP service left by an interrupted run still holds the block: %s"+
+			" — `feint clean` ends it (sudo kill %d if it belongs to another user)",
+			base, leftover, leftover.PID)
+	}
+	return base
+}
+
+// leftovers is the scan behind networkCreateError. The seam replaces it in a
+// test, for the same reason runner exists: which processes a diagnostic may
+// name is an argument-level fact.
+func (d *Incus) leftovers() []DHCPLeftover {
+	if d.leftoverScan != nil {
+		return d.leftoverScan()
+	}
+	found, err := LeftoverDHCP()
+	if err != nil {
+		// The diagnosis is a bonus on an error path; failing to gather it
+		// must not displace the error it decorates.
+		return nil
+	}
+	return found
+}
+
+// leftoverHolds reports whether the leftover's listen addresses fall inside
+// the block a create just failed on: the precise sense in which that process,
+// and not some coincidence, is the cause.
+func leftoverHolds(leftover DHCPLeftover, block netip.Prefix) bool {
+	for _, address := range leftover.Addresses {
+		if held, err := netip.ParseAddr(address); err == nil && block.Contains(held) {
+			return true
+		}
+	}
+	return false
 }
 
 // RemoveNetwork implements Driver. Incus refuses to delete a network still in
