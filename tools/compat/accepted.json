@@ -3,22 +3,23 @@
     "Silently-wrong findings the project records rather than fixes, each with the",
     "reason. Recorded and still printed, never hidden (#170).",
     "",
-    "The 0.8 boundary is made of these and it is the one boundary that cannot be",
-    "fixed retroactively: schema_version arrived with #132, after 0.8 shipped, so",
-    "no consumer of that release could have keyed on a signal that did not exist.",
-    "The policy protects from 0.9 onward, and RELEASING.md says so.",
-    "",
     "An entry that matches nothing fails the gate: a stale exemption is a gate",
-    "that quietly stopped covering what it names."
+    "that quietly stopped covering what it names.",
+    "",
+    "That rule fired for the first time on 2026-08-19, the day after v0.9.0 was",
+    "tagged, and it is worth writing down because the next person to add an entry",
+    "will meet it. This list held two exemptions for the 0.8 boundary: `probed`",
+    "was a boolean in 0.8 and became one of response/refusal/none (#156), before",
+    "`schema_version` existed (#132), so no consumer of 0.8 could have keyed on a",
+    "signal that was not there. While v0.8.0 was the latest tag those two",
+    "expressions really were silently wrong and the exemptions really did cover",
+    "them. The moment v0.9.0 became the comparison's old side, both sides agreed,",
+    "the findings disappeared, and the exemptions covered nothing.",
+    "",
+    "So an exemption written for a boundary dies when that boundary is behind the",
+    "latest tag. Retiring it is the triage the gate is asking for, not a workaround",
+    "for a red gate: the gate refusing the next tag is exactly what made anybody",
+    "look."
   ],
-  "accepted": [
-    {
-      "name": "probed operations, compared to true",
-      "reason": "the 0.8 boundary, and it cannot be fixed retroactively: probed was a boolean and is now one of response/refusal/none (#156), and 0.8 shipped before schema_version existed (#132), so no consumer of that release could have keyed on a signal that was not there. Recorded here and still printed. The policy protects from 0.9 onward."
-    },
-    {
-      "name": "probed operations, read as truthy",
-      "reason": "same boundary, and the worse half: every operation now reads as probed, including refusals and the never-probed, which is the exact overstatement #156 existed to remove, reappearing in somebody else's pipeline. Named in the release notes rather than hidden behind a green gate."
-    }
-  ]
+  "accepted": []
 }
