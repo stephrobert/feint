@@ -1,0 +1,19 @@
+{
+  "package": "./internal/providers/exoscale/",
+  "mutations": [
+    {
+      "label": "the split client's zone list is one row again: the Terraform provider's DNS branch dies client-side as `find zone: \"ch-gva-2\" not found in ListZonesResponse`, the misleading diagnosis #262 recorded and #284 fixed",
+      "file": "internal/providers/exoscale/catalog.go",
+      "find": "\tif splitClient(r.UserAgent()) {\n\t\tfor _, name := range publishedZoneNames {",
+      "replace": "\tif splitClient(r.UserAgent()) && false {\n\t\tfor _, name := range publishedZoneNames {",
+      "test": "TestTheSplitClientsZoneListSignpostsTheOtherZones"
+    },
+    {
+      "label": "a call through a signpost row gets the generic not-served line: the zone mismatch and the FEINT_EXOSCALE_ZONE remedy go unnamed, which is the diagnosis half of #284 undone",
+      "file": "internal/providers/exoscale/catalog.go",
+      "find": "\trest, ok := strings.CutPrefix(path, unservedZonePathPrefix)",
+      "replace": "\trest, ok := strings.CutPrefix(path, unservedZonePathPrefix+\"never/\")",
+      "test": "TestAnUnservedZoneSignpostNamesTheMismatch"
+    }
+  ]
+}

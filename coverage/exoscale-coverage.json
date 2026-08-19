@@ -171,7 +171,7 @@
     {
       "operation": "exoscale/v2.attach-dbaas-service-to-endpoint",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -260,7 +260,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-clickhouse-user",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -268,7 +268,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-external-endpoint-datadog",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -276,7 +276,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-external-endpoint-elasticsearch",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -284,7 +284,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-external-endpoint-opensearch",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -292,7 +292,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-external-endpoint-prometheus",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -300,7 +300,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-external-endpoint-rsyslog",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -308,7 +308,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-integration",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -316,7 +316,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-kafka-schema-registry-acl-config",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -324,7 +324,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-kafka-topic-acl-config",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -332,7 +332,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-kafka-user",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -340,7 +340,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-mysql-database",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -348,7 +348,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-mysql-user",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -356,7 +356,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-opensearch-user",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -364,7 +364,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-pg-connection-pool",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -372,7 +372,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-pg-database",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -380,7 +380,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-pg-upgrade-check",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -388,7 +388,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-postgres-user",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -396,7 +396,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-service-clickhouse",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -404,7 +404,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-service-grafana",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -412,7 +412,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-service-kafka",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -420,7 +420,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-service-mysql",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -428,7 +428,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-service-opensearch",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -436,7 +436,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-service-pg",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -444,7 +444,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-service-thanos",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -452,7 +452,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-service-valkey",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -460,7 +460,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-task-migration-check",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -468,7 +468,7 @@
     {
       "operation": "exoscale/v2.create-dbaas-valkey-user",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -484,7 +484,7 @@
     {
       "operation": "exoscale/v2.create-dns-domain",
       "product": "exoscale",
-      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
+      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet; one surveyed stack in fifteen reaches this refusal (openshift4-exoscale, exoscale_domain plus its records, 2026-08 — #284), and since #284 the failure names what is missing instead of surfacing as a client-side zone-lookup error",
       "version": "2.0.0",
       "group": "dns",
       "status": "declined"
@@ -492,7 +492,7 @@
     {
       "operation": "exoscale/v2.create-dns-domain-record",
       "product": "exoscale",
-      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
+      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet; one surveyed stack in fifteen reaches this refusal (openshift4-exoscale, exoscale_domain plus its records, 2026-08 — #284), and since #284 the failure names what is missing instead of surfacing as a client-side zone-lookup error",
       "version": "2.0.0",
       "group": "dns",
       "status": "declined"
@@ -667,7 +667,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-clickhouse-role",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -675,7 +675,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-clickhouse-user",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -683,7 +683,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-external-endpoint-datadog",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -691,7 +691,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-external-endpoint-elasticsearch",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -699,7 +699,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-external-endpoint-opensearch",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -707,7 +707,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-external-endpoint-prometheus",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -715,7 +715,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-external-endpoint-rsyslog",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -723,7 +723,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-integration",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -731,7 +731,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-kafka-schema-registry-acl-config",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -739,7 +739,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-kafka-topic-acl-config",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -747,7 +747,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-kafka-user",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -755,7 +755,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-mysql-database",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -763,7 +763,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-mysql-user",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -771,7 +771,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-opensearch-user",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -779,7 +779,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-pg-connection-pool",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -787,7 +787,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-pg-database",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -795,7 +795,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-postgres-user",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -803,7 +803,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-service",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -811,7 +811,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-service-clickhouse",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -819,7 +819,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-service-grafana",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -827,7 +827,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-service-kafka",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -835,7 +835,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-service-mysql",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -843,7 +843,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-service-opensearch",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -851,7 +851,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-service-pg",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -859,7 +859,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-service-thanos",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -867,7 +867,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-service-valkey",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -875,7 +875,7 @@
     {
       "operation": "exoscale/v2.delete-dbaas-valkey-user",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -891,7 +891,7 @@
     {
       "operation": "exoscale/v2.delete-dns-domain",
       "product": "exoscale",
-      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
+      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet; one surveyed stack in fifteen reaches this refusal (openshift4-exoscale, exoscale_domain plus its records, 2026-08 — #284), and since #284 the failure names what is missing instead of surfacing as a client-side zone-lookup error",
       "version": "2.0.0",
       "group": "dns",
       "status": "declined"
@@ -899,7 +899,7 @@
     {
       "operation": "exoscale/v2.delete-dns-domain-record",
       "product": "exoscale",
-      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
+      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet; one surveyed stack in fifteen reaches this refusal (openshift4-exoscale, exoscale_domain plus its records, 2026-08 — #284), and since #284 the failure names what is missing instead of surfacing as a client-side zone-lookup error",
       "version": "2.0.0",
       "group": "dns",
       "status": "declined"
@@ -967,7 +967,7 @@
     {
       "operation": "exoscale/v2.delete-reverse-dns-elastic-ip",
       "product": "exoscale",
-      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
+      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet; one surveyed stack in fifteen reaches this refusal (openshift4-exoscale, exoscale_domain plus its records, 2026-08 — #284), and since #284 the failure names what is missing instead of surfacing as a client-side zone-lookup error",
       "version": "2.0.0",
       "group": "compute",
       "status": "declined"
@@ -975,7 +975,7 @@
     {
       "operation": "exoscale/v2.delete-reverse-dns-instance",
       "product": "exoscale",
-      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
+      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet; one surveyed stack in fifteen reaches this refusal (openshift4-exoscale, exoscale_domain plus its records, 2026-08 — #284), and since #284 the failure names what is missing instead of surfacing as a client-side zone-lookup error",
       "version": "2.0.0",
       "group": "compute",
       "status": "declined"
@@ -1073,7 +1073,7 @@
     {
       "operation": "exoscale/v2.detach-dbaas-service-from-endpoint",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1126,7 +1126,7 @@
     {
       "operation": "exoscale/v2.enable-dbaas-mysql-writes",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1273,7 +1273,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-ca-certificate",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1281,7 +1281,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-clickhouse-acl-config",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1289,7 +1289,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-external-endpoint-datadog",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1297,7 +1297,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-external-endpoint-elasticsearch",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1305,7 +1305,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-external-endpoint-opensearch",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1313,7 +1313,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-external-endpoint-prometheus",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1321,7 +1321,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-external-endpoint-rsyslog",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1329,7 +1329,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-external-integration",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1337,7 +1337,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-external-integration-settings-datadog",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1345,7 +1345,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-integration",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1353,7 +1353,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-kafka-acl-config",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1361,7 +1361,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-migration-status",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1369,7 +1369,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-opensearch-acl-config",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1377,7 +1377,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-service-clickhouse",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1385,7 +1385,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-service-grafana",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1393,7 +1393,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-service-kafka",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1401,7 +1401,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-service-logs",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1409,7 +1409,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-service-metrics",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1417,7 +1417,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-service-mysql",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1425,7 +1425,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-service-opensearch",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1433,7 +1433,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-service-pg",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1441,7 +1441,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-service-thanos",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1449,7 +1449,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-service-type",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1457,7 +1457,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-service-valkey",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1465,7 +1465,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-settings-clickhouse",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1473,7 +1473,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-settings-grafana",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1481,7 +1481,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-settings-kafka",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1489,7 +1489,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-settings-mysql",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1497,7 +1497,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-settings-opensearch",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1505,7 +1505,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-settings-pg",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1513,7 +1513,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-settings-thanos",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1521,7 +1521,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-settings-valkey",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1529,7 +1529,7 @@
     {
       "operation": "exoscale/v2.get-dbaas-task",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1560,7 +1560,7 @@
     {
       "operation": "exoscale/v2.get-dns-domain",
       "product": "exoscale",
-      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
+      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet; one surveyed stack in fifteen reaches this refusal (openshift4-exoscale, exoscale_domain plus its records, 2026-08 — #284), and since #284 the failure names what is missing instead of surfacing as a client-side zone-lookup error",
       "version": "2.0.0",
       "group": "dns",
       "status": "declined"
@@ -1568,7 +1568,7 @@
     {
       "operation": "exoscale/v2.get-dns-domain-record",
       "product": "exoscale",
-      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
+      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet; one surveyed stack in fifteen reaches this refusal (openshift4-exoscale, exoscale_domain plus its records, 2026-08 — #284), and since #284 the failure names what is missing instead of surfacing as a client-side zone-lookup error",
       "version": "2.0.0",
       "group": "dns",
       "status": "declined"
@@ -1576,7 +1576,7 @@
     {
       "operation": "exoscale/v2.get-dns-domain-zone-file",
       "product": "exoscale",
-      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
+      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet; one surveyed stack in fifteen reaches this refusal (openshift4-exoscale, exoscale_domain plus its records, 2026-08 — #284), and since #284 the failure names what is missing instead of surfacing as a client-side zone-lookup error",
       "version": "2.0.0",
       "group": "dns",
       "status": "declined"
@@ -1726,7 +1726,7 @@
     {
       "operation": "exoscale/v2.get-reverse-dns-elastic-ip",
       "product": "exoscale",
-      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
+      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet; one surveyed stack in fifteen reaches this refusal (openshift4-exoscale, exoscale_domain plus its records, 2026-08 — #284), and since #284 the failure names what is missing instead of surfacing as a client-side zone-lookup error",
       "version": "2.0.0",
       "group": "compute",
       "status": "declined"
@@ -1734,7 +1734,7 @@
     {
       "operation": "exoscale/v2.get-reverse-dns-instance",
       "product": "exoscale",
-      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
+      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet; one surveyed stack in fifteen reaches this refusal (openshift4-exoscale, exoscale_domain plus its records, 2026-08 — #284), and since #284 the failure names what is missing instead of surfacing as a client-side zone-lookup error",
       "version": "2.0.0",
       "group": "compute",
       "status": "declined"
@@ -1788,7 +1788,7 @@
     {
       "operation": "exoscale/v2.get-sos-presigned-url",
       "product": "exoscale",
-      "reason": "object storage is refused across this project for a measured reason: clients build the S3 endpoint in code, so serving it needs DNS interception and a certificate, recorded in docs/limits.md",
+      "reason": "object storage is refused across this project for a measured reason: clients build the S3 endpoint in code, so serving it needs DNS interception and a certificate, recorded in docs/limits.md; two surveyed stacks in fifteen ask for it (platform's backup buckets, eu-data-platform's Terraform state backend, 2026-08 — #284), and both leave for the real sos-\u003czone\u003e.exo.io by that same self-resolution, the escape #280 exists to detect",
       "version": "2.0.0",
       "group": "sos",
       "status": "declined"
@@ -1887,7 +1887,7 @@
     {
       "operation": "exoscale/v2.list-dbaas-clickhouse-roles",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1895,7 +1895,7 @@
     {
       "operation": "exoscale/v2.list-dbaas-clickhouse-users",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1903,7 +1903,7 @@
     {
       "operation": "exoscale/v2.list-dbaas-external-endpoint-types",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1911,7 +1911,7 @@
     {
       "operation": "exoscale/v2.list-dbaas-external-endpoints",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1919,7 +1919,7 @@
     {
       "operation": "exoscale/v2.list-dbaas-external-integrations",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1927,7 +1927,7 @@
     {
       "operation": "exoscale/v2.list-dbaas-integration-settings",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1935,7 +1935,7 @@
     {
       "operation": "exoscale/v2.list-dbaas-integration-types",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1943,7 +1943,7 @@
     {
       "operation": "exoscale/v2.list-dbaas-service-types",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1951,7 +1951,7 @@
     {
       "operation": "exoscale/v2.list-dbaas-services",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1959,7 +1959,7 @@
     {
       "operation": "exoscale/v2.list-dbaas-valkey-users",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -1982,7 +1982,7 @@
     {
       "operation": "exoscale/v2.list-dns-domain-records",
       "product": "exoscale",
-      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
+      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet; one surveyed stack in fifteen reaches this refusal (openshift4-exoscale, exoscale_domain plus its records, 2026-08 — #284), and since #284 the failure names what is missing instead of surfacing as a client-side zone-lookup error",
       "version": "2.0.0",
       "group": "dns",
       "status": "declined"
@@ -1990,7 +1990,7 @@
     {
       "operation": "exoscale/v2.list-dns-domains",
       "product": "exoscale",
-      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
+      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet; one surveyed stack in fifteen reaches this refusal (openshift4-exoscale, exoscale_domain plus its records, 2026-08 — #284), and since #284 the failure names what is missing instead of surfacing as a client-side zone-lookup error",
       "version": "2.0.0",
       "group": "dns",
       "status": "declined"
@@ -2133,7 +2133,7 @@
     {
       "operation": "exoscale/v2.list-sos-buckets-usage",
       "product": "exoscale",
-      "reason": "object storage is refused across this project for a measured reason: clients build the S3 endpoint in code, so serving it needs DNS interception and a certificate, recorded in docs/limits.md",
+      "reason": "object storage is refused across this project for a measured reason: clients build the S3 endpoint in code, so serving it needs DNS interception and a certificate, recorded in docs/limits.md; two surveyed stacks in fifteen ask for it (platform's backup buckets, eu-data-platform's Terraform state backend, 2026-08 — #284), and both leave for the real sos-\u003czone\u003e.exo.io by that same self-resolution, the escape #280 exists to detect",
       "version": "2.0.0",
       "group": "sos",
       "status": "declined"
@@ -2252,7 +2252,7 @@
     {
       "operation": "exoscale/v2.reset-dbaas-clickhouse-user-password",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2260,7 +2260,7 @@
     {
       "operation": "exoscale/v2.reset-dbaas-grafana-user-password",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2268,7 +2268,7 @@
     {
       "operation": "exoscale/v2.reset-dbaas-kafka-user-password",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2276,7 +2276,7 @@
     {
       "operation": "exoscale/v2.reset-dbaas-mysql-user-password",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2284,7 +2284,7 @@
     {
       "operation": "exoscale/v2.reset-dbaas-opensearch-user-password",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2292,7 +2292,7 @@
     {
       "operation": "exoscale/v2.reset-dbaas-postgres-user-password",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2300,7 +2300,7 @@
     {
       "operation": "exoscale/v2.reset-dbaas-valkey-user-password",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2397,7 +2397,7 @@
     {
       "operation": "exoscale/v2.reveal-dbaas-clickhouse-user-password",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2405,7 +2405,7 @@
     {
       "operation": "exoscale/v2.reveal-dbaas-grafana-user-password",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2413,7 +2413,7 @@
     {
       "operation": "exoscale/v2.reveal-dbaas-kafka-connect-password",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2421,7 +2421,7 @@
     {
       "operation": "exoscale/v2.reveal-dbaas-kafka-user-password",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2429,7 +2429,7 @@
     {
       "operation": "exoscale/v2.reveal-dbaas-mysql-user-password",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2437,7 +2437,7 @@
     {
       "operation": "exoscale/v2.reveal-dbaas-opensearch-user-password",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2445,7 +2445,7 @@
     {
       "operation": "exoscale/v2.reveal-dbaas-postgres-user-password",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2453,7 +2453,7 @@
     {
       "operation": "exoscale/v2.reveal-dbaas-thanos-user-password",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2461,7 +2461,7 @@
     {
       "operation": "exoscale/v2.reveal-dbaas-valkey-user-password",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2578,7 +2578,7 @@
     {
       "operation": "exoscale/v2.start-dbaas-clickhouse-maintenance",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2586,7 +2586,7 @@
     {
       "operation": "exoscale/v2.start-dbaas-grafana-maintenance",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2594,7 +2594,7 @@
     {
       "operation": "exoscale/v2.start-dbaas-kafka-maintenance",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2602,7 +2602,7 @@
     {
       "operation": "exoscale/v2.start-dbaas-mysql-maintenance",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2610,7 +2610,7 @@
     {
       "operation": "exoscale/v2.start-dbaas-opensearch-maintenance",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2618,7 +2618,7 @@
     {
       "operation": "exoscale/v2.start-dbaas-pg-maintenance",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2626,7 +2626,7 @@
     {
       "operation": "exoscale/v2.start-dbaas-thanos-maintenance",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2634,7 +2634,7 @@
     {
       "operation": "exoscale/v2.start-dbaas-valkey-maintenance",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2649,7 +2649,7 @@
     {
       "operation": "exoscale/v2.stop-dbaas-mysql-migration",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2657,7 +2657,7 @@
     {
       "operation": "exoscale/v2.stop-dbaas-pg-migration",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2665,7 +2665,7 @@
     {
       "operation": "exoscale/v2.stop-dbaas-valkey-migration",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2702,7 +2702,7 @@
     {
       "operation": "exoscale/v2.update-dbaas-external-endpoint-datadog",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2710,7 +2710,7 @@
     {
       "operation": "exoscale/v2.update-dbaas-external-endpoint-elasticsearch",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2718,7 +2718,7 @@
     {
       "operation": "exoscale/v2.update-dbaas-external-endpoint-opensearch",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2726,7 +2726,7 @@
     {
       "operation": "exoscale/v2.update-dbaas-external-endpoint-prometheus",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2734,7 +2734,7 @@
     {
       "operation": "exoscale/v2.update-dbaas-external-endpoint-rsyslog",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2742,7 +2742,7 @@
     {
       "operation": "exoscale/v2.update-dbaas-external-integration-settings-datadog",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2750,7 +2750,7 @@
     {
       "operation": "exoscale/v2.update-dbaas-integration",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2758,7 +2758,7 @@
     {
       "operation": "exoscale/v2.update-dbaas-opensearch-acl-config",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2766,7 +2766,7 @@
     {
       "operation": "exoscale/v2.update-dbaas-pg-connection-pool",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2774,7 +2774,7 @@
     {
       "operation": "exoscale/v2.update-dbaas-postgres-allow-replication",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2782,7 +2782,7 @@
     {
       "operation": "exoscale/v2.update-dbaas-service-clickhouse",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2790,7 +2790,7 @@
     {
       "operation": "exoscale/v2.update-dbaas-service-grafana",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2798,7 +2798,7 @@
     {
       "operation": "exoscale/v2.update-dbaas-service-kafka",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2806,7 +2806,7 @@
     {
       "operation": "exoscale/v2.update-dbaas-service-mysql",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2814,7 +2814,7 @@
     {
       "operation": "exoscale/v2.update-dbaas-service-opensearch",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2822,7 +2822,7 @@
     {
       "operation": "exoscale/v2.update-dbaas-service-pg",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2830,7 +2830,7 @@
     {
       "operation": "exoscale/v2.update-dbaas-service-thanos",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2838,7 +2838,7 @@
     {
       "operation": "exoscale/v2.update-dbaas-service-valkey",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2846,7 +2846,7 @@
     {
       "operation": "exoscale/v2.update-dbaas-valkey-user-access-control",
       "product": "exoscale",
-      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+      "reason": "these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
       "version": "2.0.0",
       "group": "dbaas",
       "status": "declined"
@@ -2862,7 +2862,7 @@
     {
       "operation": "exoscale/v2.update-dns-domain-record",
       "product": "exoscale",
-      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
+      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet; one surveyed stack in fifteen reaches this refusal (openshift4-exoscale, exoscale_domain plus its records, 2026-08 — #284), and since #284 the failure names what is missing instead of surfacing as a client-side zone-lookup error",
       "version": "2.0.0",
       "group": "dns",
       "status": "declined"
@@ -2945,7 +2945,7 @@
     {
       "operation": "exoscale/v2.update-reverse-dns-elastic-ip",
       "product": "exoscale",
-      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
+      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet; one surveyed stack in fifteen reaches this refusal (openshift4-exoscale, exoscale_domain plus its records, 2026-08 — #284), and since #284 the failure names what is missing instead of surfacing as a client-side zone-lookup error",
       "version": "2.0.0",
       "group": "compute",
       "status": "declined"
@@ -2953,7 +2953,7 @@
     {
       "operation": "exoscale/v2.update-reverse-dns-instance",
       "product": "exoscale",
-      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
+      "reason": "authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet; one surveyed stack in fifteen reaches this refusal (openshift4-exoscale, exoscale_domain plus its records, 2026-08 — #284), and since #284 the failure names what is missing instead of surfacing as a client-side zone-lookup error",
       "version": "2.0.0",
       "group": "compute",
       "status": "declined"

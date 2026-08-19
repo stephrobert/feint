@@ -365,7 +365,7 @@ func (p *Pack) Declined() []emulator.Decline {
 		// backs up and upgrades; the emulator has no engine, and a create that
 		// answered "running" would hand a client a connection string to nothing.
 		// The distance between the two is not a matter of routes to write.
-		emulator.Because("these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing",
+		emulator.Because("these are real database engines Exoscale runs and backs up, and a create answering that it is running would hand a client a connection string to nothing; one surveyed stack in fifteen asks for the product (eu-data-platform, DBaaS PostgreSQL, 2026-08 — #284), and it never reaches this refusal: its terraform init dies first on its SOS state backend",
 			"exoscale/v2.attach-dbaas-service-to-endpoint",
 			"exoscale/v2.create-dbaas-clickhouse-user",
 			"exoscale/v2.create-dbaas-external-endpoint-datadog",
@@ -601,7 +601,18 @@ func (p *Pack) Declined() []emulator.Decline {
 
 		// Managed DNS: domains, records, and reverse records for instances and
 		// elastic IPs.
-		emulator.Because("authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet",
+		//
+		// The one demand measurement: openshift4-exoscale's DNS branch, one
+		// stack of the fifteen surveyed. What #284 fixed regardless of this
+		// refusal is the diagnosis on the way to it: the Terraform provider
+		// resolves DNS through the ch-gva-2 zone it hardcodes, so on any other
+		// deployment the branch used to die inside the client as `find zone:
+		// "ch-gva-2" not found in ListZonesResponse` — a message that sends
+		// the reader after their zone configuration. The zone-list signpost
+		// (catalog.go, unservedZonePathPrefix) now names the mismatch and the
+		// FEINT_EXOSCALE_ZONE remedy, and a ch-gva-2 deployment refuses the
+		// route by name.
+		emulator.Because("authoritative DNS is a public service with real resolvers behind it, and nothing here answers a query from the internet; one surveyed stack in fifteen reaches this refusal (openshift4-exoscale, exoscale_domain plus its records, 2026-08 — #284), and since #284 the failure names what is missing instead of surfacing as a client-side zone-lookup error",
 			"exoscale/v2.create-dns-domain",
 			"exoscale/v2.create-dns-domain-record",
 			"exoscale/v2.delete-dns-domain",
@@ -645,7 +656,7 @@ func (p *Pack) Declined() []emulator.Decline {
 			"exoscale/v2.update-user-role"),
 
 		// Simple Object Storage.
-		emulator.Because("object storage is refused across this project for a measured reason: clients build the S3 endpoint in code, so serving it needs DNS interception and a certificate, recorded in docs/limits.md",
+		emulator.Because("object storage is refused across this project for a measured reason: clients build the S3 endpoint in code, so serving it needs DNS interception and a certificate, recorded in docs/limits.md; two surveyed stacks in fifteen ask for it (platform's backup buckets, eu-data-platform's Terraform state backend, 2026-08 — #284), and both leave for the real sos-<zone>.exo.io by that same self-resolution, the escape #280 exists to detect",
 			"exoscale/v2.get-sos-presigned-url",
 			"exoscale/v2.list-sos-buckets-usage"),
 
@@ -806,6 +817,16 @@ func (p *Pack) Prefixes() []string { return []string{pathPrefix} }
 // is what their API returns and inventing a richer shape would be exactly the
 // rule-4 violation this project forbids.
 func (p *Pack) NotFound(w http.ResponseWriter, r *http.Request) {
+	// A call that arrived through a zone-list signpost is refused with the
+	// zone mismatch named, not with the generic line below: the reader of the
+	// generic line would still not know their client resolved a zone this
+	// deployment does not serve (#284). See unservedZonePathPrefix in
+	// catalog.go; TestAnUnservedZoneSignpostNamesTheMismatch fails without
+	// this branch.
+	if diagnosis, ok := p.unservedZoneDiagnosis(r.URL.Path); ok {
+		writeError(w, http.StatusNotFound, diagnosis)
+		return
+	}
 	writeError(w, http.StatusNotFound,
 		"feint does not serve "+r.URL.Path+"; see /_feint/routes for what it does")
 }
