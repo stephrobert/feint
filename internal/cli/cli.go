@@ -92,7 +92,7 @@ const (
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 3
+const cliSurfaceVersion = 4
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -226,9 +226,13 @@ Usage:
                     what is missing and exits 2, building nothing.
 
   feint env <provider> [--shell bash|fish|powershell] [--endpoint <url>] [--unset]
+                       [--client <family>]
                     The environment a real client of that provider needs.
                     Exports on stdout, everything else on stderr, so
-                    eval "$(feint env scaleway)" is safe.
+                    eval "$(feint env scaleway)" is safe. --client selects a
+                    family when a provider's clients disagree about a value:
+                    outscale serves terraform (>= 1.7, the default) and
+                    oapi-cli / terraform-1.1, which want the bare host.
 
   feint snapshot   save <name> [--addr :4599] [--force]
                    load <name> [--addr :4599]

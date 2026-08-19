@@ -70,6 +70,22 @@ Also set `OUTSCALE_ACCESSKEYID`/`OUTSCALE_SECRETKEYID` **unset** for the 1.x
 providers: with the legacy names present, 1.1.3 takes a config path that
 ignores `OSC_ENDPOINT_API` and talks to the real API.
 
+**Correction, 2026-08-19 (#286).** Re-measured in isolation, the trigger above
+is wrong. Four combinations of the legacy credential names against 1.1.3 —
+alone, beside the `OSC_*` pair, with credentials in the provider block, with
+and without `OSC_REGION` — all reached the emulator while `OSC_ENDPOINT_API`
+was set, and 1.8.0 behaves the same. What ignores `OSC_ENDPOINT_API` is the
+**old-profile path**: with `OSC_PROFILE` set (or `profile` in the provider
+block), 1.1.3's `providerConfigureClient` calls `setProviderDefaultEnv` — the
+only reader of `OSC_ENDPOINT_API` — only when `IsOldProfileSet` says no
+profile is in force. Reproduced: `OSC_PROFILE=default` plus a profile without
+an `endpoints` key sent the plan to `https://api.<region>.outscale.com` while
+the emulator received nothing. The harness that produced the line above
+carried `~/.osc/config.json` in a disposable `HOME` (ztiac), which is how the
+two triggers were conflated. `feint env outscale` and `feint doctor` now warn
+on both: the profile variables as the measured escape, the legacy names as
+real-cloud credentials one lost export away from being signed with.
+
 Scores are `/10` and answer one question — *does the repository as published
 let a reader run this infrastructure?* — from observable facts (pins,
 backend, secrets, docs, maintenance). They are independent of whether feint

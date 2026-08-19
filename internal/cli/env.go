@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strings"
 
@@ -34,6 +35,7 @@ func envCommand(args []string, stdout, stderr io.Writer) int {
 	shell := fs.String("shell", "bash", "shell syntax: bash, fish or powershell")
 	endpoint := fs.String("endpoint", "", "the emulator's address (default: http://<the --addr default>)")
 	unset := fs.Bool("unset", false, "print the removals instead of the exports")
+	client := fs.String("client", "", "client family the exports target, for a provider whose clients disagree about a value")
 
 	// The provider comes first and is taken before parsing, because the standard
 	// flag package stops at the first non-flag argument: with `env scaleway
@@ -88,6 +90,22 @@ func envCommand(args []string, stdout, stderr io.Writer) int {
 		target = defaultEndpoint()
 	}
 	env := pack.Env(target)
+	if *client != "" {
+		// A client family only means something to a pack whose clients
+		// disagree; anywhere else the flag would silently print the same thing
+		// and teach that it does something. Refusing names both facts.
+		chooser, ok := pack.(packEnvClients)
+		if !ok {
+			fmt.Fprintf(stderr, "feint: the %s pack serves every client the same environment; drop --client\n", wanted)
+			return exitError
+		}
+		env, ok = chooser.EnvFor(target, *client)
+		if !ok {
+			fmt.Fprintf(stderr, "feint: the %s pack knows no client %q; it serves %s\n",
+				wanted, *client, strings.Join(chooser.EnvClients(), ", "))
+			return exitError
+		}
+	}
 
 	render, ok := renderers[*shell]
 	if !ok {
@@ -128,6 +146,23 @@ func envCommand(args []string, stdout, stderr io.Writer) int {
 	if !*unset && env.Note != "" {
 		fmt.Fprintf(stderr, "note: %s\n", env.Note)
 	}
+
+	// The shell itself can carry a value that sends this provider's clients to
+	// the real cloud no matter what was just printed — a profile variable the
+	// client honours before it reads any of these exports. Only the pack knows
+	// which names those are; only this command is present at the moment the
+	// user can still act on them. Skipped with --unset, which is the deliberate
+	// way back to the real cloud.
+	//
+	// TestEnvHazardWarningsReachStderrNeverStdout fails if a warning ever
+	// reaches stdout, where eval would execute it.
+	if !*unset {
+		if hazards, ok := pack.(packEnvHazards); ok {
+			for _, warning := range hazards.EnvHazards(os.LookupEnv) {
+				fmt.Fprintf(stderr, "warning: %s\n", warning)
+			}
+		}
+	}
 	return exitOK
 }
 
@@ -137,6 +172,30 @@ func envCommand(args []string, stdout, stderr io.Writer) int {
 type packEnv interface {
 	Name() string
 	Env(endpoint string) emulator.Environment
+}
+
+// packEnvClients is the optional half of a pack whose clients disagree about a
+// value, so that one printed environment cannot serve them all. Outscale is
+// the measured case (#286): OSC_ENDPOINT_API carries the /api/v1 path for the
+// Terraform provider >= 1.7 and must not for oapi-cli and the 1.1.x provider.
+//
+// Optional and declared here rather than on emulator.Pack: the core has no
+// business knowing that a provider's clients quarrel, and a pack whose clients
+// agree (Scaleway) should not have to implement a method to say so.
+type packEnvClients interface {
+	// EnvFor answers the environment for one named client family, ok=false
+	// when the family is unknown.
+	EnvFor(endpoint, client string) (emulator.Environment, bool)
+	// EnvClients names the families EnvFor accepts, for the refusal message.
+	EnvClients() []string
+}
+
+// packEnvHazards is the optional half of a pack that can recognise, in the
+// caller's environment, a value that reroutes its clients to the real cloud
+// regardless of what env prints. The variable names are provider knowledge and
+// live in the pack; this command only carries their warnings to stderr.
+type packEnvHazards interface {
+	EnvHazards(lookup func(string) (string, bool)) []string
 }
 
 // shellRenderer writes an assignment and its removal in one shell's syntax.

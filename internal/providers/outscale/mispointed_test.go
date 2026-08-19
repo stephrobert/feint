@@ -30,9 +30,13 @@ func TestAMispointedOutscaleClientIsToldWhichSideIsWrong(t *testing.T) {
 		refuses string
 	}{
 		{
-			name:  "the endpoint carries the prefix and the client appended it again",
-			path:  "/api/v1/api/v1/CreateVms",
-			wants: []string{"twice", "bare host", "feint env outscale"},
+			name: "the endpoint carries the prefix and the client appended it again",
+			path: "/api/v1/api/v1/CreateVms",
+			// The remedy must name the flag: since #286 the flagless default
+			// prints the path'd shape for the Terraform provider >= 1.7, so
+			// pointing this client at it would recreate the very request
+			// this error is answering.
+			wants: []string{"twice", "bare host", "feint env outscale --client oapi-cli"},
 			// The confident, wrong answer: it must not name the operation as
 			// unserved, because it is served.
 			refuses: "does not serve",

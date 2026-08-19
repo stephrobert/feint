@@ -85,12 +85,57 @@ cleanup() {
 trap cleanup EXIT
 
 cp "$DIR"/*.tf "$WORK/"
-cd "$WORK"
 
 export TF_IN_AUTOMATION=1
 export TF_INPUT=0
 
 echo "conformance: outscale $TF against $ENDPOINT"
+
+# ---- The doorway (#286) ------------------------------------------------------
+# Before any fixture with a hand-written provider block: a shell holding ONLY
+# what `feint env outscale` prints must drive the current provider line to a
+# plan. That is the recipe docs/adoption.md gives a stranger — and it used to
+# print the bare host, which the >= 1.7 provider cannot use: measured, the plan
+# died on a 404 at the root (a six-minute retry backoff before the #185 hint).
+#
+# The exports are parsed from the real command's real output, not restated
+# here, so this step and `feint env` cannot drift apart. `env -i` is the point:
+# nothing from the operator's shell — no stored profile, no leftover
+# OSC_ENDPOINT_API from another port — can make a broken doorway look open.
+echo "- the doorway: a shell holding only the feint env exports reaches a plan"
+FEINT_BIN="${FEINT_BIN:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)/feint}"
+[ -x "$FEINT_BIN" ] || fail "no feint binary at $FEINT_BIN (build it: mise run build); the doorway step evals its real output"
+DOORWAY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/terraform-doorway" && pwd)"
+doorway="$WORK/doorway"
+mkdir -p "$doorway/home"
+cp "$DOORWAY_DIR"/*.tf "$doorway/"
+
+doorway_env=()
+while IFS= read -r line; do
+  line="${line#export }"
+  key="${line%%=*}"
+  value="${line#*=}"
+  value="${value#\'}"
+  value="${value%\'}"
+  doorway_env+=("$key=$value")
+done < <("$FEINT_BIN" env outscale --endpoint "$ENDPOINT" 2>/dev/null)
+[ "${#doorway_env[@]}" -gt 0 ] || fail "feint env outscale printed nothing; an eval of nothing is the accident guard.sh exists for"
+
+(cd "$doorway" && "$TF" init -no-color -upgrade >/dev/null) || fail "doorway init failed"
+# 60 seconds, not six minutes: the failure this step exists to catch used to
+# present as a retry backoff indistinguishable from a dead emulator.
+if ! (cd "$doorway" && timeout 60 env -i HOME="$doorway/home" PATH="$PATH" TF_IN_AUTOMATION=1 TF_INPUT=0 \
+      "${doorway_env[@]}" "$TF" plan -no-color -input=false >doorway-plan.out 2>&1); then
+  cat "$doorway/doorway-plan.out" >&2
+  fail "an env-only shell could not reach a plan: the endpoint shape feint env prints is wrong for the current provider"
+fi
+grep -q "Read complete" "$doorway/doorway-plan.out" \
+  || fail "the doorway plan never read its data source, so nothing proved the emulator was reached"
+doorway_version="$(grep -m1 'version' "$doorway/.terraform.lock.hcl" | tr -d ' "' | cut -d= -f2)"
+[ -n "$doorway_version" ] || doorway_version=">= 1.7"
+ok "provider $doorway_version planned with nothing but the feint env exports"
+
+cd "$WORK"
 
 "$TF" init -no-color -upgrade >/dev/null
 "$TF" validate -no-color >/dev/null

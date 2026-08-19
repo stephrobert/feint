@@ -1,0 +1,34 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "the default environment goes back to the bare host, which the current Terraform provider cannot use",
+      "file": "internal/providers/outscale/pack.go",
+      "find": "\tenv, _ := p.EnvFor(endpoint, clientTerraform)",
+      "replace": "\tenv, _ := p.EnvFor(endpoint, clientTerraform[:0]+clientOAPICLI)",
+      "test": "TestEnvServesTheCurrentTerraformProviderLine"
+    },
+    {
+      "label": "the OSC_PROFILE escape stops being warned about, and a local-looking run reaches the real cloud in silence",
+      "file": "internal/providers/outscale/pack.go",
+      "find": "\tif _, ok := lookup(\"OSC_PROFILE\"); ok {",
+      "replace": "\tif _, ok := lookup(\"OSC_PROFILE\"); ok && false {",
+      "test": "TestEnvHazardsNameTheProfileEscape"
+    },
+    {
+      "label": "the legacy credential names stop being warned about",
+      "file": "internal/providers/outscale/pack.go",
+      "find": "\tif hasLegacyAccess || hasLegacySecret {",
+      "replace": "\tif (hasLegacyAccess || hasLegacySecret) && false {",
+      "test": "TestEnvHazardsNameLegacyCredentials"
+    },
+    {
+      "label": "the hazard warning moves to stdout, where the eval executes it instead of the reader reading it",
+      "file": "internal/cli/env.go",
+      "find": "\t\t\tfor _, warning := range hazards.EnvHazards(os.LookupEnv) {\n\t\t\t\tfmt.Fprintf(stderr, \"warning: %s\\n\", warning)\n\t\t\t}",
+      "replace": "\t\t\tfor _, warning := range hazards.EnvHazards(os.LookupEnv) {\n\t\t\t\t_ = stderr\n\t\t\t\tfmt.Fprintf(stdout, \"warning: %s\\n\", warning)\n\t\t\t}",
+      "test": "TestEnvHazardWarningsReachStderrNeverStdout",
+      "package": "./internal/cli/"
+    }
+  ]
+}

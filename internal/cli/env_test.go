@@ -136,3 +136,72 @@ func TestEnvNamesTheProvidersItServes(t *testing.T) {
 		}
 	}
 }
+
+// The Outscale doorway (#286). One variable, two measured shapes: the default
+// serves the current Terraform provider line (the /api/v1 path in the value,
+// or provider 1.8.0 dies on a 404 at the root), and --client selects the
+// families that append the path themselves. What must never happen is the
+// third option: one value printed for everybody with nothing saying whom it
+// fails.
+func TestEnvOutscaleServesTheClientFamilyItWasAskedFor(t *testing.T) {
+	code, printed, errOut := run("env", "outscale", "--endpoint", "http://127.0.0.1:4599")
+	if code != 0 {
+		t.Fatalf("exited %d: %s", code, errOut)
+	}
+	if !strings.Contains(printed, "export OSC_ENDPOINT_API='http://127.0.0.1:4599/api/v1'") {
+		t.Fatalf("the default does not carry the /api/v1 path the current provider reads:\n%s", printed)
+	}
+
+	code, printed, errOut = run("env", "outscale", "--client", "oapi-cli", "--endpoint", "http://127.0.0.1:4599")
+	if code != 0 {
+		t.Fatalf("--client oapi-cli exited %d: %s", code, errOut)
+	}
+	if !strings.Contains(printed, "export OSC_ENDPOINT_API='http://127.0.0.1:4599'\n") {
+		t.Fatalf("--client oapi-cli does not print the bare host it appends /api/v1 to:\n%s", printed)
+	}
+
+	// An unknown family is refused by name, with the known ones listed —
+	// printing a guessed shape is exactly the wall this flag removes.
+	code, printed, errOut = run("env", "outscale", "--client", "osc-cli")
+	if code == 0 {
+		t.Fatalf("an unknown client family was served:\n%s", printed)
+	}
+	if !strings.Contains(errOut, "oapi-cli") || !strings.Contains(errOut, "terraform") {
+		t.Fatalf("the refusal does not name the families that exist: %q", errOut)
+	}
+
+	// A pack whose clients all read the same environment refuses the flag
+	// rather than teaching that it selects something.
+	if code, _, _ := run("env", "scaleway", "--client", "terraform"); code == 0 {
+		t.Fatal("--client was accepted by a pack that serves every client the same environment")
+	}
+}
+
+// The escape warning fires where the user can still act: on the same stderr
+// the eval cannot swallow, before any terraform run. With OSC_PROFILE set the
+// Outscale 1.1.x provider ignores OSC_ENDPOINT_API and reaches the real cloud
+// (measured, #286) — and a warning that leaked to stdout would be executed by
+// the eval instead of read.
+func TestEnvHazardWarningsReachStderrNeverStdout(t *testing.T) {
+	t.Setenv("OSC_PROFILE", "default")
+
+	code, printed, errOut := run("env", "outscale")
+	if code != 0 {
+		t.Fatalf("exited %d: %s", code, errOut)
+	}
+	if !strings.Contains(errOut, "warning:") || !strings.Contains(errOut, "OSC_PROFILE") {
+		t.Fatalf("OSC_PROFILE is set and stderr carries no warning about it: %q", errOut)
+	}
+	for _, line := range strings.Split(strings.TrimSpace(printed), "\n") {
+		if !strings.HasPrefix(line, "export ") {
+			t.Fatalf("a warning leaked onto stdout, where eval would execute it: %q", line)
+		}
+	}
+
+	// --unset is the deliberate way back to the real cloud; warning on the way
+	// out would teach people to ignore the warning on the way in.
+	_, _, errOut = run("env", "outscale", "--unset")
+	if strings.Contains(errOut, "OSC_PROFILE") {
+		t.Fatalf("--unset still warns about the shell it is restoring: %q", errOut)
+	}
+}
