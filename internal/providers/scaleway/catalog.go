@@ -1,6 +1,8 @@
 package scaleway
 
 import (
+	_ "embed"
+	"encoding/json"
 	"net/http"
 	"sort"
 
@@ -13,8 +15,12 @@ import (
 // default image BEFORE it creates anything, and gives up on a 404. Declining
 // these endpoints makes the official CLI unusable, which defeats the purpose.
 //
-// So the catalogue is served from a small, fixed table. It is fiction, and it is
-// labelled as such in the docs, but it is the fiction the clients need.
+// So the catalogue is served from a small, fixed table. Since #279 its rows
+// are an excerpt of what the real cloud publishes rather than invented values,
+// because the table turned out to be a whitelist, not scenery: the Terraform
+// provider validates a server's type against it before creating anything.
+// What stays fiction is everything around the rows — one table for every
+// zone, nothing enforced — and docs/limits.md states it.
 
 // serverType mirrors instance.ServerType. Only the fields the CLI and the
 // Terraform provider actually read are populated.
@@ -72,57 +78,65 @@ type serverType struct {
 	ScratchStorageMaxVolumesCount uint64 `json:"scratch_storage_max_volumes_count"`
 }
 
-func newServerType(cpus uint32, ramGiB uint64, hourly float32) *serverType {
-	st := &serverType{
-		MonthlyPrice: hourly * 24 * 30,
-		HourlyPrice:  hourly,
-		AltNames:     []string{},
-		Ncpus:        cpus,
-		RAM:          ramGiB << 30,
-		Arch:         "x86_64",
-	}
-	st.Network.Interfaces = []any{}
-	st.Network.SumInternalBandwidth = 100_000_000
-	st.Network.SumInternetBandwidth = 100_000_000
-	st.Network.IPv6Support = true
-	// min_size stays at 0: the CLI sums the LOCAL volumes of a create request and
-	// refuses anything below the minimum. Modern Scaleway types boot from block
-	// storage and carry no local volume, so a non-zero minimum here would make
-	// `scw instance server create` fail with "total local volume size must be
-	// between ...". Types that really require local storage are not emulated.
-	st.VolumesConstraint.MinSize = 0
-	st.VolumesConstraint.MaxSize = 200_000_000_000
-	st.Capabilities.BlockStorage = true
-	st.Capabilities.BootTypes = []string{"local", "rescue"}
-	// Placement groups are served by this pack, so the capability says so; a
-	// client that checks it before asking would otherwise never ask.
-	st.Capabilities.PlacementGroups = true
-	st.Capabilities.PrivateNetwork = 8
-	st.Capabilities.MaxFileSystems = 0
-	st.Capabilities.HotSnapshotsLocalVolume = false
-	// Empty rather than populated: no local volume is attached here, so there
-	// is no per-volume bound to state. The key exists because the real answer
-	// has it and a client reads it; its emptiness is the honest content.
-	st.PerVolumeConstraint = map[string]any{}
-	st.BlockBandwidth = 209_715_200
-	st.EndOfService = false
-	st.ScratchStorageMaxSize = 0
-	st.ScratchStorageMaxVolumesCount = 0
-	return st
-}
+// publishedServerTypes is a verbatim excerpt of the table the real cloud
+// publishes: GET https://api.scaleway.com/instance/v1/zones/fr-par-1/products/servers
+// (no authentication required), captured 2026-08-19. The values used to be
+// invented by a constructor; #279 measured that the table is not scenery — the
+// Terraform provider validates a server's type against it before creating
+// anything, so every row is a compatibility claim, and an invented row is a
+// claim nothing published. The file is the measurement; the two deviations
+// from it are applied in code below, where they can be read and tested.
+//
+//go:embed catalog_servers.json
+var publishedServerTypes []byte
 
-// catalogue is the fixed set of types the emulator accepts. Names are real
-// Scaleway commercial types so copied documentation and existing Terraform code
-// work unchanged.
-var catalogue = map[string]*serverType{
-	"PLAY2-PICO": newServerType(1, 2, 0.0086),
-	"PLAY2-NANO": newServerType(2, 4, 0.0172),
-	"DEV1-S":     newServerType(2, 2, 0.0084),
-	"DEV1-M":     newServerType(3, 4, 0.0168),
-	"DEV1-L":     newServerType(4, 8, 0.0336),
-	"GP1-XS":     newServerType(4, 16, 0.0771),
-	"PRO2-XXS":   newServerType(2, 8, 0.0301),
-}
+// catalogue is the fixed set of types the emulator accepts, loaded from the
+// published excerpt above.
+//
+// How much of the real table to carry was #279's first question. The answer:
+// every size of every family already carried (PLAY2, DEV1, GP1, PRO2 — a stack
+// that outgrows GP1-XS should not die on GP1-S), plus what the surveyed stacks
+// name (STARDUST1-S, the kiwinet-infra-cloud witness). Not the whole table:
+// the real one is 136 rows in fr-par-1 alone, varies per zone, and includes
+// GPU and local-storage families whose published constraints this emulator
+// would falsify (see the min_size trap below). A family outside the excerpt
+// joins it when a stack asks, values captured from the same endpoint — #279
+// itself is the template for that.
+//
+// COPARM1-* is refused, not missing: the terraform-talos survey witness
+// defaults to COPARM1-2C-8G, and the family is absent from all nine zones of
+// the real catalogue (measured 2026-08-19, same endpoint, every page), while
+// genuinely end-of-service families — START1, VC1, X64 — are still listed
+// with end_of_service:true. Scaleway withdrew it. Serving it here would let a
+// plan pass that production refuses, the #268 class of lie in the more
+// dangerous direction. TestTheRetiredArmFamilyStaysRetired holds the line.
+var catalogue = func() map[string]*serverType {
+	var published struct {
+		Servers map[string]*serverType `json:"servers"`
+	}
+	if err := json.Unmarshal(publishedServerTypes, &published); err != nil {
+		// A compile-time asset: unreachable unless the embedded file is
+		// edited into invalidity, and TestServerTypesArePaged would say so.
+		panic("scaleway: catalog_servers.json: " + err.Error())
+	}
+	for _, st := range published.Servers {
+		// Deviation 1 — per_volume_constraint is served empty, not with the
+		// published l_ssd bounds: this emulator attaches no local volume, so
+		// a bound would enter the client's size arithmetic with nothing
+		// behind it. DeclinedFields() declares this to the shapes gate.
+		st.PerVolumeConstraint = map[string]any{}
+	}
+	// What is deliberately NOT rewritten here: volumes_constraint.min_size.
+	// It must stay 0 — the CLI sums the LOCAL volumes of a create request and
+	// refuses anything below the minimum with "total local volume size must
+	// be between ...", and this catalogue attaches none. Every type in the
+	// excerpt publishes 0 already, so the constraint is carried verbatim, and
+	// TestCatalogueKeepsTheLocalVolumeTrapDisarmed makes pasting a future
+	// type whose real minimum is non-zero fail there, loudly, instead of as a
+	// CLI refusal three tools away. Zeroing it silently here would hide the
+	// exact measurement that test exists to surface.
+	return published.Servers
+}()
 
 // defaultImageLabel is the image the CLI asks for when none is given.
 const defaultImageLabel = "ubuntu_jammy"

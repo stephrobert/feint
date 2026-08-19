@@ -1,0 +1,26 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the retired COPARM1 family is pasted back into the catalogue, accepting what production refuses (#279)",
+      "file": "internal/providers/scaleway/catalog_servers.json",
+      "find": "    \"STARDUST1-S\": {",
+      "replace": "    \"COPARM1-2C-8G\": {",
+      "test": "TestTheRetiredArmFamilyStaysRetired"
+    },
+    {
+      "label": "a type is pasted with a non-zero local-volume minimum, the value that makes the CLI refuse its own create",
+      "file": "internal/providers/scaleway/catalog_servers.json",
+      "find": "        \"max_size\": 10000000000,\n        \"min_size\": 0",
+      "replace": "        \"max_size\": 10000000000,\n        \"min_size\": 1000000000",
+      "test": "TestCatalogueKeepsTheLocalVolumeTrapDisarmed"
+    },
+    {
+      "label": "the published l_ssd bounds are served instead of stripped, a bound with nothing behind it",
+      "file": "internal/providers/scaleway/catalog.go",
+      "find": "\t\tst.PerVolumeConstraint = map[string]any{}",
+      "replace": "\t\t_ = st",
+      "test": "TestCatalogueKeepsTheLocalVolumeTrapDisarmed"
+    }
+  ]
+}

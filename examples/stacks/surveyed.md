@@ -383,6 +383,17 @@ zone other than `ch-dk-2`.
   `one(pn.ipv6_subnets).subnet` evaluates, zero null errors, and the
   destroy that wedged completes: 12 of 12. The two declined walls stand as
   designed (placement groups ×2, vpc-gw, each a 501 naming its route).
+- **Replayed 2026-08-19, `feat/279-server-catalogue`**: same harness, same
+  12 of 12 applied and destroyed with the DEV1-L override — and the type
+  table is no longer the reason that override exists. #279 measured that
+  the real catalogue withdrew COPARM1 from all nine zones (end-of-service
+  families are still listed; COPARM1 is not), so the stack's published
+  default fails against production exactly as it fails here, and feint
+  refuses it deliberately rather than by poverty
+  (`TestTheRetiredArmFamilyStaysRetired`). Run with the default anyway,
+  the plan is accepted (21 to add) and the apply stops at the same two
+  declined walls — placement groups and vpc-gw — before any server names
+  its type. Both seeded talos images resolve, the arm64 one included.
 
 ### 2. ioandev/scaleway-flatcar-k3s — applied in part
 
@@ -468,6 +479,11 @@ zone other than `ch-dk-2`.
 - **Replayed 2026-08-18, `main@23f57c1`**: identical — 4 of 5 applied, the
   provider's own pre-check still refuses `STARDUST1-S` against the
   fictional type table, `0 to change`, clean destroy.
+- **Replayed 2026-08-19, `feat/279-server-catalogue`**: **applies whole — 5
+  of 5.** The catalogue now carries `STARDUST1-S` with the values the real
+  fr-par-1 publishes for it, the provider's pre-check passes, the server is
+  created with its `debian_bookworm` image and cloud-init, re-plan says `No
+  changes`, 5 destroyed. The last wall this stack had is gone.
 
 ### Annex — surveyed and set aside
 
@@ -494,7 +510,7 @@ public Scaleway ecosystem lives in Kapsule, RDB, LB and Object Storage.
 | Scaleway | LB | 2 (kubic, talos') | |
 | Scaleway | vpc-gw (public gateway) | 2 (talos, vpc-module*) | |
 | Scaleway | placement groups | 1 (talos) | declined today |
-| Scaleway | instance types outside the table (`STARDUST1-S`, `COPARM1-*`) | 2 (kiwinet, talos) | the provider pre-validates against `/products/servers`, so the fictional table is a hard whitelist |
+| Scaleway | instance types outside the table (`STARDUST1-S`, `COPARM1-*`) | 2 (kiwinet, talos) | the provider pre-validates against `/products/servers`, so the fictional table is a hard whitelist — resolved by #279: `STARDUST1-S` is served from the measured catalogue (kiwinet applies whole), and `COPARM1-*` is refused because the real cloud withdrew the family |
 | Exoscale | SKS | 3 (camptocamp, eu-data, WhizUs*) | dominates that ecosystem |
 | Exoscale | DNS (`exoscale_domain`) | 1 (openshift4) | fails as a zone-lookup error, which misleads |
 | Exoscale | NLB | 1 (platform) | |

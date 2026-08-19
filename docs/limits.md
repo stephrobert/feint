@@ -255,15 +255,67 @@ temporary hosts entry) — never a system trust-store install, never a hosts fil
 this binary edits itself. Whether that corner is worth the operator ceremony is a
 product call; it is no longer an unmeasured one.
 
-## The catalogue is fiction
+## The catalogue is a whitelist, and its values are measured
 
-Server types, prices, images and zones are a small fixed table
+Server types, prices and images are a small fixed table
 (`internal/providers/scaleway/catalog.go`). The emulator has no fleet, no
-inventory and no price list, and it will never pretend to reflect the real ones.
+inventory and no price list. It serves a table anyway because the clients read
+it before creating anything: a 404 there makes `scw instance server create`
+fail outright.
 
-It serves them anyway because the clients read them before creating anything: a
-404 there makes `scw instance server create` fail outright. Treat any capacity,
-price or availability answer as decoration.
+The 0.10.0 survey (#279) measured that the table is more than pre-flight
+scenery: **the Terraform provider validates a server's type against
+`/products/servers` before it creates anything, so a type outside the table
+fails a stack at plan** — two of five surveyed stacks died exactly there.
+Three consequences, each a decision this page records:
+
+- **The rows are measured, not invented.** The served types are an excerpt of
+  the real answer to `GET
+  https://api.scaleway.com/instance/v1/zones/fr-par-1/products/servers`
+  (public, no authentication), captured 2026-08-19 and embedded verbatim as
+  `catalog_servers.json`: every family the emulator carries, every size of it
+  (PLAY2, DEV1, GP1, PRO2), plus `STARDUST1-S`, which a surveyed stack named.
+  The one deviation is `per_volume_constraint`, served empty and declared to
+  the shapes gate, because a bound for local volumes this emulator never
+  attaches would enter the client's size arithmetic with nothing behind it.
+- **What the emulator will never enforce about a type stays unenforced.** The
+  RAM, CPU count, GPU count, bandwidth and prices of a row are answers, not
+  behaviour: nothing meters a byte or bills a cent, and with a machine runtime
+  every server boots the same class of container whatever its type claims.
+  Treat any capacity, price or availability answer as decoration — it is now
+  *accurate* decoration, which is strictly less misleading, and still
+  decoration.
+- **One table serves every zone, and the real cloud varies by zone.** The real
+  fr-par-1 lists 136 types where fr-par-3 lists 41, and `STARDUST1-S` exists
+  in three zones of nine. A plan naming `STARDUST1-S` in `fr-par-2` passes
+  here and fails against the real region. Zone-accurate inventory would mean
+  carrying nine tables of a moving target; the divergence is accepted and
+  stated instead.
+
+**There is no ARM row, and that is a refusal with a reason, not a gap.** The
+one ARM type a surveyed stack asked for, `COPARM1-2C-8G`, is absent from all
+nine zones of the real catalogue (measured 2026-08-19, every page, while
+genuinely end-of-service families — START1, VC1, X64 — are still listed with
+`end_of_service: true`): Scaleway withdrew the family, and resurrecting it
+here would let a plan pass that production refuses.
+`TestTheRetiredArmFamilyStaysRetired` keeps it out. The current ARM families
+(`BASIC2-A*`, `STANDARD2-A*`) are real and could be carried the day a stack
+asks — but an arm64 row costs more than a paste: the emulated marketplace is
+x86_64 (its `arch` filter truthfully answers arm64 requests with an empty
+list, #277), and a machine runtime boots containers on the **host's**
+architecture, so an arm64 row must arrive with an arm64 image story or its
+servers can never boot. The demand-driven rule above applies, with that bill
+attached.
+
+**An unknown type is still accepted at create.** The section below argues this
+for image identifiers, and the reasoning transfers whole: a configuration that
+names a type this table lacks — including a real one the excerpt has not
+caught up with — must not die on the one thing that has nothing to do with
+what it is testing. The clients that care already refuse client-side against
+`/products/servers` (that refusal is the measured wall of #279, and growing
+the table is its fix); an emulator-side refusal would add a second wall for
+raw SDK users and catch nothing the first does not. The real cloud does
+refuse an unknown type, so this is a divergence, recorded here on purpose.
 
 ## Identifiers are not checked against anything
 

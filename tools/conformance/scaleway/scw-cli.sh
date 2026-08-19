@@ -75,6 +75,25 @@ prove_end "$neg"
 prove_end "$span"
 ok "deleted, and gone"
 
+# The catalogue is a whitelist, not scenery (#279): the CLI reads /products/servers before it
+# creates anything and sums local volumes against the type's volumes_constraint, so a type is
+# only proven served when a create names it. STARDUST1-S is the entry the kiwinet-infra-cloud
+# survey stack died on, and the one whose published constraint is tightest (max_size 10 GB) —
+# if the CLI's volume arithmetic ever starts counting the block root volume, this is the type
+# that says so first.
+echo "- create with a surveyed type outside the old table (STARDUST1-S)"
+span="$(prove_begin behaviour)"
+sd="$(scw instance server create name=conformance-stardust type=STARDUST1-S zone="$ZONE" -o json 2>&1)" \
+  || fail "create type=STARDUST1-S rejected by the CLI: $sd"
+sd_id="$(printf '%s' "$sd" | jq -r '.id // empty')"
+[ -n "$sd_id" ] || fail "no id in the create response: $sd"
+printf '%s' "$sd" | jq -e '.commercial_type == "STARDUST1-S"' >/dev/null \
+  || fail "the commercial type did not round-trip: $sd"
+scw instance server stop "$sd_id" zone="$ZONE" >/dev/null || fail "poweroff rejected"
+scw instance server delete "$sd_id" zone="$ZONE" >/dev/null || fail "delete rejected"
+prove_end "$span"
+ok "STARDUST1-S created, typed back, deleted"
+
 # The protection flag, whose behaviour was measured against fr-par-1 rather than assumed (#212):
 # it closes the action endpoint, not the DELETE verb. Both halves are driven here, because the
 # surprising half is the one a future reader will want to "fix".

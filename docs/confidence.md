@@ -37,7 +37,7 @@ prints the reason under the pack that owns it.
 | Reaching a private address from the host that runs the emulator | **depends on the mode** | keys on `capabilities.private_from_host` — [limits.md](limits.md#a-public-address-is-the-providers-value-made-to-answer-on-the-host) |
 | A kernel-level test: sysctl, modules, the boot path | **with a VM runtime** | `FEINT_VM=incus-vm`, keying on `capabilities.own_kernel`: a container shares the host kernel and cannot carry any of it — [limits.md](limits.md#docker-was-removed-it-cannot-back-an-emulated-network) |
 | That a bad image or instance-type id is rejected | **no** | [limits.md](limits.md#identifiers-are-not-checked-against-anything) |
-| Quotas, real capacity, prices | **no** | [limits.md](limits.md#the-catalogue-is-fiction) |
+| Quotas, real capacity, prices | **no** | [limits.md](limits.md#the-catalogue-is-a-whitelist-and-its-values-are-measured) |
 | Authentication, IAM permissions, a signature that must fail | **no** | [limits.md](limits.md#authentication-is-accepted-never-verified) |
 | Waiting behaviour: a resource that stays `provisioning` for a while | **no, today** | transitions are immediate — [limits.md](limits.md#lifecycle-transitions-are-immediate) |
 | Retry and backoff against 429s, 5xx or a control-plane outage | **no** | nothing injects a fault yet; it is scoped rather than forgotten — [roadmap.md](roadmap.md#3-fault-injection--26) |
