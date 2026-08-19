@@ -195,18 +195,30 @@ func spawn(flags serveFlags) (*Instance, error) {
 	return inst, nil
 }
 
-// awaitHealthy polls until the emulator answers, and gives up early when the
-// child is already gone.
+// awaitHealthy polls until the emulator answers, gives up early when the
+// child is already gone, and refuses an answer that names another process.
 //
 // Detecting the child's death is the difference between a useful error and a
 // useless one. A port already bound, a missing contracts directory or an Incus
 // daemon refusing all produce an immediate exit, and polling health for thirty
 // seconds before printing "timed out" hides the actual message. So the loop
 // checks liveness too, and prints the tail of the log when the process is gone.
+//
+// The identity check is the point of the loop, not a nicety. Measured on
+// 2026-08-19 (#309): with a stale emulator holding the port, the spawned child
+// died on the bind error, this loop took the stale process's health answer as
+// the child's, and `start` printed "listening (pid N)" about a pid that was
+// already dead — after which every suite measured the previous build.
+// TestStartRefusesAForeignAnswerOnItsAddress fails without the refusal.
 func awaitHealthy(inst *Instance, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {
-		if healthy(inst.Addr, time.Second) {
+		if id, ok := probeIdentity(inst.Addr, time.Second); ok {
+			if id == nil || id.PID != inst.PID {
+				return fmt.Errorf("%s is already served by %s — not the emulator this command just started (pid %d), "+
+					"whose log is %s.\nStop the other one first (feint stop --addr %s, or kill it), or pick another address",
+					inst.Addr, describeForeign(id), inst.PID, inst.Log, inst.Addr)
+			}
 			return nil
 		}
 		if inst.alive() != Alive {
@@ -219,6 +231,17 @@ func awaitHealthy(inst *Instance, timeout time.Duration) error {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+}
+
+// describeForeign names the process a health answer said it came from, for a
+// refusal message. A nil identity is an emulator too old to carry one
+// (schema_version < 3), which is still a stranger: whatever it serves, it is
+// not what this checkout just built.
+func describeForeign(id *identity) string {
+	if id == nil {
+		return "another emulator that predates identity (health schema_version < 3)"
+	}
+	return fmt.Sprintf("another emulator (pid %d, started %s)", id.PID, id.Started)
 }
 
 // tail returns the last n lines of a file, for an error message. A file that

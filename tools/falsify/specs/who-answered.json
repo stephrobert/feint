@@ -1,0 +1,34 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "start takes any healthy answer as the child it spawned, which is the #309 incident verbatim",
+      "file": "internal/cli/lifecycle.go",
+      "find": "\t\t\tif id == nil || id.PID != inst.PID {",
+      "replace": "\t\t\tif (id == nil || id.PID != inst.PID) && false {",
+      "test": "TestStartRefusesAForeignAnswerOnItsAddress"
+    },
+    {
+      "label": "an identity-less answer from an older build is adopted as the spawned child",
+      "file": "internal/cli/lifecycle.go",
+      "find": "\t\t\tif id == nil || id.PID != inst.PID {",
+      "replace": "\t\t\tif (id == nil && false) || id.PID != inst.PID {",
+      "test": "TestStartRefusesAnAnswerThatCarriesNoIdentity"
+    },
+    {
+      "label": "serve treats an address an emulator already answers on as free",
+      "file": "internal/cli/cli.go",
+      "find": "\tid, ok := probeIdentity(addr, 500*time.Millisecond)\n\tif !ok {\n\t\treturn nil\n\t}",
+      "replace": "\tid, ok := probeIdentity(addr, 500*time.Millisecond)\n\tif !ok || id != nil || id == nil {\n\t\treturn nil\n\t}",
+      "test": "TestServeRefusesAnAddressAnotherEmulatorClaims"
+    },
+    {
+      "label": "health names a pid that is not this process, so every caller compares against a fiction",
+      "package": "./internal/core/emulator/",
+      "file": "internal/core/emulator/emulator.go",
+      "find": "\t\t\t\"pid\":        os.Getpid(),",
+      "replace": "\t\t\t\"pid\":        os.Getpid() + 1,",
+      "test": "TestHealthNamesItsOwnProcess"
+    }
+  ]
+}
