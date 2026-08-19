@@ -177,42 +177,35 @@ func (p *Pack) Declined() []emulator.Decline {
 			"osc/Client.UpdateDirectLinkInterface",
 			"osc/Client.UpdateVpnConnection"),
 
-		// Load balancing, and the server certificates that exist to terminate
-		// TLS on it.
+		// The rest of the LBU family, and the server certificates that exist to
+		// terminate TLS on it.
 		//
-		// A load balancer is a data plane: it accepts real connections, spreads
-		// them over backends and health-checks what answers. The emulator has no
-		// such plane, and a control plane alone would hand every client a DNS
-		// name that resolves nowhere and a backend health nobody measured —
-		// ReadVmsHealth answering "healthy" about traffic that cannot flow is
-		// the exact invented answer this project refuses. Measured against a
-		// real account (X-2 sweep, 2026-08-08): a fresh account answers these
-		// with empty lists, so declining them breaks no plan that did not
-		// already depend on a balancer existing.
-		// ReadLoadBalancers is NOT here: its true answer is an empty list, and
-		// declining a read whose honest answer is "none" costs a client the
-		// ability to ask while buying no honesty — measured, it broke a
-		// `terraform destroy`. See loadbalancers.go.
-		emulator.Because("a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
-			"osc/Client.CreateLoadBalancer",
+		// The family's core — create, read, update, register/unlink backends,
+		// delete — is served since #281, because three of the five surveyed
+		// stacks (#262) create load balancers and those six operations are all
+		// they call, measured with `feint proxy --record` at their exact
+		// commits and read from the provider's own resource code (v1.1.3 and
+		// v1.8.0). What stays here is what no surveyed stack sends; the first
+		// one that does is the demand evidence that reopens the line.
+		//
+		// ReadVmsHealth stays declined on honesty, not on demand alone: under
+		// `--vm off` nothing probes a backend, and a health state nobody
+		// measured is the exact invented answer this project refuses. It comes
+		// off this list the day the runtime actually checks something.
+		emulator.Because("no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
 			"osc/Client.CreateLoadBalancerListeners",
 			"osc/Client.CreateLoadBalancerPolicy",
 			"osc/Client.CreateLoadBalancerTags",
 			"osc/Client.CreateListenerRule",
-			"osc/Client.DeleteLoadBalancer",
 			"osc/Client.DeleteLoadBalancerListeners",
 			"osc/Client.DeleteLoadBalancerPolicy",
 			"osc/Client.DeleteLoadBalancerTags",
 			"osc/Client.DeleteListenerRule",
 			"osc/Client.DeregisterVmsInLoadBalancer",
-			"osc/Client.LinkLoadBalancerBackendMachines",
 			"osc/Client.ReadListenerRules",
 			"osc/Client.ReadLoadBalancerTags",
 			"osc/Client.ReadVmsHealth",
-			"osc/Client.RegisterVmsInLoadBalancer",
-			"osc/Client.UnlinkLoadBalancerBackendMachines",
 			"osc/Client.UpdateListenerRule",
-			"osc/Client.UpdateLoadBalancer",
 			"osc/Client.CreateServerCertificate",
 			"osc/Client.DeleteServerCertificate",
 			"osc/Client.ReadServerCertificates",

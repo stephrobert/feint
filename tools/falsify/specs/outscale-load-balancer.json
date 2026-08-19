@@ -1,0 +1,47 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "the subnet guard goes quiet, and a subnet deletes under the load balancer standing on it (#281)",
+      "file": "internal/providers/outscale/nets.go",
+      "find": "\tif holders := p.loadBalancersOn(\"Subnets\", req.SubnetID); len(holders) > 0 {",
+      "replace": "\tif holders := p.loadBalancersOn(\"Subnets\", req.SubnetID); len(holders) < 0 {",
+      "test": "TestASubnetDoesNotDeleteUnderALoadBalancer"
+    },
+    {
+      "label": "the security-group guard goes quiet, and a group deletes while a balancer still carries it (#281)",
+      "file": "internal/providers/outscale/securitygroups.go",
+      "find": "\tif holders := p.loadBalancersOn(\"SecurityGroups\", res.ID); len(holders) > 0 {",
+      "replace": "\tif holders := p.loadBalancersOn(\"SecurityGroups\", res.ID); len(holders) < 0 {",
+      "test": "TestASecurityGroupDoesNotDeleteUnderALoadBalancer"
+    },
+    {
+      "label": "the health-check ranges stop biting, and values the real API refuses are stored with a 200 (#281)",
+      "file": "internal/providers/outscale/loadbalancers.go",
+      "find": "\t\tif err := validateHealthCheck(*req.HealthCheck); err != \"\" {",
+      "replace": "\t\tif err := validateHealthCheck(*req.HealthCheck); err != \"\" && false {",
+      "test": "TestUpdateLoadBalancerReplacesTheHealthCheck"
+    },
+    {
+      "label": "the duplicate-name refusal goes quiet, and a second create silently overwrites the first balancer (#281)",
+      "file": "internal/providers/outscale/loadbalancers.go",
+      "find": "\tif _, exists := p.env.Store.Get(Name, kindLoadBalancer, req.LoadBalancerName); exists {\n\t\tunlock()",
+      "replace": "\tif _, exists := p.env.Store.Get(Name, kindLoadBalancer, req.LoadBalancerName); exists && false {\n\t\tunlock()",
+      "test": "TestLoadBalancerRefusals"
+    },
+    {
+      "label": "registering the same Vm twice registers it twice, where the SDK says a repeat has no effect (#281)",
+      "file": "internal/providers/outscale/loadbalancers.go",
+      "find": "\t\t\tif !slices.Contains(ids, vmID) {",
+      "replace": "\t\t\tif !slices.Contains(ids[:0], vmID) {",
+      "test": "TestBackendVmsRegisterAndUnlink"
+    },
+    {
+      "label": "the internal- DNS prefix disappears, where the measured real name carries it (#281)",
+      "file": "internal/providers/outscale/loadbalancers.go",
+      "find": "\tif lbType == \"internal\" {\n\t\tprefix = \"internal-\"\n\t}",
+      "replace": "\tif lbType == \"internal\" {\n\t\tprefix = \"\"\n\t}",
+      "test": "TestAnInternalLoadBalancerHasNoPublicFace"
+    }
+  ]
+}

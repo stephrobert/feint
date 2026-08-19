@@ -607,6 +607,34 @@ fi
 prove_end "$neg"
 ok "refused while running"
 
+# The LBU register path by its 1.1.3 name. The Terraform fixture drives the
+# whole family through the current provider, and the current provider attaches
+# backends through LinkLoadBalancerBackendMachines — measured on ztiac (#281).
+# RegisterVmsInLoadBalancer is the same attach as provider 1.1.3 spells it
+# (measured on terraform-outscale-k3s), and without this block it would be the
+# one served LBU operation no client of this suite ever drives.
+echo "- a load balancer registers a backend under the 1.1.3 spelling"
+lbu_net="$(osc CreateNet --IpRange 10.193.0.0/16)" || fail "CreateNet rejected: $lbu_net"
+lbu_net_id="$(printf '%s' "$lbu_net" | jq -r '.Net.NetId')"
+lbu_sub="$(osc CreateSubnet --NetId "$lbu_net_id" --IpRange 10.193.1.0/24)" || fail "CreateSubnet rejected: $lbu_sub"
+lbu_sub_id="$(printf '%s' "$lbu_sub" | jq -r '.Subnet.SubnetId')"
+lbu="$(osc CreateLoadBalancer --LoadBalancerName conformance-oapi-lb \
+  --Listeners.0.BackendPort 80 --Listeners.0.LoadBalancerPort 80 \
+  --Listeners.0.LoadBalancerProtocol TCP \
+  '--Subnets[]' "$lbu_sub_id")" || fail "CreateLoadBalancer rejected: $lbu"
+printf '%s' "$lbu" | jq -e '.LoadBalancer.DnsName | test("^conformance-oapi-lb-[0-9]+\\..*\\.lbu\\.outscale\\.com$")' >/dev/null \
+  || fail "the DnsName does not follow the measured format: $lbu"
+registered="$(osc RegisterVmsInLoadBalancer --LoadBalancerName conformance-oapi-lb \
+  '--BackendVmIds[]' "$vm_id")" || fail "RegisterVmsInLoadBalancer rejected: $registered"
+osc ReadLoadBalancers '--Filters.LoadBalancerNames[]' conformance-oapi-lb \
+  | jq -e --arg id "$vm_id" '.LoadBalancers[0].BackendVmIds == [$id]' >/dev/null \
+  || fail "the registered backend does not read back"
+osc DeleteLoadBalancer --LoadBalancerName conformance-oapi-lb >/dev/null \
+  || fail "DeleteLoadBalancer rejected"
+osc DeleteSubnet --SubnetId "$lbu_sub_id" >/dev/null || fail "DeleteSubnet rejected after the balancer went"
+osc DeleteNet --NetId "$lbu_net_id" >/dev/null || fail "DeleteNet rejected after the balancer went"
+ok "registered by the 1.1.3 name, read back, deleted"
+
 # The four reads and the three writes no scenario reached (#174). They are here
 # rather than in the Terraform fixture because no provider resource maps to
 # them: they are what a client calls directly, and an operation nothing calls is

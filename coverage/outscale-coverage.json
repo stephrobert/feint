@@ -1,8 +1,8 @@
 {
   "provider": "outscale",
   "total": 263,
-  "implemented": 85,
-  "declined": 178,
+  "implemented": 91,
+  "declined": 172,
   "unknown": 0,
   "orphans": null,
   "products": [
@@ -16,8 +16,8 @@
     {
       "product": "osc",
       "total": 236,
-      "implemented": 85,
-      "declined": 151,
+      "implemented": 91,
+      "declined": 145,
       "unknown": 0
     }
   ],
@@ -151,8 +151,8 @@
     {
       "group": "LoadBalancer",
       "total": 12,
-      "implemented": 1,
-      "declined": 11,
+      "implemented": 7,
+      "declined": 5,
       "unknown": 0
     },
     {
@@ -660,35 +660,34 @@
     {
       "operation": "osc/Client.CreateListenerRule",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
       "group": "Listener",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateLoadBalancer",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "group": "LoadBalancer",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateLoadBalancerListeners",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
       "group": "Listener",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateLoadBalancerPolicy",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
       "group": "LoadBalancerPolicy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateLoadBalancerTags",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
       "group": "LoadBalancer",
       "status": "declined"
     },
@@ -777,7 +776,7 @@
     {
       "operation": "osc/Client.CreateServerCertificate",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
       "group": "ServerCertificate",
       "status": "declined"
     },
@@ -957,35 +956,34 @@
     {
       "operation": "osc/Client.DeleteListenerRule",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
       "group": "Listener",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteLoadBalancer",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "group": "LoadBalancer",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteLoadBalancerListeners",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
       "group": "Listener",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteLoadBalancerPolicy",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
       "group": "LoadBalancerPolicy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteLoadBalancerTags",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
       "group": "LoadBalancer",
       "status": "declined"
     },
@@ -1074,7 +1072,7 @@
     {
       "operation": "osc/Client.DeleteServerCertificate",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
       "group": "ServerCertificate",
       "status": "declined"
     },
@@ -1174,7 +1172,7 @@
     {
       "operation": "osc/Client.DeregisterVmsInLoadBalancer",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
       "group": "LoadBalancer",
       "status": "declined"
     },
@@ -1236,9 +1234,8 @@
     {
       "operation": "osc/Client.LinkLoadBalancerBackendMachines",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "group": "LoadBalancer",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.LinkManagedPolicyToUserGroup",
@@ -1478,14 +1475,14 @@
     {
       "operation": "osc/Client.ReadListenerRules",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
       "group": "Listener",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadLoadBalancerTags",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
       "group": "LoadBalancer",
       "status": "declined"
     },
@@ -1628,7 +1625,7 @@
     {
       "operation": "osc/Client.ReadServerCertificates",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
       "group": "ServerCertificate",
       "status": "declined"
     },
@@ -1762,7 +1759,7 @@
     {
       "operation": "osc/Client.ReadVmsHealth",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
       "group": "LoadBalancer",
       "status": "declined"
     },
@@ -1808,9 +1805,8 @@
     {
       "operation": "osc/Client.RegisterVmsInLoadBalancer",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "group": "LoadBalancer",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.RejectNetPeering",
@@ -1874,9 +1870,8 @@
     {
       "operation": "osc/Client.UnlinkLoadBalancerBackendMachines",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "group": "LoadBalancer",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.UnlinkManagedPolicyFromUserGroup",
@@ -1994,16 +1989,15 @@
     {
       "operation": "osc/Client.UpdateListenerRule",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
       "group": "Listener",
       "status": "declined"
     },
     {
       "operation": "osc/Client.UpdateLoadBalancer",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
       "group": "LoadBalancer",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.UpdateNet",
@@ -2046,7 +2040,7 @@
     {
       "operation": "osc/Client.UpdateServerCertificate",
       "product": "osc",
-      "reason": "a load balancer is a data plane accepting real connections, and the emulator has none: creating one would hand out a DNS name resolving nowhere and a backend health nobody measured",
+      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
       "group": "ServerCertificate",
       "status": "declined"
     },

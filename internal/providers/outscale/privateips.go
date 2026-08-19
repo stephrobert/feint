@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/netip"
+	"slices"
 	"sort"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
@@ -266,6 +267,17 @@ func (p *Pack) subnetAllocator(subnetID string) (*network.Allocator, error) {
 			if taken, parseErr := netip.ParseAddr(address); parseErr == nil {
 				_ = allocator.Reserve(taken)
 			}
+		}
+	}
+	// A load balancer holds a primary private IP in its subnet, from this same
+	// pool ("The primary private IP of the load balancer", the SDK's own
+	// field); not reserving it here would hand the address to the next Vm.
+	for _, lb := range p.env.Store.List(kindLoadBalancer, resource.Tenant{Provider: Name}) {
+		if !slices.Contains(stringsOf(lb.Attrs["Subnets"]), subnetID) {
+			continue
+		}
+		if taken, parseErr := netip.ParseAddr(stringOf(lb.Attrs["PrivateIp"])); parseErr == nil {
+			_ = allocator.Reserve(taken)
 		}
 	}
 	return allocator, nil
