@@ -390,10 +390,11 @@ zone other than `ch-dk-2`.
   families are still listed; COPARM1 is not), so the stack's published
   default fails against production exactly as it fails here, and feint
   refuses it deliberately rather than by poverty
-  (`TestTheRetiredArmFamilyStaysRetired`). Run with the default anyway,
-  the plan is accepted (21 to add) and the apply stops at the same two
-  declined walls — placement groups and vpc-gw — before any server names
-  its type. Both seeded talos images resolve, the arm64 one included.
+  (`TestTheRetiredArmFamilyStaysRetired`). Run with the default type
+  anyway (count 2, type left at `COPARM1-2C-8G`), the plan is accepted
+  (21 to add) and the apply stops at the same two declined walls —
+  placement groups and vpc-gw — before any server names its type. Both
+  seeded talos images resolve, the arm64 one included.
 
 ### 2. ioandev/scaleway-flatcar-k3s — applied in part
 
