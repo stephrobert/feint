@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "a463dc43468c67f8",
     "shapes": "c73ca6ca03ceac5b",
-    "suites": "f011449966ee0fa8"
+    "suites": "6c865c37f2fdbaa8"
   },
   "operations": {
     "block/v1/API.CreateSnapshot": {
@@ -1703,6 +1703,15 @@
       "behaviour": true,
       "negative": false
     },
+    "osc/Client.CreateLoadBalancer": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "osc/Client.CreateNatService": {
       "driven": true,
       "probed": "response",
@@ -1865,6 +1874,15 @@
       "behaviour": true,
       "negative": false
     },
+    "osc/Client.DeleteLoadBalancer": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "osc/Client.DeleteNatService": {
       "driven": true,
       "probed": "response",
@@ -2000,6 +2018,15 @@
       "behaviour": true,
       "negative": false
     },
+    "osc/Client.LinkLoadBalancerBackendMachines": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "osc/Client.LinkNic": {
       "driven": true,
       "probed": "response",
@@ -2096,7 +2123,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "osc/Client.ReadNatServices": {
@@ -2270,6 +2297,15 @@
       "behaviour": true,
       "negative": false
     },
+    "osc/Client.RegisterVmsInLoadBalancer": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "osc/Client.RejectNetPeering": {
       "driven": true,
       "probed": "refusal",
@@ -2300,6 +2336,15 @@
     "osc/Client.UnlinkInternetService": {
       "driven": true,
       "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "osc/Client.UnlinkLoadBalancerBackendMachines": {
+      "driven": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
@@ -2359,6 +2404,15 @@
       "shape": "unobserved",
       "behaviour": true,
       "negative": true
+    },
+    "osc/Client.UpdateLoadBalancer": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
     },
     "osc/Client.UpdateNet": {
       "driven": true,

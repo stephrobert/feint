@@ -306,13 +306,13 @@ are in `coverage/`, one artefact per provider.
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `POST` | `/api/v1/CreateLoadBalancer` | `osc/Client.CreateLoadBalancer` | — |
-| `POST` | `/api/v1/DeleteLoadBalancer` | `osc/Client.DeleteLoadBalancer` | — |
-| `POST` | `/api/v1/LinkLoadBalancerBackendMachines` | `osc/Client.LinkLoadBalancerBackendMachines` | — |
-| `POST` | `/api/v1/ReadLoadBalancers` | `osc/Client.ReadLoadBalancers` | `client` `contract` `shape` `runtime` `probe` |
-| `POST` | `/api/v1/RegisterVmsInLoadBalancer` | `osc/Client.RegisterVmsInLoadBalancer` | — |
-| `POST` | `/api/v1/UnlinkLoadBalancerBackendMachines` | `osc/Client.UnlinkLoadBalancerBackendMachines` | — |
-| `POST` | `/api/v1/UpdateLoadBalancer` | `osc/Client.UpdateLoadBalancer` | — |
+| `POST` | `/api/v1/CreateLoadBalancer` | `osc/Client.CreateLoadBalancer` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/api/v1/DeleteLoadBalancer` | `osc/Client.DeleteLoadBalancer` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/api/v1/LinkLoadBalancerBackendMachines` | `osc/Client.LinkLoadBalancerBackendMachines` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/api/v1/ReadLoadBalancers` | `osc/Client.ReadLoadBalancers` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/RegisterVmsInLoadBalancer` | `osc/Client.RegisterVmsInLoadBalancer` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/api/v1/UnlinkLoadBalancerBackendMachines` | `osc/Client.UnlinkLoadBalancerBackendMachines` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/api/v1/UpdateLoadBalancer` | `osc/Client.UpdateLoadBalancer` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
 
 ### `NatService`
 
