@@ -13,6 +13,37 @@ Two kinds of change deserve their own line whatever their size, because they are
 what this project is judged on: **a response shape a client can observe**, and
 **a limit that moved**. A refactor that changes neither belongs in `git log`.
 
+## [Unreleased]
+
+### Added
+
+- **A measurement can now tell who answered it** (#309). `GET /_feint/health`
+  gains `instance` — the pid and start time of the process answering — and its
+  `schema_version` moves to 3 (additive; every field of version 2 is unchanged).
+  The field exists because its absence was measured: on 2026-08-19 a stale
+  emulator on a shared port answered a probe with the previous build's
+  catalogue, and nothing in the answer could say so.
+
+### Fixed
+
+- **`feint start` refuses an answer from a process it did not spawn** (#309).
+  Before, when something already held the address, the spawned child died on
+  the bind error while `start` took the incumbent's health answer as the
+  child's: it printed "listening (pid N)" about a dead pid, `feint wait` said
+  ready, and every suite then measured whatever the incumbent served —
+  reproduced against a stale build before the fix. `start` now compares
+  `instance.pid` against the child it spawned and exits 1 naming the incumbent
+  (pid, start time); `feint serve` refuses up front an address where an
+  emulator already answers, instead of leaving the fact in a bind error a
+  wrapper reads past. A second run after a clean stop is unaffected: the guard
+  compares identities, it does not count runs.
+- **`FEINT_ADDR` is honoured again** (#309). It was declared as a literal in
+  `mise.toml`'s `[env]`, which beats an exported variable:
+  `FEINT_ADDR=127.0.0.1:4699 mise run conformance` silently used 4599, so every
+  parallel run converged on the port a stale emulator was most likely to hold.
+  The declaration now reads the environment first and keeps 4599 only as the
+  default.
+
 ## [0.9.0]
 
 The contract release. Feint can be consumed directly from a Go test or a CI job

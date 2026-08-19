@@ -30,7 +30,15 @@ const (
 	// enforced". One pack of three handed a rule over. The honest check is both
 	// keys, so a consumer that branches on the version can tell whether it is
 	// talking to a build that can answer the second question at all.
-	HealthSchemaVersion = 2
+	//
+	// 3 since #309: the payload gained `instance`, the identity of the process
+	// answering — its pid and start time. Additive, and it exists because its
+	// absence was measured: a stale emulator on a shared port answered a probe
+	// with the previous build's catalogue, and nothing in the answer could say
+	// so. `feint start` now compares `instance.pid` against the process it
+	// spawned and refuses a stranger; any harness that starts an emulator can
+	// do the same.
+	HealthSchemaVersion = 3
 	// RoutesSchemaVersion is the shape of GET /_feint/routes.
 	//
 	// This one is not on the wire: the endpoint answers a bare JSON array — the

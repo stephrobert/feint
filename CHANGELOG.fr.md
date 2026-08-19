@@ -15,6 +15,40 @@ parce que c'est là-dessus que ce projet est jugé : **une forme de réponse qu'
 client peut observer**, et **une limite qui a bougé**. Une refactorisation qui ne
 change ni l'un ni l'autre a sa place dans `git log`.
 
+## [Unreleased]
+
+### Ajouté
+
+- **Une mesure sait désormais qui lui a répondu** (#309). `GET /_feint/health`
+  gagne `instance` (le pid et l'heure de démarrage du processus qui répond) et
+  son `schema_version` passe à 3 (additif : chaque champ de la version 2 est
+  inchangé). Le champ existe parce que son absence a été mesurée : le
+  2026-08-19, un émulateur résiduel sur un port partagé a répondu à une sonde
+  avec le catalogue de la version précédente, et rien dans la réponse ne
+  pouvait le dire.
+
+### Corrigé
+
+- **`feint start` refuse une réponse venant d'un processus qu'il n'a pas
+  lancé** (#309). Avant, quand quelque chose tenait déjà l'adresse, l'enfant
+  lancé mourait sur l'erreur de bind pendant que `start` prenait la réponse de
+  santé de l'occupant pour celle de l'enfant : il affichait « listening
+  (pid N) » à propos d'un pid déjà mort, `feint wait` disait prêt, et chaque
+  suite mesurait alors ce que servait l'occupant ; reproduit contre une
+  version résiduelle avant le correctif. `start` compare désormais
+  `instance.pid` avec l'enfant qu'il a lancé et sort en 1 en nommant
+  l'occupant (pid, heure de démarrage) ; `feint serve` refuse d'emblée une
+  adresse où un émulateur répond déjà, au lieu de laisser le fait dans une
+  erreur de bind qu'un wrapper avale. Une seconde exécution après un arrêt
+  propre n'est pas touchée : le garde compare des identités, il ne compte pas
+  les exécutions.
+- **`FEINT_ADDR` est de nouveau honoré** (#309). Il était déclaré en littéral
+  dans le `[env]` de `mise.toml`, qui l'emporte sur une variable exportée :
+  `FEINT_ADDR=127.0.0.1:4699 mise run conformance` utilisait silencieusement
+  4599, donc toutes les exécutions parallèles convergeaient sur le port qu'un
+  émulateur résiduel avait le plus de chances de tenir. La déclaration lit
+  désormais l'environnement d'abord et ne garde 4599 que comme défaut.
+
 ## [0.9.0]
 
 La version du contrat. Feint se consomme désormais directement depuis un test Go

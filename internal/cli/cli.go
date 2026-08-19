@@ -532,6 +532,27 @@ func checkListenAddr(addr string, expose bool) error {
 		"Pass --expose-to-network if that is what you want", addr)
 }
 
+// checkAddrUnclaimed refuses to serve on an address where an emulator already
+// answers, naming the process instead of losing the fact in a bind error.
+//
+// The bind error alone was the failure mode #309 measured: a wrapper that
+// spawns `serve` and then polls health takes the incumbent's answer as its
+// child's, and the bind error dies with the child, unread in a log. Refusing
+// here puts the incumbent's pid and start time where the operator is looking,
+// and does so identically for `serve` in a terminal and for the detached child
+// of `start`. Same shape as checkListenAddr, and for the reason that function
+// documents: the decision is separated from the act, and only the decision is
+// tested. TestServeRefusesAnAddressAnotherEmulatorClaims fails without it.
+func checkAddrUnclaimed(addr string) error {
+	id, ok := probeIdentity(addr, 500*time.Millisecond)
+	if !ok {
+		return nil
+	}
+	return fmt.Errorf("refusing to serve on %s: it is already served by %s. "+
+		"Stop it first (feint stop --addr %s, or kill it), or pick another address",
+		addr, describeForeign(id), addr)
+}
+
 func serve(args []string, stdout io.Writer) error {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	addr := fs.String("addr", DefaultAddr, "listen address")
@@ -548,6 +569,9 @@ func serve(args []string, stdout io.Writer) error {
 	}
 
 	if err := checkListenAddr(*addr, *expose); err != nil {
+		return err
+	}
+	if err := checkAddrUnclaimed(*addr); err != nil {
 		return err
 	}
 
