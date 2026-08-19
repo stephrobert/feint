@@ -78,6 +78,181 @@ tag, vérification des réponses qui cherche aussi ce qui *manque*, et quinze st
 Terraform tierces appliquées contre l'émulateur. Exoscale gagne le stockage bloc
 et les instance pools.
 
+> **Cette section a été complétée le 2026-08-19, après le tag** (#326, #325).
+> Rien de ce qui était déjà écrit plus bas n'a été modifié, et ni le tag, ni les
+> binaires, ni l'image n'ont bougé : seul ce que cette version dit d'elle-même a
+> changé. Un consommateur aval qui fait tourner la 0.9.0 comme gate de CI sans
+> aucun credential a dû sonder les binaires v0.8.0 et v0.9.0 côte à côte pour
+> apprendre que cette version sert `instance/v2alpha1` : la chaîne n'apparaît
+> nulle part dans la section d'origine, et `2.81.0` non plus, la version du
+> provider sur laquelle la suite Scaleway a été épinglée précisément pour
+> l'exercer. Les trois blocs qui suivent sont cette moitié manquante. Ils sont
+> dérivés de `coverage/*-coverage.json` aux deux tags plutôt que rédigés de
+> mémoire, ce qui est la seule raison pour laquelle on peut s'y fier à cette
+> distance.
+
+### Ce que cette version sert et que la 0.8.0 ne servait pas *(consigné le 2026-08-19)*
+
+Dérivé de `coverage/<provider>-coverage.json` tel que versionné à `v0.8.0` et à
+`v0.9.0` : une opération compte comme nouvellement servie quand son statut passe
+à `implemented`, depuis `declined` ou depuis la colonne non triée. Les totaux
+concordent avec le bloc de couverture généré dans le README de chaque tag (220
+routes montées, puis 285).
+
+| Provider | Servies en 0.8.0 | Servies en 0.9.0 | Nouvellement servies | Non triées en 0.8.0 |
+|---|---|---|---|---|
+| Scaleway | 102 / 315 | 107 / 315 | 5 | 0 |
+| Outscale | 72 / 263 | 85 / 263 | 13 | 18 |
+| Exoscale | 46 / 374 | 93 / 374 | 47 | 75 |
+| **Total** | **220** | **285** | **65** | **93** |
+
+Une partie de ces opérations est décrite en prose plus bas : #12 pour le stockage
+bloc Exoscale, #232 pour les instance pools, #161 pour les réseaux privés, #172
+pour la moitié en place d'Outscale et les DHCP options. **Aucune n'était nommée
+en tant qu'opération**, et le nom d'opération dans le dialecte du provider est
+exactement la chaîne qu'un consommateur cherche au grep le jour où son provider
+change sous lui. D'où les listes.
+
+- **Scaleway, 5 opérations, et le seul changement de statut de cette surface
+  entre les deux tags : les interfaces de réseau privé `instance/v2alpha1`**
+  (#257, #260). `CreatePrivateNetworkInterface`,
+  `DeletePrivateNetworkInterface`, `GetPrivateNetworkInterface`,
+  `ListPrivateNetworkInterfaces`, `UpdatePrivateNetworkInterface`, déclinées en
+  0.8.0, servies ici.
+
+  Ce que cela vaut pour un consommateur : `scaleway/scaleway` 2.81.0, publié le
+  2026-08-17, *crée* toujours une NIC privée par `instance/v1` mais la lit, la
+  crée et la supprime par `instance/v2alpha1/private-network-interfaces`, où
+  l'interface est une ressource de premier niveau portant `server_id` au lieu
+  d'être une sous-ressource du serveur. Contre la 0.8.0, cet apply se termine
+  sur un 501. Une lane épinglée à 2.80.0 ou en dessous pour rester verte contre
+  la 0.8.0 peut passer à 2.81.0 contre cette version, et
+  `tools/conformance/scaleway/terraform/main.tf` épingle exactement 2.81.0,
+  pour que la suite exerce ces cinq opérations plutôt qu'une version qui ne les
+  appelle jamais.
+
+- **Outscale, 13 opérations**, toutes les treize sorties de la colonne non
+  triée (#172, #177, #198) : `AcceptNetPeering`, `CreateDhcpOptions`,
+  `CreateNetPeering`, `DeleteDhcpOptions`, `DeleteNetPeering`,
+  `LinkPrivateIps`, `ReadNetPeerings`, `RejectNetPeering`, `UnlinkPrivateIps`,
+  `UpdateNet`, `UpdateNic`, `UpdateRouteTableLink`, `UpdateSubnet`. Les cinq
+  restantes ont quitté cette colonne par l'autre porte, déclinées nommément :
+  `CheckAuthentication`, et les quatre opérations `NetAccessPoint`.
+
+- **Exoscale, 47 opérations**, toutes les quarante-sept sorties de la colonne
+  non triée (#12, #161, #173, #232) : la famille du stockage bloc
+  (`create-block-storage-volume`, `get-block-storage-volume`,
+  `list-block-storage-volumes`, `update-block-storage-volume`,
+  `resize-block-storage-volume`, `delete-block-storage-volume`,
+  `attach-block-storage-volume-to-instance`, `detach-block-storage-volume`,
+  `create-block-storage-snapshot`, `get-block-storage-snapshot`,
+  `list-block-storage-snapshots`, `update-block-storage-snapshot`,
+  `delete-block-storage-snapshot`), les instance pools
+  (`create-instance-pool`, `get-instance-pool`, `list-instance-pools`,
+  `update-instance-pool`, `scale-instance-pool`, `evict-instance-pool-members`,
+  `reset-instance-pool-field`, `delete-instance-pool`), les réseaux privés
+  (`create-private-network`, `get-private-network`, `list-private-networks`,
+  `update-private-network`, `reset-private-network-field`,
+  `delete-private-network`, `attach-instance-to-private-network`,
+  `detach-instance-from-private-network`,
+  `update-private-network-instance-ip`), les snapshots et les templates
+  (`create-snapshot`, `get-snapshot`, `list-snapshots`, `delete-snapshot`,
+  `revert-instance-to-snapshot`, `promote-snapshot-to-template`,
+  `copy-template`, `register-template`, `update-template`, `delete-template`),
+  et `add-external-source-to-security-group`,
+  `remove-external-source-from-security-group`, `enable-tpm`, `list-events`,
+  `get-organization`, `reset-elastic-ip-field`, `reset-instance-field`.
+
+  Vingt-huit autres ont quitté la colonne non triée déclinées nommément (#173,
+  #300) : les onze opérations NLB, les seize opérations VPC marquées `[BETA]`,
+  et `export-snapshot`.
+
+**Rien de ce que cette version a cessé de servir.** Aucune opération n'est
+passée de `implemented` à `declined` entre les deux tags, et aucune opération
+n'a quitté la surface amont d'aucun provider. C'est la direction la plus
+dangereuse, et elle est énoncée ici plutôt que laissée à déduire d'un silence.
+
+### Trois refus qu'un consommateur tenait pour acquis : deux avaient déjà disparu *(consigné le 2026-08-19)*
+
+Le même rapport aval listait trois refus qu'il approuvait et dont il ne demandait
+pas la levée. Mesuré contre les artefacts, **deux des trois avaient été levés
+avant la sortie de la 0.9.0, et le troisième tient toujours dans cette version**.
+Un refus retiré porte autant qu'une route ajoutée : le consommateur continue de
+construire autour d'une absence qui n'existe plus, et rien nulle part ne devient
+rouge. Ce projet ne publiait aucune des deux directions.
+
+- **Un volume racine Scaleway de type `sbs_volume` est honoré**, depuis #8, qui
+  est sorti en **0.8.0** et non ici. `tools/conformance/scaleway/terraform/main.tf`
+  déclare le bloc, et l'apply, le second plan vide et le destroy passent tous.
+  Ce qui reste surchargé, ce sont les types *locaux* (`l_ssd`, `scratch`), pour
+  la raison que `docs/limits.md` donne à ce tag : le catalogue émulé déclare
+  `volumes_constraint.min_size` à 0 et le CLI somme les volumes locaux contre
+  cette valeur, donc en attacher un ferait refuser au CLI la création qu'il
+  vient lui-même de demander. `b_ssd` ne planifie pas non plus, et c'est la
+  décision du provider depuis la 2.79, pas celle de cet émulateur.
+
+- **`ipam/v1/API.BookIP` est servie**, et avec elle `ReleaseIP`, `ReleaseIPSet`,
+  `UpdateIP`, `AttachIP`, `DetachIP` et `MoveIP`.
+  `coverage/scaleway-coverage.json` porte `BookIP` en `declined` à `v0.7.0` et
+  en `implemented` à partir de `v0.8.0` : elle a été levée par SW-4, la première
+  moitié de #11, et la 0.9.0 en a hérité. Un plan portant un `scaleway_ipam_ip`
+  fonctionne, et une adresse réservée sort du subnet du Private Network
+  lui-même au lieu d'être inventée.
+
+- **`osc/Client.CreateLoadBalancer` est toujours déclinée en 0.9.0**, et sur ce
+  point le rapport avait raison. `internal/providers/outscale/declined.go` la
+  porte à ce tag avec le reste de la famille LBU, sur la raison énoncée qu'*un
+  load balancer est un plan de données qui accepte de vraies connexions, et que
+  l'émulateur n'en a aucun*. `ReadLoadBalancers` est l'exception délibérée et
+  répond une liste vide, parce que décliner une lecture dont la réponse honnête
+  est « aucun » a cassé un `terraform destroy` mesuré. La famille est servie sur
+  `main` depuis #281, qui a atterri après ce tag ; la 0.9.0 ne la sert pas.
+
+### Les versions de clients contre lesquelles la 0.9.0 a été prouvée *(consigné le 2026-08-19)*
+
+Toute affirmation de cette note est vraie de ces clients et d'aucun autre. Ce
+sont les versions que le workflow de conformance installe et lance, lues au tag
+plutôt que de mémoire ; les chemins et numéros de ligne sont ceux de `v0.9.0`.
+
+| Client | Version | Où le nombre est écrit, à `v0.9.0` |
+|---|---|---|
+| `scw` | 2.56.3 | `.github/workflows/conformance.yml:27` (`SCW_VERSION`) |
+| Terraform | 1.13.3 | `.github/workflows/conformance.yml:28` (`TERRAFORM_VERSION`) |
+| OpenTofu | 1.12.5 | `.github/workflows/conformance.yml:356` (`TOFU_VERSION`) |
+| `oapi-cli` | 0.15.0 | `.github/workflows/conformance.yml:273` (`OAPI_VERSION`) |
+| `exo` | 1.95.6 | `.github/workflows/conformance.yml:310` (`EXO_VERSION`) |
+| provider `scaleway/scaleway` | **2.81.0, exact** | `tools/conformance/scaleway/terraform/main.tf:31`, et `examples/stacks/scaleway/main.tf:24` épingle la même |
+| provider `outscale/outscale` | `~> 1.7`, une contrainte | `tools/conformance/outscale/terraform/main.tf:19`, et `examples/stacks/outscale/main.tf:27` |
+| chaîne Go | 1.26.6 | `mise.toml:4` et `.github/workflows/conformance.yml:57` |
+
+Terraform et OpenTofu pilotent chacun les deux contraintes de provider
+ci-dessus. C'est la table que le README générait déjà à ce tag sous
+`<!-- clients:start -->`, augmentée de ses sources ; elle n'avait simplement
+jamais été portée dans le corps de la release, là où un consommateur qui choisit
+un pin la rencontrerait.
+
+Deux choses que cette table ne peut pas dire, et qu'elle ne dit pas :
+
+- **La version du provider Outscale réellement exécutée n'est pas récupérable
+  depuis ce dépôt.** La fixture énonce `~> 1.7`, aucun fichier de lock n'est
+  versionné à côté, et la résolution a eu lieu sur le runner. La contrainte est
+  un plancher documenté plutôt qu'un oubli, la génération 1.7+ lisant son
+  chemin d'endpoint depuis la valeur là où la 1.1.x l'ajoute elle-même, et
+  pointer l'émulateur sur la mauvaise génération coûte six minutes de timeout
+  plutôt qu'une erreur. Mais ce qu'un consommateur reçoit de nous ici est un
+  intervalle, pas un nombre.
+- **Aucune version du provider Terraform Exoscale n'est revendiquée, parce
+  qu'aucune n'a été prouvée.** `examples/stacks/exoscale/main.tf` n'en déclare
+  aucune, et aucun job de CI ne le fait tourner : le provider Exoscale publié
+  compile `.exoscale.com` dans l'un de ses deux clients et ne peut pas être
+  pointé sur un émulateur local (exoscale/terraform-provider-exoscale#573),
+  donc un apply se scinde entre l'émulateur et un compte payant. La preuve par
+  client du pack Exoscale dans cette version, c'est le CLI `exo` à la version
+  ci-dessus, et rien d'autre.
+
+`mise.toml` épingle la chaîne d'outils et aucun client : ce n'est donc pas une
+source pour cette table.
+
 ### Ajouté
 
 - **Une raison de refus modifiée dans un pack atteint désormais l'artefact

@@ -96,6 +96,173 @@ check that runs before the tag, response checks that look for what is *missing*
 as well as what is invented, and fifteen third-party Terraform stacks applied
 against the emulator. Exoscale gains block storage and instance pools.
 
+> **This section was completed on 2026-08-19, after the tag** (#326, #325).
+> Nothing already written below was changed, and neither the tag, the binaries
+> nor the image moved: only what this release says about itself did. A
+> downstream consumer running 0.9.0 as a credential-less CI gate had to probe
+> v0.8.0 and v0.9.0 side by side to learn that this release serves
+> `instance/v2alpha1` — the string appears nowhere in the original section, and
+> neither does `2.81.0`, the provider version the Scaleway suite was pinned to
+> in order to exercise it. The three blocks that follow are that missing half.
+> They are derived from `coverage/*-coverage.json` at the two tags rather than
+> remembered, which is the only reason they can be trusted at this distance.
+
+### What this release serves that 0.8.0 did not *(recorded 2026-08-19)*
+
+Derived from `coverage/<provider>-coverage.json` as committed at `v0.8.0` and at
+`v0.9.0`: an operation counts as newly served when its status moves to
+`implemented`, from `declined` or from untriaged. The totals agree with the
+generated coverage block in each tag's own README (220 routes mounted, then 285).
+
+| Provider | Served at 0.8.0 | Served at 0.9.0 | Newly served | Untriaged at 0.8.0 |
+|---|---|---|---|---|
+| Scaleway | 102 / 315 | 107 / 315 | 5 | 0 |
+| Outscale | 72 / 263 | 85 / 263 | 13 | 18 |
+| Exoscale | 46 / 374 | 93 / 374 | 47 | 75 |
+| **Total** | **220** | **285** | **65** | **93** |
+
+Some of these operations are described in prose further down — #12 for Exoscale
+block storage, #232 for instance pools, #161 for private networks, #172 for the
+Outscale in-place half and the DHCP options. **None of them was named as an
+operation**, and the operation name in the provider's own dialect is the string a
+consumer greps for when their provider changes under them. Hence the lists.
+
+- **Scaleway, 5 operations, and the only status change on that surface between
+  the two tags: `instance/v2alpha1` private network interfaces** (#257, #260).
+  `CreatePrivateNetworkInterface`, `DeletePrivateNetworkInterface`,
+  `GetPrivateNetworkInterface`, `ListPrivateNetworkInterfaces`,
+  `UpdatePrivateNetworkInterface` — declined in 0.8.0, served here.
+
+  What that is worth to a consumer: `scaleway/scaleway` 2.81.0, published
+  2026-08-17, still *creates* a private NIC through `instance/v1` and reads,
+  creates and deletes it through
+  `instance/v2alpha1/private-network-interfaces`, where the interface is a
+  top-level resource carrying `server_id` rather than a sub-resource of the
+  server. Against 0.8.0 that apply ends on a 501. A lane pinned at or below
+  2.80.0 to stay green against 0.8.0 can be moved to 2.81.0 against this
+  release — and `tools/conformance/scaleway/terraform/main.tf` pins exactly
+  2.81.0, so the suite exercises those five operations rather than a version
+  that never calls them.
+
+- **Outscale, 13 operations**, all thirteen out of the untriaged column (#172,
+  #177, #198): `AcceptNetPeering`, `CreateDhcpOptions`, `CreateNetPeering`,
+  `DeleteDhcpOptions`, `DeleteNetPeering`, `LinkPrivateIps`, `ReadNetPeerings`,
+  `RejectNetPeering`, `UnlinkPrivateIps`, `UpdateNet`, `UpdateNic`,
+  `UpdateRouteTableLink`, `UpdateSubnet`. The remaining five left that column
+  the other way, declined by name: `CheckAuthentication`, and the four
+  `NetAccessPoint` operations.
+
+- **Exoscale, 47 operations**, all forty-seven out of the untriaged column (#12,
+  #161, #173, #232): the block-storage family
+  (`create-block-storage-volume`, `get-block-storage-volume`,
+  `list-block-storage-volumes`, `update-block-storage-volume`,
+  `resize-block-storage-volume`, `delete-block-storage-volume`,
+  `attach-block-storage-volume-to-instance`, `detach-block-storage-volume`,
+  `create-block-storage-snapshot`, `get-block-storage-snapshot`,
+  `list-block-storage-snapshots`, `update-block-storage-snapshot`,
+  `delete-block-storage-snapshot`), the instance pools
+  (`create-instance-pool`, `get-instance-pool`, `list-instance-pools`,
+  `update-instance-pool`, `scale-instance-pool`, `evict-instance-pool-members`,
+  `reset-instance-pool-field`, `delete-instance-pool`), the private networks
+  (`create-private-network`, `get-private-network`, `list-private-networks`,
+  `update-private-network`, `reset-private-network-field`,
+  `delete-private-network`, `attach-instance-to-private-network`,
+  `detach-instance-from-private-network`,
+  `update-private-network-instance-ip`), the snapshots and templates
+  (`create-snapshot`, `get-snapshot`, `list-snapshots`, `delete-snapshot`,
+  `revert-instance-to-snapshot`, `promote-snapshot-to-template`,
+  `copy-template`, `register-template`, `update-template`, `delete-template`),
+  and `add-external-source-to-security-group`,
+  `remove-external-source-from-security-group`, `enable-tpm`, `list-events`,
+  `get-organization`, `reset-elastic-ip-field`, `reset-instance-field`.
+
+  Twenty-eight more left the untriaged column declined by name (#173, #300):
+  the eleven NLB operations, the sixteen `[BETA]` VPC ones, and
+  `export-snapshot`.
+
+**Nothing this release stopped serving.** No operation moved from `implemented`
+to `declined` between the two tags, and no operation left any provider's
+upstream surface. That direction is the more dangerous one and it is stated here
+rather than left to be inferred from silence.
+
+### Three declines a consumer took as settled: two had already gone *(recorded 2026-08-19)*
+
+The same downstream report listed three refusals it agreed with and was not
+asking us to change. Measured against the artefacts, **two of the three had been
+lifted before 0.9.0 shipped, and the third still stands in it**. A withdrawn
+decline is as load-bearing as an added route — a consumer keeps building around
+an absence that is no longer there, and nothing anywhere turns red — and this
+project published neither direction.
+
+- **A Scaleway root volume of type `sbs_volume` is honoured** — since #8, which
+  shipped in **0.8.0**, not here. `tools/conformance/scaleway/terraform/main.tf`
+  declares the block, and the apply, the empty second plan and the destroy all
+  pass. What stays overridden is the *local* types (`l_ssd`, `scratch`), for the
+  reason `docs/limits.md` gives at this tag: the emulated catalogue declares
+  `volumes_constraint.min_size` at 0 and the CLI sums local volumes against it,
+  so attaching one would make the CLI refuse the very creation it just asked
+  for. `b_ssd` will not plan either, and that is the provider's decision from
+  2.79 on, not this emulator's.
+
+- **`ipam/v1/API.BookIP` is served**, and with it `ReleaseIP`, `ReleaseIPSet`,
+  `UpdateIP`, `AttachIP`, `DetachIP` and `MoveIP`.
+  `coverage/scaleway-coverage.json` carries `BookIP` as `declined` at `v0.7.0`
+  and as `implemented` from `v0.8.0` on: it was lifted by SW-4, the first half
+  of #11, and 0.9.0 inherited it. A plan carrying a `scaleway_ipam_ip` works,
+  and a booked address comes out of the Private Network's own subnet rather
+  than being invented.
+
+- **`osc/Client.CreateLoadBalancer` is still declined in 0.9.0**, and this one
+  the report had right. `internal/providers/outscale/declined.go` carries it at
+  this tag with the rest of the LBU family, on the stated reason that *a load
+  balancer is a data plane accepting real connections, and the emulator has
+  none*. `ReadLoadBalancers` is the deliberate exception and answers an empty
+  list, because declining a read whose honest answer is "none" broke a measured
+  `terraform destroy`. The family is served on `main` since #281, which landed
+  after this tag; 0.9.0 does not serve it.
+
+### The client versions 0.9.0 was proved against *(recorded 2026-08-19)*
+
+Every claim in this note is true of these clients and of no others. They are the
+versions the conformance workflow installs and runs, read from the tag rather
+than remembered; the paths and line numbers are those of `v0.9.0`.
+
+| Client | Version | Where the number is written, at `v0.9.0` |
+|---|---|---|
+| `scw` | 2.56.3 | `.github/workflows/conformance.yml:27` (`SCW_VERSION`) |
+| Terraform | 1.13.3 | `.github/workflows/conformance.yml:28` (`TERRAFORM_VERSION`) |
+| OpenTofu | 1.12.5 | `.github/workflows/conformance.yml:356` (`TOFU_VERSION`) |
+| `oapi-cli` | 0.15.0 | `.github/workflows/conformance.yml:273` (`OAPI_VERSION`) |
+| `exo` | 1.95.6 | `.github/workflows/conformance.yml:310` (`EXO_VERSION`) |
+| `scaleway/scaleway` provider | **2.81.0, exact** | `tools/conformance/scaleway/terraform/main.tf:31`, and `examples/stacks/scaleway/main.tf:24` pins the same |
+| `outscale/outscale` provider | `~> 1.7`, a constraint | `tools/conformance/outscale/terraform/main.tf:19`, and `examples/stacks/outscale/main.tf:27` |
+| Go toolchain | 1.26.6 | `mise.toml:4` and `.github/workflows/conformance.yml:57` |
+
+Terraform and OpenTofu each drive both provider constraints. This is the table
+the README already generated at this tag under `<!-- clients:start -->`, plus the
+sources; it was simply never carried into the release body, where a consumer
+choosing a pin would meet it.
+
+Two things the table cannot say, and does not:
+
+- **The Outscale provider version that actually ran is not recoverable from this
+  repository.** The fixture states `~> 1.7`, no lock file is committed beside
+  it, and the resolution happened on the runner. The constraint is a documented
+  floor rather than an oversight — the 1.7+ generation reads its endpoint path
+  from the value where 1.1.x appends it, and pointing the emulator at the wrong
+  generation is a six-minute timeout rather than an error — but what a consumer
+  gets from us here is a range, not a number.
+- **No Exoscale Terraform provider version is claimed, because none was
+  proved.** `examples/stacks/exoscale/main.tf` declares none, and no CI job runs
+  it: the published Exoscale provider compiles `.exoscale.com` into one of its
+  two clients and cannot be pointed at a local emulator
+  (exoscale/terraform-provider-exoscale#573), so an apply splits between the
+  emulator and a paying account. The Exoscale pack's client proof in this
+  release is the `exo` CLI at the version above, and nothing else.
+
+`mise.toml` pins the toolchain and no client, so it is not a source for this
+table.
+
 ### Added
 
 - **A Go test can ask for a cloud, and so can a CI job** (#247, #245, #244,
