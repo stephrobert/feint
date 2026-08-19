@@ -148,7 +148,12 @@ repos:
         # are here because the install commands are: cutting a release moves the
         # CHANGELOG heading, and the version the pages tell a reader to download
         # has to move with it rather than a release later.
-        files: '^(README\.md|CHANGELOG\.md|docs/(routes|limits|install)\.md|docs/assets/ui/.*|coverage/.*\.json|contracts/.*\.json|internal/providers/.*\.go|internal/core/emulator/ui/.*|internal/cli/(docs.*|doctor)\.go|go\.mod|\.github/workflows/(conformance|release)\.yml|tools/conformance/scaleway/terraform/main\.tf|tools/install/ansible/roles/feint_clients/defaults/main\.yml)$'
+        # docs/clients.md, every .tf under tools/conformance and examples/stacks,
+        # and stacks.sh join the list with #325: the page that says which client
+        # and which provider version proved a release is spliced from exactly
+        # those files, and a fixture whose pin moves without the page following
+        # publishes a version nothing ran.
+        files: '^(README\.md|CHANGELOG\.md|docs/(routes|limits|install|clients)\.md|docs/assets/ui/.*|coverage/.*\.json|contracts/.*\.json|internal/providers/.*\.go|internal/core/emulator/ui/.*|internal/cli/(docs.*|doctor)\.go|go\.mod|\.github/workflows/(conformance|release)\.yml|(tools/conformance|examples/stacks)/.*\.tf|tools/conformance/stacks\.sh|tools/install/ansible/roles/feint_clients/defaults/main\.yml)$'
         pass_filenames: false
 
       # And it must be an operation the provider's own API description defines,

@@ -74,6 +74,7 @@ func docs(args []string, stdout, stderr io.Writer) int {
 	routesDoc := fs.String("routes", "docs/routes.md", "the Markdown file holding the route reference (empty to skip)")
 	confidenceDoc := fs.String("confidence", "docs/confidence.md", "the Markdown file holding the confidence page (empty to skip)")
 	installDoc := fs.String("install", "docs/install.md", "the Markdown file holding the prerequisites (empty to skip)")
+	clientsPage := fs.String("proved", clientsDoc, "the Markdown file holding the client and provider versions a release was proved against (empty to skip)")
 	workflow := fs.String("workflow", conformanceWorkflow, "the workflow the client versions are read from")
 	ansible := fs.String("client-pins", ansibleClientPins, "the Ansible defaults the workflow pins are compared against (empty to skip)")
 	check := fs.Bool("check", false, "do not write; exit 2 when the file is out of date")
@@ -263,6 +264,16 @@ func docs(args []string, stdout, stderr io.Writer) int {
 		return exitError
 	}
 
+	// The page a consumer pinning a version meets (#325). Its sources are the
+	// workflow that installs the clients and every required_providers block the
+	// fixtures and stacks declare, so a release cannot claim a client version
+	// that nothing ran, nor a provider version that nothing pinned.
+	provedChanged, provedErr := spliceProved(*clientsPage, *workflow, conformanceRoot, stacksRoot, stacksScript)
+	if provedErr != nil {
+		fmt.Fprintf(stderr, "feint: %v\n", provedErr)
+		return exitError
+	}
+
 	installChanged, installErr := splicePrereq(*installDoc, goModPath)
 	if installErr != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", installErr)
@@ -343,6 +354,10 @@ func docs(args []string, stdout, stderr io.Writer) int {
 		}
 		if installChanged || commandsChanged || containerChanged {
 			fmt.Fprintf(stderr, "feint: %s is out of date; run `mise run docs:coverage`\n", *installDoc)
+			return exitDrift
+		}
+		if provedChanged {
+			fmt.Fprintf(stderr, "feint: %s no longer matches the versions the suites pin; run `mise run docs:coverage`\n", *clientsPage)
 			return exitDrift
 		}
 		// The screenshots of the page, on the same gate as every other generated
@@ -429,6 +444,13 @@ func docs(args []string, stdout, stderr io.Writer) int {
 	}
 	if installChanged || commandsChanged || containerChanged {
 		fmt.Fprintf(stdout, "%s updated\n", *installDoc)
+	}
+	if provedChanged {
+		if err := writeSplicedProved(*clientsPage, *workflow, conformanceRoot, stacksRoot, stacksScript); err != nil {
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
+		fmt.Fprintf(stdout, "%s updated\n", *clientsPage)
 	}
 
 	if updated == string(current) {

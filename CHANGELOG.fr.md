@@ -93,6 +93,17 @@ change ni l'un ni l'autre a sa place dans `git log`.
   train, le contrôle a nommé 70 opérations qu'aucune note ne portait : les
   quatre entrées ci-dessus.
 
+- **Une version déclare les versions de clients qui l'ont prouvée** (#325).
+  `docs/clients.md` est généré depuis les épinglages du workflow de conformance
+  et depuis chaque bloc `required_providers` sous `tools/conformance/` et
+  `examples/stacks/`, publié dans le corps de la release, et vérifié par
+  `feint docs --check` comme toute autre page générée. Une contrainte qui
+  n'existe nulle part s'affiche *non épinglé* au lieu d'être inventée : deux
+  stacks résolvent leur provider à neuf à chaque exécution, et l'artefact le
+  dit. Le consommateur d'où vient cette demande résout ses providers à neuf en
+  CI, si bien qu'une version Scaleway lui parvient le lendemain de sa
+  publication, que cet émulateur l'ait rattrapée ou non.
+
 - **Une mesure sait désormais qui lui a répondu** (#309). `GET /_feint/health`
   gagne `instance` (le pid et l'heure de démarrage du processus qui répond) et
   son `schema_version` passe à 3 (additif : chaque champ de la version 2 est

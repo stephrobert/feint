@@ -88,6 +88,17 @@ what this project is judged on: **a response shape a client can observe**, and
   refusals that had been features for weeks. Run on this train, the gate named
   70 operations no note carried — the four entries above.
 
+- **A release declares the client versions that proved it** (#325).
+  `docs/clients.md` is generated from the conformance workflow's pins and from
+  every `required_providers` block under `tools/conformance/` and
+  `examples/stacks/`, published in the release body, and checked by
+  `feint docs --check` like every other generated page. A constraint that
+  exists nowhere reads *not pinned* rather than being invented: two stacks
+  resolve their provider fresh on every run, and the artefact says so. The
+  consumer this comes from resolves providers fresh in CI, so a Scaleway
+  release reached them the morning after it shipped whether or not this
+  emulator had caught up.
+
 - **A measurement can now tell who answered it** (#309). `GET /_feint/health`
   gains `instance` — the pid and start time of the process answering — and its
   `schema_version` moves to 3 (additive; every field of version 2 is unchanged).

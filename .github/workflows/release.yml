@@ -342,6 +342,35 @@ jobs:
             exit 1
           fi
 
+      # And the versions that proved it (#325).
+      #
+      # A consumer pinning this emulator into a CI lane needs to know which
+      # client and which Terraform provider the suites actually drove: one of
+      # them lost a day to a provider release that moved a resource under them,
+      # because nothing we published said what our lane ran. The block is copied
+      # out of docs/clients.md at the tag being cut, which `feint docs --check`
+      # keeps equal to the workflow pins and the fixtures — so the release body
+      # and the page cannot disagree.
+      #
+      # An empty extraction fails the release rather than publishing notes with
+      # the heading and nothing under it: a section that promises versions and
+      # lists none is worse than no section.
+      - name: Append the versions this release was proved against
+        run: |
+          awk '/<!-- proved:start -->/{f=1; next} /<!-- proved:end -->/{f=0} f' \
+            docs/clients.md > /tmp/proved.md
+          if [ ! -s /tmp/proved.md ]; then
+            echo "docs/clients.md carries no generated block between its markers" >&2
+            exit 1
+          fi
+          {
+            printf '\n## Proved against\n\n'
+            cat /tmp/proved.md
+            printf '\nGenerated from the conformance workflow and the fixtures at this tag.\n'
+            printf 'A newer client is not known to work until the pin moves and the suite\n'
+            printf 'passes on it: docs/clients.md says what each cell is worth.\n'
+          } >> /tmp/notes.md
+
       - name: Create release with assets
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:

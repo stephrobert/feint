@@ -1,0 +1,69 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "a constraint is presented as the version that answered, which is the number a consumer would pin against",
+      "file": "internal/cli/docs_proved.go",
+      "find": "\tcase exactVersion.MatchString(strings.TrimSpace(constraint)):",
+      "replace": "\tcase exactVersion.MatchString(strings.TrimSpace(constraint)) || true:",
+      "test": "TestTheProvedPageSeparatesAnExactPinFromAConstraintAndFromNothing"
+    },
+    {
+      "label": "an entry with no constraint borrows the previous row's, instead of reading 'not pinned'",
+      "file": "internal/cli/docs_proved.go",
+      "find": "\t\t\tpin := providerPin{}",
+      "replace": "\t\t\tpin := providerPin{}\n\t\t\tif len(out) > 0 {\n\t\t\t\tpin.Constraint = out[len(out)-1].Constraint\n\t\t\t}",
+      "test": "TestEveryEntryOfARequiredProvidersBlockIsRead"
+    },
+    {
+      "label": "only the first provider of a required_providers block is read, so a fixture declaring two publishes one",
+      "file": "internal/cli/docs_proved.go",
+      "find": "\t\t\tif pin.Source != \"\" {\n\t\t\t\tout = append(out, pin)\n\t\t\t}",
+      "replace": "\t\t\tif pin.Source != \"\" {\n\t\t\t\tout = append(out, pin)\n\t\t\t\tbreak\n\t\t\t}",
+      "test": "TestEveryEntryOfARequiredProvidersBlockIsRead"
+    },
+    {
+      "label": "a version the workflow declares and no step interpolates is published as the version CI installs",
+      "file": "internal/cli/docs_proved.go",
+      "find": "\tif len(unused) > 0 {",
+      "replace": "\tif len(unused) > 0 && false {",
+      "test": "TestEveryPinnedVersionIsInstalledByAStepThatUsesIt"
+    },
+    {
+      "label": "a pin the reader cannot parse renders as 'not pinned', so an exact version CI installs reads as no pin at all",
+      "file": "internal/cli/docs_proved.go",
+      "find": "\tif len(unreadable) > 0 {",
+      "replace": "\tif len(unreadable) > 0 && false {",
+      "test": "TestAPinDeclaredInAFormTheReaderCannotSeeIsRefused"
+    },
+    {
+      "label": "a pinned client this page does not publish is dropped instead of refused",
+      "file": "internal/cli/docs_proved.go",
+      "find": "\tif len(unclaimed) > 0 {",
+      "replace": "\tif len(unclaimed) > 0 && false {",
+      "test": "TestAPinnedVersionNoClientClaimsIsRefused"
+    },
+    {
+      "label": "every fixture in the directory counts as applied in CI, whether a suite applies it or not",
+      "file": "internal/cli/docs_proved.go",
+      "find": "\tdriven := func(dir string) bool {\n\t\tif appliedFixtures[dir] {",
+      "replace": "\tdriven := func(dir string) bool {\n\t\tif appliedFixtures[dir] || true {",
+      "test": "TestAFixtureNoSuiteAppliesIsNotAProof"
+    },
+    {
+      "label": "a walk that finds no constraint renders an empty table instead of refusing",
+      "file": "internal/cli/docs_proved.go",
+      "find": "\tif len(out) == 0 {\n\t\treturn nil, fmt.Errorf(\"no required_providers block under %s",
+      "replace": "\tif len(out) == 0 && false {\n\t\treturn nil, fmt.Errorf(\"no required_providers block under %s",
+      "test": "TestAnEmptyWalkAndACommittedLockAreBothRefused"
+    },
+    {
+      "label": "a committed lock file is ignored, so the page keeps calling a resolved constraint unresolved",
+      "file": "internal/cli/docs_proved.go",
+      "find": "\t\tif d.Name() == \".terraform.lock.hcl\" {",
+      "replace": "\t\tif d.Name() == \".terraform.lock.hcl\" && false {",
+      "test": "TestAnEmptyWalkAndACommittedLockAreBothRefused"
+    }
+  ],
+  "note": "The subject is #325: a downstream consumer resolving providers fresh in CI met Scaleway 2.81.0 the morning after it shipped, and nothing this project published would have let them pin deliberately. Every mutation here turns the page back into the thing it replaces — a table that reads as a measurement and is not one. The first two are the ones that matter most, because they fail in the direction a reader cannot detect: a constraint printed as an exact version, and a missing constraint filled in from the row above. `~> 1.7` is resolved by `terraform init -upgrade` on the runner, and two required_providers blocks in this repository carry no version at all."
+}
