@@ -17,6 +17,77 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **Scaleway load balancers, scoped by what the surveyed stacks call** (#282).
+  `lb/v1` serves 35 operations on its zoned door: `ZonedAPI.CreateLB`,
+  `ZonedAPI.GetLB`, `ZonedAPI.ListLBs`, `ZonedAPI.UpdateLB`,
+  `ZonedAPI.DeleteLB`, `ZonedAPI.CreateIP`, `ZonedAPI.GetIP`,
+  `ZonedAPI.ListIPs`, `ZonedAPI.UpdateIP`, `ZonedAPI.ReleaseIP`,
+  `ZonedAPI.CreateBackend`, `ZonedAPI.GetBackend`, `ZonedAPI.ListBackends`,
+  `ZonedAPI.UpdateBackend`, `ZonedAPI.DeleteBackend`,
+  `ZonedAPI.SetBackendServers`, `ZonedAPI.UpdateHealthCheck`,
+  `ZonedAPI.CreateFrontend`, `ZonedAPI.GetFrontend`, `ZonedAPI.ListFrontends`,
+  `ZonedAPI.UpdateFrontend`, `ZonedAPI.DeleteFrontend`, `ZonedAPI.CreateACL`,
+  `ZonedAPI.GetACL`, `ZonedAPI.ListACLs`, `ZonedAPI.UpdateACL`,
+  `ZonedAPI.DeleteACL`, `ZonedAPI.CreateRoute`, `ZonedAPI.GetRoute`,
+  `ZonedAPI.ListRoutes`, `ZonedAPI.UpdateRoute`, `ZonedAPI.DeleteRoute`,
+  `ZonedAPI.AttachPrivateNetwork`, `ZonedAPI.DetachPrivateNetwork` and
+  `ZonedAPI.ListLBPrivateNetworks` — the Private Network attachment in both
+  spellings, because the 2.43-vendored SDK attaches at the path its own source
+  no longer reads. The other 19 are declined by name (stats over health nothing
+  probes, certificates over TLS nothing terminates, subscribers with no event
+  to deliver), and the deprecated regional door wholesale. Nothing forwards a
+  packet and nothing claims to: `docs/limits.md` states what a 200 means here.
+
+- **Scaleway public gateways** (#282). `vpcgw/v2` serves 15 operations:
+  `API.CreateGateway`, `API.GetGateway`, `API.ListGateways`,
+  `API.UpdateGateway`, `API.DeleteGateway`, `API.CreateGatewayNetwork`,
+  `API.GetGatewayNetwork`, `API.ListGatewayNetworks`,
+  `API.UpdateGatewayNetwork`, `API.DeleteGatewayNetwork`, `API.CreateIP`,
+  `API.GetIP`, `API.ListIPs`, `API.UpdateIP` and `API.DeleteIP`. `vpcgw/v1` is
+  declined wholesale, and not because v2 supersedes it: the portal publishes no
+  v1 document any more, and every mounted route is checked against that
+  document. A provider pinned below 2.52 meets a named 501 rather than a
+  silence.
+
+- **Scaleway placement groups, on both doors** (#285). A refusal withdrawn:
+  the family was declined with "any policy would be reported satisfied whatever
+  it asked", and measuring what the provider does with the answer turned that
+  sentence into an obligation rather than a refusal — 2.43.0 and 2.81.0 both
+  store `policy_respected` as a computed attribute they never gate on.
+  `instance/v1` now serves `API.CreatePlacementGroup`, `API.GetPlacementGroup`,
+  `API.ListPlacementGroups`, `API.UpdatePlacementGroup`, `API.SetPlacementGroup`,
+  `API.DeletePlacementGroup`, `API.GetPlacementGroupServers`,
+  `API.SetPlacementGroupServers` and `API.UpdatePlacementGroupServers`;
+  `instance/v2alpha1` serves the five the 2.81.0 provider moved the resource's
+  CRUD onto (`API.CreatePlacementGroup`, `API.GetPlacementGroup`,
+  `API.ListPlacementGroups`, `API.UpdatePlacementGroup`,
+  `API.DeletePlacementGroup`). Placement is recorded, never enforced, and
+  `policy_respected` tells the single-host truth rather than the flattering one.
+
+- **Outscale load balancers** (#281). A refusal withdrawn, scoped to what three
+  surveyed stacks actually call, measured with `feint proxy --record` rather
+  than read off the SDK's 23-operation surface:
+  `osc/Client.CreateLoadBalancer`, `osc/Client.UpdateLoadBalancer`,
+  `osc/Client.DeleteLoadBalancer`, `osc/Client.RegisterVmsInLoadBalancer`,
+  `osc/Client.LinkLoadBalancerBackendMachines` and
+  `osc/Client.UnlinkLoadBalancerBackendMachines` — both attach spellings,
+  because the measurement overturned the reading of the 1.1.3 source. The rest
+  of the family stays declined by name; the first stack that calls one reopens
+  it.
+
+- **A release now has to say what it started and stopped serving** (#326).
+  `mise run release:surface` diffs the committed `coverage/*-coverage.json` of
+  the latest tag against this tree's and refuses (exit 2) when an operation
+  that changed hands is named in neither `CHANGELOG.md` — which *is* the
+  release body — nor `tools/release/unnamed.json`, where "not worth naming" is
+  signed with a reason. Three transitions must be named: newly served,
+  withdrawn, and **a refusal withdrawn**, which is the one that costs silently.
+  0.9.0 mounted `instance/v2alpha1` private network interfaces and said so
+  nowhere; a downstream consumer spent a day probing two binaries side by side
+  to find a 501 had become a 200, and separately kept working around three
+  refusals that had been features for weeks. Run on this train, the gate named
+  70 operations no note carried — the four entries above.
+
 - **A measurement can now tell who answered it** (#309). `GET /_feint/health`
   gains `instance` — the pid and start time of the process answering — and its
   `schema_version` moves to 3 (additive; every field of version 2 is unchanged).

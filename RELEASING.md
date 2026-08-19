@@ -47,6 +47,15 @@ checks that the tag matches it, and the prose stays yours.
    time inside the release workflow, which refuses to publish rather than
    repairing anything.
 
+   And **`mise run release:surface`**, which answers the question that heading
+   is about: does the section name what this release started and stopped
+   serving. It diffs the committed `coverage/*-coverage.json` of the latest tag
+   against this tree's, and exits 2 when an operation that changed hands is
+   named neither there nor in [tools/release/unnamed.json](./tools/release/unnamed.json).
+   It prints the missing operations ready to paste. Three transitions are
+   required: newly served, no longer served, and **a refusal withdrawn** — the
+   one nobody thinks to publish and the one a consumer builds around (#326).
+
 2. **Merge to `main` through a pull request, and wait for CI to be green.** The
    tag builds from that commit and a published release cannot be replayed.
 
@@ -59,9 +68,9 @@ checks that the tag matches it, and the prose stays yours.
    It checks a clean tree on `main`, that the tag is free locally *and* on the
    remote, `mise run check`, `mise run drift:check` at 0 — a release published
    with untriaged upstream operations advertises a coverage figure that is not
-   true — `feint docs --check` at 0, the CHANGELOG section, committed
-   `coverage/` and `contracts/`, and that conformance is green on this exact
-   commit. It reports every verdict rather than stopping at the first, and it
+   true — `feint docs --check` at 0, `mise run release:surface` at 0, the
+   CHANGELOG section, committed `coverage/` and `contracts/`, and that
+   conformance is green on this exact commit. It reports every verdict rather than stopping at the first, and it
    prints the commands to run once everything passes.
 
    It deliberately does **not** run the conformance suites itself: they need
@@ -75,6 +84,15 @@ checks that the tag matches it, and the prose stays yours.
    git tag -a v0.1.0 -m "v0.1.0"
    git push origin v0.1.0
    ```
+
+5. **Empty `tools/release/unnamed.json`, if it held anything.** Its entries
+   excused operations from being named in the release you have just cut, and
+   the window they were written for closed when the tag was pushed. An
+   exemption that excuses nothing is refused — a stale exemption is a gate that
+   quietly stopped covering what it names — so `mise run release:surface` goes
+   red on the next push until they are retired. That is the triage it is asking
+   for, and it is one line of deletion. The list is empty in the ordinary case,
+   which makes this step a no-op most of the time.
 
 Pushing the tag is what publishes. It cannot be undone quietly: a tag has to be
 deleted on both sides, and a release that reached the world has been downloaded.

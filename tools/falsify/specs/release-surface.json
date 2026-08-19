@@ -1,0 +1,69 @@
+{
+  "package": "./internal/release/",
+  "mutations": [
+    {
+      "label": "a refusal withdrawn stops having to be named, which is the transition that costs silently",
+      "file": "internal/release/surface.go",
+      "find": "\treturn c == Served || c == RefusalWithdrawn || c == Withdrawn",
+      "replace": "\treturn c == Served || (c == RefusalWithdrawn && false) || c == Withdrawn",
+      "test": "TestARefusalWithdrawnIsNamedAsMuchAsARouteAdded"
+    },
+    {
+      "label": "an operation that stops being served stops having to be named, which is the direction that breaks a pipeline",
+      "file": "internal/release/surface.go",
+      "find": "\treturn c == Served || c == RefusalWithdrawn || c == Withdrawn",
+      "replace": "\treturn c == Served || c == RefusalWithdrawn || (c == Withdrawn && false)",
+      "test": "TestAnOperationThatStopsBeingServedIsRefused"
+    },
+    {
+      "label": "the note is asked to carry the arrivals that were declined on sight, so the section that matters is buried under 137 lines nobody can act on",
+      "file": "internal/release/surface.go",
+      "find": "\treturn c == Served || c == RefusalWithdrawn || c == Withdrawn",
+      "replace": "\treturn c == Served || c == RefusalWithdrawn || c == Withdrawn || c == NewlyDeclined",
+      "test": "TestAnArrivalThatIsAlreadyDeclinedNeedNotBeNamed"
+    },
+    {
+      "label": "the diff stops reading the older side, so a withdrawal is invisible and only additions are ever reported",
+      "file": "internal/release/surface.go",
+      "find": "\t\tif _, ok := current[op]; ok {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif _, ok := current[op]; ok || true {\n\t\t\tcontinue\n\t\t}",
+      "test": "TestAnOperationThatStopsBeingServedIsRefused"
+    },
+    {
+      "label": "naming the family alone counts, so an operation added to a family the note happens to mention is invisible for ever",
+      "file": "internal/release/surface.go",
+      "find": "\treturn containsToken(text, family) && containsToken(text, method)",
+      "replace": "\treturn containsToken(text, family) || containsToken(text, method)",
+      "test": "TestAFamilyMentionedInPassingDoesNotNameItsOperations"
+    },
+    {
+      "label": "the window widens to the whole changelog, so a name written for the previous release excuses an operation that changed after it",
+      "file": "internal/release/surface.go",
+      "find": "\tabove, _, found := strings.Cut(changelog, heading)",
+      "replace": "\tabove, _, found := strings.Cut(changelog, heading)\n\tabove = changelog",
+      "test": "TestTheSectionStopsAtTheComparedVersion"
+    },
+    {
+      "label": "a changelog with no heading for the compared version is scanned whole instead of refused",
+      "file": "internal/release/surface.go",
+      "find": "\tif !found {\n\t\treturn \"\", fmt.Errorf(\"no %q section in the changelog",
+      "replace": "\tif !found && false {\n\t\treturn \"\", fmt.Errorf(\"no %q section in the changelog",
+      "test": "TestTheSectionStopsAtTheComparedVersion"
+    },
+    {
+      "label": "an exemption that excuses nothing stops being reported stale, so the list keeps names nothing checks any more",
+      "file": "internal/release/surface.go",
+      "find": "\t\tif strings.TrimSpace(e.Reason) == \"\" || used[e.Operation] {",
+      "replace": "\t\tif strings.TrimSpace(e.Reason) == \"\" || used[e.Operation] || true {",
+      "test": "TestAnExemptionThatExcusesNothingIsStale"
+    },
+    {
+      "label": "an exemption with no reason silences an operation anyway",
+      "file": "internal/release/surface.go",
+      "find": "\t\tif strings.TrimSpace(e.Reason) == \"\" {\n\t\t\tverdict.Unreasoned = append(verdict.Unreasoned, e)",
+      "replace": "\t\tif strings.TrimSpace(e.Reason) == \"\" && false {\n\t\t\tverdict.Unreasoned = append(verdict.Unreasoned, e)",
+      "test": "TestAnExemptionWithoutAReasonIsRefused"
+    }
+  ],
+  "note": "The subject is #326: 0.9.0 mounted instance/v2alpha1 private network interfaces and its CHANGELOG names neither the version nor the resource, so the consumer it mattered to probed v0.8.0 and v0.9.0 side by side to find a 501 had become a 200. The commit that brought the family in names it exactly (992bf42, measured with --diff-filter=A), which is why every mutation here is about what the release *says* rather than about the history: a gate reading commit subjects would have passed that release. The first three mutations are the three transitions the gate judges, and the third is the mirror of the other two — a gate that also demanded the 137 operations the lb and vpcgw products brought in already declined would be a gate everybody learns to skip, which is a different way of not measuring."
+}

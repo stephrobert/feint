@@ -50,6 +50,16 @@ prose reste la vôtre.
    dans le préflight ci-dessous, et une dernière fois dans le workflow de release,
    qui refuse de publier plutôt que de réparer quoi que ce soit.
 
+   Et **`mise run release:surface`**, qui répond à la question dont ce titre
+   est le sujet : la section nomme-t-elle ce que cette version se met à servir
+   et ce qu'elle cesse de servir. Il compare les `coverage/*-coverage.json`
+   versionnés du dernier tag à ceux de cet arbre et rend 2 dès qu'une opération
+   qui a changé de camp n'est nommée ni là ni dans
+   [tools/release/unnamed.json](./tools/release/unnamed.json). Il affiche les
+   opérations manquantes, prêtes à coller. Trois transitions sont exigées :
+   nouvellement servie, plus servie, et **un refus retiré** — celle que personne
+   ne pense à publier, et celle qu'un consommateur contourne (#326).
+
 2. **Fusionner dans `main` par une pull request, et attendre une CI verte.** Le
    tag construit depuis ce commit et une release publiée ne se rejoue pas.
 
@@ -62,8 +72,8 @@ prose reste la vôtre.
    Il vérifie un arbre propre sur `main`, que le tag est libre localement *et* sur
    le dépôt distant, `mise run check`, `mise run drift:check` à 0 — une release
    publiée avec des opérations upstream non triées annonce un chiffre de
-   couverture qui n'est pas vrai —, `feint docs --check` à 0, la section du
-   CHANGELOG, `coverage/` et `contracts/` commités, et que la conformance est
+   couverture qui n'est pas vrai —, `feint docs --check` à 0,
+   `mise run release:surface` à 0, la section du CHANGELOG, `coverage/` et `contracts/` commités, et que la conformance est
    verte sur ce commit exact. Il rapporte chaque verdict au lieu de s'arrêter au
    premier, et il affiche les commandes à lancer une fois que tout passe.
 
@@ -79,6 +89,16 @@ prose reste la vôtre.
    git tag -a v0.1.0 -m "v0.1.0"
    git push origin v0.1.0
    ```
+
+5. **Vider `tools/release/unnamed.json`, s'il portait quelque chose.** Ses
+   entrées dispensaient des opérations d'être nommées dans la version que vous
+   venez de couper, et la fenêtre pour laquelle elles ont été écrites s'est
+   fermée avec le tag. Une dispense qui ne dispense rien est refusée — une
+   dispense périmée est un contrôle qui a cessé sans bruit de couvrir ce qu'il
+   nomme —, donc `mise run release:surface` devient rouge à la poussée suivante
+   tant qu'elles n'ont pas été retirées. C'est le triage qu'il demande, et cela
+   tient en une suppression. La liste est vide dans le cas ordinaire, ce qui
+   fait de cette étape un non-événement la plupart du temps.
 
 C'est pousser le tag qui publie. Cela ne se défait pas discrètement : un tag doit
 être supprimé des deux côtés, et une release qui a atteint le monde a été

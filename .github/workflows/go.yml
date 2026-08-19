@@ -135,6 +135,46 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
           "$(go env GOPATH)/bin/govulncheck" ./...
 
+  # Does this branch say what it changed about the surface it serves (#326).
+  #
+  # A job of its own for one reason: it needs the tags. The checkout above is
+  # shallow, and this comparison recovers the previous release's coverage
+  # artefacts with `git show <tag>:coverage/...` — with no tag it cannot measure,
+  # and it exits 1 saying so rather than reporting that nothing changed. So
+  # `fetch-depth: 0` is not a preference here, it is the precondition.
+  #
+  # It runs on every pull request rather than at tag time only, because the
+  # cheapest moment to name a newly-served operation is the pull request that
+  # serves it. And it reads the CHANGELOG rather than the commits: 0.9.0's
+  # `instance/v2alpha1` family arrived under a commit whose title names it
+  # exactly (992bf42), and was still invisible to everybody downstream, because
+  # what a consumer reads is the release body.
+  release-surface:
+    name: The release note names what changed
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The whole history, so the tags exist: see the comment above.
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.6'
+          cache: false
+
+      - name: Every operation that changed hands is named, or signed
+        run: bash --noprofile --norc tools/release/surface.sh
+
   # The three platforms the release builds and nothing used to run.
   #
   # `release.yml` publishes four binaries; this job is what stops three of them

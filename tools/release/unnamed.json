@@ -1,0 +1,27 @@
+{
+  "comment": [
+    "Operations whose status changed since the last tag and that the release note",
+    "deliberately does not name, each with the reason (#326).",
+    "",
+    "The default is to name them. `tools/release/surface.sh` computes what changed",
+    "from the committed coverage artefacts of the two tags, and prints the list",
+    "ready to paste into CHANGELOG.md — which is the release body, extracted",
+    "section by section by .github/workflows/release.yml. This file is for the",
+    "operation a note would be worse for carrying, and it costs a sentence.",
+    "",
+    "Two rules, both enforced:",
+    "",
+    "  - an entry with no reason is refused, because \"not worth naming\" is a",
+    "    decision somebody signs rather than a silence with a filename;",
+    "  - an entry that excuses nothing in the current window is refused, because a",
+    "    stale exemption is a gate that quietly stopped covering what it names.",
+    "    tools/compat/accepted.json lives under the same rule and fired on it the",
+    "    day after v0.9.0 was tagged.",
+    "",
+    "The second rule has a consequence worth knowing before it surprises anybody:",
+    "the window is `latest tag → working tree`, so an entry written for a release",
+    "excuses nothing once that release is tagged. Emptying this file is a step of",
+    "RELEASING.md, right after the tag is pushed."
+  ],
+  "unnamed": []
+}

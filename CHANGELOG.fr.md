@@ -19,6 +19,80 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Les équilibreurs de charge Scaleway, cadrés par ce que les stacks
+  observées appellent** (#282). `lb/v1` sert 35 opérations sur sa porte zonale :
+  `ZonedAPI.CreateLB`, `ZonedAPI.GetLB`, `ZonedAPI.ListLBs`,
+  `ZonedAPI.UpdateLB`, `ZonedAPI.DeleteLB`, `ZonedAPI.CreateIP`,
+  `ZonedAPI.GetIP`, `ZonedAPI.ListIPs`, `ZonedAPI.UpdateIP`,
+  `ZonedAPI.ReleaseIP`, `ZonedAPI.CreateBackend`, `ZonedAPI.GetBackend`,
+  `ZonedAPI.ListBackends`, `ZonedAPI.UpdateBackend`, `ZonedAPI.DeleteBackend`,
+  `ZonedAPI.SetBackendServers`, `ZonedAPI.UpdateHealthCheck`,
+  `ZonedAPI.CreateFrontend`, `ZonedAPI.GetFrontend`, `ZonedAPI.ListFrontends`,
+  `ZonedAPI.UpdateFrontend`, `ZonedAPI.DeleteFrontend`, `ZonedAPI.CreateACL`,
+  `ZonedAPI.GetACL`, `ZonedAPI.ListACLs`, `ZonedAPI.UpdateACL`,
+  `ZonedAPI.DeleteACL`, `ZonedAPI.CreateRoute`, `ZonedAPI.GetRoute`,
+  `ZonedAPI.ListRoutes`, `ZonedAPI.UpdateRoute`, `ZonedAPI.DeleteRoute`,
+  `ZonedAPI.AttachPrivateNetwork`, `ZonedAPI.DetachPrivateNetwork` et
+  `ZonedAPI.ListLBPrivateNetworks` — l'attachement au réseau privé dans les
+  deux écritures, parce que le SDK vendu avec la 2.43 attache sur un chemin que
+  sa propre source ne lit plus. Les 19 autres sont déclinées nommément
+  (statistiques sur une santé que rien ne sonde, certificats sur un TLS que
+  rien ne termine, abonnés sans événement à livrer), et la porte régionale
+  dépréciée l'est en bloc. Rien ne relaie de paquet et rien ne prétend le
+  faire : `docs/limits.md` dit ce que vaut un 200 ici.
+
+- **Les passerelles publiques Scaleway** (#282). `vpcgw/v2` sert 15 opérations :
+  `API.CreateGateway`, `API.GetGateway`, `API.ListGateways`,
+  `API.UpdateGateway`, `API.DeleteGateway`, `API.CreateGatewayNetwork`,
+  `API.GetGatewayNetwork`, `API.ListGatewayNetworks`,
+  `API.UpdateGatewayNetwork`, `API.DeleteGatewayNetwork`, `API.CreateIP`,
+  `API.GetIP`, `API.ListIPs`, `API.UpdateIP` et `API.DeleteIP`. `vpcgw/v1` est
+  déclinée en bloc, et pas parce que la v2 la remplace : le portail ne publie
+  plus de document v1, et chaque route montée est vérifiée contre ce document.
+  Un provider épinglé sous 2.52 rencontre un 501 nommé plutôt qu'un silence.
+
+- **Les groupes de placement Scaleway, sur les deux portes** (#285). Un refus
+  retiré : la famille était déclinée avec « toute politique serait rapportée
+  satisfaite quoi qu'elle demande », et mesurer ce que le provider fait de la
+  réponse a transformé cette phrase en obligation plutôt qu'en refus — 2.43.0
+  et 2.81.0 stockent toutes deux `policy_respected` en attribut calculé sur
+  lequel elles ne conditionnent rien. `instance/v1` sert désormais
+  `API.CreatePlacementGroup`, `API.GetPlacementGroup`, `API.ListPlacementGroups`,
+  `API.UpdatePlacementGroup`, `API.SetPlacementGroup`,
+  `API.DeletePlacementGroup`, `API.GetPlacementGroupServers`,
+  `API.SetPlacementGroupServers` et `API.UpdatePlacementGroupServers` ;
+  `instance/v2alpha1` sert les cinq sur lesquelles le provider 2.81.0 a déplacé
+  le CRUD de la ressource (`API.CreatePlacementGroup`, `API.GetPlacementGroup`,
+  `API.ListPlacementGroups`, `API.UpdatePlacementGroup`,
+  `API.DeletePlacementGroup`). Le placement est enregistré, jamais appliqué, et
+  `policy_respected` dit la vérité de l'hôte unique plutôt que la flatteuse.
+
+- **Les équilibreurs de charge Outscale** (#281). Un refus retiré, cadré sur ce
+  que trois stacks observées appellent réellement, mesuré avec
+  `feint proxy --record` plutôt que lu sur les 23 opérations du SDK :
+  `osc/Client.CreateLoadBalancer`, `osc/Client.UpdateLoadBalancer`,
+  `osc/Client.DeleteLoadBalancer`, `osc/Client.RegisterVmsInLoadBalancer`,
+  `osc/Client.LinkLoadBalancerBackendMachines` et
+  `osc/Client.UnlinkLoadBalancerBackendMachines` — les deux écritures de
+  l'attachement, parce que la mesure a renversé la lecture de la source 1.1.3.
+  Le reste de la famille reste décliné nommément ; la première stack qui en
+  appelle une la rouvre.
+
+- **Une version doit désormais dire ce qu'elle se met à servir et ce qu'elle
+  cesse de servir** (#326). `mise run release:surface` compare les
+  `coverage/*-coverage.json` versionnés du dernier tag à ceux de cet arbre et
+  refuse (code 2) qu'une opération qui a changé de camp ne soit nommée ni dans
+  `CHANGELOG.md` — qui *est* le corps de la release — ni dans
+  `tools/release/unnamed.json`, où « pas la peine de le nommer » se signe avec
+  une raison. Trois transitions doivent être nommées : nouvellement servie,
+  retirée, et **un refus retiré**, celle qui coûte en silence. La 0.9.0 a monté
+  les interfaces de réseau privé `instance/v2alpha1` sans le dire nulle part ;
+  un consommateur aval y a passé une journée à sonder deux binaires côte à côte
+  pour découvrir qu'un 501 était devenu un 200, et contournait par ailleurs
+  trois refus devenus des fonctionnalités depuis des semaines. Lancé sur ce
+  train, le contrôle a nommé 70 opérations qu'aucune note ne portait : les
+  quatre entrées ci-dessus.
+
 - **Une mesure sait désormais qui lui a répondu** (#309). `GET /_feint/health`
   gagne `instance` (le pid et l'heure de démarrage du processus qui répond) et
   son `schema_version` passe à 3 (additif : chaque champ de la version 2 est

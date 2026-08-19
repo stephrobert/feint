@@ -212,6 +212,24 @@ description = "Run an older release's consumer expressions against this one, and
 # on a silently-wrong expression that is not recorded in tools/compat/accepted.json.
 run = "bash --noprofile --norc tools/compat/compat.sh"
 
+[tasks."release:surface"]
+description = "Fail (exit 2) when an operation that changed hands since the last tag is named in neither the CHANGELOG nor the signed list"
+# The other half of the versioning policy, on the far side of the same file
+# compat:check reads (#326). compat:check asks whether an expression written
+# against the last release still means the same thing; this asks whether the
+# release says what changed underneath it.
+#
+# The data was already there and nobody was reading it: coverage/*-coverage.json
+# carries a status per operation and is committed, so `git show <tag>:coverage/`
+# recovers the previous release's copy and the diff is arithmetic. 0.9.0 mounted
+# a whole API version, named it nowhere, and the consumer it mattered to spent a
+# day probing two binaries side by side to find out.
+#
+# Offline and sub-second. Exit 2 is the note being incomplete, 1 is the
+# comparison failing to run — a shallow clone has no tags, and "I could not
+# measure" is not "nothing changed".
+run = "bash --noprofile --norc tools/release/surface.sh"
+
 [tasks."release:check"]
 description = "Everything that must be true before a tag exists: mise run release:check -- v0.1.0"
 depends = ["build"]
@@ -366,10 +384,10 @@ run = "python3 tools/falsify/falsify.py"
 
 [tasks.prepush]
 description = "Everything a pull request will fail on that costs seconds and needs no client"
-depends = ["check", "docs:check", "drift:check", "shapes:check", "falsify:selftest", "falsify:lint"]
+depends = ["check", "docs:check", "drift:check", "shapes:check", "falsify:selftest", "falsify:lint", "release:surface"]
 # What this is, and what it deliberately is not.
 #
-# These four are deterministic, offline, and take seconds: they can be a hook
+# Each of these is deterministic, offline, and takes seconds: they can be a hook
 # without ever teaching anybody `--no-verify`, which is the failure mode
 # .pre-commit-config.yaml already documents for the pre-push stage.
 #

@@ -154,6 +154,21 @@ fi
 
 # --- what a reader of the release will look for -----------------------------
 
+# What the release started and stopped serving, against what it says (#326).
+#
+# The section this checks is the one the release body is read from, and the
+# comparison is with the previous tag's committed coverage artefacts — so the
+# question is exactly "does this release name what changed underneath it".
+# Exit 2 is an incomplete note, 1 is a comparison that could not be made; both
+# refuse the tag, and the difference is in the message.
+bash --noprofile --norc tools/release/surface.sh >/dev/null 2>&1
+case $? in
+  0) ok "every operation that changed hands since the last tag is named, or signed" ;;
+  2) ko "the release note omits an operation that changed hands" \
+        "mise run release:surface — it prints the list ready to paste into CHANGELOG.md" ;;
+  *) ko "release:surface could not run" "no tag to compare against, or the coverage artefacts are missing" ;;
+esac
+
 if grep -q "^## \[${VERSION#v}\]" CHANGELOG.md 2>/dev/null; then
   ok "CHANGELOG.md has a section for ${VERSION#v}"
 else
