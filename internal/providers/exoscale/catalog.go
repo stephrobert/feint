@@ -125,7 +125,70 @@ func (p *Pack) listZones(w http.ResponseWriter, r *http.Request) {
 		"api-endpoint": emulator.EndpointOf(r) + apiPrefix,
 		"sos-endpoint": "",
 	}}
+
+	// The split client also gets a signpost row for every published zone this
+	// deployment does not serve, each pointing at unservedZonePathPrefix so
+	// the next call is refused with the mismatch named (#284).
+	//
+	// Measured need: the Terraform provider resolves its global products
+	// through one hardcoded zone — exoscale/provider.go:33 in their tree pins
+	// defaultZone = "ch-gva-2", and exoscale_domain resolves it through
+	// GET /v2/zone before its first DNS call. Against a one-row list naming
+	// any other zone, that resolution dies inside the client as `find zone:
+	// "ch-gva-2" not found in ListZonesResponse` — a message that sends the
+	// reader after their zone configuration when the truth is that this
+	// deployment serves another zone and DNS is not served at all (#262,
+	// examples/stacks/surveyed.md, openshift4-exoscale).
+	//
+	// Split client only, because the two client families do opposite things
+	// with this list: the Terraform provider resolves endpoints by name and
+	// never merges zones, while the exo CLI queries every row it is told
+	// about and merges the answers — eight rows once turned one instance into
+	// eight identical lines of `exo compute instance list`, which is why the
+	// CLI keeps the single row (TestZonesCarryThisEmulatorsAddress pins it).
+	//
+	// TestTheSplitClientsZoneListSignpostsTheOtherZones fails without this.
+	if splitClient(r.UserAgent()) {
+		for _, name := range publishedZoneNames {
+			if name == p.zone {
+				continue
+			}
+			zones = append(zones, map[string]any{
+				"name":         name,
+				"api-endpoint": emulator.EndpointOf(r) + unservedZonePathPrefix + name,
+				"sos-endpoint": "",
+			})
+		}
+	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"zones": zones})
+}
+
+// unservedZonePathPrefix is where the zone list signposts a zone this
+// deployment does not serve. Every call a client addresses through such a row
+// lands under the prefix and is refused by NotFound with the mismatch named —
+// deployment zone, requested zone, and the knob that reconciles them — instead
+// of the client-side "not found in ListZonesResponse" a missing row produces.
+//
+// The segment is under /v2 so the pack's Unrouted prefix catches it, and it
+// matches no resource the upstream document declares.
+const unservedZonePathPrefix = apiPrefix + "/unserved-zone/"
+
+// unservedZoneDiagnosis names the zone mismatch behind a call that arrived
+// through a signpost row, or reports that the path is not one.
+//
+// TestAnUnservedZoneSignpostNamesTheMismatch fails without it.
+func (p *Pack) unservedZoneDiagnosis(path string) (string, bool) {
+	rest, ok := strings.CutPrefix(path, unservedZonePathPrefix)
+	if !ok {
+		return "", false
+	}
+	zone, call, _ := strings.Cut(rest, "/")
+	return "this deployment serves zone " + p.zone + ", and the client resolved zone " + zone +
+		" from GET /v2/zone; feint signposted that resolution here so the refusal names the" +
+		" mismatch instead of failing client-side as a zone lookup. Restart with" +
+		" FEINT_EXOSCALE_ZONE=" + zone + " to serve that zone; if this call is then still" +
+		" refused, the product itself is not served — the call was /v2/" + call +
+		", and /_feint/routes lists what is", true
 }
 
 // listDeployTargets answers the read the CLI makes while resolving a create.
