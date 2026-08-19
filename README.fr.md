@@ -380,6 +380,13 @@ donc les recopier ici serait en faire une seconde source qui se périmerait.
 Ce qui est refusé, et pourquoi, est dans [docs/routes.md](docs/routes.md). Ce qui
 n'est délibérément pas émulé est dans [docs/limits.md](docs/limits.md).
 
+Si vous épinglez, lisez [docs/clients.md](docs/clients.md) : la page porte les
+versions de clients que la CI installe et chaque contrainte de provider Terraform
+déclarée par les fixtures et les stacks d'exemple, en disant laquelle des trois
+choses chacune est — une version qui a répondu, une contrainte que le runner
+résout à neuf, ou aucun épinglage. Le même bloc est publié dans le corps de
+chaque release.
+
 Comment tout cela gagne le droit d'être appelé *prouvé*, c'est-à-dire la chaîne
 qui va de la description d'API du fournisseur jusqu'à un pipeline qui lit un
 chiffre dans cet émulateur, ce que chaque maillon prouve, et quels maillons ne
