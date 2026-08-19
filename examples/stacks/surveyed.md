@@ -60,7 +60,7 @@ edit **except** where the table below says so:
 
 | provider | environment that reaches the emulator | trap, measured |
 |---|---|---|
-| Scaleway (provider 2.x) | `feint env scaleway`, with `SCW_API_URL` pointing at the proxy | Object Storage still goes to the real `s3.<region>.scw.cloud` (docs/limits.md); measured live on flatcar-k3s, a 403 from the real endpoint |
+| Scaleway (provider 2.x) | `feint env scaleway`, with `SCW_API_URL` pointing at the proxy | Object Storage still goes to the real `s3.<region>.scw.cloud` (docs/limits.md); measured live on flatcar-k3s, a 403 from the real endpoint. Since #280, `feint doctor` and `feint env scaleway` warn from the stack directory when its text carries `scaleway_object_*` or a real `*.scw.cloud` host |
 | Outscale 1.7+ | `OSC_ENDPOINT_API=http://…:4611/api/v1` — the path belongs in the value | without the path: six-minute retry backoff |
 | Outscale 1.1.x | `OSC_ENDPOINT_API=http://…:4611` — **no path**; both its HTTP clients append `/api/v1` themselves | with the path: `invalid port ":4611%2Fapi%2Fv1"` — the legacy client URL-escapes it |
 | Outscale 0.x (`outscale-dev/*`) | none exists. Zero exchanges reached the recorder with `OSC_ENDPOINT_API` and `OUTSCALE_OAPI_URL` both set | 0.5.3 honours only the `endpoints{api=…}` block, prepends `https://` to it, and needs `feint proxy --intercept localhost` + `SSL_CERT_FILE`; 0.7.0 honours nothing found and SIGSEGVs in its own create-retry error path |

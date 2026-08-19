@@ -28,7 +28,7 @@
 >
 > **Prouvé** : 270 des 291 opérations montées sont pilotées par un vrai client, à chaque pull request. `scw`, `oapi-cli`, `exo`, Terraform et OpenTofu tournent contre l'émulateur en CI, et les machines démarrent réellement : connexion ssh sur le compte par défaut de chaque provider, subnets isolés, pare-feu qui filtre. La chaîne complète est décrite dans [docs/conformance.md](docs/conformance.md).
 >
-> **Pas prouvé** : quotas, prix, capacité réelle, validation des identifiants, authentification, cohérence à terme. Les 36 sections de [docs/limits.md](docs/limits.md) disent chacune ce qu'elle coûte. Un émulateur avec un seul compte implicite et aucune grille tarifaire devrait inventer ces chiffres, et quelqu'un agirait dessus.
+> **Pas prouvé** : quotas, prix, capacité réelle, validation des identifiants, authentification, cohérence à terme. Les 37 sections de [docs/limits.md](docs/limits.md) disent chacune ce qu'elle coûte. Un émulateur avec un seul compte implicite et aucune grille tarifaire devrait inventer ces chiffres, et quelqu'un agirait dessus.
 >
 > **Inconnu** : 21 opérations sont montées et n'ont jamais été pilotées par un client. Chacune dit pourquoi aucun client officiel ne l'atteint, à la route et dans [docs/routes.md](docs/routes.md). Elles sont comptées plutôt qu'escamotées, une par une, dans [coverage/evidence.json](coverage/evidence.json).
 >
@@ -93,10 +93,16 @@ ajouter : [**examples/**](examples/) — GitHub Actions, GitLab CI, et une actio
 `setup-feint` qui vérifie l'empreinte du binaire avant de l'exécuter.
 
 Pas de compte. Pas d'identifiants. Rien de facturé, et rien qui continue de
-tourner ailleurs que sur votre machine. Le provider qui a produit cette ligne est
-le vrai, celui du registre : tout l'argument de ce dépôt est qu'il ne peut pas
-voir la différence, et [ce que vous pouvez valider](docs/confidence.md) dit où
-cette affirmation s'arrête.
+tourner ailleurs que sur votre machine, **pour chaque API que Feint sert**. Un
+produit hors de ce périmètre (Object Storage est le cas mesuré) est joint par
+son client au vrai endpoint, où que pointe le reste de l'exécution :
+[docs/limits.md](docs/limits.md#a-run-presented-as-local-can-still-reach-the-real-cloud-280)
+nomme ces chemins d'évasion, et `feint doctor`, lancé depuis le répertoire de
+la stack, avertit des cas mesurés avant que l'apply ne le fasse. Le provider
+qui a produit cette ligne est le vrai, celui du registre : tout l'argument de
+ce dépôt est qu'il ne peut pas voir la différence, et
+[ce que vous pouvez valider](docs/confidence.md) dit où cette affirmation
+s'arrête.
 
 ![Démarrage de Feint, le CLI Scaleway officiel pointé dessus, et un terraform apply exécuté contre lui](docs/assets/quickstart.gif)
 

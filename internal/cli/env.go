@@ -162,6 +162,22 @@ func envCommand(args []string, stdout, stderr io.Writer) int {
 				fmt.Fprintf(stderr, "warning: %s\n", warning)
 			}
 		}
+		// The stack's own text can defeat every export just printed: a
+		// scaleway_object_* resource reaches the real s3.<region>.scw.cloud
+		// no matter what SCW_API_URL says (measured, #262/#280). env is
+		// eval'd from the stack directory, which makes this the last moment
+		// a warning can land before the apply that escapes. Same contract as
+		// above: stderr only, and a directory with no Terraform files stays
+		// silent. TestEnvNamesTheEscapeInTheStackNextToIt fails without it.
+		if hazards, ok := pack.(packStackHazards); ok {
+			if dir, err := os.Getwd(); err == nil {
+				if config, files := stackConfig(dir); files > 0 {
+					for _, warning := range hazards.StackHazards(config) {
+						fmt.Fprintf(stderr, "warning: %s\n", warning)
+					}
+				}
+			}
+		}
 	}
 	return exitOK
 }
