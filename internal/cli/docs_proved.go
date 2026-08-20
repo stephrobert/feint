@@ -418,13 +418,29 @@ func renderProved(workflow, root, stacks, script string) (string, error) {
 				"nothing installs", workflow, strings.Join(unused, ", "))
 	}
 
-	appliedStacks, err := stacksAppliedInCI(script, workflow)
+	pins, err := providerPinsOfRepository(workflow, root, stacks, script)
 	if err != nil {
 		return "", err
 	}
+	return renderProvedTables(versions, proofs, pins), nil
+}
+
+// providerPinsOfRepository reads every provider constraint the fixtures and the
+// stacks declare, each marked with whether a suite the conformance workflow
+// runs applies it.
+//
+// Its own function because two readers want it: the table below, and the
+// refusal in docs_stacks.go that will not let a directory be applied in CI
+// without saying which provider versions it accepts. Computing it twice would
+// be two chances for the page and the refusal to disagree about the same row.
+func providerPinsOfRepository(workflow, root, stacks, script string) ([]providerPin, error) {
+	appliedStacks, err := stacksAppliedInCI(script, workflow)
+	if err != nil {
+		return nil, err
+	}
 	appliedFixtures, err := fixturesAppliedInCI(root, workflow)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	driven := func(dir string) bool {
 		if appliedFixtures[dir] {
@@ -446,13 +462,17 @@ func renderProved(workflow, root, stacks, script string) (string, error) {
 
 	fixturePins, err := providerPins(root, driven)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	stackPins, err := providerPins(stacks, driven)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
+	return append(fixturePins, stackPins...), nil
+}
 
+// renderProved builds the page, continued.
+func renderProvedTables(versions map[string]string, proofs map[string][]clientProof, pins []providerPin) string {
 	var b strings.Builder
 	b.WriteString(docsGenerated)
 	b.WriteString("\n\n### The clients\n\n")
@@ -483,7 +503,7 @@ func renderProved(workflow, root, stacks, script string) (string, error) {
 	b.WriteString("The client above is the engine; what answers this emulator is the provider.\n")
 	b.WriteString("Each row is one `required_providers` entry, read where it is written.\n\n")
 	b.WriteString("| Fixture or stack | Provider | Constraint | What that is worth | Applied in CI |\n|---|---|---|---|---|\n")
-	for _, pin := range append(append([]providerPin{}, fixturePins...), stackPins...) {
+	for _, pin := range pins {
 		kind, meaning := pinKind(pin.Constraint)
 		constraint := "—"
 		if strings.TrimSpace(pin.Constraint) != "" {
@@ -503,7 +523,8 @@ func renderProved(workflow, root, stacks, script string) (string, error) {
 	b.WriteString("that answered is not knowable from this repository — it is a floor, not a\n")
 	b.WriteString("proof. **Not pinned** is not pinned: nothing here says which version ran, and\n")
 	b.WriteString("no number is invented to fill the cell.\n")
-	return b.String(), nil
+	b.WriteString(renderStackExceptions())
+	return b.String()
 }
 
 // spliceProved reports whether the page is out of date, and leaves it alone.

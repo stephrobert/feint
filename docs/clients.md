@@ -36,6 +36,16 @@ The last column is derived from the conformance workflow and from
 `tools/conformance/stacks.sh`, so a fixture nothing applies cannot pass for a
 proof by sitting in the directory.
 
+Two things this table said the day it landed, which nothing had said before, and
+which are now checked rather than read. A stack CI applies must carry a provider
+constraint — an unconstrained one is resolved from the whole registry on every
+run, so the apply proves the emulator answered *something* and nothing anybody
+can replay. And a stack CI does **not** apply must be declared, with its reason,
+in `stacksRunByHand` (`internal/cli/docs_stacks.go`); `feint docs --check` exits
+2 on a stack that is neither applied nor declared, and on a declaration for a
+stack that no longer exists or that CI has started applying. The list below the
+table is that declaration, printed from the same source the refusal reads.
+
 ## The versions
 
 <!-- proved:start -->
@@ -63,7 +73,7 @@ Each row is one `required_providers` entry, read where it is written.
 | `tools/conformance/scaleway/terraform` | `scaleway/scaleway` | `2.81.0` | exact: the version that answered | yes |
 | `examples/stacks/exoscale` | `exoscale/exoscale` | — | not pinned: whatever the registry served that day | no |
 | `examples/stacks/outscale` | `outscale/outscale` | `~> 1.7` | constraint: resolved fresh on each run, so the version that answered is not knowable here | yes |
-| `examples/stacks/outscale/modules/net` | `outscale/outscale` | — | not pinned: whatever the registry served that day | yes |
+| `examples/stacks/outscale/modules/net` | `outscale/outscale` | `~> 1.7` | constraint: resolved fresh on each run, so the version that answered is not knowable here | yes |
 | `examples/stacks/scaleway` | `scaleway/scaleway` | `2.81.0` | exact: the version that answered | yes |
 
 Read the third column narrowly, because it is the one a consumer pins against.
@@ -72,6 +82,18 @@ resolved by `terraform init -upgrade` on the runner, every run, so the version
 that answered is not knowable from this repository — it is a floor, not a
 proof. **Not pinned** is not pinned: nothing here says which version ran, and
 no number is invented to fill the cell.
+
+The stacks the last column says CI does not apply are declared rather than
+merely absent, so a `no` is a decision somebody wrote down and not a stack
+nobody wired up:
+
+- `examples/stacks/exoscale` — the published Exoscale provider builds two
+  clients and only one honours `EXOSCALE_API_ENDPOINT`, so an apply splits
+  between the emulator and a paying account (docs/limits.md, upstream
+  exoscale/terraform-provider-exoscale#573). Running it needs the patched
+  fork, and no gate here clones a third-party repository — that would put
+  somebody else's availability in this pipeline. Applied by hand on
+  2026-08-18: 13 resources, empty second plan, clean destroy.
 <!-- proved:end -->
 
 ## Where else this appears
