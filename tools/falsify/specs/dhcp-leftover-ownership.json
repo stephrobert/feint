@@ -4,8 +4,8 @@
     {
       "label": "the ownership question is no longer asked before a DHCP service is attributed to the emulator",
       "file": "internal/core/machine/leftover.go",
-      "find": "\t\tif !ownedNetwork(name) || !safeName.MatchString(name) || !gone(name) {\n\t\t\treturn DHCPLeftover{}, false\n\t\t}",
-      "replace": "\t\tif false && (!ownedNetwork(name) || !safeName.MatchString(name)) || !gone(name) {\n\t\t\treturn DHCPLeftover{}, false\n\t\t}",
+      "find": "\t\tif !ownedNetwork(name) || !safeName.MatchString(name) {\n\t\t\treturn DHCPLeftover{}, false\n\t\t}",
+      "replace": "\t\tif false && (!ownedNetwork(name) || !safeName.MatchString(name)) {\n\t\t\treturn DHCPLeftover{}, false\n\t\t}",
       "test": "TestLeftoverDHCPRefusesAProcessItCannotAttribute"
     },
     {
@@ -14,6 +14,20 @@
       "find": "\tif !ok || current.Interface != leftover.Interface {\n\t\treturn fmt.Errorf(\"pid %d is no longer the DHCP service that outlived %s; refusing to signal it\",\n\t\t\tleftover.PID, leftover.Interface)\n\t}",
       "replace": "\tif (!ok || current.Interface != leftover.Interface) && false {\n\t\treturn fmt.Errorf(\"pid %d is no longer the DHCP service that outlived %s; refusing to signal it\",\n\t\t\tleftover.PID, leftover.Interface)\n\t}",
       "test": "TestTerminateLeftoverRefusesAPidThatIsNoLongerTheLeftover"
+    },
+    {
+      "label": "the classification answers only the interface question again, so a service whose network died under a surviving bridge reads as healthy (#342)",
+      "file": "internal/core/machine/leftover.go",
+      "find": "\t\tif !unknown(name) || !runtimeServiceOf(proc, name) {\n\t\t\treturn DHCPLeftover{}, false\n\t\t}",
+      "replace": "\t\tif true || !unknown(name) || !runtimeServiceOf(proc, name) {\n\t\t\treturn DHCPLeftover{}, false\n\t\t}",
+      "test": "TestLeftoverDHCPFindsTheServiceWhoseNetworkIsGone"
+    },
+    {
+      "label": "the live-interface case stops demanding the runtime's own state directory, so a hand-rolled dnsmasq on a borrowed fnt- name is claimed",
+      "file": "internal/core/machine/leftover.go",
+      "find": "\t\tif !unknown(name) || !runtimeServiceOf(proc, name) {\n\t\t\treturn DHCPLeftover{}, false\n\t\t}",
+      "replace": "\t\tif !unknown(name) || (false && !runtimeServiceOf(proc, name)) {\n\t\t\treturn DHCPLeftover{}, false\n\t\t}",
+      "test": "TestLeftoverDHCPDemandsTheRuntimesOwnPathWhenTheInterfaceSurvives"
     }
   ]
 }

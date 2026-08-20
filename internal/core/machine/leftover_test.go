@@ -2,6 +2,7 @@ package machine
 
 import (
 	"errors"
+	"net/netip"
 	"strings"
 	"testing"
 )
@@ -34,6 +35,16 @@ var libvirtDNSMasq = []string{
 	"--leasefile-ro", "--dhcp-script=/usr/lib/libvirt/libvirt_leaseshelper",
 }
 
+// runtimeKnows is the conservative default for the network question: the
+// runtime was not asked, or answered that it still manages the name. Under it
+// only a vanished interface can make a leftover, which is #316's original
+// classification.
+func runtimeKnows(string) bool { return false }
+
+// runtimeForgot answers that no project of the runtime has a network under
+// the name: the missing half of #342.
+func runtimeForgot(string) bool { return true }
+
 func TestLeftoverDHCPFindsTheServiceThatOutlivedItsInterface(t *testing.T) {
 	// The exact condition measured in #316: the interface is gone, the
 	// process is not, and only the process knows which block it still holds.
@@ -42,7 +53,7 @@ func TestLeftoverDHCPFindsTheServiceThatOutlivedItsInterface(t *testing.T) {
 	}
 	everythingGone := func(string) bool { return true }
 
-	leftovers := leftoverDHCP(procs, everythingGone)
+	leftovers := leftoverDHCP(procs, everythingGone, runtimeKnows)
 	if len(leftovers) != 1 {
 		t.Fatalf("expected one leftover, got %v", leftovers)
 	}
@@ -84,7 +95,7 @@ func TestLeftoverDHCPRefusesAProcessItCannotAttribute(t *testing.T) {
 	}
 	everythingGone := func(string) bool { return true }
 
-	if leftovers := leftoverDHCP(procs, everythingGone); len(leftovers) != 0 {
+	if leftovers := leftoverDHCP(procs, everythingGone, runtimeForgot); len(leftovers) != 0 {
 		t.Fatalf("a foreign process was attributed to the emulator: %v", leftovers)
 	}
 }
@@ -100,7 +111,7 @@ func TestLeftoverDHCPLeavesALiveServiceAlone(t *testing.T) {
 	}
 	alive := func(string) bool { return false }
 
-	if leftovers := leftoverDHCP(procs, alive); len(leftovers) != 0 {
+	if leftovers := leftoverDHCP(procs, alive, runtimeKnows); len(leftovers) != 0 {
 		t.Fatalf("a live service was reported as a leftover: %v", leftovers)
 	}
 }
@@ -112,7 +123,7 @@ func TestLeftoverDHCPRefusesAMixedInterfaceSet(t *testing.T) {
 	argv := append(incusDNSMasq("fnt-99109f524b2", "10.50.2.1"), "--interface=incusbr0")
 	procs := []HostProcess{{PID: 99, Argv: argv}}
 
-	if leftovers := leftoverDHCP(procs, func(string) bool { return true }); len(leftovers) != 0 {
+	if leftovers := leftoverDHCP(procs, func(string) bool { return true }, runtimeKnows); len(leftovers) != 0 {
 		t.Fatalf("a mixed interface set was attributed to the emulator: %v", leftovers)
 	}
 }
@@ -146,6 +157,7 @@ func TestTerminateLeftoverRefusesAPidThatIsNoLongerTheLeftover(t *testing.T) {
 		err := terminateLeftover(leftover,
 			func(int) ([]string, error) { return tc.argv, tc.err },
 			func(string) bool { return tc.gone },
+			runtimeKnows,
 			func(pid int) error { signalled = append(signalled, pid); return nil })
 		if len(signalled) != 0 {
 			t.Errorf("%s: a signal was sent anyway, to %v", name, signalled)
@@ -164,6 +176,7 @@ func TestTerminateLeftoverTreatsAGoneProcessAsDone(t *testing.T) {
 	err := terminateLeftover(DHCPLeftover{PID: 1, Interface: "fnt-x"},
 		func(int) ([]string, error) { return nil, errors.New("no such process") },
 		func(string) bool { return true },
+		runtimeKnows,
 		func(pid int) error { signalled = append(signalled, pid); return nil })
 	if err != nil || len(signalled) != 0 {
 		t.Fatalf("a vanished process was not treated as done: err=%v signals=%v", err, signalled)
@@ -178,6 +191,7 @@ func TestTerminateLeftoverEndsTheLeftoverItWasGiven(t *testing.T) {
 	err := terminateLeftover(leftover,
 		func(int) ([]string, error) { return incusDNSMasq("fnt-99109f524b2", "10.50.2.1"), nil },
 		func(string) bool { return true },
+		runtimeKnows,
 		func(pid int) error { signalled = append(signalled, pid); return nil })
 	if err != nil {
 		t.Fatalf("the leftover was refused: %v", err)
@@ -235,5 +249,82 @@ func TestANetworkCreateFailureStaysQuietAboutAnUnrelatedLeftover(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "7777") || strings.Contains(err.Error(), "fnt-a1b2c3d4e5f") {
 		t.Fatalf("the error names a process that does not hold this block:\n%v", err)
+	}
+}
+
+// TestLeftoverDHCPFindsTheServiceWhoseNetworkIsGone is #342's exact state,
+// measured on 2026-08-18: pid 612421 held 10.50.2.1 on a bridge that had
+// survived alongside its dnsmasq, both outliving the network object — and the
+// interface-only question answered "nothing outlives its interface" while the
+// next conformance run died on the bind. The falsification spec
+// dhcp-leftover-ownership.json proves this test fails when the network half
+// of the question is removed.
+func TestLeftoverDHCPFindsTheServiceWhoseNetworkIsGone(t *testing.T) {
+	procs := []HostProcess{
+		{PID: 612421, Argv: incusDNSMasq("fnt-99109f524b2", "10.50.2.1")},
+	}
+	interfaceStillThere := func(string) bool { return false }
+
+	leftovers := leftoverDHCP(procs, interfaceStillThere, runtimeForgot)
+	if len(leftovers) != 1 {
+		t.Fatalf("a service whose network is gone was not classified: %v", leftovers)
+	}
+	got := leftovers[0]
+	if got.PID != 612421 || got.Interface != "fnt-99109f524b2" || !got.InterfaceAlive {
+		t.Errorf("wrong classification: %+v", got)
+	}
+	// The report carries the two facts needed to act: the block (through its
+	// held address) and the pid.
+	for _, fact := range []string{"612421", "10.50.2.1", "fnt-99109f524b2"} {
+		if !strings.Contains(got.String(), fact) {
+			t.Errorf("the report does not carry %q: %s", fact, got)
+		}
+	}
+}
+
+// A live interface with a live network is nobody's leftover — and so is a
+// dnsmasq that merely borrowed an fnt- name without running off the runtime's
+// state directory. The live-interface case demands the strongest attribution
+// precisely because the wrong claim signals a working service.
+func TestLeftoverDHCPDemandsTheRuntimesOwnPathWhenTheInterfaceSurvives(t *testing.T) {
+	handRolled := []string{
+		"dnsmasq", "--interface=fnt-99109f524b2", "--listen-address=10.50.2.1",
+		"--conf-file=/home/operator/lab/dnsmasq.conf",
+	}
+	procs := []HostProcess{{PID: 4242, Argv: handRolled}}
+	interfaceStillThere := func(string) bool { return false }
+
+	if leftovers := leftoverDHCP(procs, interfaceStillThere, runtimeForgot); len(leftovers) != 0 {
+		t.Fatalf("a service that does not run off the runtime's state directory was claimed: %v", leftovers)
+	}
+}
+
+// DHCPHolders answers the other half of #342's question — "of ours or
+// otherwise" — at the one moment the wanted block is known: a create just
+// failed on it. Attribution is deliberately absent from the question, which is
+// why the answer must only ever name, never touch.
+func TestDHCPHoldersNamesAnyServiceInsideTheBlock(t *testing.T) {
+	procs := []HostProcess{
+		// The operator's own Incus bridge: never a leftover, but it does hold
+		// its block, and a create that collides with it deserves the fact.
+		{PID: 3187, Argv: incusDNSMasq("incusbr0", "10.76.154.1")},
+		// libvirt: no listen address on argv, so nothing places it in a block.
+		{PID: 2308, Argv: libvirtDNSMasq},
+		// Not a dnsmasq: not a DHCP service, whatever it listens on.
+		{PID: 77, Argv: []string{"nginx", "--listen-address=10.76.154.9"}},
+	}
+
+	holders := dhcpHolders(procs, netip.MustParsePrefix("10.76.154.0/24"))
+	if len(holders) != 1 || holders[0].PID != 3187 || holders[0].Address != "10.76.154.1" {
+		t.Fatalf("the holder of the block was not the one named: %v", holders)
+	}
+	for _, fact := range []string{"3187", "10.76.154.1", "dnsmasq"} {
+		if !strings.Contains(holders[0].String(), fact) {
+			t.Errorf("the report does not carry %q: %s", fact, holders[0])
+		}
+	}
+
+	if holders := dhcpHolders(procs, netip.MustParsePrefix("10.50.0.0/16")); len(holders) != 0 {
+		t.Fatalf("a service outside the block was named: %v", holders)
 	}
 }

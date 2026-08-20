@@ -98,17 +98,25 @@ var (
 	endLeftoverDHCP  = machine.TerminateLeftover
 )
 
-// sweepLeftoverDHCP ends the DHCP services an interrupted run left holding an
-// address block (#316): dnsmasq processes whose fnt- interface no longer
-// exists. They are invisible to `ip addr` and to the runtime's own listings —
-// only `ss -lnp` shows them — and the block they hold fails the next run
-// minutes in on "Address already in use".
+// sweepLeftoverDHCP ends the DHCP services an earlier run left holding an
+// address block (#316, #342): dnsmasq processes attributable to this emulator
+// whose network is gone — the interface with it, or the network object alone.
+// They are invisible to `ip addr` and to the runtime's own listings — only
+// `ss -lnp` shows them — and the block they hold fails the next run minutes
+// in on "Address already in use".
 //
 // Attribution comes first and lives in internal/core/machine: a process that
 // cannot be attributed to this emulator is never named here, let alone
 // signalled. The common refusal is not foreignness but permission — the
 // runtime's dnsmasq belongs to the incus user, not the operator — and then
 // the sweep reports the exact command instead of failing in silence.
+//
+// When the interface survived its network (#342), the sweep ends the service
+// and says what it will not touch: the bridge left standing carries no label
+// any more, so nothing on the host proves the emulator created it, and a
+// bridge nobody here created is not ours to delete. Saying so beats deleting
+// it and beats silence: the operator gets the exact command and the decision.
+// TestCleanSaysWhatItWillNotTouchWhenTheBridgeSurvived fails without the line.
 func sweepLeftoverDHCP(stdout io.Writer) error {
 	leftovers, err := findLeftoverDHCP()
 	if err != nil {
@@ -122,9 +130,13 @@ func sweepLeftoverDHCP(stdout io.Writer) error {
 		err := endLeftoverDHCP(leftover)
 		switch {
 		case err == nil:
-			fmt.Fprintf(stdout, "ended a DHCP service an interrupted run left behind: %s\n", leftover)
+			fmt.Fprintf(stdout, "ended a DHCP service an earlier run left behind: %s\n", leftover)
+			if leftover.InterfaceAlive {
+				fmt.Fprintf(stdout, "  left untouched: the bridge %s survived its network, and nothing proves this emulator created it — `sudo ip link delete %s` if it is yours\n",
+					leftover.Interface, leftover.Interface)
+			}
 		case errors.Is(err, os.ErrPermission):
-			fmt.Fprintf(stdout, "a DHCP service an interrupted run left behind belongs to another user: %s\n", leftover)
+			fmt.Fprintf(stdout, "a DHCP service an earlier run left behind belongs to another user: %s\n", leftover)
 			fmt.Fprintf(stdout, "  → sudo kill %d\n", leftover.PID)
 			stuck = append(stuck, leftover.String())
 		default:

@@ -1,0 +1,19 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "the held block goes back to a warning, so a state that kills the next run with certainty leaves doctor green for CI (#342)",
+      "file": "internal/cli/doctor.go",
+      "find": "\t\ttitle:  fmt.Sprintf(\"%d DHCP service(s) left by an earlier run still hold an address block this emulator will want\", len(leftovers)),\n\t\tstate:  verdictFail,",
+      "replace": "\t\ttitle:  fmt.Sprintf(\"%d DHCP service(s) left by an earlier run still hold an address block this emulator will want\", len(leftovers)),\n\t\tstate:  verdictFail * 0,",
+      "test": "TestDoctorFailsOnTheDHCPServiceWhoseNetworkIsGone"
+    },
+    {
+      "label": "the sweep stops saying what it will not touch, so the surviving bridge is left standing in silence (#342)",
+      "file": "internal/cli/clean.go",
+      "find": "\t\t\tif leftover.InterfaceAlive {",
+      "replace": "\t\t\tif leftover.InterfaceAlive && false {",
+      "test": "TestCleanSaysWhatItWillNotTouchWhenTheBridgeSurvived"
+    }
+  ]
+}

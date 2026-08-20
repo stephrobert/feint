@@ -225,9 +225,12 @@ func checkImages(ctx context.Context, driver machine.Driver) check {
 	missing := machine.MissingImages(inventory)
 	if len(missing) == 0 {
 		return check{
-			title:  fmt.Sprintf("%d machine image(s) present", len(inventory)),
-			state:  verdictOK,
-			detail: "each carries an ssh daemon, so a machine answers on port 22 without reaching a package repository",
+			title: fmt.Sprintf("%d machine image(s) present", len(inventory)),
+			state: verdictOK,
+			// What was measured is presence by name; the ssh daemon is the
+			// build recipe's promise, not this check's, and the wording says
+			// whose it is (#342: a green line claims what it looked at).
+			detail: "built by `feint images`, whose recipe installs an ssh daemon — a machine from them answers on port 22 without reaching a package repository",
 		}
 	}
 	return check{
@@ -306,18 +309,30 @@ func checkIncusVersion(ctx context.Context) check {
 	return check{title: fmt.Sprintf("Incus %d.%d.%d, new enough for NIC ACLs", got[0], got[1], got[2]), state: verdictOK}
 }
 
-// checkLeftoverDHCP reports the DHCP services an interrupted run left holding
-// an address block (#316): dnsmasq processes whose fnt- interface no longer
-// exists. The condition is invisible to `ip addr` and `incus network list`,
-// and knowing that `ss -lnp` is the third place to look cost three ten-minute
-// runs the first time; this check is that knowledge, one line, before the run
-// starts. It reports and never signals — ending the process is `feint clean`'s
-// job, and touching the host is not what a diagnostic is for.
+// checkLeftoverDHCP reports the DHCP services an earlier run left holding an
+// address block (#316, #342): dnsmasq processes attributable to this emulator
+// whose network is gone — the interface with it, or the network object alone,
+// the interface having survived. The condition is invisible to `ip addr` and
+// `incus network list`, and knowing that `ss -lnp` is the third place to look
+// cost three ten-minute runs the first time; this check is that knowledge,
+// one line, before the run starts. It reports and never signals — ending the
+// process is `feint clean`'s job, and touching the host is not what a
+// diagnostic is for.
+//
+// A fail, not a warning, deliberately: unlike the hazards around it, this
+// state makes the next machines-on run die at the bind with certainty, and a
+// green doctor followed by that death is precisely the misplaced reassurance
+// #342 measured. The check once answered `ok: no DHCP service outlives its
+// interface` while pid 612421 held 10.50.2.1 — a true sentence about a
+// narrower question than its reader was asking, because the interface had
+// survived along with its service and only the network had died. The green
+// line now claims exactly what was measured, no more.
 //
 // Independent of --vm on purpose: the leftover is a host fact, and it blocks a
 // future machines-on run whatever mode this invocation asked about.
 //
-// TestDoctorNamesTheDHCPServiceThatOutlivedItsInterface fails without this.
+// TestDoctorNamesTheDHCPServiceThatOutlivedItsInterface and
+// TestDoctorFailsOnTheDHCPServiceWhoseNetworkIsGone fail without this.
 func checkLeftoverDHCP() check {
 	leftovers, err := findLeftoverDHCP()
 	if err != nil {
@@ -328,15 +343,19 @@ func checkLeftoverDHCP() check {
 		}
 	}
 	if len(leftovers) == 0 {
-		return check{title: "no DHCP service outlives its interface", state: verdictOK}
+		return check{
+			title:  "no DHCP service of the emulator's outlives its network",
+			state:  verdictOK,
+			detail: "checked: dnsmasq processes on interfaces this emulator names; a service of another owner is only diagnosable when a create fails on its block, and the create error names it",
+		}
 	}
 	held := make([]string, 0, len(leftovers))
 	for _, leftover := range leftovers {
 		held = append(held, leftover.String())
 	}
 	return check{
-		title:  fmt.Sprintf("%d DHCP service(s) from an interrupted run still hold an address block", len(leftovers)),
-		state:  verdictWarn,
+		title:  fmt.Sprintf("%d DHCP service(s) left by an earlier run still hold an address block this emulator will want", len(leftovers)),
+		state:  verdictFail,
 		detail: strings.Join(held, "; "),
 		fix:    "the next run on such a block dies on 'Address already in use'; feint clean ends them (sudo kill <pid> if they belong to another user)",
 	}
@@ -396,7 +415,13 @@ func checkEnvHazards() []check {
 		}
 		warnings := hazards.EnvHazards(os.LookupEnv)
 		if len(warnings) == 0 {
-			out = append(out, check{title: "nothing in this shell reroutes " + p.Name() + " clients", state: verdictOK})
+			// "nothing in this shell reroutes" claimed the shell; what was
+			// measured is the pack's list of known variables (#342).
+			out = append(out, check{
+				title:  "no variable measured to reroute " + p.Name() + " clients is set in this shell",
+				state:  verdictOK,
+				detail: "this checks the pack's measured list, not every way a shell can redirect a client",
+			})
 			continue
 		}
 		for _, warning := range warnings {
@@ -473,11 +498,16 @@ func checkStackHazards() []check {
 func checkSSHConfig() check {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return check{title: "could not read ~/.ssh/config", state: verdictOK}
+		// "Could not look" was reported as an ok for years; a green mark on an
+		// unasked question is the #342 family, so it warns now.
+		return check{title: "could not look for a ProxyJump in ~/.ssh/config", state: verdictWarn, detail: err.Error()}
 	}
 	file, err := os.Open(filepath.Join(home, ".ssh", "config")) //nolint:gosec // the operator's own file
 	if err != nil {
-		return check{title: "no ~/.ssh/config to get in the way", state: verdictOK}
+		if os.IsNotExist(err) {
+			return check{title: "no ~/.ssh/config to get in the way", state: verdictOK}
+		}
+		return check{title: "could not look for a ProxyJump in ~/.ssh/config", state: verdictWarn, detail: err.Error()}
 	}
 	defer func() { _ = file.Close() }()
 
@@ -507,7 +537,13 @@ func checkSSHConfig() check {
 			}
 		}
 	}
-	return check{title: "no ProxyJump in ~/.ssh/config captures the runtime's range", state: verdictOK}
+	// The claim matches the measurement: two patterns are checked, not every
+	// pattern ssh can compose ("10*" or "?0.*" would slip past) — #342.
+	return check{
+		title:  "no ProxyJump on a Host pattern of * or 10.* in ~/.ssh/config",
+		state:  verdictOK,
+		detail: "this checks the two measured patterns, not every pattern ssh can compose",
+	}
 }
 
 func runQuiet(binary string, args ...string) string {

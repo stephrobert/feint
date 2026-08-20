@@ -1,0 +1,40 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the uplink rebuilds stop being serialised, so a subnet delegation and a machine-network create race in the daemon's firewall clear (#341)",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\t// of seconds of a machine launch.\n\t\td.uplinkMu.Lock()\n\t\tdefer d.uplinkMu.Unlock()",
+      "replace": "\t\t// of seconds of a machine launch.\n\t\tif false {\n\t\t\td.uplinkMu.Lock()\n\t\t\tdefer d.uplinkMu.Unlock()\n\t\t}",
+      "test": "TestConcurrentSubnetAndMachineNetworkCreatesSerialiseOnTheUplink"
+    },
+    {
+      "label": "a deleted network's block is never withdrawn from the uplink, so delegations accumulate run after run (#341)",
+      "file": "internal/core/machine/incus.go",
+      "find": "\tif !d.OVN || block == \"\" {\n\t\treturn nil\n\t}\n\treturn d.dropUplinkRoute(ctx, block)",
+      "replace": "\tif !d.OVN || block == \"\" {\n\t\treturn nil\n\t}\n\treturn d.dropUplinkRoute(ctx, block[:0])",
+      "test": "TestRemoveNetworkWithdrawsTheDelegatedBlock"
+    },
+    {
+      "label": "an uplink held by a live emulator is shared instead of refused, which is the cross-process shape of the same corruption (#341)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\t\tif pid, err := strconv.Atoi(holder); err == nil && d.holderIsAlive(pid) {",
+      "replace": "\t\tif pid, err := strconv.Atoi(holder); err == nil && false && d.holderIsAlive(pid) {",
+      "test": "TestEnsureUplinkRefusesAnUplinkHeldByALiveEmulator"
+    },
+    {
+      "label": "the adoption keeps a dead run's routes, so every stale delegated block stays a live host route (#341)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\t\tif current := strings.TrimSpace(config[\"ipv4.routes\"]); current != strings.Join(kept, \",\") {\n\t\t\targs = append(args, \"ipv4.routes=\"+strings.Join(kept, \",\"))\n\t\t}",
+      "replace": "\t\tif current := strings.TrimSpace(config[\"ipv4.routes\"]); current != strings.Join(kept, \",\") {\n\t\t\targs = append(args, \"ipv4.routes=\"+current)\n\t\t}",
+      "test": "TestAdoptedUplinkDropsADeadRunsRoutes"
+    },
+    {
+      "label": "a foreign DHCP holder of the wanted block goes unnamed in the create error (#342)",
+      "file": "internal/core/machine/incus.go",
+      "find": "\tfor _, holder := range d.blockHolders(block) {",
+      "replace": "\tfor _, holder := range d.blockHolders(block)[:0] {",
+      "test": "TestANetworkCreateFailureNamesAForeignHolderWithoutClaimingIt"
+    }
+  ]
+}

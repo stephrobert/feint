@@ -98,9 +98,28 @@ type Incus struct {
 	// concurrent first boots would otherwise both see it absent and the loser's
 	// `network create` would fail the launch it was only preparing.
 	defaultNetMu sync.Mutex
-	// uplinkMu serialises edits of the uplink's ipv4.routes, one value shared
-	// by every routed public address.
+	// uplinkMu serialises every operation that makes the runtime reconfigure
+	// the uplink bridge: its config edits (delegated blocks and routed /32s
+	// share one ipv4.routes value), and the create of any OVN network attached
+	// to it. Not only the edits: Incus clears and rebuilds the uplink's
+	// nftables chains on a bridge config change *and* on an OVN network
+	// create, its clear is snapshot-then-delete, and the two paths share no
+	// lock in the daemon — so of two concurrent rebuilds, the loser dies on
+	// `Failed deleting nftables chain "fwd.feint-uplink" ... No such file or
+	// directory` (#341, measured on Incus 7.2 with the daemon's debug log: a
+	// PUT from delegateRoute interleaved with the POST creating fnt-default).
+	// TestConcurrentSubnetAndMachineNetworkCreatesSerialiseOnTheUplink fails
+	// without this serialisation.
 	uplinkMu sync.Mutex
+	// uplinkAdopt runs once per process, at the first reuse of an uplink a
+	// previous emulator left behind: see adoptUplink.
+	uplinkAdopt sync.Once
+	// holderProbe answers whether a pid recorded on the uplink is a live feint
+	// process. A test seam; nil means reading /proc.
+	holderProbe func(pid int) bool
+	// holderScan lists the DHCP services holding an address inside a block.
+	// A test seam; nil means scanning /proc.
+	holderScan func(block netip.Prefix) []BlockHolder
 }
 
 // NewIncus returns a driver launching system containers.
@@ -965,6 +984,18 @@ func (d *Incus) EnsureNetwork(ctx context.Context, spec NetworkSpec) error {
 
 	args := []string{"network", "create", spec.Name}
 	if d.OVN {
+		// The whole OVN sequence — uplink ensure, block delegation, and the
+		// create itself — holds uplinkMu. The create is under the lock on
+		// purpose: the daemon rebuilds the uplink bridge's firewall while
+		// creating an OVN network attached to it, exactly as it does on a
+		// route edit, and two concurrent rebuilds corrupt each other (#341;
+		// the lock's own comment carries the measurement). This is the
+		// narrow exception to "a slow side effect does not sit inside a
+		// lock": the uplink is the single named target whose reconfigurations
+		// must be exclusive, and a network create costs seconds, not the tens
+		// of seconds of a machine launch.
+		d.uplinkMu.Lock()
+		defer d.uplinkMu.Unlock()
 		// The uplink is what an OVN network draws its router address from;
 		// without one the create is refused outright.
 		if err := d.ensureUplink(ctx); err != nil {
@@ -991,12 +1022,20 @@ func (d *Incus) EnsureNetwork(ctx context.Context, spec NetworkSpec) error {
 	return nil
 }
 
-// networkCreateError wraps a failed network create, and names the leftover
-// DHCP service when one still holds an address inside the requested block
-// (#316). The bare failure reads "Address already in use" while `ip addr` and
-// `incus network list` both show a clean host, and finding the cause cost
-// three ten-minute runs the first time; the process that holds the block is
-// the one fact worth adding, so the error carries it.
+// networkCreateError wraps a failed network create, and names the DHCP service
+// still holding an address inside the requested block (#316). The bare failure
+// reads "Address already in use" while `ip addr` and `incus network list` both
+// show a clean host, and finding the cause cost three ten-minute runs the
+// first time; the process that holds the block is the one fact worth adding,
+// so the error carries it.
+//
+// Two populations, in order of usefulness. A leftover attributable to the
+// emulator comes with its remedy, `feint clean`. A service that cannot be
+// attributed is named too (#342): this is the one moment the block the
+// emulator wants is known exactly, so "of ours or otherwise" is answerable
+// here and nowhere else — named and never touched, because attribution failed.
+// TestANetworkCreateFailureNamesAForeignHolderWithoutClaimingIt fails without
+// the second half.
 func (d *Incus) networkCreateError(name, address, cidr string, err error) error {
 	base := fmt.Errorf("create network %s (%s): %w", name, address, err)
 	block, parseErr := netip.ParsePrefix(cidr)
@@ -1010,6 +1049,11 @@ func (d *Incus) networkCreateError(name, address, cidr string, err error) error 
 		return fmt.Errorf("%w; a DHCP service left by an interrupted run still holds the block: %s"+
 			" — `feint clean` ends it (sudo kill %d if it belongs to another user)",
 			base, leftover, leftover.PID)
+	}
+	for _, holder := range d.blockHolders(block) {
+		return fmt.Errorf("%w; a DHCP service this emulator cannot claim holds an address in the block: %s"+
+			" — it is not the emulator's to end; stop it yourself, or use another block",
+			base, holder)
 	}
 	return base
 }
@@ -1028,6 +1072,14 @@ func (d *Incus) leftovers() []DHCPLeftover {
 		return nil
 	}
 	return found
+}
+
+// blockHolders is the second scan behind networkCreateError, with its seam.
+func (d *Incus) blockHolders(block netip.Prefix) []BlockHolder {
+	if d.holderScan != nil {
+		return d.holderScan(block)
+	}
+	return DHCPHolders(block)
 }
 
 // leftoverHolds reports whether the leftover's listen addresses fall inside
@@ -1058,9 +1110,26 @@ func (d *Incus) RemoveNetwork(ctx context.Context, name string) error {
 	if !safeName.MatchString(name) || !ownedNetwork(name) {
 		return fmt.Errorf("refusing to delete network %q: not one the emulator created", name)
 	}
+	// The delegated block goes with the network it was delegated for. Left
+	// behind, each one is a real route on the host pointed at the uplink for as
+	// long as the uplink lives — seven of them were measured on one station,
+	// every one the block of a network long deleted (#341, the leftover half).
+	// Read before the delete, because afterwards nobody remembers the block;
+	// withdrawn only after a delete that succeeded, because a network still
+	// standing must keep its delegation. The lock spans the whole sequence for
+	// the same measured reason EnsureNetwork's does (see uplinkMu).
+	// TestRemoveNetworkWithdrawsTheDelegatedBlock fails without the withdrawal.
+	block := ""
+	if d.OVN {
+		d.uplinkMu.Lock()
+		defer d.uplinkMu.Unlock()
+		if prefix, err := d.networkGateway(ctx, name); err == nil {
+			block = prefix.Masked().String()
+		}
+	}
 	if _, err := d.run(ctx, "network", "delete", name); err != nil {
 		if isNotFound(err) {
-			return nil
+			return d.dropUplinkRouteOVN(ctx, block)
 		}
 		if d.OVN && strings.Contains(strings.ToLower(err.Error()), "in use") {
 			if peers, peersErr := d.networkPeers(ctx, name); peersErr == nil && len(peers) > 0 {
@@ -1068,13 +1137,23 @@ func (d *Incus) RemoveNetwork(ctx context.Context, name string) error {
 					_, _ = d.run(ctx, "network", "peer", "delete", name, peer.Name)
 				}
 				if _, err := d.run(ctx, "network", "delete", name); err == nil || isNotFound(err) {
-					return nil
+					return d.dropUplinkRouteOVN(ctx, block)
 				}
 			}
 		}
 		return fmt.Errorf("delete network %s: %w", name, err)
 	}
-	return nil
+	return d.dropUplinkRouteOVN(ctx, block)
+}
+
+// dropUplinkRouteOVN withdraws one delegated block after a network delete, and
+// is a no-op outside OVN mode or for an unknown block. The caller holds
+// uplinkMu when d.OVN.
+func (d *Incus) dropUplinkRouteOVN(ctx context.Context, block string) error {
+	if !d.OVN || block == "" {
+		return nil
+	}
+	return d.dropUplinkRoute(ctx, block)
 }
 
 // gatewayAddress renders the gateway in the form Incus expects. An empty

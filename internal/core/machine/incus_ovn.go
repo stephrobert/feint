@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/netip"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -40,7 +43,9 @@ const (
 	DefaultUplinkCIDR = "10.209.83.0/24"
 )
 
-// delegateRoute adds one block to the uplink's ipv4.routes.
+// delegateRoute adds one block to the uplink's ipv4.routes. The caller holds
+// uplinkMu — see the field's comment for the measured reason there is no safe
+// unserialised edit of the uplink.
 //
 // An OVN network must sit inside its uplink's routes, and Incus says so in terms
 // that name the network rather than the setting: "Uplink network doesn't contain
@@ -57,26 +62,8 @@ const (
 // Idempotent by construction: a block already delegated is left alone, so
 // creating the same network twice does not grow the list.
 func (d *Incus) delegateRoute(ctx context.Context, block string) error {
-	name := d.uplinkName()
-	out, err := d.run(ctx, "network", "get", name, "ipv4.routes")
-	if err != nil {
-		return fmt.Errorf("read routes on uplink %s: %w", name, err)
-	}
-
-	current := strings.TrimSpace(string(out))
-	routes := []string{}
-	if current != "" {
-		routes = strings.Split(current, ",")
-	}
-	for _, route := range routes {
-		if strings.TrimSpace(route) == block {
-			return nil
-		}
-	}
-	routes = append(routes, block)
-
-	if _, err := d.run(ctx, "network", "set", name, "ipv4.routes="+strings.Join(routes, ",")); err != nil {
-		return fmt.Errorf("delegate %s to uplink %s: %w", block, name, err)
+	if err := d.addUplinkRoute(ctx, block); err != nil {
+		return fmt.Errorf("delegate %s to uplink %s: %w", block, d.uplinkName(), err)
 	}
 	return nil
 }
@@ -96,12 +83,25 @@ func (d *Incus) uplinkCIDR() string {
 	return DefaultUplinkCIDR
 }
 
-// ensureUplink creates the uplink bridge OVN networks attach to, once.
+// UplinkHolderKey is the config key (under user.) naming the emulator process
+// that holds the uplink, as a pid. The uplink is shared host state, and the
+// serialisation that keeps its rebuilds safe (uplinkMu) lives in one process:
+// a second live emulator editing the same uplink is outside any lock, and the
+// measured outcome of two concurrent edits is a corrupted firewall rebuild.
+// So sharing refuses instead of corrupting: an uplink held by another live
+// feint process is not reused.
+const UplinkHolderKey = "feint.holder"
+
+// ensureUplink creates the uplink bridge OVN networks attach to, once. The
+// caller holds uplinkMu.
 //
 // An OVN network refuses to exist without an uplink to allocate its router
 // address from (ipv4.ovn.ranges), so this runs before the first network. An
 // existing network under the name is only reused when it carries the
-// emulator's label: the operator's own bridges are never conscripted.
+// emulator's label: the operator's own bridges are never conscripted. And a
+// labelled uplink is only reused when no other live emulator holds it —
+// TestEnsureUplinkRefusesAnUplinkHeldByALiveEmulator fails without that
+// refusal.
 func (d *Incus) ensureUplink(ctx context.Context) error {
 	name := d.uplinkName()
 	if out, err := d.run(ctx, "query", "/1.0/networks/"+name); err == nil {
@@ -115,7 +115,7 @@ func (d *Incus) ensureUplink(ctx context.Context) error {
 		if existing.Type != "bridge" || existing.Config["user."+LabelKey] == "" {
 			return fmt.Errorf("network %s exists and is not the emulator's uplink; refusing to reuse it", name)
 		}
-		return nil
+		return d.adoptUplink(ctx, existing.Config)
 	} else if !isNotFound(err) {
 		return fmt.Errorf("inspect uplink %s: %w", name, err)
 	}
@@ -139,10 +139,106 @@ func (d *Incus) ensureUplink(ctx context.Context) error {
 		"ipv6.address=none",
 		"ipv4.dhcp.ranges="+dhcp,
 		"ipv4.ovn.ranges="+ovn,
-		"user."+LabelKey+"=feint"); err != nil {
+		"user."+LabelKey+"=feint",
+		"user."+UplinkHolderKey+"="+strconv.Itoa(os.Getpid())); err != nil {
 		return fmt.Errorf("create uplink %s (%s): %w", name, gateway, err)
 	}
+	// A freshly created uplink has nothing to adopt: burn the once so a later
+	// reuse of our own uplink does not "reconcile" away the routed /32s this
+	// process adds between two network creates.
+	d.uplinkAdopt.Do(func() {})
 	return nil
+}
+
+// adoptUplink is the reuse half of ensureUplink: the uplink exists, is
+// labelled ours, and was left by somebody. Two questions, in order.
+//
+// Whose is it now? A pid recorded by a live feint process means a second
+// emulator would be editing shared host state outside any common lock, which
+// is the measured corruption of #341 — so it refuses.
+//
+// What did the previous life leave on it? Every block a dead run delegated is
+// still a real route on the host, captured towards the uplink: seven were
+// measured on one station (#341). Nothing of a dead emulator is adopted
+// anywhere else, so its routes are not either: the adopt keeps exactly the
+// blocks of the labelled OVN networks still standing (the next run reuses
+// those by name), drops the rest, and records this process as holder. Once
+// per process, because staleness is a fact about what predates it.
+// TestAdoptedUplinkDropsADeadRunsRoutes fails without the drop.
+func (d *Incus) adoptUplink(ctx context.Context, config map[string]string) error {
+	holder := config["user."+UplinkHolderKey]
+	self := strconv.Itoa(os.Getpid())
+	if holder != "" && holder != self {
+		if pid, err := strconv.Atoi(holder); err == nil && d.holderIsAlive(pid) {
+			return fmt.Errorf("uplink %s is held by another running emulator (pid %d); "+
+				"two emulators corrupt each other's firewall rebuilds, so sharing is refused — "+
+				"stop the other emulator, or point this one at another uplink", d.uplinkName(), pid)
+		}
+	}
+	var adoptErr error
+	d.uplinkAdopt.Do(func() {
+		kept, err := d.liveDelegations(ctx)
+		if err != nil {
+			adoptErr = err
+			return
+		}
+		args := []string{"network", "set", d.uplinkName(),
+			"user." + UplinkHolderKey + "=" + self}
+		if current := strings.TrimSpace(config["ipv4.routes"]); current != strings.Join(kept, ",") {
+			args = append(args, "ipv4.routes="+strings.Join(kept, ","))
+		} else if holder == self {
+			return // Nothing stale, and already ours: spare the rebuild.
+		}
+		if _, err := d.run(ctx, args...); err != nil {
+			adoptErr = fmt.Errorf("adopt uplink %s: %w", d.uplinkName(), err)
+		}
+	})
+	return adoptErr
+}
+
+// liveDelegations lists the blocks that must stay delegated to the uplink: the
+// block of every labelled OVN network still attached to it.
+func (d *Incus) liveDelegations(ctx context.Context) ([]string, error) {
+	out, err := d.run(ctx, "query", "/1.0/networks?recursion=1")
+	if err != nil {
+		return nil, fmt.Errorf("list networks to adopt uplink %s: %w", d.uplinkName(), err)
+	}
+	var items []struct {
+		Name   string            `json:"name"`
+		Type   string            `json:"type"`
+		Config map[string]string `json:"config"`
+	}
+	if err := json.Unmarshal(out, &items); err != nil {
+		return nil, fmt.Errorf("decode networks to adopt uplink %s: %w", d.uplinkName(), err)
+	}
+	var kept []string
+	for _, item := range items {
+		if item.Type != "ovn" || item.Config["user."+LabelKey] == "" ||
+			item.Config["network"] != d.uplinkName() {
+			continue
+		}
+		prefix, err := netip.ParsePrefix(item.Config["ipv4.address"])
+		if err != nil {
+			continue
+		}
+		kept = append(kept, prefix.Masked().String())
+	}
+	return kept, nil
+}
+
+// holderIsAlive reports that the pid recorded on the uplink still belongs to a
+// live feint process. Conservative in the direction that refuses: only a
+// readable /proc entry whose binary is feint counts as alive, so a recycled
+// pid running something else does not hold the uplink hostage.
+func (d *Incus) holderIsAlive(pid int) bool {
+	if d.holderProbe != nil {
+		return d.holderProbe(pid)
+	}
+	argv, err := procArgv(pid)
+	if err != nil || len(argv) == 0 {
+		return false
+	}
+	return strings.HasPrefix(filepath.Base(argv[0]), "feint")
 }
 
 // uplinkRanges splits an uplink block into the two ranges Incus wants: DHCP
@@ -524,36 +620,61 @@ func removeRoute(routes, route string) string {
 }
 
 // setUplinkRoute adds or removes one /32 from the uplink's ipv4.routes, which
-// is what makes the host route the address towards OVN. The key is shared by
-// every routed address, hence the lock: two attachments editing it without one
-// lose each other's routes.
+// is what makes the host route the address towards OVN. It takes uplinkMu
+// itself: its callers are address attachments, which hold no uplink lock of
+// their own.
 func (d *Incus) setUplinkRoute(ctx context.Context, address string, add bool) error {
 	d.uplinkMu.Lock()
 	defer d.uplinkMu.Unlock()
+	if add {
+		if err := d.addUplinkRoute(ctx, address+"/32"); err != nil {
+			return fmt.Errorf("set routes of uplink %s: %w", d.uplinkName(), err)
+		}
+		return nil
+	}
+	return d.dropUplinkRoute(ctx, address+"/32")
+}
 
+// addUplinkRoute puts one entry on the uplink's ipv4.routes, leaving the rest
+// alone; an entry already present is left as it is, so nothing is rebuilt for
+// nothing. The caller holds uplinkMu.
+func (d *Incus) addUplinkRoute(ctx context.Context, route string) error {
 	name := d.uplinkName()
 	out, err := d.run(ctx, "network", "get", name, "ipv4.routes")
 	if err != nil {
-		// No uplink means nothing routes the address anyway; for a removal
-		// that is the outcome asked for.
-		if !add && isNotFound(err) {
+		return fmt.Errorf("read routes on uplink %s: %w", name, err)
+	}
+	current := strings.TrimSpace(string(out))
+	if routeListContains(current, route) {
+		return nil
+	}
+	if _, err := d.run(ctx, "network", "set", name, "ipv4.routes="+appendRoute(current, route)); err != nil {
+		return err
+	}
+	return nil
+}
+
+// dropUplinkRoute takes one entry off the uplink's ipv4.routes. The caller
+// holds uplinkMu. An uplink already gone, or an entry already absent, is the
+// outcome asked for — and skipping the write in the absent case matters, since
+// every write makes the runtime clear and rebuild the uplink's firewall.
+func (d *Incus) dropUplinkRoute(ctx context.Context, route string) error {
+	if route == "" {
+		return nil
+	}
+	name := d.uplinkName()
+	out, err := d.run(ctx, "network", "get", name, "ipv4.routes")
+	if err != nil {
+		if isNotFound(err) {
 			return nil
 		}
 		return fmt.Errorf("read routes of uplink %s: %w", name, err)
 	}
-
-	route := address + "/32"
-	kept := make([]string, 0, 4)
-	for _, existing := range strings.Split(strings.TrimSpace(string(out)), ",") {
-		existing = strings.TrimSpace(existing)
-		if existing != "" && existing != route {
-			kept = append(kept, existing)
-		}
+	current := strings.TrimSpace(string(out))
+	if !routeListContains(current, route) {
+		return nil
 	}
-	if add {
-		kept = append(kept, route)
-	}
-	if _, err := d.run(ctx, "network", "set", name, "ipv4.routes="+strings.Join(kept, ",")); err != nil {
+	if _, err := d.run(ctx, "network", "set", name, "ipv4.routes="+removeRoute(current, route)); err != nil {
 		return fmt.Errorf("set routes of uplink %s: %w", name, err)
 	}
 	return nil
