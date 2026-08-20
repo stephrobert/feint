@@ -141,7 +141,7 @@ func TestAttachingANICDoesNotResurrectADeletedServer(t *testing.T) {
 	for i := range attachers {
 		status, out := do(t, ts, "POST", region+"/private-networks",
 			fmt.Sprintf(`{"name":"barrage-%d","subnets":["10.%d.0.0/24"]}`, i, 60+i))
-		if status != http.StatusOK && status != http.StatusCreated {
+		if status != http.StatusOK {
 			t.Fatalf("private network %d: status %d (%v)", i, status, out)
 		}
 		pnID, _ := out["id"].(string)
@@ -231,7 +231,7 @@ func TestDeletingAServerReleasesItsPrivateNICs(t *testing.T) {
 
 	status, out := do(t, ts, "POST", region+"/private-networks",
 		`{"name":"one","subnets":["10.77.0.0/24"]}`)
-	if status != http.StatusOK && status != http.StatusCreated {
+	if status != http.StatusOK {
 		t.Fatalf("private network: status %d", status)
 	}
 	pnID, _ := out["id"].(string)

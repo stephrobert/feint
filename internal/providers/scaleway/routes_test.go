@@ -19,7 +19,7 @@ import (
 func createVPC(t *testing.T, ts *httptest.Server, body string) map[string]any {
 	t.Helper()
 	status, out := do(t, ts, "POST", vpcRegion+"/vpcs", body)
-	if status != http.StatusCreated {
+	if status != http.StatusOK {
 		t.Fatalf("create vpc: status %d (%v)", status, out)
 	}
 	return out
@@ -111,7 +111,7 @@ func TestEnableRoutingReconcilesThePeering(t *testing.T) {
 	for i, block := range []string{"10.81.0.0/24", "10.81.1.0/24"} {
 		status, pn := do(t, ts, "POST", vpcRegion+"/private-networks",
 			fmt.Sprintf(`{"name":"member-%d","vpc_id":%q,"subnets":[%q]}`, i, vpcID, block))
-		if status != http.StatusCreated {
+		if status != http.StatusOK {
 			t.Fatalf("create pn %d: status %d (%v)", i, status, pn)
 		}
 		id, _ := pn["id"].(string)
@@ -153,7 +153,7 @@ func TestARouteRoundTripsThroughItsLifecycle(t *testing.T) {
 	vpcID, _ := vpc["id"].(string)
 	status, pn := do(t, ts, "POST", vpcRegion+"/private-networks",
 		fmt.Sprintf(`{"name":"nexthop-net","vpc_id":%q,"subnets":["10.82.0.0/24"]}`, vpcID))
-	if status != http.StatusCreated {
+	if status != http.StatusOK {
 		t.Fatalf("create pn: status %d", status)
 	}
 	pnID, _ := pn["id"].(string)

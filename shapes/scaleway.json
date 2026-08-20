@@ -10,6 +10,62 @@
           "type": "array"
         },
         {
+          "path": "snapshots[]",
+          "type": "object"
+        },
+        {
+          "path": "snapshots[].class",
+          "type": "string"
+        },
+        {
+          "path": "snapshots[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "snapshots[].id",
+          "type": "string"
+        },
+        {
+          "path": "snapshots[].name",
+          "type": "string"
+        },
+        {
+          "path": "snapshots[].parent_volume",
+          "type": "null"
+        },
+        {
+          "path": "snapshots[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "snapshots[].public",
+          "type": "bool"
+        },
+        {
+          "path": "snapshots[].references",
+          "type": "array"
+        },
+        {
+          "path": "snapshots[].size",
+          "type": "number"
+        },
+        {
+          "path": "snapshots[].status",
+          "type": "string"
+        },
+        {
+          "path": "snapshots[].tags",
+          "type": "array"
+        },
+        {
+          "path": "snapshots[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "snapshots[].zone",
+          "type": "string"
+        },
+        {
           "path": "total_count",
           "type": "number"
         }
@@ -8450,8 +8506,197 @@
           "type": "array"
         },
         {
+          "path": "private_networks[]",
+          "type": "object"
+        },
+        {
+          "path": "private_networks[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "private_networks[].default_route_propagation_enabled",
+          "type": "bool"
+        },
+        {
+          "path": "private_networks[].dhcp_enabled",
+          "type": "bool"
+        },
+        {
+          "path": "private_networks[].has_s3_integration",
+          "type": "bool"
+        },
+        {
+          "path": "private_networks[].id",
+          "type": "string"
+        },
+        {
+          "path": "private_networks[].name",
+          "type": "string"
+        },
+        {
+          "path": "private_networks[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "private_networks[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "private_networks[].region",
+          "type": "string"
+        },
+        {
+          "path": "private_networks[].subnets",
+          "type": "array"
+        },
+        {
+          "path": "private_networks[].subnets[]",
+          "type": "object"
+        },
+        {
+          "path": "private_networks[].subnets[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "private_networks[].subnets[].id",
+          "type": "string"
+        },
+        {
+          "path": "private_networks[].subnets[].private_network_id",
+          "type": "string"
+        },
+        {
+          "path": "private_networks[].subnets[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "private_networks[].subnets[].region",
+          "type": "string"
+        },
+        {
+          "path": "private_networks[].subnets[].subnet",
+          "type": "string"
+        },
+        {
+          "path": "private_networks[].subnets[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "private_networks[].subnets[].vpc_id",
+          "type": "string"
+        },
+        {
+          "path": "private_networks[].tags",
+          "type": "array"
+        },
+        {
+          "path": "private_networks[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "private_networks[].vpc_id",
+          "type": "string"
+        },
+        {
           "path": "total_count",
           "type": "number"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "GET /vpc/v2/regions/fr-par/private-networks/{id}": {
+      "method": "GET",
+      "path": "/vpc/v2/regions/fr-par/private-networks/{id}",
+      "fields": [
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "default_route_propagation_enabled",
+          "type": "bool"
+        },
+        {
+          "path": "dhcp_enabled",
+          "type": "bool"
+        },
+        {
+          "path": "has_s3_integration",
+          "type": "bool"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "name",
+          "type": "string"
+        },
+        {
+          "path": "organization_id",
+          "type": "string"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "region",
+          "type": "string"
+        },
+        {
+          "path": "subnets",
+          "type": "array"
+        },
+        {
+          "path": "subnets[]",
+          "type": "object"
+        },
+        {
+          "path": "subnets[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "subnets[].id",
+          "type": "string"
+        },
+        {
+          "path": "subnets[].private_network_id",
+          "type": "string"
+        },
+        {
+          "path": "subnets[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "subnets[].region",
+          "type": "string"
+        },
+        {
+          "path": "subnets[].subnet",
+          "type": "string"
+        },
+        {
+          "path": "subnets[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "subnets[].vpc_id",
+          "type": "string"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        },
+        {
+          "path": "vpc_id",
+          "type": "string"
         }
       ],
       "statuses": [
@@ -8469,6 +8714,70 @@
         {
           "path": "vpcs",
           "type": "array"
+        },
+        {
+          "path": "vpcs[]",
+          "type": "object"
+        },
+        {
+          "path": "vpcs[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "vpcs[].custom_routes_propagation_enabled",
+          "type": "bool"
+        },
+        {
+          "path": "vpcs[].id",
+          "type": "string"
+        },
+        {
+          "path": "vpcs[].is_default",
+          "type": "bool"
+        },
+        {
+          "path": "vpcs[].name",
+          "type": "string"
+        },
+        {
+          "path": "vpcs[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "vpcs[].private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "vpcs[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "vpcs[].region",
+          "type": "string"
+        },
+        {
+          "path": "vpcs[].routing_enabled",
+          "type": "bool"
+        },
+        {
+          "path": "vpcs[].s3_integration_enabled",
+          "type": "bool"
+        },
+        {
+          "path": "vpcs[].tags",
+          "type": "array"
+        },
+        {
+          "path": "vpcs[].tags[]",
+          "type": "string"
+        },
+        {
+          "path": "vpcs[].transitivity_enabled",
+          "type": "bool"
+        },
+        {
+          "path": "vpcs[].updated_at",
+          "type": "string"
         }
       ],
       "statuses": [

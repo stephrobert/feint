@@ -76,8 +76,16 @@ func TestVerifyNarrowsWhatTheHostCannotDeliver(t *testing.T) {
 		t.Error("isolation survived a host with no northbound connection: this is " +
 			"the capability a suite keying on it would assert and the host cannot deliver")
 	}
-	if len(unmet) != 1 || !strings.Contains(unmet[0], ovnNorthbound) {
-		t.Errorf("the narrowing must name what was checked and what answered, got %v", unmet)
+	// Two lines now, one per OVN-borne capability, and each must name what was
+	// checked: a narrowing that says "isolation: unavailable" sends the reader
+	// nowhere.
+	if len(unmet) != 2 {
+		t.Errorf("a host with no OVN must narrow both OVN capabilities, got %v", unmet)
+	}
+	for _, line := range unmet {
+		if !strings.Contains(line, ovnNorthbound) {
+			t.Errorf("the narrowing must name what was checked and what answered, got %q", line)
+		}
 	}
 	// And what the host does deliver is kept: a probe that refused everything
 	// would pass this test's first half and break the product.
@@ -120,8 +128,13 @@ func TestAnUnsetNorthboundIsTheDefaultAndNotAnAbsence(t *testing.T) {
 	if caps.Isolation {
 		t.Error("isolation survived a host with no northbound socket at all")
 	}
-	if len(unmet) != 1 || !strings.Contains(unmet[0], ovnDefaultNorthbound) {
-		t.Errorf("the refusal must name the socket it looked for, got %v", unmet)
+	if len(unmet) != 2 {
+		t.Errorf("a host with no northbound socket must narrow both OVN capabilities, got %v", unmet)
+	}
+	for _, line := range unmet {
+		if !strings.Contains(line, ovnDefaultNorthbound) {
+			t.Errorf("the refusal must name the socket it looked for, got %q", line)
+		}
 	}
 
 	// A remote northbound this process cannot reach: unknown is not a refusal,
@@ -186,6 +199,42 @@ func TestAnUnreadableVersionDoesNotCostTheCapability(t *testing.T) {
 	}
 	if len(unmet) != 0 {
 		t.Errorf("nothing was disproven, so nothing must be narrowed, got %v", unmet)
+	}
+}
+
+// Balancing is narrowed with isolation, and by the same probe.
+//
+// Both are OVN's, and both are false on a host with no northbound connection.
+// The reason to assert it rather than trust the shape: a capability added later
+// gets its declaration and forgets its verification, and the result is exactly
+// what #181 measured for isolation — /_feint/health publishing a claim the host
+// cannot deliver, to a suite this project tells to key on capabilities rather
+// than on a mode name.
+//
+// The accepting half is here too, because a probe that removed balancing from
+// every host would satisfy the first half and take the feature away.
+func TestVerifyNarrowsBalancingWithIsolation(t *testing.T) {
+	// No OVN at all: nothing configured, no socket.
+	caps, unmet := mustVerifyBoth(t, hostSayingWithSocket("", "7.2", false))
+	if caps.Balancing {
+		t.Error("balancing survived a host with no northbound connection")
+	}
+	if caps.Isolation {
+		t.Error("isolation survived a host with no northbound connection")
+	}
+	named := false
+	for _, line := range unmet {
+		if strings.HasPrefix(line, "balancing:") {
+			named = true
+		}
+	}
+	if !named {
+		t.Errorf("the narrowing never mentions balancing, so nothing tells the operator it went: %v", unmet)
+	}
+
+	// A wired host keeps it.
+	if caps, unmet := mustVerifyBoth(t, hostSaying("tcp:10.0.0.1:6641", "7.2")); !caps.Balancing {
+		t.Errorf("a wired host lost balancing: %v", unmet)
 	}
 }
 

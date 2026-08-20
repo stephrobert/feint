@@ -171,6 +171,10 @@ run = [
   "tools/conformance/scaleway/network.sh http://$FEINT_ADDR",
   "tools/conformance/outscale/network.sh http://$FEINT_ADDR",
   "tools/conformance/exoscale/network.sh http://$FEINT_ADDR",
+  # The dataplane of a load balancer (#315). It gates on
+  # capabilities.balancing, which only the OVN mode declares, so it skips
+  # itself under --vm incus and --vm incus-vm rather than failing there.
+  "tools/conformance/outscale/balancer.sh http://$FEINT_ADDR",
 ]
 
 [tasks."conformance:ssh"]
@@ -376,6 +380,10 @@ if [ "${FEINT_VM:-off}" = "off" ]; then ./feint probe --endpoint "http://$FEINT_
 tools/conformance/scaleway/network.sh "http://$FEINT_ADDR"
 tools/conformance/outscale/network.sh "http://$FEINT_ADDR"
 tools/conformance/exoscale/network.sh "http://$FEINT_ADDR"
+# Skips itself unless the runtime declares balancing, which is the OVN mode
+# alone: elsewhere a load balancer records its configuration and forwards
+# nothing, and asserting otherwise would assert a defect (#315).
+tools/conformance/outscale/balancer.sh "http://$FEINT_ADDR"
 # The evidence artefact (#123), written only when a caller asks for it: a
 # partial or ad-hoc run must not overwrite the recorded proofs by accident.
 # `mise run evidence:update` is the caller, and sets the two variables.

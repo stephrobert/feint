@@ -98,6 +98,7 @@ func checkShapes(dir string, providers []string, stdout, stderr io.Writer) int {
 	defer ts.Close()
 
 	total, missing, excused, stale := 0, 0, 0, 0
+	var unanswered []string
 	for _, name := range providers {
 		p := upstream.Provider(name)
 		cat, err := readCatalogue(filepath.Join(dir, name+".json"), name)
@@ -113,10 +114,17 @@ func checkShapes(dir string, providers []string, stdout, stderr io.Writer) int {
 			continue
 		}
 
-		checked, gaps, excusedHere, unused := checkProvider(p, cat, declines[name], ts, stdout)
+		checked, gaps, excusedHere, unused, silent := checkProvider(p, cat, declines[name], ts, stdout)
 		total += checked
 		missing += gaps
 		excused += excusedHere
+		// Printed, not counted against anything. An operation the emulator
+		// answers with a refusal is compared against nothing, and it used to
+		// leave no trace at all: the coverage line said "50 compared" and eleven
+		// recorded operations had quietly dropped out of the arithmetic. A
+		// number that shrinks without saying so is the failure this file's own
+		// coverage line exists to prevent.
+		unanswered = append(unanswered, silent...)
 		// A decline that excused no gap is stale: the field is served now, or
 		// was never observed missing. Failing on it is what keeps the declined
 		// list a set of live decisions instead of an archive — the analogue of
@@ -133,6 +141,18 @@ func checkShapes(dir string, providers []string, stdout, stderr io.Writer) int {
 	// "nothing was checked" — the same reason `feint status` prints how many
 	// routes no client has driven.
 	fmt.Fprintf(stdout, "\n%d operation(s) compared, %d field(s) the real cloud returns and this emulator does not\n", total, missing)
+	if len(unanswered) > 0 {
+		// Named, so the gap between "recorded" and "compared" is legible
+		// instead of being a subtraction nobody performs. Two things land
+		// here and they are both worth seeing: an operation this emulator does
+		// not serve at all, and one that needs an object the offline store does
+		// not hold — every element read is in the second class by construction.
+		sort.Strings(unanswered)
+		fmt.Fprintf(stdout, "%d recorded operation(s) this emulator did not answer offline, so nothing was compared:\n", len(unanswered))
+		for _, u := range unanswered {
+			fmt.Fprintf(stdout, "  unchecked %s\n", u)
+		}
+	}
 	if excused > 0 {
 		// Counted out loud so a growing declined list stays visible instead of
 		// silently hollowing the gate.
@@ -151,9 +171,11 @@ func checkShapes(dir string, providers []string, stdout, stderr io.Writer) int {
 // checkProvider drives one provider's read list against the emulator.
 //
 // Besides the counts, it returns the declines that excused nothing, for the
-// caller to refuse: whether a decline is stale is only known once every
-// operation of its provider has been compared.
-func checkProvider(p upstream.Provider, cat *shape.Catalogue, declines []emulator.FieldDecline, ts *httptest.Server, stdout io.Writer) (checked, missing, excused int, unused []emulator.FieldDecline) {
+// caller to refuse — whether a decline is stale is only known once every
+// operation of its provider has been compared — and the recorded operations the
+// emulator did not answer, which are compared against nothing and used to
+// vanish from the arithmetic without a word.
+func checkProvider(p upstream.Provider, cat *shape.Catalogue, declines []emulator.FieldDecline, ts *httptest.Server, stdout io.Writer) (checked, missing, excused int, unused []emulator.FieldDecline, unanswered []string) {
 	// Two gates read DeclinedFields(), each joining on its own spelling: this
 	// one on the catalogue key ("GET /path", or the operation name where the
 	// recording carried one), the live field gate on the mounted operation
@@ -198,6 +220,7 @@ func checkProvider(p upstream.Provider, cat *shape.Catalogue, declines []emulato
 
 		got, ok := emulatorShape(ts, method, path)
 		if !ok {
+			unanswered = append(unanswered, string(p)+" "+key)
 			continue
 		}
 		checked++
@@ -250,7 +273,7 @@ func checkProvider(p upstream.Provider, cat *shape.Catalogue, declines []emulato
 		}
 		unused = append(unused, declines[i])
 	}
-	return checked, missing, excused, unused
+	return checked, missing, excused, unused, unanswered
 }
 
 // matchingDecline is the first decline covering this field, or -1. First match

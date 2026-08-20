@@ -22,7 +22,7 @@ func createPN(t *testing.T, ts *httptest.Server, subnet string) (id string, subn
 	t.Helper()
 	status, body := do(t, ts, "POST", vpcRegion+"/private-networks",
 		fmt.Sprintf(`{"name":"pn-test","subnets":[%q]}`, subnet))
-	if status != http.StatusCreated {
+	if status != http.StatusOK {
 		t.Fatalf("create private network: status %d (%v)", status, body)
 	}
 	id, _ = body["id"].(string)

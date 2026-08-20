@@ -17,6 +17,57 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **An Outscale load balancer distributes real packets, inside its own
+  network** (#315). Under `--vm incus-ovn`, a balancer's `PrivateIp` — an
+  address of the Subnet it sits in — is handed to the runtime's own OVN load
+  balancer: connections from inside that network are spread over the registered
+  Vms, an unlinked Vm stops receiving them, and deleting the balancer takes it
+  off the host. Measured on 2026-08-20 with two backends and one client on one
+  network: 6/6 answered at t0, 6/6 a minute later, over both machines each
+  time, and 6/6 to the survivor after an unlink.
+  `tools/conformance/outscale/balancer.sh` replays it.
+
+  The claim is declared and verified, never deduced from a mode name:
+  `/_feint/health` gained `capabilities.balancing` (health schema version 4),
+  the OVN mode alone sets it, startup verification clears it on a host with no
+  OVN wiring, and a build that does not know the key answers nothing — which
+  reads as absent. Gate on it.
+
+  **What did not move, and why.** The public address of an internet-facing
+  balancer still routes nowhere: a VIP outside the network answered 6/6 at t0,
+  6/6 at t+60s and 0/6 from t+180s onwards, permanently, because the runtime
+  announces such an address once at creation and never again. The driver now
+  **refuses** a listen address outside the network's own block rather than
+  configuring one that would go dark minutes after the test that proved it.
+  `ReadVmsHealth` also stays declined: `incus network load-balancer info`
+  answers "No load-balancer health information available", so nothing probes a
+  backend even here. The Scaleway `lb/v1` family is untouched — the mechanism is
+  shared, the wiring is per pack, and this pack asks the runtime for nothing.
+  `docs/limits.md` carries the figures beside each refusal.
+
+- **A real-cloud recording arbitrates a Private Network's shape** (#270).
+  `feint shapes --record --provider scaleway`, run on 2026-08-20 against a real
+  fr-par account holding one Private Network, learned 76 field paths, 62 of
+  them the `PrivateNetwork`, `Subnet` and `VPC` objects — none of which had ever
+  been observed populated, because the previous recording was taken on an
+  account holding neither, so both element shapes were empty. The other 14 are a
+  block snapshot's, observed for the same reason: the account had one.
+
+  What it settles, and what 0.9.0 said in a callout it could not: creation
+  allocates an IPv6 `/64` without being asked, the range is unique-local
+  (`fdb2:1bb5:120a:9b::/64` on that account), and two networks of one project
+  share their `/48` and differ only in the subnet ID — RFC 4193's own layout,
+  which this emulator now follows instead of drawing an independent `/48` per
+  network. The `Subnet` a real read carries is exactly the eight fields already
+  served.
+
+  The read list can now describe an operation that takes an identifier: an entry
+  ending in `{id}` is filled in from the collection above it, in the same run,
+  and the catalogue stores the templated path. `GET
+  /vpc/v2/regions/fr-par/private-networks/{id}` — the read the Terraform
+  provider refreshes with, and the one nothing here could arbitrate — is the
+  first of them.
+
 - **Scaleway load balancers, scoped by what the surveyed stacks call** (#282).
   `lb/v1` serves 35 operations on its zoned door: `ZonedAPI.CreateLB`,
   `ZonedAPI.GetLB`, `ZonedAPI.ListLBs`, `ZonedAPI.UpdateLB`,
@@ -160,6 +211,35 @@ what this project is judged on: **a response shape a client can observe**, and
   stack that has disappeared or that CI has started applying. The reason is
   printed on `docs/clients.md` from the same list the refusal reads.
   Falsified by `tools/falsify/specs/stack-proof.json`.
+
+- **A Private Network and a VPC serve the Object Storage flag the real cloud
+  carries** (#270). `has_s3_integration` and `s3_integration_enabled` were
+  declared by the contract, returned by every real answer, and absent here. Both
+  are invisible through `scw`, which drops them on the way to its own output, so
+  only a recording could find them — and only one taken while the objects
+  existed.
+
+- **The two `vpc/v2` creates answer 200, which is what the wire carried**
+  (#270). `CreateVPC` and `CreatePrivateNetwork` answered 201, the status every
+  other create in the pack writes; both were measured at 200 on a real account,
+  read off a `feint proxy` transcript rather than off a CLI that shows neither.
+  No other product was measured, so no other product moved. It changes nothing
+  for a client that tests 2xx, and it changes what this emulator is allowed to
+  claim.
+
+- **An identifier never reaches a committed shape catalogue** (#270). A
+  recording of one resource carries that resource's path, and the path went into
+  the operation key and into `Operation.Path` verbatim — so the first read-list
+  entry addressing a single object would have committed somebody's account UUID
+  to `shapes/*.json`. Paths are now anonymised at the boundary where a recording
+  becomes an artefact, whatever wrote it, and a test reads the committed files
+  themselves rather than trusting the rule.
+
+- **`feint shapes --check` names what it could not compare** (#270). Eleven
+  recorded operations were dropping out of its arithmetic without a word: the
+  emulator answers a refusal offline and the comparison was skipped in silence.
+  The coverage line now lists them as unchecked, which is the difference between
+  "nothing is wrong" and "nothing was looked at".
 
 - **`server.public_ips` answers in the order the create named** (#320).
   Scaleway's `Server.public_ips` is a list and Terraform stores it as one: the

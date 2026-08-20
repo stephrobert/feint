@@ -84,10 +84,23 @@ func (d *Incus) Verify(ctx context.Context) (Capabilities, []string) {
 	verified := declared
 	var unmet []string
 
-	if declared.Isolation {
-		if wired, why := d.ovnWired(ctx); !wired {
-			verified.Isolation = false
-			unmet = append(unmet, "isolation: "+why)
+	if declared.Isolation || declared.Balancing {
+		// One probe, two claims: both are OVN's, and both are false on a host
+		// with no northbound connection. Asking twice would double the startup
+		// cost of every run to learn the same fact, and — worse — could report
+		// one of them true and the other false on a host that answered
+		// differently between the two calls.
+		// TestVerifyNarrowsBalancingWithIsolation fails without this.
+		wired, why := d.ovnWired(ctx)
+		if !wired {
+			if declared.Isolation {
+				verified.Isolation = false
+				unmet = append(unmet, "isolation: "+why)
+			}
+			if declared.Balancing {
+				verified.Balancing = false
+				unmet = append(unmet, "balancing: "+why)
+			}
 		}
 	}
 

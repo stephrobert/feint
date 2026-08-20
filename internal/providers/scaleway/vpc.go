@@ -59,17 +59,34 @@ const privateNetworkMask = 22
 // the IPv4 half made `one(pn.ipv6_subnets).subnet` die on null, apply and
 // destroy both (#270).
 //
-// Honest caveat: the /64 size and the fd00::/8 unique-local range are derived
-// from the SDK and the provider's documentation, not observed — the shapes
-// catalogue holds no populated private-network read from the real cloud yet.
-// #270 stays open until `feint shapes --record --provider scaleway` runs
-// against an account holding one Private Network and the recording lands in
-// shapes/scaleway.json to arbitrate this.
+// Measured, no longer inferred. On 2026-08-20 a Private Network was created on
+// a real fr-par account with `subnets: null` — nothing asked for a block — and
+// the answer carried two: 172.16.4.0/22 and fdb2:1bb5:120a:9b::/64. So the
+// unasked allocation, the unique-local fd00::/8 range and the /64 size are all
+// observed, and the read that follows carries the same pair unchanged. The
+// field tree of that read is in shapes/scaleway.json under
+// `GET /vpc/v2/regions/fr-par/private-networks/{id}`; the catalogue keeps paths
+// and types, so this comment is where the observed prefix itself lives.
 const privateNetworkV6Mask = 64
 
 // reservedPerSubnet is what the runtime keeps at the bottom of a Private Network
 // block: the network address, and the gateway the managed bridge answers on.
 const reservedPerSubnet = 2
+
+// vpcCreateStatus is what a successful vpc/v2 create answers with.
+//
+// 200, not the 201 every other create in this pack writes. Measured on the wire
+// on 2026-08-20: both of vpc/v2's creates — CreateVPC and CreatePrivateNetwork
+// — answered 200 on a real fr-par account, read off a `feint proxy` transcript
+// rather than off the CLI's exit code, which shows neither. No other product
+// was measured, so no other product is touched: what is claimed here is what
+// was seen and nothing beyond it.
+//
+// It changes nothing for a client that tests 2xx, which is what the SDK and the
+// Terraform provider do. It changes the rule this repository works under, which
+// is that a status is part of the answer and an invented one is an invented
+// format. TestTheVpcCreatesAnswerWhatTheRealCloudAnswers fails without it.
+const vpcCreateStatus = http.StatusOK
 
 type createVPCRequest struct {
 	Name          string   `json:"name"`
@@ -186,7 +203,7 @@ func (p *Pack) createVPC(w http.ResponseWriter, r *http.Request) {
 	res.Attrs["transitivity_enabled"] = req.EnableTransitivity
 	p.env.Store.Put(res)
 
-	emulator.WriteJSON(w, http.StatusCreated, p.vpcView(res))
+	emulator.WriteJSON(w, vpcCreateStatus, p.vpcView(res))
 }
 
 func (p *Pack) getVPC(w http.ResponseWriter, r *http.Request) {
@@ -366,7 +383,7 @@ func (p *Pack) createPrivateNetwork(w http.ResponseWriter, r *http.Request) {
 	// first because it seeds the derivation, so the block is a function of the
 	// resource and nothing else.
 	id := p.env.NewID()
-	prefix6, err := p.resolveSubnetV6(req.Subnets, id)
+	prefix6, err := p.resolveSubnetV6(req.Subnets, project, id)
 	if err != nil {
 		writeInvalidArguments(w, ArgumentError{
 			ArgumentName: "subnets",
@@ -425,7 +442,7 @@ func (p *Pack) createPrivateNetwork(w http.ResponseWriter, r *http.Request) {
 	p.env.Store.Put(res)
 	p.isolateNetworks(r.Context())
 
-	emulator.WriteJSON(w, http.StatusCreated, privateNetworkView(res))
+	emulator.WriteJSON(w, vpcCreateStatus, privateNetworkView(res))
 }
 
 func (p *Pack) getPrivateNetwork(w http.ResponseWriter, r *http.Request) {
@@ -794,9 +811,10 @@ func (p *Pack) resolveSubnet(requested []string) (netip.Prefix, error) {
 // A client that named an fd…/64 expects it back unchanged, exactly like the
 // IPv4 path. A client that named none still gets one, because upstream
 // allocates it unasked — that is the whole of #270. The derived block is a
-// unique-local /64 seeded by the resource id: deterministic between two reads,
-// and stored anyway, so it also survives a snapshot into another instance.
-func (p *Pack) resolveSubnetV6(requested []string, id string) (netip.Prefix, error) {
+// unique-local /64 seeded by the resource id, inside the /48 the project's
+// networks share: deterministic between two reads, and stored anyway, so it
+// also survives a snapshot into another instance.
+func (p *Pack) resolveSubnetV6(requested []string, project, id string) (netip.Prefix, error) {
 	for _, raw := range requested {
 		prefix, err := network.ParseCIDR(raw)
 		if err != nil {
@@ -810,14 +828,18 @@ func (p *Pack) resolveSubnetV6(requested []string, id string) (netip.Prefix, err
 		}
 		return prefix, nil
 	}
-	// Nothing requested: derive, and dodge the blocks already held. A clash is
-	// a 2^-56 hash collision or a client that requested this exact block for
-	// another network; salting the seed keeps the loop deterministic given the
-	// same store, and the result is stored, so later reads do not re-run it.
+	// Nothing requested: derive inside the project's own /48, and dodge the
+	// blocks already held. The project is the space because that is what the
+	// real cloud was measured to group by — two networks of one project came
+	// back under one fd…/48 (see network.ULA64Within) — and a clash is then a
+	// 16-bit subnet collision rather than an astronomical one, so the loop
+	// earns its keep. Salting the seed moves the subnet ID and keeps the /48,
+	// which is what makes it terminate in the right prefix; the result is
+	// stored, so later reads do not re-run it.
 	taken := p.usedPrefixes("")
 	seed := id
 	for {
-		candidate := network.ULA64(seed)
+		candidate := network.ULA64Within(project, seed)
 		if _, clash := network.FirstOverlap(candidate, taken); !clash {
 			return candidate, nil
 		}
@@ -1038,6 +1060,16 @@ func (p *Pack) vpcView(res *resource.Resource) map[string]any {
 		"created_at":            res.Created.Format(time.RFC3339),
 		"updated_at":            res.Updated.Format(time.RFC3339),
 		"private_network_count": len(p.privateNetworksOf(res.ID)),
+		// Measured on 2026-08-20: the earlier recording of ListVPCs was taken
+		// on an account holding no VPC, so its element shape was never
+		// observed and this omission was invisible. It is served for the same
+		// reason its private-network counterpart is — the five operations that
+		// could attach an Object Storage endpoint are declined in pack.go —
+		// and listVPCs already answers `s3_integration_enabled=true` with an
+		// empty list, so the flag and the filter now say the same thing.
+		//
+		// TestTheObjectStorageFlagsAreServedOnEveryDoor fails without it.
+		"s3_integration_enabled": false,
 	}
 	for k, v := range res.Attrs {
 		out[k] = v
@@ -1051,6 +1083,20 @@ func privateNetworkView(res *resource.Resource) map[string]any {
 		"region":     res.Tenant.Zone,
 		"created_at": res.Created.Format(time.RFC3339),
 		"updated_at": res.Updated.Format(time.RFC3339),
+		// Carried on the wire by every real answer, and dropped by `scw` on the
+		// way to its own output — which is why reading the CLI rather than the
+		// recording would have missed it. Measured on 2026-08-20 against a real
+		// fr-par account (shapes/scaleway.json, GET
+		// /vpc/v2/regions/fr-par/private-networks/{id}); the emulator omitted
+		// it, and the contract has always declared it.
+		//
+		// Computed here rather than stored, and always false: it says an Object
+		// Storage endpoint is attached, and the five operations that could
+		// attach one are declined in pack.go with their reason. A stored flag
+		// would be a value nothing can ever change.
+		//
+		// TestTheObjectStorageFlagsAreServedOnEveryDoor fails without it.
+		"has_s3_integration": false,
 	}
 	for k, v := range res.Attrs {
 		if k == "subnet" || k == "subnet_ipv6" {

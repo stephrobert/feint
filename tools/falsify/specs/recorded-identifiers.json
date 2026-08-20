@@ -1,0 +1,35 @@
+{
+  "package": "./internal/shape/",
+  "mutations": [
+    {
+      "label": "an identifier segment is no longer recognised, so the account's UUID reaches the committed catalogue",
+      "file": "internal/shape/shape.go",
+      "find": "\t\tif isUUID(seg) {\n\t\t\tsegments[i] = Placeholder\n\t\t}",
+      "replace": "\t\tif isUUID(seg) && false {\n\t\t\tsegments[i] = Placeholder\n\t\t}",
+      "test": "TestARecordedIdentifierNeverReachesTheCatalogue"
+    },
+    {
+      "label": "the anonymised path is stored but the raw one is keyed, which is the half a first version got wrong",
+      "file": "internal/shape/shape.go",
+      "find": "\t\tkey := keyFor(x, path)",
+      "replace": "\t\tkey := keyFor(x, x.Path+path[:0])",
+      "test": "TestARecordedIdentifierNeverReachesTheCatalogue"
+    },
+    {
+      "label": "an element read placed before its collection is skipped instead of refused, and reads as an empty account",
+      "file": "internal/cli/shapes.go",
+      "find": "\t\t\tif !read {",
+      "replace": "\t\t\tif !read && false {",
+      "test": "TestATemplatedReadBeforeItsCollectionIsRefused",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "an account holding none of the resource is asked for one anyway, and a 404 becomes the operation's shape",
+      "file": "internal/cli/shapes.go",
+      "find": "\t\t\tif !found {",
+      "replace": "\t\t\tif !found && false {",
+      "test": "TestATemplatedReadAsksNothingWhenTheAccountHasNone",
+      "package": "./internal/cli/"
+    }
+  ]
+}

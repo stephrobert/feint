@@ -46,7 +46,7 @@ func TestAReleasedAddressCannotBeTakenWhileItIsBeingAttached(t *testing.T) {
 	// A network, then an address booked from it.
 	status, network := postJSON(t, ts, "/vpc/v2/regions/fr-par/private-networks",
 		`{"name":"locked","subnets":["10.201.0.0/24"]}`)
-	if status != http.StatusCreated {
+	if status != http.StatusOK {
 		t.Fatalf("create the network: %d (%v)", status, network)
 	}
 	pnID, _ := network["id"].(string)
@@ -129,7 +129,7 @@ func TestCommitDoesNotResurrectAReleasedAddress(t *testing.T) {
 
 	status, network := postJSON(t, ts, "/vpc/v2/regions/fr-par/private-networks",
 		`{"name":"resurrect","subnets":["10.202.0.0/24"]}`)
-	if status != http.StatusCreated {
+	if status != http.StatusOK {
 		t.Fatalf("create the network: %d (%v)", status, network)
 	}
 	pnID, _ := network["id"].(string)

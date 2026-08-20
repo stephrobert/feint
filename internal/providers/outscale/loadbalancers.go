@@ -281,6 +281,12 @@ func (p *Pack) createLoadBalancer(w http.ResponseWriter, r *http.Request) {
 	p.env.Store.Put(res)
 	unlock()
 
+	// Outside the lock, because handing a balancer to the runtime is a call to
+	// another process and the store's lock is measured in microseconds: the
+	// rule the whole repository works under, and the one a slow effect inside
+	// the lock breaks first.
+	p.syncBalancer(r.Context(), res.ID)
+
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"LoadBalancer":    p.loadBalancerView(res),
 		"ResponseContext": p.context(),
@@ -566,6 +572,7 @@ func (p *Pack) registerVmsInLoadBalancer(w http.ResponseWriter, r *http.Request)
 		p.notFound(w, "load balancer", req.LoadBalancerName)
 		return
 	}
+	p.syncBalancer(r.Context(), req.LoadBalancerName)
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
 }
 
@@ -611,6 +618,10 @@ func (p *Pack) unlinkLoadBalancerBackendMachines(w http.ResponseWriter, r *http.
 		p.notFound(w, "load balancer", req.LoadBalancerName)
 		return
 	}
+	// The unlink half of the same rule: a backend the API has stopped listing
+	// must stop receiving connections, and only a replay of the whole set makes
+	// that true — the reason EnsureBalancer replaces rather than patches.
+	p.syncBalancer(r.Context(), req.LoadBalancerName)
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
 }
 
@@ -623,10 +634,16 @@ func (p *Pack) deleteLoadBalancer(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
-	if _, found := p.env.Store.Get(Name, kindLoadBalancer, req.LoadBalancerName); !found {
+	res, found := p.env.Store.Get(Name, kindLoadBalancer, req.LoadBalancerName)
+	if !found {
 		p.notFound(w, "load balancer", req.LoadBalancerName)
 		return
 	}
+	// Before the store forgets where it was: balancerPlacement reads the
+	// subnet's runtime network off the resource, and a deleted resource names
+	// nothing. A balancer left behind holds an address of a network the next
+	// create would reuse.
+	p.removeBalancer(r.Context(), res)
 	p.env.Store.Delete(Name, kindLoadBalancer, req.LoadBalancerName)
 	// The provider polls ReadLoadBalancers until the name is gone; deleting
 	// immediately means the first poll already answers "none".
