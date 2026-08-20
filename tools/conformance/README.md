@@ -18,10 +18,23 @@ silence, so you find out at once — but the list is worth having up front:
 | `oapi-cli` | `outscale/oapi-cli.sh` | [oapi-cli releases](https://github.com/outscale/oapi-cli/releases) (AppImage) |
 | `exo` | `exoscale/exo-cli.sh` | [exoscale/cli releases](https://github.com/exoscale/cli/releases) |
 | `incus` | the `network.sh` suites and `ssh.sh` | [Zabbly packages](https://github.com/zabbly/incus), 6.0.4 or later |
+| the machine images | the `ssh.sh` suites | `feint images --vm incus`, once, minutes |
 
 `mise run conformance` runs everything that needs no machine runtime, which is
 what CI does. The suites that need one skip themselves at exit 0 when `--vm` is
 off, so a partial toolbox never turns into a false pass.
+
+**The images are a prerequisite and not a convenience** (#335). No upstream
+image carries an ssh daemon, and since #202 a machine holds exactly the one
+address its provider publishes, on a routed NIC with no NAT — so an emulator
+that has to fall back to an upstream image boots a machine that has no route to
+a package repository and can never install one. `runtime-proof.yml` spent five
+consecutive nights failing on that, with the fix in its own log. The `ssh.sh`
+suites now ask `guard_images` before they register a key: they refuse in a
+twentieth of a second, naming `feint images`, rather than timing out on an ssh
+error that blames the address. Building is never automatic here — it launches a
+container on your host and takes minutes, which this project asks for rather
+than assumes; CI runs the command as a step of its own.
 
 Two client quirks are worth knowing before you debug one:
 
