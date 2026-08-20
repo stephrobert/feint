@@ -2,7 +2,6 @@ package emulator
 
 import (
 	"sort"
-	"strings"
 )
 
 // Declined() answers for whole operations. One level down, the shapes gate
@@ -58,27 +57,17 @@ func FieldDeclinesOf(p Pack) []FieldDecline {
 // Matches reports whether this decline covers the field at path within
 // operation.
 //
-// Paths compare segment by segment, and "*" stands for exactly one segment —
-// never zero, never several, or a decline written for "things.*.limits.local"
-// would also excuse "things.limits.local" and every deeper field a future
-// recording learns, widening a narrow decision silently.
+// The segment rule lives in pathMatches (invariants.go) and is shared with
+// [Invariant.Matches]: "*" stands for exactly one segment — never zero, never
+// several, or a decline written for "things.*.limits.local" would also excuse
+// "things.limits.local" and every deeper field a future recording learns,
+// widening a narrow decision silently. One implementation, because the gate
+// that excuses a field and the replay that compares one must not disagree
+// about which field they are naming.
 //
 // TestAWildcardSegmentMatchesExactlyOneSegment fails without this.
 func (d FieldDecline) Matches(operation, path string) bool {
-	if d.Operation != operation {
-		return false
-	}
-	want := strings.Split(d.Path, ".")
-	got := strings.Split(path, ".")
-	if len(want) != len(got) {
-		return false
-	}
-	for i := range want {
-		if want[i] != "*" && want[i] != got[i] {
-			return false
-		}
-	}
-	return true
+	return d.Operation == operation && pathMatches(d.Path, path)
 }
 
 // UnexplainedFieldDeclines reports field declines whose reason carries no

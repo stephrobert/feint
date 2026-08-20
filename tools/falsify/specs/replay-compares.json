@@ -1,0 +1,91 @@
+{
+  "package": "./internal/replay/",
+  "mutations": [
+    {
+      "label": "the status is no longer compared, and #270's 201-where-the-cloud-answers-200 replays clean",
+      "file": "internal/replay/replay.go",
+      "find": "\tif status != x.Status {",
+      "replace": "\tif status != x.Status && false {",
+      "test": "TestAStatusThatDiffersIsNamed"
+    },
+    {
+      "label": "a field the recording carries and this emulator omits stops being a finding, which is the whole comparison",
+      "file": "internal/replay/replay.go",
+      "find": "\t\t\tnested, present := g[k]\n\t\t\tif !present {",
+      "replace": "\t\t\tnested, present := g[k]\n\t\t\tif !present && false {",
+      "test": "TestARenamedFieldInTheRecordingProducesADiff"
+    },
+    {
+      "label": "the declared order is read but never compared, so #320's two-way swap replays clean",
+      "file": "internal/replay/replay.go",
+      "find": "\t\t\tpositions, ran := reorder(mapped, gotSeq)",
+      "replace": "\t\t\tpositions, ran := reorder(mapped, mapped)\n\t\t\t_ = gotSeq",
+      "test": "TestAReorderedListIsNamedWhereThePackDeclaredTheOrder"
+    },
+    {
+      "label": "a value the request named and the answer dropped stops being a finding, which is the unread-request-field family",
+      "file": "internal/replay/replay.go",
+      "find": "\t\t\tif !sameValues(wantSeq, gotSeq) {",
+      "replace": "\t\t\tif !sameValues(wantSeq, gotSeq) && false {",
+      "test": "TestADeclaredValueThatDoesNotComeBackIsNamed"
+    },
+    {
+      "label": "THE SECOND DIRECTION: every value is compared, so an identifier this emulator is entitled to mint differently becomes a divergence and the tool is noise",
+      "file": "internal/replay/replay.go",
+      "find": "\t\tif wt, gt := jsonType(want), jsonType(got); wt != gt {",
+      "replace": "\t\tif wt, gt := jsonType(want)+fmt.Sprint(want), jsonType(got)+fmt.Sprint(got); wt != gt {",
+      "test": "TestADynamicIdentifierProducesNoFalsePositive"
+    },
+    {
+      "label": "THE SECOND DIRECTION: an order declared for one operation is applied to another, which invents a contract the cloud never stated on a list nobody measured",
+      "file": "internal/replay/replay.go",
+      "find": "\t\tif inv.Operation != operation {",
+      "replace": "\t\tif inv.Operation != operation && false {",
+      "test": "TestAnOrderIsComparedOnlyWhereItWasDeclared"
+    },
+    {
+      "label": "a recorded identifier is no longer rebound, so every read of a fresh emulator addresses an object that does not exist and the identity case is unreachable",
+      "file": "internal/replay/replay.go",
+      "find": "\t\tif to, bound := b.to[seg]; bound {",
+      "replace": "\t\tif to, bound := b.to[seg]; bound && false {",
+      "test": "TestARecordedIdentifierIsReboundBeforeTheRequestGoesOut"
+    },
+    {
+      "label": "an unserved route is driven anyway, so the emulator's own conformance record gains an exchange nobody made and the verdict counts a work item as a failure",
+      "file": "internal/replay/replay.go",
+      "find": "\tmounted, ok := opt.Table.Lookup(req)\n\tif !ok {",
+      "replace": "\tmounted, ok := opt.Table.Lookup(req)\n\tif !ok && false {",
+      "test": "TestAnUnservedOperationIsNotADivergence"
+    },
+    {
+      "label": "an empty list stops being named at its element, so the shape underneath reads as omitted when it was simply not observed",
+      "file": "internal/replay/replay.go",
+      "find": "\t\tif len(w) > 0 && len(g) == 0 {",
+      "replace": "\t\tif len(w) > 0 && len(g) == 0 && false {",
+      "test": "TestAnEmptyListIsNamedAtItsElementAndNotUnderIt"
+    },
+    {
+      "label": "the request path reaches the report unanonymised, so a replay republishes the identifiers of the account it read",
+      "file": "internal/replay/replay.go",
+      "find": "\tres := Result{Seq: seq, Method: x.Method, Path: shape.AnonymisePath(path)}",
+      "replace": "\tres := Result{Seq: seq, Method: x.Method, Path: path + shape.AnonymisePath(path)[:0]}",
+      "test": "TestTheReplayReportRepublishesNoValueFromTheRecording",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "the pack stops declaring the order of public_ips, so the check that would have caught #320 evaluates nothing and reads as held",
+      "file": "internal/providers/scaleway/invariants.go",
+      "find": "const publicIPsOrder = \"server.public_ips[].id\"",
+      "replace": "const publicIPsOrder = \"server.public_ips[].id.never\"",
+      "test": "TestTheDeclaredOrderIsActuallyEvaluatedOnARecordedRun",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "a value the recorder replaced is compared as if its type had been observed, so the proxy's own hygiene manufactures divergences",
+      "file": "internal/replay/replay.go",
+      "find": "\t\tif want == proxy.Placeholder {",
+      "replace": "\t\tif want == proxy.Placeholder && false {",
+      "test": "TestARedactedValueIsNotComparedAndIsCounted"
+    }
+  ]
+}

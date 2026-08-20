@@ -22,6 +22,7 @@ internal/core/sshkey/       the OpenSSH one-line public key format, read and ref
 internal/contract/          API descriptions, and the check that answers match them
 internal/drift/             the upstream surface scan, coverage, baselines
 internal/probe/             drives every mounted route from its API description
+internal/replay/            reissues a recorded exchange here and grades the answer
 internal/proxy/             records what a real client and a real cloud say to each other
 internal/shape/             what a real cloud was observed to return, and what is omitted from it
 internal/trace/             the record of one HTTP exchange, for /_feint/trace and the log

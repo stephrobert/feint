@@ -17,6 +17,98 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Unreleased]
 
+### Ajouté
+
+- **`feint replay` rejoue un enregistrement ici et dit ce qui diverge** (#73).
+  `feint replay run.jsonl --endpoint http://127.0.0.1:4599` reprend chaque
+  requête enregistrée, l'envoie à un émulateur qui tourne, et rapporte opération
+  par opération. Trois verdicts, jamais additionnés : **conforme**,
+  **divergent**, et **non servi** — ce dernier étant la file de travail de #74
+  et non un échec, pour que le jour où il fait rougir une CI ne soit pas le jour
+  où quelqu'un arrête d'enregistrer. Code de sortie 2 sur une divergence, 1
+  seulement quand l'outil lui-même a échoué.
+
+  **Ce qui est comparé, et ce qui ne l'est délibérément pas.** Un diff octet à
+  octet serait du bruit, donc la comparaison est graduée : le statut exactement,
+  les champs présents exactement moins ce que le `DeclinedFields()` d'un pack
+  excuse, les types exactement, et les valeurs et l'ordre *seulement* là où un
+  pack les déclare comparables (`emulator.Invariant`, nouveau). Les deux
+  derniers sont des défauts que ce dépôt a déjà payés : #270 a mesuré deux
+  créations `vpc/v2` répondant 201 là où le cloud répond 200, ce que la ligne du
+  statut attrape sans compte Scaleway ; #320 a mesuré `Server.public_ips`
+  revenant dans l'ordre du store plutôt que dans celui que la création avait
+  nommé, ce que *seule* la ligne de l'ordre attrape. Le pack Scaleway déclare cet
+  ordre pour `CreateServer`, `GetServer` et `UpdateServer`, plus les deux
+  valeurs qu'un client nomme toujours à la création.
+
+  **Les identifiants sont réassociés, pas comparés.** Une exécution enregistrée
+  adresse les objets que le cloud a créés pour elle, et cet émulateur crée les
+  siens. Le replay apprend donc, de chaque réponse, quel identifiant enregistré
+  l'émulateur a répondu à sa place, et le substitue dans chaque requête
+  suivante : segments de chemin entiers, valeurs de paramètre entières, chaînes
+  de corps entières, et seulement pour des valeurs qui ont la forme de ce qu'un
+  cloud distribue (un UUID, une adresse, un `i-<hex>` Outscale). Sans cela, le
+  cas d'identité que #73 place en premier est inatteignable : un transcript
+  enregistré contre l'émulateur se rejoue contre une instance **neuve** avec zéro
+  divergence, là où chaque lecture répondrait sinon 404.
+
+  **Rien de l'enregistrement ne ressort.** Un transcript est expurgé de ses
+  identifiants d'accès et n'est **pas** anonyme : `docs/proxy.md` énonce, champ
+  par champ, que les corps portent l'inventaire d'un compte. Un constat nomme
+  donc un chemin, un type, un statut et une *position* : une liste désordonnée
+  est rapportée « 0,1 répondu 1,0 », jamais en nommant les identifiants qui ont
+  bougé, et le chemin de la requête est anonymisé avant d'être imprimé.
+
+- **`feint coverage --observed` classe ce que les packs déclinent par ce qu'un
+  client a réellement appelé** (#74). Chaque refus de ce dépôt porte sa raison,
+  ce qui est la discipline ; aucun ne porte une *demande*, ce qui était le trou.
+  À partir d'un enregistrement, ou d'un répertoire d'enregistrements, la vue
+  liste les opérations déclinées qu'un vrai client a appelées quand même, la plus
+  appelée en premier, chacune avec son propre argument à côté et la famille de
+  client qui a produit les appels.
+
+  Deux faits sont comptés à part et jamais additionnés : **personne ne l'a
+  appelée** et **personne ne l'a triée**. Les confondre est le défaut que cette
+  vue existe pour corriger, donc le rapport énonce les deux populations dans des
+  mots qui ne peuvent pas se lire l'un pour l'autre, et une opération que
+  personne n'a appelée est un compte, pas une ligne — un classement qui porte
+  tous les refus, c'est l'alphabet de nouveau.
+
+  Elle réclame `--contract`, et c'est ce qui la rend possible : `feint proxy`
+  nomme un échange à partir des *routes montées*, donc un appel vers une
+  opération déclinée ne porte aucun nom, et seul le document du fournisseur peut
+  dire que `GET /v2/dns-domain` est `list-dns-domains`. `feint coverage` sans
+  `--observed` rend exactement ce qu'il rendait avant : la vue observée remplace
+  le rapport au lieu de s'y ajouter, donc `--format json` continue de produire
+  l'artefact versionné octet pour octet et `tools/drift/gate.sh` n'est pas
+  touché.
+
+  Mesuré sur un enregistrement de `scw`, `exo`, `oapi-cli` et `terraform`
+  pilotant cet émulateur à travers le proxy : un refus Exoscale
+  (`list-dns-domains`, 7 appels d'`exo`) et deux Outscale (`ReadApiAccessRules`
+  et `ReadCatalog`, d'`oapi-cli`).
+
+- **Un pack peut déclarer ce qu'un replay compare au-delà de la présence et du
+  type** (`emulator.Invariant`, `ReplayInvariants()`). Optionnel à la manière de
+  `FieldDecliner`, avec une raison tenue au garde que `Declined()` affronte, plus
+  un garde propre : un genre que rien n'implémente est refusé au lieu de se lire
+  « comparé ». Une déclaration qui nomme une opération qu'aucune route ne sert
+  fait échouer un test. Le rapport compte séparément les contrôles de valeur et
+  ceux d'ordre, pour qu'une déclaration qui n'a rien évalué ne puisse pas se lire
+  comme une déclaration tenue.
+
+### Modifié
+
+- **Surface CLI version 7.** Les deux entrées ci-dessus sont des ajouts : le
+  verbe `replay` avec `--endpoint`, `--format` et `--timeout`, et `coverage
+  --observed`. Rien n'a été retiré et aucun code de sortie n'a bougé, donc un
+  pipeline calé sur la version 6 continue de fonctionner.
+
+- `internal/shape.IsUUID` est exporté, pour que le replay pose à une valeur
+  enregistrée la même question que le catalogue de formes pose à un segment de
+  chemin. Deux écritures de « est-ce un identifiant » répondraient
+  différemment le jour où l'une des deux apprendrait un cas.
+
 ## [0.10.0] - 2026-08-20
 
 ### Ajouté

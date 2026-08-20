@@ -52,6 +52,13 @@
       "replace": "\tcaFile, err := os.CreateTemp(\".\", \"feint-intercept-ca-*.pem\")",
       "test": "TestTheInterceptionCAIsTemporaryAndNeverInstalled",
       "package": "./internal/cli/"
+    },
+    {
+      "label": "a null under a credential-bearing key is overwritten with REDACTED, which invents a string where the cloud answered nothing and turns the recorded type into a false divergence",
+      "file": "internal/proxy/redact.go",
+      "find": "\t\t\tif sensitive(k) && nested != nil {",
+      "replace": "\t\t\tif sensitive(k) && (nested != nil || true) {",
+      "test": "TestARedactedNullStaysNull"
     }
   ]
 }

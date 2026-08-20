@@ -96,11 +96,17 @@ const (
 // `snapshot save`, `snapshot load` and `snapshot list`, which is what says that
 // --force belongs to save alone.
 //
+// Version 7 adds the pair 0.11 is built around, and both are additions: the
+// verb `replay` with --endpoint, --format and --timeout (#73), and
+// `coverage --observed` (#74). Nothing was removed and no exit code moved, so a
+// pipeline keyed on version 6 keeps working — the number says the surface
+// changed, and the CHANGELOG says which of the two it was.
+//
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 6
+const cliSurfaceVersion = 7
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -129,6 +135,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return proxyCommand(args[2:], stdout, stderr)
 	case "transcript":
 		return transcriptCommand(args[2:], stdout, stderr)
+	case "replay":
+		return replayCommand(args[2:], stdout, stderr)
 	case "shapes":
 		return shapesCommand(args[2:], stdout, stderr)
 	case "evidence":
@@ -265,12 +273,19 @@ Usage:
   feint coverage   (--sdk <dir> | --contract <file>) [--provider scaleway|outscale|exoscale]
                     [--products <a,b,c>] [--format text|json|triage|list]
                     [--baseline <file> [--write-baseline]] [--fail-on-unknown]
-                    [--artefact <file>]
+                    [--artefact <file>] [--observed <recording.jsonl|dir>]
                     Compare the upstream API surface with what the packs serve.
                     --artefact compares the committed coverage artefact against
                     what the pack declares today — statuses and decline reasons —
                     and exits 2 on any skew, so an edited reason cannot outlive
                     itself in the versioned copy.
+                    --observed reads proxy recordings and ranks what the packs
+                    decline by how often a real client called it anyway — the
+                    demand a written reason cannot carry. It needs --contract,
+                    because a declined operation has no route to name it by, and
+                    it renders instead of --format's own report so the committed
+                    artefact cannot gain a key. An operation nobody called and
+                    one nobody triaged are counted separately and never summed.
                     Scaleway and Outscale are read from an SDK checkout; Exoscale
                     publishes an OpenAPI document, so it is read with --contract.
                     Given both, the SDK lists the operations and the contract adds
@@ -306,6 +321,19 @@ Usage:
                     most-called first. With --shape, the response shape one
                     operation actually returned. With --against, diff that shape
                     against the emulator's own answer: the fields it omits.
+
+  feint replay     <recording.jsonl> [--endpoint http://127.0.0.1:4599]
+                   [--format text|json] [--timeout 30s]
+                    Reissue every recorded request at a running emulator and
+                    compare the two answers, operation by operation. The status
+                    is exact, the fields and their types are exact minus what a
+                    pack declines, and values and ordering are compared only
+                    where a pack declares them comparable. Identifiers are
+                    rebound to the ones this emulator mints, so a recording
+                    replays against a fresh instance. Nothing from the recording
+                    is printed: a finding names a path, a type and a position.
+                    Exit 2 on a divergence; an operation no route serves is
+                    reported and never counted against the verdict.
 
   feint shapes     <recording.jsonl> --provider <name> [--dir shapes] [--dry-run]
                    [--record [--profile <name>]] [--check]
@@ -830,6 +858,7 @@ func coverage(args []string, stdout, stderr io.Writer) int {
 	baseline := fs.String("baseline", "", "compare the unknown operations against this baseline file and exit 2 on new ones")
 	writeBaseline := fs.Bool("write-baseline", false, "rewrite the baseline file from the current upstream surface")
 	artefact := fs.String("artefact", "", "compare this committed coverage artefact against what the pack declares and exit 2 on any skew")
+	observed := fs.String("observed", "", "a proxy recording, or a directory of them: rank what the packs decline by how often a real client called it")
 	if err := fs.Parse(args); err != nil {
 		return exitError
 	}
@@ -850,13 +879,16 @@ func coverage(args []string, stdout, stderr io.Writer) int {
 	var (
 		upstream []drift.Operation
 		err      error
+		// Kept rather than discarded once the scan is done: --observed names the
+		// operation a recorded call addressed, and only the provider's own
+		// document can do that for an operation no route serves.
+		doc *contract.Doc
 	)
 	switch {
 	case *contractPath != "" && *sdk == "":
 		// A provider that publishes an OpenAPI document needs no SDK reader: the
 		// contract already lists its whole surface, and one artefact then feeds
 		// both the drift gate and the response check.
-		var doc *contract.Doc
 		if doc, err = contract.Load(*contractPath); err == nil {
 			upstream, err = drift.ScanContract(doc)
 		}
@@ -880,7 +912,6 @@ func coverage(args []string, stdout, stderr io.Writer) int {
 		// operation onto one Client, so without this join the whole surface
 		// renders as a single `osc` row.
 		if err == nil && *contractPath != "" {
-			var doc *contract.Doc
 			if doc, err = contract.Load(*contractPath); err == nil {
 				drift.Regroup(upstream, doc)
 			}
@@ -985,6 +1016,17 @@ func coverage(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, "feint: the artefact follows the code; regenerate it: mise run drift:update")
 			return exitDrift
 		}
+	}
+
+	// --observed asks a different question from the one --format selects, so it
+	// renders instead of the report and never beside it. That is what makes
+	// TestCoverageWithoutObservedRendersExactlyWhatItRenderedBefore trivially
+	// true, and it
+	// is deliberate: `feint coverage --format json` writes the committed
+	// artefact, and a flag that could add a key to it would put the drift
+	// mechanism at risk to improve it.
+	if *observed != "" {
+		return observedCoverage(rep, doc, *observed, *format, stdout, stderr)
 	}
 
 	switch *format {

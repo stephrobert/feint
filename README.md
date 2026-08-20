@@ -819,6 +819,7 @@ rather than assumed.
 | `feint coverage` | compare the upstream API surface with what the packs serve |
 | `feint proxy` | sit between a real client and a real cloud and record every exchange, credentials redacted |
 | `feint transcript` | read a recording: what to serve next, what a response must look like, what the emulator omits |
+| `feint replay` | reissue a recording at a running emulator and report, operation by operation, what diverged |
 | `feint probe` | drive every mounted route from its API description and check the answers |
 | `feint shapes` | the field trees a real cloud returns, versioned — and what this emulator omits from them |
 | `feint evidence` | write the per-operation evidence record a conformance run earned |
@@ -838,6 +839,14 @@ real client against a real cloud into the next operation to serve, the shape its
 response must have, and the fields the emulator omits today.
 **[docs/proxy.md](docs/proxy.md)** is the workflow, including the read-only
 discipline a billed account demands.
+
+`feint replay` and `feint coverage --observed` close that loop. The first
+reissues the recording here and reports what diverged — the status exactly, the
+fields and their types exactly, values and ordering only where a pack declares
+them comparable. The second ranks what the packs *decline* by how often a real
+client called it anyway, which is the demand a written reason cannot carry.
+Neither prints a value it read: a recording is an account's inventory, and a
+finding names a path, a type and a position.
 
 ---
 

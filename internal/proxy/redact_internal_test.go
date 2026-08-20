@@ -249,3 +249,43 @@ func TestAVouchedHeaderKeepsItsValue(t *testing.T) {
 		}
 	}
 }
+
+// A null under a credential-bearing key stays null.
+//
+// Redaction protects a value; there is nothing to protect in a null, the key's
+// name is written in full either way, and replacing it *invents* a string where
+// the cloud answered nothing. That invention is not cosmetic: it changed the
+// recorded type, and `feint replay` read it back as a field the emulator failed
+// to serve — nine of nine divergences on a real `terraform apply`, all of them
+// `kms_key_id` (matched by "key") and `next_page_token` (matched by "token").
+//
+// The over-inclusive denylist stays over-inclusive. What this fixes is that it
+// now costs an unreadable value rather than a false measurement.
+func TestARedactedNullStaysNull(t *testing.T) {
+	body := map[string]any{
+		"kms_key_id":      nil,
+		"next_page_token": nil,
+		"secret_key":      "the-value-that-must-not-survive",
+		"name":            "a-volume",
+	}
+	out, ok := redactValue(body).(map[string]any)
+	if !ok {
+		t.Fatalf("redactValue did not answer an object: %T", redactValue(body))
+	}
+	for _, key := range []string{"kms_key_id", "next_page_token"} {
+		if out[key] != nil {
+			t.Errorf("%s came back %#v, want nil: a null carries nothing to redact, and "+
+				"writing over it invents a type the cloud never answered", key, out[key])
+		}
+		if _, present := out[key]; !present {
+			t.Errorf("%s vanished from the body; the key always stays", key)
+		}
+	}
+	if out["secret_key"] != Placeholder {
+		t.Errorf("a non-null credential came back %#v, want %q: this is the half that must not move",
+			out["secret_key"], Placeholder)
+	}
+	if out["name"] != "a-volume" {
+		t.Errorf("an ordinary field was redacted: %#v", out["name"])
+	}
+}

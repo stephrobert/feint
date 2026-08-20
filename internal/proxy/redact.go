@@ -155,10 +155,27 @@ func redactValue(v any) any {
 	switch value := v.(type) {
 	case map[string]any:
 		for k, nested := range value {
-			if sensitive(k) {
-				// Whatever the type. A key named "secret" holding an object is
-				// still a secret, and replacing it wholesale beats descending into
-				// it to redact the leaves it happens to have today.
+			if sensitive(k) && nested != nil {
+				// Whatever the type, except a null. A key named "secret" holding
+				// an object is still a secret, and replacing it wholesale beats
+				// descending into it to redact the leaves it happens to have
+				// today.
+				//
+				// A null is the exception because it holds nothing to reveal,
+				// and writing "REDACTED" over it *invents* a value: the field's
+				// name is kept in full anyway, so nothing is protected, and the
+				// recorded type changes from null to string. Measured on
+				// 2026-08-20: replaying a real `terraform apply` reported nine
+				// divergences, and all nine were this — `kms_key_id` (matched by
+				// "key") and `next_page_token` (matched by "token"), both null
+				// on the wire, both "REDACTED" on disk, both read back by
+				// `feint replay` as a string the emulator failed to serve.
+				//
+				// The denylist is over-inclusive on purpose and that stays; what
+				// changes is that over-inclusion now costs an unreadable value
+				// instead of a false measurement.
+				//
+				// TestARedactedNullStaysNull fails without this.
 				value[k] = Placeholder
 				continue
 			}

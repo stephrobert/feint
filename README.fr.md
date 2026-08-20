@@ -430,6 +430,7 @@ c'est arrivé à dix d'entre eux avant qu'un test compare les deux listes.
 | `feint coverage` | la surface amont servie, déclinée ou non triée |
 | `feint proxy` | enregistre ce qu'un vrai client et un vrai cloud se disent, identifiants masqués |
 | `feint transcript` | lit un enregistrement : quoi servir ensuite, quelle forme, ce que l'émulateur omet |
+| `feint replay` | rejoue un enregistrement contre un émulateur qui tourne et rapporte, opération par opération, ce qui diverge |
 | `feint probe` | pilote chaque route montée depuis sa description d'API et contrôle les réponses |
 | `feint shapes` | ce qu'un vrai cloud renvoie, et ce que l'émulateur en omet |
 | `feint evidence` | écrit le registre de preuves qu'une exécution de conformance a gagnées, opération par opération |
@@ -441,6 +442,16 @@ c'est arrivé à dix d'entre eux avant qu'un test compare les deux listes.
 
 Les codes de sortie sont stables, parce que la CI en dépend : **0** succès,
 **1** erreur, **2** dérive détectée.
+
+`feint replay` et `feint coverage --observed` ferment la boucle que `feint
+proxy` ouvre. Le premier renvoie chaque requête enregistrée à l'émulateur et
+rapporte ce qui diverge : le statut exactement, les champs et leurs types
+exactement, les valeurs et l'ordre seulement là où un pack les déclare
+comparables. Le second classe ce que les packs **déclinent** par le nombre de
+fois où un vrai client l'a appelé quand même, c'est-à-dire la demande qu'une
+raison écrite ne porte pas. Ni l'un ni l'autre n'imprime une valeur lue : un
+enregistrement est l'inventaire d'un compte, et un constat nomme un chemin, un
+type et une position.
 
 ---
 

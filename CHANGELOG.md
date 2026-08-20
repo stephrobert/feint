@@ -15,6 +15,91 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+### Added
+
+- **`feint replay` reissues a recording here and says what diverged** (#73).
+  `feint replay run.jsonl --endpoint http://127.0.0.1:4599` takes every recorded
+  request, sends it to a running emulator, and reports operation by operation.
+  Three verdicts, never summed: **matched**, **divergent**, and **not served** —
+  the last being #74's work queue rather than a failure, so the day it fails a
+  build is not the day somebody stops recording. Exit 2 on a divergence, 1 only
+  when the tool itself failed.
+
+  **What is compared, and what is deliberately not.** A byte diff would be
+  noise, so the comparison is graded: the status exactly, the fields present
+  exactly minus what a pack's `DeclinedFields()` excuses, the types exactly, and
+  values and ordering *only* where a pack declares them comparable
+  (`emulator.Invariant`, new). Both of the last two are defects this repository
+  has already paid for: #270 measured two `vpc/v2` creates answering 201 where
+  the cloud answers 200, which the status line catches without a Scaleway
+  account; #320 measured `Server.public_ips` coming back in store order rather
+  than in the order the create named, which *only* the ordering line catches.
+  The Scaleway pack declares that order for `CreateServer`, `GetServer` and
+  `UpdateServer`, plus the two values a create's client always names.
+
+  **Identifiers are rebound, not compared.** A recorded run addresses the
+  objects the cloud minted for it, and this emulator mints its own. So the
+  replay learns, from each answer, which recorded identifier this emulator
+  answered in its place, and substitutes it into every later request — whole
+  path segments, whole query values, whole body strings, and only for values
+  shaped like something a cloud hands out (a UUID, an address, an Outscale
+  `i-<hex>`). Without it, the identity case #73 puts first is unreachable: a
+  transcript recorded against the emulator replays against a **fresh** one with
+  zero divergences, and every read would otherwise answer 404.
+
+  **Nothing from the recording reaches the output.** A transcript is redacted of
+  credentials and is not anonymous — `docs/proxy.md` states, field by field,
+  that the bodies hold an account's inventory. A finding therefore names a path,
+  a type, a status and a *position*: an out-of-order list is reported as "0,1
+  answered as 1,0", never by naming the identifiers that moved, and the request
+  path is anonymised before it is printed.
+
+- **`feint coverage --observed` ranks what the packs decline by what a client
+  actually called** (#74). Every refusal in this repository carries a reason,
+  which is the discipline; none carries a *demand*, which was the gap. Given a
+  recording, or a directory of them, the view lists the declined operations a
+  real client called anyway, most-called first, each with its own argument
+  beside it and the client family that made the calls.
+
+  Two facts are counted apart and never summed: **nobody called it** and
+  **nobody triaged it**. Confusing them is the defect the view exists to
+  correct, so the report states both populations in words that cannot be read as
+  each other, and an operation nobody called is a count rather than a row — a
+  ranking that carries every refusal is the alphabet again.
+
+  It needs `--contract`, and that is what makes it possible at all: `feint
+  proxy` names an exchange from the *mounted routes*, so a call to a declined
+  operation carries no name, and only the provider's own document can say that
+  `GET /v2/dns-domain` is `list-dns-domains`. `feint coverage` without
+  `--observed` renders exactly what it rendered before — the observed view
+  replaces the report rather than joining it, so `--format json` keeps producing
+  the committed artefact byte for byte and `tools/drift/gate.sh` is untouched.
+
+  Measured on a recording of `scw`, `exo`, `oapi-cli` and `terraform` driving
+  this emulator through the proxy: one Exoscale decline (`list-dns-domains`, 7
+  calls from `exo`) and two Outscale ones (`ReadApiAccessRules` and
+  `ReadCatalog`, from `oapi-cli`).
+
+- **A pack can declare what a replay may compare beyond presence and type**
+  (`emulator.Invariant`, `ReplayInvariants()`). Optional in the manner of
+  `FieldDecliner`, with a reason held to the same guard `Declined()` faces, plus
+  one of its own: a kind nothing implements is refused rather than reading as
+  "compared". A declaration naming an operation no route serves fails a test.
+  The report counts value checks and order checks separately, so a declaration
+  that evaluated nothing cannot read as one that held.
+
+### Changed
+
+- **CLI surface version 7.** Both entries above are additions — the verb
+  `replay` with `--endpoint`, `--format` and `--timeout`, and `coverage
+  --observed`. Nothing was removed and no exit code moved, so a pipeline keyed
+  on version 6 keeps working.
+
+- `internal/shape.IsUUID` is exported, so the replay asks the same question of a
+  recorded value that the shape catalogue asks of a path segment. Two spellings
+  of "is this an identifier" would answer differently the day one of them
+  learned a case.
+
 ## [0.10.0] - 2026-08-20
 
 ### Added

@@ -235,7 +235,7 @@ func keyFor(x *trace.Exchange, path string) string {
 func AnonymisePath(path string) string {
 	segments := strings.Split(path, "/")
 	for i, seg := range segments {
-		if isUUID(seg) {
+		if IsUUID(seg) {
 			segments[i] = Placeholder
 		}
 	}
@@ -247,11 +247,16 @@ func AnonymisePath(path string) string {
 // gate would look an operation up under a name the recorder never wrote.
 const Placeholder = "{id}"
 
-// isUUID reports whether a path segment is a UUID, in the canonical
-// 8-4-4-4-12 hexadecimal spelling. The version and variant nibbles are not
-// checked: what is being recognised is an identifier, not a conforming one, and
-// a cloud that hands out an off-version UUID still hands out an identifier.
-func isUUID(seg string) bool {
+// IsUUID reports whether a string is a UUID, in the canonical 8-4-4-4-12
+// hexadecimal spelling. The version and variant nibbles are not checked: what
+// is being recognised is an identifier, not a conforming one, and a cloud that
+// hands out an off-version UUID still hands out an identifier.
+//
+// Exported because internal/replay asks the same question of a recorded value
+// before rebinding it to the one this emulator answered, and two spellings of
+// "is this an identifier" would answer differently the day one of them learned
+// a case — the duplication this repository has paid for twice.
+func IsUUID(seg string) bool {
 	if len(seg) != 36 {
 		return false
 	}

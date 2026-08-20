@@ -1,0 +1,859 @@
+// Package replay reissues a recorded exchange at this emulator and says
+// whether the answer is the one the recording carries.
+//
+// Three things already prove this emulator, and none of them compares its
+// answer with the provider's. `mise run conformance` proves a real client is
+// satisfied, and says nothing about a field the client happens not to read.
+// internal/probe validates a response against the provider's own API
+// description, and its own package comment states the ceiling: an emulator
+// answering a well-shaped empty object for everything would pass every probe.
+// Rule 4 sends a doubt to the SDK, and the SDK gives the type — never the
+// value, never which optional field the real API always populates.
+//
+// A transcript written by `feint proxy` is the only artefact in this project
+// that says what a real cloud actually returned. This package is what consumes
+// it actively: it takes each recorded request, sends it here, and compares.
+//
+// # What is compared, and what is deliberately not
+//
+// A byte diff would be noise. Identifiers, timestamps and addresses differ by
+// construction between two runs, so the comparison is graded:
+//
+//	status          exact
+//	fields present  exact, minus what a pack's DeclinedFields() excuses
+//	types           exact
+//	values          only where a pack declares emulator.InvariantValue
+//	ordering        only where a pack declares emulator.InvariantOrder
+//
+// The last two lines are the ones a first version would get wrong in both
+// directions. #270 measured two vpc/v2 creates answering 201 where the cloud
+// answers 200, which the status line catches without an account. #320 measured
+// Server.public_ips coming back in store order rather than the order the create
+// named, which *only* the ordering line catches — a replay that ignored order
+// everywhere would have called that run clean.
+//
+// # Identifiers are rebound, not compared
+//
+// A recorded run created a server and then addressed it by the identifier the
+// cloud minted. This emulator mints its own, so replaying the recorded path
+// verbatim would answer 404 on every read, and the whole transcript would read
+// as divergent for a reason that is not a defect.
+//
+// So the replay learns: wherever the recorded answer and this emulator's answer
+// hold different values at the same field path, and the recorded one has the
+// shape of an identifier a cloud mints (a UUID, an address, an Outscale
+// "i-<hex>"), the pair is remembered, and every later recorded request has that
+// value substituted before it is sent. That is what makes the identity case of
+// #73 reachable at all: a transcript recorded against this emulator replays
+// against a *fresh* one with zero divergences, which it cannot do without
+// rebinding, because the recording's own identifiers no longer exist anywhere.
+//
+// # Nothing from the recording reaches the output
+//
+// A transcript is redacted of credentials and is not anonymous: docs/proxy.md
+// states, field by field, that the bodies hold the account's inventory. So a
+// finding names a path, a type, a status and a *position* — never a value read
+// from either side. TestNoFindingCarriesAValueFromTheRecording holds it, and it
+// is the reason an out-of-order list is reported as "0,1 answered as 1,0"
+// rather than by naming the identifiers that moved.
+package replay
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
+
+	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/proxy"
+	"github.com/stephrobert/feint/internal/shape"
+	"github.com/stephrobert/feint/internal/trace"
+)
+
+// Verdict is what one recorded exchange came to. The three are never summed:
+// a divergence is a finding, an unserved operation is a work item (#74), and
+// adding them would make the day somebody records a new product look like the
+// day the emulator broke.
+type Verdict string
+
+const (
+	// Matched: same status, every recorded field present with the same type,
+	// and every declared invariant held.
+	Matched Verdict = "matched"
+	// Divergent: the status differs, or a field the recording carries is
+	// absent or retyped here, or a declared value or order does not hold.
+	Divergent Verdict = "divergent"
+	// Unserved: no route is mounted for that request. Not a divergence — it is
+	// the work queue, and the day it counts as a failure is the day somebody
+	// stops recording.
+	Unserved Verdict = "unserved"
+	// Skipped: the recording carries no response for that request, so there
+	// was nothing to compare. A defect of the recording, counted out loud
+	// rather than dropped, because a total that shrinks in silence is the
+	// failure `feint shapes --check` already has a paragraph about.
+	Skipped Verdict = "skipped"
+)
+
+// FindingKind names what went wrong at one place.
+type FindingKind string
+
+const (
+	KindStatus FindingKind = "status"
+	KindAbsent FindingKind = "absent"
+	KindType   FindingKind = "type"
+	KindValue  FindingKind = "value"
+	KindOrder  FindingKind = "order"
+	// KindRedacted is not a divergence either: the recorder replaced the value
+	// before writing it, so there is no recorded type to compare against. It is
+	// carried so the arithmetic stays legible — a comparison that quietly
+	// skipped fields would report "all matched" over a recording it half read.
+	KindRedacted FindingKind = "redacted"
+	// KindExcused is not a divergence: a field the recording carries, this
+	// emulator does not serve, and the pack has declined with a reason. It is
+	// carried in the result so that what the verdict subtracts stays visible —
+	// a gate that quietly excuses is a gate that hollows out.
+	KindExcused FindingKind = "excused"
+)
+
+// Finding is one difference, named without quoting either side's data.
+//
+// Want and Got hold a status, a JSON type name, or a sequence of positions.
+// They never hold a value read from a body: see the package comment.
+type Finding struct {
+	Kind FindingKind `json:"kind"`
+	Path string      `json:"path,omitempty"`
+	Want string      `json:"want,omitempty"`
+	Got  string      `json:"got,omitempty"`
+	// Reason is the pack's own words, for KindExcused only.
+	Reason string `json:"reason,omitempty"`
+}
+
+// Result is the verdict on one recorded exchange.
+type Result struct {
+	// Seq is the line of the recording, from 1, so a finding can be looked up
+	// in the file the operator holds.
+	Seq    int    `json:"seq"`
+	Method string `json:"method"`
+	// Path is anonymised (internal/shape): a replay reports where it went
+	// without republishing the identifiers it went to.
+	Path      string    `json:"path"`
+	Operation string    `json:"operation,omitempty"`
+	Provider  string    `json:"provider,omitempty"`
+	Verdict   Verdict   `json:"verdict"`
+	Findings  []Finding `json:"findings,omitempty"`
+}
+
+// Report is the whole run.
+type Report struct {
+	Results   []Result `json:"results"`
+	Matched   int      `json:"matched"`
+	Divergent int      `json:"divergent"`
+	Unserved  int      `json:"unserved"`
+	Skipped   int      `json:"skipped"`
+	// Excused counts fields subtracted by a pack's DeclinedFields().
+	Excused int `json:"excused"`
+	// Redacted counts fields the recorder replaced before writing, whose type
+	// therefore could not be compared. Reported for the reason Excused is: what
+	// a verdict subtracts has to stay visible.
+	Redacted int `json:"redacted"`
+	// Values and Orders are how many declared comparisons of each kind actually
+	// ran. A declaration whose subject the recording does not carry, or whose
+	// elements no earlier exchange bound, is not counted — so a run that
+	// evaluated none says so instead of reading as a clean pass on a check that
+	// never happened.
+	//
+	// Two numbers rather than one, and the falsification is why: with a single
+	// total, breaking the ordering declaration left the two value declarations
+	// still counting, the total stayed above zero, and the test that was meant
+	// to prove the order check ran stayed green
+	// (tools/falsify/specs/replay-compares.json, run of 2026-08-20).
+	Values int `json:"values_checked"`
+	Orders int `json:"orders_checked"`
+	// Rebound is how many recorded identifiers were bound to one this
+	// emulator minted. Reported because it is the difference between "the
+	// recording replayed" and "the recording was read": a run that rebinds
+	// nothing on a transcript full of creates has not followed the causality
+	// it claims to.
+	Rebound int `json:"rebound"`
+}
+
+// Options is what a run needs.
+type Options struct {
+	// Endpoint is the running emulator, e.g. http://127.0.0.1:4599.
+	Endpoint string
+	// Client is the HTTP client. Required: a caller sets its timeout, and a
+	// default here would be a policy this package has no business having.
+	Client *http.Client
+	// Table names the operation a request addresses and reports whether
+	// anything serves it. It is emulator.NewTable over the mounted packs — the
+	// same table `feint proxy` uses to name an exchange, rather than a second
+	// answer to the same question.
+	Table *emulator.Table
+	// Declined and Invariants are what the packs declare, gathered by the
+	// caller because it is the caller that holds the packs.
+	Declined   []emulator.FieldDecline
+	Invariants []emulator.Invariant
+}
+
+// Run replays a recording in order and reports on each exchange.
+//
+// In order and one at a time, deliberately: a transcript is a causal sequence —
+// the create that mints an identifier comes before the read that uses it — and
+// replaying it concurrently would break the very rebinding that makes it
+// replayable.
+func Run(ctx context.Context, exs []trace.Exchange, opt Options) (Report, error) {
+	if opt.Client == nil {
+		return Report{}, fmt.Errorf("replay needs an HTTP client with a timeout its caller chose")
+	}
+	if opt.Table == nil {
+		return Report{}, fmt.Errorf("replay needs the emulator's route table to tell an unserved operation from a divergent one")
+	}
+	b := newBindings()
+	var rep Report
+	for i := range exs {
+		res, ran, err := replayOne(ctx, &exs[i], i+1, b, opt)
+		if err != nil {
+			return rep, err
+		}
+		rep.Values += ran.values
+		rep.Orders += ran.orders
+		for _, f := range res.Findings {
+			switch f.Kind {
+			case KindExcused:
+				rep.Excused++
+			case KindRedacted:
+				rep.Redacted++
+			}
+		}
+		switch res.Verdict {
+		case Matched:
+			rep.Matched++
+		case Divergent:
+			rep.Divergent++
+		case Unserved:
+			rep.Unserved++
+		case Skipped:
+			rep.Skipped++
+		}
+		rep.Results = append(rep.Results, res)
+	}
+	rep.Rebound = b.count()
+	return rep, nil
+}
+
+// checked counts the declared comparisons one exchange actually ran, per kind.
+type checked struct{ values, orders int }
+
+func replayOne(ctx context.Context, x *trace.Exchange, seq int, b *bindings, opt Options) (Result, checked, error) {
+	path := b.applyPath(x.Path)
+	query := b.applyQuery(x.Query)
+	res := Result{Seq: seq, Method: x.Method, Path: shape.AnonymisePath(path)}
+
+	if x.Res == nil {
+		res.Verdict = Skipped
+		return res, checked{}, nil
+	}
+
+	req, err := http.NewRequestWithContext(ctx, x.Method, opt.Endpoint+path, nil)
+	if err != nil {
+		return res, checked{}, fmt.Errorf("line %d: build the request: %w", seq, err)
+	}
+	req.URL.RawQuery = query
+
+	// The route is resolved before the request goes out, and an unserved one is
+	// never sent. Sending it would add an exchange to the emulator's own
+	// observations for an operation no pack claims, which is a fact `feint
+	// status` reports and this tool has no business manufacturing.
+	mounted, ok := opt.Table.Lookup(req)
+	if !ok {
+		res.Verdict = Unserved
+		return res, checked{}, nil
+	}
+	res.Operation = mounted.Route.Operation
+	res.Provider = mounted.Provider
+
+	if x.Req != nil && x.Req.Body != nil {
+		body, err := encodeBody(b.applyValue(x.Req.Body))
+		if err != nil {
+			return res, checked{}, fmt.Errorf("line %d: encode the recorded request body: %w", seq, err)
+		}
+		req.Body = io.NopCloser(bytes.NewReader(body))
+		req.ContentLength = int64(len(body))
+		req.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(body)), nil }
+	}
+	setHeaders(req, x)
+
+	resp, err := opt.Client.Do(req)
+	if err != nil {
+		return res, checked{}, fmt.Errorf("line %d: %s %s: %w", seq, x.Method, res.Path, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	got, err := readBody(resp)
+	if err != nil {
+		return res, checked{}, fmt.Errorf("line %d: read the answer: %w", seq, err)
+	}
+
+	// Compared first, learned from second.
+	//
+	// The reasoning: an order invariant maps the recorded sequence through the
+	// bindings and then compares, so folding this exchange's own answer in first
+	// could bind each recorded identifier to whichever one sat at its position,
+	// and a reordered list would then match by construction.
+	//
+	// What is *proven* is narrower, and this comment says so rather than
+	// claiming a control it does not have. Swapping these two statements was
+	// falsified on 2026-08-20 and every test stayed green: the property is
+	// already carried by the first-binding-wins rule in [bindings.learn], which
+	// refuses to rebind an identifier an earlier exchange already mapped —
+	// #320's shape has the addresses minted by earlier POST /ips calls. So this
+	// order is defence in depth for the case where a create mints and orders in
+	// one answer, and that case has no fixture here.
+	findings, evaluated := compare(x, resp.StatusCode, got, mounted.Route.Operation, b, opt)
+	res.Findings = findings
+	b.learn(x.Res.Body, got)
+	res.Verdict = Matched
+	for _, f := range res.Findings {
+		if f.Kind != KindExcused && f.Kind != KindRedacted {
+			res.Verdict = Divergent
+			break
+		}
+	}
+	return res, evaluated, nil
+}
+
+// setHeaders sends what can honestly be reissued.
+//
+// Content-Type and Accept, and nothing else. Every other recorded header has
+// had its value dropped by the proxy's redaction — the value is "REDACTED" on
+// disk — so reissuing it would send a string the client never sent, and this
+// emulator authenticates nobody, so nothing is lost. A Content-Length or a
+// Content-Encoding copied from the recording would describe a body that was
+// re-encoded here, which is worse than absent.
+func setHeaders(req *http.Request, x *trace.Exchange) {
+	if x.Req == nil {
+		return
+	}
+	for name, value := range x.Req.Headers {
+		switch strings.ToLower(name) {
+		case "content-type", "accept":
+			req.Header.Set(name, value)
+		}
+	}
+	if req.Body != nil && req.Header.Get("Content-Type") == "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+}
+
+// encodeBody renders a decoded recorded body back onto the wire. A body the
+// proxy could not decode as JSON was recorded as a string and goes out as those
+// bytes, not as a quoted JSON string.
+func encodeBody(v any) ([]byte, error) {
+	if s, isText := v.(string); isText {
+		return []byte(s), nil
+	}
+	return json.Marshal(v)
+}
+
+// readBody decodes the emulator's answer with UseNumber, for the reason the
+// proxy recorded with it: a 19-digit identifier read through float64 comes back
+// changed, and a comparison that says "number" must not have altered the value
+// it read to say so.
+func readBody(resp *http.Response) (any, error) {
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, err
+	}
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return nil, nil
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var out any
+	if err := dec.Decode(&out); err != nil {
+		// Not JSON: the string is what the emulator answered, and comparing it
+		// as a scalar is more honest than failing the whole run on it.
+		return string(raw), nil
+	}
+	return out, nil
+}
+
+// compare grades one answer against the recorded one.
+func compare(x *trace.Exchange, status int, got any, operation string, b *bindings, opt Options) ([]Finding, checked) {
+	var out []Finding
+	if status != x.Status {
+		out = append(out, Finding{
+			Kind: KindStatus,
+			Want: strconv.Itoa(x.Status),
+			Got:  strconv.Itoa(status),
+		})
+	}
+	out = append(out, compareShape("", x.Res.Body, got, operation, opt)...)
+	invariants, evaluated := compareInvariants(x.Res.Body, got, operation, b, opt)
+	out = append(out, invariants...)
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Path != out[j].Path {
+			return out[i].Path < out[j].Path
+		}
+		return out[i].Kind < out[j].Kind
+	})
+	return out, evaluated
+}
+
+// compareShape walks the recorded answer and this emulator's answer together.
+//
+// A parallel walk rather than two flattened path sets, and the difference is
+// what it reports: a subtree the emulator does not serve is named once, at its
+// root, instead of once per leaf underneath it. The first version flattened,
+// and a `servers` catalogue holding four commercial types against a recording
+// holding ninety produced several hundred lines, none of which was a distinct
+// decision.
+//
+// Only what the recording carries is checked. A field this emulator adds and
+// the recording lacks is not a finding here: internal/contract already refuses
+// a field the provider's own description does not define, and a recording made
+// against a sparse account legitimately carries less than a full one.
+func compareShape(path string, want, got any, operation string, opt Options) []Finding {
+	switch w := want.(type) {
+	case map[string]any:
+		g, ok := got.(map[string]any)
+		if !ok {
+			return []Finding{{Kind: KindType, Path: path, Want: "object", Got: jsonType(got)}}
+		}
+		keys := make([]string, 0, len(w))
+		for k := range w {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		var out []Finding
+		for _, k := range keys {
+			child := k
+			if path != "" {
+				child = path + "." + k
+			}
+			nested, present := g[k]
+			if !present {
+				out = append(out, absentOrExcused(child, jsonType(w[k]), operation, opt))
+				continue
+			}
+			out = append(out, compareShape(child, w[k], nested, operation, opt)...)
+		}
+		return out
+	case []any:
+		g, ok := got.([]any)
+		if !ok {
+			return []Finding{{Kind: KindType, Path: path, Want: "array", Got: jsonType(got)}}
+		}
+		element := path + "[]"
+		if len(w) > 0 && len(g) == 0 {
+			// The recording saw elements and this emulator answered none. One
+			// finding at the element, never one per field of the element: the
+			// shape underneath was not observed, it was not omitted.
+			return []Finding{absentOrExcused(element, "array element", operation, opt)}
+		}
+		var out []Finding
+		for i := range w {
+			if i >= len(g) {
+				break
+			}
+			out = append(out, compareShape(element, w[i], g[i], operation, opt)...)
+		}
+		return out
+	default:
+		if want == proxy.Placeholder {
+			// The recorder replaced this value, so its type is erased rather
+			// than observed: a redacted number reads as a string on disk.
+			// Comparing it would manufacture a divergence out of the proxy's
+			// own hygiene, which is the opposite of what this tool is for. The
+			// field's *presence* was still checked one level up, and the count
+			// below keeps the subtraction visible.
+			//
+			// TestARedactedValueIsNotComparedAndIsCounted fails without this.
+			return []Finding{{Kind: KindRedacted, Path: path, Want: jsonType(got)}}
+		}
+		if wt, gt := jsonType(want), jsonType(got); wt != gt {
+			// A recorded null carries no type: the field was there and empty,
+			// and an emulator answering a concrete value is not a defect. The
+			// converse is: a null here where the cloud answered a string is an
+			// unpopulated field, and that is reported.
+			if wt == "null" {
+				return nil
+			}
+			return []Finding{{Kind: KindType, Path: path, Want: wt, Got: gt}}
+		}
+		return nil
+	}
+}
+
+// absentOrExcused turns a missing field into a finding, or into the pack's own
+// argument for not serving it.
+func absentOrExcused(path, typ, operation string, opt Options) Finding {
+	for _, d := range opt.Declined {
+		if d.Matches(operation, path) {
+			return Finding{Kind: KindExcused, Path: path, Want: typ, Reason: d.Reason}
+		}
+	}
+	return Finding{Kind: KindAbsent, Path: path, Want: typ}
+}
+
+// compareInvariants checks the two aspects a pack has to declare: a value that
+// is the same on two runs, and a list whose order is the contract.
+func compareInvariants(want, got any, operation string, b *bindings, opt Options) ([]Finding, checked) {
+	var out []Finding
+	var evaluated checked
+	for _, inv := range opt.Invariants {
+		if inv.Operation != operation {
+			continue
+		}
+		wantSeq := collect(inv, "", want)
+		if len(wantSeq) == 0 {
+			// The recording does not carry this field on this exchange —
+			// CreateServer without a public IP, for instance. Nothing to hold
+			// the emulator to, and inventing a finding here would make the
+			// declaration a liability rather than a check.
+			continue
+		}
+		gotSeq := collect(inv, "", got)
+		switch inv.Kind {
+		case emulator.InvariantValue:
+			evaluated.values++
+			if !sameValues(wantSeq, gotSeq) {
+				out = append(out, Finding{Kind: KindValue, Path: inv.Path,
+					Want: fmt.Sprintf("%d value(s) the recording carries", len(wantSeq)),
+					Got:  fmt.Sprintf("%d differing here", differing(wantSeq, gotSeq))})
+			}
+		case emulator.InvariantOrder:
+			// The recorded sequence is mapped into this emulator's own
+			// namespace before it is compared, using only what earlier
+			// exchanges bound. An element nothing bound leaves the check
+			// unevaluated rather than passed: see reorder.
+			mapped := make([]any, len(wantSeq))
+			for i, v := range wantSeq {
+				mapped[i] = b.applyValue(v)
+			}
+			positions, ran := reorder(mapped, gotSeq)
+			if ran {
+				evaluated.orders++
+			}
+			if positions != "" {
+				out = append(out, Finding{Kind: KindOrder, Path: inv.Path,
+					Want: recordedPositions(len(wantSeq)), Got: positions})
+			}
+		}
+	}
+	return out, evaluated
+}
+
+// collect gathers, in document order, every value at the path an invariant
+// names. Order is the point: a sequence read twice from the same document has
+// to come back the same way, so a map is walked by sorted key and a list in
+// its own order.
+func collect(inv emulator.Invariant, path string, v any) []any {
+	if pathMatchesInvariant(inv, path) {
+		return []any{v}
+	}
+	switch value := v.(type) {
+	case map[string]any:
+		keys := make([]string, 0, len(value))
+		for k := range value {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		var out []any
+		for _, k := range keys {
+			child := k
+			if path != "" {
+				child = path + "." + k
+			}
+			out = append(out, collect(inv, child, value[k])...)
+		}
+		return out
+	case []any:
+		var out []any
+		for _, item := range value {
+			out = append(out, collect(inv, path+"[]", item)...)
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+func pathMatchesInvariant(inv emulator.Invariant, path string) bool {
+	return path != "" && inv.Matches(inv.Operation, path)
+}
+
+func sameValues(want, got []any) bool {
+	if len(want) != len(got) {
+		return false
+	}
+	for i := range want {
+		if !sameScalar(want[i], got[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func differing(want, got []any) int {
+	n := 0
+	for i := range want {
+		if i >= len(got) || !sameScalar(want[i], got[i]) {
+			n++
+		}
+	}
+	if extra := len(got) - len(want); extra > 0 {
+		n += extra
+	}
+	return n
+}
+
+// sameScalar compares two decoded JSON values without printing either.
+func sameScalar(a, b any) bool {
+	ja, ea := json.Marshal(a)
+	jb, eb := json.Marshal(b)
+	if ea != nil || eb != nil {
+		return false
+	}
+	return bytes.Equal(ja, jb)
+}
+
+// reorder reports the order this emulator answered, as positions in the
+// recorded sequence, and "" when the order held.
+//
+// Positions rather than values, and that is a hygiene rule rather than a style:
+// the values here are the account's identifiers and addresses. "1,0" says
+// exactly what went wrong and republishes nothing.
+func reorder(want, got []any) (string, bool) {
+	if len(want) != len(got) {
+		return fmt.Sprintf("%d element(s) where the recording has %d", len(got), len(want)), true
+	}
+	at := map[string]int{}
+	for i, v := range want {
+		if raw, err := json.Marshal(v); err == nil {
+			if _, seen := at[string(raw)]; !seen {
+				at[string(raw)] = i
+			}
+		}
+	}
+	positions := make([]string, 0, len(got))
+	same := true
+	for i, v := range got {
+		raw, err := json.Marshal(v)
+		if err != nil {
+			return "", false
+		}
+		p, known := at[string(raw)]
+		if !known {
+			// An element the mapped recording does not carry at all. Either the
+			// set genuinely differs — which the shape comparison owns — or no
+			// earlier exchange bound this identifier, so the two sides are not
+			// in the same namespace and there is nothing to compare. Reported as
+			// not evaluated rather than as a pass: an order check that silently
+			// ran on nothing is exactly the shape CLAUDE.md calls a comment
+			// standing in for a control, and Report.Orders is what makes it
+			// visible.
+			return "", false
+		}
+		positions = append(positions, strconv.Itoa(p))
+		if p != i {
+			same = false
+		}
+	}
+	if same {
+		return "", true
+	}
+	return strings.Join(positions, ","), true
+}
+
+func recordedPositions(n int) string {
+	parts := make([]string, n)
+	for i := range parts {
+		parts[i] = strconv.Itoa(i)
+	}
+	return strings.Join(parts, ",")
+}
+
+// jsonType names the JSON type of a decoded value, in the vocabulary
+// internal/transcript already uses, so a replay finding and a shape catalogue
+// say "number" about the same thing.
+func jsonType(v any) string {
+	switch v.(type) {
+	case nil:
+		return "null"
+	case bool:
+		return "bool"
+	case json.Number, float64:
+		return "number"
+	case string:
+		return "string"
+	case map[string]any:
+		return "object"
+	case []any:
+		return "array"
+	default:
+		return fmt.Sprintf("%T", v)
+	}
+}
+
+// bindings maps a value the recording carries to the one this emulator minted
+// in its place.
+type bindings struct{ to map[string]string }
+
+func newBindings() *bindings { return &bindings{to: map[string]string{}} }
+
+func (b *bindings) count() int { return len(b.to) }
+
+// learn walks the recorded answer and this emulator's beside it, and remembers
+// every identifier that moved.
+//
+// Only a differing pair binds, and only when the recorded side looks like an
+// identifier. Both halves matter: a value the emulator answers identically
+// needs no rebinding, and a state name or a status message that differs is not
+// something a later request refers back to — substituting one would corrupt the
+// request rather than repair it.
+func (b *bindings) learn(want, got any) {
+	switch w := want.(type) {
+	case map[string]any:
+		g, ok := got.(map[string]any)
+		if !ok {
+			return
+		}
+		for k, nested := range w {
+			if peer, present := g[k]; present {
+				b.learn(nested, peer)
+			}
+		}
+	case []any:
+		g, ok := got.([]any)
+		if !ok {
+			return
+		}
+		for i := range w {
+			if i < len(g) {
+				b.learn(w[i], g[i])
+			}
+		}
+	case string:
+		g, ok := got.(string)
+		if !ok || g == w || !looksMinted(w) {
+			return
+		}
+		if _, bound := b.to[w]; !bound {
+			b.to[w] = g
+		}
+	}
+}
+
+// applyPath substitutes bound identifiers segment by segment. Whole segments
+// only: a substring replacement inside a free-text segment would corrupt a
+// request rather than repair it.
+func (b *bindings) applyPath(path string) string {
+	if len(b.to) == 0 {
+		return path
+	}
+	segments := strings.Split(path, "/")
+	for i, seg := range segments {
+		if to, bound := b.to[seg]; bound {
+			segments[i] = to
+			continue
+		}
+		// Exoscale writes the verb in the identifier's own segment
+		// ("{id}:start"), so the identifier is the part before the colon.
+		if id, action, found := strings.Cut(seg, ":"); found {
+			if to, bound := b.to[id]; bound {
+				segments[i] = to + ":" + action
+			}
+		}
+	}
+	return strings.Join(segments, "/")
+}
+
+// applyQuery substitutes bound identifiers in parameter values, leaving the
+// string byte-identical when none is bound — the same reason the proxy's
+// redaction does: re-encoding through url.Values sorts and re-escapes, and the
+// request that goes out would then not be the one that was recorded.
+func (b *bindings) applyQuery(raw string) string {
+	if raw == "" || len(b.to) == 0 {
+		return raw
+	}
+	pairs := strings.Split(raw, "&")
+	changed := false
+	for i, pair := range pairs {
+		name, value, hasValue := strings.Cut(pair, "=")
+		if !hasValue {
+			continue
+		}
+		if to, bound := b.to[value]; bound {
+			pairs[i] = name + "=" + to
+			changed = true
+		}
+	}
+	if !changed {
+		return raw
+	}
+	return strings.Join(pairs, "&")
+}
+
+// applyValue substitutes bound identifiers in a decoded request body. Whole
+// string values only, for the reason applyPath keeps to whole segments.
+func (b *bindings) applyValue(v any) any {
+	if len(b.to) == 0 {
+		return v
+	}
+	switch value := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(value))
+		for k, nested := range value {
+			out[k] = b.applyValue(nested)
+		}
+		return out
+	case []any:
+		out := make([]any, len(value))
+		for i, item := range value {
+			out[i] = b.applyValue(item)
+		}
+		return out
+	case string:
+		if to, bound := b.to[value]; bound {
+			return to
+		}
+		return value
+	default:
+		return v
+	}
+}
+
+// prefixedID is the spelling Outscale mints: one or more lower-case labels,
+// then a run of at least eight hexadecimal characters — "i-0e4a3c1f",
+// "eni-attach-0e4a3c1f", "key-<32 hex>". Read off internal/providers/outscale's
+// own newID rather than guessed, so the shape recognised is the shape minted.
+var prefixedID = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z][a-z0-9]*)*-[0-9a-f]{8,}$`)
+
+// looksMinted reports whether a recorded value is the kind of thing a cloud
+// hands out and a later request refers back to.
+//
+// Three shapes, each read off a provider rather than imagined: a UUID
+// (Scaleway and Exoscale address every resource that way, and internal/shape
+// already answers that question — one definition, not two), an IP address
+// (allocated per run, and named by later rules and routes), and Outscale's
+// prefixed hexadecimal identifier.
+//
+// A shape a fourth provider invents would not be recognised, and the honest
+// consequence is a replay that reports divergences on that provider's reads
+// rather than one that silently substitutes something it guessed.
+func looksMinted(s string) bool {
+	if shape.IsUUID(s) {
+		return true
+	}
+	if net.ParseIP(s) != nil {
+		return true
+	}
+	return prefixedID.MatchString(s)
+}

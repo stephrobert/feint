@@ -1,0 +1,73 @@
+{
+  "package": "./internal/drift/",
+  "mutations": [
+    {
+      "label": "the ranking stops ordering by observed calls, so eighteen real calls no longer outrank an operation nobody ever made",
+      "file": "internal/drift/observed.go",
+      "find": "\t\tif obs[i].Calls != obs[j].Calls {\n\t\t\treturn obs[i].Calls > obs[j].Calls\n\t\t}",
+      "replace": "\t\tif obs[i].Calls != obs[j].Calls && false {\n\t\t\treturn obs[i].Calls > obs[j].Calls\n\t\t}",
+      "test": "TestADeclineAClientCalledOutranksOneNobodyEverDid"
+    },
+    {
+      "label": "an operation nobody called joins the ranking, so the report invents a backlog instead of measuring one — and the alphabet is back",
+      "file": "internal/drift/observed.go",
+      "find": "\t\t\tif n == 0 {\n\t\t\t\tout.DeclinedSilent++\n\t\t\t\tcontinue\n\t\t\t}",
+      "replace": "\t\t\tif n == 0 && false {\n\t\t\t\tout.DeclinedSilent++\n\t\t\t\tcontinue\n\t\t\t}",
+      "test": "TestARecordingThatCallsNothingDeclinedRanksNothing"
+    },
+    {
+      "label": "the untriaged are counted with the declined, blurring the two facts this view exists to keep apart",
+      "file": "internal/drift/observed.go",
+      "find": "\t\tcase StatusUnknown:\n\t\t\tout.UnknownTotal++",
+      "replace": "\t\tcase StatusUnknown:\n\t\t\tout.UnknownTotal += 0",
+      "test": "TestTheSilentAndTheUntriagedAreCountedApart"
+    },
+    {
+      "label": "a ranked decline no longer carries the argument it questions, so a reader decides without the reason the operation was refused",
+      "file": "internal/drift/observed.go",
+      "find": "\t\t\t\tCalls: n, Clients: calls.Clients[e.Operation], Reason: e.Reason,",
+      "replace": "\t\t\t\tCalls: n, Clients: calls.Clients[e.Operation], Reason: e.Reason[:0],",
+      "test": "TestARankedDeclineCarriesTheArgumentItQuestions"
+    },
+    {
+      "label": "the client column carries the raw User-Agent, so a path and a build host reach a report somebody pastes into an issue",
+      "file": "internal/transcript/client.go",
+      "find": "\t\tif strings.Contains(agent, a.needle) {\n\t\t\treturn a.family\n\t\t}",
+      "replace": "\t\tif strings.Contains(agent, a.needle) {\n\t\t\treturn agent + a.family[:0]\n\t\t}",
+      "test": "TestTheObservedReportNamesNoRawUserAgent",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "the contract stops naming the operation a recorded call addressed, and a declined operation becomes unrankable again — which is the state #74 was filed in",
+      "file": "internal/contract/address.go",
+      "find": "\treturn best, best != \"\"",
+      "replace": "\treturn best, best != \"\" && false",
+      "test": "TestADeclinedOperationACallReachedIsNamedAndRanked",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "--observed runs without a contract and ranks only what a route already names, which is the population it exists to look past",
+      "file": "internal/cli/observed.go",
+      "find": "\tif doc == nil {",
+      "replace": "\tif doc == nil && false {",
+      "test": "TestObservedWithoutAContractIsRefusedWithItsReason",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "a directory holding no recording produces an empty ranking instead of an error, and a report drawn from nothing reads like a clean run",
+      "file": "internal/cli/observed.go",
+      "find": "\tif len(files) == 0 {",
+      "replace": "\tif len(files) == 0 && false {",
+      "test": "TestADirectoryWithNoRecordingIsAnErrorNotAnEmptyRanking",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "--observed renders beside the report instead of replacing it, so an observed run writes two JSON documents and `feint coverage --format json` stops producing the committed artefact",
+      "file": "internal/cli/cli.go",
+      "find": "\tif *observed != \"\" {\n\t\treturn observedCoverage(rep, doc, *observed, *format, stdout, stderr)\n\t}",
+      "replace": "\tif *observed != \"\" {\n\t\tobservedCoverage(rep, doc, *observed, *format, stdout, stderr)\n\t}\n\tif *observed == \"\\x00never\" {\n\t\treturn exitError\n\t}",
+      "test": "TestObservedRendersInsteadOfTheReportAndNotBesideIt",
+      "package": "./internal/cli/"
+    }
+  ]
+}

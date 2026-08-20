@@ -190,6 +190,140 @@ finds, because the unit test was written against the same reading of the SDK the
 handler was. This is the project's "jamais de format inventé" rule, made
 checkable.
 
+## Replay: is what we serve right?
+
+`feint transcript` reads a recording. `feint replay` *reissues* it, which is the
+one thing no passive diff can do — it needs no second recording, and it produces
+a verdict over the whole run rather than one operation at a time.
+
+```console
+$ feint replay real.jsonl --endpoint http://127.0.0.1:4599
+instance/v1/API.CreateIP                         PASS
+instance/v1/API.CreateServer                     DIFF
+  order:    server.public_ips[].id is ordered 0,1 upstream, 1,0 here
+instance/v1/API.GetServer                        PASS
+lb/v1/ZonedAPI.CreateLB                          NOT SERVED
+
+3 matched, 1 divergent, 1 not served, 0 without a recorded answer
+0 field(s) knowingly not served, each printed above with its reason
+4 recorded identifier(s) rebound to the one this emulator minted
+not served is a work item, not a failure: rank it with `feint coverage --observed <recording>`
+```
+
+Exit **2** on a divergence, **1** only when the tool itself failed — the file is
+unreadable, the emulator does not answer. **Not served is neither**: it is the
+work queue below, and the day it fails a build is the day somebody stops
+recording.
+
+### What it compares, and what it deliberately does not
+
+| aspect | compared |
+|---|---|
+| status | exact |
+| fields present | exact, minus what a pack's `DeclinedFields()` excuses |
+| types | exact |
+| values | only where a pack declares `emulator.InvariantValue` |
+| ordering | only where a pack declares `emulator.InvariantOrder` |
+
+The last two lines are where a first version goes wrong in *both* directions,
+and each has a defect behind it.
+
+Comparing every value would paint every run red — identifiers, timestamps and
+addresses differ by construction — and the tool would be ignored within the
+week. Comparing none would let an emulator that accepts a name and answers
+another pass, which is the "argument the API accepted and then ignored" family.
+So a pack declares the handful it knows: for Scaleway, the `name` and the
+`commercial_type` a create's client always sends.
+
+Comparing every list's order would invent a contract the cloud never stated.
+Comparing none would have missed **#320**, where `Server.public_ips` came back in
+store order rather than in the order the create named — a Terraform plan diff
+that never converges. So the Scaleway pack declares that one order, for
+`CreateServer`, `GetServer` and `UpdateServer`, and the report counts value
+checks and order checks separately so a declaration that evaluated nothing
+cannot read as one that held.
+
+### Identifiers are rebound, not compared
+
+A recorded run addresses the objects the cloud minted for it. This emulator mints
+its own, so replaying a recorded path verbatim would answer 404 on every read.
+
+The replay therefore learns, from each answer, which recorded identifier this
+emulator answered in its place, and substitutes it into every later request:
+whole path segments, whole query values, whole body strings, and only for values
+shaped like something a cloud hands out — a UUID, an address, an Outscale
+`i-<hex>`. A shape a fourth provider invents is not recognised, and the honest
+consequence is a replay that reports divergences on that provider's reads rather
+than one that silently substitutes something it guessed.
+
+This is what makes the first thing worth checking reachable at all: **a
+transcript recorded against the emulator replays against a *fresh* emulator with
+zero divergences.** If replay cannot agree with the emulator about the emulator,
+nothing it says about a real cloud is worth reading.
+
+### Nothing it read is printed
+
+A recording is an account's inventory (the table further down says so field by
+field), so a finding names a path, a type, a status and a *position* — never a
+value from either side. An out-of-order list is reported as "0,1 answered as
+1,0", and the request path is anonymised before it is printed. That is a
+property with a test, not an intention: `TestTheReplayReportRepublishesNoValue
+FromTheRecording`, falsified by removing the anonymisation.
+
+## Rank: what is worth serving next?
+
+`feint replay` says whether what is served is right. `feint coverage --observed`
+says what is worth serving next, and together they close the loop: a stack is
+recorded, the recording ranks the backlog, the backlog is implemented, and the
+replay proves it.
+
+```console
+$ feint coverage --provider exoscale --contract contracts/exoscale.json \
+    --observed recordings/
+provider exoscale: 1 declined operation(s) a recorded client called anyway, most-called first
+
+  calls  client       operation
+      7  exo          exoscale/v2.list-dns-domains
+         declined: authoritative DNS is a public service with real resolvers behind it, and […]
+
+281 declined operation(s) in all; 280 of them no recorded client called.
+0 upstream operation(s) nobody has triaged; 0 of them no recorded client called.
+93 implemented operation(s); 2 of them this recording exercised.
+106 recorded call(s) this provider's document describes no operation for: another
+provider's traffic in the same file, or a product outside the committed contract.
+```
+
+Every refusal in this repository carries a reason, which is the discipline. None
+of them carries a **demand**, and that is what this reads out of a recording.
+
+**Two facts, counted apart and never summed.** "Nobody called it" says nothing
+about whether the decision was right; "nobody triaged it" is what fails the drift
+gate, and a call count neither excuses nor creates it. An operation nobody called
+is a count rather than a row, because a ranking that carries every refusal is the
+alphabet again.
+
+**Why `--contract` is required.** `feint proxy` names an exchange from the
+*mounted routes* — that is what `emulator.Table` is for — so a call to a declined
+operation carries no operation name at all. Only the provider's own document can
+say that `GET /v2/dns-domain` is `list-dns-domains`. For Scaleway the reach is
+the ten API versions `contracts/scaleway.json` carries; ranking a decline in a
+product the emulator has not started means adding that product to
+`tools/contract/scaleway-products.txt` first.
+
+**The client column is a closed vocabulary** — `terraform`, `opentofu`, `scw`,
+`exo`, `oapi-cli`, `sdk`, `unknown` — and never the raw `User-Agent`, which is
+the one request header the proxy writes down in full and which carries whatever
+the build put in it. The mapping was measured rather than guessed, and two
+entries contradict the obvious guess: `scw` announces `scaleway-sdk-go/… (…)
+scaleway-cli/2.56.3`, the SDK leading and the CLI trailing, and `exo` spells
+itself `exocli`, not `exoscale-cli`.
+
+**`feint coverage` without `--observed` is untouched.** The observed view renders
+*instead of* the report, never beside it, so `--format json` keeps producing
+`coverage/<provider>-coverage.json` byte for byte and `tools/drift/gate.sh` is
+unaffected. That is the mechanism this repository rests on, and improving it must
+not put it at risk.
+
 ## What a recording can promise
 
 A transcript covers **what the client kept sending to the proxy**, and that is
