@@ -39,8 +39,8 @@
     {
       "label": "every mode declares balancing, including the one with no load balancer primitive",
       "file": "internal/core/machine/capabilities.go",
-      "find": "\t\tBalancing:       d.OVN,",
-      "replace": "\t\tBalancing:       d.OVN || true,",
+      "find": "\t\tBalancing:          d.OVN,",
+      "replace": "\t\tBalancing:          d.OVN || true,",
       "test": "TestABridgeBackedRunHasNoBalancer"
     },
     {

@@ -357,7 +357,26 @@ func (d *Incus) unrouteAddressOVN(ctx context.Context, machine, address string) 
 			return fmt.Errorf("inspect %s: %w", machine, err)
 		}
 		for device, cfg := range devices.own {
-			if cfg["type"] != "nic" || !routeListContains(cfg["ipv4.routes.external"], route) {
+			if cfg["type"] != "nic" {
+				continue
+			}
+			// A routed NIC in OVN mode (#337): a machine that joins no network
+			// has no OVN port, so its extra addresses live in the device's own
+			// ipv4.routes, exactly as in bridge mode — and removing one
+			// re-plugs the device, so the same repair follows.
+			if cfg["nictype"] == "routed" {
+				if !routeListContains(cfg["ipv4.routes"], route) {
+					continue
+				}
+				if err := d.setDeviceRoutes(ctx, machine, device, address, false); err != nil {
+					return err
+				}
+				if err := d.repairRoutedInterface(ctx, machine, device); err != nil {
+					return err
+				}
+				continue
+			}
+			if !routeListContains(cfg["ipv4.routes.external"], route) {
 				continue
 			}
 			kept := removeRoute(cfg["ipv4.routes.external"], route)

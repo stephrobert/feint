@@ -45,7 +45,16 @@ const (
 	// moves the version: a suite that wants to prove a balancer balances must
 	// key on this and never on a mode name, and a build that cannot answer the
 	// question at all is exactly what a version is for.
-	HealthSchemaVersion = 4
+	//
+	// 5 since #337: `capabilities` gained `firewall_public_only` — a security
+	// group is enforced even on a machine that joins no emulated network. The
+	// Incus driver declares it false, measured: a routed NIC, the interface of
+	// a server carrying only its published public addresses, accepts no
+	// security option at all (7.2 and 7.3). Publishing the refusal is the
+	// point. `capabilities.firewall` alone read as "my security groups are
+	// enforced", it was true for a machine on a private network and false for
+	// one with only a public address, and nothing said which.
+	HealthSchemaVersion = 5
 	// RoutesSchemaVersion is the shape of GET /_feint/routes.
 	//
 	// This one is not on the wire: the endpoint answers a bare JSON array — the

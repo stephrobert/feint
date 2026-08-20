@@ -313,6 +313,34 @@ what this project is judged on: **a response shape a client can observe**, and
   nothing in the system trust store and never edits the operator's
   `/etc/hosts`. #76 and #92 are closed as delivered.
 
+- **An address attached after launch reaches a machine that joins no network,
+  and a security group there is a declared limit instead of a silent one**
+  (#337). Since #202 a machine with only a public address carries it on a
+  `routed` NIC, which has no `network` key — and both address paths of
+  `internal/core/machine` selected interfaces by that key. Every address routed
+  after the launch died on "machine has no network interface": the Exoscale ssh
+  suite's elastic IP was reported attached by the API while nothing put it on
+  the machine, and every Scaleway poweron replay logged the same error over a
+  working address. The routed NIC is now recognised, and the mechanism is its
+  own: the address lands in the device's `ipv4.routes` — measured accepted on
+  Incus 7.2, cold and live — and the re-plug a live edit causes (measured: the
+  guest interface comes back down and bare) is repaired from the device's own
+  config. The Exoscale ssh suite passes end to end.
+
+  The firewall half could not be fixed the same way, because the measurement
+  says no: a routed NIC accepts no security option at all — every key an
+  `Invalid device option` on Incus 7.2 and 7.3 alike, table in
+  `docs/limits.md` — so applying a rule set there was an ERROR log the control
+  plane answered over as if the group were enforced. The refusal is now
+  declared instead of pretended: `/_feint/health` gained
+  `capabilities.firewall_public_only` (health schema version 5), false in every
+  Incus mode; `ApplyFirewall` answers the typed
+  `machine.ErrFirewallUnenforceable` rather than sending doomed keys, while
+  still covering the interfaces that can enforce; and a group that filters
+  nothing — the default one riding every `scw instance server create` — binds
+  nothing on any runtime, which is the only faithful translation of "filters
+  nothing". Falsified by `tools/falsify/specs/routed-nic.json`.
+
 - **A stack applied on every pull request pins the provider that answered, and
   a stack CI does not apply says why** (#325's table, first day). The generated
   client page exposed two things nothing had said before:

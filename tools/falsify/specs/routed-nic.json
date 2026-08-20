@@ -1,0 +1,77 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the routed NIC becomes invisible to interface selection again",
+      "file": "internal/core/machine/incus_address.go",
+      "find": "\t\tif config[\"type\"] == \"nic\" && (config[\"network\"] != \"\" || config[\"nictype\"] == \"routed\") {",
+      "replace": "\t\tif config[\"type\"] == \"nic\" && config[\"network\"] != \"\" {",
+      "test": "TestRouteAddressReachesARoutedNIC"
+    },
+    {
+      "label": "the ownership question is no longer asked before routing into a routed machine",
+      "file": "internal/core/machine/incus_address.go",
+      "find": "\t\tif err := d.mustOwnInstance(ctx, spec.Machine); err != nil {\n\t\t\treturn err\n\t\t}\n\t\treturn d.routeOntoRoutedNIC(ctx, spec.Machine, device, spec.Address)",
+      "replace": "\t\tif err := d.mustOwnInstance(ctx, spec.Machine); err != nil && false {\n\t\t\treturn err\n\t\t}\n\t\treturn d.routeOntoRoutedNIC(ctx, spec.Machine, device, spec.Address)",
+      "test": "TestRouteAddressRefusesARoutedMachineTheEmulatorDidNotCreate"
+    },
+    {
+      "label": "a launch address is re-routed at every replay, re-plugging a working interface",
+      "file": "internal/core/machine/incus_address.go",
+      "find": "\tcfg := devices.own[device]\n\tif routeListContains(cfg[\"ipv4.address\"], address) {\n\t\treturn nil\n\t}",
+      "replace": "\tcfg := devices.own[device]\n\tif routeListContains(cfg[\"ipv4.address\"], address) && false {\n\t\treturn nil\n\t}",
+      "test": "TestRouteAddressLeavesALaunchAddressAlone"
+    },
+    {
+      "label": "the re-plug a route edit causes is no longer repaired, leaving the guest bare",
+      "file": "internal/core/machine/incus_address.go",
+      "find": "\t\t\treturn fmt.Errorf(\"route %s to %s/%s: %w\", address, machine, device, err)\n\t\t}\n\t\tif err := d.repairRoutedInterface(ctx, machine, device); err != nil {\n\t\t\treturn err\n\t\t}",
+      "replace": "\t\t\treturn fmt.Errorf(\"route %s to %s/%s: %w\", address, machine, device, err)\n\t\t}\n\t\tif false {\n\t\t\tif err := d.repairRoutedInterface(ctx, machine, device); err != nil {\n\t\t\t\treturn err\n\t\t\t}\n\t\t}",
+      "test": "TestRouteAddressReachesARoutedNIC"
+    },
+    {
+      "label": "a withdrawal from a routed NIC stops repairing the re-plug it causes",
+      "file": "internal/core/machine/incus_address.go",
+      "find": "\t\tif cfg[\"nictype\"] == \"routed\" {",
+      "replace": "\t\tif cfg[\"nictype\"] == \"routed\" && false {",
+      "test": "TestUnrouteAddressRepairsARoutedNIC"
+    },
+    {
+      "label": "the OVN unroute goes back to seeing only external routes, missing routed NICs",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\t\t\tif cfg[\"nictype\"] == \"routed\" {",
+      "replace": "\t\t\tif cfg[\"nictype\"] == \"routed\" && false {",
+      "test": "TestUnrouteAddressRepairsARoutedNIC"
+    },
+    {
+      "label": "a rule set on a routed NIC is silently skipped instead of refused",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\t\tif device.routed {\n\t\t\tif joined != \"\" && unenforceable == nil {",
+      "replace": "\t\tif device.routed {\n\t\t\tif false && joined != \"\" && unenforceable == nil {",
+      "test": "TestApplyFirewallRefusesAGroupOnARoutedNIC"
+    },
+    {
+      "label": "the routed NIC is handed the doomed security keys again",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\t\tif device.routed {",
+      "replace": "\t\tif device.routed && false {",
+      "test": "TestApplyFirewallDetachIgnoresARoutedNIC"
+    },
+    {
+      "label": "a group that filters nothing goes back to binding on non-OVN runtimes",
+      "package": "./internal/providers/scaleway/",
+      "file": "internal/providers/scaleway/firewall.go",
+      "find": "\tif enforcesNothing(spec) {\n\t\treturn machine.FirewallBinding{}\n\t}",
+      "replace": "\tif p.nativeIsolation() && enforcesNothing(spec) {\n\t\treturn machine.FirewallBinding{}\n\t}",
+      "test": "TestAPermissiveGroupBindsNothingOnEveryRuntime"
+    },
+    {
+      "label": "a declared limit is reported as an operational failure again",
+      "package": "./internal/providers/scaleway/",
+      "file": "internal/providers/scaleway/firewall.go",
+      "find": "\tif errors.Is(err, machine.ErrFirewallUnenforceable) {",
+      "replace": "\tif errors.Is(err, machine.ErrFirewallUnenforceable) && false {",
+      "test": "TestAnUnenforceableGroupIsReportedAsTheDeclaredLimit"
+    }
+  ]
+}

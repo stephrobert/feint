@@ -336,6 +336,36 @@ change ni l'un ni l'autre a sa place dans `git log`.
   système ou modifier le `/etc/hosts` de l'opérateur. #76 et #92 sont closes,
   livrées.
 
+- **Une adresse attachée après le lancement atteint une machine qui ne joint
+  aucun réseau, et un groupe de sécurité y devient une limite déclarée plutôt
+  qu'un silence** (#337). Depuis #202, une machine qui ne porte qu'une adresse
+  publique la porte sur une NIC `routed`, qui n'a pas de clé `network` ; or les
+  deux chemins d'adresse de `internal/core/machine` sélectionnaient les
+  interfaces par cette clé. Toute adresse routée après le lancement mourait sur
+  « machine has no network interface » : l'IP élastique de la suite ssh
+  Exoscale était annoncée attachée par l'API sans que rien ne la pose sur la
+  machine, et chaque replay de poweron Scaleway journalisait la même erreur
+  au-dessus d'une adresse qui fonctionnait. La NIC routée est désormais
+  reconnue, et le mécanisme est le sien : l'adresse rejoint l'`ipv4.routes` du
+  device (mesuré accepté sur Incus 7.2, à froid comme à chaud), et le
+  rebranchement qu'une édition à chaud provoque (mesuré : l'interface invitée
+  revient éteinte et nue) est réparé depuis la configuration du device
+  lui-même. La suite ssh Exoscale passe de bout en bout.
+
+  La moitié pare-feu ne pouvait pas se corriger de la même façon, parce que la
+  mesure dit non : une NIC routée n'accepte aucune option de sécurité, chaque
+  clé étant une « Invalid device option » sur Incus 7.2 comme 7.3 (table dans
+  `docs/limits.md`). Y appliquer un jeu de règles était une ligne ERROR que le
+  plan de contrôle recouvrait en répondant comme si le groupe était appliqué.
+  Le refus est désormais déclaré plutôt que maquillé : `/_feint/health` gagne
+  `capabilities.firewall_public_only` (schéma de santé en version 5), faux
+  dans tous les modes Incus ; `ApplyFirewall` répond l'erreur typée
+  `machine.ErrFirewallUnenforceable` au lieu d'émettre des clés condamnées,
+  tout en couvrant encore les interfaces qui savent appliquer ; et un groupe
+  qui ne filtre rien (celui par défaut, embarqué par chaque `scw instance
+  server create`) n'attache rien sur aucun runtime, seule traduction fidèle de
+  « ne filtre rien ». Falsifié par `tools/falsify/specs/routed-nic.json`.
+
 - **Une stack appliquée à chaque pull request épingle le provider qui a
   répondu, et une stack que la CI n'applique pas dit pourquoi** (la table de
   #325, premier jour). La page générée des clients a révélé deux choses que

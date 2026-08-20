@@ -1,6 +1,22 @@
 package machine
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+// ErrFirewallUnenforceable reports an interface the runtime has no mechanism
+// to enforce a rule set on — as opposed to an interface where enforcement was
+// attempted and failed. A routed NIC is the measured case (#337): every
+// security option is an invalid device option there, on Incus 7.2 and 7.3
+// alike, so a rule set bound to such a machine can only be refused.
+//
+// Typed so a pack can tell the two apart: a declared limit is reported against
+// the matching capability (Capabilities.FirewallPublicOnly, false for the
+// Incus driver) and docs/limits.md, where a real failure stays an error. What
+// no caller may do with it is answer as if the rules were enforced — the
+// half-applied ERROR-then-200 is the exact divergence #337 removed.
+var ErrFirewallUnenforceable = errors.New("the runtime has no mechanism to enforce a rule set on this interface")
 
 // Firewalls are what makes an emulated security group more than documentation.
 //

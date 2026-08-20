@@ -162,7 +162,33 @@ func (d *Incus) ApplyFirewall(ctx context.Context, machine string, binding Firew
 
 	joined := strings.Join(binding.Names, ",")
 	networkTypes := map[string]string{}
+	var unenforceable error
 	for _, device := range devices {
+		// A routed NIC takes no rule set at all (#337). Measured on Incus 7.2
+		// and confirmed by the 7.3 wording of the same refusal: every security
+		// option is an invalid device option there — security.acls, its two
+		// default actions, and both filtering flags — so there is no mechanism
+		// to enforce with, only keys to be refused on.
+		//
+		// Detaching skips it: no rule set has ever been attached to a routed
+		// NIC, so an empty binding has nothing to take back. A binding that
+		// names rule sets is refused with the typed error instead of being
+		// half-sent: until #337 the doomed keys were sent, the failure was
+		// logged as an operational ERROR, and the control plane answered as if
+		// the group were enforced — a green light over rules that existed
+		// nowhere. The other interfaces still get their rule sets first; a
+		// machine with a private NIC beside its routed one keeps its private
+		// plane covered.
+		//
+		// TestApplyFirewallRefusesAGroupOnARoutedNIC and
+		// TestApplyFirewallDetachIgnoresARoutedNIC fail without this.
+		if device.routed {
+			if joined != "" && unenforceable == nil {
+				unenforceable = fmt.Errorf("apply firewall to %s/%s: a routed NIC accepts no security option: %w",
+					machine, device.name, ErrFirewallUnenforceable)
+			}
+			continue
+		}
 		// "set" for a device the instance owns, "override" for one it inherits
 		// from a profile. Incus refuses the first on an inherited device, and
 		// the second copies it locally rather than editing the profile every
@@ -193,7 +219,7 @@ func (d *Incus) ApplyFirewall(ctx context.Context, machine string, binding Firew
 			return fmt.Errorf("apply firewall to %s/%s: %w", machine, device.name, err)
 		}
 	}
-	return nil
+	return unenforceable
 }
 
 // isOVNNetwork reports whether a network is OVN-typed, caching the answer for
@@ -265,11 +291,13 @@ func FirewallName(prefix, id string) string {
 }
 
 // nicDevice is one interface of a machine: its name, the network it sits on,
-// and whether it comes from a profile.
+// whether it comes from a profile, and whether it is a routed NIC — the one
+// kind that sits on no network and takes no security option.
 type nicDevice struct {
 	name      string
 	network   string
 	inherited bool
+	routed    bool
 }
 
 // networkDevices lists every NIC of a machine, its own and the ones it inherits.
@@ -299,7 +327,12 @@ func (d *Incus) networkDevices(ctx context.Context, machine string) ([]nicDevice
 			continue
 		}
 		_, own := raw.Devices[name]
-		devices = append(devices, nicDevice{name: name, network: device["network"], inherited: !own})
+		devices = append(devices, nicDevice{
+			name:      name,
+			network:   device["network"],
+			inherited: !own,
+			routed:    device["nictype"] == "routed",
+		})
 	}
 	return devices, nil
 }

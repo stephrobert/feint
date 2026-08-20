@@ -409,6 +409,78 @@ func TestApplyFirewallRefusesAnInstanceTheEmulatorDidNotCreate(t *testing.T) {
 	}
 }
 
+// mixedNICs is the terraform conformance server's machine: a routed eth0
+// carrying the public addresses from the launch, and a private NIC attached
+// afterwards on a managed network.
+const mixedNICs = `{
+  "expanded_devices": {
+    "eth0": {"type": "nic", "nictype": "routed", "ipv4.address": "203.0.113.7"},
+    "eth1": {"type": "nic", "network": "scw-abc"}
+  },
+  "devices": {
+    "eth0": {"type": "nic", "nictype": "routed", "ipv4.address": "203.0.113.7"},
+    "eth1": {"type": "nic", "network": "scw-abc"}
+  }
+}`
+
+// TestApplyFirewallRefusesAGroupOnARoutedNIC holds the honest half of #337. A
+// routed NIC accepts no security option — measured on Incus 7.2 and 7.3, every
+// key an invalid device option — so a binding that names rule sets must come
+// back as the typed refusal, with no doomed key ever sent to that interface,
+// while the interfaces that can enforce still get their rule sets. Until #337
+// the keys were sent, the failure was logged as an operational ERROR, and the
+// control plane answered as if the group were enforced.
+func TestApplyFirewallRefusesAGroupOnARoutedNIC(t *testing.T) {
+	f := &fakeRuntime{answers: map[string]string{
+		"/1.0/instances/srv": mixedNICs,
+		"/1.0/networks/":     `{"type": "bridge"}`,
+	}}
+	d := newFakeDriver(f)
+
+	err := d.ApplyFirewall(context.Background(), "srv", FirewallBinding{
+		Names:          []string{"sg-one"},
+		DefaultIngress: "drop",
+		DefaultEgress:  "allow",
+	})
+	if !errors.Is(err, ErrFirewallUnenforceable) {
+		t.Fatalf("a rule set on a routed NIC must be refused with the typed error, got %v", err)
+	}
+	for _, cmd := range f.matching("security.acls") {
+		if strings.Contains(cmd, " eth0 ") {
+			t.Errorf("a security option was sent to the routed NIC: %q", cmd)
+		}
+	}
+	if got := f.matching("config device set srv eth1 security.acls=sg-one"); len(got) != 1 {
+		t.Errorf("the enforceable interface must still get its rule set, got:\n%s",
+			strings.Join(f.commands(), "\n"))
+	}
+}
+
+// TestApplyFirewallDetachIgnoresARoutedNIC holds the other direction: no rule
+// set has ever been attached to a routed NIC, so an empty binding — the
+// detach-all every permissive group now becomes — has nothing to take back
+// there and must not fail over it.
+func TestApplyFirewallDetachIgnoresARoutedNIC(t *testing.T) {
+	f := &fakeRuntime{answers: map[string]string{
+		"/1.0/instances/srv": mixedNICs,
+		"/1.0/networks/":     `{"type": "bridge"}`,
+	}}
+	d := newFakeDriver(f)
+
+	if err := d.ApplyFirewall(context.Background(), "srv", FirewallBinding{}); err != nil {
+		t.Fatalf("detaching must succeed on a machine with a routed NIC, got %v", err)
+	}
+	for _, cmd := range f.matching("security.acls") {
+		if strings.Contains(cmd, " eth0 ") {
+			t.Errorf("the routed NIC has nothing to detach and must not be touched: %q", cmd)
+		}
+	}
+	if got := f.matching("config device set srv eth1 security.acls="); len(got) != 1 {
+		t.Errorf("the managed interface must still be detached, got:\n%s",
+			strings.Join(f.commands(), "\n"))
+	}
+}
+
 // And the accepting half. A guard that refused everything would pass the test
 // above and leave the product unable to attach a security group at all.
 func TestApplyFirewallStillWorksOnOurOwnInstance(t *testing.T) {

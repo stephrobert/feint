@@ -2,6 +2,7 @@ package scaleway
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/stephrobert/feint/internal/core/machine"
@@ -48,10 +49,28 @@ func (p *Pack) syncSecurityGroup(ctx context.Context, group *resource.Resource) 
 			continue
 		}
 		if err := fw.ApplyFirewall(ctx, name, binding); err != nil {
-			p.logger().Error("could not apply the firewall to a machine",
-				"security_group", group.ID, "server", server.ID, "error", err)
+			p.reportFirewall(err, "security_group", group.ID, "server", server.ID)
 		}
 	}
+}
+
+// reportFirewall logs a failed application at the level it deserves. A rule
+// set the runtime has no mechanism for — a routed NIC, the interface of a
+// server with only a public address (#337) — is a declared limit, not an
+// operational failure: /_feint/health publishes it as
+// capabilities.firewall_public_only=false and docs/limits.md carries the
+// measurement, so the warning names the declaration instead of crying wolf.
+// Anything else stays an error, because nothing declared it.
+// TestAnUnenforceableGroupIsReportedAsTheDeclaredLimit fails without the
+// distinction.
+func (p *Pack) reportFirewall(err error, keyvals ...any) {
+	if errors.Is(err, machine.ErrFirewallUnenforceable) {
+		p.logger().Warn("the security group is not enforced on this machine's public-only interface, "+
+			"which the runtime declares (capabilities.firewall_public_only=false, docs/limits.md)",
+			append(keyvals, "error", err)...)
+		return
+	}
+	p.logger().Error("could not apply the firewall to a machine", append(keyvals, "error", err)...)
 }
 
 // applyServerFirewall binds the group a server carries to its machine. Called
@@ -82,26 +101,37 @@ func (p *Pack) applyServerFirewall(ctx context.Context, server *resource.Resourc
 		return
 	}
 	if err := fw.ApplyFirewall(ctx, name, p.bindingOf(spec)); err != nil {
-		p.logger().Error("could not apply the firewall to a machine",
-			"server", server.ID, "machine", name, "error", err)
+		p.reportFirewall(err, "server", server.ID, "machine", name)
 	}
 }
 
 // bindingOf turns a rule set into what the machine's interfaces enforce.
 //
-// On a natively isolated runtime, a group that enforces nothing attaches
-// nothing. This is not an optimisation. The runtime's OVN pipeline evaluates
-// the sender's egress rules before the receiver's ingress default (the
-// priority constants in acl_ovn.go at v7.2.0: NIC ingress default 100, NIC
-// egress default 111, rule-level allow 300), so any allow carried by the
-// sender's rule set opens a port the receiver's default-deny closes — measured
-// here with the suite's own probe machine. The default security group is pure
-// accept, upstream it filters nothing, and the only faithful translation of
-// "filters nothing" in that pipeline is absence. A group that does restrict
+// A group that enforces nothing attaches nothing, on every runtime. This is
+// not an optimisation, and each runtime family contributed its own measured
+// reason:
+//
+//   - OVN: the pipeline evaluates the sender's egress rules before the
+//     receiver's ingress default (the priority constants in acl_ovn.go at
+//     v7.2.0: NIC ingress default 100, NIC egress default 111, rule-level
+//     allow 300), so any allow carried by the sender's rule set opens a port
+//     the receiver's default-deny closes — measured here with the suite's own
+//     probe machine.
+//   - routed NICs (#337): the default security group — pure accept, filtering
+//     nothing upstream — rides every `scw instance server create`, including
+//     onto a server with no emulated network under it, whose one interface
+//     accepts no rule set at all. Attaching the empty policy there was an
+//     ERROR log the control plane answered over as if the group were
+//     enforced.
+//
+// The default security group filters nothing upstream, and the only faithful
+// translation of "filters nothing" is absence. A group that does restrict
 // something still attaches, and the residual gap between two such groups on
-// one subnet is recorded in docs/limits.md.
+// one OVN subnet is recorded in docs/limits.md.
+// TestAPermissiveGroupBindsNothingOnEveryRuntime fails without the
+// unconditional half.
 func (p *Pack) bindingOf(spec machine.FirewallSpec) machine.FirewallBinding {
-	if p.nativeIsolation() && enforcesNothing(spec) {
+	if enforcesNothing(spec) {
 		return machine.FirewallBinding{}
 	}
 	return machine.FirewallBinding{

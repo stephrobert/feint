@@ -783,6 +783,37 @@ The `stateful` flag translates too, onto the runtime's `allow` and
 The bound is that none of this applies to a server with no backing machine,
 which is the default configuration and what CI runs.
 
+**The bound a routed NIC adds (#337).** A server that joins no private network
+gets its public address on a `routed` NIC (#202) — and a routed NIC accepts
+**no security option at all**. Measured on Incus 7.2, cold, one key at a time,
+and the wording of the same refusal on the 7.3 CI runner:
+
+| device | key | Incus answers |
+|---|---|---|
+| `nictype=routed` | `security.acls` | `Invalid device option "security.acls"` |
+| `nictype=routed` | `security.acls.default.ingress.action` | `Invalid device option …` |
+| `nictype=routed` | `security.ipv4_filtering`, `security.mac_filtering` | `Invalid device option …` |
+| `nic network=<managed>` | the same keys, together | `Network ACL "…" does not exist` |
+
+The last row is the contrast that settles it: a NIC of a managed network
+accepts the option names and complains only about the missing ACL; on a routed
+NIC they are not options. There is no other per-NIC filtering mechanism to fall
+back to, so **a security group that restricts traffic is not enforced on a
+server whose only interface is a routed NIC** — a server with a public address
+and no private network. The runtime declares it instead of pretending:
+`capabilities.firewall_public_only` is `false` on `/_feint/health`, a rule set
+bound to such a machine comes back as `machine.ErrFirewallUnenforceable`
+rather than being half-sent, and the pack logs the declared limit as a warning
+naming this section. The default security group — pure accept, filtering
+nothing upstream — binds nothing anywhere, which is the faithful translation
+of "filters nothing" and why an ordinary `scw instance server create` raises
+no alarm at all.
+
+A server *with* a private network keeps the full claim: its NICs are on
+managed networks, the group attaches to every one of them, and a flexible IP —
+routed through the filtered NIC — stays covered, as the paragraph below
+measures.
+
 The group covers a **flexible IP**. The address is routed through the NIC
 device's `ipv4.routes` (`nic_bridged.go` at v7.2.0 lists it among the device's
 own fields and applies it host-side), so host traffic towards it crosses the

@@ -25,6 +25,18 @@ type Capabilities struct {
 	// Firewall: a security group's rules are enforced on the machine's
 	// interface, and a change applies without restarting it.
 	Firewall bool `json:"firewall"`
+	// FirewallPublicOnly: the rules are enforced even on a machine that joins
+	// no emulated network — a server whose only interface is a routed NIC
+	// carrying the public addresses its API publishes (#202).
+	//
+	// Declared apart from Firewall because the two were measured apart (#337).
+	// On Incus, the same group that closes a port for real on a machine with
+	// an emulated network under it — public address included, since a flexible
+	// IP is routed through the filtered NIC — attaches to nothing on a routed
+	// NIC: every security option is an invalid device option there, on 7.2 and
+	// 7.3 alike. A suite probing the ports of a public-only machine gates on
+	// this claim, never on capabilities.firewall.
+	FirewallPublicOnly bool `json:"firewall_public_only"`
 	// Isolation: two networks of two different VPCs cannot reach each other.
 	//
 	// This is the one that separates the modes. Managed bridges on one host are
@@ -135,12 +147,18 @@ func (d *Incus) Capabilities() Capabilities {
 		return *d.verified
 	}
 	return Capabilities{
-		Machines:        true,
-		Addresses:       true,
-		Firewall:        true,
-		Isolation:       d.OVN,
-		Balancing:       d.OVN,
-		OwnKernel:       d.VM,
-		PrivateFromHost: !d.OVN,
+		Machines:  true,
+		Addresses: true,
+		Firewall:  true,
+		// False in every Incus mode, and measured rather than pending: a
+		// routed NIC accepts no security option at all (#337, Incus 7.2 and
+		// 7.3), so ApplyFirewall refuses a rule set on a public-only machine
+		// instead of pretending. The claim goes true the day a mechanism
+		// exists and is measured, not before.
+		FirewallPublicOnly: false,
+		Isolation:          d.OVN,
+		Balancing:          d.OVN,
+		OwnKernel:          d.VM,
+		PrivateFromHost:    !d.OVN,
 	}
 }
