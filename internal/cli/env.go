@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -31,7 +30,7 @@ import (
 // another provider? Every line here can.
 
 func envCommand(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("env", flag.ContinueOnError)
+	fs := newFlagSet("env")
 	shell := fs.String("shell", "bash", "shell syntax: bash, fish or powershell")
 	endpoint := fs.String("endpoint", "", "the emulator's address (default: http://<the --addr default>)")
 	unset := fs.Bool("unset", false, "print the removals instead of the exports")

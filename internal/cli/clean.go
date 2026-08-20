@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -21,7 +20,7 @@ import (
 // without doing anything wrong, a killed process being enough, and because the
 // conformance suite needs the same sweep and should not reimplement it in shell.
 func clean(args []string, stdout io.Writer) error {
-	fs := flag.NewFlagSet("clean", flag.ContinueOnError)
+	fs := newFlagSet("clean")
 	vm := fs.String("vm", "incus", "machine runtime to sweep: incus, incus-vm, incus-ovn")
 	if err := fs.Parse(args); err != nil {
 		return err

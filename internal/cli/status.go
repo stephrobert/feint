@@ -2,7 +2,6 @@ package cli
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"sort"
@@ -86,7 +85,7 @@ type productStatus struct {
 }
 
 func status(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("status", flag.ContinueOnError)
+	fs := newFlagSet("status")
 	addr := fs.String("addr", DefaultAddr, "listen address to report on")
 	coverageDir := fs.String("coverage", "coverage", "directory holding the versioned coverage artefacts")
 	format := fs.String("format", "text", "output format: text or json")

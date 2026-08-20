@@ -210,6 +210,55 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **La surface CLI gelée est lue depuis les jeux de drapeaux que le binaire
+  enregistre, plus depuis l'aide qu'il imprime** (#334). `feint proxy
+  --intercept` est parti en v0.9.0 : le binaire l'acceptait, `feint proxy
+  --help` l'affichait, et `internal/cli/testdata/frozen/cli.json` ne le listait
+  pas, six jours durant. Cette fixture est la surface que #132 a gelée pour
+  qu'un pipeline extérieur à ce dépôt puisse s'y fier. La cause tenait à
+  l'observation elle-même : elle parsait l'aide rendue par `feint --help`, donc
+  elle consignait ce que l'aide *prétendait*. Le drapeau manquant n'était que la
+  moitié la moins chère. Un drapeau **retiré** d'un jeu alors que sa ligne
+  d'aide survit aurait laissé le même gate au vert, et c'est la direction qui
+  casse un consommateur.
+
+  La surface vient désormais de `flag.FlagSet.VisitAll`, par une couture unique
+  où chaque verbe construit ses drapeaux (`internal/cli/flagset.go`). L'aide
+  garde une promesse, mais sous la forme d'un contrôle qui a son propre sujet :
+  `TestTheHelpNamesEveryFlagTheBinaryAccepts` compare les deux listes dans les
+  deux sens, de sorte qu'un drapeau accepté par le binaire et nommé par aucun
+  bloc d'aide échoue, et qu'un bloc d'aide nommant un drapeau qu'aucun jeu
+  n'enregistre échoue aussi. Falsifié dans les deux sens par
+  `tools/falsify/specs/frozen-cli-surface.json`, sept mutations, chacune rejouée
+  contre le test qui doit mordre.
+
+- **La surface CLI passe en version 5, et 24 drapeaux que le binaire a toujours
+  acceptés y sont visibles pour la première fois** (#334). C'est l'observation
+  qui a bougé, pas le binaire : `--intercept` et `--expose-to-network` sur
+  `proxy`, `--shapes` et `--expose-to-network` sur `serve`, `--check` sur
+  `version`, les six drapeaux de `serve` que `start` accepte réellement, trois
+  sur `evidence` et dix sur `docs`. Trois entrées sont parties, et les trois
+  appartenaient au parseur : `--version` et `-v` sous `version`, qui sont des
+  alias du verbe et non ses drapeaux (un lecteur qui tapait `feint version
+  --version` s'entendait répondre `flag provided but not defined`), et
+  `--state` sous `snapshot`, qui venait d'une phrase parlant de `serve`.
+  `snapshot` est désormais indexé par jeu de drapeaux (`snapshot save`,
+  `snapshot load`, `snapshot list`), ce qui est la façon de dire que `--force`
+  appartient à `save` seul.
+
+  `feint --help` a gagné tous les drapeaux qu'il cachait, dont les deux
+  `--expose-to-network`, ceux qu'un lecteur a le plus besoin de rencontrer avant
+  de les poser.
+
+- **`docs/proxy.md` a cessé de refuser un outil que ce dépôt livre** (#334). La
+  page annonçait au lecteur que l'interception « est #76 et délibérément pas cet
+  outil », pendant que `docs/limits.md` envoyait ce même lecteur s'en servir.
+  `feint proxy --intercept` existe depuis la v0.9.0 ; la page le documente
+  désormais : ce qu'il forge, ce qu'il imprime, et la seule chose qu'il ne fera
+  pas, à savoir installer quoi que ce soit dans le magasin de confiance du
+  système ou modifier le `/etc/hosts` de l'opérateur. #76 et #92 sont closes,
+  livrées.
+
 - **Une stack appliquée à chaque pull request épingle le provider qui a
   répondu, et une stack que la CI n'applique pas dit pourquoi** (la table de
   #325, premier jour). La page générée des clients a révélé deux choses que

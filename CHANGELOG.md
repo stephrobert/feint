@@ -196,6 +196,50 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **The frozen CLI surface is read from the flag sets the binary registers, not
+  from the help it prints** (#334). `feint proxy --intercept` shipped in v0.9.0:
+  the binary accepted it, `feint proxy --help` rendered it, and
+  `internal/cli/testdata/frozen/cli.json` did not list it, for six days. That
+  fixture is the surface #132 froze so a pipeline outside this repository can
+  key on it. The cause was the observation itself: it parsed the rendered `feint
+  --help`, so it recorded what the help *claimed*. The missing flag was the
+  cheap half. A flag **deleted** from a flag set while its help line survived
+  would have kept the same gate green, and that is the direction that breaks a
+  consumer.
+
+  The surface now comes from `flag.FlagSet.VisitAll`, through one seam every
+  verb builds its flags with (`internal/cli/flagset.go`). The help keeps a
+  promise, but as an assertion with a subject of its own:
+  `TestTheHelpNamesEveryFlagTheBinaryAccepts` compares the two lists in both
+  directions, so a flag the binary accepts and no help block names fails, and a
+  help block naming a flag no flag set registers fails too. Falsified in both
+  directions by `tools/falsify/specs/frozen-cli-surface.json`, seven mutations,
+  each replayed against the test that has to bite.
+
+- **The CLI surface is version 5, and 24 flags the binary always accepted are
+  visible in it for the first time** (#334). What moved is the observation, not
+  the binary: `--intercept` and `--expose-to-network` on `proxy`, `--shapes` and
+  `--expose-to-network` on `serve`, `--check` on `version`, the six `serve`
+  flags `start` really takes, three on `evidence` and ten on `docs`. Three
+  entries left, and all three were the parser's: `--version` and `-v` under
+  `version`, which are aliases of the verb rather than flags of it (a reader who
+  typed `feint version --version` was answered `flag provided but not defined`),
+  and `--state` under `snapshot`, which came from a sentence about `serve`.
+  `snapshot` is now keyed per flag set — `snapshot save`, `snapshot load`,
+  `snapshot list` — which is what says `--force` belongs to `save` alone.
+
+  `feint --help` gained every flag it was hiding, including the two
+  `--expose-to-network` switches, which are the ones a reader most needs to meet
+  before setting them.
+
+- **`docs/proxy.md` stopped refusing a tool this repository ships** (#334).
+  The page told the reader that interception "is #76 and deliberately not this
+  tool" while `docs/limits.md` sent that same reader there to use it. `feint
+  proxy --intercept` has existed since v0.9.0; the page now documents it, with
+  what it mints, what it prints, and the one thing it will not do: it installs
+  nothing in the system trust store and never edits the operator's
+  `/etc/hosts`. #76 and #92 are closed as delivered.
+
 - **A stack applied on every pull request pins the provider that answered, and
   a stack CI does not apply says why** (#325's table, first day). The generated
   client page exposed two things nothing had said before:

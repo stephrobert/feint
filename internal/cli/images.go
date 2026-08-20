@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io"
 
@@ -27,7 +26,7 @@ import (
 // launches a container and takes minutes, which is a side effect on the
 // operator's station, and this project asks before those rather than after.
 func images(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("images", flag.ContinueOnError)
+	fs := newFlagSet("images")
 	fs.SetOutput(stderr)
 	vm := fs.String("vm", "auto", "machine runtime to build with: auto, incus, incus-vm, incus-ovn")
 	only := fs.String("only", "", "build just this one, e.g. ubuntu/24.04")

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -25,7 +24,7 @@ import (
 //
 // Read-only and offline: it opens files and talks to nothing.
 func transcriptCommand(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("transcript", flag.ContinueOnError)
+	fs := newFlagSet("transcript")
 	shape := fs.String("shape", "", "print the response shape of this operation (e.g. ReadNics) instead of the work queue")
 	against := fs.String("against", "", "a second transcript, recorded against the emulator: with --shape, diff the two")
 	format := fs.String("format", "text", "output format: text or json")

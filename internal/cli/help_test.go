@@ -6,6 +6,8 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -160,4 +162,134 @@ func topLevelCommands(t *testing.T) []string {
 		t.Fatal("the dispatch switch on args[1] was not found in cli.go")
 	}
 	return out
+}
+
+// The help names every flag the binary accepts, and no flag it refuses.
+//
+// This is the assertion the frozen CLI surface used to stand in for, and could
+// not (#334). That surface was built by parsing this very help, so the two
+// agreed by construction and measured nothing: `feint proxy --intercept`
+// shipped in v0.9.0 accepted by the binary, named by `feint proxy --help`,
+// absent from `feint --help`, and therefore absent from the frozen surface for
+// six days. The surface now comes from the FlagSets, which leaves the help
+// needing a check of its own — with a subject on each side, rather than one
+// parser standing in for both.
+//
+// Both directions are asserted, and the second is the one that was missing:
+//
+//   - a flag on a FlagSet that no help block names: a reader of `feint --help`
+//     cannot discover it, which is exactly how --intercept shipped mute;
+//   - a flag a help block names that no FlagSet registers: a reader types it
+//     and the binary answers "flag provided but not defined". `feint version`
+//     was in that state — its block named --version and -v, which are aliases
+//     of the verb and not flags of it — and so was `feint snapshot`, whose
+//     block mentioned `serve --state` in a sentence about file formats.
+//
+// Both are compared per verb, on the help's own granularity: `feint --help`
+// gives `snapshot` one block, so that block is measured against the flags of
+// "snapshot save", "snapshot load" and "snapshot list" together.
+func TestTheHelpNamesEveryFlagTheBinaryAccepts(t *testing.T) {
+	named := flagsTheHelpNames(t)
+	if len(named) < 15 {
+		t.Fatalf("only %d verbs parsed out of the help: the parser is broken, not the help, "+
+			"and would otherwise pass while measuring nothing", len(named))
+	}
+
+	accepted := map[string]map[string]bool{}
+	for set, flags := range flagsTheBinaryAccepts(t) {
+		verb, _, _ := strings.Cut(set, " ")
+		if accepted[verb] == nil {
+			accepted[verb] = map[string]bool{}
+		}
+		for _, name := range flags {
+			accepted[verb][name] = true
+		}
+	}
+	if len(accepted) < 15 {
+		t.Fatalf("only %d verbs built a flag set: the observation is broken, not the help", len(accepted))
+	}
+
+	for verb, flags := range accepted {
+		block, described := named[verb]
+		if !described {
+			t.Errorf("the binary dispatches `feint %s` and `feint --help` renders no block for it, "+
+				"so none of its flags can be named there", verb)
+			continue
+		}
+		shown := map[string]bool{}
+		for _, name := range block {
+			shown[name] = true
+		}
+		for name := range flags {
+			if !shown[name] {
+				t.Errorf("the binary accepts `feint %s %s` and `feint --help` never names it: "+
+					"a flag only the source and `feint %s --help` know about is a flag that shipped mute",
+					verb, name, verb)
+			}
+		}
+		for name := range shown {
+			if !flags[name] {
+				t.Errorf("`feint --help` names `feint %s %s` and no flag set registers it: "+
+					"a reader who types it is answered \"flag provided but not defined\"", verb, name)
+			}
+		}
+	}
+
+	for verb := range named {
+		if _, dispatches := accepted[verb]; !dispatches {
+			t.Errorf("`feint --help` renders a block for `feint %s` and no such verb builds a flag set", verb)
+		}
+	}
+}
+
+// flagsTheHelpNames parses the rendered help: a line "  feint <verb> " opens a
+// verb, its indented continuation lines belong to it, a line at column zero
+// closes it. Flags are every "-x" / "--xyz" token in the verb's block.
+//
+// Parsing is the right tool here and the wrong one for the frozen surface, and
+// the difference is the subject: this reads the document *in order to check it*
+// against the FlagSets, where the surface used to read the document and call
+// the result the binary's behaviour.
+func flagsTheHelpNames(t *testing.T) map[string][]string {
+	t.Helper()
+	var rendered strings.Builder
+	usage(&rendered)
+
+	verbLine := regexp.MustCompile(`^  feint ([a-z][a-z-]*) `)
+	// A flag token starts after a space, bracket, parenthesis or quote — never
+	// in the middle of a word, so "read-only" and "incus-vm" stay words.
+	flagToken := regexp.MustCompile(`(?:^|[\s\[("])(-{1,2}[a-zA-Z][a-zA-Z0-9-]*)`)
+
+	verbs := map[string][]string{}
+	current := ""
+	seen := map[string]map[string]bool{}
+	for _, line := range strings.Split(rendered.String(), "\n") {
+		if m := verbLine.FindStringSubmatch(line); m != nil {
+			current = m[1]
+			if verbs[current] == nil {
+				verbs[current] = []string{}
+				seen[current] = map[string]bool{}
+			}
+		} else if !strings.HasPrefix(line, " ") {
+			// Prose at column zero: the preamble, the exit-code paragraph, the
+			// note on the version aliases. Whatever dashes they carry belong to
+			// no verb.
+			current = ""
+			continue
+		}
+		if current == "" {
+			continue
+		}
+		for _, m := range flagToken.FindAllStringSubmatch(line, -1) {
+			name := m[1]
+			if !seen[current][name] {
+				seen[current][name] = true
+				verbs[current] = append(verbs[current], name)
+			}
+		}
+	}
+	for _, flags := range verbs {
+		sort.Strings(flags)
+	}
+	return verbs
 }

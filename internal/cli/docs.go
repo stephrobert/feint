@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -66,7 +65,7 @@ const (
 
 // docs regenerates the generated sections of a Markdown file.
 func docs(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("docs", flag.ContinueOnError)
+	fs := newFlagSet("docs")
 	target := fs.String("file", "README.md", "the Markdown file holding the generated section")
 	dir := fs.String("coverage", "coverage", "directory holding the versioned coverage artefacts")
 	contractsDir := fs.String("contracts", "contracts", "directory holding the API description artefacts")

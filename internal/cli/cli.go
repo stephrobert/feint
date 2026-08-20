@@ -7,7 +7,6 @@ package cli
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -83,16 +82,25 @@ const (
 )
 
 // cliSurfaceVersion names the version of the CLI surface a CI is allowed to
-// depend on: the verbs, the flags the help declares for each, and the exit
-// codes above. It moves when any of those move — additions included, because
-// the number means "the surface changed", not "the surface broke"; the
+// depend on: the verbs, the flags each verb's flag.FlagSet registers, and the
+// exit codes above. It moves when any of those move — additions included,
+// because the number means "the surface changed", not "the surface broke"; the
 // CHANGELOG says which of the two it was.
+//
+// Version 5 is where the observation stopped being a parse of the rendered help
+// and became a read of the FlagSets themselves (#334). What moved is the
+// observation, not the binary: --intercept and --expose-to-network were already
+// accepted by proxy, --shapes by serve, --check by version, and the six serve
+// flags by start, while --version and -v were never flags of the version verb
+// at all. The entries are keyed by flag set, so snapshot now appears as
+// `snapshot save`, `snapshot load` and `snapshot list`, which is what says that
+// --force belongs to save alone.
 //
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 4
+const cliSurfaceVersion = 5
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -181,14 +189,25 @@ func usage(w io.Writer) {
 
 Usage:
   feint serve      [--addr 127.0.0.1:4599] [--state <file>] [--vm off|incus|incus-vm|incus-ovn|auto]
-                    [--cleanup] [--contracts <dir>] [--coverage <dir>] [--log-level info|debug]
+                    [--cleanup] [--contracts <dir>] [--coverage <dir>] [--shapes <dir>]
+                    [--log-level info|debug] [--expose-to-network]
                     Serve the three emulated clouds on one port, in the
-                    foreground.
+                    foreground. --expose-to-network is the only way off
+                    loopback, and it disarms the anti-rebinding guard: this
+                    emulator accepts every credential and, under --vm, starts
+                    containers with your privileges. Read SECURITY.md first.
 
-  feint start      [every serve flag] [--timeout 30s] [--detach] [--foreground]
+  feint start      [--addr :4599] [--state <file>] [--vm off|incus|incus-vm|incus-ovn|auto]
+                    [--cleanup] [--contracts <dir>] [--log-level info|debug]
+                    [--timeout 30s] [--detach] [--foreground]
                     Same, detached: records the instance, waits until it
                     answers, prints where the log is. Refuses to adopt an
-                    instance already running on that address.
+                    instance already running on that address. The serve flags
+                    repeated here are exactly the ones a restart replays: the
+                    coverage, shapes and expose-to-network flags are serve's
+                    alone, and this verb refuses them. A dashed name in a block
+                    is a flag of that block's verb, which is what lets the help
+                    be held against the binary.
 
   feint stop       [--addr :4599] [--timeout 15s]
                     SIGTERM, then SIGKILL if it has to, and say which. Never
@@ -239,9 +258,9 @@ Usage:
                    list [--format text|json]
                    rm <name>
                     Name the state of a running emulator and come back to it.
-                    Same bytes as serve --state, taken mid-run rather than at
-                    exit. Loading replaces the store: a fixture must not depend
-                    on what the session did before it.
+                    Same bytes the serve state file holds, taken mid-run rather
+                    than at exit. Loading replaces the store: a fixture must not
+                    depend on what the session did before it.
 
   feint coverage   (--sdk <dir> | --contract <file>) [--provider scaleway|outscale|exoscale]
                     [--products <a,b,c>] [--format text|json|triage|list]
@@ -263,11 +282,16 @@ Usage:
 
   feint proxy      --upstream <url> --record <file.jsonl> [--addr 127.0.0.1:4600]
                     [--provider <name>] [--max-body <bytes>] [--queue <n>]
+                    [--intercept <host,host>] [--expose-to-network]
                     Sit between a real client and a real cloud and write down
                     every exchange, as JSON Lines, one object per call, with the
                     upstream operation named. Credentials are redacted before
                     anything is written. Point the client at --addr and drive it
-                    as usual.
+                    as usual. --intercept serves HTTPS with a locally-minted
+                    certificate for those hostnames, so a client redirected here
+                    by name trusts the proxy and lands on it; docs/proxy.md says
+                    what it costs, as does --expose-to-network, which puts this
+                    port and the account behind it on the network.
 
   feint transcript <recording.jsonl> [--shape OP [--against emu.jsonl]] [--format text|json]
                     Read a proxy recording and answer what to serve next. With no
@@ -286,14 +310,29 @@ Usage:
                     exits 2 on a field the cloud returns and it omits.
 
   feint evidence   [--endpoint http://127.0.0.1:4599] [--shapes shapes]
+                   [--contracts contracts] [--suites tools/conformance]
                    [--out coverage/evidence.json] [--join <other.json>]
+                   [--allow-narrowing]
                     Write the per-operation evidence record from a running
                     emulator's /_feint/conformance: which independent proofs
                     each operation has earned, side by side, never summed.
-                    --join merges the other leg of the same regeneration.
+                    --contracts and --suites are digested into the record's
+                    provenance. --join merges the other leg of the same
+                    regeneration, and --allow-narrowing is what a run reaching
+                    fewer runtimes than the record it replaces has to say out
+                    loud before it may overwrite it.
 
-  feint docs       [--file README.md] [--coverage <dir>] [--check]
-                    Regenerate the coverage tables in a Markdown file.
+  feint docs       [--file README.md] [--coverage <dir>] [--contracts <dir>] [--check]
+                    [--limits <file>] [--routes <file>] [--confidence <file>]
+                    [--install <file>] [--proved <file>] [--workflow <file>]
+                    [--client-pins <file>] [--screenshots <file>]
+                    [--ui-manifest <file>]
+                    Regenerate the coverage tables in a Markdown file. Each of
+                    the page flags names the document holding one generated
+                    block and takes an empty value to skip it; --check writes
+                    nothing and exits 2 when a block is out of date.
+                    --ui-manifest only records the page's digest beside the
+                    screenshots, and regenerates nothing.
 
   feint catalog    [--format json]
                     Print the emulated inventory a client reads before creating.
@@ -302,7 +341,13 @@ Usage:
                     Remove every machine, network and rule set the emulator
                     created. Labelled resources only; nothing else is touched.
 
-  feint version    Print the version. --version and -v do the same.
+  feint version    [--check]
+                    Print the version. --check asks GitHub whether a newer
+                    release exists; nothing here reaches the network unless
+                    that flag is typed.
+
+Typing feint with the version flag, in either spelling, is an alias for the
+version verb rather than a flag of it.
 
 The lifecycle verbs are Unix only: detaching uses setsid, which Windows has no
 equivalent for, and the released binaries are linux and darwin.
@@ -573,7 +618,7 @@ func checkAddrUnclaimed(addr string) error {
 }
 
 func serve(args []string, stdout io.Writer) error {
-	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+	fs := newFlagSet("serve")
 	addr := fs.String("addr", DefaultAddr, "listen address")
 	state := fs.String("state", "", "load and persist the store to this JSON file")
 	vm := fs.String("vm", "off", "back powered-on servers with real machines: off, incus, incus-vm, incus-ovn, auto")
@@ -768,7 +813,7 @@ func serve(args []string, stdout io.Writer) error {
 // coverage compares the upstream SDK surface with what the packs serve. This is
 // the anti-drift gate: run it in CI after every SDK bump.
 func coverage(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("coverage", flag.ContinueOnError)
+	fs := newFlagSet("coverage")
 	sdk := fs.String("sdk", "", "path to a checkout of the provider Go SDK")
 	contractPath := fs.String("contract", "", "read the upstream surface from a contract artefact instead of an SDK checkout")
 	provider := fs.String("provider", scaleway.Name, "provider to report on")
@@ -985,7 +1030,7 @@ func coverage(args []string, stdout, stderr io.Writer) int {
 // catalog emits what the emulator serves. The documentation site builds its
 // pages from this, so the docs cannot drift from the code.
 func catalog(args []string, stdout io.Writer) error {
-	fs := flag.NewFlagSet("catalog", flag.ContinueOnError)
+	fs := newFlagSet("catalog")
 	format := fs.String("format", "json", "output format: json")
 	if err := fs.Parse(args); err != nil {
 		return err

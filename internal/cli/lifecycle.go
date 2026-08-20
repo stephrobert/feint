@@ -65,7 +65,7 @@ func bindServeFlags(fs *flag.FlagSet) *serveFlags {
 
 // start detaches a serve, records it, and waits for it to answer.
 func start(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("start", flag.ContinueOnError)
+	fs := newFlagSet("start")
 	flags := bindServeFlags(fs)
 	timeout := fs.Duration("timeout", 30*time.Second, "how long to wait for the emulator to answer")
 	detach := fs.Bool("detach", false, "return as soon as the child is spawned, without waiting for health")
@@ -264,7 +264,7 @@ func tail(path string, n int) string {
 
 // stop signals the recorded instance and waits for it to go.
 func stop(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("stop", flag.ContinueOnError)
+	fs := newFlagSet("stop")
 	addr := fs.String("addr", DefaultAddr, "listen address of the instance to stop")
 	timeout := fs.Duration("timeout", 15*time.Second, "how long to wait after SIGTERM before SIGKILL")
 	if err := fs.Parse(args); err != nil {
@@ -343,7 +343,7 @@ func removeOrFail(inst *Instance, stderr io.Writer) int {
 // in a container, by another tool, in the foreground of another terminal — is
 // still something a script needs to wait for.
 func waitCommand(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("wait", flag.ContinueOnError)
+	fs := newFlagSet("wait")
 	addr := fs.String("addr", DefaultAddr, "listen address to wait for")
 	timeout := fs.Duration("timeout", 30*time.Second, "how long to wait")
 	if err := fs.Parse(args); err != nil {
@@ -369,7 +369,7 @@ func waitCommand(args []string, stdout, stderr io.Writer) int {
 // restart stops the recorded instance and starts it again with the flags it was
 // started with, which is the reason those flags are recorded at all.
 func restart(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("restart", flag.ContinueOnError)
+	fs := newFlagSet("restart")
 	addr := fs.String("addr", DefaultAddr, "listen address of the instance to restart")
 	timeout := fs.Duration("timeout", 30*time.Second, "how long to wait for it to answer again")
 	if err := fs.Parse(args); err != nil {
@@ -396,7 +396,7 @@ func restart(args []string, stdout, stderr io.Writer) int {
 
 // logs prints the detached run's log.
 func logs(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("logs", flag.ContinueOnError)
+	fs := newFlagSet("logs")
 	addr := fs.String("addr", DefaultAddr, "listen address of the instance")
 	follow := fs.Bool("f", false, "follow the log as it grows")
 	lines := fs.Int("n", 50, "how many trailing lines to print (0 for all)")

@@ -37,6 +37,9 @@ Two properties matter and are enforced, not documented:
   proxy carries a live credential belonging to whoever started it, and an open
   port would relay it.
 
+A client the cloud walks away from by republishing its own address needs one more
+flag, `--intercept`; it has its own section below.
+
 ## Read
 
 `feint transcript` answers the three questions, in order of value.
@@ -149,14 +152,62 @@ Two properties matter as much as the detection, and each has its own test:
   a scan over the raw bytes would find nothing in any of them and report
   nothing found, which reads exactly like nothing being there.
 
+### Keeping a client the cloud walked away: `--intercept`
+
+A plain proxy holds a client only for as long as the client keeps addressing it.
+The handoff above is the case where it stops: the cloud answers with its own real
+name, the client believes it, and everything after that is somebody else's
+conversation.
+
+`--intercept` is the answer, and it changes one thing only — the client reaches
+this proxy **by the cloud's name** instead of by `127.0.0.1`:
+
+```bash
+feint proxy --provider exoscale \
+  --upstream https://api-ch-gva-2.exoscale.com \
+  --intercept api-ch-gva-2.exoscale.com,api-ch-dk-2.exoscale.com \
+  --record real.jsonl
+```
+
+The listener then serves HTTPS with a short-lived, non-CA leaf covering exactly
+those names, minted by `internal/proxy/intercept.go` from the standard library
+alone — no dependency, no `openssl`. The command prints the two lines a client
+needs and removes the CA when it exits:
+
+```text
+  intercepting HTTPS for api-ch-gva-2.exoscale.com, api-ch-dk-2.exoscale.com
+  CA written to /tmp/feint-intercept-ca-1234.pem (a temporary file, removed on exit)
+  point a client at this proxy by name, in a namespace of its own, e.g.:
+    export SSL_CERT_FILE=/tmp/feint-intercept-ca-1234.pem
+    # resolve api-ch-gva-2.exoscale.com to this proxy (a container's own /etc/hosts, never yours):
+    #   podman run --add-host=api-ch-gva-2.exoscale.com:host-gateway ... , proxy reachable on :4600
+```
+
+**The certificate is the cheap half; the name is the half that has to be
+scoped.** This command installs nothing into the system trust store and never
+edits your `/etc/hosts`, because it has no code that could: `SSL_CERT_FILE` is
+process-scoped, and the redirect is yours to make inside a namespace the client
+owns — a rootless container, feint's own user namespace under
+`tools/install/apparmor/feint`, or an Incus container. A redirect left behind in
+a machine-wide hosts file sends your next *real* `terraform apply` to a local
+port, which is the exact failure this project exists to avoid.
+[limits.md](limits.md), *The cost of DNS/TLS interception*, measures each place
+the redirect is permitted and what it costs the machine.
+
+What it bought, measured: an Exoscale session worth about ninety exchanges
+recorded **eight** without it (#92). `TestInterceptionRecordsThePostHandoffExchanges`
+drives the same session twice against one recorder — the republished name
+resolving to the proxy, then away — and keeps the whole session one way, only the
+pre-handoff exchange the other.
+
 ### What this deliberately does not do
 
 **It does not rewrite the address.** A recorder that edits the answer it is
 recording is not a recorder, and the scratchpad rewriter used to capture the
-Exoscale shapes was honest about shapes and lying about one field. If following
-the endpoint is ever wanted, it belongs behind an explicit flag that records the
-answer **as received** and marks that it rewrote what the client saw — which is
-the open half of #92, deliberately not decided by this change.
+Exoscale shapes was honest about shapes and lying about one field. That refusal
+still stands, and #92 was closed without lifting it: `--intercept` keeps the
+client by making the republished name resolve here, so the body reaches the
+transcript exactly as the cloud wrote it.
 
 **The other route is already there and needs no proxy.** `internal/upstream`
 signs the real host and talks to it directly, so it has neither problem: it is
@@ -192,14 +243,18 @@ Two things follow, and the first one matters most:
   today; only "what does the real cloud answer *to this client*" is not.
 
 Lifting it needs DNS and TLS interception so the client can be pointed at the
-real hostname and still land here, which is #76 and deliberately not this tool.
-That cost is now measured — [limits.md](limits.md), *The cost of DNS/TLS
-interception* — and the finding transfers: the TLS half is cheap and every Go
-client accepts a locally minted CA through `SSL_CERT_FILE`, but redirecting the
-name to loopback has no client-scoped, unprivileged mechanism for a static
-pure-Go client, which is what makes this more than a flag. Until then, a
-real-cloud recording is made with a client whose signed host can be set — which
-is how the transcripts behind this page's examples were produced.
+real hostname and still land here, and **that is `--intercept`, above**: the
+client addresses `api.eu-west-2.outscale.com`, signs that name, and the name is
+what reaches the cloud. The ceremony is the price — the client has to run in a
+namespace that resolves the name to the proxy — so a recording made without it
+is still made with a client whose signed host can be set independently, which is
+how the transcripts behind this page's examples were produced.
+
+Until 2026-08-20 this paragraph said the opposite: *"which is #76 and
+deliberately not this tool"*. The flag shipped in v0.9.0, `docs/limits.md` sent
+readers here to use it, and this page went on refusing it — the same defect as
+[#334](https://github.com/stephrobert/feint/issues/334), one document further
+out. #76 and #92 are closed as delivered.
 
 ### The one caveat of the diff
 

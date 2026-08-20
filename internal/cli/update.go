@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -55,7 +54,7 @@ type githubRelease struct {
 
 // versionCheck is `feint version --check`.
 func versionCheck(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("version", flag.ContinueOnError)
+	fs := newFlagSet("version")
 	fs.SetOutput(stderr)
 	check := fs.Bool("check", false, "ask GitHub whether a newer release exists")
 	if err := fs.Parse(args); err != nil {

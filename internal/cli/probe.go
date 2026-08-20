@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -24,7 +23,7 @@ import (
 // What it reports never moves the conformance score. A probed route stays on the
 // list of routes nobody has proven until a real client drives it.
 func probeCommand(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("probe", flag.ContinueOnError)
+	fs := newFlagSet("probe")
 	endpoint := fs.String("endpoint", "http://"+DefaultAddr, "the running emulator")
 	contracts := fs.String("contracts", "contracts", "directory of API contracts")
 	provider := fs.String("provider", "", "probe only this provider")

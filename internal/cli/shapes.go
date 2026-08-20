@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -30,7 +29,7 @@ import (
 //
 // Read-only towards the network: it opens a file and writes a file.
 func shapesCommand(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("shapes", flag.ContinueOnError)
+	fs := newFlagSet("shapes")
 	provider := fs.String("provider", "", "which provider this recording is of: scaleway, outscale, exoscale")
 	dir := fs.String("dir", "shapes", "directory holding the versioned catalogues")
 	dryRun := fs.Bool("dry-run", false, "report what would be learned without writing")

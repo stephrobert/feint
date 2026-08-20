@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -119,7 +118,7 @@ func newestArtefact(dir string) string {
 // decided whether the page was mounted at all — one function, so the command and
 // the server can never disagree about what loopback means.
 func uiCommand(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("ui", flag.ContinueOnError)
+	fs := newFlagSet("ui")
 	addr := fs.String("addr", DefaultAddr, "the address the emulator is serving on")
 	print := fs.Bool("print", false, "print the URL instead of opening a browser")
 	if err := fs.Parse(args); err != nil {

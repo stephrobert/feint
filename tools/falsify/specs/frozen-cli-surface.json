@@ -1,0 +1,55 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "the surface is observed from the rendered help again, which is the defect itself: it freezes the document rather than the binary",
+      "file": "internal/cli/frozen_test.go",
+      "find": "\t\t\"verbs\":      flagsTheBinaryAccepts(t),",
+      "replace": "\t\t\"verbs\":      func() map[string][]string { _ = flagsTheBinaryAccepts(t); return flagsTheHelpNames(t) }(),",
+      "test": "TestTheFrozenSurfacesStillMatchTheirFixture"
+    },
+    {
+      "label": "a flag stops being registered while its help line survives, and the frozen surface has to notice: this is the direction that breaks a consumer",
+      "file": "internal/cli/proxy.go",
+      "find": "\tintercept := fs.String(\"intercept\", \"\"",
+      "replace": "\tintercept := fs.String(\"intercept-withdrawn\", \"\"",
+      "test": "TestTheFrozenSurfacesStillMatchTheirFixture"
+    },
+    {
+      "label": "the same withdrawal seen from the help's side: the block keeps naming a flag no flag set registers, so a reader who types it is answered that it does not exist",
+      "file": "internal/cli/proxy.go",
+      "find": "\tintercept := fs.String(\"intercept\", \"\"",
+      "replace": "\tintercept := fs.String(\"intercept-withdrawn\", \"\"",
+      "test": "TestTheHelpNamesEveryFlagTheBinaryAccepts"
+    },
+    {
+      "label": "a flag is added to a flag set and to no help block, which is exactly how --intercept shipped mute in v0.9.0",
+      "file": "internal/cli/proxy.go",
+      "find": "\tif err := fs.Parse(args); err != nil {\n\t\treturn exitError\n\t}\n\n\tif *upstream == \"\" {",
+      "replace": "\t_ = fs.String(\"intercept-and-unnamed\", \"\", \"a flag no help block names\")\n\tif err := fs.Parse(args); err != nil {\n\t\treturn exitError\n\t}\n\n\tif *upstream == \"\" {",
+      "test": "TestTheHelpNamesEveryFlagTheBinaryAccepts"
+    },
+    {
+      "label": "the same arrival seen from the fixture's side: a flag the binary gained and the committed surface never recorded",
+      "file": "internal/cli/proxy.go",
+      "find": "\tif err := fs.Parse(args); err != nil {\n\t\treturn exitError\n\t}\n\n\tif *upstream == \"\" {",
+      "replace": "\t_ = fs.String(\"intercept-and-unnamed\", \"\", \"a flag no help block names\")\n\tif err := fs.Parse(args); err != nil {\n\t\treturn exitError\n\t}\n\n\tif *upstream == \"\" {",
+      "test": "TestTheFrozenSurfacesStillMatchTheirFixture"
+    },
+    {
+      "label": "the help names a flag the binary never registers, the state `feint version` was in with its --version and -v",
+      "file": "internal/cli/cli.go",
+      "find": "  feint catalog    [--format json]",
+      "replace": "  feint catalog    [--format json] [--no-such-flag]",
+      "test": "TestTheHelpNamesEveryFlagTheBinaryAccepts"
+    },
+    {
+      "label": "the seam stops publishing the flag sets, so the observation collects nothing and would freeze an empty surface in silence",
+      "file": "internal/cli/flagset.go",
+      "find": "\tif observeFlagSet != nil {\n\t\tobserveFlagSet(name, fs)\n\t}",
+      "replace": "\tif observeFlagSet != nil && false {\n\t\tobserveFlagSet(name, fs)\n\t}",
+      "test": "TestTheFrozenSurfacesStillMatchTheirFixture"
+    }
+  ],
+  "note": "The subject is #334. `feint proxy --intercept` shipped in v0.9.0: the binary accepted it, `feint proxy --help` rendered it, and the frozen CLI surface (#132) — the thing a pipeline outside this repository is allowed to key on — did not list it, for six days. The cause was that the surface was observed by parsing the rendered `feint --help`, so it recorded what the help claimed. The missing flag was the cheap half; the expensive half is mutation 2, the removal, which that observation could never have seen and which is the direction that breaks a consumer. Mutations 2 and 4 are the two directions the issue asks for, each replayed twice because the fix has two teeth now: the frozen surface reads the FlagSets, and the help carries its own assertion instead of being both the observation and the thing observed. Mutation 7 is the reason the observation asserts its subject rather than skipping on absence: a seam that stopped publishing would otherwise regenerate a fixture that freezes nothing."
+}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -32,7 +31,7 @@ const DefaultProxyAddr = "127.0.0.1:4600"
 
 // proxyCommand records what a real client and a real cloud say to each other.
 func proxyCommand(args []string, _ io.Writer, stderr io.Writer) int {
-	fs := flag.NewFlagSet("proxy", flag.ContinueOnError)
+	fs := newFlagSet("proxy")
 	upstream := fs.String("upstream", "", "the cloud (or emulator) to forward to, e.g. https://api.scaleway.com")
 	addr := fs.String("addr", DefaultProxyAddr, "listen address")
 	record := fs.String("record", "", "write the transcript here as JSON Lines; - for stdout")

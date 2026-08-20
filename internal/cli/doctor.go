@@ -3,7 +3,6 @@ package cli
 import (
 	"bufio"
 	"context"
-	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -45,7 +44,7 @@ type check struct {
 }
 
 func doctor(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
+	fs := newFlagSet("doctor")
 	addr := fs.String("addr", DefaultAddr, "the address serve would listen on")
 	vm := fs.String("vm", "auto", "the machine runtime to diagnose: off, incus, incus-vm, incus-ovn, auto")
 	if err := fs.Parse(args); err != nil {

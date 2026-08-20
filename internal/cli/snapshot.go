@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -122,7 +121,7 @@ func snapshotSave(args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		return exitError
 	}
-	fs := flag.NewFlagSet("snapshot save", flag.ContinueOnError)
+	fs := newFlagSet("snapshot save")
 	addr := fs.String("addr", DefaultAddr, "address of the running emulator")
 	force := fs.Bool("force", false, "overwrite an existing snapshot of that name")
 	if err := fs.Parse(rest); err != nil {
@@ -166,7 +165,7 @@ func snapshotLoad(args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		return exitError
 	}
-	fs := flag.NewFlagSet("snapshot load", flag.ContinueOnError)
+	fs := newFlagSet("snapshot load")
 	addr := fs.String("addr", DefaultAddr, "address of the running emulator")
 	if err := fs.Parse(rest); err != nil {
 		return exitError
@@ -201,7 +200,7 @@ func snapshotLoad(args []string, stdout, stderr io.Writer) int {
 }
 
 func snapshotList(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("snapshot list", flag.ContinueOnError)
+	fs := newFlagSet("snapshot list")
 	format := fs.String("format", "text", "output format: text or json")
 	if err := fs.Parse(args); err != nil {
 		return exitError

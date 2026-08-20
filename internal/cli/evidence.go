@@ -2,7 +2,6 @@ package cli
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -97,7 +96,7 @@ func runtimesLost(path string, next *evidenceArtefact) ([]string, error) {
 }
 
 func evidence(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("evidence", flag.ContinueOnError)
+	fs := newFlagSet("evidence")
 	endpoint := fs.String("endpoint", "http://"+DefaultAddr, "the running emulator to read /_feint/conformance from")
 	shapesDir := fs.String("shapes", "shapes", "directory of observed real-cloud shapes; the shape axis is resolved from it (empty to leave the run's answer)")
 	out := fs.String("out", filepath.Join("coverage", "evidence.json"), "where to write the artefact")

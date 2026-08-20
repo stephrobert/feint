@@ -31,6 +31,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -38,7 +39,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -317,21 +317,22 @@ func observeShape(t *testing.T, path string, dataKeyed []string) json.RawMessage
 	return content
 }
 
-// cliSurfaceContent is the canonical CLI surface: every verb the help renders
-// with the flags its entry declares, and the exit codes. Read from the rendered
-// help rather than from a list kept beside it, for the reason
-// TestEveryDispatchedCommandIsInTheHelp reads the dispatch from the source: a
-// second copy is the thing that drifts.
+// cliSurfaceContent is the canonical CLI surface: every flag set the binary
+// builds, the flags registered on it, and the exit codes.
+//
+// It is read from the flag.FlagSet each verb builds, never from the rendered
+// help (#334). The help is prose: a flag can be added to a FlagSet and never
+// written down — `feint proxy --intercept` shipped in v0.9.0 exactly that way —
+// and, worse, a flag can be deleted from a FlagSet while its help line survives,
+// which is the direction that breaks the consumer #132 froze this surface for.
+// A surface observed through a document freezes the document.
+//
+// The help keeps a promise here, but as its own assertion with its own subject:
+// TestTheHelpNamesEveryFlagTheBinaryAccepts.
 func cliSurfaceContent(t *testing.T) json.RawMessage {
 	t.Helper()
-	verbs := verbsWithFlags(t)
-	// Guard of the guard: a parse that comes back near-empty is a broken
-	// harness, and a fixture regenerated from it would freeze nothing.
-	if len(verbs) < 15 {
-		t.Fatalf("only %d verbs parsed from the help: the parser is broken, not the surface", len(verbs))
-	}
 	content, err := json.Marshal(map[string]any{
-		"verbs":      verbs,
+		"verbs":      flagsTheBinaryAccepts(t),
 		"exit_codes": map[string]int{"ok": exitOK, "error": exitError, "drift": exitDrift},
 	})
 	if err != nil {
@@ -340,50 +341,93 @@ func cliSurfaceContent(t *testing.T) json.RawMessage {
 	return content
 }
 
-// verbsWithFlags parses the rendered help: a line "  feint <verb> " opens a
-// verb, its indented continuation lines belong to it, a line at column zero
-// closes it. Flags are every "-x" / "--xyz" token in the verb's block.
-func verbsWithFlags(t *testing.T) map[string][]string {
+// flagsTheBinaryAccepts drives every dispatched verb as far as its flag parsing
+// and reads back the flags of the FlagSet it built, through newFlagSet's seam.
+//
+// `-h` is what stops each verb there: flag.ContinueOnError makes Parse answer
+// flag.ErrHelp, every command returns on that error, and not one of them does
+// anything before building its set. So this observes the registration and
+// nothing else — no listener opened, no file written, no host touched.
+//
+// The result is keyed by the flag set's own name, which is the verb everywhere
+// but `snapshot`: that one dispatches a second time, and "snapshot save"
+// registers --force where "snapshot list" does not. Keying by the set says so,
+// where a union under `snapshot` would claim all three take all three flags.
+func flagsTheBinaryAccepts(t *testing.T) map[string][]string {
 	t.Helper()
-	var rendered strings.Builder
-	usage(&rendered)
 
-	verbLine := regexp.MustCompile(`^  feint ([a-z][a-z-]*) `)
-	// A flag token starts after a space, bracket, parenthesis or quote — never
-	// in the middle of a word, so "read-only" and "incus-vm" stay words.
-	flagToken := regexp.MustCompile(`(?:^|[\s\[("])(-{1,2}[a-zA-Z][a-zA-Z0-9-]*)`)
+	sets := map[string]*flag.FlagSet{}
+	builtBy := map[string]string{}
+	driving := ""
+	observeFlagSet = func(name string, fs *flag.FlagSet) {
+		// A verb stopped with -h renders its set's defaults; the render is
+		// discarded, because the flags are read from the set itself below.
+		fs.SetOutput(io.Discard)
+		sets[name] = fs
+		builtBy[name] = driving
+	}
+	t.Cleanup(func() { observeFlagSet = nil })
 
-	verbs := map[string][]string{}
-	current := ""
-	seen := map[string]map[string]bool{}
-	for _, line := range strings.Split(rendered.String(), "\n") {
-		if m := verbLine.FindStringSubmatch(line); m != nil {
-			current = m[1]
-			if verbs[current] == nil {
-				verbs[current] = []string{}
-				seen[current] = map[string]bool{}
-			}
-		} else if !strings.HasPrefix(line, " ") {
-			// Prose at column zero: the preamble, the exit-code paragraph.
-			// Whatever dashes it carries belong to no verb.
-			current = ""
-			continue
+	var discard strings.Builder
+	drive := func(verb string, args ...string) {
+		driving = verb
+		Run(append([]string{"feint", verb}, args...), &discard, &discard)
+	}
+
+	dispatched := topLevelCommands(t)
+	if len(dispatched) < 15 {
+		t.Fatalf("only %d verbs found in the dispatch: the scan is broken, not the surface", len(dispatched))
+	}
+	for _, verb := range dispatched {
+		drive(verb, "-h")
+	}
+	// `snapshot` dispatches again before building anything, so its subcommands
+	// are driven by name. save, load and rm read the snapshot's name off the
+	// command line ahead of the flags, hence the placeholder. rm registers no
+	// flag at all and so contributes no entry, which is the truth about it and
+	// the reason the coverage assertion below is per verb and not per set.
+	drive("snapshot", "save", "a-name", "-h")
+	drive("snapshot", "load", "a-name", "-h")
+	drive("snapshot", "list", "-h")
+	drive("snapshot", "rm", "a-name", "-h")
+
+	// Assert the subject rather than skip on its absence. A verb whose set was
+	// never observed would otherwise leave the fixture quietly smaller, and a
+	// frozen surface that shrinks in silence is the defect being fixed here.
+	covered := map[string]bool{}
+	for name, verb := range builtBy {
+		if name != verb && !strings.HasPrefix(name, verb+" ") {
+			t.Errorf("`feint %s` built a flag set named %q: the surface is keyed by that name, "+
+				"so it has to be the verb itself or one of its subcommands", verb, name)
 		}
-		if current == "" {
-			continue
-		}
-		for _, m := range flagToken.FindAllStringSubmatch(line, -1) {
-			flag := m[1]
-			if !seen[current][flag] {
-				seen[current][flag] = true
-				verbs[current] = append(verbs[current], flag)
-			}
+		covered[verb] = true
+	}
+	for _, verb := range dispatched {
+		if !covered[verb] {
+			t.Errorf("`feint %s -h` built no flag set, so this observation cannot see the verb's "+
+				"flags and the frozen surface would freeze nothing for it", verb)
 		}
 	}
-	for _, flags := range verbs {
+
+	verbs := make(map[string][]string, len(sets))
+	for name, fs := range sets {
+		flags := []string{}
+		fs.VisitAll(func(f *flag.Flag) { flags = append(flags, dashed(f.Name)) })
 		sort.Strings(flags)
+		verbs[name] = flags
 	}
 	return verbs
+}
+
+// dashed spells a flag the way the help and every user does: one dash for a
+// single letter, two for a word. Go's flag package accepts either spelling for
+// either, so this is a rendering choice, and it is made once — here — for the
+// frozen surface and the help assertion alike.
+func dashed(name string) string {
+	if len(name) == 1 {
+		return "-" + name
+	}
+	return "--" + name
 }
 
 // loadFrozen reads a surface's fixture, and fails loudly on a missing or empty
