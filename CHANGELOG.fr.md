@@ -246,6 +246,36 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Un passage complet `incus-ovn` ne fait plus supprimer deux fois la même
+  chaîne de pare-feu au démon** (#341). L'échec — `Failed deleting nftables
+  chain "fwd.feint-uplink": No such file or directory`, qui tuait la suite
+  outscale-tofu — se reproduit **depuis une station vierge** : la lecture « état
+  accumulé entre les passages » n'était vraie qu'à moitié. Mesuré avec `incus
+  monitor` sur un passage entier : `feint clean` en fin de suite oapi-cli
+  supprime l'uplink, puis le parallélisme par défaut d'OpenTofu recrée d'un coup
+  deux subnets et un réseau machine par défaut. Un `PUT` sur l'uplink et un
+  `POST` de réseau OVN qui s'y rattache font tous deux reconstruire le pare-feu
+  nftables de l'uplink, et le `removeChains` d'Incus liste puis supprime sans
+  verrou partagé entre ces deux chemins — la chaîne du perdant est donc
+  supprimée par l'opération concurrente *entre son propre relevé et sa
+  suppression*. `uplinkMu` sérialise désormais toute opération qui fait
+  reconstruire l'uplink, le `network create` compris.
+- **Un réseau OVN supprimé retire son bloc délégué de l'uplink** (#341).
+  `RemoveNetwork` ne le faisait jamais, si bien qu'un seul passage en accumulait
+  neuf — les sept routes signalées par l'issue n'étaient pas le résidu de sept
+  exécutions. Un uplink laissé par une exécution morte est aussi adopté une fois
+  par processus, en retirant les routes des réseaux disparus ; et un uplink tenu
+  par un émulateur **vivant** est refusé plutôt que partagé, le partage entre
+  processus étant la même corruption sans verrou sous un autre nom.
+- **`feint doctor` demande si un service DHCP survit à son réseau, et non à son
+  interface** (#342). Il répondait `ok` pendant qu'un orphelin tenait
+  `10.50.2.1` et faisait échouer la conformance suivante, parce qu'il cherchait
+  un service dont l'interface avait disparu — or l'interface avait survécu *avec*
+  son service. Les deux avaient survécu au réseau, et c'est la question que
+  personne ne posait. Un reste est désormais une ligne rouge qui nomme le bloc
+  et le pid, `feint clean` tue le service et **dit ce qu'il ne touchera pas** —
+  un pont sans étiquette n'est pas démontrablement à nous — et chaque ligne
+  verte de `doctor` a été relue contre ce qu'elle mesure réellement.
 - **Une suite de conformité ssh refuse de démarrer quand l'émulateur ne détient
   aucune des images qu'elle démarre, et la preuve runtime les construit**
   (#335). `runtime-proof.yml` échouait sur son étape *Scaleway ssh suite* cinq

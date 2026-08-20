@@ -203,3 +203,43 @@ détruit ses ressources ; l'émulateur est arrêté, aucun processus feint) :
   `FEINT_VM=incus-ovn mise run serve`.
 - Scratchpad : `…/scratchpad/` contient les logs de mesure et
   `incus-src` (clone shallow d'Incus v7.2.0, lecture seule).
+
+
+---
+
+## Suite donnée par le coordinateur (2026-08-20, après épuisement du crédit)
+
+Rebase sur `d735385` (#337) fait, `prepush` vert, entrées de changelog écrites
+dans les deux langues. Puis le critère d'acceptation de #341 a été lancé, et il
+a produit un résultat que ce brief ne pouvait pas prévoir.
+
+**Le correctif de #341 marche, et c'est mesuré des deux côtés :**
+
+| | référence `d735385` | avec ce lot |
+|---|---|---|
+| `Failed deleting nftables chain` | **1** | **0** |
+| suite `outscale-tofu` | morte dessus | passée |
+| stacks d'exemple atteintes | **jamais** (`stacks=0`) | oui |
+
+Vérifié sur tous les logs de passage OVN du scratchpad : `stacks=0` partout.
+**`pass-1.log` est le premier passage `incus-ovn` de ce dépôt à atteindre les
+stacks d'exemple.** Le mur tombé en révèle donc un autre, exactement comme
+#335 avait masqué #341.
+
+**Le mur suivant**, et il n'est pas de notre fait : la stack d'exemple Scaleway
+échoue *immédiatement* sur `init and apply`, sur **les deux** serveurs —
+`scaleway_instance_private_nic.web[0]` et `web[1]` — avec `the server is
+already attached to this private network`. Pas de `Still creating`, donc pas
+un timeout ni un retry lent. `run_stack` copie la stack dans un `mktemp -d`,
+donc pas d'état résiduel. Et la même stack passe en mode `incus` simple (la
+conformance de #337 était entièrement verte). C'est donc un défaut **propre au
+mode OVN**, invisible jusqu'ici faute d'y arriver.
+
+Filé séparément plutôt que traité ici : le corriger demande d'instrumenter un
+passage OVN de plus, et il ne conditionne pas la valeur de ce lot.
+
+**Conséquence sur le critère de #341** : « deux passages complets verts
+d'affilée » n'est pas atteignable tant que ce nouveau mur tient. Ce qui est
+prouvé, et qui était la question de l'issue, c'est que la course nftables ne se
+produit plus — mesurée présente sur la référence, absente ici, dans le même
+passage complet.
