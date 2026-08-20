@@ -138,12 +138,20 @@ in `internal/release/formula.go`, with the tests that fail without them.
 **Older versions.** The tap carries the current release only. An older one is
 still installed by the commands at the top of this page, which name their tag.
 
-**Measured, not assumed.** On 2026-08-20, Homebrew 5.1.15: the derived formula
-was put in a tap and `brew install stephrobert/feint/feint` fetched the
-published v0.9.0 binary, `feint version` answered `v0.9.0`, `brew test` passed
-and `brew audit` reported nothing. One flipped byte in a digest made the same
+**Measured, not assumed.** On 2026-08-20, Homebrew 5.1.15, against the
+published tap rather than a rendered file: `brew install
+stephrobert/feint/feint` fetched the v0.9.0 binary, the installed bytes hashed
+to the digest in the release's signed `checksums.txt`, `feint version` answered
+`v0.9.0`, and `brew test` passed. One flipped byte in a digest made the same
 install fail with *Formula reports different checksum* instead of installing —
 which is the guarantee this section claims, seen refusing.
+
+Publishing it is also what found the one defect rendering had not: `brew audit`
+refused the first formula for declaring `version 0.9.0` when the download URL
+already carries it. The stanza is gone, and the formula's own `test do` is what
+makes its absence safe — it asserts that the version brew scanned equals the one
+the installed binary reports, so a scan that ever goes wrong fails `brew test`
+rather than publishing a wrong version quietly. `brew audit` now exits 0.
 
 ## The container image
 
