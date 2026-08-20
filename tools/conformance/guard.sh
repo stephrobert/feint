@@ -19,9 +19,14 @@
 #   . "$(dirname "${BASH_SOURCE[0]}")/guard.sh"
 #   guard_local "$ENDPOINT"
 #   guard_no_real_profile SCW_API_URL scw
+#   guard_images "$ENDPOINT"          # suites that log into a machine
 #
-# Usage of the two functions is deliberately separate: the first checks where the
-# script intends to go, the second checks that the client cannot go anywhere else.
+# Usage of the functions is deliberately separate: the first checks where the
+# script intends to go, the second checks that the client cannot go anywhere
+# else, and the third checks that the emulator can keep the promise the suite is
+# about to make. All three live here rather than in each suite for the reason
+# CLAUDE.md gives about the shared layer: a control copied into three scripts is
+# a control the fourth forgets.
 
 # guard_local refuses an endpoint that is not on this machine.
 #
@@ -67,4 +72,84 @@ EOF
       echo "FAIL: $var is ${!var}, which is not local; refusing to run $client" >&2
       exit 1 ;;
   esac
+}
+
+# guard_images refuses a suite whose machines cannot answer, and names the one
+# command that fixes it (#335).
+#
+# The emulator boots its own images because no upstream image carries an ssh
+# daemon (#203). When it holds none, it falls back to the upstream one and says
+# so in its log, once per boot:
+#
+#   WARN no image of ours for this system, booting the upstream one ...
+#        fix="feint images"
+#
+# That fallback used to be a degradation. Since #202 gave a machine exactly the
+# one address its provider's API publishes, on a routed NIC with no NAT, it is
+# not: the machine has no route to a package repository, cloud-init's
+# `apt-get install openssh-server` dies on DNS, and nothing ever listens on
+# port 22. Measured on 2026-08-20 by hiding the five feint/* aliases on a host
+# that had them: the same suite passed in 21s with the images and failed in 93s
+# without, on the emulator's own message, "no ssh daemon answered ... the
+# published address is a promise nobody keeps".
+#
+# runtime-proof.yml had been red on that line for five consecutive scheduled
+# nights, with the fix printed in its own log the whole time and nothing reading
+# it (#335, blocking the streak #125 counts). So this reads it: the suite either
+# has its images or refuses here, naming them, rather than starting and failing
+# thirty lines later on an ssh error that blames the network.
+#
+# TestTheImageGuardRefusesASuiteWhoseMachinesCannotAnswer fails without it, and
+# tools/falsify/specs/ssh-suite-needs-its-images.json replays that.
+guard_images() {
+  local endpoint="${1:-}"
+  local health machines binary
+
+  health="$(curl -sf "$endpoint/_feint/health" || true)"
+  if [ -z "$health" ]; then
+    echo "FAIL: $endpoint answered no health payload, so nothing here knows what its machines are" >&2
+    exit 1
+  fi
+  machines="$(printf '%s' "$health" | jq -r '.machines // "none"')"
+
+  # With no runtime the login step is skipped by design, and there is nothing to
+  # boot an image from. Said out loud rather than returned in silence: a
+  # precondition that passes quietly on the very case it exists for is how a
+  # check gets read as green when it never ran.
+  if [ "$machines" = "none" ] || [ "$machines" = "null" ] || [ -z "$machines" ]; then
+    echo "  images: not needed, $endpoint runs no machine runtime" >&2
+    return 0
+  fi
+
+  binary="${FEINT_BIN:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/feint}"
+  if [ ! -x "$binary" ]; then
+    cat >&2 <<EOF
+FAIL: no feint binary at $binary.
+
+This suite needs it to ask what images the $machines runtime holds. Build it
+(mise run build, or go build -o feint ./cmd/feint), or point FEINT_BIN at one.
+Skipping the question instead would let the suite start without its images,
+which is the failure this check exists to name.
+EOF
+    exit 1
+  fi
+
+  if ! "$binary" images --check --vm "$machines" >&2; then
+    cat >&2 <<EOF
+
+FAIL: the $machines runtime holds none of the images this suite boots.
+
+Without them the emulator falls back to an upstream image, which carries no ssh
+daemon and cannot install one: since #202 a machine holds exactly the address
+its provider publishes, on a routed NIC with no NAT, so cloud-init has no route
+to a package repository. The machine will run, the API will publish its address,
+and nothing will ever answer on port 22.
+
+Run:  $binary images --vm $machines
+
+It builds them once, takes minutes, and leaves them on the host.
+EOF
+    exit 1
+  fi
+  echo "  images: the $machines runtime holds every image this suite boots" >&2
 }

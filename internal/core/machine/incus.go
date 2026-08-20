@@ -183,9 +183,25 @@ func (d *Incus) imageRef(image string) string {
 //
 // The fallback is deliberate and it is announced, never silent. Refusing to boot
 // because `feint images` has not been run would turn a first contact into a
-// failure; falling back without a word would reintroduce the boot-time install
-// and hide the reason a machine suddenly needs the network. So it degrades, and
-// says which and why.
+// failure; falling back without a word would hide the reason a machine suddenly
+// cannot answer. So it degrades, and says which and why.
+//
+// What the warning says changed on 2026-08-20 (#335), because what it described
+// had stopped being true. It promised that "the machine installs an ssh daemon
+// at first boot and needs outbound network to do it" — accurate when #203 wrote
+// it, and false since #202 gave a machine exactly the one address its provider
+// publishes, on a routed NIC with no NAT. Measured that day by hiding the five
+// feint/* aliases on a host that held them: cloud-init's `apt-get install
+// openssh-server` died on "Temporary failure resolving 'archive.ubuntu.com'",
+// nothing listened on port 22, and the Scaleway ssh suite failed after 93
+// seconds where it passes in 21 with the images. So the fallback is not a
+// degradation for anything that logs in: it is a machine that will never
+// answer, and the line now says that.
+//
+// The line is still only a line. The control is in tools/conformance/guard.sh,
+// which refuses an ssh suite whose images are missing; runtime-proof.yml was red
+// for five consecutive nights with this exact warning in its log and nothing
+// reading it.
 //
 // TestTheBuiltImageIsPreferredWhenTheHostHoldsIt fails without this.
 func (d *Incus) resolveImage(ctx context.Context, image string) string {
@@ -210,7 +226,7 @@ func (d *Incus) resolveImage(ctx context.Context, image string) string {
 	}
 	slog.Default().Warn("no image of ours for this system, booting the upstream one",
 		"image", image, "wanted", alias, "using", upstream,
-		"consequence", "the machine installs an ssh daemon at first boot and needs outbound network to do it",
+		"consequence", "no upstream image carries an ssh daemon, and this machine has no route to a package repository, so nothing will answer on port 22",
 		"fix", "feint images")
 	return upstream
 }

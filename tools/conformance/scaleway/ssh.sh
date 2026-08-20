@@ -22,6 +22,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/../guard.sh"
 guard_local "$ENDPOINT"
+# The images this suite boots have to exist before it registers a key and
+# promises an address; without them nothing answers on port 22 (#335).
+guard_images "$ENDPOINT"
 
 set -a
 # shellcheck source=/dev/null

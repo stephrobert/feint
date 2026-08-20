@@ -1,0 +1,41 @@
+{
+  "package": "./tools/conformance/",
+  "mutations": [
+    {
+      "label": "the refusal never fires, so a suite starts against a runtime that holds none of its images — the state runtime-proof was in for five nights",
+      "file": "tools/conformance/guard.sh",
+      "find": "  if ! \"$binary\" images --check --vm \"$machines\" >&2; then",
+      "replace": "  if ! \"$binary\" images --check --vm \"$machines\" >&2 && false; then",
+      "test": "TestTheImageGuardRefusesASuiteWhoseMachinesCannotAnswer"
+    },
+    {
+      "label": "an emulator that answered nothing reads as an emulator with no runtime, so the guard reports fine about a host it never reached",
+      "file": "tools/conformance/guard.sh",
+      "find": "  if [ -z \"$health\" ]; then",
+      "replace": "  if [ -z \"$health\" ] && false; then",
+      "test": "TestTheImageGuardRefusesAnEndpointThatAnswersNothing"
+    },
+    {
+      "label": "the missing binary stops being named, so the one refusal a first-contact host meets says nothing useful",
+      "file": "tools/conformance/guard.sh",
+      "find": "  if [ ! -x \"$binary\" ]; then",
+      "replace": "  if [ ! -x \"$binary\" ] && false; then",
+      "test": "TestTheImageGuardRefusesWhenItCannotAsk"
+    },
+    {
+      "label": "the guard fires on a --vm off emulator, which turns the documented degraded mode into a failure and gets the check disarmed",
+      "file": "tools/conformance/guard.sh",
+      "find": "  if [ \"$machines\" = \"none\" ] || [ \"$machines\" = \"null\" ] || [ -z \"$machines\" ]; then",
+      "replace": "  if ([ \"$machines\" = \"none\" ] || [ \"$machines\" = \"null\" ] || [ -z \"$machines\" ]) && false; then",
+      "test": "TestTheImageGuardAsksNothingWhenNoRuntimeIsOn"
+    },
+    {
+      "label": "the Scaleway ssh suite stops asking, which is exactly the shape of the defect: a shared guard nobody calls",
+      "file": "tools/conformance/scaleway/ssh.sh",
+      "find": "guard_images \"$ENDPOINT\"",
+      "replace": "true || guard_images \"$ENDPOINT\"",
+      "test": "TestEverySuiteThatLogsInAsksForItsImages"
+    }
+  ],
+  "note": "The subject is #335. runtime-proof.yml — the workflow whose consecutive green nights are the promotion criterion of #125 — failed on the Scaleway ssh suite for five scheduled nights running, 2026-08-16 to 2026-08-20, and the emulator printed the fix in its own log every one of them: fix=\"feint images\". Nothing read it. Reproduced on 2026-08-20 on the author's station by deleting the five feint/* image aliases (the images themselves left alone, so the reproduction is reversible): the same suite passed in 21s with them and failed in 93s without, on the same sentence CI had been printing. The cause is not the fallback existing — #203 chose it deliberately so a first contact still boots — but that #202 later gave a machine exactly the one address its provider publishes, on a routed NIC with no NAT, which leaves an upstream image with no route to a package repository and therefore no way to install the ssh daemon it does not carry. Mutation 5 is the one worth reading twice: the guard is in the shared file so three suites and a fourth get it at once, and a shared guard nobody calls is the same defect one layer up."
+}

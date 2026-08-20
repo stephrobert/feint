@@ -210,6 +210,47 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Une suite de conformité ssh refuse de démarrer quand l'émulateur ne détient
+  aucune des images qu'elle démarre, et la preuve runtime les construit**
+  (#335). `runtime-proof.yml` échouait sur son étape *Scaleway ssh suite* cinq
+  nuits planifiées d'affilée, du 2026-08-16 au 2026-08-20, sur les deux jambes.
+  Le correctif était imprimé dans son propre journal chacune de ces nuits :
+  `WARN no image of ours for this system, booting the upstream one … fix="feint
+  images"`, et rien ne l'exécutait. La sous-commande n'apparaît dans aucune
+  étape de ce workflow ni dans aucune ligne de `mise run conformance:ssh`.
+
+  Reproduit avant d'être corrigé, sur une station qui détenait les images, en
+  supprimant les cinq alias `feint/*` puis en les remettant : la même suite est
+  passée en 21 secondes avec eux et a échoué en 93 sans, sur la phrase même que
+  la CI imprimait. Le workflow lance désormais `feint images` avant de démarrer
+  l'émulateur, et `tools/conformance/guard.sh` a gagné `guard_images`, que les
+  trois suites ssh appellent avant d'enregistrer une clé : il lit `.machines`
+  sur `/_feint/health`, interroge `feint images --check` sur ce runtime, et
+  refuse en un vingtième de seconde en nommant la commande, au lieu d'échouer
+  quatre-vingt-dix secondes plus tard sur « no ssh daemon answered », qui
+  accuse l'adresse. La garde vit dans le fichier partagé, pas dans chaque
+  suite, pour la raison que donne CLAUDE.md : un contrôle recopié trois fois
+  est un contrôle que la quatrième oublie. Falsifié par
+  `tools/falsify/specs/ssh-suite-needs-its-images.json`, cinq mutations, dont
+  celle où une suite garde la garde et cesse de l'appeler.
+
+  **Pourquoi le repli avait cessé d'en être un**, et c'est la partie qui mérite
+  d'être retenue. #203 a choisi de démarrer l'image amont quand l'émulateur ne
+  détient aucune des siennes, délibérément, pour qu'un premier contact
+  fonctionne. #202 a ensuite donné à une machine exactement la seule adresse que
+  publie son fournisseur, sur une NIC routée sans NAT. Les deux vont bien
+  séparément et pas ensemble : mesuré le 2026-08-20, le cloud-init d'une image
+  amont meurt sur `Temporary failure resolving 'archive.ubuntu.com'`,
+  `openssh-server` ne s'installe jamais, et rien n'écoute sur le port 22.
+  L'avertissement de l'émulateur disait « la machine installe un démon ssh au
+  premier démarrage et a besoin du réseau sortant pour cela », ce qui était vrai
+  à l'écriture et était devenu la description d'un événement impossible. Il dit
+  maintenant ce qui se produit vraiment.
+
+  Cela débloque aussi le compteur de #125 : son critère de promotion est une
+  série de nuits planifiées vertes consécutives, donc tant que ceci restait
+  cassé ce nombre était bloqué à zéro par construction, et rien ne le disait.
+
 - **La surface CLI gelée est lue depuis les jeux de drapeaux que le binaire
   enregistre, plus depuis l'aide qu'il imprime** (#334). `feint proxy
   --intercept` est parti en v0.9.0 : le binaire l'acceptait, `feint proxy

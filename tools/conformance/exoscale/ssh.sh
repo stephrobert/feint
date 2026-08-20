@@ -29,6 +29,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/../guard.sh"
 guard_local "$ENDPOINT"
+# The images this suite boots have to exist before it registers a key and
+# promises an address; without them nothing answers on port 22 (#335).
+guard_images "$ENDPOINT"
 
 command -v exo >/dev/null 2>&1 || { echo "FAIL: exo is not installed" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is not installed" >&2; exit 1; }

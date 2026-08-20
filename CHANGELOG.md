@@ -196,6 +196,45 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **An ssh conformance suite refuses to start when the emulator holds none of
+  the images it boots, and the runtime proof builds them** (#335).
+  `runtime-proof.yml` failed on its *Scaleway ssh suite* step on five
+  consecutive scheduled nights, 2026-08-16 to 2026-08-20, on both legs. The fix
+  was printed in its own log every one of those nights — `WARN no image of ours
+  for this system, booting the upstream one … fix="feint images"` — and nothing
+  ran it: the subcommand appears in no step of that workflow and in no line of
+  `mise run conformance:ssh`.
+
+  Reproduced before being fixed, on a station that held the images, by deleting
+  the five `feint/*` aliases and putting them back afterwards: the same suite
+  passed in 21 seconds with them and failed in 93 without, on the same sentence
+  CI had been printing. The workflow now runs `feint images` before it starts
+  the emulator, and `tools/conformance/guard.sh` gained `guard_images`, which
+  the three ssh suites call before they register a key: it reads `.machines`
+  from `/_feint/health`, asks `feint images --check` about that runtime, and
+  refuses in a twentieth of a second naming the command, instead of failing
+  ninety seconds later on "no ssh daemon answered", which blames the address.
+  The guard is in the shared file, not in each suite, for the reason CLAUDE.md
+  gives: a control copied three times is one the fourth forgets. Falsified by
+  `tools/falsify/specs/ssh-suite-needs-its-images.json`, five mutations,
+  including the one where a suite keeps the guard and stops calling it.
+
+  **Why the fallback stopped being a fallback**, which is the part worth
+  keeping. #203 chose to boot the upstream image when the emulator holds none of
+  its own, deliberately, so a first contact still works. #202 then gave a
+  machine exactly the one address its provider publishes, on a routed NIC with
+  no NAT. The two are fine apart and not together: measured on 2026-08-20, an
+  upstream image's cloud-init dies on `Temporary failure resolving
+  'archive.ubuntu.com'`, `openssh-server` never installs, and nothing ever
+  listens on port 22. The emulator's warning said "the machine installs an ssh
+  daemon at first boot and needs outbound network to do it", which was true when
+  it was written and had quietly become a description of something that cannot
+  happen. It now says what does happen.
+
+  This also unblocks the counter of #125: its promotion criterion is a run of
+  consecutive green scheduled nights, so while this stayed broken that number
+  was pinned at zero by construction and nothing said so.
+
 - **The frozen CLI surface is read from the flag sets the binary registers, not
   from the help it prints** (#334). `feint proxy --intercept` shipped in v0.9.0:
   the binary accepted it, `feint proxy --help` rendered it, and

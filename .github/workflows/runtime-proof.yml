@@ -200,6 +200,26 @@ jobs:
           go build -o feint ./cmd/feint
           sudo ./feint doctor --vm "${MODE}"
 
+      # The images the machines boot, built before anything needs them (#335).
+      #
+      # This is not a convenience. Without them the driver falls back to an
+      # upstream image, which carries no ssh daemon; and since #202 a machine
+      # holds exactly the address its provider publishes, on a routed NIC with
+      # no NAT, so cloud-init cannot install one either. The workflow was red
+      # on the "Scaleway ssh suite" step for five consecutive scheduled nights
+      # (2026-08-16 to 2026-08-20) for that reason alone, with `fix="feint
+      # images"` printed in its own log every night and nothing reading it.
+      #
+      # The step is half the fix. The other half is in
+      # tools/conformance/guard.sh: the ssh suites now refuse to start when the
+      # images are missing, so deleting this step fails at the doorstep with the
+      # command to run, instead of ninety seconds later on an ssh timeout that
+      # blames the network.
+      - name: Build the machine images the suites boot
+        env:
+          MODE: ${{ matrix.mode }}
+        run: sudo ./feint images --vm "${MODE}"
+
       # The same verified installs as conformance.yml, because the ssh and
       # network suites drive the official clients, not curl.
       - name: Install the Scaleway CLI
