@@ -11,7 +11,7 @@
 #
 #     - uses: stephrobert/setup-feint@v1
 #       with:
-#         version: 0.9.0
+#         version: 0.10.0
 #         provider: scaleway
 #
 # which installs the verified binary and exports the client environment. Use the
@@ -36,7 +36,7 @@ jobs:
       feint:
         # One tag per release, and no `latest`: a mutable reference pulls
         # whatever is newest, which is an image nobody can name afterwards.
-        image: ghcr.io/stephrobert/feint:v0.9.0
+        image: ghcr.io/stephrobert/feint:v0.10.0
         ports:
           - 4599:4599
 

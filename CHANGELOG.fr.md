@@ -17,6 +17,8 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-08-20
+
 ### Ajouté
 
 - **`feint proxy --forward` enregistre un client dont l'endpoint est codé en

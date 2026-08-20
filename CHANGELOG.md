@@ -15,6 +15,8 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-08-20
+
 ### Added
 
 - **`feint proxy --forward` records a client whose endpoint is compiled in**

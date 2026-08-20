@@ -59,7 +59,7 @@ body:
     attributes:
       label: Versions
       description: Feint, the client, and the provider — `feint version`, `terraform version`.
-      placeholder: "feint 0.9.0, terraform 1.13.3, scaleway/scaleway 2.81.0"
+      placeholder: "feint 0.10.0, terraform 1.13.3, scaleway/scaleway 2.81.0"
     validations:
       required: true
 
