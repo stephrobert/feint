@@ -261,7 +261,16 @@ func Formula(spec Spec) (string, error) {
 	fmt.Fprintf(&b, "class %s < Formula\n", className(repo))
 	fmt.Fprintf(&b, "  desc %q\n", formulaDesc)
 	fmt.Fprintf(&b, "  homepage \"https://github.com/%s\"\n", spec.Slug)
-	fmt.Fprintf(&b, "  version %q\n", spec.Version)
+	// No `version` stanza: brew scans it from the download URL, and declaring it
+	// again is what `brew audit` refuses — "`version 0.9.0` is redundant with
+	// version scanned from URL", measured against Homebrew 5.1.15 on 2026-08-20
+	// with a formula that carried it.
+	//
+	// Dropping it makes the version implicit, which would normally be the worse
+	// trade here. It is safe because the `test do` block below asserts that the
+	// version brew scanned is the one the installed binary reports: if the asset
+	// naming ever changes shape and brew scans the wrong string, `brew test`
+	// fails rather than a wrong version being published quietly.
 	fmt.Fprintf(&b, "  license %q\n", spec.License)
 
 	for _, group := range groupByOS(bins) {
