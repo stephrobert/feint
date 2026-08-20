@@ -40,6 +40,79 @@ Two properties matter and are enforced, not documented:
 A client the cloud walks away from by republishing its own address needs one more
 flag, `--intercept`; it has its own section below.
 
+## Record a client whose endpoint is compiled in
+
+The command above needs a client you can redirect. Some cannot be: Pépin's
+collectors hold `https://api.scaleway.com`, `https://api-{zone}.exoscale.com/v2`
+and `https://api.{region}.{host}/api/v1` in their source, and adding a
+configurable endpoint was **refused** on their own delivery audit — every
+collection request carries a live secret key, so a redirectable endpoint is a way
+to send a tenant's credentials to a host of somebody else's choosing. The
+redirect belongs outside the tool being measured.
+
+`--forward` is that outside. It makes the proxy a **forward** proxy: it accepts
+`CONNECT api.scaleway.com:443`, terminates the TLS with a certificate minted for
+the run, records the exchange, and re-originates to the real host.
+
+```bash
+feint proxy --forward api.scaleway.com,'*.exoscale.com' --record real.jsonl
+#   forwarding for api.scaleway.com, *.exoscale.com
+#   CA written to /tmp/feint-intercept-ca-1655051664.pem (a temporary file, removed on exit)
+#   drive a client whose endpoint is compiled in with:
+#     export HTTPS_PROXY=http://127.0.0.1:4600
+#     export SSL_CERT_FILE=/tmp/feint-intercept-ca-1655051664.pem
+```
+
+Nothing changes in the client. A Go client that installs no `Transport` inherits
+`http.DefaultTransport`, which honours `HTTPS_PROXY` on its own; `SSL_CERT_FILE`
+is what makes it trust the certificate the tunnel presents. Measured end to end
+on 2026-08-20 against a local HTTPS server, with a client whose endpoint is a
+constant:
+
+```json
+{"seq":1,"host":"api.localhost:8443","method":"POST",
+ "path":"/instance/v1/zones/fr-par-1/servers","query":"x-amz-signature=REDACTED",
+ "operation":"instance/v1/API.CreateServer","provider":"scaleway","status":200,
+ "req":{"headers":{"User-Agent":"pepin-shaped-collector/1.0",
+                   "X-Auth-Token":"REDACTED","X-Consumer":"REDACTED"}},
+ "res":{"headers":{"X-Session-Token":"REDACTED"},
+        "body":{"servers":[{"id":"c2f1a7b0-…","public_ip":{"address":"51.15.0.1"}}]}}}
+```
+
+The cloud received every one of those values in full — the recorder alters
+nothing on the wire — and the file holds none of them.
+
+Four properties, each of them a requirement rather than a precaution, and each
+with a test that fails without it (`tools/falsify/specs/forward-proxy.json`
+replays all seven):
+
+- **The redaction survives the interception.** The tunnel records through the
+  same `capture` as everything else, so there is no second path to the writer to
+  forget. `TestASecretHeaderIsStillRedactedThroughCONNECT` drives a real TLS
+  session and asserts both ends of it, including an `X-Consumer` header — the
+  name a denylist wrote out in clear while redacting an `X-Auth-Token` holding
+  the same value.
+- **Loopback only, and `--expose-to-network` does not lift it here.** A forward
+  proxy holds an authority whose certificates a client has been told to trust:
+  off loopback it is not a relay but a machine that decrypts and files whatever
+  anyone who can reach the port sends it.
+- **The authority is ephemeral and never installed.** The CA is generated in
+  memory at startup, written to one temporary file, and removed when the command
+  returns. It never goes near the system trust store, and the leaf it signs
+  cannot itself sign anything.
+- **Only the hosts you name are intercepted.** A `CONNECT` to any other host is
+  refused with a 403, counted, and reported at exit. Refused rather than relayed
+  blind, because a blind relay writes a transcript that silently misses
+  exchanges — the failure the handoff counter below exists to report. A wildcard
+  covers one label (`*.exoscale.com` matches `api-ch-gva-2.exoscale.com` and
+  never `a.b.exoscale.com`), and `--forward '*'` is refused outright: that flag
+  would be a wiretap on everything the measured process does.
+
+`--forward` and `--upstream` are two different proxies and are not passed
+together; neither are `--forward` and `--intercept`, which are two ways to reach
+the same interception (`--intercept` serves TLS on the listener itself, for a
+client redirected by name — see [limits.md](limits.md)).
+
 ## Read
 
 `feint transcript` answers the three questions, in order of value.
@@ -242,13 +315,32 @@ Two things follow, and the first one matters most:
   signature. Every "what does the provider actually call" question is answerable
   today; only "what does the real cloud answer *to this client*" is not.
 
-Lifting it needs DNS and TLS interception so the client can be pointed at the
-real hostname and still land here, and **that is `--intercept`, above**: the
-client addresses `api.eu-west-2.outscale.com`, signs that name, and the name is
-what reaches the cloud. The ceremony is the price — the client has to run in a
-namespace that resolves the name to the proxy — so a recording made without it
-is still made with a client whose signed host can be set independently, which is
-how the transcripts behind this page's examples were produced.
+Lifting it needs the client to address the real hostname and still land here.
+Two doors now do that, and both mint the certificate the same way — the cost is
+measured in [limits.md](limits.md), *The cost of DNS/TLS interception*: the TLS
+half is cheap and every Go client accepts a locally minted CA through
+`SSL_CERT_FILE`.
+
+- `--intercept` redirects by **name**, and that half is the expensive one:
+  pointing a hostname at loopback has no client-scoped, unprivileged mechanism
+  for a static pure-Go client, so it needs a namespace of the client's own (a
+  container's `/etc/hosts`).
+- `--forward` redirects by **proxy**, and needs no name redirect at all: the
+  client asks for `api.eu-west-2.outscale.com` and the proxy re-originates to
+  that same host, with the `Host` header it received.
+
+**What that means for a signed client is reasoning, not a measurement.** The
+signature covers `Host`; through a tunnel the client signs the cloud's own name,
+and the header reaches the cloud unaltered, which
+`TestASecretHeaderIsStillRedactedThroughCONNECT` asserts against a local server.
+Whether a real
+`oapi-cli` against a real Outscale account then answers 200 has **not** been
+measured here, and this project takes no real-account measurement in CI. If you
+have such an account, that is the run worth making, and this page will say what
+it found rather than what it expects.
+
+Until then, a real-cloud recording is made with a client whose signed host can be
+set — which is how the transcripts behind this page's examples were produced.
 
 Until 2026-08-20 this paragraph said the opposite: *"which is #76 and
 deliberately not this tool"*. The flag shipped in v0.9.0, `docs/limits.md` sent
@@ -266,6 +358,52 @@ with a comparable resource before trusting an absence, and read a `(absent)` on 
 field the sampled resource would not carry as "not shown here", not "omitted".
 Type mismatches (a `number` upstream, a `string` in the emulator) do not have
 this caveat: both sides had the field.
+
+## What a recording contains, and what to sanitise before sharing it
+
+A transcript is redacted of credentials and is **not** anonymous. It is the
+inventory of a real account, written down by something whose whole purpose is to
+alter nothing. Read this table before a recording leaves the machine it was made
+on.
+
+| field | what it carries | after redaction |
+|---|---|---|
+| `host` | the authority the client addressed | verbatim — the cloud, the zone, sometimes the region |
+| `path`, `query` | the request line | verbatim, **identifiers included**: `/servers/{a real UUID}`. Only a parameter whose *name* carries a credential becomes `REDACTED` |
+| `operation`, `provider` | what the pack calls this route | invented here, carries nothing of the account |
+| `req.headers` | the request's header names | names in full, values dropped unless the name is on the allowlist (`Accept`, `Content-Type`, `User-Agent`, `Host`, …) |
+| `req.body`, `res.body` | the payloads | **verbatim**, except values under a key naming a credential. This is the measurement, and it is why the file is worth having |
+| `res.headers` | the answer's header names | same rule as the request's |
+
+So the bodies hold what the account holds: resource and project identifiers,
+machine and bucket names, public and private addresses, tags, and whatever a
+colleague put in a description field. The proxy writes the transcript `0600` and
+prints nothing of it, and that is the whole of what the tool can do for you.
+
+**Sanitise before you share, and sanitise completely.** Partial sanitisation is
+the trap, not an improvement: Pépin's delivery audit opened on a real instance
+UUID left in a fixture whose IP address had been scrubbed — the scrubbing is what
+made the file look reviewed. Before a recording, or anything derived from one,
+enters a repository or an issue:
+
+1. Replace every identifier — UUIDs, project and account numbers, resource names
+   — with invented values, in `path` and in the bodies alike.
+2. Replace every address: public IPs, private ranges, DNS names of your own.
+3. Re-read the bodies for free text: descriptions, tags, key names, bucket
+   names, the name of the person who created the resource.
+4. Search the result for the account's own identifiers one last time. `grep` for
+   the project UUID is thirty seconds and it is the step the audit's fixture
+   skipped.
+
+A test fixture is **built from the observed shape with invented values**, and
+says so, rather than being a recording with a few values crossed out. The field
+tree is what carries the knowledge; the values never did.
+
+Two things in this repository already do that for you, and neither is the
+transcript: `feint shapes --record` stores field trees with identifiers folded
+into `{id}` and no values at all, which is why `shapes/*.json` is committed;
+`feint transcript --shape` prints the same tree out of a recording. If what you
+want to share is "what the cloud answers", share one of those.
 
 ## Doing it against a real, billed account
 

@@ -9,7 +9,9 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"net"
 	"os"
+	"sync"
 	"time"
 
 	"crypto/tls"
@@ -39,11 +41,35 @@ import (
 // the CA is minted to a caller-supplied path (a namespace's temporary file), the
 // leaf is short-lived and not itself a CA (it cannot be repurposed as a trust
 // anchor), and neither half is ever installed into the operator's system store.
+//
+// # Two ways in, one authority
+//
+// [MintInterceptor] covers a set of names known up front: the operator says
+// which names a client will be redirected to, and one leaf covers all of them.
+// [MintAuthority] covers a set nobody can write down in advance, which is what
+// the forward proxy of #336 meets — it learns the name one `CONNECT
+// host:port` at a time. Both keep the same CA, because the client trusts
+// exactly one file for the whole run: a second CA minted mid-session would be a
+// certificate nothing has been told to trust, and every call after it would
+// fail with an error naming the wrong cause.
 type Interceptor struct {
+	// The authority itself, kept rather than discarded after the first leaf:
+	// [Interceptor.TLSFor] signs one more whenever a tunnel names a host this
+	// run has not seen yet.
+	caKey  *ecdsa.PrivateKey
+	caCert *x509.Certificate
+	caDER  []byte
+
 	tlsConfig *tls.Config
 	caPEM     []byte
 	pool      *x509.CertPool
 	hosts     []string
+
+	// leaves are what has been minted for a name so far. Bounded by the caller:
+	// the forward proxy only ever asks for a host its own allowlist admitted, so
+	// a client CONNECTing to a million names cannot grow this map.
+	mu     sync.Mutex
+	leaves map[string]*tls.Certificate
 }
 
 // leafValidity bounds how long a minted leaf is accepted.
@@ -74,6 +100,34 @@ func MintInterceptor(hosts ...string) (*Interceptor, error) {
 		}
 	}
 
+	i, err := MintAuthority()
+	if err != nil {
+		return nil, err
+	}
+	leaf, err := i.mint(hosts...)
+	if err != nil {
+		return nil, err
+	}
+	// The whole set on one leaf, presented to every connection: the names are
+	// known here, so nothing has to be decided per handshake and a client
+	// connecting by address rather than by name still gets a certificate.
+	i.tlsConfig.Certificates = []tls.Certificate{*leaf}
+	i.hosts = append([]string(nil), hosts...)
+	return i, nil
+}
+
+// MintAuthority builds the CA alone, for names that are not known yet.
+//
+// It is what the forward proxy holds: `CONNECT api.scaleway.com:443` names its
+// host at the moment the tunnel opens, so the leaf cannot be minted before the
+// client speaks. [Interceptor.TLSFor] signs one then, under this CA — the one
+// the client was told to trust through SSL_CERT_FILE before the run started.
+//
+// The CA is the same shape as the one MintInterceptor uses and lives as long as
+// the process: generated in memory, written only where the caller asks, never
+// installed anywhere. TestTheForwardProxyMintsUnderOneEphemeralAuthority fails
+// if a second authority appears mid-run.
+func MintAuthority() (*Interceptor, error) {
 	notBefore := time.Now().Add(-time.Minute)
 	notAfter := time.Now().Add(leafValidity)
 
@@ -99,6 +153,33 @@ func MintInterceptor(hosts ...string) (*Interceptor, error) {
 		return nil, fmt.Errorf("parse the CA back: %w", err)
 	}
 
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER})
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caPEM) {
+		return nil, fmt.Errorf("the minted CA does not parse as a trust root")
+	}
+
+	return &Interceptor{
+		caKey:     caKey,
+		caCert:    caCert,
+		caDER:     caDER,
+		tlsConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+		caPEM:     caPEM,
+		pool:      pool,
+		leaves:    map[string]*tls.Certificate{},
+	}, nil
+}
+
+// mint signs one leaf covering hosts, under this authority's CA.
+//
+// An IP literal goes into IPAddresses rather than DNSNames, because a client
+// that dialled an address validates it there and nowhere else: a leaf carrying
+// "127.0.0.1" as a DNS name is rejected by every verifier, and the failure reads
+// as an untrusted CA rather than as a certificate for the wrong subject.
+func (i *Interceptor) mint(hosts ...string) (*tls.Certificate, error) {
+	notBefore := time.Now().Add(-time.Minute)
+	notAfter := time.Now().Add(leafValidity)
+
 	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, fmt.Errorf("generate the leaf key: %w", err)
@@ -110,32 +191,58 @@ func MintInterceptor(hosts ...string) (*Interceptor, error) {
 		NotAfter:     notAfter,
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		DNSNames:     append([]string(nil), hosts...),
 	}
-	leafDER, err := x509.CreateCertificate(rand.Reader, leafTmpl, caCert, &leafKey.PublicKey, caKey)
+	for _, h := range hosts {
+		if ip := net.ParseIP(h); ip != nil {
+			leafTmpl.IPAddresses = append(leafTmpl.IPAddresses, ip)
+			continue
+		}
+		leafTmpl.DNSNames = append(leafTmpl.DNSNames, h)
+	}
+	leafDER, err := x509.CreateCertificate(rand.Reader, leafTmpl, i.caCert, &leafKey.PublicKey, i.caKey)
 	if err != nil {
 		return nil, fmt.Errorf("sign the leaf: %w", err)
 	}
-
-	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER})
-	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM(caPEM) {
-		return nil, fmt.Errorf("the minted CA does not parse as a trust root")
-	}
-
-	return &Interceptor{
-		tlsConfig: &tls.Config{
-			MinVersion: tls.VersionTLS12,
-			Certificates: []tls.Certificate{{
-				Certificate: [][]byte{leafDER, caDER},
-				PrivateKey:  leafKey,
-				Leaf:        leafTmpl,
-			}},
-		},
-		caPEM: caPEM,
-		pool:  pool,
-		hosts: append([]string(nil), hosts...),
+	return &tls.Certificate{
+		Certificate: [][]byte{leafDER, i.caDER},
+		PrivateKey:  leafKey,
+		Leaf:        leafTmpl,
 	}, nil
+}
+
+// TLSFor is the server configuration for one intercepted connection to host.
+//
+// The certificate is pinned to the host the caller names, and the SNI the client
+// sends is deliberately not consulted. The tunnel re-originates to the address
+// its `CONNECT` line named, so minting for a different SNI would present a
+// certificate for one host while talking to another — the one dishonesty a
+// recorder must not commit. A client whose SNI disagrees with its own CONNECT
+// gets a certificate it refuses, which is loud and correct.
+//
+// One leaf per host, kept: a session is hundreds of requests over a handful of
+// tunnels, and re-signing per connection would put a key generation on the
+// critical path of every one of them.
+//
+// TestTheForwardProxyMintsUnderOneEphemeralAuthority fails without the refusal
+// of an empty host, and without the single authority every leaf chains to.
+func (i *Interceptor) TLSFor(host string) (*tls.Config, error) {
+	if host == "" {
+		return nil, fmt.Errorf("no host to intercept: a certificate covering nothing terminates nothing")
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	leaf, known := i.leaves[host]
+	if !known {
+		minted, err := i.mint(host)
+		if err != nil {
+			return nil, err
+		}
+		i.leaves[host] = minted
+		leaf = minted
+	}
+	cfg := i.tlsConfig.Clone()
+	cfg.Certificates = []tls.Certificate{*leaf}
+	return cfg, nil
 }
 
 // serial draws a random 128-bit certificate serial. Two certificates minted in
@@ -155,6 +262,11 @@ func serial() *big.Int {
 
 // ServerTLSConfig is the configuration the proxy's listener serves. It presents
 // the minted leaf for every intercepted name.
+//
+// It belongs to [MintInterceptor], whose names are known before a client
+// connects. An authority from [MintAuthority] carries no leaf yet and answers a
+// configuration with none: what a tunnel serves is [Interceptor.TLSFor], per
+// connection, for the host its own CONNECT line named.
 func (i *Interceptor) ServerTLSConfig() *tls.Config { return i.tlsConfig.Clone() }
 
 // CAPEM is the CA in PEM, the bytes [Interceptor.WriteCA] writes. A caller that

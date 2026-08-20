@@ -100,7 +100,7 @@ const (
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 5
+const cliSurfaceVersion = 6
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -282,16 +282,23 @@ Usage:
 
   feint proxy      --upstream <url> --record <file.jsonl> [--addr 127.0.0.1:4600]
                     [--provider <name>] [--max-body <bytes>] [--queue <n>]
-                    [--intercept <host,host>] [--expose-to-network]
+                    [--intercept <host,host>] [--forward <host,...>]
+                    [--expose-to-network]
                     Sit between a real client and a real cloud and write down
                     every exchange, as JSON Lines, one object per call, with the
                     upstream operation named. Credentials are redacted before
                     anything is written. Point the client at --addr and drive it
-                    as usual. --intercept serves HTTPS with a locally-minted
+                    as usual. Two ways reach a client you cannot redirect by
+                    configuration. --intercept serves HTTPS with a locally-minted
                     certificate for those hostnames, so a client redirected here
-                    by name trusts the proxy and lands on it; docs/proxy.md says
-                    what it costs, as does --expose-to-network, which puts this
-                    port and the account behind it on the network.
+                    by name trusts the proxy and lands on it. --forward records a
+                    client whose endpoint is compiled in: it accepts CONNECT for
+                    the hosts you name, terminates the TLS with a certificate
+                    minted for the run, and needs nothing of the client but
+                    HTTPS_PROXY and SSL_CERT_FILE. Loopback only, in every mode;
+                    docs/proxy.md says what each costs, as does
+                    --expose-to-network, which puts this port and the account
+                    behind it on the network.
 
   feint transcript <recording.jsonl> [--shape OP [--against emu.jsonl]] [--format text|json]
                     Read a proxy recording and answer what to serve next. With no

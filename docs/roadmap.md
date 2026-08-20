@@ -438,6 +438,17 @@ retained, it is an item with a named owner and a measured shape —
 devcontainer, a temporary hosts entry), never a system trust-store install and
 never a hosts file the binary edits itself.
 
+**What #336 changed about the blocking half, and what it did not.** `feint proxy
+--forward` (2026-08-20) accepts `CONNECT` and needs no name redirect at all: a
+client that honours `HTTPS_PROXY` hands the proxy the hostname itself. So the
+half that was called the blocker has a second door for **any client that reads
+that variable** — measured on a Go client which installs no `Transport`, which is
+the ordinary case. What stays unmeasured is the one that would reopen the
+arbitration: whether the Scaleway Terraform provider's S3 client honours
+`HTTPS_PROXY` for its built-in `https://s3.<region>.scw.cloud`. Until somebody
+runs that, the decline stands on its coverage argument — one product on one
+client — and not on the redirect being impossible.
+
 ### Considered in the same pass, and not queued
 
 Named rather than left floating, which is the same discipline as `Declined()`:

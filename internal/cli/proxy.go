@@ -40,22 +40,26 @@ func proxyCommand(args []string, _ io.Writer, stderr io.Writer) int {
 	queue := fs.Int("queue", proxy.DefaultQueue, "how many exchanges may wait to be written before one is dropped")
 	expose := fs.Bool("expose-to-network", false, "listen off loopback, which offers this proxy's transcript and this cloud account to the network")
 	intercept := fs.String("intercept", "", "serve HTTPS with a locally-minted certificate for these comma-separated hostnames, so a client redirected to this proxy by name (a container's own /etc/hosts) trusts it and lands here; see docs/limits.md #76")
+	forward := fs.String("forward", "", "be a forward proxy for these comma-separated hostnames: accept CONNECT, terminate the TLS with a locally-minted certificate and record it, so a client whose endpoint is compiled in is recorded through HTTPS_PROXY alone; see docs/proxy.md")
 	if err := fs.Parse(args); err != nil {
 		return exitError
 	}
 
-	if *upstream == "" {
-		fmt.Fprintln(stderr, "feint: --upstream is required: a proxy with nothing to forward to records nothing")
+	if err := checkProxyMode(*upstream, *forward, *intercept); err != nil {
+		fmt.Fprintf(stderr, "feint: %v\n", err)
 		return exitError
 	}
 	if *record == "" {
 		fmt.Fprintln(stderr, "feint: --record is required: pass a path, or - for stdout")
 		return exitError
 	}
-	if err := checkProxyAddr(*addr, *expose); err != nil {
+	if err := checkProxyAddr(*addr, *expose, *forward != ""); err != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", err)
 		return exitError
 	}
+	// Parsed even in forward mode, where it is empty and unused: url.Parse of ""
+	// is a valid empty URL, and the branch that skipped it would be one more
+	// thing to keep in step for nothing.
 	target, err := url.Parse(*upstream)
 	if err != nil {
 		fmt.Fprintf(stderr, "feint: --upstream %q: %v\n", *upstream, err)
@@ -75,34 +79,78 @@ func proxyCommand(args []string, _ io.Writer, stderr io.Writer) int {
 	}
 
 	writer := proxy.NewWriter(out, *queue)
-	p, err := proxy.New(proxy.Options{
-		Upstream: target,
-		Writer:   writer,
-		Table:    table,
-		MaxBody:  *maxBody,
-		Log:      slog.New(slog.NewTextHandler(stderr, nil)),
-	})
-	if err != nil {
-		_ = writer.Close()
-		_ = closeOut()
-		fmt.Fprintf(stderr, "feint: %v\n", err)
-		return exitError
+	logger := slog.New(slog.NewTextHandler(stderr, nil))
+
+	// rec is what listens. The two modes differ in where a request goes and in
+	// nothing else: both record through this writer, by the same capture, under
+	// the same redaction. A forward proxy that had its own recording path would
+	// be a second door to the transcript, which is what proxy.Redacted exists to
+	// make impossible.
+	var (
+		rec       proxyRecorder
+		forwarder *proxy.Forward
+	)
+	if *forward != "" {
+		authority, caPath, removeCA, err := mintTemporaryAuthority()
+		if err != nil {
+			_ = writer.Close()
+			_ = closeOut()
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
+		// The CA outlives nothing: it is a temporary file removed when this
+		// command returns, whatever the exit path, and it is never installed
+		// anywhere a process could trust it by accident.
+		defer removeCA()
+		forwarder, err = proxy.NewForward(proxy.ForwardOptions{
+			Hosts:     splitHosts(*forward),
+			Writer:    writer,
+			Table:     table,
+			MaxBody:   *maxBody,
+			Log:       logger,
+			Authority: authority,
+		})
+		if err != nil {
+			_ = writer.Close()
+			_ = closeOut()
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
+		rec = forwarder
+		printForwardRecipe(stderr, splitHosts(*forward), *addr, caPath)
+	} else {
+		p, err := proxy.New(proxy.Options{
+			Upstream: target,
+			Writer:   writer,
+			Table:    table,
+			MaxBody:  *maxBody,
+			Log:      logger,
+		})
+		if err != nil {
+			_ = writer.Close()
+			_ = closeOut()
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
+		rec = p
 	}
 
 	// Everything this command says goes to stderr, without exception: --record -
 	// puts the transcript on stdout, and a status line landing in the middle of a
 	// JSON Lines stream would break every reader of it.
 	fmt.Fprintf(stderr, "feint proxy listening on %s\n", *addr)
-	fmt.Fprintf(stderr, "  upstream  %s\n", target)
+	if *forward == "" {
+		fmt.Fprintf(stderr, "  upstream  %s\n", target)
+	}
 	fmt.Fprintf(stderr, "  recording %s\n", *record)
 	fmt.Fprintf(stderr, "  naming    %s\n", namingOf(*provider))
-	if *intercept == "" {
+	if *intercept == "" && *forward == "" {
 		fmt.Fprintf(stderr, "  point a client at http://%s and drive it as usual\n", *addr)
 	}
 
 	srv := &http.Server{
 		Addr:    *addr,
-		Handler: p,
+		Handler: rec,
 		// The only timeout set, and the omissions are deliberate: a real cloud
 		// answering a large list is allowed to take its time, and a proxy that
 		// cut the response would be blamed for the cloud's latency. This one
@@ -158,14 +206,27 @@ func proxyCommand(args []string, _ io.Writer, stderr io.Writer) int {
 
 	written, dropped := writer.Stats()
 	fmt.Fprintf(stderr, "\nrecorded %d exchange(s) to %s\n", written, *record)
-	if unnamed := p.Unnamed(); unnamed > 0 {
+	if forwarder != nil {
+		fmt.Fprintf(stderr, "%d tunnel(s) terminated\n", forwarder.Tunnels())
+		if refused, hosts := forwarder.Refused(); refused > 0 {
+			// Named rather than counted alone: every refusal is a call the
+			// client made and this transcript does not carry, and the operator
+			// can only tell "the client tried something else" from "I forgot a
+			// host" by reading which.
+			fmt.Fprintf(stderr,
+				"%d connection(s) were refused because --forward does not name their host: %s\n"+
+					"  the client's own calls to them failed, and none of them is in this transcript.\n",
+				refused, strings.Join(sortedHosts(hosts), ", "))
+		}
+	}
+	if unnamed := rec.Unnamed(); unnamed > 0 {
 		// The product, printed rather than left in the file for someone to grep
 		// for: an exchange no pack claims is a route a real client walks and this
 		// emulator does not serve. That is the list #74 will rank.
 		fmt.Fprintf(stderr, "%d of them walked a route no pack claims: grep '\"operation\":\"\"' or filter on .mounted == false\n",
 			unnamed)
 	}
-	if handed, hosts := p.HandedElsewhere(); handed > 0 {
+	if handed, hosts := rec.HandedElsewhere(); handed > 0 {
 		// The other half of the product, and the one that would otherwise be
 		// invisible: an answer that gave the client a different address. If the
 		// client followed it, everything after this point left no trace here,
@@ -191,7 +252,50 @@ func proxyCommand(args []string, _ io.Writer, stderr io.Writer) int {
 	return exitOK
 }
 
-// checkProxyAddr refuses to offer the proxy to the network unless asked.
+// proxyRecorder is what `feint proxy` mounts: a handler that also answers what
+// its own transcript does not cover.
+//
+// The interface exists so the summary at the end of a run is written once. Both
+// modes produce the same two findings — an exchange no pack names, an answer
+// that handed the client an address — and a second copy of that reporting is a
+// second place for one of them to be forgotten.
+type proxyRecorder interface {
+	http.Handler
+	Unnamed() int64
+	HandedElsewhere() (int64, map[string]int64)
+}
+
+// checkProxyMode refuses an invocation that names two doors, or none.
+//
+// The two doors do opposite things with the address a client asks for.
+// --upstream sends every request to the one host the operator named, whatever
+// the client asked; --forward sends each request to the host the client asked
+// for, which is what a CONNECT names. An invocation carrying both has not said
+// which, and picking one silently is how an operator ends up with a transcript
+// of the wrong endpoint. --intercept is the third: it serves TLS on the
+// listener itself, for a client redirected by name, and that is the same
+// question answered a different way.
+// TestProxyRefusesTwoDoorsAtOnce fails without this, and TestProxyRefusesAnUnusableInvocation
+// drives the same refusals through the command.
+func checkProxyMode(upstream, forward, intercept string) error {
+	switch {
+	case upstream != "" && forward != "":
+		return fmt.Errorf("--upstream and --forward are two different proxies: --upstream sends every " +
+			"request to one host you chose, --forward sends each one to the host the client asked for. " +
+			"Pass one")
+	case forward != "" && intercept != "":
+		return fmt.Errorf("--forward and --intercept are two ways to reach the same interception: " +
+			"--forward accepts CONNECT from a client honouring HTTPS_PROXY, --intercept serves TLS to " +
+			"a client redirected to this proxy by name. Pass one")
+	case upstream == "" && forward == "":
+		return fmt.Errorf("--upstream is required: a proxy with nothing to forward to records nothing " +
+			"(or --forward, to record whichever host the client asks for)")
+	}
+	return nil
+}
+
+// checkProxyAddr refuses to offer the proxy to the network unless asked, and
+// refuses it outright in forward mode.
 //
 // The reason is not serve's. There is no browser guard here and nothing to
 // rebind: what an open port on this proxy offers is a relay to a real cloud and,
@@ -199,11 +303,23 @@ func proxyCommand(args []string, _ io.Writer, stderr io.Writer) int {
 // file. Loopback by default, and an operator who wants otherwise says so in a
 // flag they can be held to.
 //
+// --forward does not get that flag. A forward proxy holds an authority whose
+// certificates a client has been told to trust, so off loopback it is not a
+// relay but a machine that decrypts and files whatever any reachable client
+// sends it — including credentials belonging to someone who never started it.
+// The reverse proxy at least only ever reaches the one upstream its operator
+// named. TestAForwardProxyIsRefusedOffLoopback fails without this.
+//
 // A function rather than a branch inside proxyCommand, for the reason
 // checkListenAddr is one: with the refusal removed, a test that drove the
 // command would find it listening and never return. TestProxyRefusesANonLoopbackAddress
 // fails without this.
-func checkProxyAddr(addr string, expose bool) error {
+func checkProxyAddr(addr string, expose, forward bool) error {
+	if forward && expose {
+		return fmt.Errorf("refusing --expose-to-network with --forward: this proxy mints certificates " +
+			"a client has been told to trust, so off loopback it decrypts and records whatever anyone " +
+			"who can reach the port sends through it. Record on loopback")
+	}
 	if emulator.LoopbackListen(addr) || expose {
 		return nil
 	}
@@ -231,14 +347,8 @@ func setUpInterception(hosts, addr string, stderr io.Writer) (*tls.Config, func(
 	if err != nil {
 		return nil, nil, fmt.Errorf("mint the interception certificate: %w", err)
 	}
-	caFile, err := os.CreateTemp("", "feint-intercept-ca-*.pem")
+	caPath, cleanup, err := publishCA(ic)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create the CA file: %w", err)
-	}
-	caPath := caFile.Name()
-	_ = caFile.Close()
-	if err := ic.WriteCA(caPath); err != nil {
-		_ = os.Remove(caPath)
 		return nil, nil, err
 	}
 
@@ -254,7 +364,64 @@ func setUpInterception(hosts, addr string, stderr io.Writer) (*tls.Config, func(
 		fmt.Fprintf(stderr, "    # resolve %s to this proxy (a container's own /etc/hosts, never yours):\n", n)
 		fmt.Fprintf(stderr, "    #   podman run --add-host=%s:host-gateway ... , proxy reachable on :%s\n", n, port)
 	}
-	return ic.ServerTLSConfig(), func() { _ = os.Remove(caPath) }, nil
+	return ic.ServerTLSConfig(), cleanup, nil
+}
+
+// mintTemporaryAuthority builds the authority a forward proxy signs with, and
+// publishes its CA where the client can be told to trust it.
+//
+// The names are not known here and cannot be: a forward proxy learns them one
+// CONNECT at a time. What is known before the client starts is the CA, which is
+// exactly what SSL_CERT_FILE needs to point at.
+func mintTemporaryAuthority() (*proxy.Interceptor, string, func(), error) {
+	authority, err := proxy.MintAuthority()
+	if err != nil {
+		return nil, "", nil, fmt.Errorf("mint the interception authority: %w", err)
+	}
+	caPath, cleanup, err := publishCA(authority)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	return authority, caPath, cleanup, nil
+}
+
+// publishCA writes an interception CA to a temporary file, and returns how to
+// remove it.
+//
+// A temporary file and never the system trust store, which is the whole safety
+// argument: the certificates this run mints are trusted by the one process the
+// operator points at this file, for as long as the command runs, and by nothing
+// else afterwards. TestTheInterceptionCAIsTemporaryAndNeverInstalled fails if
+// this writes anywhere durable.
+func publishCA(ic *proxy.Interceptor) (string, func(), error) {
+	caFile, err := os.CreateTemp("", "feint-intercept-ca-*.pem")
+	if err != nil {
+		return "", nil, fmt.Errorf("create the CA file: %w", err)
+	}
+	caPath := caFile.Name()
+	_ = caFile.Close()
+	if err := ic.WriteCA(caPath); err != nil {
+		_ = os.Remove(caPath)
+		return "", nil, err
+	}
+	return caPath, func() { _ = os.Remove(caPath) }, nil
+}
+
+// printForwardRecipe says what to export so a client with a compiled-in endpoint
+// lands here.
+//
+// Two variables and nothing else — no /etc/hosts, no system trust store, no
+// change in the client — which is what makes this door the cheap one. The
+// warning is part of the recipe: what this records is decrypted, so it is said
+// where the operator is about to run the command rather than only in the docs.
+func printForwardRecipe(stderr io.Writer, names []string, addr, caPath string) {
+	fmt.Fprintf(stderr, "  forwarding for %s\n", strings.Join(names, ", "))
+	fmt.Fprintf(stderr, "  CA written to %s (a temporary file, removed on exit)\n", caPath)
+	fmt.Fprintln(stderr, "  drive a client whose endpoint is compiled in with:")
+	fmt.Fprintf(stderr, "    export HTTPS_PROXY=http://%s\n", addr)
+	fmt.Fprintf(stderr, "    export SSL_CERT_FILE=%s\n", caPath)
+	fmt.Fprintln(stderr, "  every exchange with those hosts is decrypted and written to the transcript;")
+	fmt.Fprintln(stderr, "  a CONNECT to any other host is refused, and reported at exit.")
 }
 
 // splitHosts turns the comma list --intercept takes into trimmed, non-empty

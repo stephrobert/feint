@@ -1,0 +1,57 @@
+{
+  "package": "./internal/proxy/",
+  "mutations": [
+    {
+      "label": "the recording stops redacting, and the tunnel writes a live tenant key into the transcript",
+      "file": "internal/proxy/record.go",
+      "find": "\tredactExchange(&x)\n\treturn Redacted{x: x}",
+      "replace": "\tif false {\n\t\tredactExchange(&x)\n\t}\n\treturn Redacted{x: x}",
+      "test": "TestASecretHeaderIsStillRedactedThroughCONNECT"
+    },
+    {
+      "label": "a CONNECT to a host nobody named is intercepted anyway, and the proxy decrypts whatever else the measured process does",
+      "file": "internal/proxy/forward.go",
+      "find": "\thost, port := splitTarget(r.Host)\n\tif !f.intercepts(host) {",
+      "replace": "\thost, port := splitTarget(r.Host)\n\tif !f.intercepts(host) && false {",
+      "test": "TestAHostNobodyNamedIsNotIntercepted"
+    },
+    {
+      "label": "--forward * is accepted, and the recorder becomes a wiretap on every TLS connection the client makes",
+      "file": "internal/proxy/forward.go",
+      "find": "\t\tif h == \"*\" || strings.HasPrefix(h, \"*.*\") {",
+      "replace": "\t\tif (h == \"*\" || strings.HasPrefix(h, \"*.*\")) && false {",
+      "test": "TestAForwardProxyRefusesAnUnusableHostSet"
+    },
+    {
+      "label": "a leaf is minted for no host at all, so a tunnel can present a certificate covering nothing",
+      "file": "internal/proxy/intercept.go",
+      "find": "\tif host == \"\" {\n\t\treturn nil, fmt.Errorf(\"no host to intercept: a certificate covering nothing terminates nothing\")",
+      "replace": "\tif host == \"\\x00never\" {\n\t\treturn nil, fmt.Errorf(\"no host to intercept: a certificate covering nothing terminates nothing\")",
+      "test": "TestTheForwardProxyMintsUnderOneEphemeralAuthority"
+    },
+    {
+      "label": "the proxy listens off loopback without being asked, and relays a real credential to whoever reaches the port",
+      "file": "internal/cli/proxy.go",
+      "find": "\tif emulator.LoopbackListen(addr) || expose {",
+      "replace": "\tif emulator.LoopbackListen(addr) || expose || true {",
+      "test": "TestProxyRefusesANonLoopbackAddress",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "--expose-to-network lifts the refusal for a forward proxy too, which offers its own authority to the network",
+      "file": "internal/cli/proxy.go",
+      "find": "\tif forward && expose {",
+      "replace": "\tif forward && expose && false {",
+      "test": "TestAForwardProxyIsRefusedOffLoopback",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "the interception CA is written somewhere durable instead of a temporary file",
+      "file": "internal/cli/proxy.go",
+      "find": "\tcaFile, err := os.CreateTemp(\"\", \"feint-intercept-ca-*.pem\")",
+      "replace": "\tcaFile, err := os.CreateTemp(\".\", \"feint-intercept-ca-*.pem\")",
+      "test": "TestTheInterceptionCAIsTemporaryAndNeverInstalled",
+      "package": "./internal/cli/"
+    }
+  ]
+}

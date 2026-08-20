@@ -479,6 +479,18 @@ de nom jetable à la main de l'opérateur (un devcontainer, une entrée hosts
 temporaire), jamais une installation dans le magasin de confiance du système
 et jamais un fichier hosts que le binaire éditerait lui-même.
 
+**Ce que #336 a changé à la moitié bloquante, et ce qu'il n'a pas changé.**
+`feint proxy --forward` (2026-08-20) accepte `CONNECT` et n'a besoin d'aucune
+redirection de nom : un client qui honore `HTTPS_PROXY` remet le nom d'hôte au
+proxy lui-même. La moitié qu'on appelait le blocage a donc une seconde porte
+pour **tout client qui lit cette variable** — mesuré sur un client Go qui
+n'installe pas de `Transport`, c'est-à-dire le cas ordinaire. Ce qui reste non
+mesuré est justement ce qui rouvrirait l'arbitrage : le client S3 du provider
+Terraform Scaleway honore-t-il `HTTPS_PROXY` pour son
+`https://s3.<region>.scw.cloud` codé en dur ? Tant que personne ne l'a mesuré,
+le refus tient par son argument de couverture — un produit sur un client — et
+non par l'impossibilité de la redirection.
+
 ### Considéré dans la même passe, et non mis en file
 
 Nommé plutôt que laissé flotter, la même discipline que `Declined()` :

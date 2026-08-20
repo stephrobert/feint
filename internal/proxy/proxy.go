@@ -9,10 +9,15 @@
 // — "a unit test would never have found them". Three findings, three throwaway
 // proxies, nothing committed. This package is that tool, built.
 //
-// It is a reverse proxy, not a forward one: the client is pointed at it
-// (SCW_API_URL, an endpoint in a configuration file) and it forwards to one
-// upstream. A client whose endpoint is hardcoded needs DNS and TLS interception,
-// which is #76 and not here.
+// [Proxy] is the reverse half: the client is pointed at it (SCW_API_URL, an
+// endpoint in a configuration file) and it forwards to one upstream. A client
+// whose endpoint is compiled in reads none of those, and there are two doors for
+// it, both minting their certificates with [Interceptor]:
+//
+//   - [MintInterceptor] and `--intercept`, which serve TLS on this proxy's own
+//     listener for a client redirected to it by *name* (#92);
+//   - [Forward] and `--forward`, which accept `CONNECT host:port` from a client
+//     that honours HTTPS_PROXY and need no name redirect at all (#336).
 //
 // What it deliberately does not do:
 //
@@ -51,7 +56,8 @@ const DefaultMaxBody = 1 << 20
 
 // Options configures a [Proxy].
 type Options struct {
-	// Upstream is where every request goes. Required.
+	// Upstream is where every request goes. Required by [New]; a forward proxy
+	// ([NewForward]) has none, because the client names its own destination.
 	Upstream *url.URL
 	// Writer receives every exchange. Required: a proxy that records nothing is
 	// a proxy, and this package is not for that.
@@ -65,6 +71,14 @@ type Options struct {
 	MaxBody int
 	// Log is where a failed upstream call is reported. Never nil after New.
 	Log *slog.Logger
+	// Transport carries the re-originated request. Optional: nil takes
+	// http.DefaultTransport, which verifies against the system trust store —
+	// what a real cloud needs and what an interception proxy must keep, since
+	// re-originating without verification would turn a recorder into a
+	// downgrade. A caller whose upstream presents a private authority (a local
+	// HTTPS stand-in for a cloud, as the forward-proxy tests use) supplies one
+	// that trusts it and nothing more.
+	Transport http.RoundTripper
 }
 
 // Proxy forwards requests to one upstream and records what went past.
@@ -98,6 +112,18 @@ func New(o Options) (*Proxy, error) {
 	if o.Upstream.Host == "" {
 		return nil, fmt.Errorf("upstream %q names no host", o.Upstream)
 	}
+	return newProxy(o, false)
+}
+
+// newProxy is the half [New] and [NewForward] share.
+//
+// forward says where the destination comes from, and it is the only difference
+// between the two: a reverse proxy sends every request to the one upstream it
+// was given, a forward proxy sends each one where the client asked. Everything
+// after — the recording, the redaction, the counters — is the same code, which
+// is what makes "the redaction survives interception" a property rather than a
+// second implementation somebody has to keep in step.
+func newProxy(o Options, forward bool) (*Proxy, error) {
 	if o.Writer == nil {
 		return nil, fmt.Errorf("no writer: a proxy that records nothing is a plain reverse proxy")
 	}
@@ -115,9 +141,22 @@ func New(o Options) (*Proxy, error) {
 		log:     o.Log,
 		now:     func() time.Time { return time.Now().UTC() },
 	}
-	upstream := *o.Upstream
+	var upstream url.URL
+	if o.Upstream != nil {
+		upstream = *o.Upstream
+	}
 	p.rp = &httputil.ReverseProxy{
+		Transport: o.Transport,
 		Rewrite: func(pr *httputil.ProxyRequest) {
+			if forward {
+				// The outbound URL is already the destination: a forward proxy
+				// is addressed in absolute form, and a tunnelled request was
+				// promoted to it from the host its CONNECT named. Rewriting it
+				// to a fixed upstream is precisely what a forward proxy must not
+				// do, and honouring it in the other mode would turn --upstream
+				// into an open relay for anything that reaches the port.
+				return
+			}
 			// SetURL and nothing else. SetXForwarded is what a reverse proxy in
 			// front of an application wants and the opposite of what this one
 			// does: it would add three headers the client never sent to a request

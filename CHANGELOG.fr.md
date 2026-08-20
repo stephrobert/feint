@@ -19,6 +19,42 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **`feint proxy --forward` enregistre un client dont l'endpoint est codé en
+  dur** (#336). Le proxy accepte `CONNECT hôte:port`, termine le TLS avec un
+  certificat forgé pour la session, enregistre l'échange et le ré-émet vers
+  l'hôte que le client a demandé. Rien ne change chez le client : un client Go
+  qui n'installe pas de `Transport` honore `HTTPS_PROXY` tout seul, et
+  `SSL_CERT_FILE` est ce qui lui fait accepter le tunnel. C'est le cas que
+  `--upstream` ne pouvait pas atteindre : les collecteurs de Pépin portent leurs
+  URL de base dans leur source, et rendre celles-ci configurables a été refusé
+  par leur propre audit de livraison, puisque chaque requête de collecte
+  transporte une clé secrète vivante. Mesuré de bout en bout le 2026-08-20
+  contre un serveur HTTPS local, avec un client dont l'endpoint est une
+  constante : un échange enregistré, nommé `instance/v1/API.CreateServer`, avec
+  `X-Auth-Token`, `X-Consumer`, la signature en query et le `X-Session-Token` de
+  la réponse tous `REDACTED`, alors que le serveur les a reçus intacts.
+
+  **Les exigences de sécurité sont la fonctionnalité, et chacune porte sa
+  falsification** (`tools/falsify/specs/forward-proxy.json`, sept mutations, qui
+  mordent toutes). La redaction survit à l'interception, parce que le tunnel
+  enregistre par le même `capture` : il n'existe pas de seconde porte vers le
+  fichier. Boucle locale uniquement, et `--expose-to-network` est *refusé* avec
+  `--forward` : un proxy détenant une autorité à laquelle un client fait
+  confiance est, hors boucle locale, une machine qui déchiffre et classe tout ce
+  que lui envoie quiconque peut l'atteindre. L'autorité est forgée en mémoire,
+  écrite dans un unique fichier temporaire, retirée à la sortie, jamais
+  installée. Et seuls les hôtes nommés sont interceptés : un `CONNECT` ailleurs
+  est refusé par un 403, compté et rapporté à la fin, jamais relayé en aveugle,
+  et `--forward '*'` est refusé net.
+
+  Le transcript gagne un champ `host`, rempli par le proxy et laissé vide par
+  l'anneau de l'émulateur : un enregistrement de proxy avant contient plusieurs
+  clouds, et `POST /api/v1/ReadVms` n'est pas le même échange selon celui qui a
+  répondu. Surface CLI en version 5. `docs/proxy.md` dit désormais ce que
+  contient un enregistrement, champ par champ, et ce qu'il faut assainir avant
+  de le partager — complètement, parce que l'assainissement partiel est le piège
+  qui a ouvert l'audit de Pépin.
+
 - **Un équilibreur de charge Outscale distribue de vrais paquets, à
   l'intérieur de son propre réseau** (#315). Sous `--vm incus-ovn`, la
   `PrivateIp` d'un balanceur, une adresse du Subnet où il siège, est remise à

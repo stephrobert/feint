@@ -72,8 +72,13 @@ type seen struct {
 // responsibility, and [Redacted] is what stops a future caller from having one.
 func capture(s seen) Redacted {
 	x := trace.Exchange{
-		At:      s.at,
-		Method:  s.req.Method,
+		At:     s.at,
+		Method: s.req.Method,
+		// The Host header rather than the URL's host: net/http promotes it out of
+		// the header set, so without this line a transcript recorded through a
+		// tunnel names no host at all — the request line inside a CONNECT is
+		// origin-form.
+		Host:    s.req.Host,
 		Path:    s.req.URL.Path,
 		Query:   s.req.URL.RawQuery,
 		Status:  s.status,

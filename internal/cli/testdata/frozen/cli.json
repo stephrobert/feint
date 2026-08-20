@@ -542,18 +542,8 @@
           ],
           "docs": [
             "--check",
-            "--client-pins",
-            "--confidence",
-            "--contracts",
             "--coverage",
-            "--file",
-            "--install",
-            "--limits",
-            "--proved",
-            "--routes",
-            "--screenshots",
-            "--ui-manifest",
-            "--workflow"
+            "--file"
           ],
           "doctor": [
             "--addr",
@@ -566,13 +556,10 @@
             "--unset"
           ],
           "evidence": [
-            "--allow-narrowing",
-            "--contracts",
             "--endpoint",
             "--join",
             "--out",
-            "--shapes",
-            "--suites"
+            "--shapes"
           ],
           "images": [
             "--check",
@@ -591,8 +578,7 @@
           ],
           "proxy": [
             "--addr",
-            "--expose-to-network",
-            "--intercept",
+            "--forward",
             "--max-body",
             "--provider",
             "--queue",
@@ -608,9 +594,7 @@
             "--cleanup",
             "--contracts",
             "--coverage",
-            "--expose-to-network",
             "--log-level",
-            "--shapes",
             "--state",
             "--vm"
           ],
@@ -622,26 +606,16 @@
             "--provider",
             "--record"
           ],
-          "snapshot list": [
-            "--format"
-          ],
-          "snapshot load": [
-            "--addr"
-          ],
-          "snapshot save": [
+          "snapshot": [
             "--addr",
-            "--force"
+            "--force",
+            "--format",
+            "--state"
           ],
           "start": [
-            "--addr",
-            "--cleanup",
-            "--contracts",
             "--detach",
             "--foreground",
-            "--log-level",
-            "--state",
-            "--timeout",
-            "--vm"
+            "--timeout"
           ],
           "status": [
             "--addr",
@@ -662,7 +636,8 @@
             "--print"
           ],
           "version": [
-            "--check"
+            "--version",
+            "-v"
           ],
           "wait": [
             "--addr",

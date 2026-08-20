@@ -45,6 +45,15 @@ type Exchange struct {
 	// that two calls to the same operation read as the same line.
 	Method string `json:"method"`
 	Path   string `json:"path"`
+	// Host is the authority the client addressed, when a recorder observed one.
+	//
+	// A transcript of one reverse proxy needs it least — every line carries the
+	// same value — and a forward proxy (#336) cannot be read without it: one
+	// file then holds three clouds, and `POST /api/v1/ReadVms` is a different
+	// exchange depending on which host answered it. The emulator's own ring
+	// leaves it empty, because a process observing itself from the inside has
+	// only one.
+	Host string `json:"host,omitempty"`
 	// Query is the raw query string, without the leading "?", empty when there
 	// is none. Separate from Path because a replay has to reissue the request
 	// exactly and a reader wants the line to stay short.

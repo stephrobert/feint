@@ -17,6 +17,40 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **`feint proxy --forward` records a client whose endpoint is compiled in**
+  (#336). The proxy accepts `CONNECT host:port`, terminates the TLS with a
+  certificate minted for the run, records the exchange and re-originates to the
+  host the client asked for. Nothing changes in the client: a Go client that
+  installs no `Transport` honours `HTTPS_PROXY` on its own, and `SSL_CERT_FILE`
+  is what makes it trust the tunnel. That is the case `--upstream` could never
+  reach — Pépin's collectors hold their base URLs in their source, and making
+  them configurable was refused on its own delivery audit, because every
+  collection request carries a live secret key. Measured end to end on
+  2026-08-20 against a local HTTPS server, with a client whose endpoint is a
+  constant: one exchange recorded, named `instance/v1/API.CreateServer`, with
+  `X-Auth-Token`, `X-Consumer`, the query signature and the answer's
+  `X-Session-Token` all `REDACTED` while the server received every one of them
+  in full.
+
+  **The security requirements are the feature, and each has a falsification**
+  (`tools/falsify/specs/forward-proxy.json`, seven mutations, all of which bite).
+  The redaction survives the interception, because the tunnel records through the
+  same `capture` — there is no second path to the writer. Loopback only, and
+  `--expose-to-network` is *refused* with `--forward`: a proxy holding an
+  authority a client trusts is, off loopback, a machine that decrypts and files
+  whatever anyone who can reach it sends. The authority is minted in memory,
+  written to one temporary file, removed at exit, never installed. And only the
+  hosts named are intercepted — a `CONNECT` elsewhere is refused with a 403,
+  counted and reported at exit, never relayed blind, and `--forward '*'` is
+  refused outright.
+
+  The transcript gained a `host` field, filled by the proxy and left empty by the
+  emulator's own ring: one forward-proxy recording holds several clouds, and
+  `POST /api/v1/ReadVms` is a different exchange depending on which one answered.
+  CLI surface version 5. `docs/proxy.md` now states what a recording contains,
+  field by field, and what has to be sanitised before it is shared — completely,
+  because partial sanitisation is the trap that opened Pépin's audit.
+
 - **An Outscale load balancer distributes real packets, inside its own
   network** (#315). Under `--vm incus-ovn`, a balancer's `PrivateIp` — an
   address of the Subnet it sits in — is handed to the runtime's own OVN load
