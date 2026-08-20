@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -362,7 +363,39 @@ func TestCompiledInClientHelper(t *testing.T) {
 		t.Fatalf("build the request: %v", err)
 	}
 	req.Header.Set("X-Auth-Token", tokenMarker)
-	res, err := http.DefaultClient.Do(req)
+
+	// On every platform but macOS this is http.DefaultClient untouched, which is
+	// the property #336 is about: two environment variables and not one line of
+	// the traced tool.
+	//
+	// macOS is the exception, and it is a property of Go rather than of this
+	// proxy: crypto/x509 reads the system keychain there, and the code path that
+	// consults SSL_CERT_FILE carries a build constraint excluding darwin. The
+	// child therefore cannot trust this run's authority from the environment,
+	// and the first CI run on macos-15 said so in as many words —
+	// "x509: certificate signed by unknown authority", while the proxy logged
+	// "the client did not complete the tunnel handshake".
+	//
+	// Loading the CA explicitly here keeps macOS proving what this test exists
+	// to prove — that the tunnel records a client whose endpoint is a constant —
+	// while docs/proxy.md and docs/limits.md carry the part it can no longer
+	// prove there: that nothing about the client had to change.
+	client := http.DefaultClient
+	if runtime.GOOS == "darwin" {
+		pem, err := os.ReadFile(os.Getenv("SSL_CERT_FILE"))
+		if err != nil {
+			t.Fatalf("read the authority macOS will not read for us: %v", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			t.Fatal("the authority did not parse")
+		}
+		client = &http.Client{Transport: &http.Transport{
+			Proxy:           http.ProxyFromEnvironment,
+			TLSClientConfig: &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12},
+		}}
+	}
+	res, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("the call failed: %v", err)
 	}

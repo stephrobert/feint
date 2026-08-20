@@ -69,6 +69,22 @@ is what makes it trust the certificate the tunnel presents. Measured end to end
 on 2026-08-20 against a local HTTPS server, with a client whose endpoint is a
 constant:
 
+> **On macOS, `SSL_CERT_FILE` does not do this**, and the sentence above is
+> therefore true of Linux only. Go's `crypto/x509` reads the system keychain on
+> Darwin, and the code path that consults `SSL_CERT_FILE` carries a build
+> constraint excluding it. Measured rather than read: the first CI run of this
+> feature on `macos-15` failed with `x509: certificate signed by unknown
+> authority` while the proxy logged `the client did not complete the tunnel
+> handshake`.
+>
+> The tunnel itself works there — the repository's own test proves it on macOS
+> by handing the child an explicit pool. What does not work is the part that
+> makes this feature worth having: *not touching the client*. On macOS the
+> client must be given the CA some other way (its own `tls.Config`, or the
+> authority added to the keychain), which is a change to the tool you were
+> trying to measure. Plan for a Linux runner, a container, or a VM when the
+> point is to trace something you must not modify.
+
 ```json
 {"seq":1,"host":"api.localhost:8443","method":"POST",
  "path":"/instance/v1/zones/fr-par-1/servers","query":"x-amz-signature=REDACTED",
