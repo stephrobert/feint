@@ -1,0 +1,41 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "a stack CI applies with no version constraint passes, so an apply resolved from the whole registry that morning reads as a proof",
+      "file": "internal/cli/docs_stacks.go",
+      "find": "\t\tif !pin.Driven || strings.TrimSpace(pin.Constraint) != \"\" {",
+      "replace": "\t\tif !pin.Driven || strings.TrimSpace(pin.Constraint) != \"\" || true {",
+      "test": "TestAStackAppliedInCIPinsTheProviderThatAnswered"
+    },
+    {
+      "label": "a stack no run_stack line applies stops needing a declaration, so the table prints `no` for it as if that were a decision",
+      "file": "internal/cli/docs_stacks.go",
+      "find": "\t\tif _, ok := declared[stack]; !ok {",
+      "replace": "\t\tif _, ok := declared[stack]; !ok && false {",
+      "test": "TestAStackCIDoesNotApplyIsDeclaredWithAReason"
+    },
+    {
+      "label": "a declaration with no reason excuses a stack anyway, and \"not applied\" starts passing for \"not applied because X\"",
+      "file": "internal/cli/docs_stacks.go",
+      "find": "\t\tif strings.TrimSpace(e.Reason) == \"\" {",
+      "replace": "\t\tif strings.TrimSpace(e.Reason) == \"\" && false {",
+      "test": "TestAStackCIDoesNotApplyIsDeclaredWithAReason"
+    },
+    {
+      "label": "a declaration for a stack that no longer exists stops being stale, so the list keeps reasons nothing checks",
+      "file": "internal/cli/docs_stacks.go",
+      "find": "\t\tif !existing[e.Stack] {",
+      "replace": "\t\tif !existing[e.Stack] && false {",
+      "test": "TestADeclarationThatExcusesNothingIsStale"
+    },
+    {
+      "label": "a declaration survives CI starting to apply the stack it excuses, which is the direction that reads like evidence while being false",
+      "file": "internal/cli/docs_stacks.go",
+      "find": "\t\tif applied[e.Stack] {",
+      "replace": "\t\tif applied[e.Stack] && false {",
+      "test": "TestADeclarationThatExcusesNothingIsStale"
+    }
+  ],
+  "note": "The subject is what the generated table of #325 exposed on its first day, and neither half was visible before it existed: examples/stacks/outscale/modules/net was applied on every pull request while declaring no provider constraint at all, and examples/stacks/exoscale is applied by nothing — a good decision, written only in prose, in three files, in three wordings, checked by nothing. The last two mutations are the ones that matter most in the long run: a list of excuses that is never re-read against its subject is how a reason outlives the situation it describes, which CLAUDE.md names as the most expensive defect measured on this repository."
+}

@@ -197,13 +197,46 @@ func recordUpstream(p upstream.Provider, profile string, stdout io.Writer) ([]tr
 		return nil, err
 	}
 	fmt.Fprintf(stdout, "reading %s at %s, %d call(s)\n", p, client.Endpoint, len(calls))
+	return readEach(context.Background(), p, calls, client.Read, stdout)
+}
 
-	ctx := context.Background()
+// readEach walks a read list, filling in the templated entries from what the
+// run itself has already read.
+//
+// Separate from recordUpstream because recordUpstream cannot be run without a
+// real account: it loads credentials at its first line. The two properties that
+// matter here — a templated entry refuses to run before its collection, and an
+// account with nothing to read says so instead of asking for an identifier it
+// does not have — are properties of this loop, and this is where a test can
+// hold them.
+func readEach(ctx context.Context, p upstream.Provider, calls []string, read func(context.Context, string) (trace.Exchange, error), stdout io.Writer) ([]trace.Exchange, error) {
 	out := make([]trace.Exchange, 0, len(calls))
-	answered := 0
+	// What each collection answered, so a templated entry can be filled in from
+	// the run's own reading rather than from an identifier written down
+	// somewhere. See the note beside upstream.TemplateOf.
+	answers := map[string]any{}
+	answered, unresolved := 0, 0
 	for _, call := range calls {
+		target := call
+		if collection, templated := upstream.TemplateOf(call); templated {
+			body, read := answers[collection]
+			if !read {
+				// A list ordered so an element read comes before its
+				// collection is a mistake in this file, not a fact about the
+				// account, and it is refused rather than skipped: skipped, it
+				// would read as "this account has none".
+				return nil, fmt.Errorf("%s reads one element of %s, which no earlier entry of Reads[%s] asks for", call, collection, p)
+			}
+			id, found := upstream.FirstID(body)
+			if !found {
+				fmt.Fprintf(stdout, "  %-46s no element to read: %s answered none\n", call, collection)
+				unresolved++
+				continue
+			}
+			target = collection + "/" + id
+		}
 		fmt.Fprintf(stdout, "  %-46s ", call)
-		ex, err := client.Read(ctx, call)
+		ex, err := read(ctx, target)
 		if err != nil {
 			fmt.Fprintf(stdout, "error: %v\n", err)
 			continue
@@ -211,6 +244,9 @@ func recordUpstream(p upstream.Provider, profile string, stdout io.Writer) ([]tr
 		if ex.Status >= 200 && ex.Status < 300 {
 			answered++
 			fmt.Fprintln(stdout, "ok")
+			if ex.Res != nil {
+				answers[call] = ex.Res.Body
+			}
 		} else {
 			fmt.Fprintf(stdout, "HTTP %d\n", ex.Status)
 		}
@@ -220,5 +256,11 @@ func recordUpstream(p upstream.Provider, profile string, stdout io.Writer) ([]tr
 	// read as a complete one: a gate built on it would then report a missing
 	// field where nothing was ever observed.
 	fmt.Fprintf(stdout, "%d of %d answered\n", answered, len(calls))
+	if unresolved > 0 {
+		// Counted separately from a refusal: nothing was asked at all, because
+		// the account holds no such resource. Silence here would let a run made
+		// on an empty account read like a run that observed an empty shape.
+		fmt.Fprintf(stdout, "%d not asked: no resource of that kind on this account to read one of\n", unresolved)
+	}
 	return out, nil
 }

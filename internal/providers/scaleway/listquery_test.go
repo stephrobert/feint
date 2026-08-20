@@ -146,7 +146,7 @@ func TestServersFilterByLinks(t *testing.T) {
 
 	// A Private Network and a NIC on the bare server.
 	status, out = do(t, ts, "POST", region+"/private-networks", `{"name":"pn"}`)
-	if status != http.StatusCreated {
+	if status != http.StatusOK {
 		t.Fatalf("create pn: status %d (%v)", status, out)
 	}
 	pnID, _ := out["id"].(string)
@@ -267,15 +267,15 @@ func TestVPCListsHonourTheDeclaredFilters(t *testing.T) {
 	const region = "/vpc/v2/regions/fr-par"
 
 	status, out := do(t, ts, "POST", region+"/vpcs", `{"name":"team"}`)
-	if status != http.StatusCreated {
+	if status != http.StatusOK {
 		t.Fatalf("create vpc: status %d (%v)", status, out)
 	}
 	status, out = do(t, ts, "POST", region+"/private-networks", `{"name":"pn-a","tags":["blue"]}`)
-	if status != http.StatusCreated {
+	if status != http.StatusOK {
 		t.Fatalf("create pn-a: status %d (%v)", status, out)
 	}
 	pnA, _ := out["id"].(string)
-	if status, _ = do(t, ts, "POST", region+"/private-networks", `{"name":"pn-b"}`); status != http.StatusCreated {
+	if status, _ = do(t, ts, "POST", region+"/private-networks", `{"name":"pn-b"}`); status != http.StatusOK {
 		t.Fatalf("create pn-b: status %d", status)
 	}
 
@@ -360,7 +360,7 @@ func TestIPAMListHonoursOrderAndResourceFilters(t *testing.T) {
 	const zone = "/instance/v1/zones/fr-par-1"
 
 	status, out := do(t, ts, "POST", "/vpc/v2/regions/fr-par/private-networks", `{"name":"pn"}`)
-	if status != http.StatusCreated {
+	if status != http.StatusOK {
 		t.Fatalf("create pn: status %d (%v)", status, out)
 	}
 	pnID, _ := out["id"].(string)

@@ -15,6 +15,16 @@ terraform {
     # died exactly there (surveyed.md, annex).
     outscale = {
       source = "outscale/outscale"
+      # The same floor the root declares, and it is not decoration. This module
+      # is applied on every pull request, and docs/clients.md read it as the one
+      # row in the table that CI applies while pinning nothing — a stack applied
+      # under whatever the registry served that morning proves nothing anybody
+      # can reproduce. Terraform intersects a child's constraint with the root's,
+      # so declaring it here is what makes the module carry its own floor when it
+      # is instantiated from somewhere else. 1.7 is the measured boundary: the
+      # 1.7+ generation reads its endpoint path from OSC_ENDPOINT_API, where
+      # 1.1.x appends the path itself (examples/stacks/surveyed.md).
+      version = "~> 1.7"
     }
   }
 }

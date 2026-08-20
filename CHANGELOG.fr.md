@@ -19,6 +19,61 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Un équilibreur de charge Outscale distribue de vrais paquets, à
+  l'intérieur de son propre réseau** (#315). Sous `--vm incus-ovn`, la
+  `PrivateIp` d'un balanceur, une adresse du Subnet où il siège, est remise à
+  l'équilibreur OVN du runtime : les connexions venues de ce réseau se
+  répartissent sur les Vms enregistrées, une Vm déliée cesse d'en recevoir, et
+  la suppression du balanceur le retire de l'hôte. Mesuré le 2026-08-20 avec
+  deux backends et un client sur un même réseau : 6/6 réponses à t0, 6/6 une
+  minute plus tard, sur les deux machines à chaque fois, et 6/6 vers la
+  survivante après un délien. `tools/conformance/outscale/balancer.sh` rejoue
+  la mesure.
+
+  La capacité est déclarée et vérifiée, jamais déduite d'un nom de mode :
+  `/_feint/health` porte désormais `capabilities.balancing` (schéma de santé
+  en version 4), seul le mode OVN la pose, la vérification au démarrage la
+  retire sur un hôte sans OVN, et un binaire qui ignore la clé ne répond rien,
+  ce qui vaut absence. C'est là-dessus qu'un contrôle se branche.
+
+  **Ce qui n'a pas bougé, et pourquoi.** L'adresse publique d'un balanceur
+  exposé sur internet ne route toujours nulle part : une VIP hors du réseau a
+  répondu 6/6 à t0, 6/6 à t+60 s puis 0/6 à partir de t+180 s, définitivement,
+  parce que le runtime n'annonce une telle adresse qu'une fois, à la création.
+  Le pilote **refuse** désormais une adresse d'écoute hors du bloc du réseau
+  plutôt que d'en configurer une qui s'éteindrait quelques minutes après le
+  test qui l'a prouvée. `ReadVmsHealth` reste également décliné : `incus
+  network load-balancer info` répond « No load-balancer health information
+  available », donc rien ne sonde un backend, même ici. La famille `lb/v1` de
+  Scaleway n'est pas touchée : le mécanisme est partagé, le câblage est propre
+  à chaque pack, et ce pack ne demande rien au runtime. `docs/limits.md` porte
+  les chiffres à côté de chaque refus.
+
+- **Un enregistrement du vrai cloud arbitre la forme d'un Private Network**
+  (#270). `feint shapes --record --provider scaleway`, lancé le 2026-08-20
+  contre un vrai compte fr-par portant un Private Network, a appris 76 chemins
+  de champs, dont 62 pour les objets `PrivateNetwork`, `Subnet` et `VPC`, dont
+  aucun n'avait jamais été observé peuplé : l'enregistrement précédent avait été
+  pris sur un compte qui n'en portait aucun, si bien que les deux formes
+  d'élément étaient vides. Les 14 autres sont ceux d'un snapshot block, observés
+  pour la même raison, le compte en portant un.
+
+  Ce qu'il tranche, et que la 0.9.0 disait dans un encadré ne pas pouvoir
+  trancher : la création alloue un `/64` IPv6 sans qu'on le demande, la plage
+  est unique-local (`fdb2:1bb5:120a:9b::/64` sur ce compte), et deux réseaux
+  d'un même projet partagent leur `/48` et ne diffèrent que par l'identifiant
+  de sous-réseau, ce qui est la structure décrite par la RFC 4193. L'émulateur
+  la suit maintenant, au lieu de tirer un `/48` indépendant par réseau. Le
+  `Subnet` que porte une vraie lecture est exactement les huit champs déjà
+  servis.
+
+  La liste de lectures sait désormais décrire une opération qui prend un
+  identifiant : une entrée finissant par `{id}` est remplie depuis la
+  collection qui la précède, dans la même exécution, et le catalogue conserve
+  le chemin gabarit. `GET /vpc/v2/regions/fr-par/private-networks/{id}`, la
+  lecture avec laquelle le provider Terraform rafraîchit, et celle que rien
+  ici ne pouvait arbitrer, est la première.
+
 - **Les équilibreurs de charge Scaleway, cadrés par ce que les stacks
   observées appellent** (#282). `lb/v1` sert 35 opérations sur sa porte zonale :
   `ZonedAPI.CreateLB`, `ZonedAPI.GetLB`, `ZonedAPI.ListLBs`,
@@ -112,7 +167,97 @@ change ni l'un ni l'autre a sa place dans `git log`.
   avec le catalogue de la version précédente, et rien dans la réponse ne
   pouvait le dire.
 
+- **`brew install stephrobert/feint/feint`, avec des empreintes dérivées de la
+  release et non recopiées** (#321). La release publiait déjà des binaires
+  macOS signés, et un lecteur macOS devait quand même trouver la page de
+  release, choisir une architecture et vérifier une somme à la main. La
+  décision que portait l'issue était *qui écrit la formule à chaque release*,
+  et la réponse n'est ni l'une ni l'autre des deux moitiés évidentes :
+  `mise run release:formula` récupère le `checksums.txt` signé par cosign de la
+  release et en **dérive** toute la formule, donc remplir le tap coûte une
+  copie et jamais une transcription ; `mise run release:tap` la dérive à
+  nouveau et sort en 2 tant que le tap sert autre chose, chaque jour
+  (`.github/workflows/tap.yml`). Une poussée depuis `release.yml` a été refusée
+  pour la raison que ce dépôt a déjà écrite deux fois : elle demanderait un
+  jeton inter-dépôt qui n'existe pas, et *un gate qui répare le dépôt est une
+  seconde porte d'entrée*. La formule installe les octets publiés et ne
+  recompile jamais : ce que Homebrew vérifie est donc ce que la release a
+  signé. Les refus sont dans `internal/release/formula.go`, falsifiés par
+  `tools/falsify/specs/homebrew-formula.json` : la liste de sommes est
+  récupérée par le réseau, donc une entrée pour laquelle la formule n'a pas de
+  plateforme l'arrête au lieu d'être ignorée, une empreinte qui n'est pas un
+  SHA-256 n'atteint jamais le fichier, et aucun nom venu de cette liste ne
+  devient une URL ou un littéral Ruby sans contrôle. Prouvé avec le vrai client
+  et non par un rendu : le 2026-08-20, contre Homebrew 5.1.15, la formule
+  dérivée placée dans un tap a installé le binaire v0.9.0 publié,
+  `feint version` a répondu `v0.9.0`, `brew test` est passé, `brew audit` n'a
+  rien signalé, et un octet retourné dans une empreinte a fait échouer la même
+  installation sur *Formula reports different checksum*. **Le tap n'existe pas
+  encore** : `mise run release:tap` sort en 2 et nomme la commande qui le
+  remplit.
+
+- **Le contrat qu'on demande à la stack d'un tiers** (#327). Un consommateur
+  aval a proposé la lane qui a trouvé la rupture Scaleway 2.81.0 comme seizième
+  stack observée, et a demandé quel contrat nous voulions qu'elle respecte. Il
+  est écrit dans `examples/stacks/README.md`, avec la décision qu'il a forcée :
+  une telle stack est **recensée et rejouée à la demande, jamais câblée dans la
+  CI de ce dépôt**. Le dépôt d'un tiers change sans notre décision, donc un gate
+  obligatoire posé dessus peut virer au rouge pour une raison que personne ici
+  n'a choisie — et un rouge que personne ne peut traiter est ce qui apprend aux
+  gens à sauter un gate. `examples/stacks/surveyed.md` consigne l'offre avec
+  ses chiffres attribués comme les leurs, et chaque case que nous ne pouvons
+  pas remplir nommée comme non mesurée.
+
 ### Corrigé
+
+- **Une stack appliquée à chaque pull request épingle le provider qui a
+  répondu, et une stack que la CI n'applique pas dit pourquoi** (la table de
+  #325, premier jour). La page générée des clients a révélé deux choses que
+  rien n'avait dites : `examples/stacks/outscale/modules/net` était appliqué à
+  chaque pull request sans déclarer la moindre contrainte de provider —
+  `terraform init -upgrade` le résolvait depuis tout le registre à chaque
+  exécution, donc l'apply prouvait que l'émulateur avait répondu à ce qui était
+  le plus récent ce matin-là, et rien de rejouable — et
+  `examples/stacks/exoscale` n'est appliqué par rien, ce qui est une bonne
+  décision écrite en prose seulement, dans trois fichiers, en trois
+  formulations, vérifiée par rien. Le module porte désormais le même plancher
+  `~> 1.7` que sa racine, et `feint docs --check` sort en 2 sur une stack
+  appliquée sans contrainte, sur une stack non appliquée que rien ne déclare,
+  et sur une déclaration visant une stack disparue ou que la CI s'est mise à
+  appliquer. La raison est imprimée sur `docs/clients.md` depuis la liste même
+  que lit le refus. Falsifié par `tools/falsify/specs/stack-proof.json`.
+
+- **Un Private Network et un VPC servent le drapeau Object Storage que le vrai
+  cloud porte** (#270). `has_s3_integration` et `s3_integration_enabled`
+  étaient déclarés par le contrat, renvoyés par chaque réponse réelle, et
+  absents ici. Les deux sont invisibles à travers `scw`, qui les laisse tomber
+  en chemin vers sa propre sortie : seul un enregistrement pouvait les
+  trouver, et seulement un enregistrement pris pendant que les objets
+  existaient.
+
+- **Les deux créations `vpc/v2` répondent 200, ce que portait le fil** (#270).
+  `CreateVPC` et `CreatePrivateNetwork` répondaient 201, le statut qu'écrit
+  toute autre création du pack ; les deux ont été mesurées à 200 sur un vrai
+  compte, lues dans une transcription `feint proxy` plutôt que sur un CLI qui
+  n'en montre aucun. Aucun autre produit n'a été mesuré, donc aucun autre n'a
+  bougé. Cela ne change rien pour un client qui teste 2xx, et cela change ce
+  que cet émulateur a le droit d'affirmer.
+
+- **Un identifiant n'atteint jamais un catalogue de formes versionné** (#270).
+  L'enregistrement d'une ressource porte le chemin de cette ressource, et ce
+  chemin partait verbatim dans la clé d'opération et dans `Operation.Path` :
+  la première entrée de liste de lectures visant un objet unique aurait donc
+  commité l'UUID du compte de quelqu'un dans `shapes/*.json`. Les chemins sont
+  désormais anonymisés à la frontière où un enregistrement devient un
+  artefact, quel qu'en soit l'auteur, et un test lit les fichiers versionnés
+  eux-mêmes au lieu de faire confiance à la règle.
+
+- **`feint shapes --check` nomme ce qu'il n'a pas pu comparer** (#270). Onze
+  opérations enregistrées sortaient de son arithmétique sans un mot :
+  l'émulateur répond un refus hors ligne et la comparaison était sautée en
+  silence. La ligne de couverture les liste maintenant comme non contrôlées,
+  ce qui est la différence entre « rien ne va mal » et « rien n'a été
+  regardé ».
 
 - **`server.public_ips` répond dans l'ordre que la création a nommé** (#320).
   `Server.public_ips` chez Scaleway est une liste et Terraform la stocke comme

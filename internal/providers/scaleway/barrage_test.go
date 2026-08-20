@@ -278,7 +278,7 @@ func barrageCycle(ts *httptest.Server, tag string, problems chan<- string) {
 	status, pn := doRaw(ts, "POST", regionURL+"/private-networks",
 		`{"name":"barrage-`+tag+`","subnets":["10.`+subnetOctet(tag)+`.0.0/24"]}`)
 	pnID := ""
-	if status == http.StatusCreated {
+	if status == http.StatusOK {
 		pnID, _ = pn["id"].(string)
 	}
 	if pnID != "" {
@@ -450,7 +450,7 @@ func TestASharedNetworkUnderBarrageNeverHandsOutOneAddressTwice(t *testing.T) {
 	// is not what this measures.
 	status, pn := doRaw(ts, "POST", regionURL+"/private-networks",
 		`{"name":"contended","subnets":["10.199.0.0/24"]}`)
-	if status != http.StatusCreated {
+	if status != http.StatusOK {
 		t.Fatalf("create the shared network: %d (%v)", status, pn)
 	}
 	pnID, _ := pn["id"].(string)

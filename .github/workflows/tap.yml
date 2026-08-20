@@ -1,0 +1,75 @@
+name: Homebrew tap
+
+# `brew install stephrobert/feint/feint` must install the bytes the release
+# signed, and it will not do that on its own (#321).
+#
+# The decision this job carries. A binary formula needs a URL and a SHA-256 per
+# platform, and both only exist once a release is published — so either the
+# release workflow pushes them into the tap, or somebody copies them and a gate
+# refuses a stale copy. This repository has already refused the first shape
+# twice, in writing:
+#
+#   - workflow-security.yml, on the Marketplace mirror: "a push step in
+#     release.yml would need a cross-repository token this repository does not
+#     hold, and a gate wired to a secret that does not exist is the drift.yml
+#     defect all over again";
+#   - internal/cli/docs_release.go, on the generated pages: "a gate that refuses
+#     is safe; a gate that repairs the repository is a second way in".
+#
+# So the tap is filled by `mise run release:formula`, whose output is derived
+# from the release's own cosign-signed checksums.txt, and this job derives it
+# again and exits 2 on any difference. No secret beyond the default token, which
+# only reads a public repository.
+#
+# ## Why this is not on the pull-request path
+#
+# Its red is clearable only by whoever can push to the tap. A gate a contributor
+# cannot clear teaches everybody to skip it, which is the argument CLAUDE.md
+# makes for keeping `conformance` out of the pre-commit hook. Daily, so a tap
+# left behind by a release is named within a day, and on demand for whoever is
+# cutting one.
+
+on:
+  schedule:
+    - cron: '41 7 * * *'   # daily 07:41 UTC
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  tap:
+    name: The tap serves the formula this release derives
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.6'
+          # No go.sum to key a cache on: the zero-dependency rule keeps this
+          # module dependency-free.
+          cache: false
+
+      # Exit 2 on drift, the code every drift gate of this repository uses; 1
+      # when it could not measure, because a release that cannot be fetched is
+      # not a tap that is fine.
+      - name: The tap is not a release behind
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash --noprofile --norc tools/release/tap.sh check

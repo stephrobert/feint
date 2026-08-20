@@ -14,6 +14,42 @@
       "find": "\tif subnet6, _ := pn.Attrs[\"subnet_ipv6\"].(string); subnet6 != \"\" {",
       "replace": "\tif subnet6, _ := pn.Attrs[\"subnet_ipv6\"].(string); subnet6 != \"\" && false {",
       "test": "TestPrivateNetworkPublishesAnIPv6Subnet"
+    },
+    {
+      "label": "each network derives its own /48, so two networks of one project stop being siblings",
+      "file": "internal/providers/scaleway/vpc.go",
+      "find": "\t\tcandidate := network.ULA64Within(project, seed)",
+      "replace": "\t\tcandidate := network.ULA64Within(project+seed, seed)",
+      "test": "TestTwoNetworksGetTwoIPv6BlocksUnderOnePrefix"
+    },
+    {
+      "label": "the space stops reaching the global ID, so every tenancy shares one /48",
+      "file": "internal/core/network/ula.go",
+      "find": "\tcopy(addr[1:6], global[:5])",
+      "replace": "\tcopy(addr[1:6], global[:0])",
+      "test": "TestOneSpacesBlocksAreSiblingsAndTwoSpacesAreNot",
+      "package": "./internal/core/network/"
+    },
+    {
+      "label": "the private network stops publishing the Object Storage flag the real cloud carries",
+      "file": "internal/providers/scaleway/vpc.go",
+      "find": "\t\t\"has_s3_integration\": false,",
+      "replace": "\t\t\"has_s3_integration\" + \"-unserved\": false,",
+      "test": "TestTheObjectStorageFlagsAreServedOnEveryDoor"
+    },
+    {
+      "label": "the VPC stops publishing the Object Storage flag the real cloud carries",
+      "file": "internal/providers/scaleway/vpc.go",
+      "find": "\t\t\"s3_integration_enabled\": false,",
+      "replace": "\t\t\"s3_integration_enabled\" + \"-unserved\": false,",
+      "test": "TestTheObjectStorageFlagsAreServedOnEveryDoor"
+    },
+    {
+      "label": "the vpc/v2 creates go back to the 201 nobody measured",
+      "file": "internal/providers/scaleway/vpc.go",
+      "find": "const vpcCreateStatus = http.StatusOK",
+      "replace": "const vpcCreateStatus = http.StatusCreated",
+      "test": "TestTheVpcCreatesAnswerWhatTheRealCloudAnswers"
     }
   ]
 }

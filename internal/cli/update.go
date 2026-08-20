@@ -45,10 +45,10 @@ const (
 	updateTimeout = 5 * time.Second
 )
 
-// release is the sliver of the API answer this needs. Everything else is
+// githubRelease is the sliver of the API answer this needs. Everything else is
 // deliberately not decoded: a reader of a format that takes less of it is a
 // reader that keeps working when the writer grows a field.
-type release struct {
+type githubRelease struct {
 	TagName string `json:"tag_name"`
 	HTMLURL string `json:"html_url"`
 }
@@ -88,17 +88,17 @@ func versionCheck(args []string, stdout, stderr io.Writer) int {
 }
 
 // latestRelease asks for the newest published release.
-func latestRelease(ctx context.Context, client *http.Client, url string) (release, error) {
+func latestRelease(ctx context.Context, client *http.Client, url string) (githubRelease, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return release{}, err
+		return githubRelease{}, err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "feint/"+Version)
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return release{}, err
+		return githubRelease{}, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -106,23 +106,23 @@ func latestRelease(ctx context.Context, client *http.Client, url string) (releas
 		// 404 is the ordinary answer for a repository with no release yet, and
 		// 403 is the rate limit an unauthenticated caller meets. Both are worth
 		// telling apart from a parse failure.
-		return release{}, fmt.Errorf("the releases API answered %s", resp.Status)
+		return githubRelease{}, fmt.Errorf("the releases API answered %s", resp.Status)
 	}
 	// Bounded like every other body this project reads: an answer that is not a
 	// release document must not be able to fill memory.
-	var out release
+	var out githubRelease
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&out); err != nil {
-		return release{}, fmt.Errorf("the releases API answered something that is not a release: %w", err)
+		return githubRelease{}, fmt.Errorf("the releases API answered something that is not a release: %w", err)
 	}
 	if out.TagName == "" {
-		return release{}, errors.New("the releases API answered a release with no tag")
+		return githubRelease{}, errors.New("the releases API answered a release with no tag")
 	}
 	return out, nil
 }
 
 // updateMessage is what the user reads. Separated from the fetch so the wording
 // is testable without a network.
-func updateMessage(current string, latest release) string {
+func updateMessage(current string, latest githubRelease) string {
 	newer, comparable := isNewer(current, latest.TagName)
 	switch {
 	case !comparable:

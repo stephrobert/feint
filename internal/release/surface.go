@@ -1,5 +1,12 @@
-// Package release answers one question about a release: what changed in the
-// surface it serves, and does the release say so.
+// Package release answers what a release owes the people who consume it.
+//
+// Two questions so far, and they share a shape: both are about a fact the
+// release already holds and publishes badly. surface.go asks whether the note
+// names what changed hands; formula.go derives the Homebrew formula from the
+// checksums the release signed, so that installing through `brew` installs the
+// bytes the provenance covers.
+//
+// The first question, and the incident behind it:
 //
 // The question is not rhetorical. 0.9.0 mounted `instance/v2alpha1` private
 // network interfaces and its CHANGELOG contains neither `v2alpha1` nor

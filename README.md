@@ -272,6 +272,19 @@ downloads, and therefore verifies none of the above:
 go install github.com/stephrobert/feint/cmd/feint@latest
 ```
 
+### With Homebrew
+
+```bash
+brew install stephrobert/feint/feint
+```
+
+The formula installs the **published binary**, never a local rebuild, so the
+SHA-256 Homebrew verifies before installing is the one the release signed. No
+version is named here on purpose: `brew` resolves the tap's current formula, and
+[`docs/install.md`](docs/install.md#with-homebrew) says what that costs compared
+with the verified commands above — Homebrew checks the digest, not the signature
+over the digest list.
+
 ### From source
 
 The Go version in the [prerequisites](#prerequisites) table, and nothing else.
@@ -562,12 +575,17 @@ There are three runtimes and they do not deliver the same thing. The table is
 what `tools/conformance/scaleway/network.sh` actually returns, run in each mode
 on 2026-07-29:
 
-| `--vm` | Machines | Addresses | Firewall | **Isolation** | Own kernel | Needs |
-|---|:--:|:--:|:--:|:--:|:--:|---|
-| `off` *(default)* | — | — | — | — | — | nothing |
-| `incus` | yes | yes | yes | **no** | no | Incus 6.0.4+ |
-| `incus-vm` | yes | yes | yes | **no** | yes | Incus + KVM |
-| `incus-ovn` | yes | yes | yes | **yes** | no | Incus + `ovn-central`, `ovn-host`, Open vSwitch |
+| `--vm` | Machines | Addresses | Firewall | **Isolation** | **Balancing** | Own kernel | Needs |
+|---|:--:|:--:|:--:|:--:|:--:|:--:|---|
+| `off` *(default)* | — | — | — | — | — | — | nothing |
+| `incus` | yes | yes | yes | **no** | **no** | no | Incus 6.0.4+ |
+| `incus-vm` | yes | yes | yes | **no** | **no** | yes | Incus + KVM |
+| `incus-ovn` | yes | yes | yes | **yes** | **yes** | no | Incus + `ovn-central`, `ovn-host`, Open vSwitch |
+
+Balancing is the second claim only OVN carries (#315): an Outscale load
+balancer's own private address distributes real connections to clients inside
+its network. Its public face routes nowhere in every mode, and the measurement
+behind that refusal is in `docs/limits.md`.
 
 **Exactly one assertion in the whole network suite changes verdict with the
 mode**, and it is the one carrying the project's strongest claim: two private

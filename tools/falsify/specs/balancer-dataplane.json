@@ -1,0 +1,78 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "a listen address outside the network's block is configured, and goes dark three minutes later",
+      "file": "internal/core/machine/incus_balancer.go",
+      "find": "\tif !block.Contains(listen) {",
+      "replace": "\tif !block.Contains(listen) && false {",
+      "test": "TestABalancerOutsideTheNetworksBlockIsRefused"
+    },
+    {
+      "label": "a balancer is written onto a network the emulator does not own",
+      "file": "internal/core/machine/incus_balancer.go",
+      "find": "\tif err := d.mustOwn(ctx, spec.Network); err != nil {\n\t\treturn err\n\t}\n\tblock, err := d.networkGateway(ctx, spec.Network)",
+      "replace": "\tif err := d.mustOwn(ctx, spec.Network); err != nil && false {\n\t\treturn err\n\t}\n\tblock, err := d.networkGateway(ctx, spec.Network)",
+      "test": "TestABalancerOnAForeignNetworkIsRefused"
+    },
+    {
+      "label": "the delete stops reading the ownership marker, so an operator's own balancer goes",
+      "file": "internal/core/machine/incus_balancer.go",
+      "find": "\tif !strings.HasPrefix(existing.Description, balancerDescription) {",
+      "replace": "\tif !strings.HasPrefix(existing.Description, balancerDescription) && false {",
+      "test": "TestRemovingAForeignBalancerIsRefused"
+    },
+    {
+      "label": "an untranslated protocol is dropped instead of refused, and the balancer serves half its listeners",
+      "file": "internal/core/machine/incus_balancer.go",
+      "find": "\t\tif !balancerProtocols[strings.ToLower(listener.Protocol)] {\n\t\t\treturn fmt.Errorf(\"balancer %s: %q is not a protocol this runtime distributes; \"+",
+      "replace": "\t\tif !balancerProtocols[strings.ToLower(listener.Protocol)] && false {\n\t\t\treturn fmt.Errorf(\"balancer %s: %q is not a protocol this runtime distributes; \"+",
+      "test": "TestAnUndistributableProtocolIsRefused"
+    },
+    {
+      "label": "a balancer that does not exist is updated rather than created, which is how it shipped and answered nothing",
+      "file": "internal/core/machine/incus_balancer.go",
+      "find": "\tif exists {\n\t\tif _, err := d.run(ctx, \"query\", \"-X\", \"PUT\", \"--data\", string(encoded), path+\"/\"+spec.Listen); err != nil {",
+      "replace": "\tif exists || true {\n\t\tif _, err := d.run(ctx, \"query\", \"-X\", \"PUT\", \"--data\", string(encoded), path+\"/\"+spec.Listen); err != nil {",
+      "test": "TestABalancerIsCreatedWhenTheCollectionDoesNotHoldIt"
+    },
+    {
+      "label": "every mode declares balancing, including the one with no load balancer primitive",
+      "file": "internal/core/machine/capabilities.go",
+      "find": "\t\tBalancing:       d.OVN,",
+      "replace": "\t\tBalancing:       d.OVN || true,",
+      "test": "TestABridgeBackedRunHasNoBalancer"
+    },
+    {
+      "label": "balancing survives a host with no OVN wiring, which is the capability a suite would assert",
+      "file": "internal/core/machine/verify.go",
+      "find": "\t\t\tif declared.Balancing {\n\t\t\t\tverified.Balancing = false",
+      "replace": "\t\t\tif declared.Balancing && false {\n\t\t\t\tverified.Balancing = false",
+      "test": "TestVerifyNarrowsBalancingWithIsolation"
+    },
+    {
+      "label": "the pack asks a runtime that never declared balancing, so every bridge-backed run meets a refusal",
+      "file": "internal/providers/outscale/loadbalancer_dataplane.go",
+      "find": "\tif p.env.Machines == nil || !machine.CapabilitiesOf(p.env.Machines).Balancing {",
+      "replace": "\tif p.env.Machines == nil || !machine.CapabilitiesOf(p.env.Machines).Balancing && false {",
+      "test": "TestAnUndeclaredBalancingCapabilityIsNeverUsed",
+      "package": "./internal/providers/outscale/"
+    },
+    {
+      "label": "an unlink never reaches the runtime, so a machine the API stopped listing keeps receiving connections",
+      "file": "internal/providers/outscale/loadbalancers.go",
+      "find": "\tp.syncBalancer(r.Context(), req.LoadBalancerName)\n\temulator.WriteJSON(w, http.StatusOK, map[string]any{\"ResponseContext\": p.context()})\n}\n\nfunc (p *Pack) deleteLoadBalancer(w http.ResponseWriter, r *http.Request) {",
+      "replace": "\tif false {\n\t\tp.syncBalancer(r.Context(), req.LoadBalancerName)\n\t}\n\temulator.WriteJSON(w, http.StatusOK, map[string]any{\"ResponseContext\": p.context()})\n}\n\nfunc (p *Pack) deleteLoadBalancer(w http.ResponseWriter, r *http.Request) {",
+      "test": "TestUnlinkingAndDeletingReachTheRuntime",
+      "package": "./internal/providers/outscale/"
+    },
+    {
+      "label": "a deleted balancer is left on the host, holding an address the next create could reuse",
+      "file": "internal/providers/outscale/loadbalancers.go",
+      "find": "\tp.removeBalancer(r.Context(), res)",
+      "replace": "\tif false {\n\t\tp.removeBalancer(r.Context(), res)\n\t}",
+      "test": "TestUnlinkingAndDeletingReachTheRuntime",
+      "package": "./internal/providers/outscale/"
+    }
+  ]
+}

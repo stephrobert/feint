@@ -38,7 +38,14 @@ const (
 	// so. `feint start` now compares `instance.pid` against the process it
 	// spawned and refuses a stranger; any harness that starts an emulator can
 	// do the same.
-	HealthSchemaVersion = 3
+	//
+	// 4 since #315: `capabilities` gained `balancing` — an emulated load
+	// balancer distributes real connections, for clients inside the network it
+	// sits in. Additive, and a claim rather than a detail, which is why it
+	// moves the version: a suite that wants to prove a balancer balances must
+	// key on this and never on a mode name, and a build that cannot answer the
+	// question at all is exactly what a version is for.
+	HealthSchemaVersion = 4
 	// RoutesSchemaVersion is the shape of GET /_feint/routes.
 	//
 	// This one is not on the wire: the endpoint answers a bare JSON array — the

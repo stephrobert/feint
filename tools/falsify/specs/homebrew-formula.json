@@ -1,0 +1,69 @@
+{
+  "package": "./internal/release/",
+  "mutations": [
+    {
+      "label": "an entry the formula has no platform for is dropped instead of refused, which is how a formula ends up short by a platform with nothing saying so",
+      "file": "internal/release/formula.go",
+      "find": "\t\tif !known {",
+      "replace": "\t\tif !known && false {",
+      "test": "TestAnEntryTheFormulaHasNoPlatformForIsRefused"
+    },
+    {
+      "label": "a checksums line is read for the two fields it happens to start with, so a third field is ignored rather than reported",
+      "file": "internal/release/formula.go",
+      "find": "\t\tif len(fields) != 2 {",
+      "replace": "\t\tif len(fields) != 2 && false {",
+      "test": "TestAChecksumsLineThatIsNotTwoFieldsIsRefused"
+    },
+    {
+      "label": "a digest that is not a SHA-256 is written into the formula, so what brew compares the bytes against is a string nothing produced",
+      "file": "internal/release/formula.go",
+      "find": "\t\tif !sha256Digest.MatchString(entry.digest) {",
+      "replace": "\t\tif !sha256Digest.MatchString(entry.digest) && false {",
+      "test": "TestADigestThatIsNotOneIsRefused"
+    },
+    {
+      "label": "two digests for one asset stop being a contradiction, so the formula publishes whichever line came first",
+      "file": "internal/release/formula.go",
+      "find": "\t\tif previous, ok := seen[entry.name]; ok && previous != entry.digest {",
+      "replace": "\t\tif previous, ok := seen[entry.name]; ok && previous != entry.digest && false {",
+      "test": "TestTwoDigestsForOneAssetAreRefused"
+    },
+    {
+      "label": "an empty checksums list renders a formula that installs nothing, instead of reporting that the measurement did not happen",
+      "file": "internal/release/formula.go",
+      "find": "\tif len(out) == 0 {\n\t\treturn nil, fmt.Errorf(\"checksums.txt is empty",
+      "replace": "\tif len(out) == 0 && false {\n\t\treturn nil, fmt.Errorf(\"checksums.txt is empty",
+      "test": "TestAnEmptyChecksumsListIsRefused"
+    },
+    {
+      "label": "the slug is interpolated into every download URL without being checked, so a module line that is not owner/repo points brew somewhere else",
+      "file": "internal/release/formula.go",
+      "find": "\tif !slugShape.MatchString(spec.Slug) {",
+      "replace": "\tif !slugShape.MatchString(spec.Slug) && false {",
+      "test": "TestTheSlugAndTheVersionAreCheckedBeforeTheyBecomeAURL"
+    },
+    {
+      "label": "the version is interpolated into every download URL without being checked, so `latest` or a range becomes a tag",
+      "file": "internal/release/formula.go",
+      "find": "\tif !semverOnly.MatchString(spec.Version) {",
+      "replace": "\tif !semverOnly.MatchString(spec.Version) && false {",
+      "test": "TestTheSlugAndTheVersionAreCheckedBeforeTheyBecomeAURL"
+    },
+    {
+      "label": "a formula is published with no licence, which brew audit refuses and which nothing here would have noticed",
+      "file": "internal/release/formula.go",
+      "find": "\tif strings.TrimSpace(spec.License) == \"\" {",
+      "replace": "\tif strings.TrimSpace(spec.License) == \"\" && false {",
+      "test": "TestAFormulaWithoutALicenceIsRefused"
+    },
+    {
+      "label": "a LICENSE the table does not recognise is given an SPDX identifier anyway",
+      "file": "internal/release/formula.go",
+      "find": "\treturn \"\", fmt.Errorf(\"the LICENSE file matches no SPDX identifier this knows: \" +\n\t\t\"the formula must not guess one\")",
+      "replace": "\t_ = fmt.Errorf(\"the LICENSE file matches no SPDX identifier this knows: \" +\n\t\t\"the formula must not guess one\")\n\treturn \"Apache-2.0\", nil",
+      "test": "TestTheLicenceIsReadRatherThanGuessed"
+    }
+  ],
+  "note": "The subject is #321: `brew install` has to install the bytes the release signed, and the only file carrying those digests is the release's own cosign-signed checksums.txt. tools/release/tap.sh fetches it over the network, which makes every name and every digest in it an input rather than a fact — the same reasoning that made a restored snapshot untrusted here. The first mutation is the one that matters most and it is the least obvious: dropping an entry the formula has no platform for reads as tolerance and publishes a formula that fails on one architecture with no mention of why."
+}

@@ -1,5 +1,12 @@
 package upstream
 
+import (
+	"sort"
+	"strings"
+
+	"github.com/stephrobert/feint/internal/shape"
+)
+
 // Reads is what to ask each provider in order to learn its shapes.
 //
 // A list rather than a derivation, and the reason is worth stating: what an
@@ -47,6 +54,11 @@ var Reads = map[Provider][]string{
 		"/instance/v1/zones/fr-par-1/products/servers",
 		"/vpc/v2/regions/fr-par/vpcs",
 		"/vpc/v2/regions/fr-par/private-networks",
+		// The read one Terraform refreshes a private network with, and the one
+		// nothing in this repository could arbitrate: a list read on an account
+		// with no network answers an empty array, so it carries no field of the
+		// object itself. See the templated-entry note below.
+		"/vpc/v2/regions/fr-par/private-networks/" + shape.Placeholder,
 		"/ipam/v1/regions/fr-par/ips",
 		"/iam/v1alpha1/ssh-keys",
 		"/marketplace/v2/local-images",
@@ -74,4 +86,71 @@ var Reads = map[Provider][]string{
 		"/v2/load-balancer",
 		"/v2/zone",
 	},
+}
+
+// A read-list entry ending in [shape.Placeholder] reads *one* element of the
+// collection above it, and the identifier is filled in from that collection's
+// own answer earlier in the same run.
+//
+// It exists because the shape of a "read one" was unobservable here. Only a
+// collection can be asked for blind: an item read needs an identifier, an
+// identifier belongs to an account, and so it can be neither written in this
+// list nor committed in a catalogue. #270 sat on that for weeks — the
+// private-network read is what the Terraform provider refreshes with, and not
+// one field of it was arbitrated by anything in this repository.
+//
+// Two properties make what comes back committable:
+//
+//   - the catalogue stores the anonymised path ([shape.AnonymisePath]), so an
+//     entry as written above is exactly the key its recording lands under, and
+//     no account identifier reaches the file;
+//   - the collection is read first, so a run against an account holding none of
+//     the resource resolves nothing and says so, instead of inventing an
+//     identifier or reading somebody else's.
+
+// TemplateOf returns the collection a templated entry reads one element of, and
+// whether the entry is templated at all.
+func TemplateOf(call string) (collection string, templated bool) {
+	trimmed := strings.TrimSuffix(call, "/"+shape.Placeholder)
+	if trimmed == call {
+		return "", false
+	}
+	return trimmed, true
+}
+
+// FirstID picks one identifier out of a collection's answer.
+//
+// These APIs answer a collection as an object holding one array of records —
+// {"private_networks": [...], "total_count": 1} — so the array is found rather
+// than named: a table of "which key holds the records" per provider per
+// resource would be one more thing to maintain, and every line of it a chance
+// to name the wrong key.
+//
+// Keys are visited in sorted order, so one body always yields the same
+// identifier however Go happened to hash the map that day. A recording that
+// moved with map iteration is exactly the volatility internal/shape refuses.
+func FirstID(body any) (string, bool) {
+	obj, ok := body.(map[string]any)
+	if !ok {
+		return "", false
+	}
+	names := make([]string, 0, len(obj))
+	for name := range obj {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		items, ok := obj[name].([]any)
+		if !ok || len(items) == 0 {
+			continue
+		}
+		first, ok := items[0].(map[string]any)
+		if !ok {
+			continue
+		}
+		if id, ok := first["id"].(string); ok && id != "" {
+			return id, true
+		}
+	}
+	return "", false
 }

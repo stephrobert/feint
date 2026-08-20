@@ -86,7 +86,11 @@ func (c *Catalogue) Merge(exs []trace.Exchange) Changes {
 		if x.Res == nil {
 			continue
 		}
-		key := keyFor(x)
+		// The path is anonymised before it is used for anything: it becomes the
+		// operation key when the recording could not name the operation, and it
+		// is stored on the operation either way.
+		path := AnonymisePath(x.Path)
+		key := keyFor(x, path)
 		op, known := c.Operations[key]
 		if !known {
 			// Fields starts as an empty slice rather than nil so the file
@@ -95,7 +99,7 @@ func (c *Catalogue) Merge(exs []trace.Exchange) Changes {
 			// and the difference between those two is the whole reason
 			// Statuses is recorded. Measured on a real Exoscale reading where
 			// one 404 wrote a null and the distinction vanished.
-			op = &Operation{Method: x.Method, Path: x.Path, Fields: []transcript.Field{}}
+			op = &Operation{Method: x.Method, Path: path, Fields: []transcript.Field{}}
 			c.Operations[key] = op
 			ch.Added = append(ch.Added, key)
 		}
@@ -194,12 +198,77 @@ func mergeType(a, b string) string {
 
 // keyFor names an operation. The upstream name when the recording carries one,
 // the route otherwise — an operation nothing claims is precisely what a shape
-// catalogue should hold, so it is never dropped for lack of a name.
-func keyFor(x *trace.Exchange) string {
+// catalogue should hold, so it is never dropped for lack of a name. The path it
+// is handed is the anonymised one, never the recorded one.
+func keyFor(x *trace.Exchange, path string) string {
 	if x.Operation != "" {
 		return x.Operation
 	}
-	return x.Method + " " + x.Path
+	return x.Method + " " + path
+}
+
+// AnonymisePath replaces every identifier segment of a request path with
+// "{id}".
+//
+// The catalogue is committed and a recording is not, and what makes that
+// difference safe is the package's own claim: paths and types, "no values, no
+// identifiers". A path stopped honouring it the moment a read list carried a
+// call that addresses one resource — `GET
+// /vpc/v2/regions/fr-par/private-networks/3f2a91c4-…` names an object of
+// somebody's account, and it would be written twice, into Operation.Path and
+// into the operation key. Nothing caught it because until #270 no read list
+// held such a call.
+//
+// The control sits at this boundary rather than in the recorder, because the
+// recorder is not the only writer: `feint shapes <recording.jsonl>` folds a
+// `feint proxy` transcript, which carries whatever a real client asked for. The
+// place that must hold is where a recording becomes a committed artefact.
+//
+// An identifier is a UUID, which is the form these providers put in a path:
+// Scaleway and Exoscale address resources that way, Outscale addresses
+// everything by POST /api/v1/<Action> and puts none there at all. A provider
+// that adopted another spelling would slip through, which is why
+// TestNoCommittedCatalogueCarriesAnIdentifier reads the files on disk instead of
+// trusting this function.
+//
+// TestARecordedIdentifierNeverReachesTheCatalogue fails without this.
+func AnonymisePath(path string) string {
+	segments := strings.Split(path, "/")
+	for i, seg := range segments {
+		if isUUID(seg) {
+			segments[i] = Placeholder
+		}
+	}
+	return strings.Join(segments, "/")
+}
+
+// Placeholder is what an identifier is written as, in a catalogue path and in
+// the read list that produced it. The two must be the same string or the shapes
+// gate would look an operation up under a name the recorder never wrote.
+const Placeholder = "{id}"
+
+// isUUID reports whether a path segment is a UUID, in the canonical
+// 8-4-4-4-12 hexadecimal spelling. The version and variant nibbles are not
+// checked: what is being recognised is an identifier, not a conforming one, and
+// a cloud that hands out an off-version UUID still hands out an identifier.
+func isUUID(seg string) bool {
+	if len(seg) != 36 {
+		return false
+	}
+	for i := 0; i < len(seg); i++ {
+		c := seg[i]
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			if c != '-' {
+				return false
+			}
+			continue
+		}
+		hex := (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+		if !hex {
+			return false
+		}
+	}
+	return true
 }
 
 // Changes is what a merge did, so a caller can report it instead of asking the

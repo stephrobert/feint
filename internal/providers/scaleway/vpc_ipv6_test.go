@@ -15,9 +15,11 @@ import (
 // An emulator serving only the IPv4 half made the ordinary consumer expression,
 // one(pn.ipv6_subnets).subnet, die on null — on apply and on destroy both.
 //
-// The fd00::/8 range and the /64 size are derived from the SDK and the
-// provider's documentation, not yet observed from the real cloud; the issue
-// stays open until a real recording lands in shapes/scaleway.json.
+// The fd00::/8 range and the /64 size are measured, not derived: a Private
+// Network created on a real fr-par account on 2026-08-20, with nothing asked
+// for, answered 172.16.4.0/22 and fdb2:1bb5:120a:9b::/64. The field tree of
+// that read is committed in shapes/scaleway.json under
+// `GET /vpc/v2/regions/fr-par/private-networks/{id}`.
 
 // ipv6SubnetOf picks the IPv6 record out of a subnets list, the counterpart of
 // ipv4SubnetOf.
@@ -93,7 +95,15 @@ func TestPrivateNetworkPublishesAnIPv6Subnet(t *testing.T) {
 	}
 }
 
-func TestTwoNetworksGetTwoIPv6Blocks(t *testing.T) {
+// Two networks of one project get two /64s out of one /48.
+//
+// Both halves are measured. On 2026-08-20 two Private Networks created in one
+// real fr-par project answered fdb2:1bb5:120a:9b::/64 and
+// fdb2:1bb5:120a:6cad::/64: distinct blocks, one global ID, which is RFC 4193's
+// own layout. Seeded from the resource alone, as this pack first did, sibling
+// networks landed in unrelated /48s — nothing wrong on the wire, and nothing in
+// one tenancy that looked related to anything else in it.
+func TestTwoNetworksGetTwoIPv6BlocksUnderOnePrefix(t *testing.T) {
 	ts := newTestServer(t)
 
 	_, first := privateNetwork(t, ts, `{"name":"one"}`)
@@ -102,6 +112,18 @@ func TestTwoNetworksGetTwoIPv6Blocks(t *testing.T) {
 	b, _ := ipv6SubnetOf(t, second["subnets"].([]any))["subnet"].(string)
 	if a == b {
 		t.Fatalf("two networks share the IPv6 block %s", a)
+	}
+
+	within48 := func(block string) netip.Prefix {
+		p, err := netip.ParsePrefix(block)
+		if err != nil {
+			t.Fatalf("the IPv6 subnet %q does not parse: %v", block, err)
+		}
+		return netip.PrefixFrom(p.Addr(), 48).Masked()
+	}
+	if within48(a) != within48(b) {
+		t.Errorf("two networks of one project landed in %s and %s, which share no /48; "+
+			"the real cloud gives a project one global ID and varies the subnet ID", a, b)
 	}
 }
 

@@ -298,6 +298,11 @@ func docs(args []string, stdout, stderr io.Writer) int {
 	// repaired by regenerating, both need a decision.
 	problems := clientPinMismatches(*workflow, *ansible)
 	problems = append(problems, documentedAssetMismatches(releaseWorkflow, *target, *installDoc)...)
+	// And the two the generated client table exposed the day after it landed:
+	// a stack CI applies without pinning the provider that answered, and a
+	// stack CI applies with nothing, declared nowhere. Neither is repaired by
+	// regenerating, which is why they belong here rather than in the render.
+	problems = append(problems, stackProofProblems(*workflow, conformanceRoot, stacksRoot, stacksScript)...)
 	if len(problems) > 0 {
 		for _, line := range problems {
 			fmt.Fprintf(stderr, "feint: %s\n", line)

@@ -17,6 +17,57 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **An Outscale load balancer distributes real packets, inside its own
+  network** (#315). Under `--vm incus-ovn`, a balancer's `PrivateIp` — an
+  address of the Subnet it sits in — is handed to the runtime's own OVN load
+  balancer: connections from inside that network are spread over the registered
+  Vms, an unlinked Vm stops receiving them, and deleting the balancer takes it
+  off the host. Measured on 2026-08-20 with two backends and one client on one
+  network: 6/6 answered at t0, 6/6 a minute later, over both machines each
+  time, and 6/6 to the survivor after an unlink.
+  `tools/conformance/outscale/balancer.sh` replays it.
+
+  The claim is declared and verified, never deduced from a mode name:
+  `/_feint/health` gained `capabilities.balancing` (health schema version 4),
+  the OVN mode alone sets it, startup verification clears it on a host with no
+  OVN wiring, and a build that does not know the key answers nothing — which
+  reads as absent. Gate on it.
+
+  **What did not move, and why.** The public address of an internet-facing
+  balancer still routes nowhere: a VIP outside the network answered 6/6 at t0,
+  6/6 at t+60s and 0/6 from t+180s onwards, permanently, because the runtime
+  announces such an address once at creation and never again. The driver now
+  **refuses** a listen address outside the network's own block rather than
+  configuring one that would go dark minutes after the test that proved it.
+  `ReadVmsHealth` also stays declined: `incus network load-balancer info`
+  answers "No load-balancer health information available", so nothing probes a
+  backend even here. The Scaleway `lb/v1` family is untouched — the mechanism is
+  shared, the wiring is per pack, and this pack asks the runtime for nothing.
+  `docs/limits.md` carries the figures beside each refusal.
+
+- **A real-cloud recording arbitrates a Private Network's shape** (#270).
+  `feint shapes --record --provider scaleway`, run on 2026-08-20 against a real
+  fr-par account holding one Private Network, learned 76 field paths, 62 of
+  them the `PrivateNetwork`, `Subnet` and `VPC` objects — none of which had ever
+  been observed populated, because the previous recording was taken on an
+  account holding neither, so both element shapes were empty. The other 14 are a
+  block snapshot's, observed for the same reason: the account had one.
+
+  What it settles, and what 0.9.0 said in a callout it could not: creation
+  allocates an IPv6 `/64` without being asked, the range is unique-local
+  (`fdb2:1bb5:120a:9b::/64` on that account), and two networks of one project
+  share their `/48` and differ only in the subnet ID — RFC 4193's own layout,
+  which this emulator now follows instead of drawing an independent `/48` per
+  network. The `Subnet` a real read carries is exactly the eight fields already
+  served.
+
+  The read list can now describe an operation that takes an identifier: an entry
+  ending in `{id}` is filled in from the collection above it, in the same run,
+  and the catalogue stores the templated path. `GET
+  /vpc/v2/regions/fr-par/private-networks/{id}` — the read the Terraform
+  provider refreshes with, and the one nothing here could arbitrate — is the
+  first of them.
+
 - **Scaleway load balancers, scoped by what the surveyed stacks call** (#282).
   `lb/v1` serves 35 operations on its zoned door: `ZonedAPI.CreateLB`,
   `ZonedAPI.GetLB`, `ZonedAPI.ListLBs`, `ZonedAPI.UpdateLB`,
@@ -106,7 +157,89 @@ what this project is judged on: **a response shape a client can observe**, and
   emulator on a shared port answered a probe with the previous build's
   catalogue, and nothing in the answer could say so.
 
+- **`brew install stephrobert/feint/feint`, with the digests derived from the
+  release rather than typed** (#321). The release already published signed
+  macOS binaries and a macOS reader still had to find the release page, pick an
+  architecture and verify a checksum by hand. The decision inside the issue was
+  *who writes the formula on release*, and it is answered by neither of the two
+  obvious halves: `mise run release:formula` fetches the release's own
+  cosign-signed `checksums.txt` and **derives** the whole formula from it, so
+  filling the tap costs a copy and never a transcription; `mise run release:tap`
+  derives it again and exits 2 while the tap serves anything else, daily
+  (`.github/workflows/tap.yml`). A push from `release.yml` was refused for the
+  reason this repository has already written down twice — it would need a
+  cross-repository token that does not exist, and *a gate that repairs the
+  repository is a second way in*. The formula installs the published bytes and
+  never rebuilds them, so what Homebrew verifies is what the release signed.
+  The refusals are in `internal/release/formula.go`, falsified by
+  `tools/falsify/specs/homebrew-formula.json`: a checksums list is fetched over
+  the network, so an entry the formula has no platform for stops it rather than
+  being dropped, a digest that is not a SHA-256 never reaches the file, and no
+  name from that list becomes a URL or a Ruby literal unchecked. Proved with
+  the real client rather than by rendering: on 2026-08-20 against Homebrew
+  5.1.15, the derived formula in a tap installed the published v0.9.0 binary,
+  `feint version` answered `v0.9.0`, `brew test` passed, `brew audit` reported
+  nothing, and one flipped byte in a digest made the install fail with *Formula
+  reports different checksum*. **The tap does not exist yet**: `mise run
+  release:tap` exits 2 and names the one command that fills it.
+
+- **The contract a third party's stack is asked to meet** (#327). A downstream
+  consumer offered the lane that found the Scaleway 2.81.0 break as a sixteenth
+  surveyed stack and asked what contract we wanted it to meet. It is written in
+  `examples/stacks/README.md`, with the decision it forced: such a stack is
+  **recorded and replayed on demand, never wired into this repository's CI**.
+  A third party's repository changes without our decision, so a required gate
+  over it can go red for a reason nobody here chose — and a red nobody can act
+  on is what teaches people to skip a gate. `examples/stacks/surveyed.md`
+  records the offer with its reported figures attributed as theirs and every
+  cell we cannot fill named as unmeasured.
+
 ### Fixed
+
+- **A stack applied on every pull request pins the provider that answered, and
+  a stack CI does not apply says why** (#325's table, first day). The generated
+  client page exposed two things nothing had said before:
+  `examples/stacks/outscale/modules/net` was applied on every pull request
+  while declaring no provider constraint at all — `terraform init -upgrade`
+  resolved it from the whole registry on every run, so the apply proved the
+  emulator answered whatever was newest that morning and nothing replayable —
+  and `examples/stacks/exoscale` is applied by nothing, which is a good
+  decision written only in prose, in three files, in three wordings, checked by
+  nothing. The module now carries the same `~> 1.7` floor its root does, and
+  `feint docs --check` exits 2 on a stack CI applies without a constraint, on a
+  stack CI does not apply that nothing declares, and on a declaration for a
+  stack that has disappeared or that CI has started applying. The reason is
+  printed on `docs/clients.md` from the same list the refusal reads.
+  Falsified by `tools/falsify/specs/stack-proof.json`.
+
+- **A Private Network and a VPC serve the Object Storage flag the real cloud
+  carries** (#270). `has_s3_integration` and `s3_integration_enabled` were
+  declared by the contract, returned by every real answer, and absent here. Both
+  are invisible through `scw`, which drops them on the way to its own output, so
+  only a recording could find them — and only one taken while the objects
+  existed.
+
+- **The two `vpc/v2` creates answer 200, which is what the wire carried**
+  (#270). `CreateVPC` and `CreatePrivateNetwork` answered 201, the status every
+  other create in the pack writes; both were measured at 200 on a real account,
+  read off a `feint proxy` transcript rather than off a CLI that shows neither.
+  No other product was measured, so no other product moved. It changes nothing
+  for a client that tests 2xx, and it changes what this emulator is allowed to
+  claim.
+
+- **An identifier never reaches a committed shape catalogue** (#270). A
+  recording of one resource carries that resource's path, and the path went into
+  the operation key and into `Operation.Path` verbatim — so the first read-list
+  entry addressing a single object would have committed somebody's account UUID
+  to `shapes/*.json`. Paths are now anonymised at the boundary where a recording
+  becomes an artefact, whatever wrote it, and a test reads the committed files
+  themselves rather than trusting the rule.
+
+- **`feint shapes --check` names what it could not compare** (#270). Eleven
+  recorded operations were dropping out of its arithmetic without a word: the
+  emulator answers a refusal offline and the comparison was skipped in silence.
+  The coverage line now lists them as unchecked, which is the difference between
+  "nothing is wrong" and "nothing was looked at".
 
 - **`server.public_ips` answers in the order the create named** (#320).
   Scaleway's `Server.public_ips` is a list and Terraform stores it as one: the

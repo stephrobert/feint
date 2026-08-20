@@ -37,6 +37,19 @@ type Capabilities struct {
 	// OwnKernel: the machine boots its own kernel, so a test touching sysctl,
 	// kernel modules or the boot path measures something.
 	OwnKernel bool `json:"own_kernel"`
+	// Balancing: a load balancer distributes real connections across its
+	// backends, for clients inside the network it sits in.
+	//
+	// The bound is in the name of the thing measured and it is not a hedge
+	// (#315, internal/core/machine/balancer.go). An address of the network's
+	// own block — which is what an *internal* load balancer's address is —
+	// balanced 6/6 connections across two machines at t0, t+60s and t+180s. An
+	// address outside it, delegated through the uplink, answered for two
+	// minutes and went dark for ever, because the runtime announces such an
+	// address once at creation and never again. So this claim covers the
+	// internal form and says nothing about the internet-facing one, whose
+	// public address stays a TEST-NET address routed nowhere on purpose.
+	Balancing bool `json:"balancing"`
 	// PrivateFromHost: an address inside an emulated subnet answers from the
 	// host that runs the emulator, not only from the other machines.
 	//
@@ -110,6 +123,10 @@ func (Noop) Capabilities() Capabilities { return Capabilities{} }
 // PrivateFromHost is isolation's trade, not an accident: the same router that
 // separates two VPC's subnets by construction NATs the host away from their
 // insides, so the two claims cannot both be true of one Incus mode.
+//
+// Balancing follows OVN too, and for a plainer reason than isolation's: a
+// managed bridge has no load balancer primitive at all, so there is nothing to
+// measure there rather than something that half works.
 func (d *Incus) Capabilities() Capabilities {
 	// What the host answered wins over what the flag promised (#181). Verify
 	// narrows this set once at startup; before that, and in a test that builds a
@@ -122,6 +139,7 @@ func (d *Incus) Capabilities() Capabilities {
 		Addresses:       true,
 		Firewall:        true,
 		Isolation:       d.OVN,
+		Balancing:       d.OVN,
 		OwnKernel:       d.VM,
 		PrivateFromHost: !d.OVN,
 	}

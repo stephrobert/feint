@@ -1706,7 +1706,7 @@ So: a plan that builds a routable topology applies, reads back and destroys
 correctly. A machine inside it still cannot reach the internet. Use the emulator
 to test the shape of your infrastructure, never its connectivity.
 
-## An Outscale load balancer records its configuration; nothing distributes packets
+## An Outscale load balancer distributes packets inside its network, and nowhere else
 
 The LBU family is served as far as the surveyed stacks exercise it (#281):
 create, read, update (health check, security groups, secured cookies),
@@ -1720,25 +1720,49 @@ What a `200` from `CreateLoadBalancer` means here, stated rather than implied:
   health-check settings, tags, the security groups and the subnet come back
   field for field, and the delete guards hold the same algebra as the rest of
   the pack: a subnet or a security group under a balancer refuses to go.
-- **No traffic is distributed, in any current mode.** The `DnsName` follows
-  the measured format (`<name>-<digits>.<region>.lbu.outscale.com`,
-  `internal-` prefix included) and resolves nowhere; the public address of an
-  internet-facing balancer comes from `203.0.113.0/24` — TEST-NET-3,
-  RFC 5737, routed nowhere on purpose, and deliberately not the block
-  ReadPublicIps allocates from, because the real service associates an
-  address the account does not own. The OVN path was measured rather than
-  waved at (#315): `incus network load-balancer` on an emulator-owned
-  network genuinely balanced connections across two backends, kept doing so
-  indefinitely for **in-network** clients, and its host-side VIP went dark
-  within three minutes — the same announcement defect the routed-address
-  path exists to avoid. The internal-LBU dataplane is therefore buildable
-  and is #315's; the internet-facing one waits on the VIP holding.
+- **Its own private address distributes, under `--vm incus-ovn` and there
+  only.** A balancer's `PrivateIp` is an address of the Subnet it sits in, and
+  it is handed to `incus network load-balancer` on the Subnet's own network:
+  connections from inside that network are spread over the registered Vms, an
+  unlinked Vm stops receiving them, and deleting the balancer takes it off the
+  host. Measured on 2026-08-20 with three machines on one OVN network — two
+  backends answering their own name on `:80`, one client — 6/6 answered at t0
+  and 6/6 again a minute later, over both backends each time, and 6/6 to the
+  survivor after an unlink. `tools/conformance/outscale/balancer.sh` is that
+  measurement, replayed on demand.
+
+  The claim is declared, never deduced: `/_feint/health` answers
+  `capabilities.balancing`, the OVN mode alone sets it, startup verification
+  clears it on a host with no OVN wiring, and a build that does not know the
+  key answers nothing — which reads as absent. A suite must gate on it and
+  never on a mode name.
+- **The public face distributes nothing, and that is a measurement too.** The
+  `DnsName` follows the measured format
+  (`<name>-<digits>.<region>.lbu.outscale.com`, `internal-` prefix included)
+  and resolves nowhere; the public address of an internet-facing balancer comes
+  from `203.0.113.0/24` — TEST-NET-3, RFC 5737, routed nowhere on purpose, and
+  deliberately not the block ReadPublicIps allocates from, because the real
+  service associates an address the account does not own.
+
+  The reason it stays that way is on the record (#315, measured 2026-08-19). A
+  VIP *outside* the network, delegated through the uplink's `ipv4.routes`,
+  answered 6/6 probes at t0, 6/6 at t+60s, and **0/6 from t+180s onwards**,
+  permanently, `ip neigh flush` included: the runtime announces such an address
+  with a burst of gratuitous ARPs at creation time and never again — the same
+  defect `internal/core/machine/incus_ovn.go` records for network forwards. The
+  driver's `ipv4.routes.external` path holds indefinitely and is strictly
+  one-machine, so it cannot carry a multi-backend VIP either.
+
+  So `EnsureBalancer` **refuses** a listen address outside the network's own
+  block rather than configuring one. A balancer that passes a test and fails
+  three minutes later is worse than a balancer that was never claimed.
 - **No backend health exists, and none is invented.** `ReadVmsHealth` stays
-  declined: under every current runtime mode nothing probes a backend, and a
-  backend reported `UP` that nothing checked is the exact answer this project
-  exists to refuse. The health-check *settings* round-trip because Terraform
-  plans on them; the health *states* do not exist until something measures
-  them.
+  declined, and it stays declined *after* the dataplane landed: `incus network
+  load-balancer info` answers "No load-balancer health information available",
+  so nothing probes a backend even under OVN, and a backend reported `UP` that
+  nothing checked is the exact answer this project exists to refuse. The
+  health-check *settings* round-trip because Terraform plans on them; the
+  health *states* do not exist until something measures them.
 - **The stored health-check defaults are the vendor's own** (interval 30,
   timeout 5, unhealthy 2, healthy 10, TCP on the first listener's backend
   port — the defaults Outscale's user guide documents), so a stack that never
@@ -1756,9 +1780,12 @@ a silent 200.
 
 The lb/v1 ZonedAPI and vpc-gw/v2 families are served as far as the measured
 clients exercise them (#282): the surveyed kubic and terraform-talos stacks,
-Scaleway's own LB and VPC modules, `scw lb` and `scw vpc-gw`. The decision is
-the one #315 measured for the Outscale LBU, and the Scaleway case does not
-differ — the same runtime would carry the packets that nothing carries.
+Scaleway's own LB and VPC modules, `scw lb` and `scw vpc-gw`. The dataplane
+#315 built for the Outscale LBU has not been wired here: the mechanism is the
+same and the pack is not, so the honest statement is that a Scaleway balancer
+still records its configuration and forwards nothing. `capabilities.balancing`
+says what the *runtime* can do, never what a given pack asked it for, and this
+pack asks for nothing.
 
 What a `200` means here, stated rather than implied:
 

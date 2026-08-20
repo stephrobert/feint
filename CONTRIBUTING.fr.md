@@ -170,6 +170,21 @@ Le tout, en quatre points :
 4. Les tests : aller-retour de cycle de vie, pagination, cloisonnement, un par
    forme d'erreur. Fuzzer tout nouveau décodeur de requête.
 
+## Proposer une stack que vous faites déjà tourner
+
+La contribution la plus utile ici n'est pas toujours du code. Une racine
+Terraform ou OpenTofu que vous faites tourner en gate obligatoire sur votre
+propre infrastructure est une preuve que nous ne pouvons pas fabriquer : elle
+change à votre rythme, contre des providers que vous résolvez à neuf, et c'est
+comme cela que la rupture du provider Scaleway 2.81.0 nous est parvenue (#325).
+
+Ce que nous demandons d'une telle stack, ce que nous en faisons, et ce que nous
+n'en faisons délibérément **pas** — non, nous ne clonerons pas votre dépôt dans
+notre CI — est écrit dans
+[`examples/stacks/README.md`](examples/stacks/README.md#offering-your-stack-what-we-ask-and-what-we-do-with-it).
+Le registre de celles déjà rejouées est
+[`examples/stacks/surveyed.md`](examples/stacks/surveyed.md).
+
 ## L'upstream a bougé
 
 Le workflow hebdomadaire ouvre une pull request quand l'API du provider change.

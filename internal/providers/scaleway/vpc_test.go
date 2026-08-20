@@ -36,11 +36,15 @@ func nicAddress(t *testing.T, ts *httptest.Server, nic map[string]any) string {
 }
 
 // privateNetwork creates one and returns its id and body.
+//
+// 200, not 201: vpc/v2's creates were measured on the wire against a real
+// account (see vpcCreateStatus). This helper is the only place the pack's
+// private-network creates are asserted, so it is where the change bites.
 func privateNetwork(t *testing.T, ts *httptest.Server, body string) (string, map[string]any) {
 	t.Helper()
 	status, created := do(t, ts, "POST", regionURL+"/private-networks", body)
-	if status != http.StatusCreated {
-		t.Fatalf("create private network: expected 201, got %d (%v)", status, created)
+	if status != http.StatusOK {
+		t.Fatalf("create private network: expected 200, got %d (%v)", status, created)
 	}
 	id, _ := created["id"].(string)
 	if id == "" {
