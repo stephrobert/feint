@@ -155,6 +155,86 @@ it could not count towards conformance in any case. It was last applied by
 hand on 2026-08-18: apply, an empty second plan, destroy — 13 resources, zero
 contract violations.
 
+## Offering your stack: what we ask, and what we do with it
+
+The fifteen in [`surveyed.md`](surveyed.md) are the strongest instrument this
+project has, and their weakness is that **we chose the fifteen**. A stack whose
+authors run it as a required gate on their own infrastructure is different
+evidence: it changes without asking us, on their schedule, against providers
+they resolve fresh. One such offer arrived on 2026-08-19 ([#327]) and asked the
+right question — *tell us the contract you want it to meet* — so here it is,
+before the next one asks.
+
+### The contract
+
+1. **A public repository, a commit, and a licence that lets us replay it.**
+   "We ran your stack" names nothing without the commit it was at. Every entry
+   in the register carries repository, commit and licence for exactly this
+   reason: a reader has to be able to redo it without asking anybody.
+2. **A root somebody actually applies.** Terraform or OpenTofu, either; the
+   engine is not the point. What is the point is that the configuration exists
+   for its own sake and moves when its authors need it to. A stack written to
+   please this emulator measures this emulator against itself.
+3. **Every provider constrained, in the root and in every module.** Not
+   necessarily exact — a floor is worth having and is often *why* a lane is
+   useful, since a `~> 2.68` is what walked into Scaleway 2.81.0 and told us
+   about it. What matters is that the constraint is declared and readable, so
+   that a red lane can name which version answered. This is the one point the
+   original four did not have, and it is the one our own directory failed on:
+   `examples/stacks/outscale/modules/net` was applied on every pull request
+   while declaring no constraint at all, and nothing said so until the
+   generated table of [#325] existed. It is checked here now
+   ([`docs/clients.md`](../../docs/clients.md)), which is the least we can do
+   before asking it of somebody else.
+4. **apply → empty second plan → destroy, and the destroy on the failure path
+   too.** The middle one does the finding, and the last one is not pedantry:
+   this repository's own runner hung its cleanup on a `RETURN` trap that never
+   fired where it mattered, and every rerun after a failure then died on its own
+   leftovers instead of the defect.
+5. **No credentials at all, and no fallback to any.** Every official client in
+   these three ecosystems falls back to the operator's stored credentials when
+   an endpoint is missing, so a lane that merely *lacks* credentials is not the
+   same thing as a lane that *fails* without them. Ours reaches for the second
+   ([#280]); the offer above arrived having reached the same rule
+   independently, which is the strongest evidence either of us has that it is
+   the right one.
+6. **feint installed at a named version, verified against its checksum.** Not
+   `latest`: a mutable reference installs a binary neither of us can name
+   afterwards, which makes a red lane unattributable to anything.
+7. **A stated wall.** What the stack asks for that this emulator declines, named
+   in advance. Without it, a red that is a declined product reads as a defect,
+   and both sides spend a day finding that out.
+
+Two things the first draft of this list had and that do not survive contact:
+the **number of providers** (one is fine; two proves nothing extra) and
+**OpenTofu specifically** (point 2 covers it).
+
+### What we do with it, and what we will not
+
+**We record it and replay it on demand. We do not put it in our CI.** The
+argument is not about trust, and it is worth stating plainly because the offer
+was generous:
+
+- A third party's repository changes without our decision. A required gate that
+  can go red for a reason nobody here chose is a gate whose red we cannot act
+  on, and a gate whose red cannot be acted on is one everybody learns to skip —
+  the same reasoning that keeps `conformance` out of this repository's
+  pre-commit hook.
+- **No gate here clones a third-party repository.** That would put somebody
+  else's availability inside this project's pipeline. The rule predates this
+  offer: it is why the Exoscale stack above is run by hand.
+
+What we do instead, and it is what actually paid: **their report is evidence,
+and it is credited as theirs.** The break in Scaleway provider 2.81.0 was found
+by a downstream lane and reported to us, which is how [#325] and [#326] exist.
+A stack we had vendored ourselves would have found it whenever somebody thought
+to re-record it. So the exchange we ask for is a report when a lane goes red,
+with the transcript — not a webhook.
+
+And what we owe back: the stack named in the register with what it exercises,
+the findings credited to whoever found them, and a break we caused treated as
+ours to fix.
+
 ## What they do not prove
 
 Nothing here boots a machine, filters a packet or isolates a subnet: that
@@ -170,3 +250,7 @@ on a mode name.
 [#269]: https://github.com/stephrobert/feint/issues/269
 [#270]: https://github.com/stephrobert/feint/issues/270
 [#271]: https://github.com/stephrobert/feint/issues/271
+[#280]: https://github.com/stephrobert/feint/issues/280
+[#325]: https://github.com/stephrobert/feint/issues/325
+[#326]: https://github.com/stephrobert/feint/issues/326
+[#327]: https://github.com/stephrobert/feint/issues/327

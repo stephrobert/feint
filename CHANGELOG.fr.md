@@ -112,7 +112,65 @@ change ni l'un ni l'autre a sa place dans `git log`.
   avec le catalogue de la version précédente, et rien dans la réponse ne
   pouvait le dire.
 
+- **`brew install stephrobert/feint/feint`, avec des empreintes dérivées de la
+  release et non recopiées** (#321). La release publiait déjà des binaires
+  macOS signés, et un lecteur macOS devait quand même trouver la page de
+  release, choisir une architecture et vérifier une somme à la main. La
+  décision que portait l'issue était *qui écrit la formule à chaque release*,
+  et la réponse n'est ni l'une ni l'autre des deux moitiés évidentes :
+  `mise run release:formula` récupère le `checksums.txt` signé par cosign de la
+  release et en **dérive** toute la formule, donc remplir le tap coûte une
+  copie et jamais une transcription ; `mise run release:tap` la dérive à
+  nouveau et sort en 2 tant que le tap sert autre chose, chaque jour
+  (`.github/workflows/tap.yml`). Une poussée depuis `release.yml` a été refusée
+  pour la raison que ce dépôt a déjà écrite deux fois : elle demanderait un
+  jeton inter-dépôt qui n'existe pas, et *un gate qui répare le dépôt est une
+  seconde porte d'entrée*. La formule installe les octets publiés et ne
+  recompile jamais : ce que Homebrew vérifie est donc ce que la release a
+  signé. Les refus sont dans `internal/release/formula.go`, falsifiés par
+  `tools/falsify/specs/homebrew-formula.json` : la liste de sommes est
+  récupérée par le réseau, donc une entrée pour laquelle la formule n'a pas de
+  plateforme l'arrête au lieu d'être ignorée, une empreinte qui n'est pas un
+  SHA-256 n'atteint jamais le fichier, et aucun nom venu de cette liste ne
+  devient une URL ou un littéral Ruby sans contrôle. Prouvé avec le vrai client
+  et non par un rendu : le 2026-08-20, contre Homebrew 5.1.15, la formule
+  dérivée placée dans un tap a installé le binaire v0.9.0 publié,
+  `feint version` a répondu `v0.9.0`, `brew test` est passé, `brew audit` n'a
+  rien signalé, et un octet retourné dans une empreinte a fait échouer la même
+  installation sur *Formula reports different checksum*. **Le tap n'existe pas
+  encore** : `mise run release:tap` sort en 2 et nomme la commande qui le
+  remplit.
+
+- **Le contrat qu'on demande à la stack d'un tiers** (#327). Un consommateur
+  aval a proposé la lane qui a trouvé la rupture Scaleway 2.81.0 comme seizième
+  stack observée, et a demandé quel contrat nous voulions qu'elle respecte. Il
+  est écrit dans `examples/stacks/README.md`, avec la décision qu'il a forcée :
+  une telle stack est **recensée et rejouée à la demande, jamais câblée dans la
+  CI de ce dépôt**. Le dépôt d'un tiers change sans notre décision, donc un gate
+  obligatoire posé dessus peut virer au rouge pour une raison que personne ici
+  n'a choisie — et un rouge que personne ne peut traiter est ce qui apprend aux
+  gens à sauter un gate. `examples/stacks/surveyed.md` consigne l'offre avec
+  ses chiffres attribués comme les leurs, et chaque case que nous ne pouvons
+  pas remplir nommée comme non mesurée.
+
 ### Corrigé
+
+- **Une stack appliquée à chaque pull request épingle le provider qui a
+  répondu, et une stack que la CI n'applique pas dit pourquoi** (la table de
+  #325, premier jour). La page générée des clients a révélé deux choses que
+  rien n'avait dites : `examples/stacks/outscale/modules/net` était appliqué à
+  chaque pull request sans déclarer la moindre contrainte de provider —
+  `terraform init -upgrade` le résolvait depuis tout le registre à chaque
+  exécution, donc l'apply prouvait que l'émulateur avait répondu à ce qui était
+  le plus récent ce matin-là, et rien de rejouable — et
+  `examples/stacks/exoscale` n'est appliqué par rien, ce qui est une bonne
+  décision écrite en prose seulement, dans trois fichiers, en trois
+  formulations, vérifiée par rien. Le module porte désormais le même plancher
+  `~> 1.7` que sa racine, et `feint docs --check` sort en 2 sur une stack
+  appliquée sans contrainte, sur une stack non appliquée que rien ne déclare,
+  et sur une déclaration visant une stack disparue ou que la CI s'est mise à
+  appliquer. La raison est imprimée sur `docs/clients.md` depuis la liste même
+  que lit le refus. Falsifié par `tools/falsify/specs/stack-proof.json`.
 
 - **`server.public_ips` répond dans l'ordre que la création a nommé** (#320).
   `Server.public_ips` chez Scaleway est une liste et Terraform la stocke comme

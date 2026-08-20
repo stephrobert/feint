@@ -160,6 +160,19 @@ The whole of it, in four points:
 4. Tests: lifecycle round-trip, pagination, scoping, one per error shape. Fuzz any
    new request decoder.
 
+## Offering a stack you already run
+
+The most useful contribution here is not always code. A Terraform or OpenTofu
+root that you run as a required gate on your own infrastructure is evidence we
+cannot manufacture: it changes on your schedule, against providers you resolve
+fresh, and that is how the break in Scaleway provider 2.81.0 reached us (#325).
+
+What we ask of one, what we do with it, and what we deliberately do **not** do
+with it — no, we will not clone your repository in our CI — is written out in
+[`examples/stacks/README.md`](examples/stacks/README.md#offering-your-stack-what-we-ask-and-what-we-do-with-it).
+The register of the ones already replayed is
+[`examples/stacks/surveyed.md`](examples/stacks/surveyed.md).
+
 ## Upstream moved
 
 The weekly workflow opens a pull request when the provider API changes. Triaging

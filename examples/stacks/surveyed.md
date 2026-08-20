@@ -647,6 +647,59 @@ platform entry.
 of the three — and the least of it lands on feint's served surface: the
 public Scaleway ecosystem lives in Kapsule, RDB, LB and Object Storage.
 
+## The sixteenth, offered rather than surveyed (2026-08-19)
+
+A downstream consumer — **OpenAether**, OpenTofu plus Talos on Scaleway and
+Outscale — offered their lane as a sixteenth entry ([#327]). It is not one, and
+the distinction is the point of this register rather than a formality: **every
+entry above was replayed here**, and this one has not been. What follows is
+their report, attributed, plus the decision it forced.
+
+**Reported by them, not replayed here.** Their figures, verbatim from the report
+of 2026-08-19: Scaleway **8 applied → empty re-plan → 8 destroyed**, Outscale
+**27 applied → empty re-plan → 27 destroyed**, with feint installed pinned and
+checksum-verified and **no credentials at all, deliberately** — "if anything in
+it ever needs one, the lane must fail rather than quietly reach a real account",
+which is [#280]'s escape-path rule arrived at independently, downstream. No
+number in this paragraph is a measurement of this repository, and none is
+reconciled against one: the two lanes were run on their infrastructure, at a
+commit we do not hold.
+
+**What it has already paid for.** It is the lane that caught Scaleway provider
+2.81.0 moving private NICs onto `instance/v2alpha1` — the break that produced
+[#325] and [#326]. That is the argument for the whole category: their providers
+resolve fresh on their schedule, so the ecosystem moved under them a day before
+anybody here would have re-recorded anything.
+
+**What it exercises, as reported**: two providers in one project, a Talos
+cluster's shape on each, and the full apply → empty re-plan → destroy cycle on
+both. Which resources, in what versions, with which constraints, is not stated
+in the offer and is not guessed here.
+
+**The wall it stands at**: unknown. The report names no product feint declined
+to serve them, and an absence of complaint is not a measurement of coverage.
+
+**What is not measured**, and it is most of what an entry above carries: the
+repository URL, the commit, the licence, the provider constraints, the client
+versions, the harness, and every resource count as observed from this side. A
+row that filled those cells from the paragraph above would be the exact failure
+this register exists to avoid.
+
+**The decision (#327): recorded here, replayed on demand, and not wired into
+this repository's CI.** Two reasons, neither about trust. A third party's
+repository changes without our decision, so a required gate over it can go red
+for a reason nobody here chose — and a red nobody can act on is what teaches
+people to skip a gate. And no gate here clones a third-party repository, which
+would put somebody else's availability inside this pipeline; that rule predates
+the offer and is why the Exoscale stack is run by hand. The contract we asked
+them to meet, written for whoever offers the next one, is in
+[`README.md`](README.md#offering-your-stack-what-we-ask-and-what-we-do-with-it).
+
+[#280]: https://github.com/stephrobert/feint/issues/280
+[#325]: https://github.com/stephrobert/feint/issues/325
+[#326]: https://github.com/stephrobert/feint/issues/326
+[#327]: https://github.com/stephrobert/feint/issues/327
+
 ## The declined products these fifteen reached for, counted
 
 | provider | product/behaviour | stacks that asked | note |

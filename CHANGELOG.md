@@ -106,7 +106,60 @@ what this project is judged on: **a response shape a client can observe**, and
   emulator on a shared port answered a probe with the previous build's
   catalogue, and nothing in the answer could say so.
 
+- **`brew install stephrobert/feint/feint`, with the digests derived from the
+  release rather than typed** (#321). The release already published signed
+  macOS binaries and a macOS reader still had to find the release page, pick an
+  architecture and verify a checksum by hand. The decision inside the issue was
+  *who writes the formula on release*, and it is answered by neither of the two
+  obvious halves: `mise run release:formula` fetches the release's own
+  cosign-signed `checksums.txt` and **derives** the whole formula from it, so
+  filling the tap costs a copy and never a transcription; `mise run release:tap`
+  derives it again and exits 2 while the tap serves anything else, daily
+  (`.github/workflows/tap.yml`). A push from `release.yml` was refused for the
+  reason this repository has already written down twice — it would need a
+  cross-repository token that does not exist, and *a gate that repairs the
+  repository is a second way in*. The formula installs the published bytes and
+  never rebuilds them, so what Homebrew verifies is what the release signed.
+  The refusals are in `internal/release/formula.go`, falsified by
+  `tools/falsify/specs/homebrew-formula.json`: a checksums list is fetched over
+  the network, so an entry the formula has no platform for stops it rather than
+  being dropped, a digest that is not a SHA-256 never reaches the file, and no
+  name from that list becomes a URL or a Ruby literal unchecked. Proved with
+  the real client rather than by rendering: on 2026-08-20 against Homebrew
+  5.1.15, the derived formula in a tap installed the published v0.9.0 binary,
+  `feint version` answered `v0.9.0`, `brew test` passed, `brew audit` reported
+  nothing, and one flipped byte in a digest made the install fail with *Formula
+  reports different checksum*. **The tap does not exist yet**: `mise run
+  release:tap` exits 2 and names the one command that fills it.
+
+- **The contract a third party's stack is asked to meet** (#327). A downstream
+  consumer offered the lane that found the Scaleway 2.81.0 break as a sixteenth
+  surveyed stack and asked what contract we wanted it to meet. It is written in
+  `examples/stacks/README.md`, with the decision it forced: such a stack is
+  **recorded and replayed on demand, never wired into this repository's CI**.
+  A third party's repository changes without our decision, so a required gate
+  over it can go red for a reason nobody here chose — and a red nobody can act
+  on is what teaches people to skip a gate. `examples/stacks/surveyed.md`
+  records the offer with its reported figures attributed as theirs and every
+  cell we cannot fill named as unmeasured.
+
 ### Fixed
+
+- **A stack applied on every pull request pins the provider that answered, and
+  a stack CI does not apply says why** (#325's table, first day). The generated
+  client page exposed two things nothing had said before:
+  `examples/stacks/outscale/modules/net` was applied on every pull request
+  while declaring no provider constraint at all — `terraform init -upgrade`
+  resolved it from the whole registry on every run, so the apply proved the
+  emulator answered whatever was newest that morning and nothing replayable —
+  and `examples/stacks/exoscale` is applied by nothing, which is a good
+  decision written only in prose, in three files, in three wordings, checked by
+  nothing. The module now carries the same `~> 1.7` floor its root does, and
+  `feint docs --check` exits 2 on a stack CI applies without a constraint, on a
+  stack CI does not apply that nothing declares, and on a declaration for a
+  stack that has disappeared or that CI has started applying. The reason is
+  printed on `docs/clients.md` from the same list the refusal reads.
+  Falsified by `tools/falsify/specs/stack-proof.json`.
 
 - **`server.public_ips` answers in the order the create named** (#320).
   Scaleway's `Server.public_ips` is a list and Terraform stores it as one: the
