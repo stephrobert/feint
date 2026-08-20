@@ -114,6 +114,36 @@ recorded through GitHub's API: it is the file OpenSSF Scorecard's
 *Signed-Releases* control looks for. That control scores the **five most recent**
 releases, so the maximum is only reached once five consecutive releases carry it.
 
+## After the tag: the Homebrew tap
+
+One step the workflow deliberately does not take. A binary formula needs the URL
+and the SHA-256 of each published asset, and those exist only once the release
+is up — so either the workflow pushes them into `stephrobert/homebrew-feint`,
+which needs a cross-repository token this repository does not hold, or somebody
+copies them and a gate refuses a stale copy. This project already refused the
+first shape twice in writing (the Marketplace mirror in
+`.github/workflows/workflow-security.yml`, the generated pages in
+`internal/cli/docs_release.go`: *a gate that refuses is safe; a gate that repairs
+the repository is a second way in*), so it is the second:
+
+```bash
+mise run release:formula > Formula/feint.rb   # in the tap's checkout
+```
+
+Nothing there is typed. `release:formula` fetches the release's own
+cosign-signed `checksums.txt` and derives the file from it, so the digests in
+the tap are the release's rather than a transcription of them. Commit, push, and
+
+```bash
+mise run release:tap
+```
+
+answers 0. It exits 2 while the tap serves anything else, and
+`.github/workflows/tap.yml` runs it daily so a tap left behind by a release is
+named within a day rather than two versions later. It is not on the
+pull-request path: only whoever can push to the tap can clear its red, and a
+gate a contributor cannot clear is one everybody learns to skip.
+
 ## Verifying a release
 
 Anyone can check that a binary really came from this repository's workflow, and

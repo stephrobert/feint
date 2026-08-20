@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/stephrobert/feint/internal/release"
 )
 
 // The install commands name assets, and a release is where that goes wrong.
@@ -34,11 +36,6 @@ const (
 	installStartMarker = "<!-- install:start -->"
 	installEndMarker   = "<!-- install:end -->"
 )
-
-// modulePath reads the module line, which is where the repository's own name
-// lives. The install commands need it, and typing it into the generator would
-// put a third copy of it in the repository.
-var modulePath = regexp.MustCompile(`(?m)^module\s+github\.com/([^/\s]+/[^/\s]+)`)
 
 // changelogVersion finds the newest released section, which is this repository's
 // record of what the latest published version is.
@@ -74,15 +71,18 @@ func latestReleased(changelog string) string {
 	return ""
 }
 
+// repositorySlug reads the repository this module is published from.
+//
+// The reader itself lives in internal/release, because the Homebrew formula
+// interpolates the same slug into the same kind of download URL (#321). Two
+// readers of one line in go.mod is two chances for the install page and the
+// tap to name different repositories.
 func repositorySlug(goMod string) string {
 	body, err := os.ReadFile(goMod) //nolint:gosec // a path this repository owns
 	if err != nil {
 		return ""
 	}
-	if m := modulePath.FindStringSubmatch(string(body)); m != nil {
-		return m[1]
-	}
-	return ""
+	return release.SlugFromModule(string(body))
 }
 
 // renderInstall writes the download commands, and it writes them verified.

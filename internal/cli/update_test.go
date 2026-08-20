@@ -36,7 +36,7 @@ func TestIsNewerComparesVersionsRatherThanStrings(t *testing.T) {
 // The message is what a user acts on, so its three shapes are asserted rather
 // than assumed.
 func TestUpdateMessageSaysWhatToDo(t *testing.T) {
-	latest := release{TagName: "v0.2.0", HTMLURL: "https://example.invalid/releases/v0.2.0"}
+	latest := githubRelease{TagName: "v0.2.0", HTMLURL: "https://example.invalid/releases/v0.2.0"}
 
 	out := updateMessage("0.1.0", latest)
 	for _, want := range []string{"a newer release is available: v0.2.0", "releases/download/v0.2.0", "sha256sum -c"} {

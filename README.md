@@ -272,6 +272,19 @@ downloads, and therefore verifies none of the above:
 go install github.com/stephrobert/feint/cmd/feint@latest
 ```
 
+### With Homebrew
+
+```bash
+brew install stephrobert/feint/feint
+```
+
+The formula installs the **published binary**, never a local rebuild, so the
+SHA-256 Homebrew verifies before installing is the one the release signed. No
+version is named here on purpose: `brew` resolves the tap's current formula, and
+[`docs/install.md`](docs/install.md#with-homebrew) says what that costs compared
+with the verified commands above — Homebrew checks the digest, not the signature
+over the digest list.
+
 ### From source
 
 The Go version in the [prerequisites](#prerequisites) table, and nothing else.

@@ -208,6 +208,20 @@ télécharger, et ne vérifie donc rien de ce qui précède :
 go install github.com/stephrobert/feint/cmd/feint@latest
 ```
 
+### Avec Homebrew
+
+```bash
+brew install stephrobert/feint/feint
+```
+
+La formule installe le **binaire publié**, jamais une recompilation locale : la
+somme SHA-256 que Homebrew vérifie avant d'installer est donc celle que la
+release a signée. Aucune version n'est nommée ici, volontairement : `brew`
+résout la formule courante du tap. Ce que cela coûte par rapport aux commandes
+vérifiées ci-dessus est dit dans
+[`docs/install.md`](docs/install.md#with-homebrew) — Homebrew contrôle
+l'empreinte, pas la signature qui couvre la liste d'empreintes.
+
 ### Depuis les sources
 
 La version de Go des prérequis, et rien d'autre. Le module n'a **aucune

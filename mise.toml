@@ -235,6 +235,31 @@ description = "Everything that must be true before a tag exists: mise run releas
 depends = ["build"]
 run = "tools/release/preflight.sh"
 
+[tasks."release:formula"]
+description = "Print the Homebrew formula this release derives, to be copied into the tap"
+# The whole of the "who writes the formula" decision of #321, on one line. The
+# digests come from the release's own checksums.txt — the file cosign signs —
+# so updating the tap by hand costs a copy and never a transcription. Redirect
+# it into the tap's Formula/feint.rb and commit; release:tap then refuses any
+# difference.
+run = "bash --noprofile --norc tools/release/tap.sh print"
+
+[tasks."release:tap"]
+description = "Fail (exit 2) when the Homebrew tap does not serve the formula this release derives"
+# The comparison half, in the shape #245 settled on for the Marketplace mirror:
+# a public artefact read with no secret, rather than a push that would need a
+# cross-repository token this repository does not hold.
+#
+# Deliberately not in prepush and not on the pull-request path. Its red is
+# clearable only by whoever can push to the tap, and a gate a contributor
+# cannot clear is the gate everybody learns to skip — the argument CLAUDE.md
+# makes for keeping `conformance` out of the hook. It runs on a schedule and on
+# demand (.github/workflows/tap.yml).
+#
+# Seen red on 2026-08-20, before the tap existed: exit 2, naming the tap and
+# the one command that fills it.
+run = "bash --noprofile --norc tools/release/tap.sh check"
+
 [tasks."docs:coverage"]
 description = "Regenerate every generated section: coverage tables, client matrix, route reference"
 depends = ["build"]

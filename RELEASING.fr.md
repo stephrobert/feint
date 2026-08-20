@@ -122,6 +122,38 @@ enregistrée via l'API GitHub : c'est le fichier que cherche le contrôle
 plus récentes**, donc le maximum n'est atteint qu'une fois que cinq releases
 consécutives le portent.
 
+## Après le tag : le tap Homebrew
+
+Une étape que le workflow ne prend délibérément pas. Une formule binaire a
+besoin de l'URL et de la somme SHA-256 de chaque artefact publié, et ces deux
+faits n'existent qu'une fois la release en ligne : soit le workflow les pousse
+dans `stephrobert/homebrew-feint`, ce qui demande un jeton inter-dépôt que ce
+dépôt ne détient pas, soit quelqu'un les copie et un gate refuse une copie
+périmée. Ce projet a déjà refusé la première forme deux fois par écrit (le
+miroir Marketplace dans `.github/workflows/workflow-security.yml`, les pages
+générées dans `internal/cli/docs_release.go` : *un gate qui refuse est sûr ; un
+gate qui répare le dépôt est une seconde porte d'entrée*). C'est donc la
+seconde :
+
+```bash
+mise run release:formula > Formula/feint.rb   # dans le clone du tap
+```
+
+Rien n'y est tapé. `release:formula` récupère le `checksums.txt` signé par
+cosign de la release et en dérive le fichier, donc les empreintes du tap sont
+celles de la release et non leur recopie. Commiter, pousser, puis
+
+```bash
+mise run release:tap
+```
+
+répond 0. Il sort en 2 tant que le tap sert autre chose, et
+`.github/workflows/tap.yml` le lance chaque jour : un tap laissé derrière par
+une release est nommé dans la journée plutôt que deux versions plus tard. Il
+n'est pas sur le chemin des pull requests : seul celui qui peut pousser sur le
+tap peut en éteindre le rouge, et un gate dont un contributeur ne peut rien
+faire est un gate que tout le monde apprend à sauter.
+
 ## Vérifier une release
 
 N'importe qui peut vérifier qu'un binaire vient bien du workflow de ce dépôt, et

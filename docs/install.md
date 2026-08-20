@@ -105,6 +105,46 @@ That gives you the control plane — every API answers, `scw`, `oapi-cli`, `exo`
 and Terraform drive it, and nothing runs. It is what CI uses and it needs no
 prerequisite at all.
 
+## With Homebrew
+
+```bash
+brew install stephrobert/feint/feint
+```
+
+For the reader who installs everything with `brew` and does not go looking for a
+tarball. It is a **binary** formula: it downloads the published
+`feint-darwin-arm64` or `feint-darwin-amd64` — or their Linux counterparts on
+Linuxbrew — and installs those bytes. Nothing is rebuilt locally, so what
+Homebrew verifies is what the release signed, which is the same reasoning the
+container image follows.
+
+**What it checks, and what it does not.** Homebrew compares the SHA-256 of the
+file it downloaded against the digest in the formula before installing, and
+refuses on a mismatch. That is one of the two guarantees the commands above
+give: the missing one is `cosign verify-blob`, which proves *who* produced the
+digest list. So the honest ranking is that `brew` is the fastest correct
+install, and the block at the top of this page is the strongest one. A reader
+who needs the provenance runs the `gh attestation verify` command above on the
+installed binary.
+
+**The digests are derived, never typed.** The tap's formula is the output of
+`mise run release:formula`, which reads the release's own cosign-signed
+`checksums.txt` and renders the file. `.github/workflows/tap.yml` derives it
+again every day and exits 2 while the tap serves anything else — so a tap left
+behind by a release is named within a day rather than two versions later. The
+refusals that keep a fetched checksums list from becoming an arbitrary URL live
+in `internal/release/formula.go`, with the tests that fail without them.
+
+**Older versions.** The tap carries the current release only. An older one is
+still installed by the commands at the top of this page, which name their tag.
+
+**Measured, not assumed.** On 2026-08-20, Homebrew 5.1.15: the derived formula
+was put in a tap and `brew install stephrobert/feint/feint` fetched the
+published v0.9.0 binary, `feint version` answered `v0.9.0`, `brew test` passed
+and `brew audit` reported nothing. One flipped byte in a digest made the same
+install fail with *Formula reports different checksum* instead of installing —
+which is the guarantee this section claims, seen refusing.
+
 ## The container image
 
 For the CI that consumes an image rather than a binary. What it can and cannot
