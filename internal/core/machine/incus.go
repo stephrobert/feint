@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/stephrobert/feint/internal/core/serialise"
 )
 
 // Incus backs emulated servers with Incus instances: system containers, or real
@@ -89,11 +91,25 @@ type Incus struct {
 	// the honest answer, because no host was consulted to contradict it.
 	verified *Capabilities
 
-	// attachMu serialises interface allocation. Attach reads the device list and
-	// then adds a device under a name it believes free; two concurrent calls
-	// without the lock pick the same name, and the loser's attachment silently
-	// becomes the winner's.
-	attachMu sync.Mutex
+	// Interface allocation is serialised per machine, by serialise.Lock in
+	// Attach — there is no field here on purpose.
+	//
+	// It used to be a package-level sync.Mutex, and serialise.go described it as
+	// "the same idea one layer down" from its own one-lock-per-target rule. It
+	// was not: it was the global lock that file warns against, and it queued
+	// every attachment in the session behind whichever machine was slowest to
+	// answer, because it is held across waitForAgent.
+	//
+	// Measured on the Scaleway example stack under --vm incus-ovn: six
+	// attachments took 26s, 31s, 42s, 52s, 63s and 73s — a flat +10s per
+	// attachment, which is one machine's wait paid by every machine after it.
+	// Past sixty seconds the client gives up and retries, and the retry meets
+	// the NIC its own first attempt created: "the server is already attached to
+	// this private network" (#348).
+	//
+	// The name collision it exists to prevent is per machine — two calls reading
+	// one machine's device list and both picking eth1 — so the exclusion is per
+	// machine too. TestTwoMachinesAttachWithoutQueueing fails without this.
 	// defaultNetMu serialises the creation of the default machine network: two
 	// concurrent first boots would otherwise both see it absent and the loser's
 	// `network create` would fail the launch it was only preparing.
@@ -568,8 +584,8 @@ func (d *Incus) Attach(ctx context.Context, name string, att Attachment) error {
 		return fmt.Errorf("invalid network name %q", att.Network)
 	}
 
-	d.attachMu.Lock()
-	defer d.attachMu.Unlock()
+	release := serialise.Lock("incus.attach." + name)
+	defer release()
 
 	// A virtual machine is ready for a device once its agent answers, and not
 	// when `incus start` returns. Adding one while the firmware is still

@@ -246,6 +246,18 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Attacher une NIC privée ne met plus toutes les machines en file derrière la
+  plus lente** (#348). Six attachements sur la stack d'exemple Scaleway en
+  `--vm incus-ovn` ont pris 26 s, 31 s, 42 s, 52 s, 63 s et 73 s — dix secondes
+  de plus à chaque fois, c'est-à-dire le travail d'une machine repayé par toutes
+  celles qui la suivent. Passé la minute, le client abandonne et rejoue, et son
+  rejeu tombe sur l'interface que sa propre première tentative avait créée :
+  *le serveur est déjà attaché à ce réseau privé*. Le pilote tenait un unique
+  mutex de paquet pendant tous ses appels dans la machine ; il prend désormais
+  le verrou par cible du dépôt, indexé par machine — la portée qu'a toujours eue
+  la collision de noms qu'il protège. Mesuré sur `main` sans cette branche : la
+  même pente, donc la file préexiste et n'était qu'inatteignable derrière
+  #341.
 - **Un passage complet `incus-ovn` ne fait plus supprimer deux fois la même
   chaîne de pare-feu au démon** (#341). L'échec — `Failed deleting nftables
   chain "fwd.feint-uplink": No such file or directory`, qui tuait la suite

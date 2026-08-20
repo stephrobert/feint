@@ -230,6 +230,17 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **Attaching a private NIC no longer queues every machine behind the slowest
+  one** (#348). Six attachments on the Scaleway example stack under
+  `--vm incus-ovn` took 26s, 31s, 42s, 52s, 63s and 73s — a flat ten seconds
+  each, which is one machine's work paid again by every machine behind it. Past
+  the client's minute the apply gives up and retries, and the retry meets the
+  interface its own first attempt created: *the server is already attached to
+  this private network*. The driver held one package-level mutex across every
+  call it makes into the machine; it now takes the repository's own per-target
+  lock, keyed by machine, which is what the name collision it guards against
+  has always been scoped to. Measured on `main` without this branch: the same
+  slope, so the queue predates it and was merely unreachable behind #341.
 - **A full `incus-ovn` conformance pass no longer races the daemon into
   deleting a firewall chain twice** (#341). The failure — `Failed deleting
   nftables chain "fwd.feint-uplink": No such file or directory`, killing the

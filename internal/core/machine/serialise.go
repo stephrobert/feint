@@ -19,8 +19,17 @@ import "github.com/stephrobert/feint/internal/core/serialise"
 //
 // The exclusion is named rather than widened. One lock per target, never one
 // global lock: a global one would queue every server in the session behind a
-// single launch, turning a correctness fix into a throughput bug. attachMu in
-// the Incus driver is the same idea one layer down, for interface allocation.
+// single launch, turning a correctness fix into a throughput bug. Interface
+// allocation in the Incus driver is the same idea one layer down, and takes
+// this same mechanism keyed by machine.
+//
+// Until #348 that last sentence was false, and this is why it is worth reading
+// twice. The driver held one package-level attachMu, and this paragraph
+// described it as an example of the rule it broke. Nothing was wrong with the
+// sentence except that no test held it: six attachments on one stack took 26s,
+// 31s, 42s, 52s, 63s and 73s, a flat ten seconds each, until the client gave up
+// past its minute and its retry met the interface its own first attempt had
+// created. A comment claiming a property is not the property.
 //
 // The mechanism itself lives in core/serialise, because it is not specific to
 // machines: a pack's address allocation needs the same named exclusion, and

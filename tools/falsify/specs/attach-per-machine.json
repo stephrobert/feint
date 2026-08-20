@@ -1,0 +1,13 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "interface allocation goes back to one global lock, so every attachment in the session queues behind whichever machine is slowest",
+      "file": "internal/core/machine/incus.go",
+      "find": "\trelease := serialise.Lock(\"incus.attach.\" + name)",
+      "replace": "\trelease := serialise.Lock(\"incus.attach.\" + name[:0])",
+      "test": "TestTwoMachinesAttachWithoutQueueing"
+    }
+  ],
+  "note": "Measured rather than reasoned. Six attachments on the Scaleway example stack under --vm incus-ovn took 26s, 31s, 42s, 52s, 63s and 73s — a flat +10s each, which is one machine's work paid again by every machine behind it. Past the client's minute the apply retries, and the retry meets the NIC its own first attempt created: \"the server is already attached to this private network\" (#348). The same slope was measured on main without any of this branch's commits, so the queue predates them; it was simply unreachable, because no incus-ovn pass had ever got past the nftables race of #341. internal/core/machine/serialise.go had stated the rule all along — one lock per target, never one global — and named attachMu as an example of it, which it was not: that is a comment describing a property the code did not have."
+}
