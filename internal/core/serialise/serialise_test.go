@@ -48,12 +48,28 @@ func TestLockDoesNotQueueDifferentDomains(t *testing.T) {
 	release := make(chan struct{})
 	done := make(chan struct{})
 
+	// left is not tidiness. Without it this test returns while its four
+	// holders are still on their way out of Lock, and the next test reads
+	// locks.held — a package global — and counts domains nobody is holding any
+	// more. That is a test failing for another test's timing, and it is what
+	// happened: green on every Linux runner, red on macos-15-intel under -race
+	// (TestADomainIsForgottenOnceNobodyHoldsIt, 2026-08-21), where the
+	// scheduler is slow enough for the gap to open.
+	//
+	// The general shape is the one this repository keeps meeting: an assertion
+	// about shared state is only as good as the guarantee that every other
+	// actor has finished. Deleting the four lines below makes the neighbour
+	// flake rather than this test, which is exactly why it is written here.
+	var left sync.WaitGroup
+	left.Add(domains)
+
 	for i := range domains {
 		go func() {
 			free := Lock(string(rune('a' + i)))
-			defer free()
 			arrived.Done()
 			<-release
+			free()
+			left.Done()
 		}()
 	}
 
@@ -69,23 +85,41 @@ func TestLockDoesNotQueueDifferentDomains(t *testing.T) {
 		t.Fatal("four different domains could not be held at once: the lock is global, not per domain")
 	}
 	close(release)
+	left.Wait()
 }
 
 // A map that keeps one mutex per domain a session ever named is the memory
 // sink an emulator must not become. The refcount is what stops it, and it is
 // exactly the kind of bookkeeping that reads as correct and leaks.
 func TestADomainIsForgottenOnceNobodyHoldsIt(t *testing.T) {
-	for i := range 100 {
-		release := Lock(string(rune('a' + i%26)))
-		release()
+	// Measured as a difference, not as an absolute, and that is the whole
+	// correctness of this test rather than a style choice.
+	//
+	// locks.held is a package global. Reading it raw asserts something about
+	// every other test in this package, so a neighbour still on its way out of
+	// Lock fails *this* one — which is what happened on macos-15-intel under
+	// -race on 2026-08-21, where the scheduler is slow enough for the gap to
+	// open, while every Linux runner stayed green. A test that fails for
+	// another test's timing reports the wrong subject, and the reflex it
+	// teaches is to re-run until green.
+	//
+	// A difference is immune to that: whatever anyone else holds, this test's
+	// own hundred domains must leave nothing behind. The mutation that reddens
+	// it is the real leak — dropping the delete from release — and that one is
+	// reproducible here.
+	count := func() int {
+		locks.mu.Lock()
+		defer locks.mu.Unlock()
+		return len(locks.held)
 	}
 
-	locks.mu.Lock()
-	held := len(locks.held)
-	locks.mu.Unlock()
-
-	if held != 0 {
-		t.Fatalf("%d domains are still held after every caller left", held)
+	before := count()
+	for i := range 100 {
+		release := Lock("forgotten-" + string(rune('a'+i%26)))
+		release()
+	}
+	if leaked := count() - before; leaked != 0 {
+		t.Fatalf("%d domains of this test's own hundred are still held after every caller left", leaked)
 	}
 }
 
