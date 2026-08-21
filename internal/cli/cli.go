@@ -123,11 +123,18 @@ const (
 // comparison. Additions to one existing verb; nothing was removed, no exit code
 // moved, and a pipeline keyed on version 9 keeps working.
 //
+// Version 11 adds `clean --check` (#375): the sweep's own question — what did
+// a run leave holding an address block, and which of it may this user
+// not end — asked without ending anything, so a suite can refuse on the
+// doorstep and name the command instead of dying on the block minutes in. An
+// addition to one existing verb; nothing was removed, no exit code moved, and a
+// pipeline keyed on version 10 keeps working.
+//
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 10
+const cliSurfaceVersion = 11
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -431,9 +438,13 @@ Usage:
   feint catalog    [--format json]
                     Print the emulated inventory a client reads before creating.
 
-  feint clean      [--vm incus|incus-vm|incus-ovn]
+  feint clean      [--vm incus|incus-vm|incus-ovn] [--check]
                     Remove every machine, network and rule set the emulator
                     created. Labelled resources only; nothing else is touched.
+                    --check removes nothing: it names what a run left behind
+                    holding an address block, and which of it this user may not
+                    end, exiting 1 in that case so a suite can refuse on the
+                    doorstep instead of dying on the block minutes in.
 
   feint version    [--check]
                     Print the version. --check asks GitHub whether a newer

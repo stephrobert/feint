@@ -855,6 +855,52 @@ what this project is judged on: **a response shape a client can observe**, and
   needed no contract change at all: the document already declared the field and
   only the pack had dropped it.
 
+- **A DHCP service left behind by a run failed the runtime leg every time, and
+  the only remedy was a human reading a log** (#375). The sweep in
+  `tools/conformance/*/network.sh` found the leftover, named it exactly and
+  printed `sudo kill <pid>` — then exited 1, because the process belongs to the
+  `incus` user and the operator running the suite may not signal it. The
+  diagnosis was right and nothing ran the remedy, so the runtime leg of
+  `mise run evidence:update` died in the same place three runs in a row, each
+  time *after* every client suite had already run. **A gate whose only remedy is
+  a manual step somebody has to notice is a gate that gets worked around**, which
+  is how `--no-verify` is learned.
+
+  Two changes, and neither of them escalates. `feint clean --check` asks the
+  sweep's own question without doing anything: it names what an earlier run left
+  holding an address block, separates what this user may end from what it may
+  not, and exits 1 only for the second. The permission probe behind it is signal
+  0 — the kernel runs the check it would run for a real signal and delivers
+  nothing, which is the only acceptable shape for a question whose subject is a
+  process nobody here started. And `guard_leftovers`
+  (`tools/conformance/guard.sh`) puts that question on the doorstep: the three
+  network suites and `mise run conformance` itself ask it before anything starts,
+  so the answer arrives at second zero instead of twelve steps in. Measured on
+  the reproduction: **1 second to refuse, naming the pid**, where the same host
+  used to spend the whole client run first.
+
+  **What it is not is a suite that escalates.** A conformance run that acquired
+  the right to end a daemon it did not start would be a worse defect than the one
+  it works around — it is the question `mustOwn` asks of the driver, one layer
+  up. The elevation is the operator's, in one line rather than a pid to retype:
+  `sudo feint clean --vm <mode>`, the same sweep, re-asking every ownership
+  question at the moment of the signal. Reproduced deliberately before anything
+  was changed, and falsified in
+  `tools/falsify/specs/unkillable-dhcp-orphan.json`.
+
+  **And one premise it does not carry over.** These leftovers were measured as
+  debris of an *earlier* run (#316, #342); the machines-on leg produced one of
+  its own on 2026-08-21, mid-run and in bridge mode, from a network it had
+  created minutes earlier — the runtime listed that network as unmanaged while
+  its bridge and its `dnsmasq` stayed up. So the messages say "a run" rather
+  than "an earlier run", because sending the operator to look for a previous run
+  would send them to the wrong place, and no doorstep prevents what the run
+  itself creates. It is deterministic: the leg was run twice and failed both
+  times, in the same suite, on a subnet of `examples/stacks/outscale/main.tf`,
+  each failure preceded by a detach of the isolation arriving at a network whose
+  state directory the delete had already removed. `docs/limits.md` carries the
+  log lines. That birth is a separate defect and is not fixed here.
+
 - **The corpus gate withheld its "the cloud has moved" warning exactly when it
   mattered most.** Both warnings — the aged-recording one and the measured-move
   one #359 writes back — were emitted below the unexercised-invariant guard

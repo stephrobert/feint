@@ -408,6 +408,13 @@ run = """
 # --contracts turns on the response check: every answer a real client provokes is
 # validated against the provider's own API description, which is broader than any
 # set of cases somebody thought to write.
+# The doorstep (#375). A DHCP service an earlier run left holding an address
+# block, and that this user cannot end, fails the runtime leg every time — and
+# it did, three runs in a row, in the twelfth step of this task, after every
+# client suite had already run. The answer had not changed since second zero,
+# so it is asked at second zero. With FEINT_VM off, which is the default and the
+# whole of the CI matrix, it says so and asks nothing.
+tools/conformance/guard.sh leftovers "${FEINT_VM:-off}"
 ./feint start --addr $FEINT_ADDR --vm ${FEINT_VM:-off} --contracts contracts --timeout 60s
 trap './feint stop --addr $FEINT_ADDR >/dev/null 2>&1 || true' EXIT
 tools/conformance/scaleway/scw-cli.sh "http://$FEINT_ADDR"

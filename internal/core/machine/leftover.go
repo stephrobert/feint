@@ -224,16 +224,52 @@ func flagValues(argv []string, flag string) []string {
 // TestTerminateLeftoverRefusesAPidThatIsNoLongerTheLeftover fails without the
 // re-check.
 func TerminateLeftover(leftover DHCPLeftover) error {
-	return terminateLeftover(leftover, procArgv, interfaceGone, networkUnknown(), func(pid int) error {
-		process, err := os.FindProcess(pid)
-		if err != nil {
-			return err
-		}
-		return process.Signal(syscall.SIGTERM)
-	})
+	return signalLeftover(leftover, procArgv, interfaceGone, networkUnknown(), sendSignal, syscall.SIGTERM)
 }
 
-func terminateLeftover(leftover DHCPLeftover, argvOf func(int) ([]string, error), gone, unknown func(string) bool, signal func(int) error) error {
+// probeSignal is the signal that is not one. Number 0 runs every permission
+// check the kernel would run for a real signal and then delivers nothing, which
+// is the only acceptable shape for a question whose subject is a process
+// nobody here started. It is named rather than written as a literal so that the
+// single place it could quietly become a real signal has a name to search for.
+const probeSignal = syscall.Signal(0)
+
+// CanEndLeftover answers whether this user may end a leftover, without ending
+// it. A nil error means a sweep run by this user would get through; anything
+// else is the reason it would not, os.ErrPermission being the one that matters
+// (#375).
+//
+// It exists because the sweep's usual refusal is not "this is not ours" but
+// "this belongs to the incus user", and until now the only way to learn that
+// was to run the sweep and read its failure. That cost the runtime leg of
+// `mise run evidence:update` three consecutive runs: each one died on a dnsmasq
+// the sweep could see, name and not signal, and the printed remedy waited for a
+// human to notice it. A question that can be asked before the run is what turns
+// that into a doorstep refusal.
+//
+// The re-classification of signalLeftover is not skipped for the probe, and the
+// reason is the same as for the signal: a probe aimed at a pid the scan no
+// longer attributes would be asking about a stranger. Refusing to answer costs
+// nothing; answering about the wrong process is how the pid recycling this file
+// already guards against comes back through the check meant to prevent it.
+//
+// TestCanEndLeftoverAsksWithoutEnding fails when the probe carries a real
+// signal.
+func CanEndLeftover(leftover DHCPLeftover) error {
+	return signalLeftover(leftover, procArgv, interfaceGone, networkUnknown(), sendSignal, probeSignal)
+}
+
+// sendSignal is the one path to the kernel both callers share, so the signal
+// they differ by is the only thing they differ by.
+func sendSignal(pid int, sig syscall.Signal) error {
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return err
+	}
+	return process.Signal(sig)
+}
+
+func signalLeftover(leftover DHCPLeftover, argvOf func(int) ([]string, error), gone, unknown func(string) bool, signal func(int, syscall.Signal) error, sig syscall.Signal) error {
 	argv, err := argvOf(leftover.PID)
 	if err != nil {
 		// The process is already gone, which is the goal state, not a failure.
@@ -244,7 +280,7 @@ func terminateLeftover(leftover DHCPLeftover, argvOf func(int) ([]string, error)
 		return fmt.Errorf("pid %d is no longer the DHCP service that outlived %s; refusing to signal it",
 			leftover.PID, leftover.Interface)
 	}
-	return signal(leftover.PID)
+	return signal(leftover.PID, sig)
 }
 
 // A BlockHolder is any DHCP service, whoever owns it, holding an address

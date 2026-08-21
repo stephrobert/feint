@@ -123,7 +123,7 @@ func TestCleanEndsTheLeftoverDHCPService(t *testing.T) {
 		func(l machine.DHCPLeftover) error { ended = append(ended, l); return nil })
 
 	var out bytes.Buffer
-	if err := sweepLeftoverDHCP(&out); err != nil {
+	if err := sweepLeftoverDHCP(&out, "incus"); err != nil {
 		t.Fatalf("a swept leftover still failed the sweep: %v", err)
 	}
 	if len(ended) != 1 || ended[0].PID != aLeftover.PID {
@@ -145,12 +145,109 @@ func TestCleanReportsTheCommandWhenTheLeftoverBelongsToAnotherUser(t *testing.T)
 		func(machine.DHCPLeftover) error { return fmt.Errorf("signal: %w", os.ErrPermission) })
 
 	var out bytes.Buffer
-	err := sweepLeftoverDHCP(&out)
+	err := sweepLeftoverDHCP(&out, "incus")
 	if err == nil {
 		t.Fatal("a block still held was reported as swept")
 	}
 	if !strings.Contains(out.String(), "sudo kill 4071323") {
 		t.Errorf("the report does not carry the exact command:\n%s", out.String())
+	}
+	// And the command that needs nothing copied (#375). The pid above is exact
+	// and has to be read out of a log and retyped, which is the step that did
+	// not happen three runs in a row; this one is a single line naming the mode
+	// the run uses.
+	if !strings.Contains(out.String(), "sudo feint clean --vm incus") {
+		t.Errorf("the report offers only a command with a pid in it:\n%s", out.String())
+	}
+}
+
+// swapProbeSeam replaces the permission probe. The real one asks the kernel
+// about a pid on the tester's own host, and both answers this file needs —
+// "yours" and "somebody else's" — would require a foreign process no test
+// should go create.
+func swapProbeSeam(t *testing.T, can func(machine.DHCPLeftover) error) {
+	t.Helper()
+	saved := canEndLeftover
+	canEndLeftover = can
+	t.Cleanup(func() { canEndLeftover = saved })
+}
+
+// TestCleanCheckRefusesAHostWhoseLeftoverThisUserCannotEnd is #375's doorstep,
+// on the emulator's side: the state that failed the runtime leg three times is
+// reported before anything starts, with the pid, and with a command that needs
+// nothing transcribed.
+//
+// The end seam fails the test if it is called at all. `--check` that ended
+// anything would be a check with a side effect, and the side effect in question
+// is a signal to a process this run did not start.
+func TestCleanCheckRefusesAHostWhoseLeftoverThisUserCannotEnd(t *testing.T) {
+	survivor := machine.DHCPLeftover{
+		PID:            612421,
+		Interface:      "fnt-99109f524b2",
+		Addresses:      []string{"10.50.2.1"},
+		InterfaceAlive: true,
+	}
+	swapLeftoverSeams(t,
+		func() ([]machine.DHCPLeftover, error) { return []machine.DHCPLeftover{survivor}, nil },
+		func(machine.DHCPLeftover) error { t.Fatal("a check signalled a process"); return nil })
+	swapProbeSeam(t, func(machine.DHCPLeftover) error { return fmt.Errorf("signal: %w", os.ErrPermission) })
+
+	var out bytes.Buffer
+	err := reportStuckLeftovers(&out, "incus")
+	if err == nil {
+		t.Fatal("a host whose block is held by a process nobody here may end was reported as ready")
+	}
+	report := out.String()
+	for _, fact := range []string{"612421", "10.50.2.1", "sudo feint clean --vm incus"} {
+		if !strings.Contains(report, fact) {
+			t.Errorf("the refusal does not name %q, so it does not say what to do:\n%s", fact, report)
+		}
+	}
+	// The bridge is the second half of the remedy: ending the service leaves it
+	// holding the same address, and it is not this emulator's to delete.
+	if !strings.Contains(report, "ip link delete fnt-99109f524b2") {
+		t.Errorf("the refusal stops at the service and says nothing of the bridge:\n%s", report)
+	}
+}
+
+// And the half that keeps the doorstep usable: a leftover this user *can* end
+// is not a reason to refuse, because the sweep every suite runs first ends it.
+// A doorstep that fired on a host nothing was going to fail on is a doorstep
+// somebody disarms, which is the failure mode this whole issue is about.
+func TestCleanCheckPassesWhenTheSweepItselfWouldClearThem(t *testing.T) {
+	swapLeftoverSeams(t,
+		func() ([]machine.DHCPLeftover, error) { return []machine.DHCPLeftover{aLeftover}, nil },
+		func(machine.DHCPLeftover) error { t.Fatal("a check signalled a process"); return nil })
+	swapProbeSeam(t, func(machine.DHCPLeftover) error { return nil })
+
+	var out bytes.Buffer
+	if err := reportStuckLeftovers(&out, "incus"); err != nil {
+		t.Fatalf("a leftover this user can end refused the run: %v\n%s", err, out.String())
+	}
+	report := out.String()
+	if !strings.Contains(report, "4071323") {
+		t.Errorf("the leftover was passed over in silence:\n%s", report)
+	}
+	if strings.Contains(report, "sudo") {
+		t.Errorf("a leftover this user can end was reported as needing elevation:\n%s", report)
+	}
+}
+
+// A host with nothing left behind gets a sentence, not silence: "checked and
+// fine" and "never looked" must not read the same, and the caller of this one
+// is a shell guard whose only alternative to reading it is assuming.
+func TestCleanCheckSaysSoOnAHostWithNothingLeftBehind(t *testing.T) {
+	swapLeftoverSeams(t,
+		func() ([]machine.DHCPLeftover, error) { return nil, nil },
+		func(machine.DHCPLeftover) error { t.Fatal("a check signalled a process"); return nil })
+	swapProbeSeam(t, func(machine.DHCPLeftover) error { t.Fatal("a check probed a process it never found"); return nil })
+
+	var out bytes.Buffer
+	if err := reportStuckLeftovers(&out, "incus"); err != nil {
+		t.Fatalf("a clean host was refused: %v", err)
+	}
+	if !strings.Contains(out.String(), "no DHCP service") {
+		t.Errorf("the check passed in silence:\n%s", out.String())
 	}
 }
 
@@ -172,7 +269,7 @@ func TestCleanSaysWhatItWillNotTouchWhenTheBridgeSurvived(t *testing.T) {
 		func(l machine.DHCPLeftover) error { ended = append(ended, l); return nil })
 
 	var out bytes.Buffer
-	if err := sweepLeftoverDHCP(&out); err != nil {
+	if err := sweepLeftoverDHCP(&out, "incus"); err != nil {
 		t.Fatalf("a swept leftover still failed the sweep: %v", err)
 	}
 	if len(ended) != 1 || ended[0].PID != survivor.PID {
@@ -195,7 +292,7 @@ func TestCleanSaysNothingAboutDHCPOnAHealthyHost(t *testing.T) {
 		func(machine.DHCPLeftover) error { t.Fatal("a healthy host was signalled"); return nil })
 
 	var out bytes.Buffer
-	if err := sweepLeftoverDHCP(&out); err != nil {
+	if err := sweepLeftoverDHCP(&out, "incus"); err != nil {
 		t.Fatalf("a healthy host failed the sweep: %v", err)
 	}
 	if out.Len() != 0 {

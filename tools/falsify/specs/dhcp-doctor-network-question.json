@@ -4,8 +4,8 @@
     {
       "label": "the held block goes back to a warning, so a state that kills the next run with certainty leaves doctor green for CI (#342)",
       "file": "internal/cli/doctor.go",
-      "find": "\t\ttitle:  fmt.Sprintf(\"%d DHCP service(s) left by an earlier run still hold an address block this emulator will want\", len(leftovers)),\n\t\tstate:  verdictFail,",
-      "replace": "\t\ttitle:  fmt.Sprintf(\"%d DHCP service(s) left by an earlier run still hold an address block this emulator will want\", len(leftovers)),\n\t\tstate:  verdictFail * 0,",
+      "find": "\t\ttitle:  fmt.Sprintf(\"%d DHCP service(s) left behind by a run still hold an address block this emulator will want\", len(leftovers)),\n\t\tstate:  verdictFail,",
+      "replace": "\t\ttitle:  fmt.Sprintf(\"%d DHCP service(s) left behind by a run still hold an address block this emulator will want\", len(leftovers)),\n\t\tstate:  verdictFail * 0,",
       "test": "TestDoctorFailsOnTheDHCPServiceWhoseNetworkIsGone"
     },
     {

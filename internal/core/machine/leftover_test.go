@@ -3,8 +3,13 @@ package machine
 import (
 	"errors"
 	"net/netip"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 // Every command line below except the synthetic zsh one was measured on the
@@ -154,11 +159,12 @@ func TestTerminateLeftoverRefusesAPidThatIsNoLongerTheLeftover(t *testing.T) {
 	}
 	for name, tc := range cases {
 		var signalled []int
-		err := terminateLeftover(leftover,
+		err := signalLeftover(leftover,
 			func(int) ([]string, error) { return tc.argv, tc.err },
 			func(string) bool { return tc.gone },
 			runtimeKnows,
-			func(pid int) error { signalled = append(signalled, pid); return nil })
+			func(pid int, _ syscall.Signal) error { signalled = append(signalled, pid); return nil },
+			syscall.SIGTERM)
 		if len(signalled) != 0 {
 			t.Errorf("%s: a signal was sent anyway, to %v", name, signalled)
 		}
@@ -173,11 +179,12 @@ func TestTerminateLeftoverRefusesAPidThatIsNoLongerTheLeftover(t *testing.T) {
 // longer exists.
 func TestTerminateLeftoverTreatsAGoneProcessAsDone(t *testing.T) {
 	var signalled []int
-	err := terminateLeftover(DHCPLeftover{PID: 1, Interface: "fnt-x"},
+	err := signalLeftover(DHCPLeftover{PID: 1, Interface: "fnt-x"},
 		func(int) ([]string, error) { return nil, errors.New("no such process") },
 		func(string) bool { return true },
 		runtimeKnows,
-		func(pid int) error { signalled = append(signalled, pid); return nil })
+		func(pid int, _ syscall.Signal) error { signalled = append(signalled, pid); return nil },
+		syscall.SIGTERM)
 	if err != nil || len(signalled) != 0 {
 		t.Fatalf("a vanished process was not treated as done: err=%v signals=%v", err, signalled)
 	}
@@ -188,17 +195,181 @@ func TestTerminateLeftoverTreatsAGoneProcessAsDone(t *testing.T) {
 func TestTerminateLeftoverEndsTheLeftoverItWasGiven(t *testing.T) {
 	leftover := DHCPLeftover{PID: 4071323, Interface: "fnt-99109f524b2"}
 	var signalled []int
-	err := terminateLeftover(leftover,
+	err := signalLeftover(leftover,
 		func(int) ([]string, error) { return incusDNSMasq("fnt-99109f524b2", "10.50.2.1"), nil },
 		func(string) bool { return true },
 		runtimeKnows,
-		func(pid int) error { signalled = append(signalled, pid); return nil })
+		func(pid int, _ syscall.Signal) error { signalled = append(signalled, pid); return nil },
+		syscall.SIGTERM)
 	if err != nil {
 		t.Fatalf("the leftover was refused: %v", err)
 	}
 	if len(signalled) != 1 || signalled[0] != 4071323 {
 		t.Fatalf("the signal did not reach the leftover: %v", signalled)
 	}
+}
+
+// TestCanEndLeftoverAsksWithoutEnding is the control behind `feint clean
+// --check` (#375). The probe answers "may this user end it" by running the
+// kernel's permission check for a signal it then does not deliver, so the
+// question costs its subject nothing — and the assertion is on the subject, not
+// on a recorded argument: a real process of this test's own is put through the
+// real signal path, and it must still be running afterwards.
+//
+// Written that way because the mutation worth catching is exactly the one an
+// argument recorder would miss in a year's time: probeSignal quietly becoming a
+// real signal turns a diagnostic into a killer, and the only witness that
+// notices is the process itself.
+func TestCanEndLeftoverAsksWithoutEnding(t *testing.T) {
+	subject := sleepingProcess(t)
+	leftover := DHCPLeftover{PID: subject.pid, Interface: "fnt-99109f524b2", Addresses: []string{"10.50.2.1"}}
+
+	// The real sendSignal, so what is measured is what the kernel does, and the
+	// real probeSignal, so what is measured is the constant the sweep uses.
+	err := signalLeftover(leftover,
+		func(int) ([]string, error) { return incusDNSMasq("fnt-99109f524b2", "10.50.2.1"), nil },
+		func(string) bool { return true },
+		runtimeKnows,
+		sendSignal, probeSignal)
+	if err != nil {
+		t.Fatalf("the probe reported that this user may not end its own process: %v", err)
+	}
+	subject.mustSurvive(t, "the probe ended the process it was only asked about")
+}
+
+// And the exported entry point, through the host's own /proc, because the
+// pairing of CanEndLeftover with probeSignal is the other half a recorded
+// argument would not hold: a child whose command line is a dnsmasq's on an
+// interface that does not exist is a leftover by every criterion this file
+// applies, and it must survive being asked about.
+func TestCanEndLeftoverIsTheOneTheSweepCallsAndItStillDoesNotKill(t *testing.T) {
+	subject := fakeDNSMasq(t)
+	argv := commandLineOf(t, subject)
+	if _, ok := classifyDHCP(HostProcess{PID: subject.pid, Argv: argv}, interfaceGone, runtimeKnows); !ok {
+		t.Fatalf("the child was not attributable, so the probe below would refuse for the wrong "+
+			"reason and prove nothing: %v", argv)
+	}
+
+	if err := CanEndLeftover(DHCPLeftover{PID: subject.pid, Interface: leftoverIface}); err != nil {
+		t.Fatalf("the sweep's own probe reported that this user may not end its own process: %v", err)
+	}
+	subject.mustSurvive(t, "the sweep's own probe ended the process it was only asked about")
+}
+
+// commandLineOf reads a child's command line once the exec has landed.
+//
+// Polled rather than read straight after Start, and that is a measured fix: a
+// child between fork and exec publishes an empty /proc/<pid>/cmdline, and the
+// first version of this test read it there. It passed, then failed in the
+// middle of an unrelated falsification with an empty argv and an accusation
+// aimed at the wrong thing — a test whose verdict depended on how busy the
+// station was, which is the harness measuring its own panic rather than the
+// subject.
+func commandLineOf(t *testing.T, subject *subjectProcess) []string {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	var last error
+	for time.Now().Before(deadline) {
+		argv, err := procArgv(subject.pid)
+		last = err
+		if err == nil && len(argv) > 0 && filepath.Base(argv[0]) == "dnsmasq" {
+			return argv
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if last != nil {
+		t.Skipf("this host does not publish command lines under /proc (%v), so the survey "+
+			"this probe belongs to cannot run here at all", last)
+	}
+	t.Fatalf("the child never wore the command line under test")
+	return nil
+}
+
+// leftoverIface is a name only this emulator derives, on an interface no host
+// has: the "vanished interface" half of the classification, obtained without
+// creating or removing anything on the machine running the test.
+const leftoverIface = "fnt-00000000375"
+
+// A subject is a live child of this test, watched so that its death is
+// observable.
+//
+// Watching it is not optional, and the first version of these tests got it
+// wrong in a way worth recording: liveness was read with signal 0, the same
+// probe the subject under test uses, and a child killed by its own parent
+// becomes a zombie that answers signal 0 exactly as a live process does. The
+// mutation that turns probeSignal into a real SIGTERM therefore stayed green —
+// the control was a sentence, not a measurement, in a file whose whole subject
+// is that difference. What settles it is wait(2): a process that has exited is
+// reaped, and only then is it gone.
+type subjectProcess struct {
+	pid  int
+	done chan struct{}
+}
+
+// mustSurvive fails when the child ended inside the settle window.
+//
+// The window is a thousandfold margin on what it measures: a SIGTERM to a
+// sleeping child is delivered and reaped in microseconds, so anything under a
+// second is the signal having arrived. It is spent only on the passing path,
+// where nothing was signalled and nothing will ever close the channel.
+func (s *subjectProcess) mustSurvive(t *testing.T, what string) {
+	t.Helper()
+	select {
+	case <-s.done:
+		t.Fatal(what)
+	case <-time.After(time.Second):
+	}
+}
+
+// watch starts a child and reaps it in the background, so the channel closes
+// the moment the process ends, whoever ended it.
+func watch(t *testing.T, cmd *exec.Cmd, what string) *subjectProcess {
+	t.Helper()
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start %s: %v", what, err)
+	}
+	subject := &subjectProcess{pid: cmd.Process.Pid, done: make(chan struct{})}
+	go func() {
+		_, _ = cmd.Process.Wait()
+		close(subject.done)
+	}()
+	t.Cleanup(func() { _ = cmd.Process.Kill() })
+	return subject
+}
+
+// sleepingProcess starts a child this test owns and may signal.
+func sleepingProcess(t *testing.T) *subjectProcess {
+	t.Helper()
+	return watch(t, exec.Command("sleep", "300"), "a process to ask about")
+}
+
+// fakeDNSMasq starts a child whose command line is the one the classification
+// reads: argv[0] is a dnsmasq and the interface it names does not exist.
+//
+// It is the test binary re-executed rather than a copy of some tool, because
+// the requirement is unusual — a process that ignores its arguments and stays
+// alive — and every ordinary program refuses the arguments that make this
+// command line the one under test. `--` stops the testing package's own flag
+// parsing, so the arguments after it are carried on argv and read by nothing.
+func fakeDNSMasq(t *testing.T) *subjectProcess {
+	t.Helper()
+	cmd := exec.Command(os.Args[0]) //nolint:gosec // the test binary itself
+	cmd.Args = []string{
+		"dnsmasq", "-test.run=TestLeftoverHelperProcessSleeps", "--",
+		"--interface=" + leftoverIface, "--listen-address=10.183.99.1",
+		"--dhcp-leasefile=/var/lib/incus/networks/" + leftoverIface + "/dnsmasq.leases",
+	}
+	cmd.Env = append(os.Environ(), "FEINT_LEFTOVER_HELPER=1")
+	return watch(t, cmd, "a process wearing a dnsmasq's command line")
+}
+
+// TestLeftoverHelperProcessSleeps is not a test: it is the body of the child
+// fakeDNSMasq starts, and it does nothing at all unless that variable is set.
+func TestLeftoverHelperProcessSleeps(t *testing.T) {
+	if os.Getenv("FEINT_LEFTOVER_HELPER") != "1" {
+		t.Skip("the body of fakeDNSMasq's child, run only as that child")
+	}
+	time.Sleep(30 * time.Second)
 }
 
 // The minute-eight failure, as the operator reads it: the create fails on a

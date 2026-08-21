@@ -1,0 +1,75 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "the permission probe carries a real signal, so the check that only asks becomes the sweep that kills — and kills a process nobody here started",
+      "file": "internal/core/machine/leftover.go",
+      "find": "const probeSignal = syscall.Signal(0)",
+      "replace": "const probeSignal = syscall.SIGTERM",
+      "test": "TestCanEndLeftoverAsksWithoutEnding",
+      "package": "./internal/core/machine/"
+    },
+    {
+      "label": "the probe stops being the one the sweep calls, so CanEndLeftover ends what it was asked about",
+      "file": "internal/core/machine/leftover.go",
+      "find": "\treturn signalLeftover(leftover, procArgv, interfaceGone, networkUnknown(), sendSignal, probeSignal)",
+      "replace": "\treturn signalLeftover(leftover, procArgv, interfaceGone, networkUnknown(), sendSignal, syscall.SIGTERM+probeSignal)",
+      "test": "TestCanEndLeftoverIsTheOneTheSweepCallsAndItStillDoesNotKill",
+      "package": "./internal/core/machine/"
+    },
+    {
+      "label": "the check stops separating what this user may end from what it may not, so the host that failed the leg three times reads as ready",
+      "file": "internal/cli/clean.go",
+      "find": "\t\tif err := canEndLeftover(leftover); err != nil {",
+      "replace": "\t\tif err := canEndLeftover(leftover); err != nil && false {",
+      "test": "TestCleanCheckRefusesAHostWhoseLeftoverThisUserCannotEnd"
+    },
+    {
+      "label": "the check refuses every leftover, endable or not, so the doorstep fires on hosts the ordinary sweep would clear — which is how a doorstep gets disarmed",
+      "file": "internal/cli/clean.go",
+      "find": "\t\tif err := canEndLeftover(leftover); err != nil {",
+      "replace": "\t\tif err := canEndLeftover(leftover); err != nil || true {",
+      "test": "TestCleanCheckPassesWhenTheSweepItselfWouldClearThem"
+    },
+    {
+      "label": "the sweep goes back to offering only a command with a pid to retype, which is the manual step that did not happen three runs in a row",
+      "file": "internal/cli/clean.go",
+      "find": "\t\t\tfmt.Fprintf(stdout, \"  → sudo feint clean --vm %s   (or: sudo kill %d)\\n\", vm, leftover.PID)",
+      "replace": "\t\t\tfmt.Fprintf(stdout, \"  → sudo kill %d (%s)\\n\", leftover.PID, vm[:0])",
+      "test": "TestCleanReportsTheCommandWhenTheLeftoverBelongsToAnotherUser"
+    },
+    {
+      "label": "the shell refusal never fires, so the leg starts on a host whose block is held and dies in the sweep twelve steps later",
+      "file": "tools/conformance/guard.sh",
+      "find": "  if ! \"$binary\" clean --check --vm \"$machines\" >&2; then",
+      "replace": "  if ! \"$binary\" clean --check --vm \"$machines\" >&2 && false; then",
+      "test": "TestTheLeftoverGuardRefusesAHostItCannotClean",
+      "package": "./tools/conformance/"
+    },
+    {
+      "label": "the guard fires on a run that starts no machine, which reddens FEINT_VM=off — the default, the first evidence leg and the whole CI matrix",
+      "file": "tools/conformance/guard.sh",
+      "find": "  if [ \"$machines\" = \"none\" ] || [ \"$machines\" = \"off\" ] || [ \"$machines\" = \"null\" ] || [ -z \"$machines\" ]; then",
+      "replace": "  if ([ \"$machines\" = \"none\" ] || [ \"$machines\" = \"off\" ] || [ \"$machines\" = \"null\" ] || [ -z \"$machines\" ]) && false; then",
+      "test": "TestTheLeftoverGuardAsksNothingWhenNoRuntimeIsOn",
+      "package": "./tools/conformance/"
+    },
+    {
+      "label": "the Scaleway network suite stops asking, which is the shape of the defect one layer up: a shared guard nobody calls",
+      "file": "tools/conformance/scaleway/network.sh",
+      "find": "guard_leftovers \"$ENDPOINT\"",
+      "replace": "true || guard_leftovers \"$ENDPOINT\"",
+      "test": "TestEveryRuntimeSuiteAsksAboutLeftovers",
+      "package": "./tools/conformance/"
+    },
+    {
+      "label": "the conformance task stops asking, so the leg goes back to burning every client suite before saying the host was never ready",
+      "file": "mise.toml",
+      "find": "tools/conformance/guard.sh leftovers \"${FEINT_VM:-off}\"",
+      "replace": "true || tools/conformance/guard.sh leftovers \"${FEINT_VM:-off}\"",
+      "test": "TestEveryRuntimeSuiteAsksAboutLeftovers",
+      "package": "./tools/conformance/"
+    }
+  ],
+  "note": "The subject is #375. The runtime leg of `mise run evidence:update` failed three times in a row on a dnsmasq an earlier run had left holding a gateway address: the sweep found it, named it exactly, printed `sudo kill <pid>` and exited 1, because the process belongs to the `incus` user and the operator running the suite may not signal it. The diagnosis was right and nothing ran the remedy, so every run died in the same place until a human read the log.\n\nReproduced deliberately on 2026-08-21, on the author's station and reversibly: `incus network create fnt-3750badbeef ipv4.address=10.183.75.1/24` gives a real bridge and a real dnsmasq running as the `incus` user, and dropping that network's rows from the runtime's database leaves the interface and the service alive with the network object gone — the exact #342 shape. `feint clean --vm incus` then exited 1 with `→ sudo kill 1154779`, and the Scaleway network suite died on it one second in. `sudo feint clean --vm incus` ended it, exit 0, and named the surviving bridge as the half it will not delete.\n\nWhat the fix is not: an escalation. Mutation 1 is the one worth reading twice — the whole remedy hangs on a permission probe that runs the kernel's check for a signal it does not deliver, and a probe that quietly gains a real signal turns a diagnostic into a killer of processes nobody here started. Its test does not record an argument; it puts a real child through the real signal path and requires it to still be there afterwards. The first version of that test read liveness with signal 0 — the same probe — and a child killed by its own parent is a zombie that answers signal 0 exactly as a live process does, so mutation 1 stayed green. wait(2) is what settles it.\n\nMutations 4 and 7 are the false-refusal half, and they matter as much as the rest: a doorstep that fires on hosts nothing was going to fail on is a doorstep somebody disarms, which is the same lesson `--no-verify` teaches. Mutation 7 is the poorest execution this guard will meet — `FEINT_VM=off`, the default, the first evidence leg and the whole of CI's conformance matrix."
+}

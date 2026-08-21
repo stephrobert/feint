@@ -775,15 +775,80 @@ longer exists. One whose interface is alive is somebody's working service,
 whoever owns it — this station runs libvirt's and two other Incus projects'
 `dnsmasq` beside feint's, and none of them is ours to name, let alone signal.
 
-Three consumers share the one check (`internal/core/machine/leftover.go`):
+Four consumers share the one check (`internal/core/machine/leftover.go`):
 `feint doctor` reports it and touches nothing; `feint clean` ends it, after
 re-checking at the moment of the signal that the pid still is that leftover
-(pids are reused), and when the process belongs to another user — the
-runtime's `dnsmasq` runs as the `incus` user — it prints the exact `sudo kill`
-command and exits 1 instead of claiming a clean host; and the network-create
-error names the process when its listen address falls inside the failing
-block. `TestLeftoverDHCPRefusesAProcessItCannotAttribute` holds the refusal,
-and `tools/falsify/specs/dhcp-leftover-ownership.json` proves the test bites.
+(pids are reused); `feint clean --check` answers the same question without
+ending anything, which is what the conformance suites ask before they start;
+and the network-create error names the process when its listen address falls
+inside the failing block. `TestLeftoverDHCPRefusesAProcessItCannotAttribute`
+holds the refusal, and `tools/falsify/specs/dhcp-leftover-ownership.json`
+proves the test bites.
+
+**Nothing here escalates, and the remedy is a command rather than a paragraph.**
+The runtime's `dnsmasq` runs as the `incus` user, so an ordinary sweep cannot
+signal it: `feint clean` says so and exits 1 instead of claiming a clean host,
+and every suite that takes an address block asks `feint clean --check` on its
+doorstep (`guard_leftovers`, `tools/conformance/guard.sh`) rather than meeting
+the state twelve steps into a run. That was measured — the runtime leg of
+`mise run evidence:update` failed three times in a row, each time after every
+client suite had already run, with the right remedy printed and nobody running
+it (#375).
+
+What none of them does is acquire a privilege it did not have. A conformance
+suite that escalated to end a daemon it did not start would be a worse defect
+than the one it works around: it is the question `mustOwn` asks of the driver,
+one layer up, and a process nobody here created is not ours to end. So the
+elevation is the operator's, in one line — `sudo feint clean --vm <mode>`, the
+same sweep run by somebody who may signal it, re-asking every ownership question
+at the moment of the signal. The permission probe behind `--check` is signal 0:
+the kernel runs the check it would run for a real signal and delivers nothing,
+which is the only acceptable shape for a question whose subject belongs to
+somebody else.
+
+One half of the remedy stays manual, and it is the #342 case above: when the
+bridge survived alongside its service, ending the service leaves the interface
+holding the same address, and nothing on the host proves this emulator created
+that bridge. Both commands are printed; only the second needs a human to decide
+the bridge is theirs.
+
+**A leftover is not always debris of an earlier run, and a doorstep cannot
+prevent the other kind.** #316 and #342 both measured leftovers surviving a run;
+on 2026-08-21 the machines-on leg of `mise run evidence:update` produced one of
+its own, in bridge mode, from a network it had created minutes earlier. The
+runtime listed that network as unmanaged while its bridge and its `dnsmasq`
+stayed up, and the emulator's log names the moment it broke:
+
+```text
+could not isolate the subnet's network network=fnt-8488bc9e9e1
+  error="detach isolation from fnt-8488bc9e9e1: incus network:
+         open /var/lib/incus/networks/fnt-8488bc9e9e1/dnsmasq.raw:
+         no such file or directory"
+```
+
+The same run's log carries the load that produced it: NIC ACL writes failing on
+`Unknown or missing host side veth device`, instance updates refused with
+`Instance is busy running a "delete" operation`, a network delete refused with
+`The network is currently in use`. So a network object can die under a bridge
+this emulator created while the bridge and its service stay up, and the
+doorstep then catches it at the next suite rather than at the start of the leg.
+
+**It is deterministic, and the lifecycle has a name.** The leg was run twice
+that evening and failed both times, in the same suite, on a subnet of
+`examples/stacks/outscale/main.tf` — `10.50.1.0/24` the first time,
+`10.50.2.0/24` the second, both inside the `10.50.0.0/16` that stack declares.
+Each failure is preceded by the pair above: two subnets torn down in the same
+second, one answering `Network not found` (gone cleanly) and the other
+answering `open …/dnsmasq.raw: no such file or directory` — a detach of the
+isolation arriving at a network whose state directory the delete has already
+removed. The one that answers the second way is the one left standing. Worth
+noting because #316's original measurement holds `10.50.2.1`: the three issues
+of this family are downstream of the same teardown.
+
+What #375 made cheap is the diagnosis and the remedy; the birth of that
+leftover is a separate defect, unmeasured before this and not fixed here. In
+OVN mode it does not arise at all: an OVN network carries no `dnsmasq`, and
+`FEINT_VM=incus-ovn mise run conformance` passed twice the same evening.
 
 ## Authentication is accepted, never verified
 

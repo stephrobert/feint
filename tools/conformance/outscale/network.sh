@@ -64,6 +64,12 @@ fi
 command -v incus >/dev/null 2>&1 \
   || fail "the incus client is not on PATH, so nothing can be verified"
 
+# And the host must not already be holding a block this suite is about to ask
+# for (#375). Nothing has been created at this point, so refusing here costs
+# the host nothing — which is the property the two sibling suites get by
+# putting the same call after their EXIT trap.
+guard_leftovers "$ENDPOINT"
+
 # Deliberately obscure. A lab bridge or a VPN already holding this range makes
 # the create fail, which is the emulator being honest rather than handing back a
 # network that exists nowhere.

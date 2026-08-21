@@ -911,6 +911,59 @@ change ni l'un ni l'autre a sa place dans `git log`.
   de contrat : le document déclarait déjà le champ, seul le pack l'avait laissé
   tomber.
 
+- **Un service DHCP laissé derrière lui par une exécution faisait échouer la
+  jambe runtime à chaque fois, et le seul remède était un humain qui lise le
+  journal** (#375). Le balayage de `tools/conformance/*/network.sh` trouvait le
+  résidu, le nommait exactement et imprimait `sudo kill <pid>`, puis sortait en
+  1 : le processus appartient à l'utilisateur `incus`, et l'opérateur qui lance
+  la suite n'a pas le droit de le signaler. Le diagnostic était juste et
+  personne n'exécutait le remède, donc la jambe runtime de
+  `mise run evidence:update` est morte au même endroit trois fois de suite,
+  chaque fois *après* que toutes les suites clientes aient tourné. **Une porte
+  dont le seul remède est un geste manuel que quelqu'un doit remarquer est une
+  porte qu'on finit par contourner**, et c'est exactement comme on apprend
+  `--no-verify`.
+
+  Deux changements, et aucun des deux ne monte en privilèges. `feint clean
+  --check` pose la question du balayage sans rien faire : il nomme ce qu'une
+  exécution précédente a laissé sur un bloc d'adresses, sépare ce que cet
+  utilisateur peut terminer de ce qu'il ne peut pas, et ne sort en 1 que pour le
+  second cas. La sonde de permission derrière lui est le signal 0 : le noyau
+  fait le contrôle qu'il ferait pour un vrai signal et ne délivre rien, seule
+  forme acceptable pour une question dont le sujet est un processus que
+  personne ici n'a démarré. Et `guard_leftovers`
+  (`tools/conformance/guard.sh`) met cette question sur le pas de la porte : les
+  trois suites réseau et `mise run conformance` lui-même la posent avant que
+  quoi que ce soit ne démarre, si bien que la réponse arrive à la seconde zéro
+  au lieu de douze étapes plus loin. Mesuré sur la reproduction : **1 seconde
+  pour refuser, en nommant le pid**, là où le même hôte passait d'abord par
+  toute la série des clients.
+
+  **Ce que ce n'est pas, c'est une suite qui monte en privilèges.** Une
+  exécution de conformance qui s'arrogerait le droit de terminer un démon
+  qu'elle n'a pas démarré serait un défaut pire que celui qu'elle contourne :
+  c'est la question que `mustOwn` pose au pilote, un étage plus haut.
+  L'élévation appartient à l'opérateur, en une ligne plutôt qu'un pid à
+  retaper : `sudo feint clean --vm <mode>`, le même balayage, qui repose chaque
+  question de propriété au moment du signal. Le défaut a été reproduit
+  délibérément avant toute correction, et falsifié dans
+  `tools/falsify/specs/unkillable-dhcp-orphan.json`.
+
+  **Une prémisse ne survit pas à la mesure.** Ces résidus avaient été mesurés
+  comme des restes d'une exécution *précédente* (#316, #342) ; la jambe
+  machines-on en a produit un elle-même le 21 août 2026, en cours d'exécution et
+  en mode pont, à partir d'un réseau qu'elle venait de créer : le runtime
+  listait ce réseau comme non géré alors que son pont et son `dnsmasq` étaient
+  toujours là. Les messages disent donc « une exécution » et non « une exécution
+  précédente », parce qu'envoyer l'opérateur chercher une exécution passée
+  l'envoie au mauvais endroit, et parce qu'aucune porte n'empêche ce que
+  l'exécution crée elle-même. C'est déterministe : la jambe a été lancée deux
+  fois et a échoué les deux fois, dans la même suite, sur un sous-réseau
+  d'`examples/stacks/outscale/main.tf`, chaque échec précédé d'un détachement de
+  l'isolation arrivant sur un réseau dont la suppression avait déjà retiré le
+  répertoire d'état. `docs/limits.md` porte les lignes de journal. Cette
+  naissance est un défaut distinct, non corrigé ici.
+
 - **La porte du corpus retenait son avertissement « le cloud a bougé »
   précisément quand il servait le plus.** Les deux avertissements — celui de
   l'enregistrement vieilli et celui de la bougeotte mesurée que #359 réécrit —

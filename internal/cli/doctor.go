@@ -309,7 +309,7 @@ func checkIncusVersion(ctx context.Context) check {
 	return check{title: fmt.Sprintf("Incus %d.%d.%d, new enough for NIC ACLs", got[0], got[1], got[2]), state: verdictOK}
 }
 
-// checkLeftoverDHCP reports the DHCP services an earlier run left holding an
+// checkLeftoverDHCP reports the DHCP services a run left holding an
 // address block (#316, #342): dnsmasq processes attributable to this emulator
 // whose network is gone — the interface with it, or the network object alone,
 // the interface having survived. The condition is invisible to `ip addr` and
@@ -354,10 +354,10 @@ func checkLeftoverDHCP() check {
 		held = append(held, leftover.String())
 	}
 	return check{
-		title:  fmt.Sprintf("%d DHCP service(s) left by an earlier run still hold an address block this emulator will want", len(leftovers)),
+		title:  fmt.Sprintf("%d DHCP service(s) left behind by a run still hold an address block this emulator will want", len(leftovers)),
 		state:  verdictFail,
 		detail: strings.Join(held, "; "),
-		fix:    "the next run on such a block dies on 'Address already in use'; feint clean ends them (sudo kill <pid> if they belong to another user)",
+		fix:    "the next run on such a block dies on 'Address already in use'; `feint clean` ends them, and `sudo feint clean --vm <mode>` ends the ones that belong to another user — `feint clean --check` says which is which without touching anything",
 	}
 }
 

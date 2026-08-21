@@ -1062,9 +1062,15 @@ func (d *Incus) networkCreateError(name, address, cidr string, err error) error 
 		if !leftoverHolds(leftover, block) {
 			continue
 		}
+		// One command rather than a pid to retype (#375): `sudo feint clean`
+		// is the same sweep elevated, and it re-asks every ownership question
+		// at the moment of the signal, so root ends only what this emulator
+		// can prove is its own. The pid stays in the sentence because it is
+		// the fact `ss -lnp` was the only tool to give.
 		return fmt.Errorf("%w; a DHCP service left by an interrupted run still holds the block: %s"+
-			" — `feint clean` ends it (sudo kill %d if it belongs to another user)",
-			base, leftover, leftover.PID)
+			" — `feint clean` ends it, or `sudo feint clean --vm %s` when it belongs to another user"+
+			" (pid %d)",
+			base, leftover, d.Name(), leftover.PID)
 	}
 	for _, holder := range d.blockHolders(block) {
 		return fmt.Errorf("%w; a DHCP service this emulator cannot claim holds an address in the block: %s"+

@@ -106,6 +106,18 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# And the host must not already be holding a block this suite is about to ask
+# for (#375). The sweep below meets that state and cannot fix it — the leftover
+# belongs to the runtime's user — so the answer is given here, before the run,
+# rather than as a sweep failure whose remedy nobody runs.
+#
+# After the trap, deliberately, and that ordering was measured: put before it,
+# the refusal exits without the EXIT trap installed, so the sweep that removes
+# this run's own labelled objects never happens and the operator is left with a
+# host dirtier than the old failure left it. Refusing must cost the host
+# nothing.
+guard_leftovers "$ENDPOINT"
+
 sweep_runtime
 
 echo "- a managed private network keeps the range it was given"

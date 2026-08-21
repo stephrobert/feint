@@ -100,7 +100,7 @@ func TestTheImageGuardRefusesWhenItCannotAsk(t *testing.T) {
 	}))
 	defer health.Close()
 
-	code, output := bashGuard(t, health.URL, filepath.Join(t.TempDir(), "no-such-feint"))
+	code, output := bashGuard(t, `. "$1"; guard_images "$2"`, health.URL, filepath.Join(t.TempDir(), "no-such-feint"))
 	if code == 0 {
 		t.Errorf("the guard passed with no binary to ask:\n%s", output)
 	}
@@ -162,17 +162,15 @@ func runGuard(t *testing.T, healthBody string, binaryExit int) (int, string) {
 	}))
 	defer health.Close()
 
-	stub := filepath.Join(t.TempDir(), "feint")
-	script := fmt.Sprintf("#!/bin/sh\necho \"stub feint: $*\" >&2\nexit %d\n", binaryExit)
-	if err := os.WriteFile(stub, []byte(script), 0o700); err != nil { //nolint:gosec // a stub in a test temp dir
-		t.Fatalf("write the stub binary: %v", err)
-	}
-	return bashGuard(t, health.URL, stub)
+	return bashGuard(t, `. "$1"; guard_images "$2"`, health.URL, stubBinary(t, binaryExit))
 }
 
-// bashGuard sources the real guard.sh and calls guard_images in a subshell, so
-// what is measured is the shell the suites source and not a copy of it.
-func bashGuard(t *testing.T, endpoint, binary string) (int, string) {
+// bashGuard sources the real guard.sh and calls one of its functions in a
+// subshell, so what is measured is the shell the suites source and not a copy
+// of it. The script and its single argument are passed in because the guards
+// differ in what they take: an endpoint for the ones that ask an emulator, a
+// runtime name for the one the conformance task runs before an emulator exists.
+func bashGuard(t *testing.T, script, argument, binary string) (int, string) {
 	t.Helper()
 	requireTool(t, "bash")
 	requireTool(t, "curl")
@@ -186,7 +184,7 @@ func bashGuard(t *testing.T, endpoint, binary string) (int, string) {
 		t.Fatalf("guard.sh is not where this test looks (%s): %v", guard, err)
 	}
 
-	cmd := exec.Command("bash", "-c", `. "$1"; guard_images "$2"`, "bash", guard, endpoint) //nolint:gosec // fixed script, test-controlled arguments
+	cmd := exec.Command("bash", "-c", script, "bash", guard, argument) //nolint:gosec // fixed script, test-controlled arguments
 	cmd.Env = append(os.Environ(), "FEINT_BIN="+binary)
 	out, err := cmd.CombinedOutput()
 	code := 0
@@ -210,4 +208,173 @@ func requireTool(t *testing.T, name string) {
 		t.Fatalf("%s is not on PATH: the conformance suites need it, so this test cannot "+
 			"be skipped into looking green", name)
 	}
+}
+
+// The suites also ask whether the host is already holding the blocks they are
+// about to take (#375).
+//
+// The measurement behind it: the runtime leg of `mise run evidence:update`
+// failed three times in a row on a dnsmasq an earlier run had left holding a
+// gateway address. The sweep in network.sh found it, named it, printed
+// `sudo kill <pid>` and exited 1 — the process belongs to the `incus` user and
+// the operator running the suite may not signal it. Nothing ran the remedy, so
+// every run died in the same place until a human read the log.
+//
+// The refusal below is what replaces that, and what it refuses to do is as
+// important as what it does: it never escalates. The stub binary here stands in
+// for `feint clean --check`, whose exit code is the one fact the guard reads.
+func TestTheLeftoverGuardRefusesAHostItCannotClean(t *testing.T) {
+	code, output := runLeftoverGuard(t, "incus", 1)
+	if code == 0 {
+		t.Errorf("the guard let a run start on a host whose block is held:\n%s", output)
+	}
+	for _, want := range []string{"sudo", "clean --vm incus", "cannot end it"} {
+		if !strings.Contains(output, want) {
+			t.Errorf("the refusal never says %q, so it does not say what to do:\n%s", want, output)
+		}
+	}
+	// And it must never suggest that the suite do the elevating. The command is
+	// printed for the operator to run; nothing in this path may acquire a
+	// privilege it did not have.
+	if strings.Contains(output, "sudo kill") {
+		t.Errorf("the refusal falls back to a command with a pid to retype:\n%s", output)
+	}
+}
+
+// The accepting half: a host the check reports clean starts its run. A guard
+// that only knows how to refuse is as useless as one that only knows how to
+// pass, and this one sits in front of every runtime suite.
+func TestTheLeftoverGuardLetsAPreparedHostThrough(t *testing.T) {
+	code, output := runLeftoverGuard(t, "incus", 0)
+	if code != 0 {
+		t.Errorf("the guard refused a host with nothing left behind (exit %d):\n%s", code, output)
+	}
+}
+
+// The poorest run this guard will ever meet, and the one it must not touch.
+//
+// `FEINT_VM=off` is the default, the first leg of `mise run evidence:update`
+// and the whole of CI's conformance matrix: nothing there takes an address
+// block, so nothing there can be blocked by one being held. The stub exits 1 on
+// any call, so a guard that asked would fail this — which is the point, since
+// the cost of getting it wrong is a brand new red on the path that was never
+// broken, and a doorstep that fires on healthy runs is a doorstep somebody
+// disarms.
+func TestTheLeftoverGuardAsksNothingWhenNoRuntimeIsOn(t *testing.T) {
+	for _, machines := range []string{"none", "off", "null", ""} {
+		code, output := runLeftoverGuardFor(t, machines, 1)
+		if code != 0 {
+			t.Errorf("machines=%q: the guard refused a run that starts no machine (exit %d):\n%s",
+				machines, code, output)
+		}
+		if !strings.Contains(output, "not asked") {
+			t.Errorf("machines=%q: the guard passed in silence; a precondition that says nothing "+
+				"on the case it exists for reads as green when it never ran:\n%s", machines, output)
+		}
+	}
+}
+
+// An endpoint that answers nothing is a broken harness, not a runtime-free
+// mode, and the two must not read the same.
+func TestTheLeftoverGuardRefusesAnEndpointThatAnswersNothing(t *testing.T) {
+	code, output := runLeftoverGuard(t, "", 0)
+	if code == 0 {
+		t.Errorf("the guard passed against an emulator that answered no health payload:\n%s", output)
+	}
+}
+
+// The call sites, because a shared guard nobody calls guards nothing — the same
+// weaker-but-necessary structural half TestEverySuiteThatLogsInAsksForItsImages
+// holds for #335.
+//
+// The mise task is in the list, and it is the entry that closes #375 rather
+// than merely improving it: the suites below are the twelfth step of
+// `mise run conformance`, so a refusal that lives only in them still lets the
+// leg burn every client suite first. The answer has not changed since second
+// zero, so the task asks at second zero.
+func TestEveryRuntimeSuiteAsksAboutLeftovers(t *testing.T) {
+	suites := []string{
+		filepath.Join("scaleway", "network.sh"),
+		filepath.Join("outscale", "network.sh"),
+		filepath.Join("exoscale", "network.sh"),
+	}
+	for _, suite := range suites {
+		body, err := os.ReadFile(suite) //nolint:gosec // a fixed path in this directory
+		if err != nil {
+			t.Fatalf("read %s: %v", suite, err)
+		}
+		// A line of its own, so the call is a statement rather than a mention:
+		// `true || guard_leftovers "$ENDPOINT"` still contains the name and
+		// calls nothing. The sibling test above matched the name anywhere in
+		// the file when it was first written, and its own falsification caught
+		// that at once; this one starts where that one ended up.
+		called := false
+		for _, line := range strings.Split(string(body), "\n") {
+			if strings.HasPrefix(strings.TrimSpace(line), `guard_leftovers "`) {
+				called = true
+				break
+			}
+		}
+		if !called {
+			t.Errorf("%s takes an address block and never calls guard_leftovers on a line of its "+
+				"own: it will start on a host whose block is already held and die in the sweep", suite)
+		}
+	}
+
+	task, err := os.ReadFile(filepath.Join("..", "..", "mise.toml")) //nolint:gosec // a fixed path in this repository
+	if err != nil {
+		t.Fatalf("read mise.toml: %v", err)
+	}
+	asked := false
+	for _, line := range strings.Split(string(task), "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "tools/conformance/guard.sh leftovers ") {
+			asked = true
+			break
+		}
+	}
+	if !asked {
+		t.Error("the conformance task never runs guard.sh leftovers on a line of its own: the leg " +
+			"goes back to burning every client suite before it says the host was never ready")
+	}
+}
+
+// runLeftoverGuard drives guard_leftovers against a stub emulator and a stub
+// binary, the way runGuard does for the image guard: `feint clean --check`
+// needs a real /proc survey and a real Incus, and the guard's own behaviour is
+// what is under test, not the survey's.
+func runLeftoverGuard(t *testing.T, machines string, binaryExit int) (int, string) {
+	t.Helper()
+	body := ""
+	if machines != "" {
+		body = fmt.Sprintf(`{"machines":%q}`, machines)
+	}
+	health := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if body == "" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, body)
+	}))
+	defer health.Close()
+
+	return bashGuard(t, `. "$1"; guard_leftovers "$2"`, health.URL, stubBinary(t, binaryExit))
+}
+
+// runLeftoverGuardFor drives the entry point the conformance task uses, which
+// takes the mode directly because it runs before any emulator exists.
+func runLeftoverGuardFor(t *testing.T, machines string, binaryExit int) (int, string) {
+	t.Helper()
+	return bashGuard(t, `. "$1"; guard_leftovers_for "$2"`, machines, stubBinary(t, binaryExit))
+}
+
+// stubBinary is a fake feint whose exit code is the one thing the guard reads.
+func stubBinary(t *testing.T, exit int) string {
+	t.Helper()
+	stub := filepath.Join(t.TempDir(), "feint")
+	script := fmt.Sprintf("#!/bin/sh\necho \"stub feint: $*\" >&2\nexit %d\n", exit)
+	if err := os.WriteFile(stub, []byte(script), 0o700); err != nil { //nolint:gosec // a stub in a test temp dir
+		t.Fatalf("write the stub binary: %v", err)
+	}
+	return stub
 }
