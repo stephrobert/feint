@@ -1,6 +1,10 @@
 package sshkey
 
-import "testing"
+import (
+	"encoding/base64"
+	"encoding/binary"
+	"testing"
+)
 
 // A key from a file ends with a newline, and that is not an injection.
 //
@@ -44,4 +48,44 @@ func TestTheCanonicalFormCarriesNoSurroundings(t *testing.T) {
 			t.Errorf("String() gave %q, want the canonical %q", got, key)
 		}
 	}
+}
+
+// Well formed is not valid, and the line is not the key.
+//
+// "ssh-ed25519 AAAA" has a known algorithm in its first field and valid base64
+// in its second, which is everything the parser checked until the material was
+// read: three zero bytes, no length prefix, no algorithm name, nothing sshd
+// would load. The real cloud refuses it and names the reason — 400 `invalid key
+// type: ssh-ed25519`, measured on 2026-08-21 and recorded in
+// corpus/scaleway/scw-refusals.jsonl, where this emulator answered 200.
+//
+// This is the test the comment in Parse names. Remove the embedded-algorithm
+// check and the first two cases below parse.
+func TestAKeyWhoseMaterialNamesAnotherAlgorithmIsRefused(t *testing.T) {
+	refused := []struct{ why, key string }{
+		{"material too short to carry a length prefix", "ssh-ed25519 AAAA comment"},
+		{"material naming another algorithm", "ssh-ed25519 " + blobNaming("ssh-rsa")},
+		{"a length prefix longer than the material", "ssh-ed25519 AAAA////"},
+	}
+	for _, c := range refused {
+		if _, err := Parse(c.key); err == nil {
+			t.Errorf("%s: parsed, want refused", c.why)
+		}
+	}
+	// And a key whose material names its own algorithm still parses, so the
+	// check refuses the mismatch rather than the family.
+	if _, err := Parse("ssh-ed25519 " + blobNaming("ssh-ed25519") + " who@where"); err != nil {
+		t.Errorf("a key whose material names its own algorithm was refused: %v", err)
+	}
+}
+
+// blobNaming builds the base64 of an SSH blob whose first string is the given
+// algorithm, followed by 32 bytes of material.
+func blobNaming(algorithm string) string {
+	var length [4]byte
+	binary.BigEndian.PutUint32(length[:], uint32(len(algorithm)))
+	blob := append(append([]byte{}, length[:]...), algorithm...)
+	binary.BigEndian.PutUint32(length[:], 32)
+	blob = append(blob, length[:]...)
+	return base64.StdEncoding.EncodeToString(append(blob, make([]byte, 32)...))
 }

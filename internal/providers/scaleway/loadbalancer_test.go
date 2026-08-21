@@ -278,3 +278,26 @@ func TestARouteRoundTrips(t *testing.T) {
 		t.Errorf("create and read disagree: %v vs %v", route["match"], again["match"])
 	}
 }
+
+// Listing the routes of a frontend that does not exist is a refusal, and the
+// real cloud says so: `scw lb route list frontend-id=<absent>` answered 404
+// "frontend not Found" on 2026-08-21, recorded in
+// corpus/scaleway/scw-refusals.jsonl. This pack answered 200 with an empty
+// list, which a client reads as "that frontend carries no route".
+//
+// The test is the one named by the comment in listLBRoutes, and it fails
+// without it: the filter alone leaves an unknown identifier matching nothing
+// and the page comes back empty with a 200.
+func TestListingRoutesOfAnAbsentFrontendIsRefused(t *testing.T) {
+	ts := newTestServer(t)
+
+	status, body := do(t, ts, "GET", lbURL+"/routes?frontend_id=11111111-2222-4333-8444-555555555555", "")
+	if status != http.StatusNotFound {
+		t.Fatalf("listing the routes of an absent frontend answered %d (%v), want 404", status, body)
+	}
+	// And the unfiltered listing still answers, so the refusal is about the
+	// identifier and not about the route family being unreadable.
+	if status, body := do(t, ts, "GET", lbURL+"/routes", ""); status != http.StatusOK {
+		t.Fatalf("listing every route answered %d (%v), want 200", status, body)
+	}
+}

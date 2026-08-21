@@ -16,6 +16,7 @@ package sshkey
 import (
 	"crypto/md5" //nolint:gosec // the SSH fingerprint format is MD5, not a security decision
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"strings"
@@ -90,11 +91,42 @@ func Parse(key string) (Key, error) {
 	if err != nil {
 		return Key{}, ErrNotAKey
 	}
+	// The material names its own algorithm, and it must be the one the line
+	// declares. Without this, "ssh-ed25519 AAAA" parses: the first field is a
+	// known algorithm and the second decodes as base64, so both checks above
+	// pass over three bytes that are not a key at all.
+	//
+	// Well formed is not valid. The real cloud makes the same check and says so
+	// — `scw iam ssh-key create public-key="ssh-ed25519 AAAA <comment>"`
+	// answered 400 `invalid key type: ssh-ed25519` on 2026-08-21, recorded in
+	// corpus/scaleway/scw-refusals.jsonl, where this emulator answered 200 and
+	// stored it. The consequence is not cosmetic: the value goes into
+	// ssh_authorized_keys, and a machine holding bytes sshd will not read is a
+	// machine nobody can log into that the API still describes as reachable —
+	// which is the sentence the algorithms table above already writes.
+	//
+	// TestAKeyWhoseMaterialNamesAnotherAlgorithmIsRefused fails without this.
+	if embedded, ok := sshString(blob); !ok || embedded != fields[0] {
+		return Key{}, ErrNotAKey
+	}
 	return Key{
 		Algorithm: fields[0],
 		Blob:      blob,
 		Comment:   strings.Join(fields[2:], " "),
 	}, nil
+}
+
+// sshString reads the first length-prefixed string of an SSH blob, which is
+// where every public key names its own algorithm (RFC 4253, section 6.6).
+func sshString(blob []byte) (string, bool) {
+	if len(blob) < 4 {
+		return "", false
+	}
+	n := uint64(binary.BigEndian.Uint32(blob[:4]))
+	if n > uint64(len(blob))-4 {
+		return "", false
+	}
+	return string(blob[4 : 4+n]), true
 }
 
 // String renders the key in its canonical one-line form.

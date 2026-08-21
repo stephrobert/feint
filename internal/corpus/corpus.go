@@ -325,8 +325,23 @@ func as4(a netip.Addr) []byte {
 }
 
 // freshBlock allocates a block of the same prefix length that nothing contains.
+//
+// A block shorter than the synthetic space itself cannot be *placed* inside it,
+// and masking the replacement to that length walks straight out: "10.0.0.0/8"
+// came back as "198.0.0.0/8", whose address half is somebody's, and
+// TestNoCommittedCorpusCarriesAnIdentifier (internal/cli) is the tooth that
+// saw it — on a
+// refusal corpus, where "the block size has to be between 16 and 28" is the
+// whole point of the exchange. The size is therefore the half that must
+// survive; the address half becomes the space's own, left unmasked, so every
+// octet published is inside 198.18.0.0/15 and the prefix length the API
+// validates is the one the recording carried.
+// TestABlockShorterThanTheSyntheticSpaceStaysInsideIt fails without this.
 func (m *mint) freshBlock(p netip.Prefix) string {
 	bits := p.Bits()
+	if p.Addr().Is4() && bits < syntheticV4.Bits() {
+		return netip.PrefixFrom(offsetV4(uint32(m.next("cidr4"))), bits).String() //nolint:gosec // a counter over one recording
+	}
 	if p.Addr().Is4() {
 		shift := 32 - bits
 		if shift < 0 || shift > 31 {

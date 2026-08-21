@@ -2,6 +2,7 @@ package outscale
 
 import (
 	"net/http"
+	"net/netip"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/resource"
@@ -31,6 +32,10 @@ const kindDhcpOptions = "dhcpoptions"
 // Under the addressing lock of the caller when called from createNet; callable
 // bare from a read, where two concurrent creations would be benign but wasteful,
 // so reads go through the store first.
+// outscaleProvidedDNS is the keyword the platform answers where an address
+// would stand, on the default set and on any set that names no server.
+const outscaleProvidedDNS = "OutscaleProvidedDNS"
+
 func (p *Pack) defaultDhcpOptions() *resource.Resource {
 	for _, res := range p.env.Store.List(kindDhcpOptions, resource.Tenant{Provider: Name}) {
 		if def, _ := res.Attrs["Default"].(bool); def {
@@ -42,7 +47,7 @@ func (p *Pack) defaultDhcpOptions() *resource.Resource {
 	res.Attrs = map[string]any{
 		"Default":           true,
 		"DomainName":        p.region + ".compute.internal",
-		"DomainNameServers": []any{"OutscaleProvidedDNS"},
+		"DomainNameServers": []any{outscaleProvidedDNS},
 		"Tags":              []any{},
 	}
 	p.env.Store.Put(res)
@@ -127,6 +132,27 @@ func (p *Pack) createDhcpOptions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Every name server is an address, and the cloud says so before it stores
+	// anything. Measured on 2026-08-21 against a real account
+	// (corpus/outscale/oapi-cli-refusals.jsonl): CreateDhcpOptions with a
+	// DomainNameServers entry that is not an IPv4 address answers 400
+	// InvalidParameterValue "The IPv4 address '<value>' is invalid.", where this
+	// pack answered 200 and stored the string — which then reads back as a name
+	// server no machine can use.
+	// TestCreateDhcpOptionsRefusesAServerThatIsNotAnAddress fails without it.
+	for _, server := range req.DomainNameServers {
+		// The keyword the platform answers on the default set is not an
+		// address and is not refused: it is the one value of this field that
+		// names the cloud's own resolver.
+		if server == outscaleProvidedDNS {
+			continue
+		}
+		if addr, err := netip.ParseAddr(server); err != nil || !addr.Is4() {
+			p.badRequest(w, "the IPv4 address "+server+" is invalid")
+			return
+		}
+	}
+
 	now := p.env.Now()
 	attrs := map[string]any{
 		"Default": false,
@@ -139,7 +165,7 @@ func (p *Pack) createDhcpOptions(w http.ResponseWriter, r *http.Request) {
 	// default" — the keyword, exactly as the default set carries it.
 	servers := req.DomainNameServers
 	if len(servers) == 0 {
-		servers = []string{"OutscaleProvidedDNS"}
+		servers = []string{outscaleProvidedDNS}
 	}
 	attrs["DomainNameServers"] = servers
 	if len(req.LogServers) > 0 {

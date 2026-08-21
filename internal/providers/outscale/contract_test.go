@@ -96,7 +96,7 @@ func TestEveryResponseMatchesTheContract(t *testing.T) {
 	call(t, ts, doc, "ReadKeypairs", `{}`)
 
 	call(t, ts, doc, "CreateKeypair",
-		`{"KeypairName":"conformance","PublicKey":"ssh-ed25519 AAAAC3Nz fake@feint"}`)
+		`{"KeypairName":"conformance","PublicKey":"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIr6pEFlAFO3YU0DNW/r8SkpjdbptN9ockkO2BtIolSD conformance@feint"}`)
 
 	created := call(t, ts, doc, "CreateVms",
 		`{"ImageId":"ami-00000001","VmType":"tinav6.c1r1p2","KeypairName":"conformance"}`)

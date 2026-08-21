@@ -820,7 +820,18 @@ func (p *Pack) listLBRoutes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	all := p.env.Store.List(kindLBRoute, resource.Tenant{Provider: Name, Zone: zone})
+	// A frontend_id naming nothing is a refusal, not an empty page. Measured
+	// against the real cloud on 2026-08-21 (corpus/scaleway/scw-refusals.jsonl):
+	// `scw lb route list frontend-id=<absent>` answers 404 "frontend not Found",
+	// where this pack answered 200 with an empty list — the answer a client
+	// reads as "that frontend carries no route" rather than "there is no such
+	// frontend". TestListingRoutesOfAnAbsentFrontendIsRefused fails without it.
 	if id := r.URL.Query().Get("frontend_id"); id != "" {
+		fe, found := p.env.Store.Get(Name, kindLBFrontend, id)
+		if !found || fe.Tenant.Zone != zone {
+			writeNotFound(w, "frontend", id)
+			return
+		}
 		all = filterResources(all, func(res *resource.Resource) bool {
 			return res.Attrs["frontend_id"] == id
 		})

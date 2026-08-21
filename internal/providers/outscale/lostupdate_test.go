@@ -25,7 +25,7 @@ func TestConcurrentUpdatesKeepEveryAcknowledgedField(t *testing.T) {
 	// One keypair for the whole run: it has to exist before UpdateVm will take
 	// its name, and validVmFields refusing an unknown one is a guard, not a race.
 	post(t, ts, "CreateKeypair",
-		`{"KeypairName":"barrage-key","PublicKey":"ssh-ed25519 AAAAC3Nz fake@feint"}`)
+		`{"KeypairName":"barrage-key","PublicKey":"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIr6pEFlAFO3YU0DNW/r8SkpjdbptN9ockkO2BtIolSD conformance@feint"}`)
 
 	found := storetest.NoLostUpdate(40, func(trial int) []storetest.Write {
 		_, out := post(t, ts, "CreateVms", `{"ImageId":"ami-12345678","VmType":"tinav4.c1r1p2"}`)

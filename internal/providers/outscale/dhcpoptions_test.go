@@ -196,3 +196,35 @@ func TestReadNetsFiltersOnTheDhcpOptionsSet(t *testing.T) {
 		t.Fatalf("an unknown set matched %d Nets, want none", len(nets))
 	}
 }
+
+// A name server is an address, and the cloud refuses anything else before it
+// stores a set. Measured on 2026-08-21 against a real account
+// (corpus/outscale/oapi-cli-refusals.jsonl): CreateDhcpOptions with
+// DomainNameServers ["not-an-address"] answered 400 InvalidParameterValue,
+// where this pack answered 200 and stored the string.
+//
+// This is the test the comment in createDhcpOptions names, and it fails
+// without the loop: the create is accepted and the set reads back carrying a
+// name server no machine can resolve.
+func TestCreateDhcpOptionsRefusesAServerThatIsNotAnAddress(t *testing.T) {
+	ts := newServer(t)
+
+	status, refused := post(t, ts, "CreateDhcpOptions", `{"DomainNameServers":["not-an-address"]}`)
+	if status != http.StatusBadRequest {
+		t.Fatalf("a name server that is not an address answered %d (%v), want 400", status, refused)
+	}
+	// Nothing was stored: only the lazily created default set may exist.
+	_, read := post(t, ts, "ReadDhcpOptions", `{}`)
+	sets, _ := read["DhcpOptionsSets"].([]any)
+	for _, raw := range sets {
+		set, _ := raw.(map[string]any)
+		if def, _ := set["Default"].(bool); !def {
+			t.Fatalf("the refused create left a set behind: %v", set)
+		}
+	}
+	// The keyword the platform answers on the default set is still accepted:
+	// it is the one value of this field that is not an address.
+	if status, body := post(t, ts, "CreateDhcpOptions", `{"DomainNameServers":["OutscaleProvidedDNS"]}`); status != http.StatusOK {
+		t.Fatalf("the platform's own resolver keyword answered %d (%v), want 200", status, body)
+	}
+}

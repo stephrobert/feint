@@ -777,3 +777,47 @@ func TestARecordersPlaceholderIsRenumberedRatherThanKept(t *testing.T) {
 		t.Error("the audit accepted a recorder's placeholder that survived from the recording")
 	}
 }
+
+// A block shorter than the synthetic space itself stays inside it.
+//
+// Measured on the refusal corpus of #390: `oapi-cli CreateNet --IpRange
+// 10.0.0.0/8` is refused by the real cloud with "the block size has to be
+// between 16 and 28", so the /8 is the whole exchange — and [mint.freshBlock]
+// masked its replacement down to that length, which walked out of
+// 198.18.0.0/15 and published "198.0.0.0/8". The address half of that belongs
+// to somebody. TestNoCommittedCorpusCarriesAnIdentifier saw it; this is the
+// same fact where the value is minted.
+//
+// Both halves are asserted, and the second is the one a fix could quietly
+// break: the prefix LENGTH has to survive, because it is what the API
+// validates, so mapping the block onto the shortest representable one would
+// turn a recorded refusal into an acceptance.
+func TestABlockShorterThanTheSyntheticSpaceStaysInsideIt(t *testing.T) {
+	exs := []trace.Exchange{{
+		Method: "POST", Path: "/thing/v1/zones/fr-par-1/things", Status: 400,
+		Req: &trace.Message{Body: map[string]any{"wide": "10.0.0.0/8", "wider": "172.16.0.0/12"}},
+	}}
+	out, _ := sanitise(t, exs)
+	req, _ := out[0].Req.Body.(map[string]any)
+
+	for field, want := range map[string]int{"wide": 8, "wider": 12} {
+		got, _ := req[field].(string)
+		p, err := netip.ParsePrefix(got)
+		if err != nil {
+			t.Fatalf("%s came back %q, which is not a prefix", field, got)
+		}
+		if p.Bits() != want {
+			t.Errorf("%s came back /%d, want /%d: the size is what the API validates", field, p.Bits(), want)
+		}
+		if !syntheticV4.Contains(p.Addr()) {
+			t.Errorf("%s came back %q, whose address is outside %s and belongs to somebody",
+				field, got, syntheticV4)
+		}
+	}
+	if req["wide"] == req["wider"] {
+		t.Errorf("two blocks became one (%v)", req["wide"])
+	}
+	if leaks := Scan(out, options(t)); len(leaks) != 0 {
+		t.Fatalf("the alphabet refused a block it minted itself: %v", leaks)
+	}
+}
