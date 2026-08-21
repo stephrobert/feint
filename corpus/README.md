@@ -430,7 +430,7 @@ organisations. The one this corpus was recorded against was named by the owner
 of the account, who also lifted the free-resources rule for it and confirmed
 that a sanitised transcript of that region may be committed — and the account is
 a live one, with four Nets, two running machines and five public IPs that
-predate the run, so **a cleanup driven by a listing is one `net-a` away from
+predate the run, so **a cleanup driven by a listing is one live network name away from
 destroying somebody's infrastructure**. The teardown here is driven by the
 run's own registry of what it created, read back from its own recording.
 

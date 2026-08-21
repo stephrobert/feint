@@ -32,8 +32,14 @@ import "github.com/stephrobert/feint/internal/core/emulator"
 // `UpdateVm` and confirmed against the account's two long-lived machines, which
 // refute the other candidate rule (their name order is not the order answered):
 //
-//	i-00dbaf47  sg-24cdb2f8 seg-ssh-all-a,  sg-38ce6f35 languagetool
-//	i-f07ffeb9  sg-24cdb2f8 seg-ssh-all-a,  sg-fa3bbc1c seg-all-all-a
+//	machine A  sg-2222aaaa "ssh-only",  sg-3333bbbb "alerting"
+//	machine B  sg-2222aaaa "ssh-only",  sg-ffffcccc "open-all"
+//
+// The two rows above are anonymised, and the anonymisation keeps the only thing
+// they are evidence of: the ids ascend, and in neither row is the name order the
+// answered one. The real identifiers and group names are a live account's
+// inventory and this repository is public — docs/proxy.md states the rule:
+// name a path, a type, a status and a position, never a value.
 //
 // This pack now sorts the same way ([effectiveSecurityGroups]), and a *replay*
 // still cannot grade it: the order is derived from identifiers the cloud minted,

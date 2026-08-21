@@ -21,8 +21,14 @@ import (
 // and sorting by id both explain — and the account's own two long-lived
 // machines settle it by refuting the name:
 //
-//	i-00dbaf47  sg-24cdb2f8 seg-ssh-all-a,  sg-38ce6f35 languagetool
-//	i-f07ffeb9  sg-24cdb2f8 seg-ssh-all-a,  sg-fa3bbc1c seg-all-all-a
+//	machine A  sg-2222aaaa "ssh-only",  sg-3333bbbb "alerting"
+//	machine B  sg-2222aaaa "ssh-only",  sg-ffffcccc "open-all"
+//
+// The two rows above are anonymised, and the anonymisation keeps the only thing
+// they are evidence of: the ids ascend, and in neither row is the name order the
+// answered one. The real identifiers and group names are a live account's
+// inventory and this repository is public — docs/proxy.md states the rule:
+// name a path, a type, a status and a position, never a value.
 //
 // Both are ascending by id, and in neither is the name order the one answered.
 //
