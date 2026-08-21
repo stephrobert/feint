@@ -102,6 +102,27 @@
       "replace": "\tto, bound := b.to[value]\n\treturn to, bound && false",
       "test": "TestAValueWithNoFieldOfItsOwnStillResolves",
       "package": "./internal/replay/"
+    },
+    {
+      "label": "a corpus that runs none of the comparisons the packs declare reads as a pass, which is the state the corpus shipped in for its whole first life: values_checked=0, orders_checked=0, and \"0 divergent finding(s)\" printed over them",
+      "file": "internal/cli/corpus.go",
+      "find": "\tif bad := unexercisedInvariantKinds(invariants, values, orders); len(bad) > 0 {",
+      "replace": "\tif bad := unexercisedInvariantKinds(invariants, values, orders); len(bad) > 0 && false {",
+      "test": "TestACorpusThatRunsNoDeclaredComparisonIsRed"
+    },
+    {
+      "label": "the per-file counters stop being summed, so a corpus that ran six order comparisons reports none and the guard above fires on a run that measured everything",
+      "file": "internal/cli/corpus.go",
+      "find": "\t\tvalues += rep.Values\n\t\torders += rep.Orders",
+      "replace": "\t\tvalues += 0\n\t\torders += 0\n\t\t_ = rep.Values",
+      "test": "TestACorpusThatRunsNoDeclaredComparisonIsRed"
+    },
+    {
+      "label": "THE SECOND DIRECTION: the guard stops reading what the packs declare, so a repository whose packs declare no invariant is failed for not exercising one — a control that fires where there is nothing to control is how a gate gets disabled",
+      "file": "internal/cli/corpus.go",
+      "find": "\t\tif declared[kind] > 0 && ran[kind] == 0 {",
+      "replace": "\t\tif declared[kind] >= 0 && ran[kind] == 0 {",
+      "test": "TestNoDeclaredInvariantAsksForNoComparison"
     }
   ]
 }

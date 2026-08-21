@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "0f89ca163b0fb5f1",
     "shapes": "8e5226e786207180",
-    "suites": "96f6fcc623b51c01"
+    "suites": "65e048635760c0f7"
   },
   "operations": {
     "block/v1/API.CreateSnapshot": {
@@ -1709,7 +1709,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": true,
+      "behaviour": false,
       "negative": false
     },
     "instance/v2alpha1/API.CreatePrivateNetworkInterface": {
@@ -3107,6 +3107,15 @@
       "behaviour": true,
       "negative": false
     },
+    "vpc/v2/API.GetACL": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "vpc/v2/API.GetPrivateNetwork": {
       "driven": true,
       "probed": "response",
@@ -3158,6 +3167,15 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
+      "behaviour": true,
+      "negative": false
+    },
+    "vpc/v2/API.SetACL": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
       "behaviour": true,
       "negative": false
     },

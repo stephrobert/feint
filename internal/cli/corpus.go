@@ -210,6 +210,7 @@ func checkCorpus(dir, acceptedPath string, now time.Time, stdout, stderr io.Writ
 
 	used := make([]int, len(acc.Accepted))
 	compared, divergent, unserved, excused := 0, 0, 0, 0
+	values, orders := 0, 0
 	for _, f := range files {
 		rep, err := replayCorpusFile(dir, f, env, packs, declined, invariants)
 		if err != nil {
@@ -230,6 +231,8 @@ func checkCorpus(dir, acceptedPath string, now time.Time, stdout, stderr io.Writ
 		}
 		compared += rep.Matched + rep.Divergent
 		unserved += rep.Unserved
+		values += rep.Values
+		orders += rep.Orders
 		divergent += reportCorpusFile(f, rep, acc.Accepted, used, &excused, stdout, stderr)
 	}
 
@@ -241,6 +244,39 @@ func checkCorpus(dir, acceptedPath string, now time.Time, stdout, stderr io.Writ
 	fmt.Fprintf(stdout, "%d divergent finding(s) nothing accepts, which is what this gate fails on\n", divergent)
 	fmt.Fprintf(stdout, "%d exchange(s) no route serves, which is #74's work queue and not a failure\n", unserved)
 	fmt.Fprintf(stdout, "%d divergent finding(s) knowingly accepted, each printed above with its reason\n", excused)
+	fmt.Fprintf(stdout, "%d declared value comparison(s) and %d declared order comparison(s) actually ran\n", values, orders)
+
+	// The subject of a declared comparison, asserted rather than hoped for.
+	//
+	// Presence and type are compared everywhere; a value and an order are
+	// compared only where a pack declares an invariant, and such a declaration
+	// is exactly a place this repository has already been wrong — the order of
+	// Server.public_ips is #320, a defect that cost a pull request. The two
+	// counts above therefore have to be able to be zero for a reason, and
+	// "nothing in the corpus reaches the operation" is not one: it reads as a
+	// clean pass on a check that never happened, which is the defect shape
+	// CLAUDE.md's "un commentaire n'est pas un contrôle" is about and the one
+	// TestACorpusThatComparesNothingIsRed already refuses one level up.
+	//
+	// This is what the corpus was silently failing at for the whole of its
+	// first life: every Scaleway invariant lives on CreateServer, GetServer and
+	// UpdateServer, a server is billed, and the two free recordings therefore
+	// ran values_checked=0 and orders_checked=0 while the gate printed "no
+	// divergence" (#343).
+	//
+	// The condition is the packs' own declaration and not a constant, so a
+	// repository whose packs declare no invariant of a kind is not asked to
+	// exercise one: a control that fires where there is nothing to control is
+	// how a gate gets disabled.
+	// TestACorpusThatRunsNoDeclaredComparisonIsRed fails without this.
+	if bad := unexercisedInvariantKinds(invariants, values, orders); len(bad) > 0 {
+		for _, b := range bad {
+			fmt.Fprintf(stderr, "feint: the packs declare %d %s invariant(s) and this corpus ran none of them: "+
+				"no recording reaches the operations they name, so the comparison they describe did not happen\n",
+				b.declared, b.kind)
+		}
+		return exitError
+	}
 
 	// An exemption that excused nothing. The rule tools/compat/accepted.json
 	// states and this one inherits: a stale exemption is a gate that quietly
@@ -265,6 +301,40 @@ func checkCorpus(dir, acceptedPath string, now time.Time, stdout, stderr io.Writ
 		return exitDrift
 	}
 	return exitOK
+}
+
+// unexercisedInvariantKind is one kind of declared comparison that no exchange
+// of the corpus ran, with how many the packs declare so the message can name
+// what went unmeasured rather than only that something did.
+type unexercisedInvariantKind struct {
+	kind     emulator.InvariantKind
+	declared int
+}
+
+// unexercisedInvariantKinds reports the kinds the packs declare and this run
+// never evaluated.
+//
+// Per kind rather than as one total, and the falsification is the same one that
+// split replay.Report's own two counters: with a single number, breaking the
+// ordering declaration left the value declarations still counting, the total
+// stayed above zero, and the test meant to prove the order check ran stayed
+// green (tools/falsify/specs/replay-compares.json, run of 2026-08-20).
+func unexercisedInvariantKinds(invariants []emulator.Invariant, values, orders int) []unexercisedInvariantKind {
+	declared := map[emulator.InvariantKind]int{}
+	for _, i := range invariants {
+		declared[i.Kind]++
+	}
+	ran := map[emulator.InvariantKind]int{
+		emulator.InvariantValue: values,
+		emulator.InvariantOrder: orders,
+	}
+	var out []unexercisedInvariantKind
+	for _, kind := range []emulator.InvariantKind{emulator.InvariantValue, emulator.InvariantOrder} {
+		if declared[kind] > 0 && ran[kind] == 0 {
+			out = append(out, unexercisedInvariantKind{kind: kind, declared: declared[kind]})
+		}
+	}
+	return out
 }
 
 // checkCorpusRecordings holds the corpus and its manifest to each other, in both

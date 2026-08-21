@@ -126,6 +126,49 @@ resource "scaleway_ipam_ip" "conformance" {
   tags = ["feint", "conformance"]
 }
 
+# The VPC's Network ACL, served since #343 and declined before it.
+#
+# It is here rather than in the CLI suite alone because the two operations
+# behind it are a PUT and a GET on one path — SetACL and GetACL — and the only
+# way a permanent diff shows itself is a client that plans twice. The provider
+# reads the whole rule set back on every refresh and compares it field by field,
+# so a rule this emulator reorders, retypes or drops surfaces here as a second
+# plan that is not empty, and nowhere else.
+#
+# `phase` moves the description on the second apply, which is what makes the
+# update a real PUT rather than a create: the resource has no PATCH, so an
+# emulator that stored the first rule set and ignored the second would answer
+# the old description and the plan would never converge.
+resource "scaleway_vpc_acl" "conformance" {
+  vpc_id         = scaleway_vpc.conformance.id
+  is_ipv6        = false
+  default_policy = "drop"
+
+  rules {
+    protocol      = "TCP"
+    source        = "0.0.0.0/0"
+    src_port_low  = 0
+    src_port_high = 0
+    destination   = "10.182.0.0/24"
+    dst_port_low  = 443
+    dst_port_high = 443
+    action        = "accept"
+    description   = "https, phase ${var.phase}"
+  }
+
+  rules {
+    protocol      = "UDP"
+    source        = "10.182.0.0/24"
+    src_port_low  = 0
+    src_port_high = 0
+    destination   = "0.0.0.0/0"
+    dst_port_low  = 53
+    dst_port_high = 53
+    action        = "accept"
+    description   = "dns"
+  }
+}
+
 # A route through the VPC, managed by the client: create, read back, destroy.
 # The emulator stores it as a record and says so in docs/limits.md; what the
 # fixture proves is that the provider's CRUD round-trips without a diff.
@@ -323,6 +366,12 @@ output "ordered_ip_ids" {
 
 output "route_id" {
   value = scaleway_vpc_route.conformance.id
+}
+
+# The VPC's own id, so the suite can ask the emulator for the ACL directly
+# rather than trusting the state file to describe what the API holds.
+output "vpc_id" {
+  value = scaleway_vpc.conformance.id
 }
 
 output "block_volume_id" {

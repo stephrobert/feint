@@ -2184,6 +2184,44 @@ shape of a plan, never to test where traffic goes. The day a nexthop is worth
 programming for real, it will arrive as a declared driver capability, measured
 under OVN, not as a silent upgrade of these records.
 
+## A Scaleway VPC's Network ACL is a record, and nothing at the edge applies it
+
+`vpc/v2/API.GetACL` and `vpc/v2/API.SetACL` are served since #343, and they are
+records in the exact sense the section above gives a custom route: the whole
+rule set round-trips for `scw vpc rule get/set` and for `scaleway_vpc_acl`, the
+protocols and actions are held to the SDK's own enums, the sources and
+destinations are parsed as CIDRs, and **no runtime mode programs a filter at the
+VPC edge**. A rule dropping `0.0.0.0/0` here closes nothing.
+
+They were declined until #343, under a reason worth repeating because half of it
+still stands: *"a filter recorded but never applied is indistinguishable from
+protection"*. What changed is not the enforcement — it is who is told. A 501
+stopped the client that was only ever going to read its rules back, and said
+nothing to anyone about enforcement; this page says it, in the place a reader
+looks for it, and the pack's own file repeats it. The refusal protected nobody
+and cost every stack that declares the resource.
+
+What decided the split was a measurement rather than the SDK's shape
+(2026-08-21, recorded through `feint proxy --record` and ranked with
+`feint coverage --observed`):
+
+| operation | what called it | verdict |
+|---|---|---|
+| `vpc/v2/API.GetACL`, `SetACL` | `scw vpc rule get/set`, and the official provider's `scaleway_vpc_acl` | served, as records |
+| the five `*IngressRule` | nothing: `scw` has no ingress-rule subcommand, no surveyed stack names `scaleway_vpc_ingress_rule` | still declined |
+| the five `*VPCConnector` | `scw vpc vpc-connector list/create`, both recorded taking a 501 | still declined, and the demand is real: peering two VPCs is the one property the bridge mode cannot deliver |
+
+The last row is the one to read twice. A recorded call is not on its own a
+reason to serve: the connectors are declined **despite** the demand, because
+answering them would report done the very thing this project measures the
+absence of. Demand decides what is worth serving; it never decides what can be
+served honestly.
+
+Use the ACL to test the shape of a plan and the round-trip of a rule set. Never
+use it to test whether a packet is dropped. The day a rule is worth programming
+for real it arrives as a declared driver capability, measured under OVN, not as
+a silent upgrade of these records.
+
 ## Only Scaleway hands a security group to the runtime
 
 `internal/providers/scaleway/firewall.go` is the only file in any pack that

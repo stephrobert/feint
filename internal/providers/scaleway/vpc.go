@@ -259,6 +259,13 @@ func (p *Pack) deleteVPC(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("VPC still holds %d route(s) and cannot be deleted", len(routes)))
 		return
 	}
+	// The ACLs go with it. They are addressed by a key derived from this VPC's
+	// identifier, so leaving them behind would make the next VPC to carry that
+	// identifier — a restored snapshot, a seeded run — inherit a filter it
+	// never set. TestDeletingAVPCTakesItsACLsWithIt fails without this.
+	for _, id := range p.aclsOfVPC(res.ID) {
+		p.env.Store.Delete(Name, kindVPCACL, id)
+	}
 	p.env.Store.Delete(Name, kindVPC, res.ID)
 	w.WriteHeader(http.StatusNoContent)
 }

@@ -94,6 +94,90 @@ what this project is judged on: **a response shape a client can observe**, and
   nobody has costed — rather than on any part of the redirect being hard.
   Reopening it is its own issue, with its own numbers.
 
+- **A Scaleway VPC's Network ACL is served, and the twenty other refusals of
+  `vpc/v2` were measured rather than assumed** (#343). `vpc/v2/API.GetACL` and
+  `vpc/v2/API.SetACL` are mounted at `GET` and `PUT
+  /vpc/v2/regions/{region}/vpcs/{vpc_id}/acl-rules`, one rule set per address
+  family. Scaleway's `vpc` product moves from 17 to 19 implemented operations
+  and from 20 to 18 declined.
+
+  **What decided the two is a recording, not the SDK's shape.** They were
+  declined with the five ingress rules under one reason — *"a filter recorded
+  but never applied is indistinguishable from protection"* — written before
+  anything had measured who was calling. Driven through `feint proxy --record`
+  on 2026-08-21 and ranked with `feint coverage --observed`, which is the first
+  real use of that flag:
+
+  - `scw vpc rule get` addresses `/vpcs/{id}/acl-rules` and took a **501**;
+    the official Terraform provider 2.81.0 ships `scaleway_vpc_acl` as a
+    resource and a data source; and a real third-party module,
+    tf-scaleway-modules/terraform-scaleway-network @ 99f390bb, declares that
+    resource in its own `complete` example. Served.
+  - the five `*IngressRule` operations show **zero** observed calls: `scw` has
+    no ingress-rule subcommand and no surveyed stack names
+    `scaleway_vpc_ingress_rule`. Still declined, and their reason now says that
+    rather than assuming it.
+  - the five `*VPCConnector` operations **were** called — `scw vpc
+    vpc-connector list` and `create` both recorded taking a 501 — and are still
+    declined. Peering two VPCs is the one property the bridge mode cannot
+    deliver, so answering would report done what was never apart. Demand
+    decides what is worth serving; it never decides what can be served
+    honestly, and the reason now carries both halves.
+
+  **What is served is a record, and `docs/limits.md` says so** in the same words
+  it uses for a custom route: the rule set round-trips, the protocols and
+  actions are held to the SDK's enums, the sources and destinations are parsed
+  as CIDRs, and no runtime mode programs a filter at the VPC edge. A 501
+  protected nobody about enforcement and stopped every stack that declares the
+  resource.
+
+  **The empty answer is measured.** `scw vpc rule get` is a read a client makes
+  before it has ever set anything, and a VPC with no ACL answers
+  `{"rules":[],"default_policy":"accept"}` — read from the real cloud on
+  2026-08-21, on the maintainer's own default VPC, creating nothing. The SDK's
+  own default for `Action` is `unknown_action`, the protobuf zero, and it is not
+  what the wire carries.
+
+  Proved by both official clients: `scw vpc rule get/set` reads the rule set
+  back through the other door, and OpenTofu with terraform-provider-scaleway
+  2.81.0 applies `scaleway_vpc_acl`, re-plans **empty**, updates it in place,
+  re-plans empty again, and destroys it.
+
+- **A real Scaleway recording now carries a billed resource, so the value and
+  order comparisons finally run** (#343, on #352's chain).
+  `corpus/scaleway/scw-instance.jsonl` is the create, read, update and delete of
+  one DEV1-S with one flexible IP against a real `fr-par` account — three
+  seconds of existence on 2026-08-21, everything destroyed with the destruction
+  proved by a read answering 404, the starting and final inventories identical
+  family by family.
+
+  **It closes a hole nothing was reporting.** Every `ReplayInvariant` this
+  repository declares lives on `CreateServer`, `GetServer` and `UpdateServer`; a
+  server is billed; the two free recordings therefore reached none of them. The
+  gate ran with `values_checked=0` and `orders_checked=0` and printed *"0
+  divergent finding(s)"* over it — including for the order of
+  `Server.public_ips`, which is #320, a defect that cost a pull request. The
+  same corpus now runs **2** value comparisons and **6** order comparisons, and
+  the order matched.
+
+  `feint corpus --check` prints both counts, and **fails when the packs declare
+  invariants of a kind and the corpus runs none of them**: a check that never
+  happened must not read as a check that passed. The condition is the packs'
+  own declaration, so a repository declaring nothing is not asked to exercise
+  anything.
+
+- **Twenty-six divergences from the real cloud, classified and not fixed**
+  (#365, #366, #367, #368, #369). The first recording of a billed resource found
+  five causes, each carried in `corpus/accepted.json` with its reason and the
+  issue that deletes its entry: the DEV1-S root volume is local here and a block
+  volume on the cloud, so `scw`'s read of it answers 404 (#365); a server answer
+  omits `bootscript` and `extra_networks`, which the cloud writes as `null` and
+  `[]` (#366); `image.from_server` is `null` here and an empty string on the
+  wire (#367); an attached public IP publishes no `gateway` and drops its own
+  tags (#368); and `createServer` honours a project that `listServers` then
+  hides (#369). Classifying and correcting in one pass is how a classification
+  becomes whatever the patch happened to make green.
+
 - **Exoscale serves the Network Load Balancer, and no backend carries a health
   verdict** (#345, successor to #14). The whole family is mounted:
   `exoscale/v2.create-load-balancer`, `exoscale/v2.list-load-balancers`,

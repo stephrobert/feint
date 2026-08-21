@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stephrobert/feint/internal/core/emulator"
 )
 
 // The date every fixture is judged against, so a test's verdict never depends
@@ -461,4 +463,119 @@ func copyTree(t *testing.T, src, dst string) {
 			t.Fatal(err)
 		}
 	}
+}
+
+// A corpus that runs none of the comparisons the packs declare is red, and
+// says which kind went unmeasured.
+//
+// This is the defect the corpus carried through the whole of its first life,
+// invisible because the gate printed nothing about it. Every ReplayInvariant
+// the Scaleway pack declares lives on CreateServer, GetServer and UpdateServer;
+// a server is a billed resource; and the recordings a free-resources rule
+// allows therefore reached none of them. `feint corpus --check` ran with
+// values_checked=0 and orders_checked=0 and reported "0 divergent finding(s)",
+// which reads as "nothing is wrong" and meant "the value and order comparisons
+// did not happen" — including the order of Server.public_ips, which is #320, a
+// defect that cost a pull request (#343).
+//
+// Both directions, because a guard that fires on every run measures nothing
+// either: the poor corpus must be red and the corpus that does reach those
+// operations must stay green, in the same test, off the same recording.
+func TestACorpusThatRunsNoDeclaredComparisonIsRed(t *testing.T) {
+	recording := recordAgainstAFreshEmulator(t)
+
+	t.Run("reaching no declared operation", func(t *testing.T) {
+		// CreateIP is served and carries no invariant, so this corpus compares
+		// statuses, field trees and types — and nothing a pack declared.
+		dir, accepted := corpusFixture(t, keepOperations(t, recording, "instance/v1/API.CreateIP"))
+		out, errs, code := runCorpusGate(t, dir, accepted)
+		if code != exitError {
+			t.Fatalf("a corpus running no declared comparison exited %d, want %d (error).\nstdout:\n%s\nstderr:\n%s",
+				code, exitError, out, errs)
+		}
+		// The subject is asserted rather than the exit code alone: this corpus
+		// does compare exchanges, so a red verdict for any other reason would
+		// pass a test that is meant to be about the two counts.
+		if strings.Contains(out, "\n0 exchange(s) compared") {
+			t.Fatalf("the fixture compared nothing, so this proves the wrong guard:\n%s", out)
+		}
+		for _, kind := range []string{"value invariant(s)", "order invariant(s)"} {
+			if !strings.Contains(errs, kind) {
+				t.Fatalf("the gate does not name the %s it ran none of:\n%s", kind, errs)
+			}
+		}
+	})
+
+	t.Run("reaching them", func(t *testing.T) {
+		dir, accepted := corpusFixture(t, recording)
+		out, errs, code := runCorpusGate(t, dir, accepted)
+		if code != exitOK {
+			t.Fatalf("a corpus that does reach the declared operations exited %d, want 0.\nstdout:\n%s\nstderr:\n%s",
+				code, out, errs)
+		}
+		if strings.Contains(out, "0 declared value comparison(s)") ||
+			strings.Contains(out, "and 0 declared order comparison(s)") {
+			t.Fatalf("the gate reports no declared comparison on a corpus that creates a server with two addresses:\n%s", out)
+		}
+	})
+}
+
+// A repository whose packs declare no invariant of a kind is not asked to
+// exercise one. The condition is the declaration and not a constant, because a
+// control that fires where there is nothing to control is how a gate gets
+// disabled — the argument that already keeps `conformance` out of the hooks.
+func TestNoDeclaredInvariantAsksForNoComparison(t *testing.T) {
+	if bad := unexercisedInvariantKinds(nil, 0, 0); len(bad) != 0 {
+		t.Fatalf("a pack set declaring no invariant is asked for %d comparison(s): %v", len(bad), bad)
+	}
+	declared := []emulator.Invariant{
+		{Operation: "x/v1/API.Get", Path: "a", Kind: emulator.InvariantValue, Reason: "r"},
+	}
+	if bad := unexercisedInvariantKinds(declared, 0, 0); len(bad) != 1 || bad[0].kind != emulator.InvariantValue {
+		t.Fatalf("a declared value invariant that ran nowhere is reported as %v, want one value entry", bad)
+	}
+	if bad := unexercisedInvariantKinds(declared, 1, 0); len(bad) != 0 {
+		t.Fatalf("a declared value invariant that ran once is still reported: %v", bad)
+	}
+}
+
+// keepOperations rewrites a recording to the exchanges naming one of ops, and
+// returns the new path. It fails rather than returning an empty file: a fixture
+// that kept nothing would exercise "the corpus compared nothing" instead of the
+// guard the caller is testing.
+func keepOperations(t *testing.T, path string, ops ...string) string {
+	t.Helper()
+	wanted := map[string]bool{}
+	for _, op := range ops {
+		wanted[op] = true
+	}
+	raw, err := os.ReadFile(path) //nolint:gosec // a file this test just wrote
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	kept := 0
+	for _, line := range strings.Split(strings.TrimRight(string(raw), "\n"), "\n") {
+		if line == "" {
+			continue
+		}
+		var x map[string]any
+		if err := json.Unmarshal([]byte(line), &x); err != nil {
+			t.Fatal(err)
+		}
+		if op, _ := x["operation"].(string); !wanted[op] {
+			continue
+		}
+		out.WriteString(line)
+		out.WriteString("\n")
+		kept++
+	}
+	if kept == 0 {
+		t.Fatalf("no exchange of %s names any of %v, so the fixture would compare nothing", path, ops)
+	}
+	filtered := filepath.Join(t.TempDir(), "kept.jsonl")
+	if err := os.WriteFile(filtered, out.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return filtered
 }

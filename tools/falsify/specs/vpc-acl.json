@@ -1,0 +1,61 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "an unset ACL answers the SDK's protobuf zero instead of what the cloud answers, which is the invented value the measurement of 2026-08-21 exists to replace",
+      "file": "internal/providers/scaleway/acl.go",
+      "find": "const aclDefaultPolicy = \"accept\"",
+      "replace": "const aclDefaultPolicy = \"unknown_action\"",
+      "test": "TestAnUnsetACLAnswersWhatTheCloudAnswers"
+    },
+    {
+      "label": "the two address families share one stored rule set, so setting the IPv4 filter answers for IPv6 and a client reads back a policy it never set",
+      "file": "internal/providers/scaleway/acl.go",
+      "find": "\tif ipv6 {\n\t\treturn vpcID + \"/acl/ipv6\"\n\t}\n\treturn vpcID + \"/acl/ipv4\"",
+      "replace": "\tif ipv6 && false {\n\t\treturn vpcID + \"/acl/ipv6\"\n\t}\n\treturn vpcID + \"/acl/ipv4\"",
+      "test": "TestSetACLRoundTripsPerAddressFamily"
+    },
+    {
+      "label": "a rule whose protocol is outside the SDK's enum is accepted and echoed back, which is the 200-that-lies family: the client reads its filter back unchanged and believes it",
+      "file": "internal/providers/scaleway/acl.go",
+      "find": "\tif !aclProtocols[protocol] {",
+      "replace": "\tif !aclProtocols[protocol] && false {",
+      "test": "TestSetACLRefusesWhatTheEnumsRefuse"
+    },
+    {
+      "label": "a source that is not a CIDR is stored, so a filter nobody could apply reads back as accepted",
+      "file": "internal/providers/scaleway/acl.go",
+      "find": "\tif _, err := network.ParseCIDR(rule.Source); err != nil {",
+      "replace": "\tif _, err := network.ParseCIDR(rule.Source); err != nil && false {",
+      "test": "TestSetACLRefusesWhatTheEnumsRefuse"
+    },
+    {
+      "label": "a default policy outside the enum is stored, so a VPC answers a policy that decides nothing",
+      "file": "internal/providers/scaleway/acl.go",
+      "find": "\tif !aclActions[req.DefaultPolicy] {",
+      "replace": "\tif !aclActions[req.DefaultPolicy] && false {",
+      "test": "TestSetACLRefusesWhatTheEnumsRefuse"
+    },
+    {
+      "label": "the VPC delete stops sweeping the ACLs, so a rule set survives addressed by a key nothing can reach and the next VPC with that identifier inherits a filter it never set",
+      "file": "internal/providers/scaleway/vpc.go",
+      "find": "\tfor _, id := range p.aclsOfVPC(res.ID) {\n\t\tp.env.Store.Delete(Name, kindVPCACL, id)\n\t}",
+      "replace": "\tfor _, id := range p.aclsOfVPC(res.ID) {\n\t\tif false {\n\t\t\tp.env.Store.Delete(Name, kindVPCACL, id)\n\t\t}\n\t}",
+      "test": "TestDeletingAVPCTakesItsACLsWithIt"
+    },
+    {
+      "label": "the stored key stops being derived from the VPC, so two concurrent PUTs on one VPC race to create two rule sets and a later read answers whichever the store held",
+      "file": "internal/providers/scaleway/acl.go",
+      "find": "\tid := aclID(vpc.ID, req.IsIPv6)",
+      "replace": "\tid := aclID(vpc.ID+p.env.NewID(), req.IsIPv6)",
+      "test": "TestTwoConcurrentSetACLsLeaveOneACL"
+    },
+    {
+      "label": "THE SECOND DIRECTION: the answer publishes the key this emulator derives, handing a client an identifier no real cloud answers and that a state file would then carry",
+      "file": "internal/providers/scaleway/acl.go",
+      "find": "\treturn map[string]any{\n\t\t\"rules\":          rules,\n\t\t\"default_policy\": policy,\n\t}",
+      "replace": "\treturn map[string]any{\n\t\t\"rules\":          rules,\n\t\t\"default_policy\": policy,\n\t\t\"id\":             res.ID,\n\t}",
+      "test": "TestSetACLRoundTripsPerAddressFamily"
+    }
+  ]
+}

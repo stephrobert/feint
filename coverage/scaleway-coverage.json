@@ -1,8 +1,8 @@
 {
   "provider": "scaleway",
   "total": 486,
-  "implemented": 171,
-  "declined": 315,
+  "implemented": 173,
+  "declined": 313,
   "unknown": 0,
   "orphans": null,
   "products": [
@@ -126,15 +126,15 @@
     {
       "product": "vpc",
       "total": 37,
-      "implemented": 17,
-      "declined": 20,
+      "implemented": 19,
+      "declined": 18,
       "unknown": 0,
       "versions": [
         {
           "version": "v2",
           "total": 37,
-          "implemented": 17,
-          "declined": 20,
+          "implemented": 19,
+          "declined": 18,
           "unknown": 0
         }
       ]
@@ -209,8 +209,8 @@
     {
       "group": "vpc",
       "total": 37,
-      "implemented": 17,
-      "declined": 20,
+      "implemented": 19,
+      "declined": 18,
       "unknown": 0
     },
     {
@@ -2788,7 +2788,7 @@
     {
       "operation": "vpc/v2/API.CreateIngressRule",
       "product": "vpc",
-      "reason": "no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN",
+      "reason": "no runtime mode enforces a rule at the VPC edge, and no recorded client calls this one: `scw` has no ingress-rule subcommand and no surveyed stack names scaleway_vpc_ingress_rule, so it is a refusal nobody has met",
       "version": "v2",
       "status": "declined"
     },
@@ -2813,14 +2813,14 @@
     {
       "operation": "vpc/v2/API.CreateVPCConnector",
       "product": "vpc",
-      "reason": "it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart",
+      "reason": "it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart, and a recorded client calling it does not change that",
       "version": "v2",
       "status": "declined"
     },
     {
       "operation": "vpc/v2/API.DeleteIngressRule",
       "product": "vpc",
-      "reason": "no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN",
+      "reason": "no runtime mode enforces a rule at the VPC edge, and no recorded client calls this one: `scw` has no ingress-rule subcommand and no surveyed stack names scaleway_vpc_ingress_rule, so it is a refusal nobody has met",
       "version": "v2",
       "status": "declined"
     },
@@ -2852,7 +2852,7 @@
     {
       "operation": "vpc/v2/API.DeleteVPCConnector",
       "product": "vpc",
-      "reason": "it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart",
+      "reason": "it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart, and a recorded client calling it does not change that",
       "version": "v2",
       "status": "declined"
     },
@@ -2892,14 +2892,13 @@
     {
       "operation": "vpc/v2/API.GetACL",
       "product": "vpc",
-      "reason": "no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN",
       "version": "v2",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "vpc/v2/API.GetIngressRule",
       "product": "vpc",
-      "reason": "no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN",
+      "reason": "no runtime mode enforces a rule at the VPC edge, and no recorded client calls this one: `scw` has no ingress-rule subcommand and no surveyed stack names scaleway_vpc_ingress_rule, so it is a refusal nobody has met",
       "version": "v2",
       "status": "declined"
     },
@@ -2924,14 +2923,14 @@
     {
       "operation": "vpc/v2/API.GetVPCConnector",
       "product": "vpc",
-      "reason": "it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart",
+      "reason": "it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart, and a recorded client calling it does not change that",
       "version": "v2",
       "status": "declined"
     },
     {
       "operation": "vpc/v2/API.ListIngressRules",
       "product": "vpc",
-      "reason": "no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN",
+      "reason": "no runtime mode enforces a rule at the VPC edge, and no recorded client calls this one: `scw` has no ingress-rule subcommand and no surveyed stack names scaleway_vpc_ingress_rule, so it is a refusal nobody has met",
       "version": "v2",
       "status": "declined"
     },
@@ -2957,7 +2956,7 @@
     {
       "operation": "vpc/v2/API.ListVPCConnectors",
       "product": "vpc",
-      "reason": "it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart",
+      "reason": "it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart, and a recorded client calling it does not change that",
       "version": "v2",
       "status": "declined"
     },
@@ -2970,9 +2969,8 @@
     {
       "operation": "vpc/v2/API.SetACL",
       "product": "vpc",
-      "reason": "no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN",
       "version": "v2",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "vpc/v2/API.SetPrivateNetworksS3Endpoint",
@@ -2984,7 +2982,7 @@
     {
       "operation": "vpc/v2/API.UpdateIngressRule",
       "product": "vpc",
-      "reason": "no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN",
+      "reason": "no runtime mode enforces a rule at the VPC edge, and no recorded client calls this one: `scw` has no ingress-rule subcommand and no surveyed stack names scaleway_vpc_ingress_rule, so it is a refusal nobody has met",
       "version": "v2",
       "status": "declined"
     },
@@ -3009,7 +3007,7 @@
     {
       "operation": "vpc/v2/API.UpdateVPCConnector",
       "product": "vpc",
-      "reason": "it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart",
+      "reason": "it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart, and a recorded client calling it does not change that",
       "version": "v2",
       "status": "declined"
     },

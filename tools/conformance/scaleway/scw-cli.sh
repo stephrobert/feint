@@ -735,10 +735,35 @@ scw vpc route update "$route_id" description="conformance route" region=fr-par -
   | jq -e '.description == "conformance route"' >/dev/null || fail "route update did not carry the description"
 scw vpc route delete "$route_id" region=fr-par >/dev/null || fail "route delete rejected"
 
+# The VPC's Network ACL, through the CLI's own subcommands. This is the client
+# that measured the refusal: `scw vpc rule get` took a 501 here on 2026-08-21,
+# and it is the read a user makes before ever setting anything (#343).
+#
+# The empty read comes first, and the value it asserts is the one the real cloud
+# answered for a VPC nobody had touched — measured the same day against the
+# maintainer's own default VPC, creating nothing. An emulator answering the
+# SDK's protobuf zero (`unknown_action`) would satisfy "the route is mounted"
+# and be wrong about what a client reads.
+scw vpc rule get vpc-id="$vpc_id" region=fr-par is-ipv6=false -o json \
+  | jq -e '.rules == [] and .default_policy == "accept"' >/dev/null \
+  || fail "an unset ACL does not answer what the cloud answers"
+scw vpc rule set vpc-id="$vpc_id" region=fr-par is-ipv6=false default-policy=drop \
+  rules.0.protocol=TCP rules.0.source=0.0.0.0/0 rules.0.destination=10.187.0.0/24 \
+  rules.0.src-port-low=0 rules.0.src-port-high=0 \
+  rules.0.dst-port-low=22 rules.0.dst-port-high=22 \
+  rules.0.action=accept rules.0.description=ssh -o json \
+  | jq -e '.default_policy == "drop" and (.rules | length) == 1' >/dev/null \
+  || fail "the ACL the CLI set did not come back"
+# Read back through the other door: an endpoint that answers the PUT from the
+# request body and stores nothing satisfies the line above and fails this one.
+scw vpc rule get vpc-id="$vpc_id" region=fr-par is-ipv6=false -o json \
+  | jq -e '.rules[0].dst_port_low == 22 and .rules[0].description == "ssh"' >/dev/null \
+  || fail "the ACL the CLI set is not the one the read answers"
+
 scw vpc private-network delete "$vpn_id" region=fr-par >/dev/null || fail "private network delete rejected"
 scw vpc vpc delete "$vpc_id" region=fr-par >/dev/null || fail "vpc delete rejected"
 prove_end "$span"
-ok "VPC and private network created, listed, renamed, switched on, routed, deleted"
+ok "VPC and private network created, listed, renamed, switched on, routed, filtered by an ACL read back through both doors, deleted"
 
 # Releasing a set rather than an address: the one IPAM call `scw ipam ip delete`
 # does not make, and the only reason it was never driven. A client reaches it

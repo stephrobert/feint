@@ -310,6 +310,15 @@ func (p *Pack) Routes() []emulator.Route {
 			Undriven: "no official client asks for the flat list: `scw vpc` has no subnet subcommand, and the Terraform provider reads the subnets a private network publishes inline through GetPrivateNetwork"},
 		{Method: "POST", Path: regions + "/vpcs/{vpc_id}/enable-routing", Operation: "vpc/v2/API.EnableRouting", Handler: p.enableRouting},
 		{Method: "POST", Path: regions + "/private-networks/{pnID}/enable-dhcp", Operation: "vpc/v2/API.EnableDHCP", Handler: p.enableDHCP},
+		// The Network ACL of a VPC, one rule set per address family. Served
+		// since #343 and declined before it, on a reason written from the SDK's
+		// shape rather than from a measurement: `scw vpc rule get` calls the
+		// first of these and took a 501, the official Terraform provider 2.81.0
+		// ships `scaleway_vpc_acl`, and a real third-party module declares that
+		// resource. acl.go carries the recording, the ranking and what is and is
+		// not enforced.
+		{Method: "GET", Path: regions + "/vpcs/{vpc_id}/acl-rules", Operation: "vpc/v2/API.GetACL", Handler: p.getACL},
+		{Method: "PUT", Path: regions + "/vpcs/{vpc_id}/acl-rules", Operation: "vpc/v2/API.SetACL", Handler: p.setACL},
 		{Method: "POST", Path: regions + "/routes", Operation: "vpc/v2/API.CreateRoute", Handler: p.createRoute},
 		{Method: "GET", Path: regions + "/routes/{routeID}", Operation: "vpc/v2/API.GetRoute", Handler: p.getRoute},
 		{Method: "PATCH", Path: regions + "/routes/{routeID}", Operation: "vpc/v2/API.UpdateRoute", Handler: p.updateRoute},
@@ -638,25 +647,50 @@ func (p *Pack) Declined() []emulator.Decline {
 		emulator.Because("it hands an instance flexible IP over to IPAM's pool, and the public addresses of this emulator live and die with the instance product: IPAM here holds private-network addresses only",
 			"instance/v1/API.ReleaseIPToIpam"),
 
-		// A rule recorded and never enforced is worse than a refusal: it is
-		// indistinguishable from protection. That argument was measured against
-		// this emulator's own security groups (docs/limits.md), which are
-		// served precisely because a runtime mode does enforce them. No mode
-		// enforces a VPC ACL or an ingress rule today — the machine layer has
-		// no edge to hang them on in bridge mode and nothing programs the OVN
-		// logical network yet — so serving them is the remaining half of SW-4
-		// (#11), gated on that enforcement, not on the CRUD.
-		emulator.Because("no runtime mode enforces a rule at the VPC edge yet, and a filter recorded but never applied is indistinguishable from protection; served once the machine layer can program it under OVN",
+		// The ingress rules, and what the measurement did to the reason they
+		// share with the two ACL operations that used to sit here.
+		//
+		// The reason was "no runtime mode enforces a rule at the VPC edge yet,
+		// and a filter recorded but never applied is indistinguishable from
+		// protection". Half of it is still true and half of it was never
+		// measured. What #343 measured, on 2026-08-21, is which of these seven
+		// a real client calls:
+		//
+		//   - `vpc/v2/API.GetACL` and `vpc/v2/API.SetACL` are called. `scw vpc
+		//     rule get/set` addresses `/vpcs/{id}/acl-rules` and took a 501
+		//     here, recorded and ranked by `feint coverage --observed`; the
+		//     official Terraform provider ships `scaleway_vpc_acl`; and
+		//     tf-scaleway-modules/terraform-scaleway-network @ 99f390bb
+		//     declares that resource in its own `complete` example. They are
+		//     served now, as records, with the non-enforcement stated where a
+		//     reader meets it (acl.go, docs/limits.md) rather than as a 501.
+		//   - **the five below show zero observed calls.** `scw` has no
+		//     ingress-rule subcommand, and no surveyed stack names
+		//     `scaleway_vpc_ingress_rule`. Nothing is asking, so nothing is
+		//     served, and this line is where that is written down.
+		//
+		// The distinction matters: an ACL is the whole filter of a VPC and a
+		// client reads it back on every plan, while an ingress rule is an
+		// object with its own lifecycle that nothing here has ever been asked
+		// to create.
+		emulator.Because("no runtime mode enforces a rule at the VPC edge, and no recorded client calls this one: `scw` has no ingress-rule subcommand and no surveyed stack names scaleway_vpc_ingress_rule, so it is a refusal nobody has met",
 			"vpc/v2/API.CreateIngressRule",
 			"vpc/v2/API.DeleteIngressRule",
 			"vpc/v2/API.GetIngressRule",
 			"vpc/v2/API.ListIngressRules",
-			"vpc/v2/API.UpdateIngressRule",
-			"vpc/v2/API.GetACL",
-			"vpc/v2/API.SetACL"),
+			"vpc/v2/API.UpdateIngressRule"),
 
 		// Peering is the exact inverse of the property this project measures.
-		emulator.Because("it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart",
+		//
+		// And unlike the ingress rules, the demand here is measured rather than
+		// assumed absent: `scw vpc vpc-connector list` and `... create` both
+		// reached `/vpc/v2/regions/fr-par/vpc-connectors` and took a 501 on
+		// 2026-08-21 (#343). The refusal stands anyway, and the difference is
+		// worth stating — this one is declined despite the demand, because
+		// answering it would report done the one thing the bridge mode cannot
+		// do. It is a capability that has to arrive under OVN, not a CRUD that
+		// nobody has asked for.
+		emulator.Because("it peers two VPCs, and isolation between two VPCs is the one property the bridge mode cannot deliver: joining them would report done what was never apart, and a recorded client calling it does not change that",
 			"vpc/v2/API.CreateVPCConnector",
 			"vpc/v2/API.DeleteVPCConnector",
 			"vpc/v2/API.GetVPCConnector",

@@ -13,21 +13,25 @@
     "divergences #352 recorded: the staleness rule made the deletion compulsory,",
     "since an entry that excuses nothing fails the gate. Those eight had three",
     "causes, and saying which was the work:",
+    "THE LIST WAS EMPTY UNTIL A BILLED RESOURCE WAS RECORDED, AND THAT IS THE",
+    "WHOLE STORY OF THIS FILE. The gate went in carrying the eight divergences",
+    "#352's first recording found; #355 retired all eight, and the staleness rule",
+    "made their deletion compulsory the day the emulator stopped producing them.",
+    "The list then sat empty for one reason nobody had written down: the corpus",
+    "held nothing billed. A VPC, a private network and an SSH key are free, so",
+    "the two recordings covered exactly the operations that cost nothing — and",
+    "every ReplayInvariant this repository declares lives on CreateServer,",
+    "GetServer and UpdateServer. values_checked was 0 and orders_checked was 0,",
+    "including for the order of Server.public_ips, which is #320, a defect that",
+    "cost a pull request and that nothing in this repository was exercising.",
     "",
-    "  - two were the instrument. `feint replay` graded the keys of the",
-    "    commercial-type catalogue as fields, so 127 entries of an inventory the",
-    "    emulator deliberately does not stock read as 127 missing fields, while",
-    "    `feint shapes --check` held the opposite rule on the same artefact. One",
-    "    rule now, transcript.DataKeyed, read by both. And the proxy's own",
-    "    redaction destroyed `public_key`, which made the whole IAM SSH-key",
-    "    lifecycle unrecordable — five of the eight were that one substitution.",
-    "  - one was a declaration in the wrong dialect. The pack argued the missing",
-    "    l_ssd bound to the gate that joins on the catalogue key and to no other,",
-    "    so the replay met no refusal.",
-    "  - two were defects of the emulator, and the second could not be seen until",
-    "    the instrument was fixed: the default VPC answered no tags where the real",
-    "    one answers [\"default\"], and CreateSSHKey answered 201 where the cloud",
-    "    answers 200 — the same family as the two vpc/v2 creates #270 found.",
+    "So one DEV1-S and one flexible IP were created on a real account in fr-par,",
+    "with the owner's explicit and bounded consent, and destroyed three seconds",
+    "later (`corpus/scaleway/scw-instance.jsonl`, recorded 2026-08-21, alive from",
+    "17:32:27 to 17:32:30 +02:00, every destruction proved by a read answering",
+    "404 and the starting and final inventories identical family by family).",
+    "That single recording moved values_checked to 2 and orders_checked to 6, and",
+    "surfaced the twenty-six divergences below.",
     "",
     "The three now here come from the Exoscale recording of #354, and they are",
     "all one kind: a field the cloud answers that this emulator omits. The",
@@ -55,6 +59,35 @@
     "goes here with its reason and the issue that retires it, or the gate stays",
     "red — and a corpus trimmed until it passes is the one outcome this file",
     "exists to make impossible.",
+    "THEY ARE CLASSIFIED AND NOT FIXED, DELIBERATELY. Classifying a divergence",
+    "and correcting it are two pieces of work, and doing them in one pass is how",
+    "a classification becomes whatever the patch happened to make green. Each",
+    "entry therefore names the issue that deletes it, and the staleness rule",
+    "above makes that deletion compulsory rather than polite. Five causes:",
+    "",
+    "  - #365, the root volume. The cloud gave the DEV1-S an SBS volume and scw",
+    "    read it through block/v1alpha1; this emulator gives a local instance/v1",
+    "    volume, so the read and the delete answer 404. Sixteen entries, and the",
+    "    fourteen absent fields are the body of an object that is simply not",
+    "    there — one wildcard entry rather than fourteen, because they have one",
+    "    cause and would be retired by one change.",
+    "  - #366, two keys the cloud writes and this emulator omits: bootscript",
+    "    (null) and extra_networks ([]). Untriaged, which is the point of the",
+    "    issue: they are either served or declared in DeclinedFields(), and a",
+    "    corpus exemption is neither.",
+    "  - #367, image.from_server is an empty string on the wire and null here.",
+    "  - #368, an attached public IP publishes no gateway and drops its own tags,",
+    "    in public_ip and in every element of public_ips.",
+    "  - #369, createServer honours a project the request names and listServers",
+    "    scopes an unfiltered list to the default project, so the list answers",
+    "    zero where the cloud answered one. The create and the list disagree",
+    "    about which project the caller is in.",
+    "",
+    "None of the five is an artefact of the instrument, which is worth saying",
+    "because the first recording's eight were mostly that: two were the replay",
+    "grading data-keyed maps as fields and five were the proxy's own redaction",
+    "destroying public_key. #355 fixed the instrument, and what this recording",
+    "surfaced is the emulator and the cloud disagreeing.",
     "",
     "ONE OF THE THREE FILES WAS RECORDED AGAINST NO ACCOUNT AT ALL, and it is",
     "worth saying why that is a measurement rather than a shortcut.",
@@ -84,6 +117,12 @@
   "recorded": [
     {
       "file": "scaleway/scw-cli.jsonl",
+      "at": "2026-08-21",
+      "client": "scw 2.56.3",
+      "cloud": "Scaleway fr-par"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
       "at": "2026-08-21",
       "client": "scw 2.56.3",
       "cloud": "Scaleway fr-par"
@@ -131,6 +170,214 @@
       "path": "visibility",
       "reason": "The same missing field on the read of one group rather than the list of them, and it is a separate entry on purpose: an exemption keyed to the list would go on excusing the get long after the list was fixed, which is the stale exemption this file exists to make impossible.",
       "issue": "https://github.com/stephrobert/feint/issues/371"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "block/v1alpha1/API.GetVolume",
+      "kind": "status",
+      "path": "",
+      "reason": "the cloud gave the DEV1-S an SBS root volume and answers 200 on the block path scw follows; this emulator attaches a local instance/v1 volume, so the same read answers 404",
+      "issue": "#365"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "block/v1alpha1/API.GetVolume",
+      "kind": "absent",
+      "path": "*",
+      "reason": "every top-level field of a body this emulator does not serve at all: the block volume behind the root disk does not exist here, so its fourteen fields are absent for the one reason the status divergence above states",
+      "issue": "#365"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "block/v1alpha1/API.DeleteVolume",
+      "kind": "status",
+      "path": "",
+      "reason": "scw deletes the root volume through block/v1alpha1 after deleting the server, and the cloud answers 204 where this emulator answers 404 because the volume it created is an instance/v1 one",
+      "issue": "#365"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.CreateServer",
+      "kind": "absent",
+      "path": "server.bootscript",
+      "reason": "the cloud still writes the retired bootscript key as null and this emulator omits the key, which is a different answer from writing it empty",
+      "issue": "#366"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.GetServer",
+      "kind": "absent",
+      "path": "server.bootscript",
+      "reason": "the read agrees with the create it follows, so it carries the same omission of the retired bootscript key the cloud writes as null",
+      "issue": "#366"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.UpdateServer",
+      "kind": "absent",
+      "path": "server.bootscript",
+      "reason": "the update answers the same server view as the create and the read, so it omits the retired bootscript key the cloud writes as null",
+      "issue": "#366"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.CreateServer",
+      "kind": "absent",
+      "path": "server.extra_networks",
+      "reason": "the cloud answers extra_networks as an empty array and this emulator writes no such key, which a client reading the field distinguishes",
+      "issue": "#366"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.GetServer",
+      "kind": "absent",
+      "path": "server.extra_networks",
+      "reason": "the read carries the same omission of extra_networks as the create, because both render one server view",
+      "issue": "#366"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.UpdateServer",
+      "kind": "absent",
+      "path": "server.extra_networks",
+      "reason": "the update carries the same omission of extra_networks as the create, because both render one server view",
+      "issue": "#366"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.GetImage",
+      "kind": "type",
+      "path": "image.from_server",
+      "reason": "the cloud answers from_server as an empty string for an image built from no server, and this emulator answers null, which retypes a field the SDK declares as a value",
+      "issue": "#367"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.CreateServer",
+      "kind": "type",
+      "path": "server.image.from_server",
+      "reason": "the image the server embeds carries the same from_server null where the cloud writes an empty string, because it is the same image view",
+      "issue": "#367"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.GetServer",
+      "kind": "type",
+      "path": "server.image.from_server",
+      "reason": "the image the server embeds carries the same from_server null where the cloud writes an empty string, because it is the same image view",
+      "issue": "#367"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.UpdateServer",
+      "kind": "type",
+      "path": "server.image.from_server",
+      "reason": "the image the server embeds carries the same from_server null where the cloud writes an empty string, because it is the same image view",
+      "issue": "#367"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.CreateServer",
+      "kind": "type",
+      "path": "server.public_ip.gateway",
+      "reason": "the cloud publishes the gateway address of a routed public IP and this emulator publishes null, so a guest reading its own route off the answer finds nothing",
+      "issue": "#368"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.GetServer",
+      "kind": "type",
+      "path": "server.public_ip.gateway",
+      "reason": "the read publishes the same null gateway as the create, because both render one address view",
+      "issue": "#368"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.UpdateServer",
+      "kind": "type",
+      "path": "server.public_ip.gateway",
+      "reason": "the update publishes the same null gateway as the create, because both render one address view",
+      "issue": "#368"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.CreateServer",
+      "kind": "type",
+      "path": "server.public_ips[].gateway",
+      "reason": "every element of public_ips carries the same null gateway the singular public_ip carries, because the list and the field render through one function",
+      "issue": "#368"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.GetServer",
+      "kind": "type",
+      "path": "server.public_ips[].gateway",
+      "reason": "every element of public_ips carries the same null gateway the singular public_ip carries, because the list and the field render through one function",
+      "issue": "#368"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.UpdateServer",
+      "kind": "type",
+      "path": "server.public_ips[].gateway",
+      "reason": "every element of public_ips carries the same null gateway the singular public_ip carries, because the list and the field render through one function",
+      "issue": "#368"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.CreateServer",
+      "kind": "absent",
+      "path": "server.public_ip.tags[]",
+      "reason": "the tags sent on CreateIP reach the cloud's view of the attached address and this emulator answers an empty list, so the element the recording carries has no counterpart",
+      "issue": "#368"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.GetServer",
+      "kind": "absent",
+      "path": "server.public_ip.tags[]",
+      "reason": "the read drops the address tags exactly as the create does, because both render one address view",
+      "issue": "#368"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.UpdateServer",
+      "kind": "absent",
+      "path": "server.public_ip.tags[]",
+      "reason": "the update drops the address tags exactly as the create does, because both render one address view",
+      "issue": "#368"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.CreateServer",
+      "kind": "absent",
+      "path": "server.public_ips[].tags[]",
+      "reason": "every element of public_ips drops the address tags the cloud propagates, because the list and the singular field render through one function",
+      "issue": "#368"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.GetServer",
+      "kind": "absent",
+      "path": "server.public_ips[].tags[]",
+      "reason": "every element of public_ips drops the address tags the cloud propagates, because the list and the singular field render through one function",
+      "issue": "#368"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.UpdateServer",
+      "kind": "absent",
+      "path": "server.public_ips[].tags[]",
+      "reason": "every element of public_ips drops the address tags the cloud propagates, because the list and the singular field render through one function",
+      "issue": "#368"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.ListServers",
+      "kind": "absent",
+      "path": "servers[]",
+      "reason": "the create honours the project the request named and the unfiltered list is scoped to the default project, so the server the cloud listed is invisible to the list that follows it here",
+      "issue": "#369"
     },
     {
       "file": "exoscale/exo-cli.jsonl",

@@ -135,6 +135,29 @@ served="$(curl -s "$ENDPOINT/instance/v1/zones/$ZONE/servers/$server_uuid" | jq 
 [ "$served" = "$named" ] || fail "the create named [$named], the emulator serves [$served]"
 ok "served in the client's order: $served"
 
+# The Network ACL the provider set, asked of the emulator directly rather than
+# of the state file: a state agreeing with itself cannot pass for a rule set the
+# API holds. Both rules and the order they were named in, because the provider
+# stores `rules` as a list and a read that reorders them is a permanent diff —
+# the same defect #320 measured on public_ips, on a different list (#343).
+echo "- the VPC's Network ACL is served, in the order the client named"
+vpc_id="$("$TF" output -raw vpc_id)"
+vpc_uuid="${vpc_id##*/}"
+[ -n "$vpc_uuid" ] || fail "no vpc id in the outputs"
+acl="$(curl -s "$ENDPOINT/vpc/v2/regions/fr-par/vpcs/$vpc_uuid/acl-rules?is_ipv6=false")"
+printf '%s' "$acl" | jq -e '.default_policy == "drop"' >/dev/null \
+  || fail "the ACL does not carry the default policy the provider set: $acl"
+printf '%s' "$acl" | jq -e '[.rules[].protocol] == ["TCP","UDP"]' >/dev/null \
+  || fail "the ACL rules do not come back in the order the client named them: $acl"
+printf '%s' "$acl" | jq -e '.rules[0].dst_port_high == 443' >/dev/null \
+  || fail "the ACL rule lost the port range it was given: $acl"
+# The other address family is a separate rule set upstream, and setting one must
+# not answer for the other.
+acl6="$(curl -s "$ENDPOINT/vpc/v2/regions/fr-par/vpcs/$vpc_uuid/acl-rules?is_ipv6=true")"
+printf '%s' "$acl6" | jq -e '.rules == [] and .default_policy == "accept"' >/dev/null \
+  || fail "setting the IPv4 ACL answered for the IPv6 one: $acl6"
+ok "acl-rules served for both families of $vpc_uuid"
+
 route_id="$("$TF" output -raw route_id)"
 route_uuid="${route_id##*/}"
 code="$(curl -s -o /dev/null -w '%{http_code}' "$ENDPOINT/vpc/v2/regions/fr-par/routes/$route_uuid")"
@@ -206,6 +229,12 @@ printf '%s' "$body" | jq -e '.tags | index("two")' >/dev/null \
   || fail "the volume was replaced rather than updated: the update path is still unproven"
 [ "$("$TF" output -raw block_snapshot_id)" = "$block_snapshot_id" ] \
   || fail "the snapshot was replaced rather than updated: the update path is still unproven"
+# The ACL has no PATCH: SetACL is a PUT that replaces the whole rule set, so the
+# second apply's changed description is the only thing that distinguishes an
+# emulator storing the second set from one that answered 200 and kept the first.
+acl="$(curl -s "$ENDPOINT/vpc/v2/regions/fr-par/vpcs/$vpc_uuid/acl-rules?is_ipv6=false")"
+printf '%s' "$acl" | jq -e '.rules[0].description == "https, phase two"' >/dev/null \
+  || fail "the second SetACL answered 200 and stored the first rule set: $acl"
 ok "updated in place, and read back"
 
 echo "- the plan after the update is empty too"

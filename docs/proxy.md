@@ -764,6 +764,19 @@ here could see — the default VPC answering no tags, and `CreateSSHKey` answeri
 instrument stopped lying about itself, which is the argument for the whole chain
 in one line.
 
+And then the corpus was extended with the one thing the free-resources rule had
+kept out of it — a **billed** resource — which turned out to be the difference
+between a gate that compares and a gate that only appears to. Every replay
+invariant this repository declares names `CreateServer`, `GetServer` or
+`UpdateServer`; a server costs money; so `values_checked` and `orders_checked`
+were both **0** while the gate printed "0 divergent finding(s)" over the top.
+One DEV1-S and one flexible IP, alive for three seconds on a real account with
+the owner's bounded consent, moved those counts to 2 and 6 and surfaced five
+more emulator-versus-cloud divergences (#343, #365 to #369).
+`corpus/README.md`, *Recording something billed*, carries the account rules that
+made it defensible and the reason the gate is now red when a declared
+comparison runs nowhere.
+
 ### Why it still replays
 
 Because the replay already rebinds (above). A transcript whose identifiers are

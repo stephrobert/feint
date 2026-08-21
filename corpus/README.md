@@ -42,6 +42,15 @@ unserved are each red, each with their own message
 (`TestACorpusThatComparesNothingIsRed`). **A corpus that replays nothing is a
 failure, never a pass.**
 
+It has a fourth shape, and this directory shipped it for its whole first life. A
+corpus can replay everything and still run **none** of the comparisons the packs
+declare, because a value and an order are compared only where an invariant names
+an operation, and all of Scaleway's name a server. The run prints how many of
+each actually ran, and it is red when the packs declare invariants of a kind and
+the corpus exercises none of them
+(`TestACorpusThatRunsNoDeclaredComparisonIsRed`). *Recording something billed*
+below is how that hole was closed, and #343 is why it existed.
+
 `corpus/accepted.json` carries the divergences this repository records rather
 than fixes, each with its reason and the issue that retires it, and an entry
 excusing nothing fails the gate — so the day a defect is fixed, the gate demands
@@ -108,6 +117,52 @@ Outscale is still to do** (#354): several profiles on the maintainer's station
 name third-party organisations and two sit in the sovereign
 `cloudgouv-eu-west-1`, so the profile to record against is named by a human
 before anything is driven, never guessed.
+
+| `scaleway/scw-instance.jsonl` | scw 2.56.3 | the **billed** lifecycle: one flexible IP reserved, one DEV1-S created with it, read, listed, renamed and its address list reconciled, one deliberate 404, then the server, its root volume and the IP destroyed, each destruction proved by a read |
+
+All three were recorded on 2026-08-21 against a real Scaleway account in
+`fr-par`, through `feint proxy`. The first two created nothing billed: a VPC, a
+private network and an IAM SSH key are free.
+
+**The third one did, with the owner's explicit and bounded consent, and it is
+the only reason two of this repository's own checks run at all.** See *Recording
+something billed* below.
+
+## Recording something billed, and why one recording had to be
+
+`feint replay` compares presence and type everywhere. Two things it compares
+only where a pack declares an invariant: **a value** and **an order**. Both
+declarations exist because both have already cost this repository a defect, and
+the order of `Server.public_ips` is #320, which cost a pull request.
+
+Every one of those declarations lives on `CreateServer`, `GetServer` and
+`UpdateServer`. A server is billed. The free-resources rule above therefore
+produced a corpus that reached **none** of them: `values_checked` was 0,
+`orders_checked` was 0, and the gate printed *"0 divergent finding(s)"* over the
+top, which reads as "nothing is wrong" and meant "those comparisons did not
+happen". A check that never ran had been reading as a check that passed for the
+whole first life of this directory.
+
+So one **DEV1-S** and one **flexible IP** were created in `fr-par`, on the
+maintainer's account, with consent given for exactly those two objects and
+nothing else. They existed from **17:32:27 to 17:32:30 +02:00 on 2026-08-21**:
+three seconds, because the server was created `stopped=true` and never booted,
+which is all a recording of the control plane needs. The full inventory before
+and the full inventory after are identical, family by family, and every
+destruction was proved by a read.
+
+The result is `corpus/scaleway/scw-instance.jsonl`, and it moved the gate from
+`values_checked=0, orders_checked=0` to **2 and 6**. `feint corpus --check` now
+prints both counts and **fails when the packs declare invariants of a kind and
+the corpus runs none of them**, so this hole cannot reopen silently. The
+condition is the packs' own declaration: a repository declaring nothing is not
+asked to exercise anything, because a control that fires where there is nothing
+to control is how a gate gets disabled.
+
+**When a measurement seems to need a billed resource, the rule above still
+holds: stop and ask.** What made this one defensible was not that it was cheap,
+it was that the owner said which two objects, in which region, and for how long,
+and that the script proved the account was as it was found.
 
 ## Recording another one
 
@@ -281,6 +336,36 @@ end of the block. `ReadPublicIpRanges` publishes 90 blocks today and fits;
 another provider's whole address space might not.
 
 ### Scaleway (#352)
+
+**The billed recording found five, and none of them is the instrument.** That is
+worth saying, because the first run's eight were mostly the instrument: two were
+the replay grading data-keyed maps as fields, five were the proxy's own
+redaction destroying `public_key`. #355 fixed the instrument. What
+`scw-instance.jsonl` surfaced is the emulator and the cloud disagreeing, in
+twenty-six findings with five causes, each carried in `accepted.json` with its
+reason and the issue that deletes its entry:
+
+- **#365, the root volume.** The cloud gave the DEV1-S an **SBS** root volume
+  and `scw` read it through `block/v1alpha1`, answering 200; this emulator
+  attaches a local `instance/v1` volume, so the read and the delete answer 404.
+- **#366**, two keys the cloud writes and this emulator omits: `bootscript`
+  (`null`) and `extra_networks` (`[]`). Untriaged: they are either served or
+  declared in `DeclinedFields()`, and a corpus exemption is neither.
+- **#367**, `image.from_server` is an empty string on the wire and `null` here.
+- **#368**, an attached public IP publishes no `gateway` and drops its own tags,
+  in `public_ip` and in every element of `public_ips`.
+- **#369**, `createServer` honours a project the request names and `listServers`
+  scopes an unfiltered list to the default project, so the list answers zero
+  where the cloud answered one.
+
+They are classified and **not** fixed, deliberately: classifying a divergence and
+correcting it are two pieces of work, and doing them in one pass is how a
+classification becomes whatever the patch happened to make green.
+
+And the one that did **not** diverge is the point of the exercise: the order of
+`Server.public_ips` matched on the create, on the four reads and on the update.
+That is #320's guard, and this recording is the first thing in this repository
+that has ever exercised it against a real cloud's answer.
 
 Both files replay against the emulator of 2026-08-21 with **no divergence and no
 exemption**: `terraform.jsonl` matches on all 16 exchanges, `scw-cli.jsonl` on 42
