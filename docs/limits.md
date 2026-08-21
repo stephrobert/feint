@@ -846,9 +846,33 @@ noting because #316's original measurement holds `10.50.2.1`: the three issues
 of this family are downstream of the same teardown.
 
 What #375 made cheap is the diagnosis and the remedy; the birth of that
-leftover is a separate defect, unmeasured before this and not fixed here. In
-OVN mode it does not arise at all: an OVN network carries no `dnsmasq`, and
+leftover was a separate defect, and #386 is where it was closed. In OVN mode it
+does not arise at all: an OVN network carries no `dnsmasq`, and
 `FEINT_VM=incus-ovn mise run conformance` passed twice the same evening.
+
+**What closed it: a lock named after the network, and a question asked under
+it.** Two requests reach one network because a reconciliation lists the store
+and a concurrent delete removes a member it listed — `terraform destroy` tears
+down subnets in parallel, so this is the ordinary case rather than the unlucky
+one. The driver now takes `serialise.Lock("incus.network." + name)` in
+`EnsureNetwork`, `IsolateNetwork` and `RemoveNetwork`, so no config edit of a
+network is in flight while its delete runs; and `IsolateNetwork`, holding that
+lock, asks the daemon whether the network is still there before it edits
+anything. Both halves are needed, and each has its own falsification in
+`tools/falsify/specs/teardown-race.json`: the lock alone still lets a delete
+that won it run first, and the question alone is a time-of-check a delete
+crosses. Per network and never global — a global lock would queue every subnet
+of a stack behind one delete, which is the mistake `internal/core/machine/
+serialise.go` already records having made once.
+
+A detach that could not happen is reported rather than counted as done:
+`machine.ErrNetworkGone` is what the driver returns, and `ReconcileIsolation`
+logs it at warn, naming the network. Warn and not error, because no rule set
+was needed and none is missing — an error line here would fire on every
+parallel destroy and teach a reader to skip it, which is how a log stops being
+evidence. The rule set that isolated the network is dropped by the delete
+itself, since the pass that used to drop it is now the one that refuses to run
+against a network that is gone.
 
 ## Authentication is accepted, never verified
 

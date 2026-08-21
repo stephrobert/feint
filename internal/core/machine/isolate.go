@@ -2,8 +2,25 @@ package machine
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 )
+
+// ErrNetworkGone reports that the network an isolation call names is no longer
+// there: a delete of it landed first.
+//
+// It exists because "the network is gone" is not the same answer as "the rules
+// could not be written", and the difference is the whole of #386. A driver that
+// swallowed it would report success for work it never did; one that reported it
+// as a plain failure would cry wolf on every parallel destroy, which is the
+// ordinary way a subnet and its neighbour's reconciliation cross. So it is a
+// value the caller can recognise, and ReconcileIsolation below says so in the
+// log rather than staying quiet.
+//
+// A driver returns it only when it has established the network's absence — not
+// when a call merely failed in a way whose prose mentions it. Incus answers this
+// through d.gone, which asks the daemon.
+var ErrNetworkGone = errors.New("the network was removed while its isolation was being applied")
 
 // Two emulated subnets are two real subnets, and upstream they do not reach each
 // other. Runtimes disagree on which way round that is: some join networks by
@@ -93,8 +110,7 @@ func ReconcileIsolation(ctx context.Context, driver Driver, log *slog.Logger, no
 				}
 			}
 			if err := peerer.PeerNetworks(ctx, m.Network, peers); err != nil {
-				log.Error("could not peer the "+noun+"'s network",
-					noun, m.ID, "network", m.Network, "error", err)
+				report(log, noun, m, err, "peer")
 			}
 		}
 		return true, true
@@ -118,9 +134,30 @@ func ReconcileIsolation(ctx context.Context, driver Driver, log *slog.Logger, no
 			}
 		}
 		if err := isolator.IsolateNetwork(ctx, m.Network, foreign); err != nil {
-			log.Error("could not isolate the "+noun+"'s network",
-				noun, m.ID, "network", m.Network, "error", err)
+			report(log, noun, m, err, "isolate")
 		}
 	}
 	return false, true
+}
+
+// report says what a reconciliation could not do, and separates the two reasons
+// it can fail.
+//
+// A network deleted under the pass is the expected outcome of a parallel
+// destroy: the member was in the store when the list was taken and its delete
+// landed before its turn came. Nothing is wrong with the host and nothing is
+// left to apply, so it is not an error — but it is not a success either, and it
+// is exactly the event whose invisibility made #386 take three issues to find.
+// It is logged at warn, naming the network, so a run that produced one says so.
+//
+// TestAVanishedNetworkIsReportedRatherThanSwallowed fails when this reports
+// nothing.
+func report(log *slog.Logger, noun string, m IsolationMember, err error, verb string) {
+	if errors.Is(err, ErrNetworkGone) {
+		log.Warn("the "+noun+"'s network was removed while its isolation was being reconciled, so none was applied",
+			noun, m.ID, "network", m.Network, "error", err)
+		return
+	}
+	log.Error("could not "+verb+" the "+noun+"'s network",
+		noun, m.ID, "network", m.Network, "error", err)
 }

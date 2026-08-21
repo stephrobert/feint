@@ -945,6 +945,45 @@ func freeInterface(devices map[string]map[string]string) string {
 	return "eth63"
 }
 
+// networkLock excludes every other command this driver aims at one network
+// until the returned function is called: its create, its config edits, and its
+// delete.
+//
+// The exclusion is the network's name, and #386 is the measurement that named
+// it. `mise run evidence:update` failed twice in bridge mode, each time on a
+// subnet of examples/stacks/outscale, and each failure was preceded in the
+// emulator log by:
+//
+//	detach isolation from fnt-…: open /var/lib/incus/networks/…/dnsmasq.raw:
+//	no such file or directory
+//
+// That is one request's isolation reconciliation reaching a network another
+// request had already deleted. The reconciliation lists the store, a concurrent
+// delete removes one of the members it listed, and the update lands on a
+// network whose state directory is gone — after the daemon has already brought
+// the bridge and its dnsmasq back up. The network object dies, the interface and
+// the DHCP service outlive it, and the next run that wants the block fails on
+// "Address already in use" minutes in. That leftover is what #316 sweeps, what
+// #342 taught doctor to name, and what #375 refused on the doorstep; none of
+// them touched what produces it.
+//
+// Per network and never global, which is serialise.go's rule and the reason
+// this is not d.uplinkMu: a global lock would queue every network of the
+// session behind one delete, and a stack creates its subnets in parallel on
+// purpose. The uplink is a different target — one object shared by every OVN
+// network — and keeps its own mutex; a caller that needs both takes this one
+// first, which is the order EnsureNetwork and RemoveNetwork both use.
+//
+// PeerNetworks deliberately does not take it. It names two networks, and a lock
+// on each would let two peerings of the same pair deadlock on opposite halves;
+// it also calls IsolateNetwork, which takes this lock itself, and serialise.Lock
+// is not reentrant.
+//
+// TestAnIsolationDetachDoesNotOrphanTheNetworkBeingDeleted fails without it.
+func (d *Incus) networkLock(name string) func() {
+	return serialise.Lock("incus.network." + name)
+}
+
 // EnsureNetwork implements Driver. It creates a managed bridge carrying the
 // block the pack computed — or an OVN network in OVN mode — and succeeds when
 // the network is already there.
@@ -964,6 +1003,8 @@ func (d *Incus) EnsureNetwork(ctx context.Context, spec NetworkSpec) error {
 		return fmt.Errorf("network name %q is %d characters, the limit is %d (use NetworkName)",
 			spec.Name, len(spec.Name), MaxNetworkNameLen)
 	}
+	release := d.networkLock(spec.Name)
+	defer release()
 	address, err := gatewayAddress(spec.CIDR, spec.Gateway)
 	if err != nil {
 		return err
@@ -1132,6 +1173,11 @@ func (d *Incus) RemoveNetwork(ctx context.Context, name string) error {
 	if !safeName.MatchString(name) || !ownedNetwork(name) {
 		return fmt.Errorf("refusing to delete network %q: not one the emulator created", name)
 	}
+	// Exclusive on this network for the whole teardown, so no config edit of it
+	// is in flight while the delete runs and none is issued after it. See
+	// networkLock for the measurement (#386).
+	release := d.networkLock(name)
+	defer release()
 	// The delegated block goes with the network it was delegated for. Left
 	// behind, each one is a real route on the host pointed at the uplink for as
 	// long as the uplink lives — seven of them were measured on one station,
@@ -1151,7 +1197,7 @@ func (d *Incus) RemoveNetwork(ctx context.Context, name string) error {
 	}
 	if _, err := d.run(ctx, "network", "delete", name); err != nil {
 		if isNotFound(err) {
-			return d.dropUplinkRouteOVN(ctx, block)
+			return d.afterNetworkDelete(ctx, name, block)
 		}
 		if d.OVN && strings.Contains(strings.ToLower(err.Error()), "in use") {
 			if peers, peersErr := d.networkPeers(ctx, name); peersErr == nil && len(peers) > 0 {
@@ -1159,11 +1205,32 @@ func (d *Incus) RemoveNetwork(ctx context.Context, name string) error {
 					_, _ = d.run(ctx, "network", "peer", "delete", name, peer.Name)
 				}
 				if _, err := d.run(ctx, "network", "delete", name); err == nil || isNotFound(err) {
-					return d.dropUplinkRouteOVN(ctx, block)
+					return d.afterNetworkDelete(ctx, name, block)
 				}
 			}
 		}
 		return fmt.Errorf("delete network %s: %w", name, err)
+	}
+	return d.afterNetworkDelete(ctx, name, block)
+}
+
+// afterNetworkDelete clears what a deleted network leaves attached to it, and
+// runs only once the delete has actually succeeded.
+//
+// Two things outlive a network object, for the same reason: nothing reconciles
+// a network that no longer exists. The delegated block is one, measured on a
+// station as seven live host routes for networks long gone (#341). The
+// isolation rule set is the other, and it is now the only thing that would drop
+// it: IsolateNetwork used to remove it on the pass where a network's foreign
+// list emptied, and that pass is exactly what refuses to run against a deleted
+// network since #386. Left behind, it is a rule set the sweep has to find,
+// which is a leftover reported rather than a leftover avoided.
+//
+// RemoveFirewall is not a refusal here: it treats an absent rule set as done,
+// which is the normal case for a network that was never isolated.
+func (d *Incus) afterNetworkDelete(ctx context.Context, name, block string) error {
+	if err := d.RemoveFirewall(ctx, isolationACL(name)); err != nil {
+		return fmt.Errorf("drop the isolation rule set of %s: %w", name, err)
 	}
 	return d.dropUplinkRouteOVN(ctx, block)
 }

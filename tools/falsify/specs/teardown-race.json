@@ -1,0 +1,41 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the isolation pass stops excluding the network it is editing, so a delete of that network lands inside the edit",
+      "file": "internal/core/machine/incus_isolate.go",
+      "find": "\trelease := d.networkLock(network)\n\tdefer release()\n\tgone, err := d.gone(ctx, \"/1.0/networks/\"+network)",
+      "replace": "\trelease := d.networkLock(network)\n\trelease()\n\tdefer release()\n\tgone, err := d.gone(ctx, \"/1.0/networks/\"+network)",
+      "test": "TestAnIsolationDetachDoesNotOrphanTheNetworkBeingDeleted"
+    },
+    {
+      "label": "the isolation pass stops asking whether the network is still there, so a detach issued after the delete edits a network the daemon has forgotten",
+      "file": "internal/core/machine/incus_isolate.go",
+      "find": "\tif gone {\n\t\treturn fmt.Errorf(\"%w: %s\", ErrNetworkGone, network)\n\t}",
+      "replace": "\tif gone && false {\n\t\treturn fmt.Errorf(\"%w: %s\", ErrNetworkGone, network)\n\t}",
+      "test": "TestIsolationRefusesANetworkWhoseDeleteAlreadyRan"
+    },
+    {
+      "label": "a vanished network becomes a silent success in the driver: nothing is applied and nothing is said",
+      "file": "internal/core/machine/incus_isolate.go",
+      "find": "\tif gone {\n\t\treturn fmt.Errorf(\"%w: %s\", ErrNetworkGone, network)\n\t}\n\tname := isolationACL(network)",
+      "replace": "\tif gone {\n\t\tif err := fmt.Errorf(\"%w: %s\", ErrNetworkGone, network); err != nil {\n\t\t\treturn nil\n\t\t}\n\t}\n\tname := isolationACL(network)",
+      "test": "TestIsolationRefusesANetworkWhoseDeleteAlreadyRan"
+    },
+    {
+      "label": "a vanished network becomes a silent success in the reconciliation: the driver reports it and the pass says nothing",
+      "file": "internal/core/machine/isolate.go",
+      "find": "\tif errors.Is(err, ErrNetworkGone) {\n\t\tlog.Warn(\"the \"+noun+\"'s network was removed while its isolation was being reconciled, so none was applied\",\n\t\t\tnoun, m.ID, \"network\", m.Network, \"error\", err)\n\t\treturn\n\t}\n\tlog.Error(\"could not \"+verb+\" the \"+noun+\"'s network\",\n\t\tnoun, m.ID, \"network\", m.Network, \"error\", err)",
+      "replace": "\tif errors.Is(err, ErrNetworkGone) {\n\t\treturn\n\t}\n\tlog.Error(\"could not \"+verb+\" the \"+noun+\"'s network\",\n\t\tnoun, m.ID, \"network\", m.Network, \"error\", err)",
+      "test": "TestAVanishedNetworkIsReportedRatherThanSwallowed"
+    },
+    {
+      "label": "the teardown stops dropping the rule set that isolated the network, and leaves one nothing will ever reconcile",
+      "file": "internal/core/machine/incus.go",
+      "find": "\tif err := d.RemoveFirewall(ctx, isolationACL(name)); err != nil {\n\t\treturn fmt.Errorf(\"drop the isolation rule set of %s: %w\", name, err)\n\t}",
+      "replace": "\tif block == \"\\x00never\" {\n\t\tif err := d.RemoveFirewall(ctx, isolationACL(name)); err != nil {\n\t\t\treturn fmt.Errorf(\"drop the isolation rule set of %s: %w\", name, err)\n\t\t}\n\t}",
+      "test": "TestRemoveNetworkDropsTheIsolationRuleSetWithIt"
+    }
+  ],
+  "note": "The interleaving is staged, not bet on. fakeNetd models the one behaviour #386 observed on the station: a config edit re-applies the network — bridge up, dnsmasq restarted — before it opens /var/lib/incus/networks/<name>/dnsmasq.raw, so an edit that meets a delete leaves the service standing for a network that is gone, which is the leftover #342 measured (a dnsmasq holding 10.50.2.1 on a bridge whose network object had vanished). The delete goroutine starts on the first command the isolation path issues, so the two overlap on every run rather than on a lucky schedule: the first mutation was measured out of tree on 2026-08-21, red 10/10 with -count=1 and green 10/10 once the lock is put back. The fifth mutation is the ordinary && false, and it fails to build nothing: err stays evaluated on both sides."
+}

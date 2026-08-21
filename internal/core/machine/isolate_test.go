@@ -1,7 +1,11 @@
 package machine_test
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/stephrobert/feint/internal/core/machine"
@@ -114,5 +118,47 @@ func TestReconcileSkipsWhatHasNoNetworkOrNoBlock(t *testing.T) {
 	// so a pack does not resync rule-carried state no rule carries.
 	if _, applied := machine.ReconcileIsolation(t.Context(), machine.Noop{}, nil, "network", members, nobody); applied {
 		t.Error("a capability-less driver reported an isolation it cannot have applied")
+	}
+}
+
+// goneDriver is a runtime whose network was deleted under the reconciliation,
+// which is the ordinary outcome of a parallel destroy (#386): the member was in
+// the store when the list was taken, and its delete landed before its turn came.
+type goneDriver struct {
+	machine.Noop
+	asked []string
+}
+
+func (d *goneDriver) IsolateNetwork(_ context.Context, network string, _ []string) error {
+	d.asked = append(d.asked, network)
+	return fmt.Errorf("%w: %s", machine.ErrNetworkGone, network)
+}
+
+// A detach that could not happen is reported. It is the half of #386 that has
+// nothing to do with locking: the race was invisible for three issues because
+// nothing said out loud that a network had gone missing under a pass, and a
+// driver that refuses without a word is the same silence one layer down.
+//
+// Reported, and not as a plain failure: no rule set could be written and none
+// was needed, so an error line here would fire on every parallel destroy and
+// teach a reader to ignore it — which is how the log stops being evidence.
+func TestAVanishedNetworkIsReportedRatherThanSwallowed(t *testing.T) {
+	var written bytes.Buffer
+	log := slog.New(slog.NewTextHandler(&written, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	driver := &goneDriver{}
+
+	native, applied := machine.ReconcileIsolation(t.Context(), driver, log, "subnet",
+		[]machine.IsolationMember{{ID: "subnet-1", Network: "fnt-aaa", Block: "10.50.1.0/24"}},
+		func(int, int) bool { return false })
+	if native || !applied {
+		t.Fatalf("native=%v applied=%v, want false,true for a rule-set driver", native, applied)
+	}
+
+	said := written.String()
+	if !strings.Contains(said, "fnt-aaa") || !strings.Contains(said, "subnet-1") {
+		t.Fatalf("the vanished network was not reported, so the run said nothing happened: %q", said)
+	}
+	if !strings.Contains(said, "level=WARN") {
+		t.Errorf("a network deleted under the pass was reported as a failure of the pass: %q", said)
 	}
 }

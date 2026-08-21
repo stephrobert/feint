@@ -63,6 +63,31 @@ func (d *Incus) IsolateNetwork(ctx context.Context, network string, foreign []st
 	if !ownedNetwork(network) {
 		return fmt.Errorf("refusing to isolate network %q: not one the emulator created", network)
 	}
+	// Exclusive on this network, then asked whether it is still there. Both
+	// halves, because either alone leaves the race open (#386):
+	//
+	//   - the lock alone still lets a delete that won it run first, and the
+	//     update that follows lands on a network the daemon has forgotten;
+	//   - the question alone is a time-of-check that a delete crosses between
+	//     the answer and the config edit it authorises.
+	//
+	// The answer comes from the daemon rather than from the prose of a failed
+	// command, and it is the network object that is asked about: an interface
+	// still standing proves nothing, since a network can outlive its object and
+	// that is the leftover shape this exists to stop producing.
+	//
+	// TestIsolationRefusesANetworkWhoseDeleteAlreadyRan fails without the
+	// question; TestAnIsolationDetachDoesNotOrphanTheNetworkBeingDeleted fails
+	// without the lock.
+	release := d.networkLock(network)
+	defer release()
+	gone, err := d.gone(ctx, "/1.0/networks/"+network)
+	if err != nil {
+		return fmt.Errorf("inspect network %s: %w", network, err)
+	}
+	if gone {
+		return fmt.Errorf("%w: %s", ErrNetworkGone, network)
+	}
 	name := isolationACL(network)
 
 	if len(foreign) == 0 {
