@@ -999,6 +999,12 @@ change ni l'un ni l'autre a sa place dans `git log`.
   toutes rouges, et la mutation du verrou mesurée hors dépôt à 10/10 rouge sans
   le verrou et 10/10 vert avec.
 
+- **Exoscale répond 409 pour une clé publique qu'il ne sait pas lire, et ce pack
+  aussi** (#390). `POST /v2/ssh-key` portant une chaîne qui n'est pas une clé
+  OpenSSH répondait 400 ici et `409 {"message":"Public key is invalid"}` sur un
+  vrai compte `ch-gva-2`, mesuré le 2026-08-21. Les deux refusent ; un client se
+  branche sur lequel, et la règle 4 dit que c'est le fournisseur qui tranche.
+
 - **Une clé publique OpenSSH dont la matière nomme un autre algorithme est
   refusée** (#390). `ssh-ed25519 AAAA` passait : le premier champ est un
   algorithme connu et le second est du base64 valide, ce qui était tout ce que

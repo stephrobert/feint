@@ -936,6 +936,12 @@ what this project is judged on: **a response shape a client can observe**, and
   lock mutation measured out of tree at red 10/10 with the lock removed and
   green 10/10 with it back.
 
+- **Exoscale answers 409 for a public key it cannot read, and so does this pack**
+  (#390). `POST /v2/ssh-key` carrying a string that is not an OpenSSH key
+  answered 400 here and `409 {"message":"Public key is invalid"}` at a real
+  `ch-gva-2` account, measured 2026-08-21. Both refuse; a client branches on
+  which, and rule 4 says the provider decides.
+
 - **An OpenSSH public key whose material names another algorithm is refused**
   (#390). `ssh-ed25519 AAAA` used to parse: the first field is a known algorithm
   and the second is valid base64, which was everything `sshkey.Parse` checked.

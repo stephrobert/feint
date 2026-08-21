@@ -342,3 +342,31 @@ func TestTheTerraformRefusalCanBeOverridden(t *testing.T) {
 		t.Fatalf("the override did not let the provider through: %d %s", rec.Code, rec.Body.String())
 	}
 }
+
+// The status this provider answers for a key it cannot read is 409, not 400.
+//
+// Measured on 2026-08-21 against a real ch-gva-2 account: `POST /v2/ssh-key`
+// carrying `not a public key` answered `409 {"message":"Public key is
+// invalid"}`, and the exchange is in corpus/exoscale/exo-refusals.jsonl. This
+// pack answered 400. Both refuse, and a client branches on which.
+//
+// This is the test the comment in registerSSHKey names. The sibling above
+// asserts that an unreadable key is refused at all, which stays true whichever
+// 4xx is answered — so it cannot hold this, and that is why there are two.
+func TestExoscaleAnswersTheCloudsStatusForAKeyItCannotRead(t *testing.T) {
+	h := serve(t)
+	rec, out := call(t, h, "POST", "/v2/ssh-key", `{"name":"k","public-key":"not a public key"}`)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("a key this pack cannot read answered %d (%v), want 409 as the cloud does", rec.Code, out)
+	}
+	// And a name already taken keeps answering the same status, which is the
+	// other half of what the cloud spends 409 on here.
+	if rec, out := call(t, h, "POST", "/v2/ssh-key",
+		`{"name":"taken","public-key":"`+realKey+`"}`); rec.Code != http.StatusOK {
+		t.Fatalf("a real key was refused: %d %v", rec.Code, out)
+	}
+	if rec, out := call(t, h, "POST", "/v2/ssh-key",
+		`{"name":"taken","public-key":"`+realKey+`"}`); rec.Code != http.StatusConflict {
+		t.Fatalf("a name already taken answered %d (%v), want 409", rec.Code, out)
+	}
+}

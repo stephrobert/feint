@@ -51,9 +51,18 @@ func (p *Pack) registerSSHKey(w http.ResponseWriter, r *http.Request) {
 	// comes first.
 	//
 	// TestExoscaleRefusesWhatIsNotAKey fails without this.
+	//
+	// 409 rather than 400, and it is measured rather than reasoned: registering
+	// `not a public key` at a real ch-gva-2 account on 2026-08-21 answered
+	// `409 {"message":"Public key is invalid"}`, recorded in
+	// corpus/exoscale/exo-refusals.jsonl. Rule 4 says the provider decides, and
+	// this provider answers the same status for an unusable key as for a name
+	// already taken. The status a client branches on is the whole point of the
+	// difference.
+	// TestExoscaleAnswersTheCloudsStatusForAKeyItCannotRead fails without it.
 	parsed, err := sshkey.Parse(req.PublicKey)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "public-key is not an OpenSSH public key")
+		writeError(w, http.StatusConflict, "public key is invalid")
 		return
 	}
 	if strings.ContainsAny(req.Name, "\n\r\x00") {
