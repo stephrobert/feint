@@ -484,12 +484,20 @@ et jamais un fichier hosts que le binaire éditerait lui-même.
 redirection de nom : un client qui honore `HTTPS_PROXY` remet le nom d'hôte au
 proxy lui-même. La moitié qu'on appelait le blocage a donc une seconde porte
 pour **tout client qui lit cette variable** — mesuré sur un client Go qui
-n'installe pas de `Transport`, c'est-à-dire le cas ordinaire. Ce qui reste non
-mesuré est justement ce qui rouvrirait l'arbitrage : le client S3 du provider
-Terraform Scaleway honore-t-il `HTTPS_PROXY` pour son
-`https://s3.<region>.scw.cloud` codé en dur ? Tant que personne ne l'a mesuré,
-le refus tient par son argument de couverture — un produit sur un client — et
-non par l'impossibilité de la redirection.
+n'installe pas de `Transport`, c'est-à-dire le cas ordinaire.
+
+**Et #346 a tranché la seule question qui restait.** Le client S3 du provider
+Terraform Scaleway honore bien `HTTPS_PROXY` pour son
+`https://s3.<region>.scw.cloud` codé en dur : mesuré sous Linux le 2026-08-21,
+provider 2.81.0, un `CreateBucket` arrivé sur cet émulateur à travers un
+`CONNECT`, avec `aws-sdk-go-v2 … terraform-provider-scaleway/2.81.0` dans le
+User-Agent, et une passe témoin qui montre les douze `CONNECT` refusés que le
+même apply produit quand le proxy ne nomme pas l'hôte. Le transcript et les deux
+lectures sont dans [limits.md](limits.md) numéro 7. La redirection coûte donc
+deux variables d'environnement portées par le processus, sur le client même qui
+la bloquait, et le refus tient désormais par son seul argument de couverture —
+un produit sur un client, et une surface S3 que personne n'a chiffrée — et non
+par une quelconque difficulté de la redirection.
 
 ### Considéré dans la même passe, et non mis en file
 

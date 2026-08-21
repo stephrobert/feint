@@ -17,6 +17,83 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **`--forward` can say where a terminated host actually goes** (#357). An entry
+  of `feint proxy --forward` may now name its target — `--forward
+  'api.scaleway.com=http://127.0.0.1:4599'` — so a client whose endpoint is
+  compiled in is terminated, recorded, and re-originated to **the emulator**
+  instead of to the real cloud. A host written without a target keeps sending it
+  to the real one, so nothing changes for an existing caller, and the two forms
+  mix in one run.
+
+  This is the combination that could not be expressed before: `--forward`
+  recorded a client nobody can redirect but sent it to the real cloud, and
+  `--upstream` sent everything to one host but needed a redirectable client.
+  Recording a compiled-in-endpoint client *against the emulator* took a user +
+  mount + network namespace, a replaced `/etc/hosts` inside it, a listener on
+  port 443 in that private stack and a second proxy stage — 89 lines of shell.
+  It now takes two environment variables and one `=`. Proven with a real client
+  on 2026-08-21: `terraform apply` of a `scaleway_object_bucket`, whose S3
+  endpoint is compiled into the provider, recorded against a feint emulator with
+  no namespace, no `/etc/hosts` edit and no privileged port.
+  `tools/conformance/forward.sh` replays the mechanism on demand with `scw` and
+  without an account — it points the CLI at `https://api.scaleway.test`, a
+  reserved TLD that never resolves, so a run in which the proxy is *not* what
+  carries the traffic fails with `no such host` instead of reaching a cloud.
+
+  **This is not `--upstream` in disguise, and the difference is the record.**
+  `--upstream` sends every request to one place regardless of what the client
+  asked, which loses the very information a recording is for. Here the requested
+  host is preserved in the transcript and only the socket moves. The outbound
+  `Host` header is the one thing a mapped entry does move, and it has to: feint's
+  own DNS-rebinding guard answers 403 to a `Host` it does not recognise, so
+  forwarding `api.scaleway.com` verbatim to the emulator recorded a transcript of
+  refusals — measured before the fix, on the very apply above. A bare entry is
+  untouched, so a SigV4 signature over `Host` still verifies against the real
+  host.
+
+  **#336's four security requirements hold unchanged, and each is falsified again
+  at this door** (`tools/falsify/specs/forward-proxy.json`, now 21 mutations):
+  the redaction survives a mapped tunnel, `--expose-to-network` is still refused
+  with `--forward`, the authority is still ephemeral and never installed, and
+  `--forward '*=<target>'` is refused exactly as `--forward '*'` is — the
+  wildcard is looked for in the host *after* the `=` is cut out, which is how a
+  mapping could have turned the recorder into a wiretap without anybody noticing.
+  A target names a socket and nothing else: a path, a query or user info is
+  refused, because the proxy would then rewrite every request in a way its own
+  transcript does not show. No new flag, so the frozen CLI surface (version 9)
+  does not move.
+
+  A host that is intercepted but not named is now diagnosed as the missing entry
+  it is, in the form the flag takes, rather than as a bare connection failure —
+  the case that costs an afternoon, since an API family can live on a different
+  host than the main one (Outscale's managed-Kubernetes API does).
+
+- **Measured: the Terraform Scaleway S3 client honours `HTTPS_PROXY`** (#346).
+  This implements nothing; it answers the one question the object-storage
+  refusal had been resting on. It does honour it. Measured on Linux on
+  2026-08-21 — terraform 1.15.4, `scaleway/scaleway 2.81.0` — a
+  `scaleway_object_bucket` apply emitted `CONNECT
+  feint-346-measurement.s3.fr-par.scw.cloud:443` and its `CreateBucket` landed
+  on a feint emulator, User-Agent `aws-sdk-go-v2/1.43.4 … api/s3#1.107.0
+  terraform-provider-scaleway/2.81.0`. No account, no real endpoint, the public
+  fake credentials.
+
+  **The two negatives are told apart, because only one closes the door.** A
+  control run against a proxy that does *not* name the S3 host recorded zero
+  exchanges, terminated zero tunnels and refused twelve connections to that
+  host, with terraform reporting `request send failed … Forbidden`: that is
+  "arrived, and was refused". The other negative — "did not honour the proxy" —
+  would have shown no `CONNECT` at all and a certificate complaint, which is
+  what macOS produces and why this was measured on Linux.
+
+  The consequence is written where the decision lives, `docs/limits.md`
+  (number 7), with the transcript: the DNS/TLS redirect that #76 called the hard
+  half now costs two process-scoped environment variables **on the exact client
+  that blocked it**. Object storage stays refused, and the refusal now stands on
+  its coverage argument alone — one product on one client, and an S3 surface
+  nobody has costed — rather than on any part of the redirect being hard.
+  Reopening it is its own issue, with its own numbers.
+
 - **Exoscale serves the Network Load Balancer, and no backend carries a health
   verdict** (#345, successor to #14). The whole family is mounted:
   `exoscale/v2.create-load-balancer`, `exoscale/v2.list-load-balancers`,

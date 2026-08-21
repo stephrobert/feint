@@ -11,15 +11,15 @@
     {
       "label": "a CONNECT to a host nobody named is intercepted anyway, and the proxy decrypts whatever else the measured process does",
       "file": "internal/proxy/forward.go",
-      "find": "\thost, port := splitTarget(r.Host)\n\tif !f.intercepts(host) {",
-      "replace": "\thost, port := splitTarget(r.Host)\n\tif !f.intercepts(host) && false {",
+      "find": "\thost, port := splitTarget(r.Host)\n\troute, ok := f.route(host)\n\tif !ok {",
+      "replace": "\thost, port := splitTarget(r.Host)\n\troute, ok := f.route(host)\n\tif !ok && false {",
       "test": "TestAHostNobodyNamedIsNotIntercepted"
     },
     {
       "label": "--forward * is accepted, and the recorder becomes a wiretap on every TLS connection the client makes",
       "file": "internal/proxy/forward.go",
-      "find": "\t\tif h == \"*\" || strings.HasPrefix(h, \"*.*\") {",
-      "replace": "\t\tif (h == \"*\" || strings.HasPrefix(h, \"*.*\")) && false {",
+      "find": "\t\tif name == \"*\" || strings.HasPrefix(name, \"*.*\") {",
+      "replace": "\t\tif (name == \"*\" || strings.HasPrefix(name, \"*.*\")) && false {",
       "test": "TestAForwardProxyRefusesAnUnusableHostSet"
     },
     {
@@ -94,6 +94,63 @@
       "find": "\t\t\tif sensitive(k) && nested != nil && !publishable(nested) {",
       "replace": "\t\t\tif _, container := nested.(map[string]any); container {\n\t\t\t\tvalue[k] = redactValue(nested)\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tif sensitive(k) && nested != nil && !publishable(nested) {",
       "test": "TestASensitiveContainerIsStillReplacedWholesale"
+    },
+    {
+      "label": "THE MAPPED DOOR: the wildcard guard goes back to reading the whole entry, so `*=http://127.0.0.1:4599` is accepted and the recorder is a wiretap that files everything it decrypts",
+      "file": "internal/proxy/forward.go",
+      "find": "\t\tif name == \"*\" || strings.HasPrefix(name, \"*.*\") {",
+      "replace": "\t\tif (name == \"*\" || strings.HasPrefix(name, \"*.*\")) && name == entry {",
+      "test": "TestAForwardProxyRefusesAnUnusableHostSet"
+    },
+    {
+      "label": "THE MAPPED DOOR: a host nobody named is terminated anyway once an entry carries a target, so naming one target widens the allowlist to everything",
+      "file": "internal/proxy/forward.go",
+      "find": "\thost, port := splitTarget(r.Host)\n\troute, ok := f.route(host)\n\tif !ok {",
+      "replace": "\thost, port := splitTarget(r.Host)\n\troute, ok := f.route(host)\n\tif !ok && false {",
+      "test": "TestAMappedRouteDoesNotWidenTheAllowlist"
+    },
+    {
+      "label": "THE MAPPED DOOR: the recording stops redacting on the path that lands on the emulator, and a live tenant key is written into the transcript there instead",
+      "file": "internal/proxy/record.go",
+      "find": "\tredactExchange(&x)\n\treturn Redacted{x: x}",
+      "replace": "\tif false {\n\t\tredactExchange(&x)\n\t}\n\treturn Redacted{x: x}",
+      "test": "TestAMappedTunnelRecordsTheHostTheClientAsked"
+    },
+    {
+      "label": "the transcript names the socket the traffic was sent to instead of the host the client asked for, which is --upstream in disguise: a recording of a session against 127.0.0.1",
+      "file": "internal/proxy/forward.go",
+      "find": "\t\t\tr.URL.Scheme = dest.Scheme\n\t\t\tr.URL.Host = dest.Host",
+      "replace": "\t\t\tr.URL.Scheme = dest.Scheme\n\t\t\tr.URL.Host = dest.Host\n\t\t\tr.Host = dest.Host",
+      "test": "TestAMappedTunnelRecordsTheHostTheClientAsked"
+    },
+    {
+      "label": "a refused connection stops naming the host that is missing from --forward, and an API family living on another host reads as the client failing to connect",
+      "file": "internal/proxy/forward.go",
+      "find": "func missingEntry(host string) string {\n\treturn fmt.Sprintf(",
+      "replace": "func missingEntry(host string) string {\n\tif host != \"\\x00never\" {\n\t\treturn \"feint proxy: this proxy intercepts only the hosts --forward names\\n\"\n\t}\n\treturn fmt.Sprintf(",
+      "test": "TestARefusalNamesTheEntryThatIsMissing"
+    },
+    {
+      "label": "a target may carry a path, which the proxy then prepends to every request while the transcript records the client's own request line: a rewrite invisible in the recorder's own output",
+      "file": "internal/proxy/forward.go",
+      "find": "\tif target.User != nil || strings.Trim(target.Path, \"/\") != \"\" || target.RawQuery != \"\" || target.Fragment != \"\" {",
+      "replace": "\tif (target.User != nil || strings.Trim(target.Path, \"/\") != \"\" || target.RawQuery != \"\" || target.Fragment != \"\") && false {",
+      "test": "TestAForwardTargetMustNameASocket"
+    },
+    {
+      "label": "THE MAPPED DOOR: --expose-to-network lifts the refusal for a mapped forward proxy, which offers its own authority and its transcript to the network",
+      "file": "internal/cli/proxy.go",
+      "find": "\tif forward && expose {",
+      "replace": "\tif forward && expose && false {",
+      "test": "TestProxyRefusesAnUnusableInvocation",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "THE MAPPED DOOR: the outbound authority is left as the host the client asked for, so every request of a mapped run is refused by the emulator's own rebinding guard and the recording is a transcript of 403s",
+      "file": "internal/proxy/proxy.go",
+      "find": "\t\t\t\tif reoriginated(pr.In) {",
+      "replace": "\t\t\t\tif reoriginated(pr.In) && false {",
+      "test": "TestAMappedTunnelRecordsTheHostTheClientAsked"
     }
   ]
 }

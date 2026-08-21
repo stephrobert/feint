@@ -105,6 +105,14 @@ func stubCloud(t *testing.T, host string, handler http.HandlerFunc) *cloud {
 // transcript back.
 func forwarding(t *testing.T, c *cloud, hosts ...string) (addr string, authority *proxy.Interceptor, finish func() []trace.Exchange) {
 	t.Helper()
+	return recording(t, c.transport, nil, hosts...)
+}
+
+// recording is forwarding over any transport, which is what a mapped entry
+// (#357) needs: its traffic goes to a socket on loopback rather than to the
+// stand-in cloud, so the transport that reaches the one cannot reach the other.
+func recording(t *testing.T, tr http.RoundTripper, log *slog.Logger, hosts ...string) (addr string, authority *proxy.Interceptor, finish func() []trace.Exchange) {
+	t.Helper()
 
 	authority, err := proxy.MintAuthority()
 	if err != nil {
@@ -121,7 +129,8 @@ func forwarding(t *testing.T, c *cloud, hosts ...string) (addr string, authority
 		Hosts:     hosts,
 		Writer:    writer,
 		Authority: authority,
-		Transport: c.transport,
+		Transport: tr,
+		Log:       log,
 	})
 	if err != nil {
 		t.Fatalf("build the forward proxy: %v", err)
@@ -650,15 +659,26 @@ func TestTheForwardProxyMintsUnderOneEphemeralAuthority(t *testing.T) {
 // Empty intercepts nothing and records nothing; `*` intercepts everything, which
 // is the difference between a recorder and a wiretap and is one character away
 // on the command line.
+//
+// The mapped forms are here for the reason #357 could have broken this without
+// anybody noticing: `*=http://127.0.0.1:4599` is the same wiretap as `*`, and a
+// guard still reading the whole entry rather than the name it cuts out would
+// accept it, because the string no longer equals "*". The wiretap would then be
+// one that files everything it decrypts into a transcript on the operator's own
+// disk.
 func TestAForwardProxyRefusesAnUnusableHostSet(t *testing.T) {
 	writer := proxy.NewWriter(io.Discard, 0)
 	defer func() { _ = writer.Close() }()
 
 	for name, hosts := range map[string][]string{
-		"none":             nil,
-		"blank":            {"  ", ""},
-		"everything":       {"*"},
-		"everything twice": {"api.scaleway.test", "*.*"},
+		"none":                       nil,
+		"blank":                      {"  ", ""},
+		"everything":                 {"*"},
+		"everything twice":           {"api.scaleway.test", "*.*"},
+		"everything, mapped":         {"*=http://127.0.0.1:4599"},
+		"everything, mapped, spaced": {" * = http://127.0.0.1:4599 "},
+		"everything twice, mapped":   {"api.scaleway.test", "*.*=http://127.0.0.1:4599"},
+		"a target and no host":       {"=http://127.0.0.1:4599"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := proxy.NewForward(proxy.ForwardOptions{Hosts: hosts, Writer: writer}); err == nil {

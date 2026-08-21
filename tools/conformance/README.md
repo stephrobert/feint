@@ -107,3 +107,23 @@ calls, so this emulator refuses it. See
 
 Credentials are fake, well-formed and deliberately public: the SDKs validate
 their shape even though the emulator ignores their value.
+
+## The recorder, watched by the real clients
+
+Two scripts here have the proxy as their subject rather than a pack. Neither is
+part of `mise run conformance`: recording is a human's job, and the thing worth
+recording — a real cloud — needs an account that will never exist in a runner.
+
+| Script | What it proves |
+|---|---|
+| `proxy.sh` | two observers of one `scw` run agree: what `feint proxy --upstream` wrote down and what `/_feint/conformance` counted inside the emulator are the same set of operations |
+| `forward.sh` | a real client reaching its endpoint **by name** is terminated by `feint proxy --forward`, recorded, and served by the emulator — no namespace, no `/etc/hosts` edit, no privileged port (#357) |
+
+`forward.sh` points `scw` at `https://api.scaleway.test`, and that choice is the
+suite's safety rather than a detail. `.test` is a reserved TLD (RFC 6761): no
+resolver answers for it, so if the proxy is not what carries the traffic — it
+died, the mapping is missing, the client ignored `HTTPS_PROXY` — the run fails
+with `no such host` and nothing leaves the machine. Pointing it at the real
+`api.scaleway.com` would prove the same mechanism while making the proxy the only
+thing between a broken suite and the internet, which is the shape `guard.sh`
+exists to refuse.

@@ -56,7 +56,9 @@ the run, records the exchange, and re-originates to the real host.
 
 ```bash
 feint proxy --forward api.scaleway.com,'*.exoscale.com' --record real.jsonl
-#   forwarding for api.scaleway.com, *.exoscale.com
+#   forwarding for:
+#     api.scaleway.com -> the host the client asked for
+#     *.exoscale.com -> the host the client asked for
 #   CA written to /tmp/feint-intercept-ca-1655051664.pem (a temporary file, removed on exit)
 #   drive a client whose endpoint is compiled in with:
 #     export HTTPS_PROXY=http://127.0.0.1:4600
@@ -100,7 +102,7 @@ nothing on the wire — and the file holds none of them.
 
 Four properties, each of them a requirement rather than a precaution, and each
 with a test that fails without it (`tools/falsify/specs/forward-proxy.json`
-replays all thirteen, the redaction's own five included):
+replays all twenty-one, the redaction's own five and #357's mapped door included):
 
 - **The redaction survives the interception.** The tunnel records through the
   same `capture` as everything else, so there is no second path to the writer to
@@ -128,6 +130,82 @@ replays all thirteen, the redaction's own five included):
 together; neither are `--forward` and `--intercept`, which are two ways to reach
 the same interception (`--intercept` serves TLS on the listener itself, for a
 client redirected by name — see [limits.md](limits.md)).
+
+### Say where a terminated host actually goes
+
+The command above re-originates to the real cloud, because that is the host the
+client asked for. So the two useful things could not be combined: **record a
+client that cannot be redirected, and have it land on the emulator.** Getting
+there took a user + mount + network namespace, a replaced `/etc/hosts` inside
+it, a listener on port 443 in that private stack and a second proxy stage — 89
+lines of shell before one request was recorded.
+
+An entry may now name where its terminated traffic goes (#357):
+
+```bash
+feint proxy --record run.jsonl \
+  --forward 'api.scaleway.com=http://127.0.0.1:4599,api-ch-gva-2.exoscale.com=http://127.0.0.1:4599'
+#   forwarding for:
+#     api.scaleway.com -> http://127.0.0.1:4599
+#     api-ch-gva-2.exoscale.com -> http://127.0.0.1:4599
+```
+
+A host written **without** a target keeps today's behaviour and goes to the real
+one, so nothing changes for an existing caller — and the two forms mix in one
+run. This is not `--upstream` in disguise: `--upstream` sends *every* request to
+one place regardless of what the client asked, which loses the very information a
+recording is for. Here the requested host is preserved in the transcript, and it
+is only the socket that moves.
+
+Two consequences worth knowing before you read a transcript:
+
+- **The transcript names the host the client asked for**, not the target. That
+  is the `host` field, and `feint replay` reissues against whatever `--endpoint`
+  you give it, so a recording made this way stays a recording *of the client*.
+- **The outbound `Host` header names the target.** It is the one thing a mapped
+  entry does move, and it has to: feint's own DNS-rebinding guard answers 403 to
+  a `Host` it does not recognise, so a run that forwarded `api.scaleway.com`
+  verbatim to the emulator would record a transcript of refusals. A bare entry
+  is untouched — the real host is still addressed by its own name, which is what
+  keeps a SigV4 signature over `Host` verifying.
+
+A target names a socket and nothing else: a path, a query or user info is
+refused, because the proxy would then be rewriting every request in a way its own
+transcript does not show.
+
+And a host that is intercepted but not named is diagnosed as the missing entry it
+is, rather than as a connection failure — the case that costs an afternoon, since
+an API family can live on a different host than the main one (Outscale's
+managed-Kubernetes API does):
+
+```text
+feint proxy: --forward does not name api.eu-west-2.outscale.com, so this connection
+was not terminated and nothing about it is in the transcript.
+Add the missing entry: --forward ...,api.eu-west-2.outscale.com to reach the real
+host, or --forward ...,api.eu-west-2.outscale.com=http://127.0.0.1:4599 to send it
+to the emulator.
+```
+
+**The four requirements above are unchanged by the mapping, and each one is
+falsified again at this door** (`tools/falsify/specs/forward-proxy.json`): the
+redaction survives a mapped tunnel, `--expose-to-network` is still refused with
+`--forward`, the authority is still ephemeral, and `--forward '*=<target>'` is
+refused exactly as `--forward '*'` is — the wildcard is looked for in the host
+*after* the `=` is cut out, which is the way a mapping could have widened the
+allowlist without anybody noticing.
+
+Measured with a real client on 2026-08-21: `terraform apply` of a
+`scaleway_object_bucket`, whose S3 endpoint is compiled into the provider,
+recorded against a feint emulator with **no namespace, no `/etc/hosts` edit and
+no privileged port** — two environment variables and one mapped entry. The
+transcript is in [limits.md](limits.md) number 7.
+
+`tools/conformance/forward.sh` replays that mechanism whenever you want it, with
+`scw` and without an account: it points the CLI at `https://api.scaleway.test` —
+a reserved TLD that never resolves, so nothing can leave the machine if the
+proxy is not what carries it — and asserts that the transcript names
+`api.scaleway.test`, that every operation it recorded was also counted inside the
+emulator, and that the token is redacted.
 
 ## Read
 

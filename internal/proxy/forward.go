@@ -30,6 +30,14 @@ package proxy
 // named and refuses every other CONNECT out loud, because the alternative — a
 // tunnel relayed blind — writes a transcript that silently misses exchanges,
 // which is the exact defect handoff.go exists to report.
+//
+// Where the terminated traffic goes is the entry's own business (#357). Written
+// bare, a host is re-originated to itself — the real cloud, which is what 0.10.0
+// shipped. Written `host=target`, it is re-originated to that socket instead,
+// which is how a client with a compiled-in endpoint is recorded *against the
+// emulator*: two environment variables, no namespace, no /etc/hosts, no
+// privileged port. The requested host stays in the transcript either way; only
+// the socket moves.
 
 import (
 	"crypto/tls"
@@ -61,6 +69,12 @@ type ForwardOptions struct {
 	// which is what a per-zone endpoint needs. Required: a forward proxy that
 	// intercepts whatever it is handed decrypts more of the operator's traffic
 	// than the measurement asked for.
+	//
+	// An entry may also name where its terminated traffic goes, as
+	// `host=target` (#357): `api.scaleway.com=http://127.0.0.1:4599` is
+	// terminated, recorded, and re-originated to the emulator rather than to
+	// the real cloud. An entry written without a target keeps sending it to the
+	// host the client asked for, which is what --forward has always done.
 	Hosts []string
 	// Writer receives every exchange. Required, for [New]'s reason.
 	Writer *Writer
@@ -95,7 +109,7 @@ type ForwardOptions struct {
 type Forward struct {
 	rec       *Proxy
 	authority *Interceptor
-	hosts     []string
+	routes    []forwardRoute
 	log       *slog.Logger
 
 	tunnels atomic.Int64
@@ -108,7 +122,7 @@ type Forward struct {
 
 // NewForward validates the options and builds the forward proxy.
 func NewForward(o ForwardOptions) (*Forward, error) {
-	hosts, err := hostPatterns(o.Hosts)
+	routes, err := forwardRoutes(o.Hosts)
 	if err != nil {
 		return nil, err
 	}
@@ -131,32 +145,105 @@ func NewForward(o ForwardOptions) (*Forward, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Forward{rec: rec, authority: authority, hosts: hosts, log: o.Log}, nil
+	return &Forward{rec: rec, authority: authority, routes: routes, log: o.Log}, nil
 }
 
-// hostPatterns trims the names a forward proxy may intercept, and refuses a set
-// that would intercept nothing or everything.
+// forwardRoute is one entry of --forward: a host pattern this proxy may
+// terminate, and the socket what it terminates is re-originated to.
+//
+// A nil target is the shape --forward shipped with in 0.10.0 and still has for
+// an entry written without an `=`: the traffic goes to the host the client
+// asked for, which is the real cloud. A target sends it elsewhere while leaving
+// the requested host in the transcript — that separation is the whole point of
+// #357, and it is what makes this not [Options.Upstream] in disguise: --upstream
+// sends *every* request to one place regardless of what the client asked, which
+// loses the very information a recording is for.
+// TestAMappedTunnelRecordsTheHostTheClientAsked fails if the two are conflated.
+type forwardRoute struct {
+	pattern string
+	target  *url.URL
+}
+
+// String is what the recipe and the diagnostics print, one line per entry.
+func (r forwardRoute) String() string {
+	if r.target == nil {
+		return r.pattern + " -> the host the client asked for"
+	}
+	return r.pattern + " -> " + r.target.String()
+}
+
+// forwardRoutes reads the entries a forward proxy may intercept, and refuses a
+// set that would intercept nothing or everything.
 //
 // `*` alone is refused rather than read as "all": the flag would then be one
 // character away from decrypting every TLS connection the client makes, which is
 // the difference between a recorder and a wiretap.
-// TestAForwardProxyRefusesAnUnusableHostSet fails without this.
-func hostPatterns(hosts []string) ([]string, error) {
-	var out []string
-	for _, h := range hosts {
-		h = strings.TrimSpace(h)
-		if h == "" {
+//
+// The cut on `=` happens *before* that check and never after, which is the part
+// #357 could have broken silently: `*=http://127.0.0.1:4599` is the same wiretap
+// as `*`, and a guard still reading the whole entry would wave it through
+// because the string no longer equals "*".
+// TestAForwardProxyRefusesAnUnusableHostSet fails without either half — it
+// drives `*`, `*.*` and `*=<target>` through this function.
+func forwardRoutes(entries []string) ([]forwardRoute, error) {
+	var out []forwardRoute
+	for _, entry := range entries {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
 			continue
 		}
-		if h == "*" || strings.HasPrefix(h, "*.*") {
-			return nil, fmt.Errorf("--forward %q would intercept every host a client reaches: name the hosts to record", h)
+		name, rawTarget, mapped := strings.Cut(entry, "=")
+		name = strings.TrimSpace(name)
+		if name == "" {
+			return nil, fmt.Errorf("--forward %q names no host: write host=target, or the host alone", entry)
 		}
-		out = append(out, h)
+		if name == "*" || strings.HasPrefix(name, "*.*") {
+			return nil, fmt.Errorf("--forward %q would intercept every host a client reaches: name the hosts to record", entry)
+		}
+		route := forwardRoute{pattern: name}
+		if mapped {
+			target, err := forwardTarget(name, rawTarget)
+			if err != nil {
+				return nil, err
+			}
+			route.target = target
+		}
+		out = append(out, route)
 	}
 	if len(out) == 0 {
 		return nil, fmt.Errorf("no host to forward for: a forward proxy that intercepts nothing records nothing")
 	}
 	return out, nil
+}
+
+// forwardTarget reads where one entry's terminated traffic is sent.
+//
+// A socket and nothing more: no path, no query, no user info. The client's own
+// request line supplies the path, and a target carrying one would silently
+// prepend it to every request — a rewrite the transcript would not show, in a
+// tool whose only job is to show what was exchanged. TestAForwardTargetMustNameASocket
+// fails without this.
+func forwardTarget(name, raw string) (*url.URL, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, fmt.Errorf("--forward %s= names no target: write %s alone to keep sending it to "+
+			"the real host, or %s=http://127.0.0.1:4599 to send it to the emulator", name, name, name)
+	}
+	target, err := url.Parse(raw)
+	if err != nil {
+		return nil, fmt.Errorf("--forward %s=%q: %w", name, raw, err)
+	}
+	if target.Scheme != "http" && target.Scheme != "https" {
+		return nil, fmt.Errorf("--forward %s=%q: a target's scheme must be http or https", name, raw)
+	}
+	if target.Host == "" {
+		return nil, fmt.Errorf("--forward %s=%q: the target names no host", name, raw)
+	}
+	if target.User != nil || strings.Trim(target.Path, "/") != "" || target.RawQuery != "" || target.Fragment != "" {
+		return nil, fmt.Errorf("--forward %s=%q: a target names a socket, not a path — the client's "+
+			"own request line supplies the path", name, raw)
+	}
+	return &url.URL{Scheme: target.Scheme, Host: target.Host}, nil
 }
 
 // ServeHTTP answers the three shapes a forward proxy is addressed in.
@@ -170,9 +257,18 @@ func (f *Forward) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// names its destination and there is nothing to decrypt. Recorded by the
 		// same path as everything else, and refused for a host nobody named for
 		// the same reason a tunnel is.
-		if !f.intercepts(r.URL.Hostname()) {
+		route, ok := f.route(r.URL.Hostname())
+		if !ok {
 			f.refuse(w, r.URL.Hostname())
 			return
+		}
+		if route.target != nil {
+			// r.Host was read off the original request line before this, so the
+			// host the client asked for survives into the transcript whatever
+			// happens to the socket and to the outbound authority.
+			r.URL.Scheme = route.target.Scheme
+			r.URL.Host = route.target.Host
+			r = reoriginate(r)
 		}
 		f.rec.ServeHTTP(w, r)
 		return
@@ -187,7 +283,8 @@ func (f *Forward) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // tunnel terminates one CONNECT and records what it carries.
 func (f *Forward) tunnel(w http.ResponseWriter, r *http.Request) {
 	host, port := splitTarget(r.Host)
-	if !f.intercepts(host) {
+	route, ok := f.route(host)
+	if !ok {
 		f.refuse(w, host)
 		return
 	}
@@ -218,21 +315,32 @@ func (f *Forward) tunnel(w http.ResponseWriter, r *http.Request) {
 	}
 	f.tunnels.Add(1)
 
+	// Where the terminated traffic is re-originated: the host the client asked
+	// for, unless this entry named a target (#357). What the client *asked for*
+	// is passed alongside rather than derived from the destination, because once
+	// they differ every diagnostic and every recorded field must keep naming the
+	// first — the destination is a socket the client never heard of.
+	dest, moved := route.target, route.target != nil
+	if dest == nil {
+		dest = &url.URL{Scheme: "https", Host: net.JoinHostPort(host, port)}
+	}
+
 	// Whatever the client pipelined behind its CONNECT is already in the
 	// buffer, and a client that sends its ClientHello without waiting for the
 	// 200 is within its rights. Dropping those bytes would fail the handshake
 	// with an error naming the certificate, which is the wrong cause.
-	f.serve(&prefixed{Conn: conn, first: buffered}, cfg, &url.URL{
-		Scheme: "https",
-		Host:   net.JoinHostPort(host, port),
-	})
+	f.serve(&prefixed{Conn: conn, first: buffered}, cfg, host, dest, moved)
 }
 
 // serve terminates the TLS of one tunnel and records the requests inside it.
-func (f *Forward) serve(conn net.Conn, cfg *tls.Config, dest *url.URL) {
+//
+// requested is the host the client named in its CONNECT; dest is where the
+// decrypted requests are sent, which is the same thing only when the entry
+// carried no target, and moved says which of the two this is.
+func (f *Forward) serve(conn net.Conn, cfg *tls.Config, requested string, dest *url.URL, moved bool) {
 	tlsConn := tls.Server(conn, cfg)
 	if err := tlsConn.SetDeadline(time.Now().Add(tunnelHandshakeTimeout)); err != nil {
-		f.log.Error("bound the handshake", "host", dest.Host, "error", err)
+		f.log.Error("bound the handshake", "host", requested, "error", err)
 		_ = tlsConn.Close()
 		return
 	}
@@ -241,13 +349,13 @@ func (f *Forward) serve(conn net.Conn, cfg *tls.Config, dest *url.URL) {
 		// it is worth a line: from the client's side it reads as the cloud
 		// presenting a bad certificate, with nothing pointing here.
 		f.log.Error("the client did not complete the tunnel handshake",
-			"host", dest.Host, "error", err,
+			"host", requested, "error", err,
 			"hint", "point the client's SSL_CERT_FILE at this run's CA")
 		_ = tlsConn.Close()
 		return
 	}
 	if err := tlsConn.SetDeadline(time.Time{}); err != nil {
-		f.log.Error("release the handshake deadline", "host", dest.Host, "error", err)
+		f.log.Error("release the handshake deadline", "host", requested, "error", err)
 		_ = tlsConn.Close()
 		return
 	}
@@ -258,10 +366,19 @@ func (f *Forward) serve(conn net.Conn, cfg *tls.Config, dest *url.URL) {
 			// Promoted to the absolute form the recorder forwards on. The Host
 			// header the client sent is left alone: it is part of the exchange
 			// being measured, and a proxy that rewrote it would be recording its
-			// own edit. What the request is *sent* to stays the address the
-			// CONNECT named and this proxy admitted.
+			// own edit. That is what keeps a mapped entry from being --upstream
+			// in disguise — the socket moves, the record does not — and adding
+			// `r.Host = dest.Host` here turns the transcript into one of a
+			// session against 127.0.0.1.
+			// TestAMappedTunnelRecordsTheHostTheClientAsked fails on that line.
+			//
+			// The *outbound* authority is another question, and a mapped entry
+			// answers it differently: see reoriginate.
 			r.URL.Scheme = dest.Scheme
 			r.URL.Host = dest.Host
+			if moved {
+				r = reoriginate(r)
+			}
 			f.rec.ServeHTTP(w, r)
 		}),
 		// The tunnel's own bound, for the reason the command sets one on the
@@ -272,32 +389,58 @@ func (f *Forward) serve(conn net.Conn, cfg *tls.Config, dest *url.URL) {
 	_ = srv.Serve(listener)
 }
 
-// intercepts reports whether this proxy may terminate a tunnel to host.
+// route finds the entry that admits host, and reports whether one did.
 //
 // Case-insensitive and trailing-dot-insensitive, because a client is free to
 // send either; a single-level wildcard matches one label, exactly as a
 // certificate's does, so `*.exoscale.com` covers `api-ch-gva-2.exoscale.com` and
-// never `a.b.exoscale.com`.
-func (f *Forward) intercepts(host string) bool {
+// never `a.b.exoscale.com`. The first entry that matches wins, so a mapped name
+// written before a wildcard is how one host of a family goes somewhere else.
+func (f *Forward) route(host string) (forwardRoute, bool) {
 	want := strings.ToLower(strings.TrimSuffix(host, "."))
 	if want == "" {
+		return forwardRoute{}, false
+	}
+	for _, r := range f.routes {
+		if admits(r.pattern, want) {
+			return r, true
+		}
+	}
+	return forwardRoute{}, false
+}
+
+// admits reports whether one --forward pattern covers one requested host.
+func admits(pattern, want string) bool {
+	p := strings.ToLower(pattern)
+	if p == want {
+		return true
+	}
+	suffix, isWildcard := strings.CutPrefix(p, "*")
+	if !isWildcard || !strings.HasPrefix(suffix, ".") {
 		return false
 	}
-	for _, pattern := range f.hosts {
-		p := strings.ToLower(pattern)
-		if p == want {
-			return true
-		}
-		suffix, isWildcard := strings.CutPrefix(p, "*")
-		if !isWildcard || !strings.HasPrefix(suffix, ".") {
-			continue
-		}
-		label, found := strings.CutSuffix(want, suffix)
-		if found && label != "" && !strings.Contains(label, ".") {
-			return true
-		}
+	label, found := strings.CutSuffix(want, suffix)
+	return found && label != "" && !strings.Contains(label, ".")
+}
+
+// Destinations names each entry and where what it terminates is sent, for the
+// recipe the command prints before a client starts.
+func (f *Forward) Destinations() []string {
+	out := make([]string, 0, len(f.routes))
+	for _, r := range f.routes {
+		out = append(out, r.String())
 	}
-	return false
+	return out
+}
+
+// patterns is the allowlist as the operator wrote it, without the targets: what
+// a refusal compares against is the set of names, not where they go.
+func (f *Forward) patterns() []string {
+	out := make([]string, 0, len(f.routes))
+	for _, r := range f.routes {
+		out = append(out, r.pattern)
+	}
+	return out
 }
 
 // refuse answers a CONNECT for a host nobody named.
@@ -306,11 +449,32 @@ func (f *Forward) intercepts(host string) bool {
 // client finish its session while the transcript quietly missed every exchange
 // in it — the failure handoff.go was written to report, reintroduced at another
 // door. TestAHostNobodyNamedIsNotIntercepted fails without this.
+//
+// It names the host, which is the difference #357 asks for: an API family can
+// live on a different host than the main one (Outscale's managed-Kubernetes API
+// does), and a missing entry then reads to the operator as the client failing to
+// connect. The entry that is missing is written out, in the form the flag takes.
+// TestARefusalNamesTheEntryThatIsMissing fails without it.
 func (f *Forward) refuse(w http.ResponseWriter, host string) {
 	f.refused.note(host)
 	f.log.Warn("refused to intercept a host --forward does not name",
-		"host", host, "forwarding", strings.Join(f.hosts, ", "))
-	http.Error(w, "feint proxy: this proxy intercepts only the hosts --forward names\n", http.StatusForbidden)
+		"host", host, "forwarding", strings.Join(f.patterns(), ", "),
+		"add", host+" (to the real host), or "+host+"=<target> to send it somewhere you choose")
+	http.Error(w, missingEntry(host), http.StatusForbidden)
+}
+
+// missingEntry is what a client is told when it asked for a host nobody named.
+//
+// It writes the entry out in the form the flag takes. Without the host in it a
+// missing entry reads to the operator as the client failing to connect, which is
+// the case #357 names: an API family can live on a different host than the main
+// one, and the first symptom is a refused connection nobody can attribute.
+// TestARefusalNamesTheEntryThatIsMissing fails without this.
+func missingEntry(host string) string {
+	return fmt.Sprintf("feint proxy: --forward does not name %[1]s, so this connection was not "+
+		"terminated and nothing about it is in the transcript.\n"+
+		"Add the missing entry: --forward ...,%[1]s to reach the real host, or "+
+		"--forward ...,%[1]s=http://127.0.0.1:4599 to send it to the emulator.\n", host)
 }
 
 // Unnamed is how many exchanges walked a route no pack claims.

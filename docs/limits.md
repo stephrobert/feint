@@ -233,6 +233,76 @@ republished name resolving to the proxy, then away — and records the whole thi
 one way, only the pre-handoff exchange the other. Eight-of-ninety, and the fix, on
 one run.
 
+### 7. The Terraform S3 client honours `HTTPS_PROXY` — measured (#346)
+
+Everything above rests on the redirect being the hard half. `feint proxy
+--forward` (#336) changed one term of that: a Go client that installs no
+`Transport` inherits `http.DefaultTransport`, which honours `HTTPS_PROXY`, so a
+compiled-in name can be intercepted with **no DNS trick and no `/etc/hosts`**.
+Whether the Scaleway Terraform provider's **S3** client is such a client was
+unknown, and #336 said so rather than predicting.
+
+It is. Measured on Linux on **2026-08-21**, terraform 1.15.4 with
+`scaleway/scaleway 2.81.0`, against this repository's own emulator — no account,
+no real endpoint, the public fake credentials of
+`tools/conformance/scaleway/fake-credentials.env`. The recipe is the two
+variables and nothing else, plus the mapping #357 added so the terminated host
+lands on the emulator instead of the real cloud:
+
+```bash
+feint serve --addr 127.0.0.1:4760 &
+feint proxy --record s3.jsonl --addr 127.0.0.1:4761 \
+  --forward 's3.fr-par.scw.cloud=http://127.0.0.1:4760,*.s3.fr-par.scw.cloud=http://127.0.0.1:4760'
+# then, on a scaleway_object_bucket:
+export HTTPS_PROXY=http://127.0.0.1:4761 SSL_CERT_FILE=/tmp/feint-intercept-ca-….pem
+terraform apply -auto-approve
+```
+
+One tunnel terminated, one exchange recorded, and the User-Agent names the
+client beyond argument:
+
+```json
+{"seq":1,"method":"PUT","path":"/","host":"feint-346-measurement.s3.fr-par.scw.cloud",
+ "status":404,"mounted":false,
+ "req":{"headers":{"Authorization":"REDACTED","X-Amz-Content-Sha256":"REDACTED",
+   "User-Agent":"aws-sdk-go-v2/1.43.4 … api/s3#1.107.0 terraform-provider-scaleway/2.81.0"}}}
+```
+
+The `PUT /` is `CreateBucket`, virtual-host style, and the `404` is **this
+emulator** answering: feint serves no object storage, so no pack claims that
+route (`"mounted": false`). Nothing left the machine.
+
+**Read the two failures apart, because only one of them closes the door.** A
+negative result would have to say *which* negative it was, and the control run
+shows exactly what the other one looks like. Driven again with the same
+environment against a proxy that does **not** name the S3 host:
+
+```text
+recorded 0 exchange(s)
+0 tunnel(s) terminated
+12 connection(s) were refused because --forward does not name their host:
+  feint-346-measurement.s3.fr-par.scw.cloud
+```
+
+```text
+Error: operation error S3: CreateBucket, exceeded maximum number of attempts, 3,
+request send failed, Put "https://feint-346-measurement.s3.fr-par.scw.cloud/": Forbidden
+```
+
+The client emitted `CONNECT` for the compiled-in name twelve times and the proxy
+turned each one down. That is *"arrived, and was refused"* — the door opened. The
+other negative, *"did not honour the proxy"*, would have left the proxy with **no
+CONNECT at all** and the client complaining about a certificate, which is what
+macOS produces (number 2's warning in [proxy.md](proxy.md)) and why this was
+measured on Linux.
+
+So the hard half of #76 has a third door, and this one costs an operator
+nothing: no namespace, no `/etc/hosts`, no privileged port, no AppArmor profile.
+**It does not by itself retain object storage** — what it removes is the
+redirect from the cost, not the S3 surface from the work — but the arbitration in
+the verdict below now rests on the coverage argument alone, since the ceremony it
+weighed has gone to zero. Reopening it is its own issue, with its own numbers.
+
 ### The verdict
 
 **Refused, now with numbers behind it — and the refusal changes shape twice.**
@@ -242,20 +312,22 @@ written. The certificate was never the project it was called: it is `feint proxy
 including the Terraform plugin through one process-scoped environment variable. And
 the name redirect, first read as undeliverable without touching the machine, is
 deliverable after all — in a namespace the client owns (number 6): a rootless
-container, or feint's own namespace under one named profile. What is left is not a
-feasibility wall but an operator ceremony — the client must run inside that
-namespace — and whether the S3-through-Terraform corner is worth that ceremony is a
-product call, the only thing still holding the refusal.
+container, or feint's own namespace under one named profile. And since #346
+(number 7) it is not even that: the one blocked client honours `HTTPS_PROXY`, so
+the redirect costs two environment variables. What is left is not a feasibility
+wall and no longer an operator ceremony either — it is the coverage argument
+alone: whether the S3-through-Terraform corner is worth emulating an S3 surface,
+which is a product call and the only thing still holding the refusal.
 
 The blocker is one product on one client, so the MinIO + `SCW_S3_ENDPOINT` page
 remains the right answer for the S3 workflow, and the refusal caps coverage by
 exactly one corner rather than quietly bounding the whole project. If
 Object-Storage-through-Terraform is ever wanted, it is a roadmap item with a
-named owner and a shape already measured: `SSL_CERT_FILE` (safe) plus an
-explicit, disposable name redirect the operator opts into (a devcontainer or a
-temporary hosts entry) — never a system trust-store install, never a hosts file
-this binary edits itself. Whether that corner is worth the operator ceremony is a
-product call; it is no longer an unmeasured one.
+named owner and a shape already measured, and number 7 shortened it again:
+`SSL_CERT_FILE` and `HTTPS_PROXY`, both process-scoped, both proven on that exact
+client — never a system trust-store install, never a hosts file this binary edits
+itself, and now not even a namespace. What is left to cost is the S3 surface
+itself; that is a product call, and it is no longer an unmeasured one.
 
 ## A run presented as local can still reach the real cloud (#280)
 

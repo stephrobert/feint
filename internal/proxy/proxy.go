@@ -34,6 +34,7 @@
 package proxy
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -155,6 +156,22 @@ func newProxy(o Options, forward bool) (*Proxy, error) {
 				// to a fixed upstream is precisely what a forward proxy must not
 				// do, and honouring it in the other mode would turn --upstream
 				// into an open relay for anything that reaches the port.
+				if reoriginated(pr.In) {
+					// Except for the authority, when --forward sent this host
+					// somewhere it never asked for (#357). Clearing Out.Host is
+					// what SetURL does in the other mode, and it makes net/http
+					// address the target by its own name — which the target
+					// generally requires: feint's own rebinding guard answers
+					// 403 to a Host it does not recognise, so every request of a
+					// mapped run would be a refusal.
+					//
+					// The record is untouched by this: capture reads the
+					// inbound request, and ReverseProxy clones before rewriting.
+					// TestAMappedTunnelRecordsTheHostTheClientAsked asserts both
+					// halves — the target addressed as itself, the transcript
+					// naming the host the client asked for.
+					pr.Out.Host = ""
+				}
 				return
 			}
 			// SetURL and nothing else. SetXForwarded is what a reverse proxy in
@@ -167,6 +184,25 @@ func newProxy(o Options, forward bool) (*Proxy, error) {
 		ErrorHandler: p.upstreamFailed,
 	}
 	return p, nil
+}
+
+// reoriginatedKey marks a request a --forward entry sent to a target the client
+// never named.
+//
+// A context value rather than a field, because it is a property of the one
+// request and not of the recorder: the same [Proxy] serves a bare entry and a
+// mapped one in the same run, and only the second may move the authority.
+type reoriginatedKey struct{}
+
+// reoriginate marks r as bound for a target of the operator's choosing.
+func reoriginate(r *http.Request) *http.Request {
+	return r.WithContext(context.WithValue(r.Context(), reoriginatedKey{}, true))
+}
+
+// reoriginated reports whether r was so marked.
+func reoriginated(r *http.Request) bool {
+	value, _ := r.Context().Value(reoriginatedKey{}).(bool)
+	return value
 }
 
 // upstreamFailed answers a request the upstream did not.

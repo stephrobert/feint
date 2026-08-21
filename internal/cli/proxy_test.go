@@ -154,6 +154,23 @@ func TestProxyRefusesAnUnusableInvocation(t *testing.T) {
 		"forward for everything": {[]string{
 			"--forward", "*", "--record", "-", "--addr", "127.0.0.1:0",
 		}, "every host"},
+		// The mapped form of #357 gets no bypass either, and this is the case
+		// that could have been lost silently: `*=<target>` is the same wiretap
+		// as `*`, and it only stays refused because the name is cut out of the
+		// entry before the wildcard is looked for.
+		"forward for everything, mapped": {[]string{
+			"--forward", "*=http://127.0.0.1:4599", "--record", "-", "--addr", "127.0.0.1:0",
+		}, "every host"},
+		"forward exposed on purpose, mapped": {[]string{
+			"--forward", "api.scaleway.com=http://127.0.0.1:4599", "--record", "-",
+			"--addr", "0.0.0.0:4600", "--expose-to-network",
+		}, "loopback"},
+		"forward to a target that is a path": {[]string{
+			"--forward", "api.scaleway.com=http://127.0.0.1:4599/v2", "--record", "-", "--addr", "127.0.0.1:0",
+		}, "names a socket"},
+		"forward to no target at all": {[]string{
+			"--forward", "api.scaleway.com=", "--record", "-", "--addr", "127.0.0.1:0",
+		}, "names no target"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer

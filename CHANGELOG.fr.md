@@ -19,6 +19,86 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **`--forward` peut dire où atterrit vraiment un hôte terminé** (#357). Une
+  entrée de `feint proxy --forward` peut désormais nommer sa cible — `--forward
+  'api.scaleway.com=http://127.0.0.1:4599'` — de sorte qu'un client dont
+  l'endpoint est compilé en dur est terminé, enregistré, puis réémis vers
+  **l'émulateur** au lieu du vrai cloud. Un hôte écrit sans cible continue
+  d'aller au vrai, donc rien ne change pour un appelant existant, et les deux
+  formes se mélangent dans une même passe.
+
+  C'est la combinaison qui ne s'exprimait pas : `--forward` enregistrait un
+  client qu'on ne peut pas rediriger mais l'envoyait au vrai cloud, et
+  `--upstream` envoyait tout à un hôte choisi mais exigeait un client
+  redirigeable. Enregistrer contre l'émulateur un client à endpoint compilé
+  demandait un espace de noms utilisateur + montage + réseau, un `/etc/hosts`
+  remplacé dedans, un écouteur sur le port 443 dans cette pile privée et un
+  second étage de proxy — 89 lignes de shell. Il faut maintenant deux variables
+  d'environnement et un `=`. Prouvé avec un vrai client le 2026-08-21 :
+  `terraform apply` d'un `scaleway_object_bucket`, dont l'endpoint S3 est
+  compilé dans le provider, enregistré contre un émulateur feint sans espace de
+  noms, sans édition de `/etc/hosts` et sans port privilégié.
+  `tools/conformance/forward.sh` rejoue le mécanisme à la demande avec `scw` et
+  sans compte : il pointe le CLI sur `https://api.scaleway.test`, un TLD réservé
+  qui ne résout jamais, de sorte qu'une passe où le proxy n'est *pas* ce qui
+  porte le trafic échoue sur `no such host` au lieu d'atteindre un cloud.
+
+  **Ce n'est pas `--upstream` déguisé, et la différence est l'enregistrement.**
+  `--upstream` envoie chaque requête au même endroit quoi qu'ait demandé le
+  client, ce qui perd l'information même pour laquelle on enregistre. Ici l'hôte
+  demandé est conservé dans le transcript, seule la socket bouge. L'en-tête
+  `Host` sortant est la seule chose qu'une entrée mappée déplace, et il le faut :
+  la garde anti-DNS-rebinding de feint répond 403 à un `Host` qu'elle ne
+  reconnaît pas, si bien que transmettre `api.scaleway.com` tel quel à
+  l'émulateur produisait un transcript de refus — mesuré avant le correctif, sur
+  l'apply ci-dessus. Une entrée nue reste intacte, donc une signature SigV4 qui
+  couvre `Host` se vérifie toujours face au vrai hôte.
+
+  **Les quatre exigences de sécurité de #336 tiennent sans changement, et chacune
+  est falsifiée de nouveau à cette porte** (`tools/falsify/specs/forward-proxy.json`,
+  21 mutations désormais) : la redaction survit à un tunnel mappé,
+  `--expose-to-network` reste refusé avec `--forward`, l'autorité reste éphémère
+  et jamais installée, et `--forward '*=<cible>'` est refusé exactement comme
+  `--forward '*'` — le joker est cherché dans l'hôte *après* découpe du `=`,
+  c'est-à-dire là où un mappage aurait pu faire du recorder un mouchard sans que
+  personne le voie. Une cible nomme une socket et rien d'autre : un chemin, une
+  requête ou des identifiants sont refusés, sinon le proxy réécrirait chaque
+  requête d'une façon que son propre transcript ne montre pas. Aucun drapeau
+  nouveau : la surface CLI gelée (version 9) ne bouge pas.
+
+  Un hôte intercepté mais non nommé est désormais diagnostiqué comme l'entrée
+  manquante qu'il est, dans la forme que prend le drapeau, plutôt que comme un
+  échec de connexion nu — le cas qui coûte une après-midi, puisqu'une famille
+  d'API peut vivre sur un autre hôte que le principal (l'API Kubernetes managée
+  d'Outscale le fait).
+
+- **Mesuré : le client S3 de Terraform pour Scaleway honore `HTTPS_PROXY`**
+  (#346). Cette entrée n'implémente rien ; elle répond à la seule question sur
+  laquelle reposait le refus de l'object storage. Il l'honore. Mesuré sous Linux
+  le 2026-08-21 — terraform 1.15.4, `scaleway/scaleway 2.81.0` — un apply de
+  `scaleway_object_bucket` a émis `CONNECT
+  feint-346-measurement.s3.fr-par.scw.cloud:443` et son `CreateBucket` a atterri
+  sur un émulateur feint, User-Agent `aws-sdk-go-v2/1.43.4 … api/s3#1.107.0
+  terraform-provider-scaleway/2.81.0`. Aucun compte, aucun endpoint réel, les
+  identifiants factices publics.
+
+  **Les deux négatifs sont distingués, parce qu'un seul ferme la porte.** Une
+  passe témoin contre un proxy qui ne nomme *pas* l'hôte S3 a enregistré zéro
+  échange, terminé zéro tunnel et refusé douze connexions vers cet hôte,
+  terraform rapportant `request send failed … Forbidden` : c'est « arrivé, puis
+  refusé ». L'autre négatif — « n'a pas honoré le proxy » — n'aurait montré
+  aucun `CONNECT` et une plainte de certificat, ce que produit macOS, et c'est
+  pourquoi la mesure a été faite sous Linux.
+
+  La conséquence est écrite là où vit la décision, `docs/limits.md` (numéro 7),
+  avec le transcript : la redirection DNS/TLS que #76 appelait la moitié
+  difficile coûte désormais deux variables d'environnement portées par le
+  processus, **sur le client même qui la bloquait**. L'object storage reste
+  refusé, et le refus tient désormais par son seul argument de couverture — un
+  produit sur un client, et une surface S3 que personne n'a chiffrée — et non
+  par une quelconque difficulté de la redirection. Le rouvrir est une issue en
+  soi, avec ses propres chiffres.
+
 - **Exoscale sert le Network Load Balancer, et aucun backend ne porte de
   verdict de santé** (#345, successeur de #14). Toute la famille est montée :
   `exoscale/v2.create-load-balancer`, `exoscale/v2.list-load-balancers`,

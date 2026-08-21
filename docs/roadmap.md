@@ -443,11 +443,19 @@ never a hosts file the binary edits itself.
 client that honours `HTTPS_PROXY` hands the proxy the hostname itself. So the
 half that was called the blocker has a second door for **any client that reads
 that variable** — measured on a Go client which installs no `Transport`, which is
-the ordinary case. What stays unmeasured is the one that would reopen the
-arbitration: whether the Scaleway Terraform provider's S3 client honours
-`HTTPS_PROXY` for its built-in `https://s3.<region>.scw.cloud`. Until somebody
-runs that, the decline stands on its coverage argument — one product on one
-client — and not on the redirect being impossible.
+the ordinary case.
+
+**And #346 closed the one question that was left.** The Scaleway Terraform
+provider's S3 client *does* honour `HTTPS_PROXY` for its built-in
+`https://s3.<region>.scw.cloud`: measured on Linux on 2026-08-21, provider
+2.81.0, `CreateBucket` arriving on this emulator through a `CONNECT` with
+`aws-sdk-go-v2 … terraform-provider-scaleway/2.81.0` in the User-Agent, and a
+control run showing the twelve refused CONNECTs the same apply produces when the
+proxy does not name the host. The transcript and both readings are in
+[limits.md](limits.md) number 7. The redirect therefore costs two process-scoped
+environment variables on the exact client that blocked it, and the decline now
+stands on its coverage argument alone — one product on one client, and an S3
+surface nobody has costed — rather than on any part of the redirect being hard.
 
 ### Considered in the same pass, and not queued
 

@@ -40,7 +40,7 @@ func proxyCommand(args []string, _ io.Writer, stderr io.Writer) int {
 	queue := fs.Int("queue", proxy.DefaultQueue, "how many exchanges may wait to be written before one is dropped")
 	expose := fs.Bool("expose-to-network", false, "listen off loopback, which offers this proxy's transcript and this cloud account to the network")
 	intercept := fs.String("intercept", "", "serve HTTPS with a locally-minted certificate for these comma-separated hostnames, so a client redirected to this proxy by name (a container's own /etc/hosts) trusts it and lands here; see docs/limits.md #76")
-	forward := fs.String("forward", "", "be a forward proxy for these comma-separated hostnames: accept CONNECT, terminate the TLS with a locally-minted certificate and record it, so a client whose endpoint is compiled in is recorded through HTTPS_PROXY alone; see docs/proxy.md")
+	forward := fs.String("forward", "", "be a forward proxy for these comma-separated hostnames: accept CONNECT, terminate the TLS with a locally-minted certificate and record it, so a client whose endpoint is compiled in is recorded through HTTPS_PROXY alone. An entry may name where its traffic then goes, host=target (api.scaleway.com=http://127.0.0.1:4599); written bare it goes to the real host. See docs/proxy.md")
 	if err := fs.Parse(args); err != nil {
 		return exitError
 	}
@@ -117,7 +117,7 @@ func proxyCommand(args []string, _ io.Writer, stderr io.Writer) int {
 			return exitError
 		}
 		rec = forwarder
-		printForwardRecipe(stderr, splitHosts(*forward), *addr, caPath)
+		printForwardRecipe(stderr, forwarder.Destinations(), *addr, caPath)
 	} else {
 		p, err := proxy.New(proxy.Options{
 			Upstream: target,
@@ -215,8 +215,9 @@ func proxyCommand(args []string, _ io.Writer, stderr io.Writer) int {
 			// host" by reading which.
 			fmt.Fprintf(stderr,
 				"%d connection(s) were refused because --forward does not name their host: %s\n"+
-					"  the client's own calls to them failed, and none of them is in this transcript.\n",
-				refused, strings.Join(sortedHosts(hosts), ", "))
+					"  the client's own calls to them failed, and none of them is in this transcript.\n"+
+					"  add the missing entries: --forward ...,%s\n",
+				refused, strings.Join(sortedHosts(hosts), ", "), strings.Join(sortedHosts(hosts), ","))
 		}
 	}
 	if unnamed := rec.Unnamed(); unnamed > 0 {
@@ -414,8 +415,16 @@ func publishCA(ic *proxy.Interceptor) (string, func(), error) {
 // change in the client — which is what makes this door the cheap one. The
 // warning is part of the recipe: what this records is decrypted, so it is said
 // where the operator is about to run the command rather than only in the docs.
-func printForwardRecipe(stderr io.Writer, names []string, addr, caPath string) {
-	fmt.Fprintf(stderr, "  forwarding for %s\n", strings.Join(names, ", "))
+//
+// destinations is one line per entry, each naming where that host's traffic is
+// re-originated. Printed rather than summarised, because "the real cloud" and
+// "the emulator" are the two answers an operator must never confuse, and #357
+// made them differ per host.
+func printForwardRecipe(stderr io.Writer, destinations []string, addr, caPath string) {
+	fmt.Fprintln(stderr, "  forwarding for:")
+	for _, d := range destinations {
+		fmt.Fprintf(stderr, "    %s\n", d)
+	}
 	fmt.Fprintf(stderr, "  CA written to %s (a temporary file, removed on exit)\n", caPath)
 	fmt.Fprintln(stderr, "  drive a client whose endpoint is compiled in with:")
 	fmt.Fprintf(stderr, "    export HTTPS_PROXY=http://%s\n", addr)
