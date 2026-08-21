@@ -471,6 +471,7 @@ c'est arrivé à dix d'entre eux avant qu'un test compare les deux listes.
 | `feint proxy` | enregistre ce qu'un vrai client et un vrai cloud se disent, identifiants masqués |
 | `feint transcript` | lit un enregistrement : quoi servir ensuite, quelle forme, ce que l'émulateur omet |
 | `feint replay` | rejoue un enregistrement contre un émulateur qui tourne et rapporte, opération par opération, ce qui diverge |
+| `feint corpus` | rejoue les corpus committés contre un émulateur neuf et échoue sur une divergence avec ce que le vrai cloud a répondu |
 | `feint probe` | pilote chaque route montée depuis sa description d'API et contrôle les réponses |
 | `feint shapes` | ce qu'un vrai cloud renvoie, et ce que l'émulateur en omet |
 | `feint evidence` | écrit le registre de preuves qu'une exécution de conformance a gagnées, opération par opération |
@@ -492,6 +493,18 @@ fois où un vrai client l'a appelé quand même, c'est-à-dire la demande qu'une
 raison écrite ne porte pas. Ni l'un ni l'autre n'imprime une valeur lue : un
 enregistrement est l'inventaire d'un compte, et un constat nomme un chemin, un
 type et une position.
+
+`feint corpus --check` est ce qui fait de cette boucle un gate. `corpus/` porte
+les enregistrements d'un vrai compte Scaleway, assainis pour que ce dépôt puisse
+les committer (#351, #352), et ce verbe les rejoue tous contre un émulateur neuf
+à chaque pull request. C'est le seul contrôle d'ici qui compare une réponse à
+celle du **cloud** : `mise run conformance` prouve qu'un vrai client accepte ce
+que l'émulateur répond, ce qui est une autre question, et une plus faible.
+Toutes ses entrées sont des fichiers versionnés, donc il ne lui faut ni compte,
+ni réseau, ni binaire client, et c'est précisément ce qui lui permet d'être un
+gate là où `conformance` ne peut pas l'être. Sortie 2 sur une divergence que la
+liste d'acceptation ne porte pas, sortie 1 sur un corpus illisible ou qui n'a
+rien comparé : **un corpus qui ne rejoue rien est un échec, jamais un succès.**
 
 ---
 

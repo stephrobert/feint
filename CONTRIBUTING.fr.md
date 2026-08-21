@@ -38,7 +38,8 @@ Elle installe trois types de hooks, et les deux derniers se ratent facilement :
 ### Avant de pousser
 
 Le hook `pre-push` lance `mise run prepush` : `check`, `docs:check`,
-`drift:check`, `shapes:check`, `falsify:selftest` et `falsify:lint`.
+`drift:check`, `shapes:check`, `corpus:check`, `falsify:selftest` et
+`falsify:lint`.
 Déterministe, hors ligne, quelques secondes.
 C'est ce qu'une pull request refusera, sans jamais dépendre de la météo d'un
 runner.

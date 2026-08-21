@@ -13,14 +13,66 @@ none of the identifiers, addresses, names and free text the account carried.
 `docs/proxy.md`, *A transcript you can commit*, states the format and what it
 guarantees.
 
+## The gate
+
+Nothing here is worth anything unless something replays it, so something does,
+on every pull request:
+
+```bash
+mise run corpus:check      # or: feint corpus --check
+```
+
+It starts an emulator of its own per file, replays every exchange, and compares.
+Thirty milliseconds, offline, no credential and no client binary — which is
+exactly why it can be a gate where `mise run conformance` cannot: a hook that
+fails on an absent binary teaches `--no-verify`, and that disarms every other
+hook at once. It runs in `mise run prepush` and in `.github/workflows/go.yml`.
+
+Three verdicts, never blurred:
+
+| | |
+|---|---|
+| a **divergence** the acceptance list does not carry | exit 2 |
+| an operation **no route serves** | printed, #74's queue, never counted |
+| a corpus that **could not be read**, or compared nothing | exit 1 |
+
+The third is the one that gets forgotten, and it is asserted rather than hoped
+for: an empty file, an empty directory, and a file whose every exchange is
+unserved are each red, each with their own message
+(`TestACorpusThatComparesNothingIsRed`). **A corpus that replays nothing is a
+failure, never a pass.**
+
+`corpus/accepted.json` carries the divergences this repository records rather
+than fixes, each with its reason and the issue that retires it, and an entry
+excusing nothing fails the gate — so the day a defect is fixed, the gate demands
+that its exemption go. The same file dates each recording, and an undated corpus
+is red.
+
+One file at a time, against a **fresh** emulator each time: a corpus is a causal
+sequence that creates what it later reads, so replaying two into one store makes
+a list answer objects the recording never created. The same reason
+`feint serve --state …` is the wrong thing to replay against by hand:
+
 ```bash
 feint serve &
 feint replay corpus/scaleway/terraform.jsonl --endpoint http://127.0.0.1:4599
 ```
 
-Exit 2 means the emulator and a real cloud disagree, and that is the point of
-the file. **Replay against a fresh emulator**: `feint serve --state …` restores
-a snapshot, and a list operation then answers objects this corpus never created.
+## How this corpus ages
+
+A cloud changes. A recording made today describes the cloud of today, and a gate
+that fails because the *cloud* moved is a gate somebody disables — taking all of
+its coverage with it. So `warn_after_days` in `corpus/accepted.json` **warns and
+never fails**, and the reason is a limit of the measurement rather than a
+preference: this gate holds one side of the comparison. A red run says the
+emulator and the recording disagree, and nothing in the process knows which of
+the two moved. Failing on age would be asserting exactly what it cannot measure.
+
+The half that can arbitrate is #359, which replays this corpus against the
+**cloud**. Until it exists, the warning names the file, its age and the
+procedure below, and 180 days is a chosen horizon rather than a measured one:
+about two releases, and short enough that a surface which gained 453 SDK methods
+in twelve months has not silently outrun the file.
 
 ## What is here
 
@@ -98,32 +150,45 @@ Several Outscale profiles on the maintainer's station also name third-party
 organisations, two of them in a sovereign region. That is #354, with its own
 guard rails.
 
-## What the first run found
+## What the runs found
 
 Replaying these two files against the emulator of 2026-08-21: `terraform.jsonl`
-matched on all 16 exchanges, `scw-cli.jsonl` on 33 of 58 with 16 unserved and
-8 or 9 divergent, in three families.
+matched on all 16 exchanges, `scw-cli.jsonl` on 34 of 58 with 16 unserved and 8
+divergent, in three families. All eight are listed in `corpus/accepted.json`
+with their reason and are fixed by #355; the gate is green because it carries
+them, and it goes red the moment one is fixed and its entry is not deleted.
 
-- **The catalogue is a fixed subset.** `fr-par-1` publishes 136 commercial
-  types over three pages; the emulator serves 18, on purpose
+- **The catalogue is a fixed subset.** `fr-par-1` publishes 136 commercial types
+  over three pages; the emulator serves 18, on purpose
   (`internal/providers/scaleway/catalog.go`). The pack declines that shape, but
   the decline is keyed `GET /instance/v1/zones/fr-par-1/products/servers`, which
   is the shapes catalogue's spelling — the replay joins on the mounted operation
-  name, so it never sees it and reports every missing type.
+  name, so it never sees it and reports every missing type. 136 findings.
 - **The default VPC carries no tags.** Scaleway's own default VPC answers
-  `tags: ["default"]`; a fresh emulator answers `[]`.
+  `tags: ["default"]`; a fresh emulator answers `[]`. A defect of the emulator,
+  and the first this corpus surfaced.
 - **The IAM SSH-key lifecycle cannot be replayed at all**, and that is the
   instrument rather than the emulator: the proxy redacts the value under any
   JSON key whose *name* contains "key", so `public_key` reaches the transcript
   as `REDACTED`, `sshkey.Parse` refuses it, and the create answers 400 — taking
   the read and the delete that follow it with it.
 
-**"8 or 9" is not a rounding.** Six runs of the same file against six fresh
-emulators graded `vpc/v2/API.ListPrivateNetworks` divergent three times and
-matched three times. The cause is in the replay's rebinding, not here: this
-account's `project_id` and `organization_id` are the same string, so one
-recorded value has two candidate bindings whose emulator counterparts differ,
-and `bindings.learn` walks a Go map — whichever field it visits first wins.
-When the organisation wins, the create files its network under a project the
-unfiltered list does not cover. A gate built on this corpus (#353) has to settle
-that before it can call a red run a defect.
+**It used to be "8 or 9", and that was not a rounding.** Six runs of the same
+file against six fresh emulators graded `vpc/v2/API.ListPrivateNetworks`
+divergent three times and matched three times. The cause was in the replay's
+rebinding rather than here: this account's `project_id` and `organization_id`
+are the same string, so one recorded value had two candidate bindings whose
+emulator counterparts differ, and `bindings.learn` walked a Go map — whichever
+field it visited first won. When the organisation won, the create filed its
+network under a project the unfiltered list does not cover, and the replay
+reported a divergence it had manufactured itself.
+
+#353 settled it before the gate went in, because a non-deterministic gate is a
+gate that gets disarmed the first time it seems to lie. A binding is now scoped
+to the field name it was observed under — `project_id` resolves to the project
+this emulator minted and `organization_id` to the organisation — and the walk
+that learns them is sorted, so a value with no field to scope it resolves the
+same way on every run. `TestOneRecordedValueUnderTwoFieldsBindsByFieldName` and
+`TestTheSameRecordingBindsTheSameWayOnEveryRun` hold both halves, and
+`TestTheCommittedCorpusPassesItsOwnGateAndSaysTheSameThingTwice` holds the
+whole run.

@@ -1,0 +1,112 @@
+{
+  "comment": [
+    "What `feint corpus --check` knows about the committed corpora: when each was",
+    "recorded, and which divergences from the real cloud this repository records",
+    "rather than fails on. Modelled on tools/compat/accepted.json, including the",
+    "rule that gives that file its teeth: an entry that excuses nothing fails the",
+    "gate, because a stale exemption is a gate that quietly stopped covering what",
+    "it names. Every accepted divergence is still printed, with its reason, on",
+    "every run.",
+    "",
+    "WHY THIS FILE EXISTS AT ALL, AND NOT A RED BUILD. The gate went in with the",
+    "corpus already carrying eight divergences, classified by #352 and fixed by",
+    "#355. Merging it red would put every unrelated pull request on a red main,",
+    "and CLAUDE.md's own argument for keeping `conformance` out of the hook",
+    "applies unchanged: a gate people learn to skip is worse than no gate. So the",
+    "eight are listed here, each with the issue that deletes its entry, and the",
+    "staleness rule makes that deletion compulsory: the day #355 serves the",
+    "default VPC's tags, this gate goes red until the entry below is removed.",
+    "",
+    "HOW A CORPUS AGES. `warn_after_days` warns and never fails. This gate holds",
+    "one side of the comparison — it can say the emulator and the recording",
+    "disagree, and nothing in it knows which of the two moved. Failing on age",
+    "would be asserting exactly what it cannot measure, and a gate that fails",
+    "because the cloud changed is a gate somebody disables. #359 is the half that",
+    "can arbitrate: it replays the corpus against the cloud. Until then the",
+    "warning names the file, its age and the re-recording procedure",
+    "(corpus/README.md), and 180 days is a chosen horizon rather than a measured",
+    "one: about two releases, and short enough that a Scaleway surface which",
+    "gained 453 SDK methods in twelve months has not silently outrun the file."
+  ],
+  "warn_after_days": 180,
+  "recorded": [
+    {
+      "file": "scaleway/scw-cli.jsonl",
+      "at": "2026-08-21",
+      "client": "scw 2.56.3",
+      "cloud": "Scaleway fr-par"
+    },
+    {
+      "file": "scaleway/terraform.jsonl",
+      "at": "2026-08-21",
+      "client": "terraform-provider-scaleway 2.81.0",
+      "cloud": "Scaleway fr-par"
+    }
+  ],
+  "accepted": [
+    {
+      "file": "scaleway/scw-cli.jsonl",
+      "operation": "instance/v1/API.ListServersTypes",
+      "kind": "absent",
+      "path": "servers.*",
+      "reason": "fr-par-1 publishes 136 commercial types over three pages and this catalogue serves 18 on purpose, because an emulator has no inventory and must still answer one the CLI accepts; the pack already argues that refusal in DeclinedFields, keyed on the shapes catalogue's spelling GET /instance/v1/zones/fr-par-1/products/servers, which the replay never meets because it joins on the mounted operation name",
+      "issue": "#355"
+    },
+    {
+      "file": "scaleway/scw-cli.jsonl",
+      "operation": "instance/v1/API.ListServersTypes",
+      "kind": "absent",
+      "path": "servers.*.per_volume_constraint.l_ssd",
+      "reason": "a bound for local volumes this catalogue never attaches, which would enter the client's size arithmetic with nothing behind it; the same decision the pack states for the shapes gate, unreachable from here for the same spelling mismatch as the entry above",
+      "issue": "#355"
+    },
+    {
+      "file": "scaleway/scw-cli.jsonl",
+      "operation": "vpc/v2/API.ListVPCs",
+      "kind": "absent",
+      "path": "vpcs[].tags[]",
+      "reason": "Scaleway's own default VPC answers tags: [\"default\"] and a fresh emulator answers an empty list, so the recording sees an element where this one has none; a defect of the emulator, the first this corpus surfaced, and the smallest of the three families",
+      "issue": "#355"
+    },
+    {
+      "file": "scaleway/scw-cli.jsonl",
+      "operation": "iam/v1alpha1/API.CreateSSHKey",
+      "kind": "status",
+      "path": "",
+      "reason": "a defect of the instrument rather than of the emulator: the proxy redacts the value under any JSON key whose name contains \"key\", so public_key reaches the transcript as REDACTED, sshkey.Parse refuses it and the create answers 400 where the cloud answered 200",
+      "issue": "#355"
+    },
+    {
+      "file": "scaleway/scw-cli.jsonl",
+      "operation": "iam/v1alpha1/API.CreateSSHKey",
+      "kind": "absent",
+      "path": "*",
+      "reason": "every field of the answer, because there is no answer: the request the recorder wrote could not be reissued (see the status entry above), so the whole body is missing for one reason and not nine",
+      "issue": "#355"
+    },
+    {
+      "file": "scaleway/scw-cli.jsonl",
+      "operation": "iam/v1alpha1/API.GetSSHKey",
+      "kind": "status",
+      "path": "",
+      "reason": "the read of a key the create could not make, so it answers 404 where the cloud answered 200; it goes when the redaction stops destroying public_key and the create succeeds again",
+      "issue": "#355"
+    },
+    {
+      "file": "scaleway/scw-cli.jsonl",
+      "operation": "iam/v1alpha1/API.GetSSHKey",
+      "kind": "absent",
+      "path": "*",
+      "reason": "every field of a body that was never served, for the same single reason as the status above rather than for nine separate ones",
+      "issue": "#355"
+    },
+    {
+      "file": "scaleway/scw-cli.jsonl",
+      "operation": "iam/v1alpha1/API.DeleteSSHKey",
+      "kind": "status",
+      "path": "",
+      "reason": "the delete of a key the create could not make, answering 404 where the cloud answered 204; the third and last exchange the redaction of public_key takes with it",
+      "issue": "#355"
+    }
+  ]
+}

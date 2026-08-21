@@ -1,0 +1,107 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "a divergence from the recorded cloud stops failing the build, which is the whole gate: mutate one recorded status and the run goes green",
+      "file": "internal/cli/corpus.go",
+      "find": "\tif divergent > 0 {",
+      "replace": "\tif divergent > 0 && false {",
+      "test": "TestAMutatedRecordedStatusTurnsTheGateRedAndNamesIt"
+    },
+    {
+      "label": "a corpus directory holding no file reads as a pass, which is the SKIP this repository has already shipped once",
+      "file": "internal/cli/corpus.go",
+      "find": "\tif len(files) == 0 {",
+      "replace": "\tif len(files) == 0 && false {",
+      "test": "TestACorpusThatComparesNothingIsRed"
+    },
+    {
+      "label": "a corpus every exchange of which is unserved reads as a pass: the file was read, nothing was compared, and the verdict says nothing is wrong",
+      "file": "internal/cli/corpus.go",
+      "find": "\t\tif rep.Matched+rep.Divergent == 0 {",
+      "replace": "\t\tif rep.Matched+rep.Divergent == 0 && false {",
+      "test": "TestACorpusThatComparesNothingIsRed"
+    },
+    {
+      "label": "an empty transcript is replayed instead of refused, so the run reports on a file it never read",
+      "file": "internal/cli/corpus.go",
+      "find": "\tif len(exs) == 0 {",
+      "replace": "\tif len(exs) == 0 && false {",
+      "test": "TestACorpusThatComparesNothingIsRed"
+    },
+    {
+      "label": "an exemption that excuses nothing survives, so the list rots into an archive and the day #355 lands nobody is told to delete the entry",
+      "file": "internal/cli/corpus.go",
+      "find": "\t\tif used[i] == 0 {",
+      "replace": "\t\tif used[i] == 0 && false {",
+      "test": "TestAnExemptionThatExcusesNothingFailsTheGate"
+    },
+    {
+      "label": "an exemption whose reason carries no decision is accepted, and a comment starts standing in for a control",
+      "file": "internal/cli/corpus.go",
+      "find": "\tif bad := unusableCorpusExceptions(acc.Accepted); len(bad) > 0 {",
+      "replace": "\tif bad := unusableCorpusExceptions(acc.Accepted); len(bad) > 0 && false {",
+      "test": "TestAnExemptionWithoutAUsableReasonFailsTheGate"
+    },
+    {
+      "label": "a committed corpus nobody dated replays anonymously, so no run can say how old the cloud it describes is",
+      "file": "internal/cli/corpus.go",
+      "find": "\t\tif !known[f] {",
+      "replace": "\t\tif !known[f] && false {",
+      "test": "TestTheCorpusAndItsRecordingDatesAreHeldToEachOther"
+    },
+    {
+      "label": "a recording entry naming no file survives, which is a claim about a corpus that left",
+      "file": "internal/cli/corpus.go",
+      "find": "\t\tif !present[r.File] {",
+      "replace": "\t\tif !present[r.File] && false {",
+      "test": "TestTheCorpusAndItsRecordingDatesAreHeldToEachOther"
+    },
+    {
+      "label": "THE SECOND DIRECTION: an operation no route serves is counted against the verdict, and the day it fails the build is the day somebody stops recording",
+      "file": "internal/cli/corpus.go",
+      "find": "\t\tunserved += rep.Unserved",
+      "replace": "\t\tunserved += rep.Unserved\n\t\tdivergent += rep.Unserved",
+      "test": "TestAnUnservedOperationDoesNotFailTheCorpusGate"
+    },
+    {
+      "label": "THE SECOND DIRECTION: an aged recording fails instead of warning, so the gate asserts what it cannot measure — it holds one side of the comparison and cannot tell a cloud that moved from an emulator that broke",
+      "file": "internal/cli/corpus.go",
+      "find": "\twarnAgedCorpora(acc, now, stdout)",
+      "replace": "\twarnAgedCorpora(acc, now, stdout)\n\tif len(agedCorpora(acc.Recorded, now, acc.WarnAfterDays)) > 0 {\n\t\treturn exitDrift\n\t}",
+      "test": "TestAnAgedCorpusWarnsAndDoesNotFailTheGate"
+    },
+    {
+      "label": "the recorded value's field name stops scoping its binding, so project_id and organization_id fight over one slot again and the verdict flaps between 8 and 9 divergences",
+      "file": "internal/replay/replay.go",
+      "find": "\t\t\t\tb.learn(k, w[k], peer)",
+      "replace": "\t\t\t\tb.learn(\"\\x00never\", w[k], peer)",
+      "test": "TestOneRecordedValueUnderTwoFieldsBindsByFieldName",
+      "package": "./internal/replay/"
+    },
+    {
+      "label": "the field-scoped lookup is skipped, so every value resolves through the unscoped map the ambiguity broke",
+      "file": "internal/replay/replay.go",
+      "find": "\tif to, bound := b.byField[field][value]; bound {",
+      "replace": "\tif to, bound := b.byField[field][value]; bound && false {",
+      "test": "TestOneRecordedValueUnderTwoFieldsBindsByFieldName",
+      "package": "./internal/replay/"
+    },
+    {
+      "label": "the walk over the recorded answer stops being sorted, and Go's randomised map iteration decides which sibling claims a shared value",
+      "file": "internal/replay/replay.go",
+      "find": "\t\tsort.Strings(keys)\n\t\tfor _, k := range keys {",
+      "replace": "\t\tsort.Strings(keys[:0])\n\t\tfor _, k := range keys {",
+      "test": "TestTheSameRecordingBindsTheSameWayOnEveryRun",
+      "package": "./internal/replay/"
+    },
+    {
+      "label": "THE SECOND DIRECTION: the unscoped fallback is removed, so an identifier that only ever appeared in a path is never rebound and every read of a fresh emulator answers 404",
+      "file": "internal/replay/replay.go",
+      "find": "\tto, bound := b.to[value]\n\treturn to, bound",
+      "replace": "\tto, bound := b.to[value]\n\treturn to, bound && false",
+      "test": "TestAValueWithNoFieldOfItsOwnStillResolves",
+      "package": "./internal/replay/"
+    }
+  ]
+}

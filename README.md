@@ -859,6 +859,7 @@ rather than assumed.
 | `feint proxy` | sit between a real client and a real cloud and record every exchange, credentials redacted |
 | `feint transcript` | read a recording: what to serve next, what a response must look like, what the emulator omits |
 | `feint replay` | reissue a recording at a running emulator and report, operation by operation, what diverged |
+| `feint corpus` | replay every committed corpus against a fresh emulator and fail on a divergence from what the real cloud answered |
 | `feint probe` | drive every mounted route from its API description and check the answers |
 | `feint shapes` | the field trees a real cloud returns, versioned — and what this emulator omits from them |
 | `feint evidence` | write the per-operation evidence record a conformance run earned |
@@ -886,6 +887,18 @@ them comparable. The second ranks what the packs *decline* by how often a real
 client called it anyway, which is the demand a written reason cannot carry.
 Neither prints a value it read: a recording is an account's inventory, and a
 finding names a path, a type and a position.
+
+`feint corpus --check` is what makes that loop a gate. `corpus/` holds the
+recordings of a real Scaleway account, sanitised so this repository may commit
+them (#351, #352), and this verb replays every one of them against a fresh
+emulator on every pull request. It is the only control here that compares an
+answer with the *cloud's*: `mise run conformance` proves a real client accepts
+what the emulator says, which is a different question and a weaker one. Every
+input is a versioned file, so it needs no account, no network and no client
+binary — which is exactly why it can be a gate where `conformance` cannot. Exit
+2 on a divergence the acceptance list does not carry, and exit 1 on a corpus
+that could not be read or that compared nothing: **a corpus replaying nothing is
+a failure, never a pass.**
 
 ---
 

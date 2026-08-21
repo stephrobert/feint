@@ -174,6 +174,13 @@ func writeReplayText(w io.Writer, rep replay.Report) {
 	fmt.Fprintf(w, "%d field(s) knowingly not served, each printed above with its reason\n", rep.Excused)
 	fmt.Fprintf(w, "%d field(s) the recorder redacted, whose type could not be compared\n", rep.Redacted)
 	fmt.Fprintf(w, "%d recorded identifier(s) rebound to the one this emulator minted\n", rep.Rebound)
+	if rep.Ambiguous > 0 {
+		// Printed only when there are any, unlike the counts above: those three
+		// answer "how much was compared" and have to be legible at zero, while
+		// this one answers "did anything need arbitrating" and a zero would add
+		// a line to every run to say nothing happened.
+		fmt.Fprintf(w, "%d recorded value(s) two fields bound differently, resolved by field name\n", rep.Ambiguous)
+	}
 	if rep.Unserved > 0 {
 		fmt.Fprintln(w, "not served is a work item, not a failure: rank it with `feint coverage --observed <recording>`")
 	}

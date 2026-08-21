@@ -35,7 +35,8 @@ It installs three hook types, and the last two are easy to miss: `pre-commit`,
 ### Before you push
 
 The `pre-push` hook runs `mise run prepush`: `check`, `docs:check`,
-`drift:check`, `shapes:check`, `falsify:selftest` and `falsify:lint`.
+`drift:check`, `shapes:check`, `corpus:check`, `falsify:selftest` and
+`falsify:lint`.
 Deterministic, offline, seconds. It is what a pull request will refuse without
 ever depending on a runner's weather.
 

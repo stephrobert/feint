@@ -588,6 +588,23 @@ and `feint shapes` read it unchanged — with every value replaced.
 | the word that named the client in the User-Agent | the rest of the User-Agent |
 | what a pack vouches for (`emulator.Vocabulary`) and what the contract enumerates | everything else |
 
+### And something replays it, on every pull request
+
+A corpus nothing replays is a museum piece, so `feint corpus --check` replays
+every file of `corpus/` against a fresh emulator, in `mise run prepush` and in
+`.github/workflows/go.yml` (#353). It is the only control in this repository
+that compares an answer with the **cloud's**: `mise run conformance` proves a
+real client *accepts* what the emulator says, and cannot prove more, because the
+cloud is not there.
+
+It is a gate where `conformance` cannot be one for exactly the reason the
+sanitisation exists: every input is a committed file, so it needs no account, no
+network and no client binary, and it takes thirty milliseconds. Exit 2 on a
+divergence `corpus/accepted.json` does not carry, and exit 1 on a corpus that
+could not be read or that compared nothing — a corpus replaying nothing is a
+failure, never a pass. `corpus/README.md` carries the verdicts, the acceptance
+list and how a corpus ages.
+
 ### Why it still replays
 
 Because the replay already rebinds (above). A transcript whose identifiers are

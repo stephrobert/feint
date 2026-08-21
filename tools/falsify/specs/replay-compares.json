@@ -46,8 +46,8 @@
     {
       "label": "a recorded identifier is no longer rebound, so every read of a fresh emulator addresses an object that does not exist and the identity case is unreachable",
       "file": "internal/replay/replay.go",
-      "find": "\t\tif to, bound := b.to[seg]; bound {",
-      "replace": "\t\tif to, bound := b.to[seg]; bound && false {",
+      "find": "\t\tif to, bound := b.resolve(\"\", seg); bound {",
+      "replace": "\t\tif to, bound := b.resolve(\"\", seg); bound && false {",
       "test": "TestARecordedIdentifierIsReboundBeforeTheRequestGoesOut"
     },
     {

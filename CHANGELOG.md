@@ -83,6 +83,69 @@ what this project is judged on: **a response shape a client can observe**, and
   transition takes lives in a pack's lifecycle, not in front of a handler, and
   is not folded in.
 
+- **The committed corpus is replayed on every pull request** (#353). `feint
+  corpus --check`, `mise run corpus:check`, in `prepush` and in
+  `.github/workflows/go.yml`. It replays every file of `corpus/` against an
+  emulator of its own and fails on a divergence from what the real cloud
+  answered. Thirty milliseconds, offline, no credential and no client binary,
+  because every input is a versioned file — which is exactly why it can be a
+  gate where `conformance` cannot: a hook that fails on an absent binary teaches
+  `--no-verify`, and that disarms every other hook at once.
+
+  **This is the first control here that compares an answer with the cloud's.**
+  `mise run conformance` proves a real client *accepts* what this emulator says,
+  and cannot prove the answer is the one the cloud would have given, because the
+  cloud is not there. `shapes --check` compares field trees; a corpus carries the
+  status, the order and the sequence as well.
+
+  **Three verdicts, never blurred.** A divergence the acceptance list does not
+  carry is exit 2. An operation no route serves is printed and never counted —
+  the day it fails a build is the day somebody stops recording. A corpus that
+  could not be read, or that compared nothing, is exit 1: an empty file, an
+  empty directory and a file whose every exchange is unserved are each red with
+  their own message. **A corpus that replays nothing is a failure, never a
+  pass** — this repository has shipped the other shape twice, in the network
+  conformance suite and in five checks of `tools/ui/check-page.py`.
+
+  **`corpus/accepted.json`**, on the model of `tools/compat/accepted.json`,
+  carries the eight divergences of the first run with their reason and the issue
+  that retires them (#355), plus the date each file was recorded. Both halves are
+  held: an entry that excuses nothing fails the gate, so a fix cannot leave its
+  exemption behind, and a corpus file nobody dated fails it too.
+
+  **How a corpus ages: it warns, and never fails.** A gate that fails because the
+  *cloud* moved is a gate somebody disables, and this one holds only one side of
+  the comparison — it can say the emulator and the recording disagree, never
+  which of the two changed. Failing on age would assert exactly what it cannot
+  measure; #359 is the half that can arbitrate. The horizon is 180 days, in a
+  committed file, and the warning names the file, its age and the re-recording
+  procedure.
+
+- **`feint replay` binds a recorded identifier under the field name it was seen
+  at** (#353). The corpus surfaced a recording the previous binding could not
+  represent: on a Scaleway account with one project, `project_id` and
+  `organization_id` are the *same string*, so one recorded value had two
+  candidate answers and a map from value to value could hold only one. Which one
+  was decided by Go's randomised map iteration — six replays of
+  `corpus/scaleway/scw-cli.jsonl` against six fresh emulators graded
+  `vpc/v2/API.ListPrivateNetworks` divergent three times and matched three
+  times, and when the organisation won, the create filed its network under a
+  project the unfiltered list does not cover. A divergence the replay had
+  manufactured itself.
+
+  Bindings are now scoped to the field name they were observed under, so
+  `project_id` resolves to the project this emulator minted and
+  `organization_id` to the organisation, and the walk that learns them is
+  sorted, so a value with no field to scope it — a path segment — resolves the
+  same way on every run. The unscoped map remains as the fallback, which is what
+  keeps a path rebound at all. A run now reports how many recorded values two
+  fields bound differently, rather than resolving them in silence. The verdict on
+  the committed corpus went from "8 or 9" to 8 on every run of eight.
+
+- **The frozen CLI surface moves to version 9** (#353): the verb `corpus`, with
+  `--check`, `--dir` and `--accepted`. An addition — nothing was removed, no exit
+  code moved, and a pipeline keyed on version 8 keeps working.
+
 - **`feint replay` reissues a recording here and says what diverged** (#73).
   `feint replay run.jsonl --endpoint http://127.0.0.1:4599` takes every recorded
   request, sends it to a running emulator, and reports operation by operation.

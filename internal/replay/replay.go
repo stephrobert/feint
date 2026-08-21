@@ -180,6 +180,13 @@ type Report struct {
 	// nothing on a transcript full of creates has not followed the causality
 	// it claims to.
 	Rebound int `json:"rebound"`
+	// Ambiguous is how many recorded values two different field names bound to
+	// two different answers — project_id and organization_id spelled the same
+	// on the account #352 recorded. Reported rather than silently resolved: it
+	// is the count of places where the field name, and not the value, decided
+	// what the request carried, and a reader is entitled to know the recording
+	// said less than the replay needed.
+	Ambiguous int `json:"ambiguous"`
 }
 
 // Options is what a run needs.
@@ -243,7 +250,19 @@ func Run(ctx context.Context, exs []trace.Exchange, opt Options) (Report, error)
 		rep.Results = append(rep.Results, res)
 	}
 	rep.Rebound = b.count()
+	rep.Ambiguous = b.ambiguities()
 	return rep, nil
+}
+
+// leafField is the JSON key an invariant's path ends at, which is the field
+// name its values were learned under. "server.public_ips[].id" is a sequence of
+// values the recording carried at "id", so that is the scope to resolve them
+// in — the same reasoning applyQuery uses for a parameter name.
+func leafField(path string) string {
+	if i := strings.LastIndex(path, "."); i >= 0 {
+		path = path[i+1:]
+	}
+	return strings.TrimSuffix(path, "[]")
 }
 
 // checked counts the declared comparisons one exchange actually ran, per kind.
@@ -278,7 +297,7 @@ func replayOne(ctx context.Context, x *trace.Exchange, seq int, b *bindings, opt
 	res.Provider = mounted.Provider
 
 	if x.Req != nil && x.Req.Body != nil {
-		body, err := encodeBody(b.applyValue(x.Req.Body))
+		body, err := encodeBody(b.applyValue("", x.Req.Body))
 		if err != nil {
 			return res, checked{}, fmt.Errorf("line %d: encode the recorded request body: %w", seq, err)
 		}
@@ -315,7 +334,7 @@ func replayOne(ctx context.Context, x *trace.Exchange, seq int, b *bindings, opt
 	// one answer, and that case has no fixture here.
 	findings, evaluated := compare(x, resp.StatusCode, got, mounted.Route.Operation, b, opt)
 	res.Findings = findings
-	b.learn(x.Res.Body, got)
+	b.learn("", x.Res.Body, got)
 	res.Verdict = Matched
 	for _, f := range res.Findings {
 		if f.Kind != KindExcused && f.Kind != KindRedacted {
@@ -533,7 +552,7 @@ func compareInvariants(want, got any, operation string, b *bindings, opt Options
 			// unevaluated rather than passed: see reorder.
 			mapped := make([]any, len(wantSeq))
 			for i, v := range wantSeq {
-				mapped[i] = b.applyValue(v)
+				mapped[i] = b.applyValue(leafField(inv.Path), v)
 			}
 			positions, ran := reorder(mapped, gotSeq)
 			if ran {
@@ -702,30 +721,96 @@ func jsonType(v any) string {
 
 // bindings maps a value the recording carries to the one this emulator minted
 // in its place.
-type bindings struct{ to map[string]string }
+//
+// # One recorded value can mean two things, and the field name is what says which
+//
+// A recording is not a set of globally unique identifiers. On the account #352
+// recorded, project_id and organization_id are the *same string* — a Scaleway
+// account with one project spells both the same way — while this emulator mints
+// two different ones. So one recorded value has two candidate bindings, and a
+// map from value to value cannot hold both.
+//
+// The first version held only [bindings.to] and walked a Go map to fill it,
+// which decided the question by iteration order: six replays of
+// corpus/scaleway/scw-cli.jsonl against six fresh emulators graded
+// vpc/v2/API.ListPrivateNetworks divergent three times and matched three times
+// (corpus/README.md records the run). When the organisation won, the create
+// filed its network under a project the unfiltered list does not cover.
+//
+// Two changes, and they answer two different questions:
+//
+//   - [bindings.byField] scopes a binding to the field name it was observed
+//     under, so a recorded value substituted into project_id gets the project
+//     this emulator minted and the same value substituted into organization_id
+//     gets the organisation. This is reading the recording's own labelling
+//     rather than guessing, and it is what makes a red run a defect.
+//   - the map walk in [bindings.learn] is sorted, so a value with no field to
+//     scope it — a path segment, a query parameter whose name never appeared as
+//     a body field — resolves the same way on every run. Determinism first,
+//     because a gate that answers differently on two identical inputs is a gate
+//     that gets disarmed the first time it seems to lie.
+//
+// TestOneRecordedValueUnderTwoFieldsBindsByFieldName and
+// TestTheSameRecordingBindsTheSameWayOnEveryRun fail without them.
+type bindings struct {
+	// to maps a recorded value to the one this emulator minted, ignoring where
+	// it was seen. It is the fallback for the places that carry no field name —
+	// a path segment, and a query parameter no body field ever named.
+	to map[string]string
+	// byField is the same map, scoped to the field name the pair was observed
+	// under: byField["project_id"]["<recorded>"] is what this emulator answered
+	// for project_id.
+	byField map[string]map[string]string
+	// ambiguous holds the recorded values that two field names bound
+	// differently. Counted and reported rather than hidden: it is the honest
+	// name for "this recording says less than the replay needs", and a run that
+	// resolved one by field name should be able to say so.
+	ambiguous map[string]struct{}
+}
 
-func newBindings() *bindings { return &bindings{to: map[string]string{}} }
+func newBindings() *bindings {
+	return &bindings{
+		to:        map[string]string{},
+		byField:   map[string]map[string]string{},
+		ambiguous: map[string]struct{}{},
+	}
+}
 
 func (b *bindings) count() int { return len(b.to) }
 
+func (b *bindings) ambiguities() int { return len(b.ambiguous) }
+
 // learn walks the recorded answer and this emulator's beside it, and remembers
-// every identifier that moved.
+// every identifier that moved, under the field name it moved at.
 //
 // Only a differing pair binds, and only when the recorded side looks like an
 // identifier. Both halves matter: a value the emulator answers identically
 // needs no rebinding, and a state name or a status message that differs is not
 // something a later request refers back to — substituting one would corrupt the
 // request rather than repair it.
-func (b *bindings) learn(want, got any) {
+//
+// field is the name of the JSON key this value sits under, "" at the root. A
+// list passes its own field down to each element, because the elements of
+// public_ips are still public_ips.
+func (b *bindings) learn(field string, want, got any) {
 	switch w := want.(type) {
 	case map[string]any:
 		g, ok := got.(map[string]any)
 		if !ok {
 			return
 		}
-		for k, nested := range w {
+		// Sorted rather than ranged, and this line is the determinism. Go
+		// randomises map iteration on purpose, so the unsorted form let the
+		// order of two sibling keys decide which of them claimed a value both
+		// carried — the "8 or 9 divergences" of corpus/README.md.
+		keys := make([]string, 0, len(w))
+		for k := range w {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
 			if peer, present := g[k]; present {
-				b.learn(nested, peer)
+				b.learn(k, w[k], peer)
 			}
 		}
 	case []any:
@@ -735,7 +820,7 @@ func (b *bindings) learn(want, got any) {
 		}
 		for i := range w {
 			if i < len(g) {
-				b.learn(w[i], g[i])
+				b.learn(field, w[i], g[i])
 			}
 		}
 	case string:
@@ -743,10 +828,34 @@ func (b *bindings) learn(want, got any) {
 		if !ok || g == w || !looksMinted(w) {
 			return
 		}
-		if _, bound := b.to[w]; !bound {
+		scoped := b.byField[field]
+		if scoped == nil {
+			scoped = map[string]string{}
+			b.byField[field] = scoped
+		}
+		if _, bound := scoped[w]; !bound {
+			scoped[w] = g
+		}
+		if previous, bound := b.to[w]; !bound {
 			b.to[w] = g
+		} else if previous != g {
+			b.ambiguous[w] = struct{}{}
 		}
 	}
+}
+
+// resolve answers what this emulator minted for a recorded value, preferring
+// what it minted for that value *under that field name*.
+//
+// The fallback is not a second guess, it is the case where there is no field to
+// ask about: a path segment, or a query parameter whose name no body field
+// carried.
+func (b *bindings) resolve(field, value string) (string, bool) {
+	if to, bound := b.byField[field][value]; bound {
+		return to, true
+	}
+	to, bound := b.to[value]
+	return to, bound
 }
 
 // applyPath substitutes bound identifiers segment by segment. Whole segments
@@ -758,14 +867,14 @@ func (b *bindings) applyPath(path string) string {
 	}
 	segments := strings.Split(path, "/")
 	for i, seg := range segments {
-		if to, bound := b.to[seg]; bound {
+		if to, bound := b.resolve("", seg); bound {
 			segments[i] = to
 			continue
 		}
 		// Exoscale writes the verb in the identifier's own segment
 		// ("{id}:start"), so the identifier is the part before the colon.
 		if id, action, found := strings.Cut(seg, ":"); found {
-			if to, bound := b.to[id]; bound {
+			if to, bound := b.resolve("", id); bound {
 				segments[i] = to + ":" + action
 			}
 		}
@@ -777,6 +886,11 @@ func (b *bindings) applyPath(path string) string {
 // string byte-identical when none is bound — the same reason the proxy's
 // redaction does: re-encoding through url.Values sorts and re-escapes, and the
 // request that goes out would then not be the one that was recorded.
+//
+// The parameter name is the field name: `?project_id=<recorded>` asks the same
+// question a body field project_id asks, and Scaleway's own list filters are
+// spelled exactly like the body fields they filter on. Resolving them globally
+// is what sent one list to the organisation and made the verdict flap.
 func (b *bindings) applyQuery(raw string) string {
 	if raw == "" || len(b.to) == 0 {
 		return raw
@@ -788,7 +902,7 @@ func (b *bindings) applyQuery(raw string) string {
 		if !hasValue {
 			continue
 		}
-		if to, bound := b.to[value]; bound {
+		if to, bound := b.resolve(name, value); bound {
 			pairs[i] = name + "=" + to
 			changed = true
 		}
@@ -799,9 +913,10 @@ func (b *bindings) applyQuery(raw string) string {
 	return strings.Join(pairs, "&")
 }
 
-// applyValue substitutes bound identifiers in a decoded request body. Whole
-// string values only, for the reason applyPath keeps to whole segments.
-func (b *bindings) applyValue(v any) any {
+// applyValue substitutes bound identifiers in a decoded request body, under the
+// field name each value sits at. Whole string values only, for the reason
+// applyPath keeps to whole segments.
+func (b *bindings) applyValue(field string, v any) any {
 	if len(b.to) == 0 {
 		return v
 	}
@@ -809,17 +924,17 @@ func (b *bindings) applyValue(v any) any {
 	case map[string]any:
 		out := make(map[string]any, len(value))
 		for k, nested := range value {
-			out[k] = b.applyValue(nested)
+			out[k] = b.applyValue(k, nested)
 		}
 		return out
 	case []any:
 		out := make([]any, len(value))
 		for i, item := range value {
-			out[i] = b.applyValue(item)
+			out[i] = b.applyValue(field, item)
 		}
 		return out
 	case string:
-		if to, bound := b.to[value]; bound {
+		if to, bound := b.resolve(field, value); bound {
 			return to
 		}
 		return value

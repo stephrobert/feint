@@ -84,6 +84,24 @@ depends = ["build"]
 # with the field list and the exit-code contract (0 ok, 1 error, 2 drift).
 run = "./feint shapes --check"
 
+[tasks."corpus:check"]
+description = "Replay every committed corpus and fail (exit 2) where this emulator answers differently from the real cloud"
+depends = ["build"]
+# The only control in this repository that compares an answer with the *cloud's*.
+# `conformance` proves a real client accepts what the emulator says, which is a
+# different and weaker question, and it cannot be more than that because the
+# cloud is not there. corpus/ is (#351, #352), and this replays it.
+#
+# Offline, no credential, no client binary, thirty milliseconds: every input is a
+# versioned file. That is what lets it be a gate where `conformance` deliberately
+# is not — a hook that fails on an absent binary teaches `--no-verify`, which
+# disarms every other hook at once.
+#
+# Exit 2 is a divergence the acceptance list does not carry; exit 1 is a corpus
+# that could not be read, or that compared nothing. The second is the one that
+# gets forgotten: a corpus replaying nothing is a failure, never a pass.
+run = "./feint corpus --check"
+
 # ---- Upstream tracking (the anti-drift loop) --------------------------------------------------
 [tasks."upstream:sync"]
 description = "Fetch the upstream SDKs and API descriptions the scan and the contracts read"
@@ -424,7 +442,7 @@ run = "python3 tools/falsify/falsify.py"
 
 [tasks.prepush]
 description = "Everything a pull request will fail on that costs seconds and needs no client"
-depends = ["check", "docs:check", "drift:check", "shapes:check", "falsify:selftest", "falsify:lint", "release:surface"]
+depends = ["check", "docs:check", "drift:check", "shapes:check", "corpus:check", "falsify:selftest", "falsify:lint", "release:surface"]
 # What this is, and what it deliberately is not.
 #
 # Each of these is deterministic, offline, and takes seconds: they can be a hook

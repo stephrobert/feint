@@ -1133,6 +1133,177 @@
           ]
         }
       }
+    },
+    {
+      "schema_version": 9,
+      "content": {
+        "exit_codes": {
+          "drift": 2,
+          "error": 1,
+          "ok": 0
+        },
+        "verbs": {
+          "catalog": [
+            "--format"
+          ],
+          "clean": [
+            "--vm"
+          ],
+          "corpus": [
+            "--accepted",
+            "--check",
+            "--dir"
+          ],
+          "coverage": [
+            "--artefact",
+            "--baseline",
+            "--contract",
+            "--fail-on-unknown",
+            "--format",
+            "--observed",
+            "--products",
+            "--provider",
+            "--sdk",
+            "--write-baseline"
+          ],
+          "docs": [
+            "--check",
+            "--client-pins",
+            "--confidence",
+            "--contracts",
+            "--coverage",
+            "--file",
+            "--install",
+            "--limits",
+            "--proved",
+            "--routes",
+            "--screenshots",
+            "--ui-manifest",
+            "--workflow"
+          ],
+          "doctor": [
+            "--addr",
+            "--vm"
+          ],
+          "env": [
+            "--client",
+            "--endpoint",
+            "--shell",
+            "--unset"
+          ],
+          "evidence": [
+            "--allow-narrowing",
+            "--contracts",
+            "--endpoint",
+            "--join",
+            "--out",
+            "--shapes",
+            "--suites"
+          ],
+          "images": [
+            "--check",
+            "--only",
+            "--vm"
+          ],
+          "logs": [
+            "--addr",
+            "-f",
+            "-n"
+          ],
+          "probe": [
+            "--contracts",
+            "--endpoint",
+            "--provider"
+          ],
+          "proxy": [
+            "--addr",
+            "--expose-to-network",
+            "--forward",
+            "--intercept",
+            "--max-body",
+            "--provider",
+            "--queue",
+            "--record",
+            "--upstream"
+          ],
+          "replay": [
+            "--endpoint",
+            "--format",
+            "--timeout"
+          ],
+          "restart": [
+            "--addr",
+            "--timeout"
+          ],
+          "serve": [
+            "--addr",
+            "--cleanup",
+            "--contracts",
+            "--coverage",
+            "--expose-to-network",
+            "--log-level",
+            "--shapes",
+            "--state",
+            "--vm"
+          ],
+          "shapes": [
+            "--check",
+            "--dir",
+            "--dry-run",
+            "--profile",
+            "--provider",
+            "--record"
+          ],
+          "snapshot list": [
+            "--format"
+          ],
+          "snapshot load": [
+            "--addr"
+          ],
+          "snapshot save": [
+            "--addr",
+            "--force"
+          ],
+          "start": [
+            "--addr",
+            "--cleanup",
+            "--contracts",
+            "--detach",
+            "--foreground",
+            "--log-level",
+            "--state",
+            "--timeout",
+            "--vm"
+          ],
+          "status": [
+            "--addr",
+            "--coverage",
+            "--format"
+          ],
+          "stop": [
+            "--addr",
+            "--timeout"
+          ],
+          "transcript": [
+            "--against",
+            "--contract",
+            "--format",
+            "--sanitise",
+            "--shape"
+          ],
+          "ui": [
+            "--addr",
+            "--print"
+          ],
+          "version": [
+            "--check"
+          ],
+          "wait": [
+            "--addr",
+            "--timeout"
+          ]
+        }
+      }
     }
   ]
 }

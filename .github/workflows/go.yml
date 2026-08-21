@@ -118,6 +118,22 @@ jobs:
           go build -o feint ./cmd/feint
           ./feint shapes --check
 
+      # And it answers what a real cloud answered. shapes/*.json above holds the
+      # field trees a cloud returns; corpus/ holds whole exchanges of a real
+      # account — the status, the order and the sequence too (#351, #352, #353).
+      # Replaying it is the only control here that compares an answer with the
+      # cloud's: `conformance` proves a real client *accepts* what this emulator
+      # says, which is a weaker question, and it cannot be more because the
+      # cloud is not there.
+      #
+      # On every pull request, forks included, because every input is a
+      # versioned file: no credential, no network, no `scw`, no Terraform, and
+      # thirty milliseconds. Exit 2 is a divergence the acceptance list does not
+      # carry; exit 1 is a corpus that could not be read or that compared
+      # nothing — a corpus replaying nothing is a failure, never a pass.
+      - name: The emulator answers what a real cloud answered
+        run: ./feint corpus --check
+
       # Fuzz the one input feint does not control: the JSON body a client posts. A panic in a
       # handler takes down every provider sharing the process, so a crasher must surface in CI
       # rather than in someone's terminal. Crashers land in testdata/fuzz/ and become permanent

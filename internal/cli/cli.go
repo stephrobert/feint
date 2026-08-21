@@ -108,11 +108,18 @@ const (
 // own output. Both are additions to one existing verb, nothing was removed and
 // no exit code moved.
 //
+// Version 9 adds the verb `corpus`, with --check, --dir and --accepted (#353):
+// the committed corpora replayed against a fresh emulator on every pull
+// request, offline. An addition, and it reuses the exit codes rule 9 already
+// fixes — 2 for a divergence from the recorded cloud, 1 for a corpus that could
+// not be read or that compared nothing. A pipeline keyed on version 8 keeps
+// working.
+//
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 8
+const cliSurfaceVersion = 9
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -143,6 +150,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return transcriptCommand(args[2:], stdout, stderr)
 	case "replay":
 		return replayCommand(args[2:], stdout, stderr)
+	case "corpus":
+		return corpusCommand(args[2:], stdout, stderr)
 	case "shapes":
 		return shapesCommand(args[2:], stdout, stderr)
 	case "evidence":
@@ -348,6 +357,18 @@ Usage:
                     is printed: a finding names a path, a type and a position.
                     Exit 2 on a divergence; an operation no route serves is
                     reported and never counted against the verdict.
+
+  feint corpus     --check [--dir corpus] [--accepted corpus/accepted.json]
+                    Replay every committed corpus against a fresh emulator and
+                    fail on a divergence from what the real cloud answered. The
+                    gate conformance cannot be: every input is a versioned
+                    file, so it needs no account, no network and no client
+                    binary. Exit 2 on a divergence the acceptance list does not
+                    carry, 1 on a corpus that could not be read or that compared
+                    nothing — a corpus replaying nothing is a failure, never a
+                    pass. An ageing recording warns and never fails: this gate
+                    holds one side of the comparison and cannot tell a cloud
+                    that moved from an emulator that broke.
 
   feint shapes     <recording.jsonl> --provider <name> [--dir shapes] [--dry-run]
                    [--record [--profile <name>]] [--check]

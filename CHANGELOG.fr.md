@@ -88,6 +88,73 @@ change ni l'un ni l'autre a sa place dans `git log`.
   asynchrone émulée vit dans le cycle de vie d'un pack, pas devant un handler, et
   n'est pas replié ici.
 
+- **Le corpus committé est rejoué à chaque pull request** (#353). `feint corpus
+  --check`, `mise run corpus:check`, dans `prepush` et dans
+  `.github/workflows/go.yml`. Il rejoue chaque fichier de `corpus/` contre un
+  émulateur qui lui est propre et échoue sur une divergence avec ce que le vrai
+  cloud a répondu. Trente millisecondes, hors ligne, sans credential ni binaire
+  client, parce que toutes ses entrées sont des fichiers versionnés : c'est
+  précisément ce qui lui permet d'être un gate là où `conformance` ne peut pas
+  l'être, un crochet qui échoue sur un binaire absent enseignant `--no-verify`,
+  qui désarme tous les autres d'un coup.
+
+  **C'est le premier contrôle d'ici qui compare une réponse à celle du cloud.**
+  `mise run conformance` prouve qu'un vrai client **accepte** ce que l'émulateur
+  répond, et ne peut pas prouver que cette réponse est celle que le cloud aurait
+  donnée, puisque le cloud n'est pas là. `shapes --check` compare des arbres de
+  champs ; un corpus porte aussi le statut, l'ordre et la séquence.
+
+  **Trois verdicts, jamais confondus.** Une divergence que la liste
+  d'acceptation ne porte pas vaut 2. Une opération qu'aucune route ne sert est
+  rapportée et jamais comptée : le jour où elle fait échouer un build est le
+  jour où quelqu'un arrête d'enregistrer. Un corpus illisible, ou qui n'a rien
+  comparé, vaut 1 : un fichier vide, un répertoire vide et un fichier dont
+  chaque échange est non servi sont rouges, chacun avec son propre message. **Un
+  corpus qui ne rejoue rien est un échec, jamais un succès** : ce dépôt a livré
+  l'autre forme deux fois, dans la suite réseau et dans cinq contrôles de
+  `tools/ui/check-page.py`.
+
+  **`corpus/accepted.json`**, sur le modèle de `tools/compat/accepted.json`,
+  porte les huit divergences du premier passage avec leur raison et l'issue qui
+  les retire (#355), ainsi que la date d'enregistrement de chaque fichier. Les
+  deux moitiés sont tenues : une entrée qui n'excuse rien fait échouer le gate,
+  donc un correctif ne peut pas laisser son exemption derrière lui, et un
+  fichier de corpus que personne n'a daté le fait échouer aussi.
+
+  **Comment un corpus vieillit : il avertit, il n'échoue jamais.** Un gate qui
+  échoue parce que le **cloud** a bougé est un gate qu'on désactive, et
+  celui-ci ne tient qu'un côté de la comparaison : il peut dire que l'émulateur
+  et l'enregistrement divergent, jamais lequel des deux a changé. Échouer sur
+  l'âge affirmerait exactement ce qu'il ne mesure pas ; #359 est la moitié qui
+  peut trancher. L'horizon vaut 180 jours, dans un fichier committé, et
+  l'avertissement nomme le fichier, son âge et la procédure de réenregistrement.
+
+- **`feint replay` lie un identifiant enregistré sous le nom de champ où il a
+  été vu** (#353). Le corpus a fait apparaître un enregistrement que la liaison
+  précédente ne savait pas représenter : sur un compte Scaleway à un seul
+  projet, `project_id` et `organization_id` sont la **même chaîne**, donc une
+  valeur enregistrée avait deux réponses candidates et une table de valeur à
+  valeur n'en gardait qu'une. Le vainqueur était décidé par le parcours de map
+  aléatoire de Go : six rejeux de `corpus/scaleway/scw-cli.jsonl` contre six
+  émulateurs neufs ont classé `vpc/v2/API.ListPrivateNetworks` divergente trois
+  fois et conforme trois fois, et quand l'organisation gagnait, la création
+  déposait son réseau dans un projet que la liste non filtrée ne couvre pas.
+  Une divergence que le rejeu fabriquait lui-même.
+
+  Les liaisons sont désormais portées par le nom de champ où elles ont été
+  observées, donc `project_id` se résout vers le projet que cet émulateur a
+  frappé et `organization_id` vers l'organisation, et le parcours qui les
+  apprend est trié, de sorte qu'une valeur sans champ pour la porter, un segment
+  de chemin, se résout de la même façon à chaque exécution. La table non portée
+  reste le recours, et c'est elle qui garde un chemin relié. Une exécution
+  rapporte maintenant combien de valeurs enregistrées deux champs ont liées
+  différemment, au lieu de les arbitrer en silence. Le verdict sur le corpus
+  committé est passé de « 8 ou 9 » à 8 sur huit exécutions.
+
+- **La surface CLI gelée passe en version 9** (#353) : le verbe `corpus`, avec
+  `--check`, `--dir` et `--accepted`. Un ajout, rien n'a été retiré, aucun code
+  de sortie n'a bougé, et un pipeline calé sur la version 8 continue de marcher.
+
 - **`feint replay` rejoue un enregistrement ici et dit ce qui diverge** (#73).
   `feint replay run.jsonl --endpoint http://127.0.0.1:4599` reprend chaque
   requête enregistrée, l'envoie à un émulateur qui tourne, et rapporte opération
