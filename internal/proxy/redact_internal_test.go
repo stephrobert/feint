@@ -2,12 +2,15 @@ package proxy
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/stephrobert/feint/internal/core/sshkey"
 	"github.com/stephrobert/feint/internal/trace"
 )
 
@@ -288,4 +291,164 @@ func TestARedactedNullStaysNull(t *testing.T) {
 	if out["name"] != "a-volume" {
 		t.Errorf("an ordinary field was redacted: %#v", out["name"])
 	}
+}
+
+// An OpenSSH public key under a name the denylist matches is written down.
+//
+// `public_key` matches "key", and the substitution that follows is not a
+// cosmetic loss: [sshkey.Parse] refuses "REDACTED", so the create the corpus
+// recorded answered 400 where the cloud answered 200, and the read and the
+// delete of that key went with it. Five of the eight divergences #352 recorded
+// were that one value, and none of them was a defect of the emulator (#355).
+//
+// The exemption is keyed on the value's own format, never on the field's name:
+// a key line names its algorithm out of a closed set and carries base64 and
+// nothing else, which is a positive identification rather than a guess about
+// what a name suggests.
+func TestAPublicKeyUnderACredentialNameIsWrittenDown(t *testing.T) {
+	key := publicKeyLine(t)
+	body := map[string]any{
+		"name":       "feint-corpus-key",
+		"public_key": key,
+		"ssh_key":    key,
+		// Under an ordinary container, because a *container* named for a
+		// credential is still replaced wholesale and that rule does not move:
+		// see TestASensitiveContainerIsStillReplacedWholesale.
+		"item": map[string]any{"public_key": key},
+	}
+	out, ok := redactValue(body).(map[string]any)
+	if !ok {
+		t.Fatalf("redactValue did not answer an object")
+	}
+	for _, at := range []string{"public_key", "ssh_key"} {
+		if out[at] != key {
+			t.Errorf("%s came back %#v, want the key verbatim: a public key is the one thing "+
+				"called \"key\" that exists to be published, and replacing it makes the "+
+				"transcript unreplayable", at, out[at])
+		}
+	}
+	nested, isObject := out["item"].(map[string]any)
+	if !isObject {
+		t.Fatalf("an ordinary object holding a public key was replaced wholesale: %#v", out["item"])
+	}
+	if nested["public_key"] != key {
+		t.Errorf("the nested public key came back %#v, want it verbatim", nested["public_key"])
+	}
+}
+
+// THE SECOND DIRECTION, at the container. A list or an object under a
+// credential-bearing name is still replaced whole, whatever its elements look
+// like.
+//
+// This is the rule the exemption above must not have widened, and the cost is
+// stated rather than hidden: `ssh_keys` matches "key", so the answer of
+// ListSSHKeys reaches a transcript as one string and its shape is not graded.
+// That is a loss of coverage, and it is a smaller loss than descending into
+// every object somebody named "credentials" and keeping the leaves whose own
+// names happen to look harmless.
+func TestASensitiveContainerIsStillReplacedWholesale(t *testing.T) {
+	key := publicKeyLine(t)
+	body := map[string]any{
+		"ssh_keys":    []any{map[string]any{"public_key": key}},
+		"credentials": map[string]any{"public_key": key, "id": "not-a-secret-but-not-vouched-for"},
+	}
+	out, ok := redactValue(body).(map[string]any)
+	if !ok {
+		t.Fatalf("redactValue did not answer an object")
+	}
+	for _, at := range []string{"ssh_keys", "credentials"} {
+		if out[at] != Placeholder {
+			t.Errorf("%s came back %#v, want %q: a container named for a credential is "+
+				"replaced whole, and one publishable leaf inside it does not lift that",
+				at, out[at], Placeholder)
+		}
+	}
+}
+
+// THE SECOND DIRECTION. Everything else under a credential-bearing name still
+// goes, and the value's format is what keeps the exemption from being a hole.
+//
+// The five values below are what a loosening would let through: a real secret,
+// a bearer token, an OpenSSH *private* key in the armoured form OpenSSH
+// actually writes, the same armour flattened onto one line so that only a
+// format reader can tell it from a public key, and an object.
+func TestASecretUnderACredentialNameIsStillRedacted(t *testing.T) {
+	armoured := privateKeyArmour(t)
+	body := map[string]any{
+		"secret_key":  "not-a-real-credential-but-shaped-like-one",
+		"auth_token":  "ey.a.token",
+		"private_key": armoured,
+		"ssh_key":     strings.ReplaceAll(armoured, "\n", " "),
+		"api_key":     map[string]any{"secret": "still-a-secret"},
+	}
+	out, ok := redactValue(body).(map[string]any)
+	if !ok {
+		t.Fatalf("redactValue did not answer an object")
+	}
+	for _, at := range []string{"secret_key", "auth_token", "private_key", "ssh_key", "api_key"} {
+		if out[at] != Placeholder {
+			t.Errorf("%s came back %#v, want %q: the exemption is for a value whose format "+
+				"proves it is published, and none of these has that format", at, out[at], Placeholder)
+		}
+	}
+}
+
+// THE SECOND DIRECTION, at the two other doors. A header keeps its allowlist and
+// a query parameter keeps the denylist, whatever the value looks like.
+//
+// A public key travels in neither, and the query is where SigV4 puts a
+// signature: an exemption that reached them would answer "does this value look
+// harmless" at exactly the places where the answer has to be "nobody vouched
+// for this name".
+func TestAPublicKeyOutsideABodyIsStillRedacted(t *testing.T) {
+	key := publicKeyLine(t)
+	x := trace.Exchange{
+		Query: "public_key=" + key,
+		Req:   &trace.Message{Headers: map[string]string{"X-Ssh-Key": key, "X-Consumer": key}},
+	}
+	redactExchange(&x)
+	if x.Query != "public_key="+Placeholder {
+		t.Errorf("the query came back %q, want the parameter redacted: the query is where a "+
+			"presigned signature lives, and it is not a place a public key travels", x.Query)
+	}
+	for name, value := range x.Req.Headers {
+		if value != Placeholder {
+			t.Errorf("header %s came back %q; headers are an allowlist and no key format lifts it", name, value)
+		}
+	}
+}
+
+// publicKeyLine renders a valid OpenSSH public key rather than pasting one.
+//
+// Rendered through internal/core/sshkey for the reason that package exists: the
+// format was written twice here and the copies drifted, so a fixture pasted by
+// hand would be a third copy — and this one has to be exactly what the reader
+// under test accepts, or the test would pass on a string neither side calls a
+// key.
+func publicKeyLine(t *testing.T) string {
+	t.Helper()
+	blob := make([]byte, 0, 4+len("ssh-ed25519")+4+32)
+	blob = append(blob, 0, 0, 0, byte(len("ssh-ed25519")))
+	blob = append(blob, "ssh-ed25519"...)
+	blob = append(blob, 0, 0, 0, 32)
+	blob = append(blob, make([]byte, 32)...)
+	line := "ssh-ed25519 " + base64.StdEncoding.EncodeToString(blob) + " feint-corpus"
+	if !sshkey.Valid(line) {
+		t.Fatalf("the fixture is not a key the emulator's own reader accepts, so this test would prove nothing")
+	}
+	return line
+}
+
+// privateKeyArmour renders the armour OpenSSH puts around a private key, with
+// the label assembled rather than written out: a secret scanner reads a
+// repository line by line and cannot tell a fixture from the real thing, which
+// is exactly the property that makes the armour worth testing against.
+func privateKeyArmour(t *testing.T) string {
+	t.Helper()
+	label := "OPENSSH PRIVATE" + " KEY"
+	armoured := "-----BEGIN " + label + "-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmU=\n-----END " + label + "-----"
+	if sshkey.Valid(armoured) {
+		t.Fatalf("the key reader accepts an armoured private key, which would make the exemption a hole")
+	}
+	return armoured
 }

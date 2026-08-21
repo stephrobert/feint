@@ -418,6 +418,86 @@ change ni l'un ni l'autre a sa place dans `git log`.
   un identifiant de moins que le replay publierait exactement les valeurs dont le
   replay sait qu'elles en sont.
 
+### Corrigé
+
+- **Les huit divergences relevées par le premier corpus Scaleway réel ont
+  disparu, et `corpus/accepted.json` porte une liste d'exemptions vide** (#355).
+  Le gate est entré en les portant, chacune avec #355 écrit à côté ; la règle
+  d'obsolescence a rendu leur suppression obligatoire le jour où l'émulateur a
+  cessé de les produire. Trois causes, et dire laquelle était le travail : un
+  défaut, une limite déclarée, ou l'instrument qui ment sur lui-même.
+
+  **Trois défauts de l'émulateur, dont deux étaient invisibles tant que
+  l'instrument n'était pas réparé.** Le VPC par défaut ne répondait aucune
+  étiquette là où le vrai répond `tags: ["default"]`, mesuré deux fois le
+  2026-08-21, par `scw vpc vpc list` contre un vrai compte fr-par et par
+  l'enregistrement lui-même. `iam/v1alpha1/API.CreateSSHKey` répondait **201
+  là où le fil portait 200**, la même famille que les deux créations `vpc/v2`
+  trouvées à la main par #270, cachée tant que le cycle de vie de la clé ne
+  pouvait pas être rejoué. Et une clé SSH était publiée **avec le commentaire
+  envoyé par le client**, alors que le cloud le retire : une clé créée sur un
+  vrai compte sous la forme `ssh-ed25519 <matériel> feint-corpus-echo` (98
+  octets, trois champs) se relit `ssh-ed25519 <matériel>` (80 octets, deux
+  champs), et le corpus réenregistré porte le même fait vu de l'autre côté :
+  le corps de la requête et la réponse tiennent deux chaînes *différentes* sur
+  `public_key`. L'empreinte ne bouge pas, étant calculée sur le blob décodé et
+  non sur la ligne. Aucun autre contrôle d'ici ne voit ces trois défauts :
+  personne ne lit l'étiquette côté client, `scw` accepte n'importe quel 2xx sans
+  en montrer aucun, et un contrat déclare le *type* de `public_key` et non ce
+  que le cloud y met. Ce dernier point est une **valeur**, que le gate de corpus
+  consigne sans la noter : il est donc affirmé par un test dédié plutôt que
+  laissé à un gate.
+
+  **Cinq constats n'étaient qu'une seule substitution faite par l'enregistreur.**
+  `feint proxy` rédige la valeur sous toute clé JSON dont le *nom* contient
+  `key` : `public_key` arrivait dans la transcription en `REDACTED`,
+  `sshkey.Parse` la refusait, la création répondait 400, et la lecture puis la
+  suppression qui suivaient répondaient 404 pour cette unique raison. **Le cycle
+  de vie d'une clé SSH IAM était inenregistrable.** La rédaction écrit désormais
+  une valeur dont le *format* prouve qu'elle est faite pour être publiée, une
+  ligne de clé publique OpenSSH, lue par le même `internal/core/sshkey` avec
+  lequel les packs authentifient, et rien d'autre n'a bougé. Les en-têtes gardent
+  leur liste blanche, la requête garde sa liste noire (SigV4 y présigne), et un
+  conteneur nommé comme un secret reste remplacé en entier. Ce dernier point
+  coûte de la couverture, et le coût est dit : `ssh_keys` correspond à `key`,
+  donc `ListSSHKeys` arrive dans un corpus sous forme d'une seule chaîne. La
+  distinction n'est pas une préférence : un contrôle par *nom* répond « est-ce
+  que ça ressemble à un secret » et jamais « est-ce que ça n'en est pas un »,
+  ce qui est la raison d'être de la liste blanche des en-têtes ; une *valeur*
+  qui s'identifie elle-même répond directement à la seconde question. Falsifié
+  dans les deux sens, cinq mutations dans
+  `tools/falsify/specs/forward-proxy.json`.
+
+  **Deux constats venaient du rejeu, qui notait un inventaire comme une forme.**
+  `fr-par-1` publie 136 types commerciaux et ce catalogue en stocke 18
+  délibérément : 127 entrées d'une table dont les clés sont des *données* se
+  lisaient comme 127 champs manquants, alors que `feint shapes --check` tenait
+  la règle inverse sur le même artefact et n'en rapportait aucun. La règle vit
+  désormais une seule fois, dans `transcript.DataKeyed`, et les deux gates la
+  lisent : une clé d'une telle table est une valeur, et les valeurs ne sont
+  comparées que là où un pack déclare un invariant. La reconnaissance demande
+  trois enfants objets ou plus aux jeux de clés identiques, donc elle
+  sous-reconnaît plutôt que l'inverse, et un champ d'une entrée que les deux
+  côtés portent reste comparé.
+
+  **Un constat était une décision écrite dans le mauvais dialecte.** Le pack
+  argumentait la borne `per_volume_constraint.l_ssd` absente auprès du gate qui
+  joint sur la graphie du catalogue et auprès d'aucun autre : le rejeu, qui joint
+  sur le nom d'opération monté, ne rencontrait donc aucun refus et comptait neuf
+  omissions délibérées comme neuf divergences. Elle est maintenant écrite dans
+  les deux graphies. Les 118 types non stockés ne sont volontairement **pas**
+  déclinés de la même façon : le seul chemin qui les nomme (`servers.*`) nomme
+  aussi les 18 qui sont servis, et le gate d'omission publie un tel refus comme
+  obsolète, ce qui fait échouer `tools/conformance/score.sh`. Mesuré, pas
+  raisonné.
+
+  `corpus/scaleway/scw-cli.jsonl` a été réenregistré le 2026-08-21 à travers
+  l'enregistreur corrigé, contre le même vrai compte fr-par et selon les règles
+  de `corpus/README.md` : inventaire avant, objets gratuits seulement, tout
+  nommé `feint-corpus-*`, chaque destruction prouvée par une lecture à
+  l'intérieur de l'enregistrement, et un inventaire de clôture identique octet
+  pour octet à celui d'ouverture sur les sept familles de ressources.
+
 ## [0.10.0] - 2026-08-20
 
 ### Ajouté

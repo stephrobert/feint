@@ -542,3 +542,53 @@ func findingOf(rep replay.Report, kind replay.FindingKind) replay.Finding {
 	}
 	return replay.Finding{}
 }
+
+// An entry of a dictionary the recording carries and this emulator does not is
+// a value, not a missing field.
+//
+// The subject is the commercial-type catalogue: fr-par-1 publishes 136 types
+// and the emulated one serves 18 on purpose. Read as fields, those 118 were 127
+// of the 136 findings the first real corpus produced on that operation, and
+// they said one thing 127 times while burying what the rest of the file had to
+// say. `feint shapes --check` already held this rule and this reader did not,
+// which is the disagreement transcript.DataKeyed now settles for both.
+//
+// Both halves are asserted, because a rule that only removed findings would be
+// indistinguishable from switching the comparison off: a field of an entry both
+// sides carry is still compared.
+func TestAnInventoryKeyTheRecordingHasIsNotAMissingField(t *testing.T) {
+	recorded := `{"server":{"id":"` + recordedID + `","name":"web-1","commercial_type":"DEV1-S",` +
+		`"types":{` +
+		`"DEV1-S":{"ncpus":2,"ram":2,"arch":"x86_64"},` +
+		`"GP1-XS":{"ncpus":4,"ram":16,"arch":"x86_64"},` +
+		`"PRO2-XS":{"ncpus":2,"ram":8,"arch":"x86_64"},` +
+		`"COPARM1-2C-8G":{"ncpus":2,"ram":8,"arch":"arm64"}}}}`
+	ts := answers(t, func(*http.Request) (int, string) {
+		return 201, `{"server":{"id":"` + freshID + `","name":"web-1","commercial_type":"DEV1-S",` +
+			`"types":{` +
+			`"DEV1-S":{"ncpus":2,"ram":2,"arch":"x86_64"},` +
+			`"GP1-XS":{"ncpus":4,"ram":16,"arch":"x86_64"},` +
+			`"PRO2-XS":{"ncpus":2,"ram":8,"arch":"x86_64"}}}}`
+	})
+	rep := run(t, []trace.Exchange{exchange(t, createLine(recorded))}, ts.URL)
+	if got := absentFindings(rep); got != 0 {
+		t.Fatalf("%d absent finding(s) for a catalogue entry this emulator does not stock; an "+
+			"inventory key is a value, and values are compared only where a pack declares an "+
+			"invariant: %+v", got, rep.Results[0].Findings)
+	}
+
+	// THE SECOND DIRECTION: a field missing from an entry both sides carry is
+	// still a finding, or the rule would be a way to stop comparing.
+	thin := answers(t, func(*http.Request) (int, string) {
+		return 201, `{"server":{"id":"` + freshID + `","name":"web-1","commercial_type":"DEV1-S",` +
+			`"types":{` +
+			`"DEV1-S":{"ncpus":2,"ram":2},` +
+			`"GP1-XS":{"ncpus":4,"ram":16},` +
+			`"PRO2-XS":{"ncpus":2,"ram":8}}}}`
+	})
+	gap := run(t, []trace.Exchange{exchange(t, createLine(recorded))}, thin.URL)
+	if !namesFinding(gap, replay.KindAbsent, "server.types.DEV1-S.arch") {
+		t.Fatalf("a field the recording carries inside an entry both sides hold stopped being a "+
+			"finding: %+v", gap.Results[0].Findings)
+	}
+}

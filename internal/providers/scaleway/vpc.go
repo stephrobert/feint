@@ -686,9 +686,27 @@ func (p *Pack) ensureDefaultVPC(region, project string) *resource.Resource {
 		}
 	}
 	res := p.newVPC(region, project, "default", true)
+	res.Attrs["tags"] = []string{defaultVPCTag}
 	p.env.Store.Put(res)
 	return res
 }
+
+// defaultVPCTag is what the real default VPC carries, and it is a measurement
+// rather than a convention: `scw vpc vpc list` against a real fr-par account on
+// 2026-08-21 answered tags ["default"] on the VPC the project was born with,
+// and the corpus recorded the same list through `feint proxy`. A fresh emulator
+// answered [], which is the first defect the committed corpus surfaced (#355)
+// and the smallest — invisible to every other control here, because no client
+// reads the tag and a contract states the type of `tags` rather than what the
+// cloud puts in it.
+//
+// Written where the default VPC is provisioned and nowhere else. A VPC a client
+// creates carries the tags the client sent: writing this on those would invent
+// a value the API never answered, which is the failure this gate exists to
+// catch rather than to commit.
+//
+// TestTheDefaultVPCCarriesTheDefaultTag fails without this, in both directions.
+const defaultVPCTag = "default"
 
 func (p *Pack) newVPC(region, project, name string, isDefault bool) *resource.Resource {
 	now := p.env.Now()

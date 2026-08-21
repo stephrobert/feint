@@ -124,6 +124,16 @@ The procedure, and the account rules that are not negotiable. They come from
    sanitisation below is for, and it refuses to write anything when a value of
    the recording survives.
 
+7. **An identifier you invent for a deliberate 404 must not be spelled the way
+   the sanitiser spells its own.** A `get` on
+   `00000000-0000-4000-8000-000000000093` is a fine way to record a 404 and a
+   bad way to survive step 6: the audit finds that string in the recording *and*
+   in the artefact, cannot tell "invented by the session" from "a value of the
+   account that got through", and refuses the whole run — which is the right
+   answer to an ambiguity it must not resolve by guessing. Use something outside
+   that shape (`11111111-2222-4333-8444-555555555555`) and let the sanitiser
+   replace it like any other.
+
 Then record and convert:
 
 ```bash
@@ -152,26 +162,62 @@ guard rails.
 
 ## What the runs found
 
-Replaying these two files against the emulator of 2026-08-21: `terraform.jsonl`
-matched on all 16 exchanges, `scw-cli.jsonl` on 34 of 58 with 16 unserved and 8
-divergent, in three families. All eight are listed in `corpus/accepted.json`
-with their reason and are fixed by #355; the gate is green because it carries
-them, and it goes red the moment one is fixed and its entry is not deleted.
+Both files replay against the emulator of 2026-08-21 with **no divergence and no
+exemption**: `terraform.jsonl` matches on all 16 exchanges, `scw-cli.jsonl` on 42
+of 58 with 16 unserved. `corpus/accepted.json` carries an empty `accepted` list,
+and that is a result rather than a default — the gate went in carrying the eight
+divergences the first run found, each with #355 written beside it, and the
+staleness rule made their deletion compulsory the day the emulator stopped
+producing them.
 
-- **The catalogue is a fixed subset.** `fr-par-1` publishes 136 commercial types
-  over three pages; the emulator serves 18, on purpose
-  (`internal/providers/scaleway/catalog.go`). The pack declines that shape, but
-  the decline is keyed `GET /instance/v1/zones/fr-par-1/products/servers`, which
-  is the shapes catalogue's spelling — the replay joins on the mounted operation
-  name, so it never sees it and reports every missing type. 136 findings.
-- **The default VPC carries no tags.** Scaleway's own default VPC answers
-  `tags: ["default"]`; a fresh emulator answers `[]`. A defect of the emulator,
-  and the first this corpus surfaced.
-- **The IAM SSH-key lifecycle cannot be replayed at all**, and that is the
-  instrument rather than the emulator: the proxy redacts the value under any
-  JSON key whose *name* contains "key", so `public_key` reaches the transcript
-  as `REDACTED`, `sshkey.Parse` refuses it, and the create answers 400 — taking
-  the read and the delete that follow it with it.
+The eight had three causes, and saying which was the work.
+
+- **Two were the instrument, not the emulator.** `feint replay` graded the keys
+  of the commercial-type catalogue as *fields*: `fr-par-1` publishes 136 types
+  and this catalogue stocks 18 on purpose, so 127 entries of an inventory read
+  as 127 missing fields — while `feint shapes --check` held the opposite rule on
+  the same artefact and reported none of them. A key of a map whose keys are
+  data is a value, and values are compared only where a pack declares an
+  invariant. One rule now, `transcript.DataKeyed`, read by both gates.
+- **One was a declaration in the wrong dialect.** The pack argued the missing
+  `per_volume_constraint.l_ssd` bound to the gate that joins on the catalogue
+  key (`GET /instance/v1/zones/fr-par-1/products/servers`) and to no other, so
+  the replay — which joins on the mounted operation name — met no refusal and
+  called nine deliberate omissions nine divergences. The decision is now spelled
+  in both dialects.
+- **Five were one substitution the recorder made.** The proxy redacts the value
+  under any JSON key whose *name* contains `key`, so `public_key` reached the
+  transcript as `REDACTED`, `sshkey.Parse` refused it, the create answered 400
+  where the cloud answered 200, and the read and the delete that followed
+  answered 404 for that one reason. **The IAM SSH-key lifecycle was
+  unrecordable.** The redaction now writes down a value whose own format proves
+  it is published — an OpenSSH public key line, in a body, read by the same
+  `internal/core/sshkey` the packs authenticate with — and nothing else moved:
+  headers keep their allowlist, the query keeps the denylist, and a container
+  named for a credential is still replaced whole. `docs/proxy.md`, *The one
+  value a credential-shaped name does not take with it*, states it with its
+  falsification.
+
+**Fixing the instrument is what let the emulator's own defects be seen**, and
+there were three:
+
+- **The default VPC carried no tags.** Scaleway's own answers `tags:
+  ["default"]`; a fresh emulator answered `[]`. Measured twice on 2026-08-21, by
+  `scw vpc vpc list` against a real account and by this recording.
+- **`CreateSSHKey` answered 201 where the wire carried 200** — the same family
+  as the two `vpc/v2` creates #270 found by hand, and invisible until the key's
+  lifecycle could be replayed at all, because the 400 above hid it.
+- **An SSH key was published with the comment the client sent**, where the cloud
+  drops it. This one the corpus *records* without grading: the sanitiser
+  replaces both strings with valid synthetic keys, and the request's and the
+  answer's became two **different** synthetic keys — which is the fact, visible
+  in the committed file. Confirmed straight at the cloud on 2026-08-21 (98 bytes
+  and three fields in, 80 bytes and two fields out) and asserted by a test of
+  its own, because a value is not something this gate can hold.
+
+That second one is the argument for the whole chain in one line: a defect that
+three other controls could not see, found by replaying a recording of the real
+cloud, and only after the recording stopped lying about itself.
 
 **It used to be "8 or 9", and that was not a rounding.** Six runs of the same
 file against six fresh emulators graded `vpc/v2/API.ListPrivateNetworks`
@@ -192,3 +238,16 @@ same way on every run. `TestOneRecordedValueUnderTwoFieldsBindsByFieldName` and
 `TestTheSameRecordingBindsTheSameWayOnEveryRun` hold both halves, and
 `TestTheCommittedCorpusPassesItsOwnGateAndSaysTheSameThingTwice` holds the
 whole run.
+
+## What it still cannot see
+
+Stated here rather than discovered again. A container whose *name* matches the
+redaction's denylist is replaced whole, elements included: `ssh_keys` matches
+`key`, so `iam/v1alpha1/API.ListSSHKeys` reaches this corpus as a single string
+and the shape of its elements is not graded. `feint replay` reports those as
+`redacted` findings — counted out loud, never mistaken for a comparison that
+happened — and the alternative, descending into every object somebody called
+`credentials`, is the larger risk. Ten paths of `scw-cli.jsonl` are also blanked
+entirely because `contracts/scaleway.json` does not describe them; the exchanges
+and their shapes are kept, and the command that wrote the file lists what it
+blanked.

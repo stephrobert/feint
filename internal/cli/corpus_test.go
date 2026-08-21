@@ -209,8 +209,10 @@ func TestTheCorpusAndItsRecordingDatesAreHeldToEachOther(t *testing.T) {
 
 // An exemption that excuses nothing fails the gate — the rule
 // tools/compat/accepted.json states and this file inherits. It is what makes
-// the list self-retiring: the day #355 serves the default VPC's tags, this gate
-// goes red until the entry is deleted, so nobody has to remember.
+// the list self-retiring, and it did retire the list: the day #355 served the
+// default VPC's tags this gate went red on an entry that had stopped excusing
+// anything, and it stayed red until all eight were deleted. Nobody had to
+// remember, which is the whole of the mechanism.
 func TestAnExemptionThatExcusesNothingFailsTheGate(t *testing.T) {
 	dir, _ := corpusFixture(t, recordAgainstAFreshEmulator(t))
 	accepted := writeAccepted(t, corpusAcceptance{

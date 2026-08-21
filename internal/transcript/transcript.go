@@ -358,3 +358,112 @@ func sortedFields(fields map[string]string) []Field {
 	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
 	return out
 }
+
+// DataKeyed reports whether an object is a dictionary keyed by the account's
+// inventory rather than by the API's own vocabulary, given the direct key names
+// of each of its object-valued children.
+//
+// # Why the question exists at all
+//
+// `GET /instance/v1/zones/fr-par-1/products/servers` answers a map from
+// commercial type to its description. `fr-par-1` publishes 136 of them and the
+// emulated catalogue serves 18, on purpose (docs/limits.md calls the catalogue
+// fiction, and internal/providers/scaleway/catalog.go says why an emulator with
+// no inventory must still answer one). Read as fields, the 118 that differ are
+// 118 findings that say one thing, and they bury every finding that says
+// something else — measured twice, once on `feint shapes --check`'s first run
+// and once on the first real corpus, where they were 127 of 136.
+//
+// A key of such a map is a **value**, not a field name. Both readers grade the
+// shape and grade a value only where a pack declares an invariant
+// (emulator.InvariantValue), so an inventory entry present on one side and not
+// the other is outside what either of them measures.
+//
+// # Why the rule is shared rather than written twice
+//
+// `feint shapes --check` and `feint corpus --check` both ask "is this field
+// absent". They disagreed: the shapes gate held this rule and the replay did
+// not, so the same 127 entries were silent in one gate and 127 divergences in
+// the other, and the corpus carried an exemption for the difference (#355). Two
+// readers of one artefact must not disagree about what counts as a field, which
+// is the argument emulator.FieldDecline.Matches already makes for the other
+// half of the same question.
+//
+// # The rule, and what it deliberately does not catch
+//
+// Three or more object children whose direct key sets are identical and
+// non-empty. Three because two objects that happen to match are a coincidence a
+// closed API produces often — a `min` and a `max` under one parent — and
+// because no dictionary worth the name has fewer entries than that. Identical
+// key sets because that is what a map of one type looks like and what a
+// hand-written response object does not: an API's own vocabulary gives each
+// field a different shape.
+//
+// It is a recognition rule, so it under-recognises on purpose: a dictionary
+// with two entries, or one whose values are scalars, is read as fields and its
+// absences are reported. That direction is the safe one — a finding too many is
+// read by a human, a finding too few is not read at all.
+//
+// TestADictionaryOfInventoryIsRecognised and
+// TestAnObjectOfTheAPIsOwnVocabularyIsNotADictionary fail without this.
+func DataKeyed(childKeys [][]string) bool {
+	if len(childKeys) < minDictionaryEntries {
+		return false
+	}
+	first := keySet(childKeys[0])
+	if len(first) == 0 {
+		return false
+	}
+	for _, keys := range childKeys[1:] {
+		if !sameKeySet(first, keySet(keys)) {
+			return false
+		}
+	}
+	return true
+}
+
+// minDictionaryEntries is the count below which identical children are a
+// coincidence rather than an inventory. See [DataKeyed].
+const minDictionaryEntries = 3
+
+// DataKeyedObject answers [DataKeyed] for a decoded JSON object, which is what
+// a replay holds where a gate reading a committed shape holds a flat field list.
+//
+// Only the object-valued children count, and a child of any other type answers
+// false outright: a map from name to object is the shape this recognises, and a
+// parent mixing an object child with a scalar one is an API's own vocabulary.
+func DataKeyedObject(obj map[string]any) bool {
+	childKeys := make([][]string, 0, len(obj))
+	for _, v := range obj {
+		child, isObject := v.(map[string]any)
+		if !isObject {
+			return false
+		}
+		keys := make([]string, 0, len(child))
+		for k := range child {
+			keys = append(keys, k)
+		}
+		childKeys = append(childKeys, keys)
+	}
+	return DataKeyed(childKeys)
+}
+
+func keySet(keys []string) map[string]bool {
+	out := make(map[string]bool, len(keys))
+	for _, k := range keys {
+		out[k] = true
+	}
+	return out
+}
+
+func sameKeySet(a, b map[string]bool) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k := range a {
+		if !b[k] {
+			return false
+		}
+	}
+	return true
+}

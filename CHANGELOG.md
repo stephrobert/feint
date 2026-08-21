@@ -391,6 +391,78 @@ what this project is judged on: **a response shape a client can observe**, and
   less than the replay would publish exactly the values the replay knows are
   identifiers.
 
+### Fixed
+
+- **The eight divergences the first real Scaleway corpus recorded are gone, and
+  `corpus/accepted.json` carries an empty acceptance list** (#355). The gate went
+  in carrying them with #355 written beside each; the staleness rule made their
+  deletion compulsory the day the emulator stopped producing them. Three causes,
+  and saying which was the work — a defect, a declared limit, or the instrument
+  lying about itself.
+
+  **Three defects of the emulator, and two of them could not be seen until the
+  instrument was fixed.** The default VPC answered no tags where the real one
+  answers `tags: ["default"]` — measured twice on 2026-08-21, by `scw vpc vpc
+  list` against a real fr-par account and by the recording itself.
+  `iam/v1alpha1/API.CreateSSHKey` answered **201 where the wire carried 200**,
+  the same family as the two `vpc/v2` creates #270 found by hand, hidden until
+  the key's lifecycle could be replayed at all. And an SSH key was published
+  **with the comment the client sent**, where the cloud drops it: a key created
+  on a real account as `ssh-ed25519 <material> feint-corpus-echo` (98 bytes,
+  three fields) reads back as `ssh-ed25519 <material>` (80 bytes, two fields),
+  and the re-recorded corpus carries the same fact from the other side — the
+  request body and the answer hold two *different* strings at `public_key`. The
+  fingerprint does not move, being computed over the decoded blob rather than
+  over the line. None of the three is visible to any other control here: no
+  client reads the tag, `scw` accepts any 2xx and shows none, and a contract
+  states the *type* of `public_key` rather than what the cloud puts in it — the
+  last one is a **value**, which the corpus gate records without grading, so it
+  is asserted by a test of its own rather than left to a gate.
+
+  **Five findings were one substitution the recorder made.** `feint proxy`
+  redacts the value under any JSON key whose *name* contains `key`, so
+  `public_key` reached the transcript as `REDACTED`, `sshkey.Parse` refused it,
+  the create answered 400, and the read and the delete that followed answered
+  404 for that one reason: **the IAM SSH-key lifecycle was unrecordable**. The
+  redaction now writes down a value whose own *format* proves it is published —
+  an OpenSSH public key line, read by the same `internal/core/sshkey` the packs
+  authenticate with — and nothing else moved. Headers keep their allowlist, the
+  query keeps the denylist (SigV4 presigns there), and a container named for a
+  credential is still replaced whole. That last one costs coverage and the cost
+  is stated: `ssh_keys` matches `key`, so `ListSSHKeys` reaches a corpus as one
+  string. The distinction is not a preference — a *name* check answers "does
+  this look like a credential" and never "is this not one", which is why headers
+  are an allowlist; a *value* that identifies itself answers the second question
+  directly. Falsified in both directions, five mutations in
+  `tools/falsify/specs/forward-proxy.json`.
+
+  **Two findings were the replay grading an inventory as a shape.** `fr-par-1`
+  publishes 136 commercial types and this catalogue stocks 18 on purpose, so 127
+  entries of a map whose keys are *data* read as 127 missing fields — while
+  `feint shapes --check` held the opposite rule on the same artefact and
+  reported none of them. The rule now lives once, in `transcript.DataKeyed`, and
+  both gates read it: a key of such a map is a value, and values are compared
+  only where a pack declares an invariant. Recognition is three or more object
+  children with identical key sets, so it under-recognises rather than over-,
+  and a field of an entry both sides carry is still compared.
+
+  **One finding was a decision spelled in the wrong dialect.** The pack argued
+  the missing `per_volume_constraint.l_ssd` bound to the gate that joins on the
+  catalogue key and to no other, so the replay — which joins on the mounted
+  operation name — met no refusal and called nine deliberate omissions nine
+  divergences. It is now spelled in both. The 118 unstocked types are
+  deliberately *not* declined the same way: the only path that names them
+  (`servers.*`) also names the 18 that are served, and the omission gate
+  publishes such a decline as stale, which fails `tools/conformance/score.sh`.
+  Measured, not reasoned.
+
+  `corpus/scaleway/scw-cli.jsonl` was re-recorded on 2026-08-21 through the
+  fixed recorder, against the same real fr-par account and under the rules of
+  `corpus/README.md`: inventory before, free objects only, everything named
+  `feint-corpus-*`, every destruction proved by a read inside the recording, and
+  a closing inventory byte-identical to the opening one across all seven
+  resource kinds.
+
 ## [0.10.0] - 2026-08-20
 
 ### Added

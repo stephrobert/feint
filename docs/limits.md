@@ -461,6 +461,19 @@ Three consequences, each a decision this page records:
   carrying nine tables of a moving target; the divergence is accepted and
   stated instead.
 
+**The recording of that difference is committed, and it is a value rather than
+a shape.** `corpus/scaleway/scw-cli.jsonl` carries the real fr-par-1 answer,
+all three pages of it, beside the emulator's own. The 118 types this table does
+not stock are therefore measured rather than asserted — and the two gates that
+read that recording agree on what they are: **a key of that map is data, not a
+field**, which is `transcript.DataKeyed`, shared by `feint shapes --check` and
+`feint corpus --check` so the same artefact cannot be graded two ways. Read as
+fields they were 127 of the 136 findings the first corpus run produced, saying
+one thing 127 times over everything else the file had to report (#355). What
+*is* graded is the shape of an entry both sides carry, which is why the missing
+`per_volume_constraint.l_ssd` bound is declined explicitly, in both spellings
+the gates join on.
+
 **There is no ARM row, and that is a refusal with a reason, not a gap.** The
 one ARM type a surveyed stack asked for, `COPARM1-2C-8G`, is absent from all
 nine zones of the real catalogue (measured 2026-08-19, every page, while
