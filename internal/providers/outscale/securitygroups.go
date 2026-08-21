@@ -271,6 +271,55 @@ type securityGroupRuleRequest struct {
 	DryRun          *bool            `json:"DryRun"`
 }
 
+// completedMembers fills in what the API adds to a member the client named by
+// identifier alone (#382).
+//
+// A client sending `Rules[].SecurityGroupsMembers[].SecurityGroupId` — the
+// shape examples/stacks/outscale/ writes as a tiering rule, the data tier
+// accepting the web tier and nobody else — gets back a member carrying
+// `AccountId` and `SecurityGroupName` as well. This pack copied the request's
+// member through verbatim, so the answer said less than the cloud's about a
+// group the client did not name in full.
+//
+// `AccountId` is the field with teeth: it is what distinguishes a member group
+// of this account from one another account shared in, which is the whole reason
+// `SecurityGroupAccountIdToLink` exists on the request. A client that reads the
+// member back to decide whether a rule is cross-account read nothing here.
+//
+// Measured on a real account on 2026-08-21, and it is the family of #371 on the
+// Exoscale side — a rule whose target is another group publishes less of that
+// group here than upstream — one provider out.
+//
+// A member naming a group this emulator does not hold keeps what the client
+// sent: inventing a name for it would be worse than the omission, and the
+// create itself has already validated what it validates.
+//
+// TestARuleThatNamesAnotherGroupPublishesItsAccountAndName fails without this.
+func (p *Pack) completedMembers(members []any) []any {
+	out := make([]any, 0, len(members))
+	for _, raw := range members {
+		member, ok := raw.(map[string]any)
+		if !ok {
+			out = append(out, raw)
+			continue
+		}
+		filled := make(map[string]any, len(member)+2)
+		for k, v := range member {
+			filled[k] = v
+		}
+		if _, present := filled["AccountId"]; !present {
+			filled["AccountId"] = accountID
+		}
+		if _, present := filled["SecurityGroupName"]; !present {
+			if sg, found := p.env.Store.Get(Name, kindSecurityGroup, stringOf(member["SecurityGroupId"])); found {
+				filled["SecurityGroupName"] = stringOf(sg.Attrs["SecurityGroupName"])
+			}
+		}
+		out = append(out, filled)
+	}
+	return out
+}
+
 // asRules normalises whichever of the three request forms was used into the
 // list of rules it means, in the stored shape.
 func (p *Pack) asRules(req *securityGroupRuleRequest, mint bool) ([]map[string]any, string) {
@@ -284,6 +333,9 @@ func (p *Pack) asRules(req *securityGroupRuleRequest, mint bool) ([]map[string]a
 				if v, ok := raw[key]; ok {
 					rule[key] = v
 				}
+			}
+			if members, ok := rule["SecurityGroupsMembers"].([]any); ok {
+				rule["SecurityGroupsMembers"] = p.completedMembers(members)
 			}
 			if mint {
 				rule["SecurityGroupRuleId"] = newID("sgr", p.env.NewID())
@@ -577,8 +629,32 @@ func (p *Pack) checkVMSecurityGroups(w http.ResponseWriter, ids []string) bool {
 // answers nil, and the view omits the key.
 func (p *Pack) effectiveSecurityGroups(vm *resource.Resource) []any {
 	if ids := stringsOf(vm.Attrs["SecurityGroupIds"]); len(ids) > 0 {
-		out := make([]any, 0, len(ids))
-		for _, id := range ids {
+		// By identifier, ascending, and never in the order the request named
+		// them (#379). Terraform's outscale_vm stores security_group_ids as a
+		// **list**, so an order of this emulator's own is a plan diff that
+		// never converges — the Outscale spelling of #320, which cost a pull
+		// request on the Scaleway side.
+		//
+		// The rule is measured rather than assumed, and the measurement had to
+		// distinguish two candidates that agree on the obvious sample. On
+		// 2026-08-21 a real account was sent `UpdateVm` with web-then-db and
+		// answered db-then-web; sorting by name and sorting by id both explain
+		// that, because the names sorted the same way as the ids. The account's
+		// own two machines settle it, and they refute the name:
+		//
+		//	i-00dbaf47  sg-24cdb2f8 seg-ssh-all-a,  sg-38ce6f35 languagetool
+		//	i-f07ffeb9  sg-24cdb2f8 seg-ssh-all-a,  sg-fa3bbc1c seg-all-all-a
+		//
+		// Both are in ascending id order, and in neither is the name order the
+		// one answered.
+		//
+		// Sorted on the ids rather than on the rendered list so the comparison
+		// is on the field the API orders by, and on a copy so the stored order
+		// — which is the client's own reconciliation list — is left alone.
+		sorted := append([]string(nil), ids...)
+		sort.Strings(sorted)
+		out := make([]any, 0, len(sorted))
+		for _, id := range sorted {
 			if sg, found := p.env.Store.Get(Name, kindSecurityGroup, id); found {
 				out = append(out, map[string]any{
 					"SecurityGroupId":   sg.ID,

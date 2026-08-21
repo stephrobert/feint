@@ -1,0 +1,40 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "a machine's security groups come back in the order the request named them again, so a client that stores security_group_ids as a list re-plans for ever (#379, #320 one provider out)",
+      "file": "internal/providers/outscale/securitygroups.go",
+      "find": "\t\tsort.Strings(sorted)",
+      "replace": "\t\tsort.Strings(sorted[:0])",
+      "test": "TestAMachinesSecurityGroupsAnswerInIdentifierOrder"
+    },
+    {
+      "label": "a route table's READ stops sorting its routes, so it answers append order where the cloud answers destination order and the corpus reports it (#379)",
+      "file": "internal/providers/outscale/routetables.go",
+      "find": "\tout[\"Routes\"] = sorted",
+      "replace": "\tout[\"Routes\"] = sorted[:0]",
+      "test": "TestARouteTableAnswersItsRoutesInDestinationOrder"
+    },
+    {
+      "label": "THE OTHER DIRECTION: the CREATE sorts too, so the emulator tidies up a disagreement the cloud really has and hides the plan diff a real stack meets",
+      "file": "internal/providers/outscale/routetables.go",
+      "find": "\t\tstored.Updated = p.env.Now()\n\t\tfinal = stored\n\t\treturn nil\n\t})\n\tswitch {\n\tcase errors.Is(err, errRouteExists):",
+      "replace": "\t\tstored.Updated = p.env.Now()\n\t\tfinal = stored\n\t\tkeep := listOf(stored.Attrs[\"Routes\"])\n\t\tsort.SliceStable(keep, func(i, j int) bool {\n\t\t\ta, _ := keep[i].(map[string]any)\n\t\t\tb, _ := keep[j].(map[string]any)\n\t\t\treturn stringOf(a[\"DestinationIpRange\"]) < stringOf(b[\"DestinationIpRange\"])\n\t\t})\n\t\tstored.Attrs[\"Routes\"] = keep\n\t\treturn nil\n\t})\n\tswitch {\n\tcase errors.Is(err, errRouteExists):",
+      "test": "TestARouteTableAnswersItsRoutesInDestinationOrder"
+    },
+    {
+      "label": "a rule that names another group stops publishing that group's account and name, so a client cannot tell a member of its own account from one shared in (#382)",
+      "file": "internal/providers/outscale/securitygroups.go",
+      "find": "\t\t\tif members, ok := rule[\"SecurityGroupsMembers\"].([]any); ok {",
+      "replace": "\t\t\tif members, ok := rule[\"SecurityGroupsMembers\"].([]any); ok && false {",
+      "test": "TestARuleThatNamesAnotherGroupPublishesItsAccountAndName"
+    },
+    {
+      "label": "a machine stops answering UserData and Tags, so a client reading a string or iterating a list gets nothing where the cloud gives it an empty one (#378)",
+      "file": "internal/providers/outscale/vms.go",
+      "find": "\tout[\"UserData\"] = stringOf(res.Attrs[\"UserData\"])\n\tout[\"Tags\"] = tagsOrEmpty(res)",
+      "replace": "\tout[\"UserData\"] = stringOf(res.Attrs[\"UserData\"])\n\tout[\"Tags\"] = tagsOrEmpty(res)\n\tif stringOf(out[\"UserData\"]) == \"\" {\n\t\tdelete(out, \"UserData\")\n\t}\n\tif list, _ := out[\"Tags\"].([]any); len(list) == 0 {\n\t\tdelete(out, \"Tags\")\n\t}",
+      "test": "TestAMachineAnswersUserDataAndTagsEvenWithNeither"
+    }
+  ]
+}

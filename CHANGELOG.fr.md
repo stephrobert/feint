@@ -1026,6 +1026,53 @@ change ni l'un ni l'autre a sa place dans `git log`.
   rien ne le rende vrai :
   `TestTheMovedWarningSurvivesARunThatIsRedForAnotherReason` le rend vrai, sur
   l'exécution la plus pauvre qui atteigne l'impression.
+- **Cinq formes que le pack Outscale rendait autrement que le cloud**, trouvées
+  chacune en rejouant l'enregistrement d'un vrai compte, et retirant chacune son
+  exemption de `corpus/accepted.json` (#378, #379, #381, #382, #383). Le nombre
+  de divergences acceptées est passé de 289 à 141.
+
+  - **Une machine rend `UserData` et `Tags`** (#378). Le cloud écrit les deux
+    sur chaque machine (`""` et `[]` sur une machine créée sans ni l'un ni
+    l'autre) et ce pack ne les écrivait que lorsqu'il avait quelque chose à y
+    mettre. Toutes les autres familles du pack posaient déjà `"Tags": []` à la
+    création ; la Vm était la seule qui ne le faisait pas.
+  - **Deux listes reviennent dans l'ordre où l'API les rend** (#379). Les
+    groupes de sécurité d'une machine sont triés par `SecurityGroupId`
+    croissant, et les routes d'une table par destination **en lecture**, alors
+    que la création les rend dans l'ordre d'ajout. Les deux sont mesurés, et le
+    second est le cloud en désaccord avec lui-même : un client qui stocke la
+    réponse de la création puis relit voit les deux permuter, ce qu'un émulateur
+    qui « rangerait » masquerait. Terraform stocke les deux comme des listes,
+    donc un ordre propre à cet émulateur est une divergence de plan qui ne
+    converge jamais : #320, un fournisseur plus loin.
+  - **`DeleteRoute` et `DeleteLoadBalancer` rendent l'objet** (#381) plutôt que
+    la seule enveloppe, ce qui permet à un client de rafraîchir son état en un
+    appel au lieu de deux.
+  - **Une règle qui nomme un autre groupe de sécurité publie l'`AccountId` et le
+    nom de ce groupe** (#382). La forme `Rules[].SecurityGroupsMembers[]`
+    recopiait le membre du client tel quel, si bien que la réponse en disait
+    moins que celle du cloud sur un groupe nommé par son seul identifiant, et
+    c'est `AccountId` qui distingue un groupe du compte d'un groupe partagé par
+    un tiers.
+  - **Une image porte le mappage de son périphérique racine et ses permissions
+    de lancement** (#383) : le nom du périphérique, la taille et le type du
+    volume racine, que lit un client avant de dimensionner le volume qu'il crée.
+    Le `SnapshotId` et l'`Iops` de ce mappage sont **déclarés** plutôt que
+    servis, et la limite est celle que le code traçait déjà : nommer un
+    instantané auquel `ReadSnapshots` ne peut pas répondre, c'est ainsi que la
+    résolution d'un client échoue sur un objet inexistant, et un volume
+    `standard` n'a pas d'IOPS provisionnées.
+
+  **Un ordre n'est délibérément pas déclaré en `ReplayInvariant`, et c'est une
+  limite qui mérite d'être écrite.** L'ordre des groupes de sécurité d'une
+  machine dérive d'identifiants frappés par le *cloud* ; aucun émulateur ne
+  frappe les mêmes, et `feint replay` compare position par position après
+  reliaison. Le déclarer n'achèterait donc qu'une exemption permanente, et une
+  exemption permanente est une barrière qui a cessé sans bruit de couvrir ce
+  qu'elle nomme. Un test unitaire du pack le tient à la place. Ce qui est
+  déclaré, c'est l'ordre des routes, que le cloud dérive d'une valeur que les
+  deux côtés portent.
+
 - **L'enregistreur n'écrit plus deux valeurs différentes comme une seule**
   (#384). Une expurgation remplaçait toute valeur reconnue par la même chaîne,
   ce qui est juste pour un identifiant secret et faux pour tout le reste que

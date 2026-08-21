@@ -921,6 +921,21 @@ func (p *Pack) vmView(res *resource.Resource) map[string]any {
 	}
 	out["VmId"] = res.ID
 	out["State"] = res.State
+	// The two keys a real machine always carries and this pack wrote only when
+	// it had something to put in them (#378). Both were measured against a real
+	// account on 2026-08-21: a machine created with no user data and no tags
+	// answers `"UserData": ""` and `"Tags": []`, and a client that iterates a
+	// list or reads a string gets nothing here where the cloud gives it an
+	// empty one.
+	//
+	// This is not the rule PrivateIp follows two lines down, and the difference
+	// is what the cloud does rather than a preference: an absent PrivateIp says
+	// this emulator models no address, while an absent UserData says nothing at
+	// all — the cloud has the key on every machine. Every other kind in this
+	// pack already writes `"Tags": []any{}` at create time; the Vm was the one
+	// that did not.
+	out["UserData"] = stringOf(res.Attrs["UserData"])
+	out["Tags"] = tagsOrEmpty(res)
 	// The field whose absence sends the Terraform provider to
 	// ReadAdminPassword on every machine: it reads ProductCodes to tell a
 	// Windows image from a Linux one, and an absent list reads as "unknown".

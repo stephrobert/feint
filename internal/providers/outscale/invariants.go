@@ -24,20 +24,38 @@ import "github.com/stephrobert/feint/internal/core/emulator"
 // private addresses are outside this list on purpose, and a future entry naming
 // one of them is the mistake this comment exists to prevent.
 //
-// # The order of a machine's security groups
+// # The order a replay can grade, and the one it cannot
 //
-// `securityGroupsOrder` is the Outscale spelling of #320. Terraform's
-// `outscale_vm` stores `security_group_ids` as a list, so a read that returns
-// the groups in store order rather than in the order the answer carried is a
-// plan diff that never converges — the defect that cost a pull request on the
-// Scaleway side, in the family that produced it.
+// **A machine's security groups are not here, and that is a measurement rather
+// than an oversight.** The cloud orders them by `SecurityGroupId` ascending —
+// measured on 2026-08-21 against a real account, on the recording's own
+// `UpdateVm` and confirmed against the account's two long-lived machines, which
+// refute the other candidate rule (their name order is not the order answered):
 //
-// **It is not "the order the client named", and that distinction is measured.**
-// The recording of 2026-08-21 sent `UpdateVm` the two groups web-then-db and the
-// cloud answered db-then-web. So what this holds the emulator to is the order
-// *the cloud answered*, which is the only thing a replay can grade and the only
-// thing a client's plan actually compares against.
-const securityGroupsOrder = "Vm.SecurityGroups[].SecurityGroupId"
+//	i-00dbaf47  sg-24cdb2f8 seg-ssh-all-a,  sg-38ce6f35 languagetool
+//	i-f07ffeb9  sg-24cdb2f8 seg-ssh-all-a,  sg-fa3bbc1c seg-all-all-a
+//
+// This pack now sorts the same way ([effectiveSecurityGroups]), and a *replay*
+// still cannot grade it: the order is derived from identifiers the cloud minted,
+// and no emulator mints those. `feint replay` maps the recorded sequence into
+// this emulator's namespace and compares position by position, so it asks "is
+// the object that was first upstream first here" — and the answer depends on two
+// unrelated id spaces sorting the same way, which is a coincidence rather than a
+// property. Declaring it would buy a permanent exemption, and a permanent
+// exemption is a gate that has quietly stopped covering what it names.
+//
+// So the guard lives where it can bite: TestAMachinesSecurityGroupsAnswerInIdentifierOrder,
+// a unit test of this pack that does not depend on a second id space existing.
+// #379 records the whole of it.
+//
+// What is declared instead is an order the cloud derives from a **value both
+// sides carry**: the routes of a route table, ordered by destination. The
+// recording's table answers `0.0.0.0/0` before the Net's own range, which is
+// that string order, and a sanitised transcript keeps both — `0.0.0.0/0`
+// verbatim, the Net's range as a block of the synthetic space. Terraform's
+// `outscale_route_table` stores routes as a list, so this is #320's family with
+// a subject a replay can actually hold.
+const routesOrder = "RouteTables[].Routes[].DestinationIpRange"
 
 func (p *Pack) ReplayInvariants() []emulator.Invariant {
 	return []emulator.Invariant{
@@ -60,16 +78,16 @@ func (p *Pack) ReplayInvariants() []emulator.Invariant {
 			Reason:    "the client names the Subnet's range, and a stack that reads back a different one plans a replacement of a subnet it just made",
 		},
 		{
-			Operation: operation("UpdateVm"),
-			Path:      securityGroupsOrder,
+			Operation: operation("ReadRouteTables"),
+			Path:      routesOrder,
 			Kind:      emulator.InvariantOrder,
-			Reason:    "UpdateVm.SecurityGroupIds is the client's own reconciliation list and Terraform stores the answer as a list, so an order of this emulator's own is a plan diff that never converges (#320, one provider out)",
+			Reason:    "Terraform stores a route table's routes as a list, so a read that returns them in this emulator's own order rather than the cloud's is a plan diff that never converges (#320, one provider out)",
 		},
 		{
-			Operation: operation("ReadVms"),
-			Path:      "Vms[].SecurityGroups[].SecurityGroupId",
+			Operation: operation("CreateRoute"),
+			Path:      "RouteTable.Routes[].DestinationIpRange",
 			Kind:      emulator.InvariantOrder,
-			Reason:    "the read has to agree with the update it follows, or the client sees the order move on its own between two plans (#320, one provider out)",
+			Reason:    "the create answers the whole table, and it has to agree with the read that follows it or the client sees the order move on its own between two plans",
 		},
 	}
 }

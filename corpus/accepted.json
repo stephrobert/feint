@@ -422,38 +422,6 @@
       "file": "outscale/oapi-cli-lifecycle.jsonl",
       "operation": "osc/Client.CreateVms",
       "kind": "absent",
-      "path": "Vms[].UserData",
-      "reason": "A machine created on a real Outscale endpoint answers UserData, its root BlockDeviceMappings and its Tags; this emulator answers none of the three. BlockDeviceMappings is the one with teeth: it is where a client reads the root volume it must not delete, the same gap #365 records on the Scaleway side. Serving them or declaring them in DeclinedFields() is a decision about the machine's shape, and a corpus exemption is neither.",
-      "issue": "https://github.com/stephrobert/feint/issues/378"
-    },
-    {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.CreateVms",
-      "kind": "absent",
-      "path": "Vms[].BlockDeviceMappings[]",
-      "reason": "A machine created on a real Outscale endpoint answers UserData, its root BlockDeviceMappings and its Tags; this emulator answers none of the three. BlockDeviceMappings is the one with teeth: it is where a client reads the root volume it must not delete, the same gap #365 records on the Scaleway side. Serving them or declaring them in DeclinedFields() is a decision about the machine's shape, and a corpus exemption is neither.",
-      "issue": "https://github.com/stephrobert/feint/issues/378"
-    },
-    {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.CreateVms",
-      "kind": "absent",
-      "path": "Vms[].Tags",
-      "reason": "A machine created on a real Outscale endpoint answers UserData, its root BlockDeviceMappings and its Tags; this emulator answers none of the three. BlockDeviceMappings is the one with teeth: it is where a client reads the root volume it must not delete, the same gap #365 records on the Scaleway side. Serving them or declaring them in DeclinedFields() is a decision about the machine's shape, and a corpus exemption is neither.",
-      "issue": "https://github.com/stephrobert/feint/issues/378"
-    },
-    {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.ReadVms",
-      "kind": "absent",
-      "path": "Vms[].UserData",
-      "reason": "A machine created on a real Outscale endpoint answers UserData, its root BlockDeviceMappings and its Tags; this emulator answers none of the three. BlockDeviceMappings is the one with teeth: it is where a client reads the root volume it must not delete, the same gap #365 records on the Scaleway side. Serving them or declaring them in DeclinedFields() is a decision about the machine's shape, and a corpus exemption is neither.",
-      "issue": "https://github.com/stephrobert/feint/issues/378"
-    },
-    {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.ReadVms",
-      "kind": "absent",
       "path": "Vms[].BlockDeviceMappings[]",
       "reason": "A machine created on a real Outscale endpoint answers UserData, its root BlockDeviceMappings and its Tags; this emulator answers none of the three. BlockDeviceMappings is the one with teeth: it is where a client reads the root volume it must not delete, the same gap #365 records on the Scaleway side. Serving them or declaring them in DeclinedFields() is a decision about the machine's shape, and a corpus exemption is neither.",
       "issue": "https://github.com/stephrobert/feint/issues/378"
@@ -462,15 +430,7 @@
       "file": "outscale/oapi-cli-lifecycle.jsonl",
       "operation": "osc/Client.ReadVms",
       "kind": "absent",
-      "path": "Vms[].Tags",
-      "reason": "A machine created on a real Outscale endpoint answers UserData, its root BlockDeviceMappings and its Tags; this emulator answers none of the three. BlockDeviceMappings is the one with teeth: it is where a client reads the root volume it must not delete, the same gap #365 records on the Scaleway side. Serving them or declaring them in DeclinedFields() is a decision about the machine's shape, and a corpus exemption is neither.",
-      "issue": "https://github.com/stephrobert/feint/issues/378"
-    },
-    {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.UpdateVm",
-      "kind": "absent",
-      "path": "Vm.UserData",
+      "path": "Vms[].BlockDeviceMappings[]",
       "reason": "A machine created on a real Outscale endpoint answers UserData, its root BlockDeviceMappings and its Tags; this emulator answers none of the three. BlockDeviceMappings is the one with teeth: it is where a client reads the root volume it must not delete, the same gap #365 records on the Scaleway side. Serving them or declaring them in DeclinedFields() is a decision about the machine's shape, and a corpus exemption is neither.",
       "issue": "https://github.com/stephrobert/feint/issues/378"
     },
@@ -481,22 +441,6 @@
       "path": "Vm.BlockDeviceMappings[]",
       "reason": "A machine created on a real Outscale endpoint answers UserData, its root BlockDeviceMappings and its Tags; this emulator answers none of the three. BlockDeviceMappings is the one with teeth: it is where a client reads the root volume it must not delete, the same gap #365 records on the Scaleway side. Serving them or declaring them in DeclinedFields() is a decision about the machine's shape, and a corpus exemption is neither.",
       "issue": "https://github.com/stephrobert/feint/issues/378"
-    },
-    {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.UpdateVm",
-      "kind": "order",
-      "path": "Vm.SecurityGroups[].SecurityGroupId",
-      "reason": "The two security groups of the machine come back in the reverse of the order the cloud answered, on the update and on the reads that follow it. Terraform's outscale_vm stores security_group_ids as a list, so this is a plan diff that never converges — #320 one provider out, and the first Outscale order this repository has ever compared against a real cloud, because the pack declared no ReplayInvariant at all before #354.",
-      "issue": "https://github.com/stephrobert/feint/issues/379"
-    },
-    {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.ReadVms",
-      "kind": "order",
-      "path": "Vms[].SecurityGroups[].SecurityGroupId",
-      "reason": "The two security groups of the machine come back in the reverse of the order the cloud answered, on the update and on the reads that follow it. Terraform's outscale_vm stores security_group_ids as a list, so this is a plan diff that never converges — #320 one provider out, and the first Outscale order this repository has ever compared against a real cloud, because the pack declared no ReplayInvariant at all before #354.",
-      "issue": "https://github.com/stephrobert/feint/issues/379"
     },
     {
       "file": "outscale/oapi-cli-lifecycle.jsonl",
@@ -553,54 +497,6 @@
       "path": "Errors",
       "reason": "The cloud refuses DeleteSecurityGroup with 409 ResourceConflict for two minutes after the machine that used the group is terminated, and answers 200 on the twenty-first attempt; this emulator holds no reference from a terminated machine to its group, answers 200 at once and 400 to the retries. Two things are missing — the referential refusal and the 409 this emulator never answers for anything — and both are what a real destroy loop branches on.",
       "issue": "https://github.com/stephrobert/feint/issues/380"
-    },
-    {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.DeleteRoute",
-      "kind": "absent",
-      "path": "RouteTable",
-      "reason": "The cloud's delete answers the object it just changed and this emulator answers the envelope alone, so a client that refreshes its state from the delete gets nil here and a body there. The SDK declares the field; serving it or declining it by name is the decision.",
-      "issue": "https://github.com/stephrobert/feint/issues/381"
-    },
-    {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.DeleteLoadBalancer",
-      "kind": "absent",
-      "path": "LoadBalancer",
-      "reason": "The cloud's delete answers the object it just changed and this emulator answers the envelope alone, so a client that refreshes its state from the delete gets nil here and a body there. The SDK declares the field; serving it or declining it by name is the decision.",
-      "issue": "https://github.com/stephrobert/feint/issues/381"
-    },
-    {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.CreateSecurityGroupRule",
-      "kind": "absent",
-      "path": "SecurityGroup.InboundRules[].SecurityGroupsMembers[].AccountId",
-      "reason": "A rule whose source is another security group publishes that group's AccountId upstream and not here, so a client cannot tell a member group of its own account from one shared in — which is the whole reason SecurityGroupAccountIdToLink exists on the request. Same family as #371 on Exoscale, one provider out.",
-      "issue": "https://github.com/stephrobert/feint/issues/382"
-    },
-    {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.ReadSecurityGroups",
-      "kind": "absent",
-      "path": "SecurityGroups[].InboundRules[].SecurityGroupsMembers[].AccountId",
-      "reason": "A rule whose source is another security group publishes that group's AccountId upstream and not here, so a client cannot tell a member group of its own account from one shared in — which is the whole reason SecurityGroupAccountIdToLink exists on the request. Same family as #371 on Exoscale, one provider out.",
-      "issue": "https://github.com/stephrobert/feint/issues/382"
-    },
-    {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.ReadImages",
-      "kind": "absent",
-      "path": "Images[].BlockDeviceMappings[]",
-      "reason": "The emulated image catalogue serves three images on purpose, and the count is not the finding: the shape of an element is. Every real image carries its root device mapping and the accounts it is shared with, and both are empty here, so a stack that sizes its root volume from the image reads nothing.",
-      "issue": "https://github.com/stephrobert/feint/issues/383"
-    },
-    {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.ReadImages",
-      "kind": "absent",
-      "path": "Images[].PermissionsToLaunch.AccountIds[]",
-      "reason": "The emulated image catalogue serves three images on purpose, and the count is not the finding: the shape of an element is. Every real image carries its root device mapping and the accounts it is shared with, and both are empty here, so a stack that sizes its root volume from the image reads nothing.",
-      "issue": "https://github.com/stephrobert/feint/issues/383"
     }
   ]
 }

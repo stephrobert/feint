@@ -158,10 +158,38 @@ const linuxProductCode = "0001"
 func imageStructure(name string) map[string]any {
 	return map[string]any{
 		// The three of #86, without which the provider dereferences nil.
-		"BlockDeviceMappings": []any{},
-		"StateComment":        map[string]any{},
+		//
+		// Two of them stopped being empty in #383, and the line the earlier
+		// version drew is the line that still holds. "Inventing a device
+		// mapping would put a disk in a catalogue that has none" was about a
+		// **SnapshotId**: naming a snapshot ReadSnapshots cannot answer for is
+		// the defect that killed a whole conformance run once, when a fictional
+		// root VolumeId was written on a machine and the Terraform provider
+		// resolved it. A root device's *name*, *size* and *type* name nothing
+		// at all, and they are what a client reads to size the volume it is
+		// about to create — measured absent against a real account on
+		// 2026-08-21, where every image carries them.
+		//
+		// So: the mapping, with no SnapshotId key. The Bsu schema declares it
+		// optional, an absent key says "this emulator models no snapshot", and
+		// an invented one would say something false about an object that does
+		// not exist.
+		"BlockDeviceMappings": []any{map[string]any{
+			"DeviceName": "/dev/sda1",
+			"Bsu": map[string]any{
+				"DeleteOnVmDeletion": true,
+				"VolumeSize":         catalogueRootVolumeSize,
+				"VolumeType":         "standard",
+			},
+		}},
+		"StateComment": map[string]any{},
+		// The owner, which for this catalogue is this emulator's own account —
+		// the same accountID every other answer carries. An empty list said the
+		// image was launchable by nobody, where the real cloud names whoever it
+		// is shared with; naming the owner is both true here and the shape a
+		// client iterates.
 		"PermissionsToLaunch": map[string]any{
-			"AccountIds":       []any{},
+			"AccountIds":       []any{accountID},
 			"GlobalPermission": false,
 		},
 		// The nine of #95: present on every image the real cloud returns, and
@@ -191,6 +219,11 @@ func imageStructure(name string) map[string]any {
 // moved every run would put a value in a client's plan that changes for no
 // reason — the same reason coverage/ carries no scan date.
 const catalogueDate = "2025-01-01T00:00:00.000Z"
+
+// catalogueRootVolumeSize is the root disk, in gibibytes, every image of the
+// fixed catalogue declares. Committed fiction like the date above, and the
+// number a client reads before it sizes the volume it creates (#383).
+const catalogueRootVolumeSize = 10
 
 var images = func() []map[string]any {
 	out := []map[string]any{

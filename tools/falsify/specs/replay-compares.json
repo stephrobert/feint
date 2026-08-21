@@ -83,8 +83,8 @@
     {
       "label": "a value the recorder replaced is compared as if its type had been observed, so the proxy's own hygiene manufactures divergences",
       "file": "internal/replay/replay.go",
-      "find": "\t\tif want == proxy.Placeholder {",
-      "replace": "\t\tif want == proxy.Placeholder && false {",
+      "find": "\t\tif proxy.IsPlaceholder(want) {",
+      "replace": "\t\tif proxy.IsPlaceholder(want) && false {",
       "test": "TestARedactedValueIsNotComparedAndIsCounted"
     }
   ]

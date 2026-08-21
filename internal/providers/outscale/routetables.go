@@ -3,6 +3,7 @@ package outscale
 import (
 	"errors"
 	"net/http"
+	"sort"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/network"
@@ -100,7 +101,7 @@ func (p *Pack) readRouteTables(w http.ResponseWriter, r *http.Request) {
 		if !p.routeTableMatches(res, req.Filters) {
 			continue
 		}
-		out = append(out, routeTableView(res))
+		out = append(out, routeTableReadView(res))
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"RouteTables":     page(out, req.ResultsPerPage),
@@ -161,6 +162,48 @@ func routeTableView(res *resource.Resource) map[string]any {
 		out[k] = v
 	}
 	out["RouteTableId"] = res.ID
+	return out
+}
+
+// routeTableReadView is routeTableView with the routes ordered the way a *read*
+// answers them: by destination, ascending (#379).
+//
+// **The create and the read do not agree, and that is measured rather than
+// assumed.** On 2026-08-21, against a real account, one table carrying the Net's
+// own local route and one route to an internet service answered:
+//
+//	CreateRoute       Routes = [ <the Net's range>, 0.0.0.0/0 ]   append order
+//	ReadRouteTables   Routes = [ 0.0.0.0/0, <the Net's range> ]   destination order
+//
+// So the create echoes the table as it stood plus what was just added, and the
+// read sorts. This pack sorted in neither place, which made the read diverge;
+// sorting in both would have made the create diverge instead. A client that
+// stores the create's answer and then reads sees the two swap, and that is the
+// cloud's own behaviour rather than something to improve on here: an emulator
+// that tidied it up would be hiding the plan diff a real stack meets.
+//
+// Sorted on a copy, because the stored slice is the record of what was added
+// and a view has no business reordering it in the store. Ties keep their
+// relative order, which cannot arise today — a table holds one route per
+// destination, enforced by createRoute — and would be the least surprising
+// answer if it did.
+//
+// TestARouteTableAnswersItsRoutesInDestinationOrder fails without this, and
+// ReplayInvariants declares both orders so a recording of the real cloud holds
+// them too.
+func routeTableReadView(res *resource.Resource) map[string]any {
+	out := routeTableView(res)
+	routes := listOf(res.Attrs["Routes"])
+	if len(routes) < 2 {
+		return out
+	}
+	sorted := append([]any(nil), routes...)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		a, _ := sorted[i].(map[string]any)
+		b, _ := sorted[j].(map[string]any)
+		return stringOf(a["DestinationIpRange"]) < stringOf(b["DestinationIpRange"])
+	})
+	out["Routes"] = sorted
 	return out
 }
 
@@ -547,6 +590,7 @@ func (p *Pack) deleteRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Found and removed under the lock, same reasoning as createRoute (#289).
+	var final *resource.Resource
 	err := p.env.Store.Update(Name, kindRouteTable, res.ID, func(stored *resource.Resource) error {
 		routes := listOf(stored.Attrs["Routes"])
 		kept := make([]any, 0, len(routes))
@@ -569,6 +613,7 @@ func (p *Pack) deleteRoute(w http.ResponseWriter, r *http.Request) {
 		}
 		stored.Attrs["Routes"] = kept
 		stored.Updated = p.env.Now()
+		final = stored
 		return nil
 	})
 	switch {
@@ -582,7 +627,16 @@ func (p *Pack) deleteRoute(w http.ResponseWriter, r *http.Request) {
 		p.notFound(w, "route table", req.RouteTableID)
 		return
 	}
-	emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
+	// The table as it now stands, without the route (#381). The real API
+	// answers it — DeleteRouteResponse declares RouteTable, osc-sdk-go
+	// client.gen.go — and it is how a client refreshes its state in one call
+	// instead of two. This pack answered the envelope alone, so a client
+	// reading the answer got nil here and a table there. Measured on a real
+	// account on 2026-08-21.
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{
+		"RouteTable":      routeTableView(final),
+		"ResponseContext": p.context(),
+	})
 }
 
 func (p *Pack) updateRoute(w http.ResponseWriter, r *http.Request) {

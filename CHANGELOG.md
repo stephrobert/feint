@@ -959,6 +959,50 @@ what this project is judged on: **a response shape a client can observe**, and
   and nothing made it true —
   `TestTheMovedWarningSurvivesARunThatIsRedForAnotherReason` does, on the
   poorest run that reaches the print.
+- **Five shapes the Outscale pack answered differently from the cloud**, each
+  found by replaying the recording of a real account and each retiring its
+  exemption from `corpus/accepted.json` (#378, #379, #381, #382, #383). The
+  accepted count went from 289 to 141.
+
+  - **A machine answers `UserData` and `Tags`** (#378). The cloud writes both on
+    every machine — `""` and `[]` on one created with neither — and this pack
+    wrote them only when it had something to put in them. Every other kind in
+    the pack already set `"Tags": []` at create time; the Vm was the one that
+    did not.
+  - **Two lists come back in the order the API orders them** (#379). A
+    machine's security groups are ordered by `SecurityGroupId` ascending, and a
+    route table's routes by destination **on a read** while the create echoes
+    them in append order. Both are measured, and the second is the cloud
+    disagreeing with itself: a client that stores the create's answer and then
+    reads sees the two swap, which an emulator that tidied it up would hide.
+    Terraform stores both as lists, so an order of this emulator's own is a plan
+    diff that never converges — #320, one provider out.
+  - **`DeleteRoute` and `DeleteLoadBalancer` answer the object** (#381) rather
+    than the envelope alone, which is how a client refreshes its state in one
+    call instead of two.
+  - **A rule that names another security group publishes that group's
+    `AccountId` and name** (#382). The `Rules[].SecurityGroupsMembers[]` form
+    copied the client's member through verbatim, so the answer said less than
+    the cloud's about a group the client named by identifier alone — and
+    `AccountId` is what distinguishes a member group of this account from one
+    another account shared in.
+  - **An image carries its root device mapping and its launch permissions**
+    (#383): the device name, the root volume's size and type, which a client
+    reads before it sizes the volume it creates. The `SnapshotId` and the `Iops`
+    of that mapping are **declared** rather than served, and the line is the one
+    the code already drew: naming a snapshot `ReadSnapshots` cannot answer for
+    is how a client's resolve fails on an object that does not exist, and a
+    standard volume has no provisioned IOPS.
+
+  **One order is deliberately not declared as a `ReplayInvariant`, and that is
+  a limit worth writing down.** A machine's security-group order is derived from
+  identifiers the *cloud* minted; no emulator mints those, and `feint replay`
+  compares position by position after rebinding — so declaring it would buy a
+  permanent exemption, and a permanent exemption is a gate that has quietly
+  stopped covering what it names. It is held by a unit test of the pack instead.
+  What is declared is the route order, which the cloud derives from a value both
+  sides carry.
+
 - **The recorder no longer writes two different values as one** (#384). A
   redaction replaced every value the rules matched with the same string, which
   is right for a credential and wrong for everything else a *name*-pattern rule
