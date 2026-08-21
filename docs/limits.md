@@ -1745,6 +1745,17 @@ register/link and unlink backend Vms, delete. Three of the five surveyed
 Outscale stacks (#262) stand on exactly that lifecycle, and all three apply,
 re-plan empty and destroy against it.
 
+Since #344 the listeners can also be moved after the create
+(`CreateLoadBalancerListeners`, `DeleteLoadBalancerListeners`), which is a
+second-apply operation and never a first one: `CreateLoadBalancer` carries its
+listeners inline. Providers 1.1.3, 1.7.0 and 1.8.0 all call the pair from their
+Update path and from nowhere else, and all three delete the departing front port
+before creating the arriving one, so a single-listener port change really does
+pass through a balancer holding no listener at all. That transient state is
+allowed rather than refused, and the runtime follows it: a balancer with no
+listener left is withdrawn from the host instead of going on distributing on a
+port the API has stopped listing.
+
 What a `200` from `CreateLoadBalancer` means here, stated rather than implied:
 
 - **The configuration is recorded and round-trips.** Listeners, backends,
@@ -1806,6 +1817,33 @@ measured about what it answers), access-log enablement (there is no OOS
 bucket here to publish into), listener policies, listener rules, LBU tag
 CRUD, and server certificates. Each answers a refusal naming the line, never
 a silent 200.
+
+**The next wall a day-2 edit meets is the LBU tag CRUD, and it is named rather
+than left to be found.** Measured on 2026-08-21 with provider 1.8.0: changing a
+`tags` block on an existing `outscale_load_balancer` answers `Error: Unable to
+update Load Balancer` carrying `feint does not serve DeleteLoadBalancerTags`,
+and the plan then stays at `0 to add, 1 to change, 0 to destroy`. It is out of
+#344's scope because that issue served the path carrying traffic and a tag
+reaches no runtime; the demand for it is now written down rather than guessed.
+
+**`DeregisterVmsInLoadBalancer` is refused on reachability, not on demand.**
+Provider 1.1.3 is the only version whose code contains the call, on the update
+path of the load balancer's own `backend_vm_ids`, and that path panics before a
+request is built: the attribute is declared `schema.TypeList`
+(`resource_outscale_load_balancer.go:150`) and the update casts it to
+`*schema.Set` (`:726`). Measured 2026-08-21 against this emulator —
+`interface conversion: interface {} is []interface {}, not *schema.Set`, an
+upstream defect rather than an emulator one. Providers 1.7.0 and 1.8.0 removed
+the call; detaching a backend goes through `UnlinkLoadBalancerBackendMachines`,
+which is served.
+
+**One choice here is not a measurement, and says so.** Naming a front port that
+carries no listener in `DeleteLoadBalancerListeners` is accepted rather than
+refused: nothing here has watched a real account answer that request, and what
+the caller asks for — that these ports carry no listener afterwards — is already
+true of a port that carried none. A refusal would have been just as much of a
+guess, and a riskier one, since it would break a client that retried a
+half-applied update.
 
 ## A Scaleway load balancer and public gateway record their configuration; nothing forwards packets
 

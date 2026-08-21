@@ -305,6 +305,8 @@ func (p *Pack) Routes() []emulator.Route {
 		p.route("CreateLoadBalancer", p.createLoadBalancer),
 		p.route("ReadLoadBalancers", p.readLoadBalancers),
 		p.route("UpdateLoadBalancer", p.updateLoadBalancer),
+		p.route("CreateLoadBalancerListeners", p.createLoadBalancerListeners),
+		p.route("DeleteLoadBalancerListeners", p.deleteLoadBalancerListeners),
 		p.route("RegisterVmsInLoadBalancer", p.registerVmsInLoadBalancer),
 		p.route("LinkLoadBalancerBackendMachines", p.registerVmsInLoadBalancer),
 		p.route("UnlinkLoadBalancerBackendMachines", p.unlinkLoadBalancerBackendMachines),

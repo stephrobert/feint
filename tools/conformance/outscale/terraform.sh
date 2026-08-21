@@ -423,8 +423,8 @@ echo "- an in-place change is applied, and the emulator holds it"
 subnet_id="$("$TF" output -raw subnet_id)"
 nic_id="$("$TF" output -raw nic_id)"
 "$TF" apply -no-color -auto-approve -var "endpoint=$ENDPOINT" -var "map_public_ip=true" \
-    -var "nic_description=updated by conformance" >/dev/null \
-  || fail "the second apply failed; an in-place change is what UpdateSubnet and UpdateNic serve"
+    -var "nic_description=updated by conformance" -var "lb_listener_port=8080" >/dev/null \
+  || fail "the second apply failed; an in-place change is what UpdateSubnet, UpdateNic and the listener pair serve"
 subnets="$(curl -sf -X POST "$ENDPOINT/api/v1/ReadSubnets" -H 'Content-Type: application/json' \
             -d "{\"Filters\":{\"SubnetIds\":[\"$subnet_id\"]}}")" || fail "ReadSubnets rejected"
 printf '%s' "$subnets" | jq -e '.Subnets[0].MapPublicIpOnLaunch == true' >/dev/null \
@@ -440,11 +440,31 @@ printf '%s' "$nics" | jq -e '.Nics[0].Description == "updated by conformance"' >
   || fail "the emulator did not keep the NIC's in-place change: $nics"
 ok "second apply changed the Subnet and the Nic, and the emulator answers both new values"
 
+# The load balancer's listener moved in that same apply, which is the only thing
+# in this suite that drives CreateLoadBalancerListeners and
+# DeleteLoadBalancerListeners (#344).
+#
+# A first apply never reaches them — CreateLoadBalancer carries its listeners
+# inline — so this assertion, and not the apply above it, is what would go red
+# if either operation stopped being served. Providers 1.1.3, 1.7.0 and 1.8.0 all
+# delete the departing front port before creating the arriving one, so the pair
+# is proven together or not at all.
+#
+# Asked of the emulator by name: a state file that agrees with itself is not the
+# emulator holding the change, and the old port being *gone* is half the claim —
+# a balancer that kept 80 beside 8080 would still let the plan converge while
+# the runtime distributed on a port nobody asked for.
+lbs="$(curl -sf -X POST "$ENDPOINT/api/v1/ReadLoadBalancers" -H 'Content-Type: application/json' \
+        -d '{"Filters":{"LoadBalancerNames":["conformance-lb"]}}')" || fail "ReadLoadBalancers rejected"
+printf '%s' "$lbs" | jq -e '[.LoadBalancers[0].Listeners[].LoadBalancerPort] == [8080]' >/dev/null \
+  || fail "the moved listener is not what the emulator holds: $lbs"
+ok "the listener moved from 80 to 8080, and the emulator holds exactly the new port"
+
 echo "- destroy"
 # The Net this run created, read before it is destroyed: the check below asks
 # whether *this* Net is gone, not whether the emulator holds none at all.
 net_id="$("$TF" output -raw net_id 2>/dev/null || true)"
-"$TF" destroy -no-color -auto-approve -var "endpoint=$ENDPOINT" >/dev/null
+"$TF" destroy -no-color -auto-approve -var "endpoint=$ENDPOINT" -var "lb_listener_port=8080" >/dev/null
 DESTROYED=1
 
 # Destroy reporting success is not the same as the resources being gone: the

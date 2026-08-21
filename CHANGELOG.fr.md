@@ -109,6 +109,89 @@ change ni l'un ni l'autre a sa place dans `git log`.
   chemin. Deux écritures de « est-ce un identifiant » répondraient
   différemment le jour où l'une des deux apprendrait un cas.
 
+- **Les écouteurs d'un load balancer Outscale peuvent bouger après la création**
+  (#344) : `osc/Client.CreateLoadBalancerListeners` et
+  `osc/Client.DeleteLoadBalancerListeners` sont servis, et le balanceur du
+  runtime les suit.
+
+  **Le manque n'a jamais été le premier apply.** `CreateLoadBalancer` porte ses
+  écouteurs en ligne, et c'est pour cette raison que les trois stacks Outscale
+  recensées qui montent un LBU convergeaient déjà (#281). C'était le *second*
+  apply, celui qui modifie un bloc `listeners` sur un load balancer qui existe
+  déjà, et les trois versions du provider lues ici appellent la paire depuis
+  leur chemin Update et depuis nulle part ailleurs (v1.1.3
+  `resource_outscale_load_balancer.go:671,695`, v1.7.0 `:732,745`, v1.8.0
+  `resource_load_balancer.go:990,1001`). Mesuré le 2026-08-21 avec le provider
+  1.8.0 avant le correctif : déplacer le port d'écoute répondait `Error: Unable
+  to update Load Balancer listeners`, portant `feint does not serve
+  DeleteLoadBalancerListeners`, et chaque plan suivant restait indéfiniment à
+  `0 to add, 1 to change, 0 to destroy`. Après le correctif, sur les providers
+  **1.8.0 et 1.1.3 tous les deux** : apply, plan vide, port déplacé, **second
+  plan vide**, destroy propre. Et `ReadLoadBalancers` détient exactement
+  `[8080]` : l'ancien port a disparu au lieu d'être conservé à côté du nouveau.
+
+  **Le plan de données suit le plan de contrôle, et cela aussi est mesuré.**
+  Sous `--vm incus-ovn`, le balanceur distribue réellement des paquets (#315) :
+  un écouteur que l'API déplace pendant que le runtime garde l'ancien port
+  serait un nouveau mensonge plutôt qu'une nouvelle fonctionnalité.
+  `tools/conformance/outscale/balancer.sh` déplace maintenant l'écouteur et
+  vérifie les deux bouts : 8080 répond, servi par la machine enregistrée, et 80
+  cesse de répondre. Exécuté le 2026-08-21 contre un vrai runtime OVN : 6/6 à
+  t0, 6/6 à t+60s, l'unlink respecté, le déplacement suivi, et l'hôte ne détient
+  plus aucun balanceur après la suppression.
+
+  Ce qui rend cela vrai tient en une branche de `syncBalancer` : un balanceur
+  qui a perdu tous ses écouteurs est *retiré* du runtime au lieu d'être laissé
+  en place. Ce n'est pas un cas limite, c'est le milieu de tout changement de
+  port sur un écouteur unique, puisque le provider supprime le port qui part
+  avant de créer celui qui arrive. Neutralisez cette branche dans une copie hors
+  du dépôt et la suite OVN échoue sur `the balancer does not answer on its new
+  port 8080` : c'est la falsification, aux côtés des cinq mutations de
+  `tools/falsify/specs/listener-day-two.json`, qui mordent toutes.
+
+### Modifié
+
+- **La moitié déclinée de la famille LBU Outscale est triée en quatre au lieu
+  d'une** (#344), parce que les raisons ne sont pas interchangeables et qu'une
+  phrase unique disait « aucune stack recensée n'appelle celles-ci » à propos de
+  toutes. Désormais : les règles d'écouteur et les politiques de persistance
+  relèvent de la **demande**, personne ne les a réclamées ; les étiquettes d'un
+  load balancer après sa création sont **le mur suivant, nommé**, mesuré le
+  2026-08-21 (le provider 1.8.0 répond `Error: Unable to update Load Balancer`
+  sur `DeleteLoadBalancerTags`) et laissées de côté parce que #344 servait le
+  chemin qui porte du trafic alors qu'une étiquette n'atteint aucun runtime ;
+  `ReadVmsHealth` relève de l'**honnêteté**, et dit maintenant la chose la plus
+  précise : non pas seulement que `--vm off` ne sonde rien, mais que `incus
+  network load-balancer` ne rapporte aucune santé par backend *même sous OVN, où
+  les connexions sont réellement distribuées*, de sorte que tout verdict serait
+  inventé ; et les certificats serveur relèvent du fait que **rien ici ne
+  termine TLS**.
+
+- **`osc/Client.DeregisterVmsInLoadBalancer` est décliné pour inaccessibilité et
+  non par manque de demande** (#344), ce qui est un refus plus fort, et que ce
+  dépôt n'avait pas mesuré. Le provider 1.1.3 est la seule version dont le code
+  contient l'appel, sur le chemin de mise à jour du `backend_vm_ids` porté par
+  le load balancer lui-même, et ce chemin ne peut pas s'exécuter : l'attribut
+  est déclaré `schema.TypeList`
+  (`resource_outscale_load_balancer.go:150`) tandis que la mise à jour le
+  convertit en `*schema.Set` (`:726`). Mesuré contre cet émulateur le
+  2026-08-21 : le plugin panique sur `interface conversion: interface {} is
+  []interface {}, not *schema.Set` avant qu'une requête ne soit construite. Les
+  providers 1.7.0 et 1.8.0 ont retiré l'appel purement et simplement. Le
+  détachement d'un backend passe par `UnlinkLoadBalancerBackendMachines`, qui
+  est servi : servir celui-ci reviendrait à servir une opération qu'aucun client
+  ne peut atteindre.
+
+- **Deux écouteurs ne peuvent plus partager un même port d'entrée**, sur
+  `CreateLoadBalancer` comme sur `CreateLoadBalancerListeners` (#344). Le refus
+  est porteur plutôt que cosmétique : deux écouteurs sur un port, ce sont deux
+  écouteurs de runtime sur un port, ce que le balanceur ne sait pas construire ;
+  les stocker laisserait donc l'API décrire un balanceur que le runtime a
+  refusé. Sa formulation évite délibérément le mot que le vrai service emploie :
+  le provider 1.1.3 réessaie pendant cinq minutes sur toute erreur contenant
+  `DuplicateListener`, et la condition n'est jamais transitoire ici, si bien que
+  reprendre ce mot transformerait un refus exact en une attente de cinq minutes.
+
 ## [0.10.0] - 2026-08-20
 
 ### Ajouté

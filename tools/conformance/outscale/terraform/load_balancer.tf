@@ -15,13 +15,25 @@
 # balancer stands (TestASubnetDoesNotDeleteUnderALoadBalancer,
 # TestASecurityGroupDoesNotDeleteUnderALoadBalancer).
 
+# Moved by the suite's second apply, which is what drives the listener pair
+# (#344). A first apply never needs them: CreateLoadBalancer carries its
+# listeners inline, which is why all three surveyed stacks converged without
+# them. Providers 1.1.3, 1.7.0 and 1.8.0 all reach for
+# DeleteLoadBalancerListeners then CreateLoadBalancerListeners from their Update
+# path and from nowhere else, so only a second apply can prove them.
+variable "lb_listener_port" {
+  type        = number
+  default     = 80
+  description = "Moved by the suite's second apply, which is what proves the listener pair."
+}
+
 resource "outscale_load_balancer" "conformance" {
   load_balancer_name = "conformance-lb"
   listeners {
     backend_port           = 80
     backend_protocol       = "HTTP"
     load_balancer_protocol = "HTTP"
-    load_balancer_port     = 80
+    load_balancer_port     = var.lb_listener_port
   }
   subnets            = [outscale_subnet.conformance.subnet_id]
   security_groups    = [outscale_security_group.net_vm.security_group_id]

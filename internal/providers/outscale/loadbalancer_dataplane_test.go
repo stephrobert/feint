@@ -197,6 +197,55 @@ func TestUnlinkingAndDeletingReachTheRuntime(t *testing.T) {
 	}
 }
 
+// A balancer that loses its last listener is withdrawn from the runtime.
+//
+// This is not a corner case, it is the middle of every single-listener port
+// change: providers 1.1.3, 1.7.0 and 1.8.0 all delete the departing front port
+// before creating the arriving one, so the balancer really does stand with an
+// empty listener set for the span of an update (#344).
+//
+// Before the fix, syncBalancer read the empty set as "nothing to hand over" and
+// returned, leaving the runtime distributing connections on a port the API had
+// stopped listing — the lie this project exists to refuse, and one only a test
+// that empties the set can catch.
+func TestEmptyingTheListenersRemovesTheBalancerFromTheRuntime(t *testing.T) {
+	runtime := newRecordingBalancer(true)
+	close(runtime.release)
+	ts := newRuntimeServer(t, runtime)
+
+	_, _, vip := aBalancedStack(t, ts)
+	if len(runtime.specs()) == 0 {
+		t.Fatal("the balancer never reached the runtime, so this test measures nothing")
+	}
+	before := len(runtime.removals())
+
+	call(t, ts, contractDoc(t), "DeleteLoadBalancerListeners",
+		`{"LoadBalancerName":"lbu-data","LoadBalancerPorts":[80]}`)
+
+	removals := runtime.removals()
+	if len(removals) == before {
+		t.Fatal("the balancer lost its only listener and nothing was withdrawn from the runtime; " +
+			"it would keep distributing on a port the API no longer lists")
+	}
+	if last := removals[len(removals)-1]; !containsAddress(last, vip) {
+		t.Errorf("the withdrawal names %q, and the balancer answered on %q", last, vip)
+	}
+
+	// And the arriving port reaches the runtime, which is the other half of the
+	// same update: a withdrawal that never came back would be just as wrong.
+	call(t, ts, contractDoc(t), "CreateLoadBalancerListeners",
+		`{"LoadBalancerName":"lbu-data","Listeners":[{"LoadBalancerPort":8080,"LoadBalancerProtocol":"TCP",`+
+			`"BackendPort":8080,"BackendProtocol":"TCP"}]}`)
+	specs := runtime.specs()
+	last := specs[len(specs)-1]
+	if len(last.Listeners) != 1 || last.Listeners[0].Listen != 8080 {
+		t.Fatalf("the moved listener reached the runtime as %+v, want one on 8080", last.Listeners)
+	}
+	if len(last.Targets) != 2 {
+		t.Errorf("the backends were lost across the listener change: %v", last.Targets)
+	}
+}
+
 func containsAddress(line, address string) bool {
 	return len(line) >= len(address) && line[len(line)-len(address):] == address
 }

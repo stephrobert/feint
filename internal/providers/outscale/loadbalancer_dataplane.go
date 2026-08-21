@@ -64,8 +64,33 @@ func (p *Pack) syncBalancer(ctx context.Context, name string) {
 	if !found {
 		return
 	}
+	network, listen := p.balancerPlacement(res)
+	if network == "" || listen == "" {
+		// Metadata only: nothing was ever handed to the runtime, so there is
+		// nothing to hand it and nothing to take back.
+		return
+	}
 	spec, ok := p.balancerSpecOf(res)
 	if !ok {
+		// Placed, and carrying no listener any more. Returning here is what the
+		// code did before #344, and it was harmless only while the listener set
+		// was fixed at create: DeleteLoadBalancerListeners can now empty it, and
+		// the provider empties it on the way through every single-listener port
+		// change, because it deletes the departing port before creating the
+		// arriving one.
+		//
+		// Leaving the runtime alone at that moment is the exact lie this project
+		// exists to refuse — the API answers "no listeners" while the balancer
+		// goes on distributing connections on the old port. RemoveBalancer is
+		// specified to succeed when nothing is there, so this is safe on a
+		// balancer the runtime never received.
+		//
+		// TestEmptyingTheListenersRemovesTheBalancerFromTheRuntime fails
+		// without this.
+		if err := b.RemoveBalancer(ctx, network, listen); err != nil {
+			p.logger().Error("could not withdraw a load balancer that lost its listeners",
+				"load_balancer", res.ID, "listen", listen, "error", err)
+		}
 		return
 	}
 	if err := b.EnsureBalancer(ctx, spec); err != nil {

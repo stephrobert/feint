@@ -201,6 +201,41 @@ esac
 case "$hits" in *"$vm_b"*) ;; *) fail "the remaining machine receives nothing: $hits" ;; esac
 ok "everything goes to $vm_b:$hits"
 
+# The listener half of the same rule (#344), and the reason it belongs in this
+# suite rather than in a unit test: the control plane can now move a listener,
+# and a move that the API records while the runtime keeps the old port is the
+# lie the whole dataplane axis exists to catch.
+#
+# This is the exact sequence every provider drives for a one-line port change —
+# delete the departing front port, create the arriving one — so the balancer
+# really does stand with no listener at all in between. Both ends are measured:
+# the old port must stop answering, and the new one must start.
+echo "- a moved listener moves the balancer with it"
+osc DeleteLoadBalancerListeners --LoadBalancerName "$lb_name" '--LoadBalancerPorts[]' 80 >/dev/null \
+  || fail "DeleteLoadBalancerListeners rejected"
+osc CreateLoadBalancerListeners --LoadBalancerName "$lb_name" \
+  --Listeners "[{\"LoadBalancerPort\": 8080, \"LoadBalancerProtocol\": \"TCP\", \"BackendPort\": 80, \"BackendProtocol\": \"TCP\"}]" >/dev/null \
+  || fail "CreateLoadBalancerListeners rejected"
+sleep 3
+
+# The new port answers, from the same client machine, over the machine still
+# registered. Asserted first, because it is the positive half: a suite that only
+# checked the old port going quiet would pass on a balancer that was simply gone.
+moved=""
+for _ in 1 2 3 4 5; do
+  moved="$(from_client "$vip:8080" || true)"
+  [ -n "$moved" ] && break
+  sleep 2
+done
+[ "$moved" = "$vm_b" ] || fail "the balancer does not answer on its new port 8080: got '${moved:-nothing}'"
+ok "8080 answers, served by $vm_b"
+
+# And the old port is gone. `from_client` returns empty on a refused connection,
+# which is what a front port nobody listens on gives.
+still="$(from_client "$vip" || true)"
+[ -z "$still" ] || fail "the balancer still answers on the port its listener left: $still"
+ok "80 no longer answers: the runtime followed the control plane"
+
 echo "- deleting the balancer takes it off the host"
 network="$(incus network list -f csv 2>/dev/null | grep '^fnt-' | cut -d, -f1 | while read -r name; do
   addr="$(incus network get "$name" ipv4.address 2>/dev/null || true)"

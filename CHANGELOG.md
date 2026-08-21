@@ -100,6 +100,83 @@ what this project is judged on: **a response shape a client can observe**, and
   of "is this an identifier" would answer differently the day one of them
   learned a case.
 
+- **An Outscale load balancer's listeners can move after the create**
+  (#344): `osc/Client.CreateLoadBalancerListeners` and
+  `osc/Client.DeleteLoadBalancerListeners` are served, and the runtime balancer
+  follows them.
+
+  **The gap was never the first apply.** `CreateLoadBalancer` carries its
+  listeners inline, which is why all three surveyed Outscale stacks that build
+  an LBU already converged (#281). It was the *second* apply — editing a
+  `listeners` block on a load balancer that already stands — and all three
+  provider versions read here call the pair from their Update path and from
+  nowhere else (v1.1.3 `resource_outscale_load_balancer.go:671,695`, v1.7.0
+  `:732,745`, v1.8.0 `resource_load_balancer.go:990,1001`). Measured on
+  2026-08-21 with provider 1.8.0 before the change: moving one listener's front
+  port answered `Error: Unable to update Load Balancer listeners` carrying
+  `feint does not serve DeleteLoadBalancerListeners`, and every plan afterwards
+  stayed at `0 to add, 1 to change, 0 to destroy` for ever. After it, on
+  providers **1.8.0 and 1.1.3 alike**: apply, empty plan, port moved, **second
+  plan empty**, clean destroy — and `ReadLoadBalancers` holds exactly `[8080]`,
+  the old port gone rather than kept beside the new one.
+
+  **The dataplane follows the control plane, and that is measured too.** Under
+  `--vm incus-ovn` the balancer really distributes packets (#315), so a listener
+  the API moved while the runtime kept the old port would be a new lie rather
+  than a new feature. `tools/conformance/outscale/balancer.sh` now moves the
+  listener and asserts both ends: 8080 answers, served by the registered
+  machine, and 80 stops answering. Run on 2026-08-21 against a real OVN
+  runtime — 6/6 at t0, 6/6 at t+60s, the unlink respected, the move followed,
+  the host left holding no balancer after the delete.
+
+  The fix that makes it true is one branch in `syncBalancer`: a balancer that
+  has lost every listener is *withdrawn* from the runtime instead of left alone.
+  That is not a corner case — it is the middle of every single-listener port
+  change, because the provider deletes the departing port before creating the
+  arriving one. Neutralise the branch in a copy outside the repository and the
+  OVN suite fails on `the balancer does not answer on its new port 8080`, which
+  is the falsification, alongside five mutations in
+  `tools/falsify/specs/listener-day-two.json` that all bite.
+
+### Changed
+
+- **The declined half of the Outscale LBU family is triaged four ways instead of
+  one** (#344), because the reasons are not interchangeable and one shared
+  sentence said "no surveyed stack calls these" about all of them. Now:
+  listener rules and stickiness policies are **demand** — nobody has asked; a
+  load balancer's tags after its create are **the named next wall**, measured
+  on 2026-08-21 (provider 1.8.0 answers `Error: Unable to update Load Balancer`
+  on `DeleteLoadBalancerTags`) and left out because #344 served the path that
+  carries traffic while a tag reaches no runtime; `ReadVmsHealth` is
+  **honesty**, and now says the sharper thing — not merely that `--vm off`
+  probes nothing, but that `incus network load-balancer` reports no per-backend
+  health *even under OVN where connections really are distributed*, so any
+  verdict would be invented; and the server certificates are **nothing here
+  terminates TLS**.
+
+- **`osc/Client.DeregisterVmsInLoadBalancer` is declined on reachability rather
+  than on demand** (#344), which is a stronger refusal and one this repository
+  had not measured. Provider 1.1.3 is the only version whose code contains the
+  call, on the update path of the load balancer's own `backend_vm_ids`, and that
+  path cannot execute: the attribute is declared `schema.TypeList`
+  (`resource_outscale_load_balancer.go:150`) while the update casts it to
+  `*schema.Set` (`:726`). Measured against this emulator on 2026-08-21 — the
+  plugin panics with `interface conversion: interface {} is []interface {}, not
+  *schema.Set` before a request is built. Providers 1.7.0 and 1.8.0 removed the
+  call outright. Detaching a backend goes through
+  `UnlinkLoadBalancerBackendMachines`, which is served, so serving this one
+  would be serving an operation no client can reach.
+
+- **Two listeners can no longer share one front port**, on
+  `CreateLoadBalancer` and `CreateLoadBalancerListeners` alike (#344). The
+  refusal is load-bearing rather than tidy: two listeners on one port are two
+  runtime listeners on one port, which the balancer cannot build, so storing
+  them would leave the API describing a balancer the runtime had refused. Its
+  wording deliberately avoids the token the real service uses — provider 1.1.3
+  retries for five minutes on any error containing `DuplicateListener`, and here
+  the condition is never transient, so echoing it would turn an accurate refusal
+  into a five-minute hang.
+
 ## [0.10.0] - 2026-08-20
 
 ### Added

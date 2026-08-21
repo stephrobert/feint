@@ -119,31 +119,14 @@ func (p *Pack) createLoadBalancer(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, "Listeners is required")
 		return
 	}
-	listeners := make([]any, 0, len(req.Listeners))
-	for _, l := range req.Listeners {
-		backendProtocol := orDefault(l.BackendProtocol, l.LoadBalancerProtocol)
-		if !slices.Contains(listenerProtocols, l.LoadBalancerProtocol) ||
-			!slices.Contains(listenerProtocols, backendProtocol) {
-			p.badRequest(w, "the listener protocol must be HTTP, HTTPS, TCP or SSL")
-			return
-		}
-		if !validPort(l.LoadBalancerPort) || !validPort(l.BackendPort) {
-			p.badRequest(w, "the listener ports must be between 1 and 65535")
-			return
-		}
-		if l.ServerCertificateID != "" {
-			// Server certificates are declined by name (declined.go); accepting
-			// the reference here would store a certificate nothing can read back.
-			p.badRequest(w, "ServerCertificateId is not served: server certificates are declined, see /_feint/routes")
-			return
-		}
-		listeners = append(listeners, map[string]any{
-			"BackendPort":          l.BackendPort,
-			"BackendProtocol":      backendProtocol,
-			"LoadBalancerPort":     l.LoadBalancerPort,
-			"LoadBalancerProtocol": l.LoadBalancerProtocol,
-			"PolicyNames":          []any{},
-		})
+	// The same validation CreateLoadBalancerListeners runs (listeners.go), and
+	// deliberately not a second copy of it: the two operations take the same
+	// ListenerForCreation, and a rule written twice is a rule one of the two
+	// paths loses. Nothing is taken yet, so no front port is held against it.
+	listeners, refusal := listenerViews(req.Listeners, nil)
+	if refusal != "" {
+		p.badRequest(w, refusal)
+		return
 	}
 	if req.PublicIP != "" {
 		// The real service associates a caller-owned EIP. No surveyed stack

@@ -1,0 +1,47 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "a balancer emptied of its listeners is left on the runtime, distributing on a port the API no longer lists",
+      "file": "internal/providers/outscale/loadbalancer_dataplane.go",
+      "find": "\tspec, ok := p.balancerSpecOf(res)\n\tif !ok {",
+      "replace": "\tspec, ok := p.balancerSpecOf(res)\n\tif !ok && false {",
+      "test": "TestEmptyingTheListenersRemovesTheBalancerFromTheRuntime"
+    },
+    {
+      "label": "two listeners share one front port, and the runtime is handed a balancer it cannot build",
+      "file": "internal/providers/outscale/listeners.go",
+      "find": "\t\tif slices.Contains(ports, l.LoadBalancerPort) {",
+      "replace": "\t\tif slices.Contains(ports, l.LoadBalancerPort) && false {",
+      "test": "TestTwoListenersOnOnePortAreRefused"
+    },
+    {
+      "label": "a listener added after the create smuggles in a server certificate the emulator declines",
+      "file": "internal/providers/outscale/listeners.go",
+      "find": "\t\tif l.ServerCertificateID != \"\" {",
+      "replace": "\t\tif l.ServerCertificateID != \"\" && false {",
+      "test": "TestAListenerCannotSmuggleAServerCertificate"
+    },
+    {
+      "label": "a listener change never reaches the runtime, so the balancer keeps its old ports",
+      "file": "internal/providers/outscale/listeners.go",
+      "find": "\tp.syncBalancer(r.Context(), name)",
+      "replace": "\tif false {\n\t\tp.syncBalancer(r.Context(), name)\n\t}",
+      "test": "TestEmptyingTheListenersRemovesTheBalancerFromTheRuntime"
+    },
+    {
+      "label": "DeleteLoadBalancerListeners takes an empty port list and silently changes nothing",
+      "file": "internal/providers/outscale/listeners.go",
+      "find": "\tif len(req.LoadBalancerPorts) == 0 {",
+      "replace": "\tif len(req.LoadBalancerPorts) == 0 && false {",
+      "test": "TestListenerOperationsRequireTheirArguments"
+    },
+    {
+      "label": "a refused listener batch is reported beside a nil return, so the store writes back and announces an update nothing made",
+      "file": "internal/providers/outscale/listeners.go",
+      "find": "\t\t\trefusal = listenerRefusal(why)\n\t\t\treturn refusal",
+      "replace": "\t\t\trefusal = listenerRefusal(why)\n\t\t\treturn nil",
+      "test": "TestARefusedListenerBatchPublishesNoEvent"
+    }
+  ]
+}

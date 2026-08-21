@@ -7,8 +7,8 @@
   ],
   "generated_from": {
     "contracts": "0f89ca163b0fb5f1",
-    "shapes": "c73ca6ca03ceac5b",
-    "suites": "2015dfc3165b0328"
+    "shapes": "8e5226e786207180",
+    "suites": "a1a7ffa1e784dc5f"
   },
   "operations": {
     "block/v1/API.CreateSnapshot": {
@@ -26,7 +26,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": true,
+      "behaviour": false,
       "negative": false
     },
     "block/v1/API.DeleteSnapshot": {
@@ -107,7 +107,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "block/v1alpha1/API.CreateSnapshot": {
@@ -2153,6 +2153,15 @@
       "behaviour": true,
       "negative": false
     },
+    "osc/Client.CreateLoadBalancerListeners": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "osc/Client.CreateNatService": {
       "driven": true,
       "probed": "response",
@@ -2316,6 +2325,15 @@
       "negative": false
     },
     "osc/Client.DeleteLoadBalancer": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "osc/Client.DeleteLoadBalancerListeners": {
       "driven": true,
       "probed": "refusal",
       "contract": "clean",
@@ -2995,7 +3013,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": false
     },

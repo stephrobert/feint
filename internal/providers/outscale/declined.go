@@ -177,35 +177,91 @@ func (p *Pack) Declined() []emulator.Decline {
 			"osc/Client.UpdateDirectLinkInterface",
 			"osc/Client.UpdateVpnConnection"),
 
-		// The rest of the LBU family, and the server certificates that exist to
-		// terminate TLS on it.
+		// The rest of the LBU family, triaged four ways rather than lumped.
 		//
-		// The family's core — create, read, update, register/unlink backends,
-		// delete — is served since #281, because three of the five surveyed
-		// stacks (#262) create load balancers and those six operations are all
-		// they call, measured with `feint proxy --record` at their exact
-		// commits and read from the provider's own resource code (v1.1.3 and
-		// v1.8.0). What stays here is what no surveyed stack sends; the first
-		// one that does is the demand evidence that reopens the line.
-		//
-		// ReadVmsHealth stays declined on honesty, not on demand alone: under
-		// `--vm off` nothing probes a backend, and a health state nobody
-		// measured is the exact invented answer this project refuses. It comes
-		// off this list the day the runtime actually checks something.
-		emulator.Because("no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
-			"osc/Client.CreateLoadBalancerListeners",
-			"osc/Client.CreateLoadBalancerPolicy",
-			"osc/Client.CreateLoadBalancerTags",
+		// The core — create, read, update, register/unlink backends, delete — is
+		// served since #281, and the two listener operations since #344, because
+		// they are the whole of what a second `terraform apply` needs to move a
+		// listener. What follows each stays out for its own reason, and the
+		// reasons are not interchangeable.
+
+		// The listener rules and the stickiness policies: demand, and nothing
+		// else. No surveyed stack (#262) writes an
+		// outscale_load_balancer_listener_rule or an
+		// outscale_load_balancer_policy, and the first configuration that does
+		// is the evidence that reopens the line. Nothing here is hard; nobody
+		// has asked.
+		emulator.Because("no surveyed stack writes a listener rule or a stickiness policy, and the first configuration that does is the demand evidence that reopens the line",
 			"osc/Client.CreateListenerRule",
-			"osc/Client.DeleteLoadBalancerListeners",
-			"osc/Client.DeleteLoadBalancerPolicy",
-			"osc/Client.DeleteLoadBalancerTags",
 			"osc/Client.DeleteListenerRule",
-			"osc/Client.DeregisterVmsInLoadBalancer",
 			"osc/Client.ReadListenerRules",
-			"osc/Client.ReadLoadBalancerTags",
-			"osc/Client.ReadVmsHealth",
 			"osc/Client.UpdateListenerRule",
+			"osc/Client.CreateLoadBalancerPolicy",
+			"osc/Client.DeleteLoadBalancerPolicy"),
+
+		// A load balancer's tags after its create, which is the next wall a
+		// day-2 edit meets and is named here rather than left to be discovered.
+		//
+		// Measured on 2026-08-21 against this emulator with provider 1.8.0:
+		// changing a `tags` block on an existing outscale_load_balancer answers
+		// `Error: Unable to update Load Balancer` carrying
+		// "feint does not serve DeleteLoadBalancerTags", and the plan then stays
+		// at `0 to add, 1 to change, 0 to destroy` for ever. All three provider
+		// versions read here call the pair from the same Update path (v1.1.3
+		// resource_outscale_load_balancer.go, v1.7.0 and v1.8.0
+		// resource_load_balancer.go).
+		//
+		// It stays declined because it is metadata and #344 was scoped to the
+		// path that carries traffic: a listener change has to reach the runtime
+		// balancer, a tag change reaches nothing. That is a boundary, not a
+		// difficulty — the day somebody's stack edits a load balancer tag, this
+		// is a small job with its demand already written down.
+		emulator.Because("a load balancer's tags after its create: measured as the next wall a day-2 edit meets (provider 1.8.0 answers Error: Unable to update Load Balancer), left out because #344 served the path that carries traffic and a tag reaches no runtime",
+			"osc/Client.CreateLoadBalancerTags",
+			"osc/Client.DeleteLoadBalancerTags",
+			"osc/Client.ReadLoadBalancerTags"),
+
+		// Detaching a backend by the older spelling — and this one is not
+		// demand, it is reachability, which is a stronger refusal.
+		//
+		// RegisterVmsInLoadBalancer is served because a real client sends it.
+		// Its Deregister sibling has no such client. Provider 1.1.3 is the only
+		// version whose code contains the call, on the update path of the
+		// load balancer's own backend_vm_ids, and that path cannot execute: the
+		// attribute is declared schema.TypeList
+		// (resource_outscale_load_balancer.go:150) while the update casts it to
+		// *schema.Set (:726), so any change to it panics inside the plugin
+		// before a request is built. Measured 2026-08-21 against this emulator:
+		//
+		//	panic: interface conversion: interface {} is []interface {}, not *schema.Set
+		//	  ResourceOutscaleLoadBalancerUpdate … resource_outscale_load_balancer.go:726
+		//
+		// Providers 1.7.0 and 1.8.0 removed the call outright; detaching goes
+		// through UnlinkLoadBalancerBackendMachines on the separate
+		// outscale_load_balancer_vms resource, which this pack serves. So the
+		// detach path is covered, and serving this one would be serving an
+		// operation no client can reach.
+		emulator.Because("no client reaches it: provider 1.1.3 panics on its only caller (a TypeList cast to *schema.Set, resource_outscale_load_balancer.go:726) and 1.7.0 onwards removed the call — detaching a backend goes through UnlinkLoadBalancerBackendMachines, which is served",
+			"osc/Client.DeregisterVmsInLoadBalancer"),
+
+		// Backend health, declined on honesty rather than on demand, and the
+		// only one of these four that a measurement could not move.
+		//
+		// Under `--vm off` nothing probes a backend at all. Under `--vm
+		// incus-ovn` a balancer does distribute real connections (#315), and
+		// still nothing probes: `incus network load-balancer` reports no
+		// per-backend health, so there is no verdict to read. Publishing one
+		// would be the invented answer this project exists to refuse. It comes
+		// off this list the day the runtime actually checks something.
+		emulator.Because("nothing here probes a backend — not under --vm off, and not under incus-ovn either, where the runtime distributes connections but reports no per-backend health — so any state served would be invented",
+			"osc/Client.ReadVmsHealth"),
+
+		// The server certificates that exist to terminate TLS on a listener.
+		// Nothing here terminates TLS: a listener declared HTTPS or SSL is
+		// handed to the runtime as the transport it rides on, because nothing
+		// decrypts and nothing parses a request (loadbalancer_dataplane.go). A
+		// stored certificate would be a certificate no connection ever presents.
+		emulator.Because("nothing here terminates TLS — an HTTPS or SSL listener is distributed as the transport it rides on — so a stored certificate is one no connection would ever present",
 			"osc/Client.CreateServerCertificate",
 			"osc/Client.DeleteServerCertificate",
 			"osc/Client.ReadServerCertificates",

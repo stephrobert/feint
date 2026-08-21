@@ -1,8 +1,8 @@
 {
   "provider": "outscale",
   "total": 263,
-  "implemented": 91,
-  "declined": 172,
+  "implemented": 93,
+  "declined": 170,
   "unknown": 0,
   "orphans": null,
   "products": [
@@ -16,8 +16,8 @@
     {
       "product": "osc",
       "total": 236,
-      "implemented": 91,
-      "declined": 145,
+      "implemented": 93,
+      "declined": 143,
       "unknown": 0
     }
   ],
@@ -144,8 +144,8 @@
     {
       "group": "Listener",
       "total": 6,
-      "implemented": 0,
-      "declined": 6,
+      "implemented": 2,
+      "declined": 4,
       "unknown": 0
     },
     {
@@ -660,7 +660,7 @@
     {
       "operation": "osc/Client.CreateListenerRule",
       "product": "osc",
-      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
+      "reason": "no surveyed stack writes a listener rule or a stickiness policy, and the first configuration that does is the demand evidence that reopens the line",
       "group": "Listener",
       "status": "declined"
     },
@@ -673,21 +673,20 @@
     {
       "operation": "osc/Client.CreateLoadBalancerListeners",
       "product": "osc",
-      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
       "group": "Listener",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.CreateLoadBalancerPolicy",
       "product": "osc",
-      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
+      "reason": "no surveyed stack writes a listener rule or a stickiness policy, and the first configuration that does is the demand evidence that reopens the line",
       "group": "LoadBalancerPolicy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.CreateLoadBalancerTags",
       "product": "osc",
-      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
+      "reason": "a load balancer's tags after its create: measured as the next wall a day-2 edit meets (provider 1.8.0 answers Error: Unable to update Load Balancer), left out because #344 served the path that carries traffic and a tag reaches no runtime",
       "group": "LoadBalancer",
       "status": "declined"
     },
@@ -776,7 +775,7 @@
     {
       "operation": "osc/Client.CreateServerCertificate",
       "product": "osc",
-      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
+      "reason": "nothing here terminates TLS — an HTTPS or SSL listener is distributed as the transport it rides on — so a stored certificate is one no connection would ever present",
       "group": "ServerCertificate",
       "status": "declined"
     },
@@ -956,7 +955,7 @@
     {
       "operation": "osc/Client.DeleteListenerRule",
       "product": "osc",
-      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
+      "reason": "no surveyed stack writes a listener rule or a stickiness policy, and the first configuration that does is the demand evidence that reopens the line",
       "group": "Listener",
       "status": "declined"
     },
@@ -969,21 +968,20 @@
     {
       "operation": "osc/Client.DeleteLoadBalancerListeners",
       "product": "osc",
-      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
       "group": "Listener",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "osc/Client.DeleteLoadBalancerPolicy",
       "product": "osc",
-      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
+      "reason": "no surveyed stack writes a listener rule or a stickiness policy, and the first configuration that does is the demand evidence that reopens the line",
       "group": "LoadBalancerPolicy",
       "status": "declined"
     },
     {
       "operation": "osc/Client.DeleteLoadBalancerTags",
       "product": "osc",
-      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
+      "reason": "a load balancer's tags after its create: measured as the next wall a day-2 edit meets (provider 1.8.0 answers Error: Unable to update Load Balancer), left out because #344 served the path that carries traffic and a tag reaches no runtime",
       "group": "LoadBalancer",
       "status": "declined"
     },
@@ -1072,7 +1070,7 @@
     {
       "operation": "osc/Client.DeleteServerCertificate",
       "product": "osc",
-      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
+      "reason": "nothing here terminates TLS — an HTTPS or SSL listener is distributed as the transport it rides on — so a stored certificate is one no connection would ever present",
       "group": "ServerCertificate",
       "status": "declined"
     },
@@ -1172,7 +1170,7 @@
     {
       "operation": "osc/Client.DeregisterVmsInLoadBalancer",
       "product": "osc",
-      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
+      "reason": "no client reaches it: provider 1.1.3 panics on its only caller (a TypeList cast to *schema.Set, resource_outscale_load_balancer.go:726) and 1.7.0 onwards removed the call — detaching a backend goes through UnlinkLoadBalancerBackendMachines, which is served",
       "group": "LoadBalancer",
       "status": "declined"
     },
@@ -1475,14 +1473,14 @@
     {
       "operation": "osc/Client.ReadListenerRules",
       "product": "osc",
-      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
+      "reason": "no surveyed stack writes a listener rule or a stickiness policy, and the first configuration that does is the demand evidence that reopens the line",
       "group": "Listener",
       "status": "declined"
     },
     {
       "operation": "osc/Client.ReadLoadBalancerTags",
       "product": "osc",
-      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
+      "reason": "a load balancer's tags after its create: measured as the next wall a day-2 edit meets (provider 1.8.0 answers Error: Unable to update Load Balancer), left out because #344 served the path that carries traffic and a tag reaches no runtime",
       "group": "LoadBalancer",
       "status": "declined"
     },
@@ -1625,7 +1623,7 @@
     {
       "operation": "osc/Client.ReadServerCertificates",
       "product": "osc",
-      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
+      "reason": "nothing here terminates TLS — an HTTPS or SSL listener is distributed as the transport it rides on — so a stored certificate is one no connection would ever present",
       "group": "ServerCertificate",
       "status": "declined"
     },
@@ -1759,7 +1757,7 @@
     {
       "operation": "osc/Client.ReadVmsHealth",
       "product": "osc",
-      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
+      "reason": "nothing here probes a backend — not under --vm off, and not under incus-ovn either, where the runtime distributes connections but reports no per-backend health — so any state served would be invented",
       "group": "LoadBalancer",
       "status": "declined"
     },
@@ -1989,7 +1987,7 @@
     {
       "operation": "osc/Client.UpdateListenerRule",
       "product": "osc",
-      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
+      "reason": "no surveyed stack writes a listener rule or a stickiness policy, and the first configuration that does is the demand evidence that reopens the line",
       "group": "Listener",
       "status": "declined"
     },
@@ -2040,7 +2038,7 @@
     {
       "operation": "osc/Client.UpdateServerCertificate",
       "product": "osc",
-      "reason": "no surveyed stack calls these: the measured lifecycle is create, read, update, register/unlink, delete (#281) — and a backend health nothing probed would be an invented answer",
+      "reason": "nothing here terminates TLS — an HTTPS or SSL listener is distributed as the transport it rides on — so a stored certificate is one no connection would ever present",
       "group": "ServerCertificate",
       "status": "declined"
     },
