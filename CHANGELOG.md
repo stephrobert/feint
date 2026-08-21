@@ -17,6 +17,14 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **The `negative` evidence axis, measured again: 35 of 370 to 173 of 370**
+  (#390), and the number is what came out rather than a figure anybody aimed at.
+  Per provider: Scaleway 18 to 97 of 173, Outscale 11 to 66 of 93, Exoscale 6 to
+  10 of 104. 138 operations gained it, none lost it, and 197 stay at zero —
+  visibly, because an operation whose refusal nobody could record is not counted.
+  Two identical runs produce the same 173, which is the property this number
+  needed and `behaviour` does not have (#398).
+
 - **The unhappy path is recorded, and the `negative` evidence axis moves for the
   first time by measuring rather than by asserting** (#390). Three corpora of
   refusals a real cloud actually answered — `corpus/scaleway/scw-refusals.jsonl`,

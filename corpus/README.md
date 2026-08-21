@@ -313,6 +313,33 @@ conformance run, against the emulator every other suite shares: a 4xx mutates
 nothing, and `feint replay --refusals-only` reads the whole file before sending
 anything rather than taking that on trust.
 
+### What came out
+
+Measured again after the three corpora were replayed inside a conformance run,
+and reported as it came rather than as anybody wanted it:
+
+| | before | after |
+|---|---|---|
+| `negative`, all providers | 35 of 370 (9.5 %) | **173 of 370 (46.8 %)** |
+| Scaleway | 18 of 173 | 97 of 173 |
+| Outscale | 11 of 93 | 66 of 93 |
+| Exoscale | 6 of 104 | 10 of 104 |
+
+138 operations gained it and none lost it. **197 stay at zero**, and that is the
+point of the rule above: an operation whose refusal nobody could record is not
+counted, and the three families below say why for most of them.
+
+Exoscale is the low one and the reason is measured, not guessed: `exo` resolves
+a `NAME|ID` argument by *listing* before it calls, so of 65 commands driven at
+identifiers that do not exist, **three** reached the API at all. The refusal
+never leaves the station. `oapi-cli` sends its Action straight through and gave
+67 refusals from 91 commands. How much of this corpus a provider can have is a
+property of its client.
+
+Two identical runs produce the same 173, which is the property a number like
+this needs. `behaviour` does not have it (#398), and that was measured while
+looking at this.
+
 ### The account rules, and the one thing they cost
 
 A refusal is the cheapest recording there is, because most of them create

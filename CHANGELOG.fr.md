@@ -19,6 +19,14 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **L'axe de preuve `negative`, remesuré : de 35 sur 370 à 173 sur 370** (#390),
+  et ce chiffre est celui qui sort, pas celui que quelqu'un visait. Par
+  fournisseur : Scaleway de 18 à 97 sur 173, Outscale de 11 à 66 sur 93, Exoscale
+  de 6 à 10 sur 104. 138 opérations le gagnent, aucune ne le perd, et 197 restent
+  à zéro, de façon visible : une opération dont personne n'a pu enregistrer le
+  refus n'est pas comptée. Deux passes identiques rendent le même 173, propriété
+  dont ce chiffre avait besoin et que `behaviour` n'a pas (#398).
+
 - **Le chemin malheureux est enregistré, et l'axe de preuve `negative` bouge pour
   la première fois par une mesure et non par une affirmation** (#390). Trois
   corpus de refus qu'un vrai cloud a réellement rendus
