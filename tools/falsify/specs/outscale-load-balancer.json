@@ -39,8 +39,8 @@
     {
       "label": "the internal- DNS prefix disappears, where the measured real name carries it (#281)",
       "file": "internal/providers/outscale/loadbalancers.go",
-      "find": "\tif lbType == \"internal\" {\n\t\tprefix = \"internal-\"\n\t}",
-      "replace": "\tif lbType == \"internal\" {\n\t\tprefix = \"\"\n\t}",
+      "find": "\tif lbType == lbInternal {\n\t\tprefix = \"internal-\"\n\t}",
+      "replace": "\tif lbType == lbInternal {\n\t\tprefix = \"\"\n\t}",
       "test": "TestAnInternalLoadBalancerHasNoPublicFace"
     }
   ]

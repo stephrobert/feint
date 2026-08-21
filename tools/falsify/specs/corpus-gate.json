@@ -123,6 +123,13 @@
       "find": "\t\tif declared[kind] > 0 && ran[kind] == 0 {",
       "replace": "\t\tif declared[kind] >= 0 && ran[kind] == 0 {",
       "test": "TestNoDeclaredInvariantAsksForNoComparison"
+    },
+    {
+      "label": "the region a corpus names is ignored, so a recording of cloudgouv-eu-west-1 is replayed against a pack serving eu-west-2, knownSubregion refuses its own CreateSubnet and CreateVolume, and everything downstream of them answers 400 or 404 — about a hundred findings, not one of them the emulator's",
+      "file": "internal/cli/corpus.go",
+      "find": "\t\tif rec, ok := recordingOf(acc.Recorded, f); ok && (rec.Region != \"\" || rec.Zone != \"\") {",
+      "replace": "\t\tif rec, ok := recordingOf(acc.Recorded, f); ok && (rec.Region != \"\" || rec.Zone != \"\") && false {",
+      "test": "TestACorpusIsReplayedInTheRegionItNames"
     }
   ]
 }

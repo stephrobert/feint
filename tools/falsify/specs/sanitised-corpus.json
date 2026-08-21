@@ -150,6 +150,20 @@
       "find": "\tn &= ^uint32(0) >> uint(syntheticV4.Bits()) //nolint:gosec // a prefix length of a v4 space, 0..32",
       "replace": "\tn &= ^uint32(0) >> uint(syntheticV4.Bits()) | ^uint32(0) //nolint:gosec // a prefix length of a v4 space, 0..32",
       "test": "TestASpaceWithNoRoomLeftIsRefusedRatherThanOverrun"
+    },
+    {
+      "label": "blocks are minted one at a time again, so a subnet lands outside the net that contains it, the create answers 400 `IpRange … is outside the Net range …` where the cloud answered 200, and the machine, the volume, the NIC, the public IP, the route table link, the NAT service and the load balancer behind it all 400 or 404 — about a hundred findings on the Outscale recording of 2026-08-21, not one of them the emulator's",
+      "file": "internal/corpus/corpus.go",
+      "find": "\tm.planBlocks(exs)",
+      "replace": "\tif false {\n\t\tm.planBlocks(exs)\n\t}",
+      "test": "TestASubnetStaysInsideItsNet"
+    },
+    {
+      "label": "THE FLOOR UNDER IT: a block whose replacement is outside the synthetic space may be a parent again, so a /0 whose address half is the account's — which keepable does not keep — contains every block of the recording and each child derived from it walks out of 198.18.0.0/15, refused by the alphabet",
+      "file": "internal/corpus/corpus.go",
+      "find": "\tif err != nil || !to.Addr().Is4() || to.Bits() < syntheticV4.Bits() || !syntheticV4.Contains(to.Addr()) {",
+      "replace": "\tif err != nil || !to.Addr().Is4() || (to.Bits() < syntheticV4.Bits() || !syntheticV4.Contains(to.Addr())) && false {",
+      "test": "TestTheDefaultRouteSurvivesSanitisation"
     }
   ]
 }

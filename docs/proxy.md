@@ -575,12 +575,21 @@ public placeholder credentials of
 
 So the transport is not in doubt: the request reaches
 `api.eu-west-2.outscale.com` with its own `Host`, and what comes back is the
-cloud's verdict rather than a transport failure. **What a *valid* credential then
-answers on an authenticated call is still unmeasured**, because 4120 is the same
-code for an unknown key and for a wrong region and cannot distinguish "the
-signature was checked and the key does not exist" from "the signature did not
-verify". That is the run left to make, and it needs an account whose owner has
-said which profile to use — `corpus/README.md` carries the rule.
+cloud's verdict rather than a transport failure.
+
+**That run is now made.** On the same day, through the same tunnel and against
+`api.cloudgouv-eu-west-1.outscale.com`, a **valid** credential answered 200 with
+real data on 179 exchanges — reads, creates, updates and deletes — and the
+recording is `corpus/outscale/oapi-cli-lifecycle.jsonl`. The paragraph this
+replaces said the question could not be settled because 4120 is the same code
+for an unknown key and for a wrong region; it is settled by answering something
+other than 4120.
+
+One thing that measurement did surface, and it is the reason the earlier attempt
+read as a broken client: **`oapi-cli` reads the profile's `region` key and
+ignores `region_name`**, which is the Python client's spelling. A `cloudgouv`
+profile written in that dialect is presented at `eu-west-2` and answers 4120. A
+temporary config built for a recording sets `region` explicitly.
 
 **One thing does change in the client, and it is the one `--forward` promises
 not to.** `oapi-cli` honours neither `SSL_CERT_FILE` nor `CURL_CA_BUNDLE`: the

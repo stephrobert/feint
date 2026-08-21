@@ -458,9 +458,20 @@ func (p *Pack) deleteSecurityGroupRule(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// flowInbound and flowOutbound are the two directions a rule can take, and the
+// only two values [ruleTarget] accepts. Named rather than written inline
+// because PublicVocabulary has to vouch for exactly the values this refuses,
+// and a second copy of a closed list is a copy that drifts silently: the
+// symptom is a corpus that replays 400 on every rule and reads like an
+// emulator defect.
+const (
+	flowInbound  = "Inbound"
+	flowOutbound = "Outbound"
+)
+
 // ruleTarget resolves the group and the side of it a rule request addresses.
 func (p *Pack) ruleTarget(w http.ResponseWriter, req *securityGroupRuleRequest) (*resource.Resource, string, bool) {
-	if req.Flow != "Inbound" && req.Flow != "Outbound" {
+	if req.Flow != flowInbound && req.Flow != flowOutbound {
 		p.badRequest(w, "Flow must be Inbound or Outbound")
 		return nil, "", false
 	}
@@ -474,7 +485,7 @@ func (p *Pack) ruleTarget(w http.ResponseWriter, req *securityGroupRuleRequest) 
 		return nil, "", false
 	}
 	side := "InboundRules"
-	if req.Flow == "Outbound" {
+	if req.Flow == flowOutbound {
 		side = "OutboundRules"
 	}
 	return res, side, true

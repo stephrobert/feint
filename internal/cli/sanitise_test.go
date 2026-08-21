@@ -266,3 +266,59 @@ func mustLoad(t *testing.T, path string) []trace.Exchange {
 	}
 	return exs
 }
+
+// An Outscale recording keeps the subregion, the flow of a rule, the kind of a
+// load balancer and the protocol of a listener.
+//
+// The Outscale pack vouched for nothing at all until #354, and the corpus could
+// not see it because the two committed Outscale recordings were catalogue reads
+// carrying none of those values. The first recording of a real account did:
+// SubregionName became "redacted-5", knownSubregion refused it — the #269
+// invariant — and CreateSubnet answered 400 where the cloud answered 200,
+// taking the machine, the volume, the NIC, the public IP, the route table link,
+// the NAT service and the load balancer with it.
+//
+// One test over the four, because they are one decision: a pack keeps the
+// closed lists it validates a request against, and each of these is refused by
+// name with a 400 that reads exactly like a defect of the emulator.
+func TestASanitisedOutscaleTranscriptKeepsWhatThePackValidates(t *testing.T) {
+	env := emulator.DefaultEnv()
+	packs, err := packsFor(env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var vocabulary []string
+	for _, p := range packs {
+		if p.Name() == "outscale" {
+			vocabulary = emulator.VocabularyOf(p)
+		}
+	}
+	// Asserted, not assumed: a pack that vouches for nothing makes every check
+	// below vacuous, and that was exactly the state this test was written for.
+	if len(vocabulary) == 0 {
+		t.Fatal("the Outscale pack vouches for nothing, so every value of a recording is replaced " +
+			"and every create that names a subregion replays 400")
+	}
+	has := func(want string) bool {
+		for _, v := range vocabulary {
+			if v == want {
+				return true
+			}
+		}
+		return false
+	}
+	for _, want := range []string{
+		"cloudgouv-eu-west-1", "cloudgouv-eu-west-1a", "eu-west-2", "eu-west-2a",
+		"Inbound", "Outbound", "internal", "internet-facing", "TCP", "HTTPS",
+	} {
+		if !has(want) {
+			t.Errorf("the Outscale pack does not vouch for %q, which it refuses a request for by name: "+
+				"a recording carrying it replays 400 and reads like a defect of the emulator", want)
+		}
+	}
+	// And the guard the declaration itself faces: nothing here may be shaped
+	// like something a cloud minted.
+	if unsafe := emulator.UnsafeVocabulary(vocabulary); len(unsafe) > 0 {
+		t.Errorf("the Outscale vocabulary carries values a sanitiser must never keep: %v", unsafe)
+	}
+}

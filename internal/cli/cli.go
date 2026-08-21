@@ -641,17 +641,36 @@ func loadContracts(dir string) (map[string]*contract.Doc, error) {
 // accepted list. TestAnUnknownExoscaleZoneRefusesToServe fails without the
 // refusal.
 var packsFor = func(env *emulator.Env) ([]emulator.Pack, error) {
+	return packsAt(env, os.Getenv("FEINT_OUTSCALE_REGION"), os.Getenv("FEINT_EXOSCALE_ZONE"))
+}
+
+// packsAt is packsFor with the two deployment choices passed in rather than
+// read from the environment, and it is the one implementation of both.
+//
+// It exists because `feint corpus --check` must not read the environment for
+// them: a corpus is a recording of one endpoint, and replaying it against an
+// emulator serving another region compares a `cloudgouv-eu-west-1a` subregion
+// against a pack that publishes `eu-west-2a` and answers 400 to every create
+// that names one. The region therefore comes from the versioned manifest
+// (corpus/accepted.json), which is what keeps that gate's verdict a property of
+// committed files — the claim TestTheGatesVerdictDoesNotDependOnTheEnvironment
+// holds, and which this makes true rather than merely tested.
+//
+// The refusal on an unpublished region or zone is unchanged, and is the point:
+// answering the default to somebody who asked for another region is #268's lie
+// moved to startup.
+func packsAt(env *emulator.Env, outscaleRegion, exoscaleZone string) ([]emulator.Pack, error) {
 	osc := outscale.New(env)
-	if region := os.Getenv("FEINT_OUTSCALE_REGION"); region != "" {
+	if outscaleRegion != "" {
 		var err error
-		if osc, err = outscale.NewInRegion(env, region); err != nil {
+		if osc, err = outscale.NewInRegion(env, outscaleRegion); err != nil {
 			return nil, fmt.Errorf("FEINT_OUTSCALE_REGION: %w", err)
 		}
 	}
 	exo := exoscale.New(env)
-	if zone := os.Getenv("FEINT_EXOSCALE_ZONE"); zone != "" {
+	if exoscaleZone != "" {
 		var err error
-		if exo, err = exoscale.NewInZone(env, zone); err != nil {
+		if exo, err = exoscale.NewInZone(env, exoscaleZone); err != nil {
 			return nil, fmt.Errorf("FEINT_EXOSCALE_ZONE: %w", err)
 		}
 	}

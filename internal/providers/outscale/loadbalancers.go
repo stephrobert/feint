@@ -44,6 +44,18 @@ import (
 
 const kindLoadBalancer = "loadbalancer"
 
+// lbInternetFacing and lbInternal are the two kinds of load balancer, and the
+// only two values a create accepts. Named rather than written inline because
+// PublicVocabulary has to vouch for exactly the values this refuses, and a
+// second copy of a closed list is a copy that drifts silently: the symptom is a
+// corpus that replays 400 on every CreateLoadBalancer and reads like an
+// emulator defect. Measured on the recording of 2026-08-21, where "internal"
+// became "redacted-1208".
+const (
+	lbInternetFacing = "internet-facing"
+	lbInternal       = "internal"
+)
+
 // lbuPublicIPBase is the fictional block the emulator hands to internet-facing
 // load balancers. It is TEST-NET-3, distinct from publicIPBase (TEST-NET-2) on
 // purpose: the real service associates "a public IP owned by 3DS OUTSCALE"
@@ -140,8 +152,8 @@ func (p *Pack) createLoadBalancer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lbType := orDefault(req.LoadBalancerType, "internet-facing")
-	if lbType != "internet-facing" && lbType != "internal" {
+	lbType := orDefault(req.LoadBalancerType, lbInternetFacing)
+	if lbType != lbInternetFacing && lbType != lbInternal {
 		p.badRequest(w, "LoadBalancerType must be internet-facing or internal")
 		return
 	}
@@ -222,7 +234,7 @@ func (p *Pack) createLoadBalancer(w http.ResponseWriter, r *http.Request) {
 	// deterministic.
 	digits := dnsDigits(p.env.NewID())
 	prefix := ""
-	if lbType == "internal" {
+	if lbType == lbInternal {
 		prefix = "internal-"
 	}
 	attrs["DnsName"] = fmt.Sprintf("%s%s-%s.%s.lbu.outscale.com", prefix, req.LoadBalancerName, digits, p.region)
@@ -248,7 +260,7 @@ func (p *Pack) createLoadBalancer(w http.ResponseWriter, r *http.Request) {
 	// "The primary private IP of the load balancer" (client.gen.go:6294), from
 	// the subnet's own pool; subnetAllocator reserves it back.
 	attrs["PrivateIp"] = pl.Address.String()
-	if lbType == "internet-facing" {
+	if lbType == lbInternetFacing {
 		address, ok := p.mintLBUAddress()
 		if !ok {
 			unlock()

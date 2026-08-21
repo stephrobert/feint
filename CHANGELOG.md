@@ -100,6 +100,50 @@ what this project is judged on: **a response shape a client can observe**, and
   date somebody measured instead of the 180-day horizon somebody picked. It still
   warns and never fails, for the reason it always did: the file to change is the
   recording, not the emulator.
+- **A corpus of a real Outscale account, machine included** (#354, #352, #353).
+  `corpus/outscale/oapi-cli-lifecycle.jsonl` is 179 exchanges recorded on
+  2026-08-21 against the account and region the owner named by hand, through
+  `feint proxy --forward`: the catalogue reads a stack makes first, an imported
+  keypair, a Net with a tag, a Subnet updated in place, two security groups with
+  a rule each (one on `0.0.0.0/0`, one naming the other group), a route table
+  linked to the subnet, an internet service and a default route, **a machine**
+  created `BootOnCreation=false` and never booted, a public IP linked to it, a
+  1 GiB volume attached and snapshotted, a second NIC, a NAT service, an
+  internal load balancer, two deliberate refusals, and the teardown of all of it
+  with every destruction proved by a read. Nothing was left behind: the
+  inventory before and after is identical family by family.
+
+  It is also the answer to a question `docs/proxy.md` had left open in writing —
+  what a **valid** credential answers through the tunnel — because 4120 is the
+  same code for an unknown key and for a wrong region and could not settle it.
+  It answers 200, with real data, on reads and on writes.
+
+- **The Outscale pack declares what a replay may compare** (#354). Five
+  `ReplayInvariant`s: the VM type a create answers, the address range a Net and
+  a Subnet answer, and **the order of a machine's security groups** on
+  `UpdateVm` and on the reads that follow. The pack declared none before, and
+  the consequence was the failure shape this repository files issues about —
+  `feint corpus --check` printed "0 divergent finding(s)" over a run in which no
+  value and no order of an Outscale answer had ever been compared. Its counters
+  went from `values_checked=2, orders_checked=6`, all of them Scaleway's, to
+  **5 and 56**.
+
+  The first order it compared found a defect (#379), and it settles something
+  that the obvious guard would have got backwards: **the cloud does not answer
+  the order the client named.** The request sent web-then-db and the cloud
+  answered db-then-web, so what a replay can hold the emulator to is the order
+  the *cloud* answered.
+
+- **The Outscale pack vouches for the closed lists it validates against**
+  (#354). `PublicVocabulary` now publishes every region and subregion of the
+  catalogue, the two flows of a security-group rule, the two kinds of load
+  balancer and the four listener protocols — exactly the values a request is
+  refused by name for. Without it the sanitiser replaced `cloudgouv-eu-west-1a`
+  with a synthetic string, `knownSubregion` refused it (the #269 invariant doing
+  its job) and `CreateSubnet` answered 400 where the cloud answered 200, taking
+  the machine, the volume, the NIC, the public IP, the route table link, the NAT
+  service and the load balancer with it. Falsified in
+  `tools/falsify/specs/outscale-corpus.json`.
 
 - **`--forward` can say where a terminated host actually goes** (#357). An entry
   of `feint proxy --forward` may now name its target — `--forward
@@ -915,6 +959,39 @@ what this project is judged on: **a response shape a client can observe**, and
   and nothing made it true —
   `TestTheMovedWarningSurvivesARunThatIsRedForAnotherReason` does, on the
   poorest run that reaches the print.
+- **A subnet no longer lands outside the net that contains it** (#354). The
+  sanitiser minted each CIDR from one counter, so a recorded Net of
+  `10.111.0.0/16` and its Subnet of `10.111.1.0/24` came out two disjoint
+  blocks and the emulator answered `400 IpRange … is outside the Net range …`
+  where the cloud answered 200 — taking the machine, the volume, the NIC, the
+  public IP, the route table link, the NAT service and the load balancer behind
+  that subnet with it, about a hundred findings and not one of them the
+  emulator's. `mint.planBlocks` now decides every block of a recording in one
+  pass, shortest prefix first, and places a child at the offset it held inside
+  its parent.
+
+  **It is the third defect of one family, and the family is the lesson.** A
+  netmask that stopped being a netmask, an address range that ran backwards, and
+  now a subnet outside its net: each was a *relation between* values rather than
+  a property of one, which is exactly what a per-value walk cannot see. That is
+  why this is a pre-pass beside `learnAddressOrder` rather than a fourth special
+  case. `TestASubnetStaysInsideItsNet`.
+
+- **A corpus is replayed against an emulator serving the region it was recorded
+  from** (#354). `corpus/accepted.json` gained a `region` (and `zone`) per
+  recording, and `feint corpus --check` builds the packs for each file from it.
+  At Outscale and Exoscale a region is not a property of the API surface, it is
+  which endpoint the client was pointed at, and a pack refuses a create naming a
+  zone its deployment does not publish — the #269 invariant. So a
+  `cloudgouv-eu-west-1` recording replayed against an `eu-west-2` emulator was
+  refused on its own `CreateSubnet` and on everything downstream of it.
+
+  Read from the versioned manifest and never from the environment, which is what
+  makes this gate's verdict a property of committed files rather than of the
+  runner — the claim `TestTheGatesVerdictDoesNotDependOnTheEnvironment` asserts,
+  now true by construction instead of true by coincidence.
+  `TestACorpusIsReplayedInTheRegionItNames` holds both halves: named, the
+  recording replays clean; unnamed, the same recording is refused.
 
 - **Four defects of the sanitiser, all found by recording a second provider, and
   all of them the kind that manufactures a divergence** (#354). Between them

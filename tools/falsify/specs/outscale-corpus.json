@@ -1,0 +1,26 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "the Outscale pack stops vouching for the region and subregion names it validates a request against, so SubregionName becomes a synthetic string, knownSubregion refuses it — the #269 invariant — and every create that names a zone replays 400",
+      "file": "internal/providers/outscale/vocabulary.go",
+      "find": "\t\tout = append(out, region)",
+      "replace": "\t\tout = append(out, region)[:0]",
+      "test": "TestASanitisedOutscaleTranscriptKeepsWhatThePackValidates"
+    },
+    {
+      "label": "the direction of a security-group rule, the kind of a load balancer and the protocol of a listener stop being vouched for, so Inbound, internal and TCP become synthetic strings and CreateSecurityGroupRule and CreateLoadBalancer replay 400",
+      "file": "internal/providers/outscale/vocabulary.go",
+      "find": "\tout = append(out, flowInbound, flowOutbound)",
+      "replace": "\tout = append(out, flowInbound, flowOutbound)[:0]",
+      "test": "TestASanitisedOutscaleTranscriptKeepsWhatThePackValidates"
+    },
+    {
+      "label": "the Outscale pack declares no ReplayInvariant again, so no value and no order of an Outscale answer is ever compared, the two exemptions #379 carries excuse nothing, and the gate goes red naming them — which is what the corpus could not tell anybody before #354",
+      "file": "internal/providers/outscale/invariants.go",
+      "find": "\treturn []emulator.Invariant{",
+      "replace": "\treturn []emulator.Invariant{}[:0]; return []emulator.Invariant{",
+      "test": "TestTheCommittedCorpusPassesItsOwnGateAndSaysTheSameThingTwice"
+    }
+  ]
+}

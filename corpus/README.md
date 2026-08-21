@@ -198,6 +198,7 @@ than pretending otherwise.
 | `scaleway/scw-cli.jsonl` | scw 2.56.3 | the reads every stack makes before it creates anything (server types, marketplace, servers, IPs, volumes, security groups, images, snapshots, placement groups, VPCs, private networks, IPAM, SSH keys), the same free lifecycle by hand, an IAM SSH key, and two deliberate 404s |
 | `exoscale/exo-cli.jsonl` | exo 1.95.1 (egoscale v3.1.36) | the reads every stack makes first (zones, instance types, templates under an explicit `visibility`, ssh keys, security groups, anti-affinity groups, private networks, instances, pools, elastic IPs, block storage, load balancers, quotas), two deliberate 404s, and the free lifecycle: an SSH key, two security groups with a rule each (one on `0.0.0.0/0`, one naming the other group), an anti-affinity group, and a private network created, read, updated, read again and deleted |
 | `outscale/oapi-cli-catalogue.jsonl` | oapi-cli 0.13.0 | the five operations a real Outscale endpoint answers **with no account at all**: `ReadRegions`, `ReadVmTypes`, `ReadPublicIpRanges`, `ReadPublicCatalog`, `ReadFlexibleGpuCatalog` |
+| `outscale/oapi-cli-lifecycle.jsonl` | oapi-cli 0.13.0 | the whole lifecycle a surveyed Outscale stack drives, against a real account in `cloudgouv-eu-west-1`: the catalogue reads, an imported keypair, a Net with a tag, a Subnet updated in place, two security groups with a rule each (one on `0.0.0.0/0`, one naming the other group), a route table linked to the subnet, an internet service and a default route, **a machine** created `BootOnCreation=false` and never booted, its tag, its security-group reconciliation, a public IP linked to it, a 1 GiB volume attached and snapshotted, a second NIC linked, a NAT service, an internal load balancer, two deliberate refusals, and the teardown of all of it with every destruction proved by a read |
 
 The two Scaleway files were recorded on 2026-08-21 against a real Scaleway
 account in `fr-par`, through `feint proxy`. Nothing billed was created: a VPC, a
@@ -219,11 +220,32 @@ holding exactly one profile named on the command line, five operations answer
 `InvalidParameterValue` 4120 (measured 2026-08-21: `ReadSubregions`,
 `ReadCatalog`, `ReadCatalogs`, `ReadQuotas` and `ReadNets` all refused). A
 provider's own catalogue is therefore recordable from any station, with no
-account to put at risk and no inventory in the answers. **The account half of
-Outscale is still to do** (#354): several profiles on the maintainer's station
-name third-party organisations and two sit in the sovereign
-`cloudgouv-eu-west-1`, so the profile to record against is named by a human
-before anything is driven, never guessed.
+account to put at risk and no inventory in the answers.
+
+`outscale/oapi-cli-lifecycle.jsonl` is the account half (#354), recorded the same
+day against the profile the owner of the account **named by hand**, in
+`cloudgouv-eu-west-1`. Two things about it are not like the others.
+
+- **It carries billed resources**, with the owner's explicit lifting of the
+  free-only rule for that account: a machine, a public IP, a volume, a snapshot,
+  a NAT service and a load balancer. The machine was created
+  `BootOnCreation=false` and never booted, which is all a recording of the
+  control plane needs. Everything was destroyed and every destruction is proved
+  inside the recording by a read.
+- **The region is named in the manifest, and the gate reads it**
+  (`"region": "cloudgouv-eu-west-1"`). At Outscale a region is not a property of
+  the API surface, it is which endpoint the client was pointed at, so replaying
+  a cloudgouv recording against an `eu-west-2` emulator makes `knownSubregion`
+  refuse the recording's own `CreateSubnet` — the #269 invariant doing exactly
+  its job — and everything downstream of it answers 400 or 404.
+  `TestACorpusIsReplayedInTheRegionItNames` holds both halves.
+
+**The one thing it does not carry is a Net peering, and the reason is a number**:
+the account's Net quota is 5 and four Nets predate the run, so the one this
+recording makes reaches it. `CreateNet` for the second answered `10022
+TooManyResources (QuotaExceeded), The maximum number of Nets ('5') is exceeded`,
+and peering needs two Nets. Deleting one of the account's own was never an
+option, so the peering is **named as unmeasured** rather than worked around.
 
 | `scaleway/scw-instance.jsonl` | scw 2.56.3 | the **billed** lifecycle: one flexible IP reserved, one DEV1-S created with it, read, listed, renamed and its address list reconciled, one deliberate 404, then the server, its root volume and the IP destroyed, each destruction proved by a read |
 
@@ -385,13 +407,32 @@ Two things are measured and neither is obvious.
   the `Host` header it received. Measured on 2026-08-21 with the placeholder
   credentials: `ReadRegions` answered **200** through the tunnel and every
   authenticated call answered the cloud's own 4120 rather than a transport
-  failure. What a *valid* credential then answers is still unmeasured, and
-  `docs/proxy.md` says so rather than what it expects.
+  failure. **A valid credential then answers 200 with real data**, measured the
+  same day against `api.cloudgouv-eu-west-1.outscale.com` over 179 exchanges,
+  creates and deletes included — the run left open in `docs/proxy.md` is made.
 
 Name the profile with `--profile` and hand `--config` a file holding that one
 profile: there is then no `default` to fall back to, and no stored profile of
-the station can be presented by a code path nobody read. **`cloudgouv-*` is
-never a recording target.**
+the station can be presented by a code path nobody read.
+
+**A third thing bites, and it is not the tool.** `oapi-cli` reads the profile's
+`region` key. `~/.osc/config.json` on a station that also has the Python client
+is written in *its* dialect, with `region_name`, which `oapi-cli` ignores — so
+it falls back to `eu-west-2` and presents a `cloudgouv` credential there. The
+answer is `400 InvalidParameterValue 4120`, the same code an unknown key gets,
+and the failure reads like a broken client. The temporary config a recording
+builds must therefore copy `access_key` and `secret_key` and set **`region`** to
+the value of the profile's `region_name`.
+
+**And the profile is named by a human before anything is driven, never guessed.**
+Several profiles on the maintainer's station carry the names of third-party
+organisations. The one this corpus was recorded against was named by the owner
+of the account, who also lifted the free-resources rule for it and confirmed
+that a sanitised transcript of that region may be committed — and the account is
+a live one, with four Nets, two running machines and five public IPs that
+predate the run, so **a cleanup driven by a listing is one `net-a` away from
+destroying somebody's infrastructure**. The teardown here is driven by the
+run's own registry of what it created, read back from its own recording.
 
 ## What the runs found
 
@@ -432,6 +473,68 @@ unserved**: `ReadRegions`, `ReadVmTypes` and `ReadPublicIpRanges` answer the
 shape the cloud answers, and `ReadPublicCatalog` and `ReadFlexibleGpuCatalog`
 are #74's queue. Small, and it is the first comparison this repository has made
 between its Outscale pack and the cloud rather than a document.
+
+### Outscale, against an account (#354)
+
+`outscale/oapi-cli-lifecycle.jsonl` is what the catalogue file could not be: a
+whole stack's lifecycle, machine included. It moved the gate's own counters
+from `values_checked=2, orders_checked=6` — **all of them Scaleway's** — to
+**5 and 56**, because the Outscale pack declared no `ReplayInvariant` at all
+until this run. That absence had the exact shape CLAUDE.md warns about: the gate
+printed "0 divergent finding(s)" over a run in which no value and no order of an
+Outscale answer had ever been compared.
+
+The first order comparison it made found a defect:
+
+| operation | finding | issue |
+|---|---|---|
+| `osc/Client.UpdateVm` | `Vm.SecurityGroups[].SecurityGroupId` ordered 0,1 upstream and 1,0 here | [#379](https://github.com/stephrobert/feint/issues/379) |
+| `osc/Client.ReadVms` | the same, on the reads that follow | [#379](https://github.com/stephrobert/feint/issues/379) |
+
+That is #320 one provider out, and it settles something worth writing down
+because it is the opposite of what the obvious guard would have asserted: **the
+cloud does not answer the order the client named.** The request said web-then-db
+and the cloud answered db-then-web, so the invariant a replay can hold is "the
+order the cloud answered", never "the order the request carried".
+
+Six more causes, each with its issue and its entries in `accepted.json`:
+[#378](https://github.com/stephrobert/feint/issues/378) a `Vm` answers no
+`UserData`, no `BlockDeviceMappings` and no `Tags`;
+[#380](https://github.com/stephrobert/feint/issues/380) a delete is
+instantaneous here and asynchronous upstream, and a security group a terminated
+machine still holds is refused `409` there and accepted here;
+[#381](https://github.com/stephrobert/feint/issues/381) `DeleteRoute` and
+`DeleteLoadBalancer` answer no body;
+[#382](https://github.com/stephrobert/feint/issues/382) a rule naming another
+group omits its `AccountId`;
+[#383](https://github.com/stephrobert/feint/issues/383) the emulated image
+catalogue's entries are poorer than the cloud's; and
+[#384](https://github.com/stephrobert/feint/issues/384), which is **the
+instrument** — the recorder replaces the value under `KeypairName` because the
+name carries `key`, so two different keypair names became one `REDACTED` and the
+transcript says two objects were the same.
+
+**Four defects of the instrument had to go first, again.** Between them they hid
+the entire lifecycle behind about a hundred findings, none of them the
+emulator's, and each is falsified in `tools/falsify/specs/`:
+
+- **the Outscale pack vouched for nothing.** `emulator.Vocabulary` exists so a
+  pack can keep the closed lists it validates a request against; Scaleway
+  declared its zones and regions and Outscale declared nothing, which was
+  invisible while the only Outscale recording was catalogue reads.
+  `SubregionName` became `redacted-5`, `knownSubregion` refused it, and
+  `CreateSubnet` answered 400 where the cloud answered 200 — taking the machine,
+  the volume, the NIC, the public IP, the route table link, the NAT service and
+  the load balancer with it. `Inbound`, `internal` and `TCP` went the same way.
+- **the sanitiser did not preserve containment.** The Net was `10.111.0.0/16`
+  and its Subnet `10.111.1.0/24`; minted from one counter they came out
+  disjoint, and the emulator answered `400 IpRange … is outside the Net range …`.
+  It is the third defect of one family — a netmask that stopped being a netmask,
+  a range that ran backwards, a subnet outside its net — and each was a
+  *relation between* values that the per-value walk could not see, which is why
+  `mint.planBlocks` is a pre-pass rather than a fourth special case.
+- **the gate replayed every corpus in one region.** See above.
+- **the `KeypairName` merge**, which is #384 and is filed rather than fixed.
 
 **Four defects of the instrument had to go first, again**, and between them they
 hid the entire private-network lifecycle behind about twenty findings, none of
@@ -585,8 +688,16 @@ proves it is published (an OpenSSH public key line, read by the same
 `internal/core/sshkey` the packs authenticate with) and `get-ssh-key` answers a
 name and a fingerprint under no credential-shaped name at all.
 
-**And the account half of Outscale is not here yet**, which is a gap rather than
-a limit: the catalogue file covers what any station can record, and nothing of
-Nets, Subnets, security groups, route tables or keypairs. #354 says why, and the
-answer is a rule rather than an obstacle — the profile is named by a human
-before anything is driven.
+**Outscale pays that rule twice, and the second time it costs an identity rather
+than a shape.** `KeypairName` matches `key`, so the name of the keypair a
+recording creates and the name of the one it deliberately fails to delete both
+reach the transcript as `REDACTED` — and a replay then deletes the real key on
+the first and has nothing left for the second. The sanitiser refuses exactly
+that shape one stage later (`TestTwoValuesNeverShareAReplacement`, "the
+transcript would then say that two objects of the account were one"); the merge
+happens before it can see it. [#384](https://github.com/stephrobert/feint/issues/384)
+carries it, with the three directions a fix could take.
+
+**And what is still not measured on Outscale is a Net peering**, which is a
+number rather than an obstacle: the account's Net quota is 5 and four Nets
+predate the run. It is named here so nobody rediscovers it.

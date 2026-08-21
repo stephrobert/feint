@@ -109,6 +109,53 @@ change ni l'un ni l'autre a sa place dans `git log`.
   choisi de mémoire. Il avertit toujours sans jamais échouer, pour la raison
   qu'il l'a toujours fait : le fichier à changer est l'enregistrement, pas
   l'émulateur.
+- **Un corpus d'un vrai compte Outscale, machine comprise** (#354, #352, #353).
+  `corpus/outscale/oapi-cli-lifecycle.jsonl` porte 179 échanges enregistrés le
+  2026-08-21 contre le compte et la région que le propriétaire a nommés
+  lui-même, à travers `feint proxy --forward` : les lectures de catalogue que
+  toute pile fait d'abord, une paire de clés importée, un Net et son étiquette,
+  un Subnet modifié sur place, deux groupes de sécurité portant chacun une règle
+  (l'une sur `0.0.0.0/0`, l'autre nommant l'autre groupe), une table de routage
+  liée au subnet, un service internet et une route par défaut, **une machine**
+  créée avec `BootOnCreation=false` et jamais démarrée, une IP publique liée,
+  un volume de 1 Gio attaché puis instantané, une seconde NIC, un service NAT,
+  un load balancer interne, deux refus délibérés, et la destruction de tout
+  cela, chaque destruction prouvée par une lecture. Rien n'est resté : les
+  inventaires d'avant et d'après sont identiques, famille par famille.
+
+  C'est aussi la réponse à une question que `docs/proxy.md` laissait ouverte par
+  écrit, celle de ce qu'un identifiant **valide** obtient à travers le tunnel :
+  le code 4120 est le même pour une clé inconnue et pour une mauvaise région, et
+  ne pouvait donc pas trancher. Il obtient 200, avec de vraies données, en
+  lecture comme en écriture.
+
+- **Le pack Outscale déclare ce qu'un rejeu peut comparer** (#354). Cinq
+  `ReplayInvariant` : le type de VM que rend une création, la plage d'adresses
+  que rendent un Net et un Subnet, et **l'ordre des groupes de sécurité d'une
+  machine** sur `UpdateVm` et sur les lectures qui suivent. Le pack n'en
+  déclarait aucun, et la conséquence est exactement la forme de défaut que ce
+  dépôt traque : `feint corpus --check` imprimait « 0 divergent finding(s) »
+  au-dessus d'une exécution où aucune valeur ni aucun ordre d'une réponse
+  Outscale n'avait jamais été comparé. Ses compteurs sont passés de
+  `values_checked=2, orders_checked=6`, tous Scaleway, à **5 et 56**.
+
+  Le premier ordre comparé a trouvé un défaut (#379), et il tranche un point que
+  la garde évidente aurait pris à l'envers : **le cloud ne rend pas l'ordre que
+  le client a nommé**. La requête envoyait web puis db, le cloud a répondu db
+  puis web. Ce qu'un rejeu peut donc exiger, c'est l'ordre que le *cloud* a
+  rendu.
+
+- **Le pack Outscale se porte garant des listes fermées qu'il valide** (#354).
+  `PublicVocabulary` publie désormais chaque région et chaque sous-région du
+  catalogue, les deux sens d'une règle de groupe de sécurité, les deux natures
+  de load balancer et les quatre protocoles d'écouteur : exactement les valeurs
+  pour lesquelles une requête est refusée par leur nom. Sans cela, le
+  désinfecteur remplaçait `cloudgouv-eu-west-1a` par une chaîne synthétique,
+  `knownSubregion` la refusait (l'invariant #269 faisant son travail) et
+  `CreateSubnet` répondait 400 là où le cloud répondait 200, emportant avec lui
+  la machine, le volume, la NIC, l'IP publique, la liaison de table de routage,
+  le service NAT et le load balancer. Falsifié dans
+  `tools/falsify/specs/outscale-corpus.json`.
 
 - **`--forward` peut dire où atterrit vraiment un hôte terminé** (#357). Une
   entrée de `feint proxy --forward` peut désormais nommer sa cible — `--forward
@@ -979,6 +1026,43 @@ change ni l'un ni l'autre a sa place dans `git log`.
   rien ne le rende vrai :
   `TestTheMovedWarningSurvivesARunThatIsRedForAnotherReason` le rend vrai, sur
   l'exécution la plus pauvre qui atteigne l'impression.
+- **Un subnet ne tombe plus hors du net qui le contient** (#354). Le sanitiseur
+  frappait chaque CIDR depuis un compteur unique : un Net enregistré en
+  `10.111.0.0/16` et son Subnet en `10.111.1.0/24` ressortaient en deux blocs
+  disjoints, et l'émulateur répondait `400 IpRange … is outside the Net range …`
+  là où le cloud répondait 200, emportant avec lui la machine, le volume, la
+  NIC, l'IP publique, la liaison de table de routage, le service NAT et le load
+  balancer situés derrière ce subnet : une centaine de constats, dont aucun
+  n'était un défaut de l'émulateur. `mint.planBlocks` décide désormais tous les
+  blocs d'un enregistrement en une passe, du préfixe le plus court au plus long,
+  et place un enfant au décalage qu'il occupait dans son parent.
+
+  **C'est le troisième défaut d'une même famille, et la famille est la leçon.**
+  Un masque qui cessait d'être un masque, une plage d'adresses qui courait à
+  l'envers, et maintenant un subnet hors de son net : chacun était une *relation
+  entre* valeurs plutôt qu'une propriété de l'une d'elles, c'est-à-dire
+  précisément ce qu'un parcours valeur par valeur ne peut pas voir. D'où une
+  passe préalable à côté de `learnAddressOrder`, et non un quatrième cas
+  particulier. `TestASubnetStaysInsideItsNet`.
+
+- **Un corpus est rejoué contre un émulateur servant la région d'où il a été
+  enregistré** (#354). `corpus/accepted.json` porte désormais une `region` (et
+  une `zone`) par enregistrement, et `feint corpus --check` construit les packs
+  de chaque fichier à partir d'elle. Chez Outscale et Exoscale, une région n'est
+  pas une propriété de la surface d'API mais de l'endpoint vers lequel le client
+  pointe, et un pack refuse une création nommant une zone que son déploiement ne
+  publie pas : l'invariant #269. Un enregistrement `cloudgouv-eu-west-1` rejoué
+  contre un émulateur `eu-west-2` était donc refusé dès son propre
+  `CreateSubnet`, et sur tout ce qui en dépendait.
+
+  Lue depuis le manifeste versionné et jamais depuis l'environnement, ce qui
+  fait du verdict de cette barrière une propriété de fichiers commités plutôt
+  que du runner : l'affirmation que porte
+  `TestTheGatesVerdictDoesNotDependOnTheEnvironment` devient vraie par
+  construction au lieu de l'être par coïncidence.
+  `TestACorpusIsReplayedInTheRegionItNames` tient les deux moitiés : région
+  nommée, l'enregistrement rejoue propre ; région absente, le même
+  enregistrement est refusé.
 
 - **Quatre défauts du sanitiseur, tous trouvés en enregistrant un deuxième
   fournisseur, et tous du genre qui fabrique une divergence** (#354). À eux

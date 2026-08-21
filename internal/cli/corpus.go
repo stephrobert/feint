@@ -199,6 +199,26 @@ type corpusRecording struct {
 	// there is not.
 	CloudMovedAt string `json:"cloud_moved_at,omitempty"`
 	CloudMoved   int    `json:"cloud_moved,omitempty"`
+	// Region and Zone are read by the gate, not by the reader: a corpus is a
+	// recording of one endpoint, and the emulator it replays against has to be
+	// serving that same one.
+	//
+	// At Outscale and Exoscale the deployment is not a property of the API
+	// surface, it is which endpoint the client was pointed at, so the pack
+	// chooses one at construction and refuses a create naming a subregion or
+	// zone that deployment does not publish (knownSubregion, the #269
+	// invariant). A cloudgouv-eu-west-1 recording replayed against an eu-west-2
+	// emulator therefore answers 400 to its own CreateSubnet and CreateVolume,
+	// and to everything downstream of them — around a hundred findings, not one
+	// of which is a defect of the emulator.
+	//
+	// Here rather than in an environment variable because that is what keeps
+	// this gate's verdict a property of committed files: the region is in the
+	// same versioned manifest as the date, and two runners cannot disagree
+	// about it.
+	// TestACorpusIsReplayedInTheRegionItNames fails without this.
+	Region string `json:"region,omitempty"`
+	Zone   string `json:"zone,omitempty"`
 }
 
 // corpusException is one divergence this repository knows about and has decided
@@ -287,7 +307,18 @@ func checkCorpus(dir, acceptedPath string, now time.Time, stdout, stderr io.Writ
 	compared, divergent, unserved, excused := 0, 0, 0, 0
 	values, orders := 0, 0
 	for _, f := range files {
-		rep, err := replayCorpusFile(dir, f, env, packs, declined, invariants)
+		// The emulator this file replays against serves the endpoint the file
+		// was recorded from, named by its own entry in the manifest. Built per
+		// file rather than once, because two corpora may name two regions.
+		filePacks := packs
+		if rec, ok := recordingOf(acc.Recorded, f); ok && (rec.Region != "" || rec.Zone != "") {
+			filePacks, err = packsAt(env, rec.Region, rec.Zone)
+			if err != nil {
+				fmt.Fprintf(stderr, "feint: %s names a region this emulator cannot serve: %v\n", f, err)
+				return exitError
+			}
+		}
+		rep, err := replayCorpusFile(dir, f, env, filePacks, declined, invariants)
 		if err != nil {
 			// Unreadable, or the emulator refused to answer. An error, never a
 			// pass: "I could not measure" and "nothing is wrong" are different
@@ -430,6 +461,17 @@ func unexercisedInvariantKinds(invariants []emulator.Invariant, values, orders i
 		}
 	}
 	return out
+}
+
+// recordingOf finds a file's entry in the manifest. Every file has one:
+// checkCorpusRecordings has already refused the run otherwise.
+func recordingOf(recorded []corpusRecording, file string) (corpusRecording, bool) {
+	for _, r := range recorded {
+		if r.File == file {
+			return r, true
+		}
+	}
+	return corpusRecording{}, false
 }
 
 // checkCorpusRecordings holds the corpus and its manifest to each other, in both

@@ -652,3 +652,74 @@ func TestASpaceWithNoRoomLeftIsRefusedRatherThanOverrun(t *testing.T) {
 		t.Errorf("the refusal does not say a replacement was handed out twice: %v", err)
 	}
 }
+
+// A block nested inside another block stays nested.
+//
+// The third defect of this family, and the one that showed the family is a
+// family: a netmask that stopped being a netmask, an address range that ran
+// backwards, and a subnet outside its net. Each was a relation *between* values
+// that the per-value walk could not see, which is why [mint.planBlocks] is a
+// pre-pass rather than a fourth special case.
+//
+// Measured on 2026-08-21 replaying a real Outscale account: the Net was
+// 10.111.0.0/16 and its Subnet 10.111.1.0/24, they came out as two disjoint
+// blocks, and the emulator answered `400 IpRange … is outside the Net range …`
+// where the cloud answered 200. Everything downstream of that subnet — the
+// machine, its volume, its NIC, its public IP, the route table link, the NAT
+// service and the load balancer — then answered 400 or 404 for that one reason,
+// about a hundred findings and not one of them a defect of the emulator.
+func TestASubnetStaysInsideItsNet(t *testing.T) {
+	exs := []trace.Exchange{{
+		Method: "POST", Path: "/thing/v1/zones/fr-par-1/things", Status: 200,
+		// Deliberately in an order that meets a child before its parent, and
+		// with a second net so the two families cannot be told apart by luck.
+		Req: &trace.Message{Body: map[string]any{"subnet": "10.111.1.0/24"}},
+		Res: &trace.Message{Body: map[string]any{
+			"net":       "10.111.0.0/16",
+			"subnet":    "10.111.1.0/24",
+			"deeper":    "10.111.1.128/25",
+			"elsewhere": "10.222.0.0/16",
+			"outside":   "10.222.5.0/24",
+		}},
+	}}
+	out, _ := sanitise(t, exs)
+	res, _ := out[0].Res.Body.(map[string]any)
+	req, _ := out[0].Req.Body.(map[string]any)
+
+	prefix := func(name string) netip.Prefix {
+		t.Helper()
+		p, err := netip.ParsePrefix(res[name].(string))
+		if err != nil {
+			t.Fatalf("%s became %q, which is not a prefix", name, res[name])
+		}
+		return p
+	}
+	net, subnet, deeper := prefix("net"), prefix("subnet"), prefix("deeper")
+	elsewhere, outside := prefix("elsewhere"), prefix("outside")
+
+	if !net.Contains(subnet.Addr()) {
+		t.Errorf("the subnet %v is outside its net %v: the create that carries it is refused 400 and everything it would have made 404s", subnet, net)
+	}
+	if !subnet.Contains(deeper.Addr()) {
+		t.Errorf("the nested block %v is outside %v", deeper, subnet)
+	}
+	if !elsewhere.Contains(outside.Addr()) {
+		t.Errorf("the second net's subnet %v is outside %v", outside, elsewhere)
+	}
+	// A block of one net must not land inside another: nesting the recording
+	// does not carry would be a relation the sanitiser invented.
+	if elsewhere.Contains(subnet.Addr()) || net.Contains(outside.Addr()) {
+		t.Errorf("two unrelated nets now overlap: %v and %v", net, elsewhere)
+	}
+	// The prefix lengths are still the recording's, and the request agrees with
+	// the response.
+	if net.Bits() != 16 || subnet.Bits() != 24 || deeper.Bits() != 25 {
+		t.Errorf("a prefix length moved: net %v, subnet %v, deeper %v", net, subnet, deeper)
+	}
+	if req["subnet"] != res["subnet"] {
+		t.Errorf("one block got two replacements, %v in the request and %v in the response", req["subnet"], res["subnet"])
+	}
+	if raw, _ := json.Marshal(out); bytes.Contains(raw, []byte("10.111.")) {
+		t.Error("an address range of the account was written down verbatim")
+	}
+}

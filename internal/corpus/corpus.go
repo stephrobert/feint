@@ -126,6 +126,7 @@ func Sanitise(exs []trace.Exchange, opt Options) ([]trace.Exchange, Report, erro
 	}
 	m := newMint(opt)
 	m.learnAddressOrder(exs)
+	m.planBlocks(exs)
 	out := make([]trace.Exchange, len(exs))
 	var rep Report
 	for i := range exs {
@@ -184,11 +185,157 @@ type mint struct {
 	// addresses of its own family, once they are sorted. See
 	// [mint.learnAddressOrder].
 	rank map[string]int
+	// block is the replacement chosen for each CIDR of the recording, decided
+	// in one pass before anything is written so that a block inside another
+	// block stays inside it. See [mint.planBlocks].
+	block map[string]string
 }
 
 func newMint(opt Options) *mint {
 	return &mint{to: map[string]string{}, issued: map[string]bool{}, allowed: allowedValues(opt),
-		n: map[string]int{}, rank: map[string]int{}}
+		n: map[string]int{}, rank: map[string]int{}, block: map[string]string{}}
+}
+
+// planBlocks chooses the replacement for every CIDR of the recording at once,
+// so that a block the recording nests inside another stays nested.
+//
+// # Why containment is part of the shape
+//
+// The shape of a value is whatever the emulator validates about it, and for a
+// CIDR that includes which other CIDRs contain it. Measured on 2026-08-21,
+// replaying a real Outscale account: the Net was `10.111.0.0/16` and its Subnet
+// `10.111.1.0/24`, the two were minted from one counter and came out as two
+// disjoint blocks, and the emulator answered `400 IpRange 198.18.12.0/24 is
+// outside the Net range 198.18.11.0/24` where the cloud answered 200. Every
+// create, read, update and delete downstream of that subnet — the machine, its
+// volume, its NIC, its public IP, the route table link, the NAT service, the
+// load balancer — then answered 400 or 404 for that one reason: about a hundred
+// findings, not one of them a defect of the emulator.
+//
+// It is the third of its family, and the family is now the argument for doing
+// this as a pre-pass rather than a special case: a netmask that stopped being a
+// netmask, an address range that ran backwards, and now a subnet outside its
+// net. Each was a relation between values that the per-value walk could not
+// see.
+//
+// # How
+//
+// Shortest prefix first, so a parent is always placed before its children, and
+// each child is then placed at the same offset inside its parent's replacement
+// as it held inside the original. The prefix length is preserved as before, so
+// a client that computes with it gets the same answer. Ties are broken by
+// address, so two runs of the same recording produce the same bytes.
+//
+// # What it publishes, stated plainly
+//
+// That one block of the account contained another, and at what offset — never
+// an octet of either. It is the same trade [mint.learnAddressOrder] makes with
+// the relative order of addresses, and for the same reason.
+//
+// TestASubnetStaysInsideItsNet fails without this.
+func (m *mint) planBlocks(exs []trace.Exchange) {
+	var all []netip.Prefix
+	seen := map[string]bool{}
+	for i := range exs {
+		for _, v := range located(&exs[i]) {
+			if v.value == "" || seen[v.value] || m.keepable(v.value) {
+				continue
+			}
+			seen[v.value] = true
+			p, err := netip.ParsePrefix(v.value)
+			if err != nil {
+				continue
+			}
+			all = append(all, p)
+		}
+	}
+	// Shortest prefix first: a container is decided before anything it
+	// contains. Then by address, so the order is total and the run repeatable.
+	sort.Slice(all, func(i, j int) bool {
+		if all[i].Bits() != all[j].Bits() {
+			return all[i].Bits() < all[j].Bits()
+		}
+		return all[i].Addr().Less(all[j].Addr())
+	})
+	placed := make([]netip.Prefix, 0, len(all)) // originals, in the order decided
+	for _, p := range all {
+		if to, ok := m.insideAPlacedBlock(p, placed); ok {
+			m.block[p.String()] = to
+			placed = append(placed, p)
+			continue
+		}
+		m.block[p.String()] = m.freshBlock(p)
+		placed = append(placed, p)
+	}
+}
+
+// insideAPlacedBlock places p inside the replacement of the most specific
+// already-placed block that contains it, at the offset it held in the original.
+//
+// The parent's own replacement has to be inside 198.18.0.0/15, and that is the
+// same guarantee [offsetV4] states: a synthetic address lives in that space and
+// nowhere else. The case that made it necessary is a prefix of length zero —
+// "10.0.0.0/0", a /0 whose address half is the account's, which
+// [mint.keepable] does not keep. It contains every block of the recording, its
+// replacement masks down to 0.0.0.0/0, and every child derived from it walked
+// out of the space: TestTheDefaultRouteSurvivesSanitisation reported
+// "172.16.32.0/22" becoming "162.16.32.0/22", refused by the alphabet.
+//
+// Confining the *child* as well would be redundant rather than defensive, and
+// it is deliberately not done: once the parent's replacement is inside the
+// space and aligned on its own prefix length, a child at an offset smaller than
+// the parent's size is inside the parent and therefore inside the space. A
+// second check there could not fail — the falsification run of 2026-08-21
+// removed it and every test stayed green, which is the definition of a comment
+// standing in for a control.
+func (m *mint) insideAPlacedBlock(p netip.Prefix, placed []netip.Prefix) (string, bool) {
+	if !p.Addr().Is4() {
+		// IPv6 nesting is not derived: the offset arithmetic below is 32-bit,
+		// and a v6 recording with nested blocks has not been measured. Refused
+		// rather than guessed at, which leaves today's behaviour for v6.
+		return "", false
+	}
+	best := -1
+	for i, q := range placed {
+		if q.Bits() >= p.Bits() || !q.Addr().Is4() || !q.Contains(p.Addr()) {
+			continue
+		}
+		if best == -1 || q.Bits() > placed[best].Bits() {
+			best = i
+		}
+	}
+	if best == -1 {
+		return "", false
+	}
+	parent := placed[best]
+	to, err := netip.ParsePrefix(m.block[parent.String()])
+	if err != nil || !to.Addr().Is4() || to.Bits() < syntheticV4.Bits() || !syntheticV4.Contains(to.Addr()) {
+		return "", false
+	}
+	offset := binary.BigEndian.Uint32(as4(p.Addr())) - binary.BigEndian.Uint32(as4(parent.Addr()))
+	var out [4]byte
+	binary.BigEndian.PutUint32(out[:], binary.BigEndian.Uint32(as4(to.Addr()))+offset)
+	return netip.PrefixFrom(netip.AddrFrom4(out), p.Bits()).Masked().String(), true
+}
+
+// as4 is the four bytes of an IPv4 address, for the arithmetic above.
+func as4(a netip.Addr) []byte {
+	b := a.As4()
+	return b[:]
+}
+
+// freshBlock allocates a block of the same prefix length that nothing contains.
+func (m *mint) freshBlock(p netip.Prefix) string {
+	bits := p.Bits()
+	if p.Addr().Is4() {
+		shift := 32 - bits
+		if shift < 0 || shift > 31 {
+			shift = 0
+		}
+		block := uint32(m.next("cidr4")) << uint(shift) //nolint:gosec // a counter over one recording
+		return netip.PrefixFrom(offsetV4(block), bits).Masked().String()
+	}
+	return netip.PrefixFrom(blockV6(uint64(m.next("cidr6")), bits), bits).Masked().String() //nolint:gosec // a counter over one recording
 }
 
 // learnAddressOrder gives every address of the recording a rank among the
@@ -531,21 +678,18 @@ func (m *mint) ip(s string) string {
 //
 // TestTwoValuesNeverShareAReplacement fails without this, and [mint.value]
 // refuses a collision whatever its cause.
+// The plan [mint.planBlocks] decided is what this answers; the allocation below
+// is the fallback for a block the pre-pass did not meet — a value assembled
+// after the walk, which no measured recording has produced.
 func (m *mint) cidr(s string) string {
+	if to, planned := m.block[s]; planned {
+		return to
+	}
 	p, err := netip.ParsePrefix(s)
 	if err != nil {
 		return Token + fmt.Sprint(m.next("string"))
 	}
-	bits := p.Bits()
-	if p.Addr().Is4() {
-		shift := 32 - bits
-		if shift < 0 || shift > 31 {
-			shift = 0
-		}
-		block := uint32(m.next("cidr4")) << uint(shift) //nolint:gosec // a counter over one recording
-		return netip.PrefixFrom(offsetV4(block), bits).Masked().String()
-	}
-	return netip.PrefixFrom(blockV6(uint64(m.next("cidr6")), bits), bits).Masked().String() //nolint:gosec // a counter over one recording
+	return m.freshBlock(p)
 }
 
 // blockV6 is the nth block of the given prefix length inside the synthetic IPv6
