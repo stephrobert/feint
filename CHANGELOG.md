@@ -17,6 +17,27 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **A contract can now carry a field the provider's own document does not
+  declare, and only with the recording that proves it** (#370, #371).
+  `tools/contract/extract-openapi.py --recorded-fields` folds such a field into
+  the schema it belongs to from a versioned YAML fragment, and copies the
+  citation — corpus file, operation, path, date, reason — into
+  `contracts/<provider>.json` under `recordedFields`. It exists because a
+  published API description can be behind the API it describes, and Exoscale's
+  is.
+
+  **The point is the lock, not the door.** A contract is otherwise extracted and
+  re-extracted by a pre-commit hook, so it cannot be hand-edited; a door into
+  "what a response may contain" is exactly what rule 4 forbids leaving open. The
+  extraction refuses a schema its documents do not define, and refuses a
+  property the document *does* declare — upstream catching up retires the entry
+  rather than leaving a citation nobody re-reads. Then
+  `TestEveryRecordedFieldIsStillOnTheWire` replays the named recording on every
+  run and fails an entry whose path it no longer carries. That is
+  `corpus/accepted.json`'s own staleness rule pointed the other way: an
+  exemption that excuses nothing is dead, and so is a citation that cites
+  nothing.
+
 - **The committed corpus is now replayed at the cloud, and catches the drift no
   SDK scan can see** (#359). `feint corpus --against-cloud --file <corpus>
   --endpoint <url>` reissues a committed recording at the provider it was
@@ -801,6 +822,38 @@ what this project is judged on: **a response shape a client can observe**, and
   identifiers.
 
 ### Fixed
+
+- **Three fields the real Exoscale API answers and this emulator omitted, all
+  invisible to every control that reads a document** (#370, #371). They are 105
+  of the 192 divergences the 2026-08-21 recording of a real `ch-gva-2` account
+  reported, and `corpus/accepted.json` is down to 87 accordingly.
+
+  `GET /v2/zone` now answers an `id` per zone, derived from the zone name so
+  that two reads of one emulator agree and a restarted one still does — #370
+  states why that half matters: an identifier that moved between reads would be
+  worse than none, because a client that stored it would hold a value naming
+  nothing. It is 51 findings on its own, because `exo` lists the zones before
+  very nearly every command it runs. `GET /v2/security-group` now answers
+  `visibility` on every group, on the list and on the read of one group alike
+  (46). And a rule that points at another group now publishes that group's
+  `name` beside its `id` (8) — the shape `examples/stacks/exoscale/main.tf`
+  writes as `user_security_group_id`, "the application tier accepts the web tier
+  and nobody else". **#371 says a consumer reading the name off the rule sees
+  nothing, and that half does not survive measurement**: `exo compute
+  security-group show` prints `SG:web` with the name and without it, because it
+  resolves the reference by id against the groups it has already listed. The
+  reason to serve it is the only one this project ever needs — the recording
+  says the cloud sends a name — not a client symptom nobody has reproduced.
+
+  **Why nothing had seen them, which is the part worth keeping.** Two of the
+  three are not in Exoscale's published `source.yaml` either, so the contract,
+  the shapes gate, the probe and the pack all agreed with one another and all
+  four were wrong the same way. The zone id had even been raised once, as #94,
+  and closed as not-a-defect on the grounds that serving it failed this
+  emulator's own contract check — which was true, and was the wrong end to fix.
+  Only a recording of the wire could disagree, and now one does. The third
+  needed no contract change at all: the document already declared the field and
+  only the pack had dropped it.
 
 - **The corpus gate withheld its "the cloud has moved" warning exactly when it
   mattered most.** Both warnings — the aged-recording one and the measured-move

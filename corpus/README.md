@@ -397,24 +397,35 @@ never a recording target.**
 
 ### Exoscale and Outscale (#354)
 
-`exoscale/exo-cli.jsonl` replays 132 of its 203 exchanges clean and reports
-**three fields the cloud answers and this emulator omits**, each with an
-exemption in `corpus/accepted.json` naming the issue that deletes it:
+`exoscale/exo-cli.jsonl` reported **three fields the cloud answers and this
+emulator omitted**, over four exemptions in `corpus/accepted.json`, each naming
+the issue that deleted it. All four are gone: the emulator answers all
+three, and the file now replays **203 of its 203 exchanges matched, zero
+divergent, zero unserved** — it used to be 132 clean.
 
-| operation | field | findings | issue |
+| operation | field | findings | retired by |
 |---|---|---|---|
 | `exoscale/v2.list-zones` | `zones[].id` | 51 | [#370](https://github.com/stephrobert/feint/issues/370) |
 | `exoscale/v2.list-security-groups` | `security-groups[].visibility` | 44 | [#371](https://github.com/stephrobert/feint/issues/371) |
 | `exoscale/v2.get-security-group` | `visibility` | 2 | [#371](https://github.com/stephrobert/feint/issues/371) |
 | `exoscale/v2.list-security-groups` | `security-groups[].rules[].security-group.name` | 8 | [#371](https://github.com/stephrobert/feint/issues/371) |
 
-**All three have one root, and it is the argument for this whole directory.**
-`contracts/exoscale.json` does not declare any of them either: it is generated
-from Exoscale's own published description, and the cloud answers fields that
-description does not carry. So the shapes gate, the probe and the pack agree
-with one another because they read the same document, and no control that reads
-a document could ever have disagreed. It is the family of #352's
-`has_s3_integration`, one provider further out.
+**Two of the three had one root, and it is the argument for this whole
+directory.** `contracts/exoscale.json` did not declare `zones[].id` or
+`security-group.visibility` either: it is generated from Exoscale's own
+published description, and the cloud answers fields that description does not
+carry. So the shapes gate, the probe and the pack agreed with one another
+because they read the same document, and no control that reads a document could
+ever have disagreed. It is the family of #352's `has_s3_integration`, one
+provider further out.
+
+Serving them therefore meant moving the contract, which is a generated artefact:
+`tools/contract/exoscale-recorded-fields.yaml` adds a field only with the
+recording that proves it, and `TestEveryRecordedFieldIsStillOnTheWire` fails an
+entry this directory no longer supports — this file's own staleness rule,
+pointed at citations instead of exemptions. The third field needed no contract
+change at all; the document already declared `name` on the schema a rule's
+reference uses, and only the pack had dropped it.
 
 `outscale/oapi-cli-catalogue.jsonl` replays **three matched, zero divergent, two
 unserved**: `ReadRegions`, `ReadVmTypes` and `ReadPublicIpRanges` answer the

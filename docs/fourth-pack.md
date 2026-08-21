@@ -176,7 +176,11 @@ What is **not** industrial today is three things, none structural:
    0), and Exoscale's `zones[].id` and `security-groups[].visibility` (live on
    the wire, absent from the published OpenAPI this emulator enforces as
    closed; the 98f8df6 commit message recorded the decision in prose, which is
-   the one place a gate cannot read). A reason faces the same guard as an
+   the one place a gate cannot read). The two Exoscale entries have since gone:
+   #370 and #371 moved the contract instead, through
+   `tools/contract/exoscale-recorded-fields.yaml`, and the same staleness rule
+   named below is what made deleting the declines compulsory once the pack
+   answered the fields. A reason faces the same guard as an
    operation's (`TestEveryDeclinedFieldSaysWhy`), and a decline that excuses
    nothing fails the gate as stale (`TestAStaleFieldDeclineFailsTheGate`), so
    the list cannot rot. The gate is wired into every pull request — a go.yml

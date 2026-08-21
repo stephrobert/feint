@@ -2,8 +2,6 @@ package scaleway
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"net/netip"
@@ -1155,8 +1153,11 @@ func subnetV6IDOf(privateNetworkID string) string {
 
 // derivedID builds a UUID-shaped identifier from a seed, deterministically.
 // Shared by the subnet and the computed route ids: same reasons, same shape.
+//
+// The derivation itself moved to [resource.DerivedID] when the Exoscale pack
+// needed the same thing for its zone identifiers: an object with no row of its
+// own still has to answer the same id twice. This wrapper stays because the
+// seeds are Scaleway's and the callers read better for it.
 func derivedID(seed string) string {
-	sum := sha256.Sum256([]byte(seed))
-	hexed := hex.EncodeToString(sum[:])
-	return hexed[0:8] + "-" + hexed[8:12] + "-4" + hexed[13:16] + "-8" + hexed[17:20] + "-" + hexed[20:32]
+	return resource.DerivedID(seed)
 }

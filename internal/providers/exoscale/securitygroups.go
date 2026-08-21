@@ -27,6 +27,12 @@ const (
 	// defaultSecurityGroupID is stable across runs: a client that recorded it
 	// yesterday must find the same group today, the way it would upstream.
 	defaultSecurityGroupID = "00000000-0000-4000-8000-000000000001"
+
+	// securityGroupVisibility is what every group of an emulated account
+	// answers. Their enum is private|public and public names the groups
+	// Exoscale publishes itself, of which this emulator has none — see
+	// listSecurityGroups, which answers the empty list for that filter.
+	securityGroupVisibility = "private"
 )
 
 // ensureDefaultSecurityGroup seeds the group a fresh account starts with.
@@ -105,7 +111,7 @@ func (p *Pack) listSecurityGroups(w http.ResponseWriter, r *http.Request) {
 		list := p.env.Store.List(kindSecurityGroup, resource.Tenant{Provider: Name})
 		sort.Slice(list, func(i, j int) bool { return list[i].Created.Before(list[j].Created) })
 		for _, res := range list {
-			groups = append(groups, securityGroupView(res))
+			groups = append(groups, p.securityGroupView(res))
 		}
 	case "public":
 		// None to list: see above.
@@ -123,7 +129,7 @@ func (p *Pack) getSecurityGroup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "resource not found")
 		return
 	}
-	emulator.WriteJSON(w, http.StatusOK, securityGroupView(res))
+	emulator.WriteJSON(w, http.StatusOK, p.securityGroupView(res))
 }
 
 func (p *Pack) deleteSecurityGroup(w http.ResponseWriter, r *http.Request) {
@@ -369,24 +375,98 @@ func (p *Pack) changeExternalSources(w http.ResponseWriter, r *http.Request, add
 // securityGroupView is the measured shape: rules and external-sources are
 // omitted keys when empty.
 //
-// The live API also answers `visibility: "private"` on every group, and their
-// published schema does not declare the field — the same live-ahead-of-spec gap
-// as the operation's resource field. This emulator validates its responses
-// against the published contract, so the field stays off the wire; the CLI
-// prints groups without it.
-func securityGroupView(res *resource.Resource) map[string]any {
+// visibility is on every group the real API answers, the default one included,
+// and it used to be off the wire here with a paragraph explaining that their
+// published schema declares the field on security-group-resource — the shape a
+// rule uses to point at another group — and not on security-group, which is what
+// a list and a get answer. The 2026-08-21 recording of a real account reported
+// the omission 46 times (#371), so the contract moved rather than the reasoning:
+// tools/contract/exoscale-recorded-fields.yaml adds the property with the
+// recording that proves it.
+//
+// private and not a stored attribute, because this emulator publishes nothing:
+// their document's enum is private|public, public names the groups Exoscale
+// itself offers, and listSecurityGroups already answers the empty list for that
+// filter. A group here is always the account's own.
+//
+// A method rather than a function since #371's second half: a rule that points
+// at another group publishes that group's name beside its id, which needs the
+// store. TestASecurityGroupPublishesItsVisibility and
+// TestARuleThatNamesAGroupPublishesThatGroupsName fail without either half.
+func (p *Pack) securityGroupView(res *resource.Resource) map[string]any {
 	out := map[string]any{
-		"id":   res.ID,
-		"name": res.Attrs["name"],
+		"id":         res.ID,
+		"name":       res.Attrs["name"],
+		"visibility": securityGroupVisibility,
 	}
 	if description, _ := res.Attrs["description"].(string); description != "" {
 		out["description"] = description
 	}
 	if rules, _ := res.Attrs["rules"].([]any); len(rules) > 0 {
-		out["rules"] = rules
+		out["rules"] = p.ruleViews(rules)
 	}
 	if sources, _ := res.Attrs["external-sources"].([]any); len(sources) > 0 {
 		out["external-sources"] = sources
+	}
+	return out
+}
+
+// ruleViews renders a group's stored rules, resolving the name of every group a
+// rule points at.
+//
+// The recording is what settled the shape: `{"security-group": {"id": …,
+// "name": …}}`, and no visibility on the reference even though their schema
+// declares one there — so this publishes the two fields the wire carries and
+// not the third the document offers. It is the shape
+// examples/stacks/exoscale/main.tf writes as user_security_group_id, the rule
+// "the application tier accepts the web tier and nobody else".
+//
+// What it is NOT is something a user of `exo` can see, and that was measured
+// rather than assumed: with the name omitted, `exo compute security-group show`
+// still prints `SG:web` correctly, because the CLI resolves the reference by id
+// against the groups it has already listed. #371 says "a consumer reading the
+// group's name off the rule sees nothing", and for the one client this
+// repository drives that is not true. The reason to serve it is the one this
+// project actually rests on — the answer must be the cloud's answer, and
+// corpus/exoscale/exo-cli.jsonl says the cloud sends a name — not a client
+// symptom nobody has reproduced.
+//
+// Resolved at render time rather than copied in when the rule is added: the
+// name a reference publishes is the target's name now, so renaming a group
+// cannot leave a rule quoting what it used to be called. The store is the only
+// thing that knows, which is what makes this a method.
+//
+// The rule maps are rebuilt rather than edited. resource.Clone shares whatever
+// sits inside Attrs, so writing a key into a stored rule would write it into
+// the store from a reader — the mutation no lock covers.
+func (p *Pack) ruleViews(rules []any) []any {
+	out := make([]any, 0, len(rules))
+	for _, raw := range rules {
+		rule, ok := raw.(map[string]any)
+		if !ok {
+			out = append(out, raw)
+			continue
+		}
+		target, ok := rule["security-group"].(map[string]any)
+		if !ok {
+			out = append(out, rule)
+			continue
+		}
+		copied := make(map[string]any, len(rule))
+		for k, v := range rule {
+			copied[k] = v
+		}
+		reference := map[string]any{"id": target["id"]}
+		// A group that is gone publishes its id alone. Nothing measured says
+		// what the cloud does there — the recording deletes the pointed-at
+		// group last — so the emulator says less rather than inventing a name.
+		if id, _ := target["id"].(string); id != "" {
+			if group, found := p.env.Store.Get(Name, kindSecurityGroup, id); found {
+				reference["name"] = group.Attrs["name"]
+			}
+		}
+		copied["security-group"] = reference
+		out = append(out, copied)
 	}
 	return out
 }

@@ -1,0 +1,88 @@
+{
+  "package": "./internal/providers/exoscale/",
+  "mutations": [
+    {
+      "label": "the zone list answers an empty id again, which is what \"stable\" alone would let through: two reads agree and a client that stored the value holds nothing (#370)",
+      "file": "internal/providers/exoscale/catalog.go",
+      "find": "\t\t\"id\":           zoneID(p.zone),",
+      "replace": "\t\t\"id\":           zoneID(p.zone)[:0],",
+      "test": "TestZonesCarryAStableIdentifier"
+    },
+    {
+      "label": "the zone identifier moves between two reads of one emulator, which #370 states is worse than answering none at all",
+      "file": "internal/providers/exoscale/catalog.go",
+      "find": "func zoneID(name string) string {\n\treturn resource.DerivedID(zoneIDSeed + name)\n}",
+      "replace": "var zoneIDCalls int\n\nfunc zoneID(name string) string {\n\tzoneIDCalls++\n\treturn resource.DerivedID(zoneIDSeed + name + strings.Repeat(\"x\", zoneIDCalls))\n}",
+      "test": "TestZonesCarryAStableIdentifier"
+    },
+    {
+      "label": "the signpost rows a split client gets lose their id: one client family keeps the field and the other does not, which is the hole a single-population test would not see (#284)",
+      "file": "internal/providers/exoscale/catalog.go",
+      "find": "\t\t\t\t\"id\":           zoneID(name),",
+      "replace": "\t\t\t\t\"id\":           zoneID(name)[:0],",
+      "test": "TestZonesCarryAStableIdentifier"
+    },
+    {
+      "label": "a security group publishes an empty visibility, on the list and on the read alike — 46 of the recording's divergences (#371)",
+      "file": "internal/providers/exoscale/securitygroups.go",
+      "find": "\t\t\"visibility\": securityGroupVisibility,",
+      "replace": "\t\t\"visibility\": securityGroupVisibility[:0],",
+      "test": "TestASecurityGroupPublishesItsVisibility"
+    },
+    {
+      "label": "a rule that points at another group stops resolving that group's name, so a consumer reading the target off the rule sees an opaque id again — the shape examples/stacks/exoscale/main.tf writes as user_security_group_id (#371)",
+      "file": "internal/providers/exoscale/securitygroups.go",
+      "find": "\t\t\tif group, found := p.env.Store.Get(Name, kindSecurityGroup, id); found {",
+      "replace": "\t\t\tif group, found := p.env.Store.Get(Name, kindSecurityGroup, id); found && false {",
+      "test": "TestARuleThatNamesAGroupPublishesThatGroupsName"
+    },
+    {
+      "label": "THE SECOND DIRECTION: the resolved reference is written into the stored rule instead of a copy of it, which is a reader mutating the store — resource.Clone shares whatever sits inside Attrs, so no lock covers that write",
+      "file": "internal/providers/exoscale/securitygroups.go",
+      "find": "\t\tcopied[\"security-group\"] = reference",
+      "replace": "\t\trule[\"security-group\"] = reference\n\t\t_ = copied",
+      "test": "TestARuleThatNamesAGroupPublishesThatGroupsName"
+    },
+    {
+      "label": "a citation whose path no recording carries stops being reported, and contracts/*.json becomes a place where any field at all can be written and called measured — the rule corpus/accepted.json states, pointed the other way",
+      "file": "internal/cli/recorded_fields.go",
+      "find": "\t\t\tif !known[f.Path] {",
+      "replace": "\t\t\tif !known[f.Path] && false {",
+      "test": "TestARecordedFieldNoRecordingCarriesIsRefused",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "a citation naming a recording that is not there is no longer named as such, so an entry whose evidence left the repository stops being actionable",
+      "file": "internal/cli/recorded_fields.go",
+      "find": "\t\t\tif _, err := os.Stat(filepath.Join(corpusDir, filepath.FromSlash(f.Corpus))); err != nil {",
+      "replace": "\t\t\tif _, err := os.Stat(filepath.Join(corpusDir, filepath.FromSlash(f.Corpus))); err != nil && false {",
+      "test": "TestARecordedFieldNoRecordingCarriesIsRefused",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "the two halves the extraction writes together — the property in the schema and the citation beside it — stop being held to each other, so a citation for a field nothing declares reads as sound",
+      "file": "internal/cli/recorded_fields.go",
+      "find": "\t\t\tif _, ok := schema.Properties[f.Property]; !ok {",
+      "replace": "\t\t\tif _, ok := schema.Properties[f.Property]; !ok && false {",
+      "test": "TestARecordedFieldNoRecordingCarriesIsRefused",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "a citation naming a schema the contract does not carry is accepted, which is the state a renamed schema leaves behind",
+      "file": "internal/cli/recorded_fields.go",
+      "find": "\t\t\tschema, ok := doc.Schemas[f.Schema]\n\t\t\tif !ok {",
+      "replace": "\t\t\tschema, ok := doc.Schemas[f.Schema]\n\t\t\tif !ok && false {",
+      "test": "TestARecordedFieldNoRecordingCarriesIsRefused",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "the count of what was examined stops counting, which is how this gate dies silently: --recorded-fields drops out of tools/contract/update.sh, the list empties, and a run that measured nothing reads exactly like a run that found nothing wrong",
+      "file": "internal/cli/recorded_fields.go",
+      "find": "\t\t\tchecked++",
+      "replace": "\t\t\tchecked += 0",
+      "test": "TestARecordedFieldNoRecordingCarriesIsRefused",
+      "package": "./internal/cli/"
+    }
+  ],
+  "note": "The three refusals inside tools/contract/extract-openapi.py carry no mutation here, and the reason is the harness rather than the guards: it copies the tree, runs `go vet` and `go test`, and a Python branch has no Go test to turn red. They were proved by execution instead — a fragment naming a schema the document does not define, one naming a property the document already declares, and one missing a key each make `mise run contract:update` exit 1 and write no artefact. The Go half above is what a replay can hold, and it is the half that outlives a bad fragment: the extraction refuses at authoring time, TestEveryRecordedFieldIsStillOnTheWire refuses every day after."
+}

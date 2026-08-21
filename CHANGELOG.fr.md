@@ -19,6 +19,28 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Un contrat peut désormais porter un champ que la description d'API du
+  fournisseur ne déclare pas, et seulement avec l'enregistrement qui le prouve**
+  (#370, #371). `tools/contract/extract-openapi.py --recorded-fields` replie un
+  tel champ dans le schéma auquel il appartient, depuis un fragment YAML
+  versionné, et recopie la citation (fichier de corpus, opération, chemin, date,
+  raison) dans `contracts/<fournisseur>.json`, sous `recordedFields`. Ce
+  mécanisme existe parce qu'une description d'API publiée peut être en retard
+  sur l'API qu'elle décrit, et celle d'Exoscale l'est.
+
+  **Ce qui compte, ce n'est pas la porte, c'est la serrure.** Un contrat est
+  sinon extrait, puis ré-extrait par un crochet pre-commit : il ne s'édite pas à
+  la main, et une porte ouverte sur « ce qu'une réponse a le droit de contenir »
+  est exactement ce que la règle 4 interdit de laisser sans serrure.
+  L'extraction refuse un schéma que ses documents ne définissent pas, et refuse
+  une propriété que le document déclare déjà : quand l'amont rattrape son
+  retard, l'entrée disparaît au lieu de laisser une citation que personne ne
+  relira. Ensuite, `TestEveryRecordedFieldIsStillOnTheWire` rejoue à chaque
+  exécution l'enregistrement cité et fait échouer l'entrée dont le chemin n'y
+  est plus. C'est la règle de péremption de `corpus/accepted.json`, retournée :
+  une exemption qui n'excuse rien est morte, une citation qui ne cite rien
+  aussi.
+
 - **Le corpus commité est maintenant rejoué contre le cloud, et attrape la
   dérive qu'aucun scan de SDK ne voit** (#359). `feint corpus --against-cloud
   --file <corpus> --endpoint <url>` réémet un enregistrement commité chez le
@@ -852,6 +874,42 @@ change ni l'un ni l'autre a sa place dans `git log`.
   replay sait qu'elles en sont.
 
 ### Corrigé
+
+- **Trois champs que la vraie API Exoscale répond et que cet émulateur omettait,
+  tous invisibles à tout contrôle qui lit un document** (#370, #371). Ils font
+  105 des 192 divergences rapportées par l'enregistrement du 2026-08-21 d'un
+  vrai compte `ch-gva-2`, et `corpus/accepted.json` retombe à 87 en conséquence.
+
+  `GET /v2/zone` répond maintenant un `id` par zone, dérivé du nom de la zone :
+  deux lectures d'un même émulateur s'accordent, et un émulateur redémarré
+  s'accorde encore avec lui-même. #370 dit pourquoi cette moitié compte : un
+  identifiant qui bougerait d'une lecture à l'autre serait pire que pas
+  d'identifiant du tout, puisqu'un client qui l'a stocké détiendrait une valeur
+  qui ne nomme rien. À lui seul, c'est 51 constats, parce que `exo` liste les
+  zones avant presque chaque commande. `GET /v2/security-group` répond
+  maintenant `visibility` sur chaque groupe, sur la liste comme sur la lecture
+  d'un groupe (46). Et une règle qui pointe vers un autre groupe publie
+  maintenant le `name` de ce groupe à côté de son `id` (8) : c'est la forme
+  qu'`examples/stacks/exoscale/main.tf` écrit sous `user_security_group_id`,
+  « la couche applicative accepte la couche web et personne d'autre ».
+  **#371 affirme qu'un consommateur qui lit le nom sur la règle ne voit rien, et
+  cette moitié-là ne survit pas à la mesure** : `exo compute security-group
+  show` affiche `SG:web` avec le nom comme sans lui, parce qu'il résout la
+  référence par son id contre les groupes qu'il a déjà listés. La raison de le
+  servir est la seule dont ce projet ait jamais besoin, à savoir que
+  l'enregistrement dit que le cloud envoie un nom, et non un symptôme client que
+  personne n'a reproduit.
+
+  **Pourquoi rien ne les avait vus, et c'est la part qu'il faut garder.** Deux
+  des trois ne sont pas non plus dans le `source.yaml` publié par Exoscale :
+  le contrat, la porte des formes, la sonde et le pack étaient donc d'accord
+  entre eux, et tous les quatre avaient tort de la même façon. L'id de zone
+  avait même été levé une fois, sous #94, et clos en non-défaut au motif que le
+  servir faisait échouer le contrôle de contrat de cet émulateur. C'était vrai,
+  et c'était le mauvais bout à corriger. Seul un enregistrement du fil pouvait
+  les contredire, et il en existe un. Le troisième n'a demandé aucun changement
+  de contrat : le document déclarait déjà le champ, seul le pack l'avait laissé
+  tomber.
 
 - **La porte du corpus retenait son avertissement « le cloud a bougé »
   précisément quand il servait le plus.** Les deux avertissements — celui de

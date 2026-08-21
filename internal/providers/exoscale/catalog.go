@@ -84,6 +84,29 @@ func zoneList() string {
 // suffix a client needs on the address it is handed.
 const apiPrefix = "/v2"
 
+// zoneIDSeed namespaces the zone identifiers so they cannot collide with any
+// other derived id this emulator answers. A zone is not a resource anybody
+// created and holds no row in the store, so its id has nowhere to be kept: it
+// is computed, from the one thing that identifies a zone, its name.
+const zoneIDSeed = "exoscale-zone:"
+
+// zoneID is the identifier the zone list publishes for a zone.
+//
+// Stable is the whole requirement, and it is stronger than "the same within one
+// response". #370 states it: an identifier that changed between two reads would
+// be worse than none, because a client that stored it would hold a value that
+// names nothing on the next call. Deriving it from the zone name gives that for
+// free and gives more — the same emulator restarted, and a second emulator in
+// the same zone, answer the same id, which is what a real cloud does with a
+// zone that has existed for years.
+//
+// TestZonesCarryAStableIdentifier fails without it, in both directions: it
+// reads the list twice and compares, and it requires the value to be a
+// UUID-shaped identifier rather than any stable string at all.
+func zoneID(name string) string {
+	return resource.DerivedID(zoneIDSeed + name)
+}
+
 // listZones answers the first call the official CLI makes.
 //
 // api-endpoint points back at this emulator, which is the whole reason the route
@@ -102,26 +125,25 @@ const apiPrefix = "/v2"
 // upload to a route that does not exist. An empty string is what "not here"
 // looks like; an invented address is a promise the emulator cannot keep.
 func (p *Pack) listZones(w http.ResponseWriter, r *http.Request) {
-	// One row: the zone this deployment serves (Pack.zone, #278). The real
-	// answer also carries an id per zone, measured on 2026-08-10 and absent
-	// from their published schema, which this emulator's contract check
-	// enforces as closed. The field stays off the wire for the same reason as
-	// security-group's visibility: a response the emulator would refuse itself
-	// is not one it may send.
+	// One row: the zone this deployment serves (Pack.zone, #278).
 	zones := []map[string]any{{
 		"name": p.zone,
-		// No id, and that is measured rather than an oversight. The live API
-		// sends one on every zone — recorded in shapes/exoscale.json — while
-		// their published OpenAPI declares no such field on `zone`. Emitting
-		// it fails this emulator's own contract check, which is the gate that
-		// keeps every other answer honest.
+		// The id every zone of a real answer carries. It used to be omitted,
+		// deliberately and with a paragraph saying why: the live API sends one
+		// and their published OpenAPI declares no such field on `zone`, so
+		// emitting it failed this emulator's own contract check. Raised as #94
+		// from a shape diff and closed as not-a-defect on that basis.
 		//
-		// Same call as start/stop's `resource` envelope in lifecycle.go: the
-		// live API is ahead of its own description in four measured places,
-		// and the rule is to serve what clients decode and what the contract
-		// accepts. Raised as #94 from a shape diff and closed as not-a-defect
-		// on that basis: TestEveryRouteAnswersItsContract in internal/probe fails
-		// the moment the field is added.
+		// The corpus reopened it and reversed the conclusion (#370): `exo`
+		// lists the zones before very nearly every command, so that one
+		// omission was 51 of the 105 divergences the 2026-08-21 recording of a
+		// real ch-gva-2 account reported — the most-answered operation of the
+		// whole file. The contract was the thing that had to move, and it did:
+		// tools/contract/exoscale-recorded-fields.yaml adds the property with
+		// the recording that proves it, and internal/cli's
+		// TestEveryRecordedFieldIsStillOnTheWire deletes the entry the day no
+		// recording carries it any more.
+		"id":           zoneID(p.zone),
 		"api-endpoint": emulator.EndpointOf(r) + apiPrefix,
 		"sos-endpoint": "",
 	}}
@@ -155,6 +177,7 @@ func (p *Pack) listZones(w http.ResponseWriter, r *http.Request) {
 			}
 			zones = append(zones, map[string]any{
 				"name":         name,
+				"id":           zoneID(name),
 				"api-endpoint": emulator.EndpointOf(r) + unservedZonePathPrefix + name,
 				"sos-endpoint": "",
 			})
