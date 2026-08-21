@@ -1,0 +1,99 @@
+{
+  "package": "./internal/corpus/",
+  "mutations": [
+    {
+      "label": "the provider's own enumerated values stop surviving, so `order_by=created_at_desc` becomes a synthetic string and four list operations replay 400 — a divergence the sanitiser manufactured",
+      "file": "internal/corpus/corpus.go",
+      "find": "\t\tfor _, v := range opt.Doc.EnumValues() {",
+      "replace": "\t\tfor _, v := range opt.Doc.EnumValues()[:0] {",
+      "test": "TestAnEnumeratedValueSurvivesSanitisation"
+    },
+    {
+      "label": "a path the document does not describe keeps its segments, so a bucket name and a DNS zone are published because they looked like ordinary words",
+      "file": "internal/corpus/corpus.go",
+      "find": "\t\tsegments[i] = m.value(seg)",
+      "replace": "\t\tsegments[i] = seg + m.value(seg)[:0]",
+      "test": "TestAPathTheDocumentDoesNotDescribeIsBlankedEntirely"
+    },
+    {
+      "label": "the same original stops getting the same replacement, so the identifier a create answered is not the one the read addresses and the transcript stops referring to itself",
+      "file": "internal/corpus/corpus.go",
+      "find": "\tif to, bound := m.to[s]; bound {\n\t\treturn to\n\t}",
+      "replace": "\tif to, bound := m.to[s]; bound && false {\n\t\treturn to\n\t}",
+      "test": "TestOneValueGetsOneReplacementThroughout"
+    },
+    {
+      "label": "a UUID is replaced by a bare token instead of a UUID, so every read that follows answers 404 and the corpus is a museum piece",
+      "file": "internal/corpus/corpus.go",
+      "find": "\tcase shape.IsUUID(s):\n\t\treturn fmt.Sprintf(\"00000000-0000-4000-8000-%012d\", m.next(\"uuid\"))",
+      "replace": "\tcase shape.IsUUID(s) && false:\n\t\treturn fmt.Sprintf(\"00000000-0000-4000-8000-%012d\", m.next(\"uuid\"))",
+      "test": "TestEveryValueIsReplacedByOneOfTheSameShape"
+    },
+    {
+      "label": "an OpenSSH key is replaced by a token, so sshkey.Parse refuses it and every create carrying one answers 400",
+      "file": "internal/corpus/corpus.go",
+      "find": "\tcase sshkey.Valid(s):\n\t\treturn syntheticKey(m.next(\"sshkey\"))",
+      "replace": "\tcase sshkey.Valid(s) && false:\n\t\treturn syntheticKey(m.next(\"sshkey\"))",
+      "test": "TestAPublicKeyIsReplacedByAValidPublicKey"
+    },
+    {
+      "label": "the bound on a kept run of digits goes, and Outscale's twelve-digit account number is published as a page number would be",
+      "file": "internal/corpus/corpus.go",
+      "find": "\tif s == \"\" || len(s) > maxKeptDigits {",
+      "replace": "\tif s == \"\" || len(s) > maxKeptDigits*4 {",
+      "test": "TestALongRunOfDigitsIsNotKept"
+    },
+    {
+      "label": "the cross-reference against the source recording stops comparing, so a value the sanitiser failed to recognise is published and the file still reads as sanitised",
+      "file": "internal/corpus/scan.go",
+      "find": "\t\t\tif !from[v.value] || a.mayKeep(v) {",
+      "replace": "\t\t\tif true || !from[v.value] || a.mayKeep(v) {",
+      "test": "TestAValueOfTheRecordingThatSurvivesIsNamed"
+    },
+    {
+      "label": "THE COMMAND: the audit no longer stops the write, so the leak is published before it is reported",
+      "file": "internal/corpus/scan.go",
+      "find": "\t\t\tif !from[v.value] || a.mayKeep(v) {",
+      "replace": "\t\t\tif true || !from[v.value] || a.mayKeep(v) {",
+      "test": "TestASanitisationThatKeptAValueWritesNothing",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "the alphabet accepts anything, so a value no rule of this package could have produced passes the scan of a committed artefact",
+      "file": "internal/corpus/scan.go",
+      "find": "\treturn \"not a value a sanitised transcript may carry\"",
+      "replace": "\treturn \"\"",
+      "test": "TestScanRefusesAValueOutsideTheAlphabet"
+    },
+    {
+      "label": "the User-Agent is replaced wholesale, so a sanitised corpus can no longer say which client called an operation and `coverage --observed` loses its column",
+      "file": "internal/corpus/corpus.go",
+      "find": "\t\tif needle := transcript.Needle(value); needle != \"\" {",
+      "replace": "\t\tif needle := transcript.Needle(value)[:0]; needle != \"\" {",
+      "test": "TestTheClientOfASanitisedExchangeIsStillNamed"
+    },
+    {
+      "label": "a pack may vouch for an identifier, and every occurrence of it is then published verbatim while the file still reads as sanitised",
+      "file": "internal/core/emulator/vocabulary.go",
+      "find": "\t\tcase shape.IsMintedIdentifier(v):",
+      "replace": "\t\tcase shape.IsMintedIdentifier(v) && false:",
+      "test": "TestAVocabularyEntryThatLooksMintedIsRefused",
+      "package": "./internal/core/emulator/"
+    },
+    {
+      "label": "THE OTHER DIRECTION: what a pack vouches for stops being kept, so the zone in every recorded path becomes a synthetic string, the emulator answers 400 unknown zone, and the corpus is unreplayable",
+      "file": "internal/corpus/corpus.go",
+      "find": "\tfor _, v := range opt.Vocabulary {\n\t\tout[v] = true\n\t}",
+      "replace": "\tfor _, v := range opt.Vocabulary {\n\t\tout[v] = true && false\n\t}",
+      "test": "TestASanitisedTranscriptStillReplays",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "the IPv6 block counter lands in the bits the prefix mask erases, so every /64 of a recording becomes one block and the corpus states #270's own finding — two networks sharing a prefix — as an artefact of the instrument",
+      "file": "internal/corpus/corpus.go",
+      "find": "\t\thigh = n << uint(shift-64)",
+      "replace": "\t\thigh = n << uint(shift-64) & 0",
+      "test": "TestTwoValuesNeverShareAReplacement"
+    }
+  ]
+}

@@ -28,8 +28,10 @@ func transcriptCommand(args []string, stdout, stderr io.Writer) int {
 	shape := fs.String("shape", "", "print the response shape of this operation (e.g. ReadNics) instead of the work queue")
 	against := fs.String("against", "", "a second transcript, recorded against the emulator: with --shape, diff the two")
 	format := fs.String("format", "text", "output format: text or json")
+	sanitise := fs.String("sanitise", "", "write a committable copy of this recording here: every value synthetic, the statuses, order and field trees kept (#351)")
+	contractPath := fs.String("contract", "", "the provider's API description, e.g. contracts/scaleway.json; required by --sanitise")
 	fs.Usage = func() {
-		fmt.Fprint(stderr, "usage: feint transcript <recording.jsonl> [--shape OP [--against emu.jsonl]] [--format text|json]\n")
+		fmt.Fprint(stderr, "usage: feint transcript <recording.jsonl> [--shape OP [--against emu.jsonl]] [--sanitise out.jsonl --contract contracts/<provider>.json] [--format text|json]\n")
 		fs.PrintDefaults()
 	}
 	// The file comes first, before the flags, which reads the way the usage line
@@ -59,6 +61,15 @@ func transcriptCommand(args []string, stdout, stderr io.Writer) int {
 	}
 
 	switch {
+	case *sanitise != "":
+		// Checked rather than silently ignored: --shape prints a field tree and
+		// --sanitise writes a transcript, and a reader who asked for both wants
+		// to be told which one they are getting.
+		if *shape != "" || *against != "" {
+			fmt.Fprintln(stderr, "feint: --sanitise writes a whole transcript; it does not combine with --shape or --against")
+			return exitError
+		}
+		return transcriptSanitise(exs, file, *sanitise, *contractPath, stdout, stderr)
 	case *shape != "" && *against != "":
 		return transcriptDiff(exs, *shape, *against, *format, stdout, stderr)
 	case *shape != "":

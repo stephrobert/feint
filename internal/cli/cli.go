@@ -102,11 +102,17 @@ const (
 // pipeline keyed on version 6 keeps working — the number says the surface
 // changed, and the CHANGELOG says which of the two it was.
 //
+// Version 8 adds `transcript --sanitise` and `transcript --contract` (#351):
+// the conversion of a recording made against a real cloud into an artefact this
+// repository may commit, which is what gives `replay` a corpus that is not its
+// own output. Both are additions to one existing verb, nothing was removed and
+// no exit code moved.
+//
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 7
+const cliSurfaceVersion = 8
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -315,12 +321,20 @@ Usage:
                     --expose-to-network, which puts this port and the account
                     behind it on the network.
 
-  feint transcript <recording.jsonl> [--shape OP [--against emu.jsonl]] [--format text|json]
+  feint transcript <recording.jsonl> [--shape OP [--against emu.jsonl]]
+                   [--sanitise corpus.jsonl --contract contracts/<provider>.json]
+                   [--format text|json]
                     Read a proxy recording and answer what to serve next. With no
                     flag, the operations a real client called that no pack serves,
                     most-called first. With --shape, the response shape one
                     operation actually returned. With --against, diff that shape
                     against the emulator's own answer: the fields it omits.
+                    With --sanitise, write a committable copy: the statuses, the
+                    order, the sequence and the field trees kept, every value
+                    replaced by a synthetic one of the same shape, so the file
+                    still replays and carries none of the account it was recorded
+                    on. --contract says which segments of a path are the API's
+                    own; nothing is written if a value of the recording survives.
 
   feint replay     <recording.jsonl> [--endpoint http://127.0.0.1:4599]
                    [--format text|json] [--timeout 30s]

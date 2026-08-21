@@ -80,22 +80,61 @@ func ClientOf(x *trace.Exchange) string {
 	if x.Req == nil {
 		return ClientUnknown
 	}
-	agent := ""
 	for name, value := range x.Req.Headers {
 		if strings.EqualFold(name, "user-agent") {
-			agent = strings.ToLower(value)
-			break
+			return familyOf(value)
 		}
 	}
-	if agent == "" {
-		return ClientUnknown
-	}
+	return ClientUnknown
+}
+
+// familyOf attributes one User-Agent string.
+func familyOf(agent string) string {
+	lower := strings.ToLower(agent)
 	for _, a := range agents {
-		if strings.Contains(agent, a.needle) {
+		if strings.Contains(lower, a.needle) {
 			return a.family
 		}
 	}
 	return ClientUnknown
+}
+
+// Needle returns the substring of a User-Agent that named its family, and ""
+// for an agent this table does not recognise.
+//
+// Exported for internal/corpus, which writes it into a sanitised transcript in
+// place of the agent itself. A User-Agent carries whatever the build put in it,
+// so a committed corpus must not hold one; but dropping it outright would take
+// the client column of `feint coverage --observed` with it, and the ranking of
+// what a real client called is the reason that corpus exists. The needle is the
+// least that keeps the attribution answering the same word — and it comes from
+// this table, which is to say from this repository, not from the recording.
+//
+// TestTheClientOfASanitisedExchangeIsStillNamed (internal/corpus) fails without
+// this, and it is the same table on both sides deliberately: a second list of
+// spellings would drift from the one that does the attributing.
+func Needle(agent string) string {
+	lower := strings.ToLower(agent)
+	for _, a := range agents {
+		if strings.Contains(lower, a.needle) {
+			return a.needle
+		}
+	}
+	return ""
+}
+
+// Needles returns every spelling this table recognises.
+//
+// For internal/corpus's scan, which has to tell a User-Agent it wrote itself
+// from one that survived a sanitisation. Reading the table rather than keeping
+// a second list is the point: the day a family is added here, the scan accepts
+// it, and no artefact needs regenerating for the two to agree.
+func Needles() []string {
+	out := make([]string, 0, len(agents))
+	for _, a := range agents {
+		out = append(out, a.needle)
+	}
+	return out
 }
 
 // ClientsOf names every family that produced a call among these exchanges,

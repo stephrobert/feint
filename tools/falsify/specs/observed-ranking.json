@@ -32,8 +32,8 @@
     {
       "label": "the client column carries the raw User-Agent, so a path and a build host reach a report somebody pastes into an issue",
       "file": "internal/transcript/client.go",
-      "find": "\t\tif strings.Contains(agent, a.needle) {\n\t\t\treturn a.family\n\t\t}",
-      "replace": "\t\tif strings.Contains(agent, a.needle) {\n\t\t\treturn agent + a.family[:0]\n\t\t}",
+      "find": "\t\tif strings.Contains(lower, a.needle) {\n\t\t\treturn a.family\n\t\t}",
+      "replace": "\t\tif strings.Contains(lower, a.needle) {\n\t\t\treturn agent + a.family[:0]\n\t\t}",
       "test": "TestTheObservedReportNamesNoRawUserAgent",
       "package": "./internal/cli/"
     },

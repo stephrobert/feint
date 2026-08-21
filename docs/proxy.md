@@ -549,11 +549,125 @@ A test fixture is **built from the observed shape with invented values**, and
 says so, rather than being a recording with a few values crossed out. The field
 tree is what carries the knowledge; the values never did.
 
-Two things in this repository already do that for you, and neither is the
+Three things in this repository already do that for you, and none of them is the
 transcript: `feint shapes --record` stores field trees with identifiers folded
 into `{id}` and no values at all, which is why `shapes/*.json` is committed;
-`feint transcript --shape` prints the same tree out of a recording. If what you
-want to share is "what the cloud answers", share one of those.
+`feint transcript --shape` prints the same tree out of a recording; and
+`feint transcript --sanitise`, below, converts the whole recording.
+
+## A transcript you can commit
+
+`shapes/*.json` is committable and throws away exactly what a replay grades
+beyond the field tree: the **status**, the **order**, and the sequence itself.
+So a recording of a real cloud could never reach `feint replay`, and the replay
+had only ever met its own output (#351).
+
+```bash
+feint transcript real.jsonl --sanitise corpus/scaleway/scw-cli.jsonl \
+  --contract contracts/scaleway.json
+```
+
+```text
+58 exchange(s) written to corpus/scaleway/scw-cli.jsonl
+953 distinct value(s) replaced by a synthetic one of the same shape
+1837 value(s) kept: a literal of the API, a word a pack vouches for, a number, a boolean
+cross-checked against the recording: no value of the account survived
+```
+
+The output is a transcript like any other — `feint replay`, `feint transcript`
+and `feint shapes` read it unchanged — with every value replaced.
+
+| kept | dropped |
+|---|---|
+| method, status, the sequence and its order | every identifier, every address, every CIDR |
+| the segments the provider's document states are literals of the path | every other path segment |
+| query parameter **names** | query parameter values |
+| body field names, JSON types, list order | body values |
+| numbers, booleans, nulls | the recording's own timings and clock |
+| header values that are HTTP's own vocabulary | every other header value |
+| the word that named the client in the User-Agent | the rest of the User-Agent |
+| what a pack vouches for (`emulator.Vocabulary`) and what the contract enumerates | everything else |
+
+### Why it still replays
+
+Because the replay already rebinds (above). A transcript whose identifiers are
+synthetic is replayed exactly like one whose identifiers are real: the replay
+binds `00000000-0000-4000-8000-000000000003` to whatever this emulator answers,
+the same way it binds a UUID a cloud handed out.
+
+That is what makes the substitution **shape-preserving** rather than blanket. A
+UUID becomes a UUID, an address an address from `198.18.0.0/15`, a CIDR a CIDR
+of the same prefix length, an OpenSSH public key a valid OpenSSH public key, a
+timestamp a timestamp. A value replaced by a bare `REDACTED` would break the
+request that carries it and retype the field that holds it — which is the defect
+the proxy's own redaction produced in #73, where nine `null` fields became
+strings and read back as nine divergences.
+
+Two things follow, and each has a test that fails without it
+(`tools/falsify/specs/sanitised-corpus.json` replays all twelve):
+
+- **the same original always gets the same replacement**, or the identifier a
+  create answered would not be the one the read that follows addresses;
+- **a value the API validates against a closed list survives**: the zones and
+  regions a pack vouches for, and every value the provider's own document
+  enumerates. Measured rather than designed — without the second, the first real
+  Scaleway corpus replayed four list operations as **400**, because
+  `order_by=created_at_desc` had become a synthetic string, and a 400 the
+  sanitiser manufactured reads exactly like an emulator defect.
+
+### Default deny, and what it costs
+
+The rule is not a list of what to remove. A redaction by *name* answers "does
+this look like a secret" and never "is this not one", which is the trap the
+whole of the section above is about. So a value stays only if this repository
+publishes it: a literal of the path the provider's document writes, a word a
+pack vouches for, a boolean, a run of at most six digits (a page, a size, a
+port — Outscale's twelve-digit account number is a *string*, and it goes).
+
+That costs something, and the cost is stated rather than hidden: **a path the
+provider's document does not describe loses every segment.** The exchange stays,
+with its method, its status and its field tree, and the command lists what it
+blanked. Recovering the name means adding the product to
+`tools/contract/<provider>-products.txt` and regenerating the contract — never
+guessing which segments looked harmless.
+
+Two residuals worth knowing, neither of them repairable by a rule:
+
+- **equality survives.** Two fields holding one value still hold one value after
+  the substitution, which is what makes the file replayable and what tells a
+  reader that an account's `project_id` and `organization_id` were the same
+  string. Nothing of either is published; the fact that they were equal is.
+- **a number is kept.** In these three dialects an identifier is a string, and
+  the numbers are sizes, counts, ports and prefix lengths that the emulator
+  validates a request against. A provider minting a numeric identifier would
+  defeat this, and that is an assumption to revisit rather than a property
+  proved.
+
+### What checks it
+
+Two controls, both before the file exists, and the command writes nothing if
+either speaks:
+
+- **the cross-reference.** Every value of the output is looked up in the source
+  recording, and one that is in both — and is not on the short list above — is a
+  leak. It does not depend on the sanitiser being right about what a value *is*,
+  so it catches the identifier shape a fourth provider invents. This is
+  `docs/proxy.md`'s own last step, executable: *"search the result for the
+  account's own identifiers one last time"*.
+- **the alphabet.** Every value of the output must be one this tool minted or
+  one the document publishes. An allowlist over the artefact, not a search for
+  dangerous-looking shapes.
+
+Then two tests read the committed files back:
+`TestTheCommittedCorpusCarriesOnlyWhatASanitisedTranscriptMay` runs the alphabet
+over them, and `TestNoCommittedCorpusCarriesAnIdentifier` reads the bytes and
+knows nothing of the rules that produced them — a UUID outside the synthetic
+namespace, an address outside the two synthetic spaces, an email or a PEM block
+fails it whatever the sanitiser believes.
+
+`corpus/README.md` carries the account rules for making one: free resources
+only, everything destroyed, the destruction proved by a read, and the secret
+never read by anything but the client that owns it.
 
 ## Doing it against a real, billed account
 

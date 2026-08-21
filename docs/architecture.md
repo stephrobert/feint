@@ -20,6 +20,8 @@ internal/core/cloudinit/    the boot payload a provider hands its machines
 internal/core/serialise/    keyed mutual exclusion: one lock per named target
 internal/core/sshkey/       the OpenSSH one-line public key format, read and refused
 internal/contract/          API descriptions, and the check that answers match them
+internal/corpus/            turns a recording of a real cloud into an artefact this repository
+                            may commit: values synthetic, statuses and order kept
 internal/drift/             the upstream surface scan, coverage, baselines
 internal/probe/             drives every mounted route from its API description
 internal/replay/            reissues a recorded exchange here and grades the answer

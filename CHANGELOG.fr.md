@@ -88,6 +88,73 @@ change ni l'un ni l'autre a sa place dans `git log`.
   (`list-dns-domains`, 7 appels d'`exo`) et deux Outscale (`ReadApiAccessRules`
   et `ReadCatalog`, d'`oapi-cli`).
 
+- **`feint transcript --sanitise` transforme l'enregistrement d'un vrai cloud en
+  artefact que ce dépôt peut committer** (#351). Un transcript porte l'inventaire
+  du compte de quelqu'un, et `shapes/*.json`, la seule chose committable qu'on
+  tirait d'un enregistrement, jette exactement ce qu'un replay note au-delà de
+  l'arbre de champs : le statut, l'ordre, et la séquence elle-même. `feint
+  replay` n'avait donc jamais rencontré autre chose que sa propre sortie.
+
+  ```bash
+  feint transcript real.jsonl --sanitise corpus/scaleway/scw-cli.jsonl \
+    --contract contracts/scaleway.json
+  ```
+
+  La sortie est un transcript comme un autre, relu tel quel par `replay`,
+  `transcript` et `shapes`, dont **chaque valeur est remplacée par une valeur
+  synthétique de même forme** : un UUID devient un UUID, une adresse une adresse,
+  un CIDR un CIDR de même longueur de préfixe, une clé OpenSSH une clé OpenSSH
+  valide. C'est ce qui le laisse rejouable, le replay reliant un identifiant
+  synthétique exactement comme il relie celui qu'un cloud a distribué, là où une
+  valeur écrasée par `REDACTED` casserait la requête qui la porte et retyperait
+  le champ qui la tient, ce qui est le défaut que la redaction du proxy avait
+  produit dans #73.
+
+  **Refus par défaut.** Une redaction par *nom* répond « est-ce que ça ressemble
+  à un secret », jamais « est-ce que ça n'en est pas un ». Une valeur ne survit
+  donc que si ce dépôt la publie lui-même : un littéral du chemin écrit par le
+  document du fournisseur, un mot dont un pack se porte garant
+  (`emulator.Vocabulary`, nouveau : les zones et régions de Scaleway, les deux
+  listes pour lesquelles il répond 400), une valeur que le contrat énumère, un
+  booléen, une suite d'au plus six chiffres. Un chemin que le document ne décrit
+  pas perd donc **tous** ses segments, et la commande énumère ce qu'elle a effacé
+  au lieu de garder les mots qui semblaient inoffensifs.
+
+  **Deux contrôles, tous deux avant que le fichier existe**, et rien n'est écrit
+  si l'un des deux parle : la sortie est recoupée avec l'enregistrement source,
+  donc une valeur qui a survécu est nommée quelle qu'ait été sa forme ; et chaque
+  valeur de la sortie doit appartenir à l'alphabet qu'un transcript assaini a le
+  droit de porter. Deux tests de plus relisent les fichiers committés, dont un
+  par la seule forme, sans rien savoir des règles qui les ont produits.
+
+  Falsifié dans les deux sens, douze mutations
+  (`tools/falsify/specs/sanitised-corpus.json`) : retirez une part quelconque de
+  la substitution et une valeur du compte est publiée, ou l'audit se tait ;
+  retirez ce dont un pack se porte garant et le corpus assaini rejoue **400 zone
+  inconnue** sur chaque appel, la pièce de musée que le second sens existe pour
+  éviter.
+
+- **Un corpus committé de ce que le vrai Scaleway répond** (#352), sous
+  `corpus/`, rejouable avec `feint replay`. Enregistré le 21/08/2026 à travers
+  `feint proxy` contre un vrai compte en `fr-par`, en pilotant
+  terraform-provider-scaleway 2.81.0 et `scw` 2.56.3 : le cycle complet
+  création, lecture, mise à jour, destruction d'un VPC et d'un réseau privé, les
+  lectures que toute stack fait avant de créer quoi que ce soit, une clé SSH IAM,
+  et deux 404 délibérés. Ressources gratuites uniquement, tout détruit sous un
+  `trap`, chaque destruction prouvée par une lecture qui a répondu 404, et le
+  compte identique au bit près avant et après sur quinze familles d'objets.
+
+  Ce qu'il a mesuré, sur l'émulateur du jour : l'enregistrement Terraform
+  concorde sur ses 16 échanges, la première fois qu'un replay rencontre la
+  réponse d'un vrai cloud et lui donne raison, et celui de `scw` sur 33 des 58,
+  avec 16 opérations qu'aucun pack ne sert et 8 ou 9 divergences en trois
+  familles. Le « ou » est une mesure lui aussi : six exécutions du même fichier
+  ont noté `ListPrivateNetworks` divergente trois fois et concordante trois
+  fois, parce que sur ce compte `project_id` et `organization_id` sont la même
+  chaîne, que la reliaison du replay a deux candidats pour elle, et qu'elle
+  parcourt une map Go pour choisir. `corpus/README.md` nomme tout cela, ainsi
+  que les règles de compte pour enregistrer le fournisseur suivant.
+
 - **Un pack peut déclarer ce qu'un replay compare au-delà de la présence et du
   type** (`emulator.Invariant`, `ReplayInvariants()`). Optionnel à la manière de
   `FieldDecliner`, avec une raison tenue au garde que `Declined()` affronte, plus
@@ -99,10 +166,11 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Modifié
 
-- **Surface CLI version 7.** Les deux entrées ci-dessus sont des ajouts : le
-  verbe `replay` avec `--endpoint`, `--format` et `--timeout`, et `coverage
-  --observed`. Rien n'a été retiré et aucun code de sortie n'a bougé, donc un
-  pipeline calé sur la version 6 continue de fonctionner.
+- **Surface CLI version 8.** Toutes les entrées ci-dessus sont des ajouts : le
+  verbe `replay` avec `--endpoint`, `--format` et `--timeout`, `coverage
+  --observed`, et `transcript --sanitise` avec `--contract`. Rien n'a été retiré
+  et aucun code de sortie n'a bougé, donc un pipeline calé sur la version 6
+  continue de fonctionner.
 
 - `internal/shape.IsUUID` est exporté, pour que le replay pose à une valeur
   enregistrée la même question que le catalogue de formes pose à un segment de
@@ -191,6 +259,13 @@ change ni l'un ni l'autre a sa place dans `git log`.
   le provider 1.1.3 réessaie pendant cinq minutes sur toute erreur contenant
   `DuplicateListener`, et la condition n'est jamais transitoire ici, si bien que
   reprendre ce mot transformerait un refus exact en une attente de cinq minutes.
+
+- `internal/shape.IsMintedIdentifier` porte tout le « est-ce un identifiant
+  qu'un cloud a frappé », UUID, adresse, `i-<hex>` d'Outscale, pour la raison qui
+  avait fait exporter `IsUUID`. Le replay relie sur cette réponse et
+  l'assainisseur refuse de publier sur elle : un assainisseur qui reconnaîtrait
+  un identifiant de moins que le replay publierait exactement les valeurs dont le
+  replay sait qu'elles en sont.
 
 ## [0.10.0] - 2026-08-20
 

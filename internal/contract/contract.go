@@ -454,3 +454,54 @@ func (d *Doc) ListFields(op Operation) []string {
 	sort.Strings(out)
 	return out
 }
+
+// EnumValues is every string value this document enumerates, anywhere.
+//
+// The provider's own closed vocabularies: an order ("created_at_desc"), a state
+// ("available"), a boot type, a protocol. They are the API's words, published
+// by the API, and knowing them is what lets internal/corpus keep them verbatim
+// in a sanitised transcript instead of replacing them with a synthetic string
+// the emulator then answers 400 to.
+//
+// Measured before it was written: without this, replaying the first real
+// Scaleway corpus turned four list operations red — "order=created_at_desc"
+// became "order=redacted-747", and a 400 the sanitiser had manufactured read
+// exactly like an emulator defect.
+//
+// Sorted, so two callers building an allowlist from it agree.
+func (d *Doc) EnumValues() []string {
+	seen := map[string]bool{}
+	add := func(values []any) {
+		for _, v := range values {
+			if s, isText := v.(string); isText && s != "" {
+				seen[s] = true
+			}
+		}
+	}
+	for _, schema := range d.Schemas {
+		add(schema.Enum)
+		for _, prop := range schema.Properties {
+			addPropertyEnums(add, prop)
+		}
+	}
+	for _, op := range d.Operations {
+		for _, prop := range op.Query {
+			addPropertyEnums(add, prop)
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for s := range seen {
+		out = append(out, s)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// addPropertyEnums walks a property and its element type, which is where a list
+// of enumerated values sits.
+func addPropertyEnums(add func([]any), prop Property) {
+	add(prop.Enum)
+	if prop.Items != nil {
+		addPropertyEnums(add, *prop.Items)
+	}
+}

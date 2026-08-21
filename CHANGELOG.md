@@ -80,6 +80,69 @@ what this project is judged on: **a response shape a client can observe**, and
   calls from `exo`) and two Outscale ones (`ReadApiAccessRules` and
   `ReadCatalog`, from `oapi-cli`).
 
+- **`feint transcript --sanitise` turns a recording of a real cloud into an
+  artefact this repository may commit** (#351). A transcript is the inventory of
+  somebody's account, and `shapes/*.json` — the one committable thing derived
+  from a recording — throws away exactly what a replay grades beyond the field
+  tree: the status, the order, and the sequence itself. So `feint replay` had
+  only ever met its own output.
+
+  ```bash
+  feint transcript real.jsonl --sanitise corpus/scaleway/scw-cli.jsonl \
+    --contract contracts/scaleway.json
+  ```
+
+  The output is a transcript like any other, read unchanged by `replay`,
+  `transcript` and `shapes`, with **every value replaced by a synthetic one of
+  the same shape**: a UUID becomes a UUID, an address an address, a CIDR a CIDR
+  of the same prefix length, an OpenSSH key a valid OpenSSH key. That is what
+  makes it still replayable — the replay rebinds a synthetic identifier exactly
+  as it rebinds one a cloud handed out — where a value blanked to `REDACTED`
+  would break the request carrying it and retype the field holding it, which is
+  the defect the proxy's own redaction produced in #73.
+
+  **Default deny.** A redaction by *name* answers "does this look like a secret"
+  and never "is this not one", so a value stays only if this repository
+  publishes it: a literal of the path the provider's document writes, a word a
+  pack vouches for (`emulator.Vocabulary`, new — Scaleway's zones and regions,
+  the two lists it answers 400 for), a value the contract enumerates, a boolean,
+  a run of at most six digits. A path the document does not describe therefore
+  loses **every** segment, and the command lists what it blanked rather than
+  keeping the words that looked harmless.
+
+  **Two controls, both before the file exists**, and nothing is written if
+  either speaks: the output is cross-referenced against the source recording, so
+  a value that survived is named whatever shape it had; and every value of the
+  output must belong to the alphabet a sanitised transcript may carry. Two
+  further tests read the committed files back, one of them by shape alone,
+  knowing nothing of the rules that produced them.
+
+  Falsified in both directions, twelve mutations
+  (`tools/falsify/specs/sanitised-corpus.json`): remove any part of the
+  substitution and a value of the account is published or the audit goes quiet;
+  remove what a pack vouches for and the sanitised corpus replays **400 unknown
+  zone** on every call, which is the museum piece the second direction exists to
+  prevent.
+
+- **A committed corpus of what real Scaleway answers** (#352), under `corpus/`,
+  replayable with `feint replay`. Recorded on 2026-08-21 through `feint proxy`
+  against a real account in `fr-par`, driving terraform-provider-scaleway 2.81.0
+  and `scw` 2.56.3: the full create/read/update/destroy of a VPC and a private
+  network, the reads every stack makes before it creates anything, an IAM SSH
+  key, and two deliberate 404s. Free resources only, everything destroyed under
+  a `trap`, each destruction proved by a read that answered 404, and the account
+  byte-identical before and after across fifteen object families.
+
+  What it measured, on the emulator of that day: the Terraform recording matches
+  on all 16 exchanges — the first time a replay has met a real cloud's answer
+  and agreed — and the `scw` one on 33 of 58, with 16 operations no pack serves
+  and 8 or 9 divergences in three families. The "or" is a measurement too: six
+  runs of the same file graded `ListPrivateNetworks` divergent three times and
+  matched three times, because this account's `project_id` and
+  `organization_id` are one string, the replay's rebinding has two candidates
+  for it, and it walks a Go map to choose. `corpus/README.md` names all of it,
+  and the account rules for recording the next provider.
+
 - **A pack can declare what a replay may compare beyond presence and type**
   (`emulator.Invariant`, `ReplayInvariants()`). Optional in the manner of
   `FieldDecliner`, with a reason held to the same guard `Declined()` faces, plus
@@ -90,10 +153,10 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Changed
 
-- **CLI surface version 7.** Both entries above are additions — the verb
-  `replay` with `--endpoint`, `--format` and `--timeout`, and `coverage
-  --observed`. Nothing was removed and no exit code moved, so a pipeline keyed
-  on version 6 keeps working.
+- **CLI surface version 8.** Every entry above is an addition — the verb
+  `replay` with `--endpoint`, `--format` and `--timeout`, `coverage --observed`,
+  and `transcript --sanitise` with `--contract`. Nothing was removed and no exit
+  code moved, so a pipeline keyed on version 6 keeps working.
 
 - `internal/shape.IsUUID` is exported, so the replay asks the same question of a
   recorded value that the shape catalogue asks of a path segment. Two spellings
@@ -176,6 +239,13 @@ what this project is judged on: **a response shape a client can observe**, and
   retries for five minutes on any error containing `DuplicateListener`, and here
   the condition is never transient, so echoing it would turn an accurate refusal
   into a five-minute hang.
+
+- `internal/shape.IsMintedIdentifier` holds the whole of "is this an identifier
+  a cloud minted" — a UUID, an address, an Outscale `i-<hex>` — for the same
+  reason `IsUUID` was exported. The replay rebinds on that answer and the
+  sanitiser refuses to publish on it, and a sanitiser recognising one identifier
+  less than the replay would publish exactly the values the replay knows are
+  identifiers.
 
 ## [0.10.0] - 2026-08-20
 

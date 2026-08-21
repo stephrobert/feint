@@ -64,9 +64,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -830,30 +828,12 @@ func (b *bindings) applyValue(v any) any {
 	}
 }
 
-// prefixedID is the spelling Outscale mints: one or more lower-case labels,
-// then a run of at least eight hexadecimal characters — "i-0e4a3c1f",
-// "eni-attach-0e4a3c1f", "key-<32 hex>". Read off internal/providers/outscale's
-// own newID rather than guessed, so the shape recognised is the shape minted.
-var prefixedID = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z][a-z0-9]*)*-[0-9a-f]{8,}$`)
-
 // looksMinted reports whether a recorded value is the kind of thing a cloud
 // hands out and a later request refers back to.
 //
-// Three shapes, each read off a provider rather than imagined: a UUID
-// (Scaleway and Exoscale address every resource that way, and internal/shape
-// already answers that question — one definition, not two), an IP address
-// (allocated per run, and named by later rules and routes), and Outscale's
-// prefixed hexadecimal identifier.
-//
-// A shape a fourth provider invents would not be recognised, and the honest
-// consequence is a replay that reports divergences on that provider's reads
-// rather than one that silently substitutes something it guessed.
-func looksMinted(s string) bool {
-	if shape.IsUUID(s) {
-		return true
-	}
-	if net.ParseIP(s) != nil {
-		return true
-	}
-	return prefixedID.MatchString(s)
-}
+// The question itself lives in internal/shape, which already owns "is this a
+// UUID" for the same reason: internal/corpus asks it of the same values before
+// deciding whether a transcript may be committed, and a sanitiser that
+// recognised one identifier less than this replay would publish exactly the
+// values the replay knows are identifiers.
+func looksMinted(s string) bool { return shape.IsMintedIdentifier(s) }
