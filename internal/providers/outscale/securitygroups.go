@@ -238,6 +238,21 @@ func (p *Pack) deleteSecurityGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, vm := range p.env.Store.List(kindVM, resource.Tenant{Provider: Name}) {
+		// A terminated machine releases its groups here at once, and the real
+		// API does NOT (#380). Measured on 2026-08-21: after DeleteVms, the
+		// cloud refused this call with 409 ResourceConflict thirty times over
+		// about ninety seconds and accepted the thirty-first. So a destroy loop
+		// that works against this emulator on the first try needs a retry
+		// against the cloud, and the emulated run never exercises it.
+		//
+		// Not changed here, and the reason is a decision rather than an
+		// oversight: reproducing the delay means holding the group for a
+		// wall-clock window, which would make every conformance run and every
+		// stack teardown wait it out — an emulator nobody wants to drive. And a
+		// replay cannot grade the difference either way, because the recording
+		// is thirty refusals then an acceptance and a corpus has no ninety
+		// seconds in it: the sanitiser normalises every timestamp to one
+		// second apart. #380 carries the choice.
 		if vm.State == stateTerminated {
 			continue
 		}

@@ -423,7 +423,7 @@
       "operation": "osc/Client.CreateVms",
       "kind": "absent",
       "path": "Vms[].BlockDeviceMappings[]",
-      "reason": "A machine created on a real Outscale endpoint answers UserData, its root BlockDeviceMappings and its Tags; this emulator answers none of the three. BlockDeviceMappings is the one with teeth: it is where a client reads the root volume it must not delete, the same gap #365 records on the Scaleway side. Serving them or declaring them in DeclinedFields() is a decision about the machine's shape, and a corpus exemption is neither.",
+      "reason": "A real machine is born with a root BSU volume, and this emulator's machines model none (docs/limits.md), so the device mapping is an empty list where the cloud answers the root device with its volume, its link date and DeleteOnVmDeletion. It is where a client reads the root volume it must not delete, and the same gap #365 records on the Scaleway side. The other two fields of #378 are served since 2026-08-21; this one is left because giving every machine a volume changes a limit this repository declared on purpose rather than an oversight, and that is the owner's decision to take.",
       "issue": "https://github.com/stephrobert/feint/issues/378"
     },
     {
@@ -431,7 +431,7 @@
       "operation": "osc/Client.ReadVms",
       "kind": "absent",
       "path": "Vms[].BlockDeviceMappings[]",
-      "reason": "A machine created on a real Outscale endpoint answers UserData, its root BlockDeviceMappings and its Tags; this emulator answers none of the three. BlockDeviceMappings is the one with teeth: it is where a client reads the root volume it must not delete, the same gap #365 records on the Scaleway side. Serving them or declaring them in DeclinedFields() is a decision about the machine's shape, and a corpus exemption is neither.",
+      "reason": "A real machine is born with a root BSU volume, and this emulator's machines model none (docs/limits.md), so the device mapping is an empty list where the cloud answers the root device with its volume, its link date and DeleteOnVmDeletion. It is where a client reads the root volume it must not delete, and the same gap #365 records on the Scaleway side. The other two fields of #378 are served since 2026-08-21; this one is left because giving every machine a volume changes a limit this repository declared on purpose rather than an oversight, and that is the owner's decision to take.",
       "issue": "https://github.com/stephrobert/feint/issues/378"
     },
     {
@@ -439,7 +439,7 @@
       "operation": "osc/Client.UpdateVm",
       "kind": "absent",
       "path": "Vm.BlockDeviceMappings[]",
-      "reason": "A machine created on a real Outscale endpoint answers UserData, its root BlockDeviceMappings and its Tags; this emulator answers none of the three. BlockDeviceMappings is the one with teeth: it is where a client reads the root volume it must not delete, the same gap #365 records on the Scaleway side. Serving them or declaring them in DeclinedFields() is a decision about the machine's shape, and a corpus exemption is neither.",
+      "reason": "A real machine is born with a root BSU volume, and this emulator's machines model none (docs/limits.md), so the device mapping is an empty list where the cloud answers the root device with its volume, its link date and DeleteOnVmDeletion. It is where a client reads the root volume it must not delete, and the same gap #365 records on the Scaleway side. The other two fields of #378 are served since 2026-08-21; this one is left because giving every machine a volume changes a limit this repository declared on purpose rather than an oversight, and that is the owner's decision to take.",
       "issue": "https://github.com/stephrobert/feint/issues/378"
     },
     {
@@ -447,7 +447,7 @@
       "operation": "osc/Client.ReadNets",
       "kind": "absent",
       "path": "Nets[]",
-      "reason": "Upstream a destroyed object stays readable in a terminal state (deleting, deleted) and this emulator removes it at once, so every read of the recording's teardown answers one element there and none here. Making a delete asynchronous is a change to the lifecycle of every kind, not a line in a handler.",
+      "reason": "Upstream a destroyed object stays readable in a terminal state (deleting, deleted) and this emulator removes it at once, so every read of the recording's teardown answers one element there and none here. Making a delete asynchronous is a change to the lifecycle of every kind and to what 'nothing left behind' means for every conformance suite, not a line in a handler.",
       "issue": "https://github.com/stephrobert/feint/issues/380"
     },
     {
@@ -455,7 +455,7 @@
       "operation": "osc/Client.ReadVolumes",
       "kind": "absent",
       "path": "Volumes[]",
-      "reason": "Upstream a destroyed object stays readable in a terminal state (deleting, deleted) and this emulator removes it at once, so every read of the recording's teardown answers one element there and none here. Making a delete asynchronous is a change to the lifecycle of every kind, not a line in a handler.",
+      "reason": "Upstream a destroyed object stays readable in a terminal state (deleting, deleted) and this emulator removes it at once, so every read of the recording's teardown answers one element there and none here. Making a delete asynchronous is a change to the lifecycle of every kind and to what 'nothing left behind' means for every conformance suite, not a line in a handler.",
       "issue": "https://github.com/stephrobert/feint/issues/380"
     },
     {
@@ -463,7 +463,7 @@
       "operation": "osc/Client.ReadNatServices",
       "kind": "absent",
       "path": "NatServices[]",
-      "reason": "Upstream a destroyed object stays readable in a terminal state (deleting, deleted) and this emulator removes it at once, so every read of the recording's teardown answers one element there and none here. Making a delete asynchronous is a change to the lifecycle of every kind, not a line in a handler.",
+      "reason": "Upstream a destroyed object stays readable in a terminal state (deleting, deleted) and this emulator removes it at once, so every read of the recording's teardown answers one element there and none here. Making a delete asynchronous is a change to the lifecycle of every kind and to what 'nothing left behind' means for every conformance suite, not a line in a handler.",
       "issue": "https://github.com/stephrobert/feint/issues/380"
     },
     {
@@ -471,7 +471,7 @@
       "operation": "osc/Client.ReadLoadBalancers",
       "kind": "absent",
       "path": "LoadBalancers[]",
-      "reason": "Upstream a destroyed object stays readable in a terminal state (deleting, deleted) and this emulator removes it at once, so every read of the recording's teardown answers one element there and none here. Making a delete asynchronous is a change to the lifecycle of every kind, not a line in a handler.",
+      "reason": "Upstream a destroyed object stays readable in a terminal state (deleting, deleted) and this emulator removes it at once, so every read of the recording's teardown answers one element there and none here. Making a delete asynchronous is a change to the lifecycle of every kind and to what 'nothing left behind' means for every conformance suite, not a line in a handler.",
       "issue": "https://github.com/stephrobert/feint/issues/380"
     },
     {
@@ -479,7 +479,7 @@
       "operation": "osc/Client.ReadSecurityGroups",
       "kind": "absent",
       "path": "SecurityGroups[]",
-      "reason": "Upstream a destroyed object stays readable in a terminal state (deleting, deleted) and this emulator removes it at once, so every read of the recording's teardown answers one element there and none here. Making a delete asynchronous is a change to the lifecycle of every kind, not a line in a handler.",
+      "reason": "The cloud refuses DeleteSecurityGroup with 409 ResourceConflict for about ninety seconds after the machine that wore the group is terminated, and accepts on the thirty-first attempt; this emulator releases the group the moment the machine is terminated and answers 200 at once. A REPLAY CANNOT GRADE THE DIFFERENCE EITHER WAY: the recording is thirty refusals then an acceptance, and a corpus has no ninety seconds in it, since the sanitiser normalises every timestamp to one second apart. Reproducing the delay would make every stack teardown and every conformance run wait it out, which is a product decision rather than a defect to patch. #380 carries it, and internal/providers/outscale/securitygroups.go records the measurement where the skip is.",
       "issue": "https://github.com/stephrobert/feint/issues/380"
     },
     {
@@ -487,7 +487,7 @@
       "operation": "osc/Client.DeleteSecurityGroup",
       "kind": "status",
       "path": "",
-      "reason": "The cloud refuses DeleteSecurityGroup with 409 ResourceConflict for two minutes after the machine that used the group is terminated, and answers 200 on the twenty-first attempt; this emulator holds no reference from a terminated machine to its group, answers 200 at once and 400 to the retries. Two things are missing — the referential refusal and the 409 this emulator never answers for anything — and both are what a real destroy loop branches on.",
+      "reason": "The cloud refuses DeleteSecurityGroup with 409 ResourceConflict for about ninety seconds after the machine that wore the group is terminated, and accepts on the thirty-first attempt; this emulator releases the group the moment the machine is terminated and answers 200 at once. A REPLAY CANNOT GRADE THE DIFFERENCE EITHER WAY: the recording is thirty refusals then an acceptance, and a corpus has no ninety seconds in it, since the sanitiser normalises every timestamp to one second apart. Reproducing the delay would make every stack teardown and every conformance run wait it out, which is a product decision rather than a defect to patch. #380 carries it, and internal/providers/outscale/securitygroups.go records the measurement where the skip is.",
       "issue": "https://github.com/stephrobert/feint/issues/380"
     },
     {
@@ -495,7 +495,7 @@
       "operation": "osc/Client.DeleteSecurityGroup",
       "kind": "absent",
       "path": "Errors",
-      "reason": "The cloud refuses DeleteSecurityGroup with 409 ResourceConflict for two minutes after the machine that used the group is terminated, and answers 200 on the twenty-first attempt; this emulator holds no reference from a terminated machine to its group, answers 200 at once and 400 to the retries. Two things are missing — the referential refusal and the 409 this emulator never answers for anything — and both are what a real destroy loop branches on.",
+      "reason": "The cloud refuses DeleteSecurityGroup with 409 ResourceConflict for about ninety seconds after the machine that wore the group is terminated, and accepts on the thirty-first attempt; this emulator releases the group the moment the machine is terminated and answers 200 at once. A REPLAY CANNOT GRADE THE DIFFERENCE EITHER WAY: the recording is thirty refusals then an acceptance, and a corpus has no ninety seconds in it, since the sanitiser normalises every timestamp to one second apart. Reproducing the delay would make every stack teardown and every conformance run wait it out, which is a product decision rather than a defect to patch. #380 carries it, and internal/providers/outscale/securitygroups.go records the measurement where the skip is.",
       "issue": "https://github.com/stephrobert/feint/issues/380"
     }
   ]

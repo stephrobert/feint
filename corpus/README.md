@@ -484,35 +484,56 @@ until this run. That absence had the exact shape CLAUDE.md warns about: the gate
 printed "0 divergent finding(s)" over a run in which no value and no order of an
 Outscale answer had ever been compared.
 
-The first order comparison it made found a defect:
+It found seven causes. **Five are fixed**, and the gate named each one the
+moment it stopped excusing anything: `UserData` and `Tags` on a machine
+([#378](https://github.com/stephrobert/feint/issues/378), in part), two list
+orders ([#379](https://github.com/stephrobert/feint/issues/379)), the bodies of
+`DeleteRoute` and `DeleteLoadBalancer`
+([#381](https://github.com/stephrobert/feint/issues/381)), the `AccountId` of a
+rule that names another group
+([#382](https://github.com/stephrobert/feint/issues/382)), an image's root
+device mapping and launch permissions
+([#383](https://github.com/stephrobert/feint/issues/383)), and the recorder
+merging two keypair names into one placeholder
+([#384](https://github.com/stephrobert/feint/issues/384), the instrument). The
+accepted count went from 289 to 141.
 
-| operation | finding | issue |
-|---|---|---|
-| `osc/Client.UpdateVm` | `Vm.SecurityGroups[].SecurityGroupId` ordered 0,1 upstream and 1,0 here | [#379](https://github.com/stephrobert/feint/issues/379) |
-| `osc/Client.ReadVms` | the same, on the reads that follow | [#379](https://github.com/stephrobert/feint/issues/379) |
+**Two of the seven are open on purpose**, and both are decisions rather than
+delays: a machine here owns no root volume, which `docs/limits.md` declares
+(#378), and a delete here is instantaneous where the cloud's is asynchronous
+(#380).
 
-That is #320 one provider out, and it settles something worth writing down
-because it is the opposite of what the obvious guard would have asserted: **the
-cloud does not answer the order the client named.** The request said web-then-db
-and the cloud answered db-then-web, so the invariant a replay can hold is "the
-order the cloud answered", never "the order the request carried".
+### The two things this gate cannot hold, both found here
 
-Six more causes, each with its issue and its entries in `accepted.json`:
-[#378](https://github.com/stephrobert/feint/issues/378) a `Vm` answers no
-`UserData`, no `BlockDeviceMappings` and no `Tags`;
-[#380](https://github.com/stephrobert/feint/issues/380) a delete is
-instantaneous here and asynchronous upstream, and a security group a terminated
-machine still holds is refused `409` there and accepted here;
-[#381](https://github.com/stephrobert/feint/issues/381) `DeleteRoute` and
-`DeleteLoadBalancer` answer no body;
-[#382](https://github.com/stephrobert/feint/issues/382) a rule naming another
-group omits its `AccountId`;
-[#383](https://github.com/stephrobert/feint/issues/383) the emulated image
-catalogue's entries are poorer than the cloud's; and
-[#384](https://github.com/stephrobert/feint/issues/384), which is **the
-instrument** — the recorder replaces the value under `KeypairName` because the
-name carries `key`, so two different keypair names became one `REDACTED` and the
-transcript says two objects were the same.
+Worth more than either fix, and stated once so nobody rediscovers them.
+
+**An order the cloud derives from identifiers it minted.** A machine's security
+groups come back sorted by `SecurityGroupId`, measured on the recording and
+confirmed against the account's own two long-lived machines — which also refute
+the other candidate rule, since their name order is not the order answered. This
+pack now sorts the same way, and `feint replay` still cannot grade it: it maps
+the recorded sequence into this emulator's namespace and compares position by
+position, so the verdict would depend on two unrelated id spaces sorting alike.
+Declaring it as a `ReplayInvariant` would buy a permanent exemption, which is a
+gate that has quietly stopped covering what it names, so a unit test holds it
+instead. What *is* declared is the order of a route table's routes, which the
+cloud derives from a value both sides carry.
+
+**A divergence whose subject is elapsed time.** After the machine that wore it
+was terminated, the cloud refused `DeleteSecurityGroup` with `409` thirty times
+over about ninety seconds and accepted the thirty-first. A corpus has no ninety
+seconds in it: the sanitiser normalises every timestamp to one second apart, on
+purpose. An emulator that refused would answer 409 to the thirty-first call too,
+and one that accepts answers 200 to the first — neither reproduces the sequence.
+
+One more thing the recording settles, and it is the opposite of what the obvious
+guard would have asserted: **the cloud does not answer the order the client
+named.** `UpdateVm` was sent web-then-db and answered db-then-web. And the cloud
+does not always agree with itself either — `CreateRoute` echoes a table's routes
+in append order while `ReadRouteTables` sorts them by destination, so a client
+that stores the create's answer and then reads sees the two swap. This emulator
+now disagrees in the same places, because tidying it up would hide the plan diff
+a real stack meets.
 
 **Four defects of the instrument had to go first, again.** Between them they hid
 the entire lifecycle behind about a hundred findings, none of them the
@@ -534,7 +555,12 @@ emulator's, and each is falsified in `tools/falsify/specs/`:
   *relation between* values that the per-value walk could not see, which is why
   `mint.planBlocks` is a pre-pass rather than a fourth special case.
 - **the gate replayed every corpus in one region.** See above.
-- **the `KeypairName` merge**, which is #384 and is filed rather than fixed.
+- **the `KeypairName` merge**, which is #384: the recorder wrote two different
+  keypair names as one `REDACTED`, so the recording said the delete of a name
+  that never existed and the delete of the real key addressed the same object.
+  Fixed, and the file above is the recording made after it: the created key is
+  `REDACTED-14` at its create and at its delete, and the invented name of the
+  deliberate refusal is `REDACTED-88`.
 
 **Four defects of the instrument had to go first, again**, and between them they
 hid the entire private-network lifecycle behind about twenty findings, none of
@@ -688,15 +714,25 @@ proves it is published (an OpenSSH public key line, read by the same
 `internal/core/sshkey` the packs authenticate with) and `get-ssh-key` answers a
 name and a fingerprint under no credential-shaped name at all.
 
-**Outscale pays that rule twice, and the second time it costs an identity rather
-than a shape.** `KeypairName` matches `key`, so the name of the keypair a
-recording creates and the name of the one it deliberately fails to delete both
-reach the transcript as `REDACTED` — and a replay then deletes the real key on
-the first and has nothing left for the second. The sanitiser refuses exactly
-that shape one stage later (`TestTwoValuesNeverShareAReplacement`, "the
-transcript would then say that two objects of the account were one"); the merge
-happens before it can see it. [#384](https://github.com/stephrobert/feint/issues/384)
-carries it, with the three directions a fix could take.
+**Outscale paid that rule twice, and the second time it cost an identity rather
+than a shape — which is why the rule changed.** `KeypairName` matches `key`, so
+the name of the keypair a recording creates and the name of the one it
+deliberately fails to delete both reached the transcript as `REDACTED`, and a
+replay then deleted the real key on the first and had nothing left for the
+second. The sanitiser refuses exactly that shape one stage later
+(`TestTwoValuesNeverShareAReplacement`, "the transcript would then say that two
+objects of the account were one") and could not see it, because the merge
+happened in the recorder.
+
+A placeholder now carries a per-value suffix (#384): `REDACTED-<8 hex>`, an HMAC
+under a key drawn once per process and never written down, renumbered to
+`REDACTED-<n>` by the sanitiser so a committed artefact carries this
+repository's own counter. The same original keeps the same placeholder, two
+originals get two, and the value stays unrecoverable whatever its entropy — a
+plain digest of a short secret is a brute force away from being the secret.
+**Containers are still replaced whole**, so what a credential-shaped *name*
+costs is still the shape of what is inside it; what it no longer costs is the
+distinction between two objects.
 
 **And what is still not measured on Outscale is a Net peering**, which is a
 number rather than an obstacle: the account's Net quota is 5 and four Nets
