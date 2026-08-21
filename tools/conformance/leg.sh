@@ -84,6 +84,12 @@ case "$leg" in
     tools/conformance/exoscale/exo-cli.sh "$endpoint"
     tools/conformance/scaleway/terraform.sh "$endpoint"
     tools/conformance/outscale/terraform.sh "$endpoint"
+    # The fault-injection suite runs on this leg in CI, and it belongs here for
+    # the same reason: it is the only leg carrying all four clients at once.
+    # Its own emulator is on its own port, so the score below still judges the
+    # run this script started, and that separation is what the score's own
+    # injected-answer refusal is there to hold.
+    tools/conformance/faults.sh
     ;;
 esac
 

@@ -1,0 +1,48 @@
+{
+  "package": "./internal/core/emulator/",
+  "mutations": [
+    {
+      "label": "an injected 4xx counts as a demanded refusal, so a fault raises the very axis it exists to expose",
+      "file": "internal/core/emulator/assert.go",
+      "find": "\t\tif e.injected {\n\t\t\tinjectedOnly = true\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif e.injected && false {\n\t\t\tinjectedOnly = true\n\t\t\tcontinue\n\t\t}",
+      "test": "TestAnInjectedRefusalEarnsNoNegativeEvidence"
+    },
+    {
+      "label": "an injected answer falls through to the observed path, so a route only ever refused reads as driven",
+      "file": "internal/core/emulator/conformance.go",
+      "find": "\t\t\tif f, claimed := o.faults.fire(r.Operation); claimed {",
+      "replace": "\t\t\tif f, claimed := o.faults.fire(r.Operation); claimed && false {",
+      "test": "TestAnInjectedAnswerDoesNotDriveItsOperation"
+    },
+    {
+      "label": "the probe meets the armed fault, so a synthetic verdict reports a defect nobody has",
+      "file": "internal/core/emulator/conformance.go",
+      "find": "\t\tif !synthetic {\n\t\t\tif f, claimed := o.faults.fire(r.Operation); claimed {",
+      "replace": "\t\tif !synthetic || synthetic {\n\t\t\tif f, claimed := o.faults.fire(r.Operation); claimed {",
+      "test": "TestAFaultDoesNotFireOnTheProbe"
+    },
+    {
+      "label": "a rule on an operation nothing serves is armed, and never firing reads like a client that survived",
+      "file": "internal/core/emulator/faults.go",
+      "find": "\t\tprovider, mounted := owner[r.Operation]\n\t\tif !mounted {",
+      "replace": "\t\tprovider, mounted := owner[r.Operation]\n\t\tif !mounted && false {",
+      "test": "TestAFaultOnAnUnmountedOperationIsRefused"
+    },
+    {
+      "label": "a status the pack cannot render is accepted, and the core answers in nobody's dialect",
+      "file": "internal/core/emulator/faults.go",
+      "find": "\t\t\tif !statusRenderable(f, r.Status) {",
+      "replace": "\t\t\tif !statusRenderable(f, r.Status) && false {",
+      "test": "TestAStatusThePackCannotRenderIsRefused"
+    },
+    {
+      "label": "the score stops reading the injected counter, and a staged run publishes a coverage number",
+      "file": "tools/conformance/score.sh",
+      "find": "if [ -n \"$injected\" ]; then",
+      "replace": "if [ -n \"$injected\" ] && false; then",
+      "test": "TestTheScoreRefusesARunCarryingAnInjectedAnswer",
+      "package": "./tools/conformance/"
+    }
+  ]
+}

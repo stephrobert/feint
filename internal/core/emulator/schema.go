@@ -76,7 +76,23 @@ const (
 	// the declared response fields a run's answers never carried, next to the
 	// operations the comparison reached. Additive, but a consumer parsing the
 	// whole object should know the shape moved.
-	ConformanceSchemaVersion = 3
+	//
+	// 4 since #26/#356: the payload gained `injected`, the answers the fault
+	// injector produced per operation. Additive, and it changes what the whole
+	// document *means* rather than only what it carries: every other counter
+	// here describes what the emulator served, and this one names the answers
+	// it staged. A consumer that reports "exercised" without reading it can be
+	// looking at a run where a route only ever answered a fault somebody armed,
+	// and the version is what lets it notice that the question now exists.
+	ConformanceSchemaVersion = 4
 	// TraceSchemaVersion is the shape of GET /_feint/trace.
 	TraceSchemaVersion = 1
+	// FaultsSchemaVersion is the shape of GET/PUT/DELETE /_feint/faults.
+	//
+	// 1 is the first: an object carrying `faults`, one entry per armed rule
+	// with its target operation, what it answers, how often it may fire and how
+	// often it has. It is frozen from the start rather than "once it settles",
+	// because a suite that arms a fault from a committed file is a consumer on
+	// day one — the same reasoning that put the other four here.
+	FaultsSchemaVersion = 1
 )

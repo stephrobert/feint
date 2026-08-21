@@ -190,6 +190,10 @@ func observedSurfaces(t *testing.T) []frozenSurface {
 			// move the fixture.
 			[]string{"calls", "probes", "violations", "unread_request_fields", "evidence"})},
 		{name: "trace", version: emulator.TraceSchemaVersion, content: observeShape(t, "/_feint/trace", nil)},
+		// Frozen from its first version, like the four above: a suite that arms
+		// a fault from a committed file is a consumer on day one, and the rules
+		// it PUTs are the same document this answers.
+		{name: "faults", version: emulator.FaultsSchemaVersion, content: observeShape(t, "/_feint/faults", nil)},
 		{name: "cli", version: cliSurfaceVersion, content: cliSurfaceContent(t)},
 	}
 	if os.Getenv("FEINT_UPDATE_FROZEN") != "" {
@@ -248,7 +252,38 @@ var frozenBody = func() func(t *testing.T, path string) []byte {
 				}
 			}
 
-			for _, path := range []string{"/_feint/health", "/_feint/routes", "/_feint/conformance", "/_feint/trace"} {
+			// One armed rule, and one call that fires it. Both halves are
+			// needed: without the rule the faults payload freezes an empty
+			// array and nothing of the entry's shape, and without the call
+			// /_feint/conformance freezes an `injected` object with no entry —
+			// so the two keys this change adds would be frozen as names with
+			// no contents. The target is GetServer, which none of the three
+			// calls above drives, so the other surfaces are unaffected.
+			armed := `{"faults":[{"operation":"instance/v1/API.GetServer","status":503,"times":1}]}`
+			req, err := http.NewRequest(http.MethodPut, ts.URL+"/_feint/faults", strings.NewReader(armed))
+			if err != nil {
+				buildErr = err
+				return
+			}
+			res, err := ts.Client().Do(req)
+			if err != nil {
+				buildErr = err
+				return
+			}
+			if err := res.Body.Close(); err != nil {
+				buildErr = err
+				return
+			}
+			if res.StatusCode != http.StatusOK {
+				buildErr = fmt.Errorf("arming a fault answered %d", res.StatusCode)
+				return
+			}
+			if err := drive("/instance/v1/zones/fr-par-1/servers/11111111-1111-1111-1111-111111111111", false); err != nil {
+				buildErr = err
+				return
+			}
+
+			for _, path := range []string{"/_feint/health", "/_feint/routes", "/_feint/conformance", "/_feint/trace", "/_feint/faults"} {
 				res, err := ts.Client().Get(ts.URL + path)
 				if err != nil {
 					buildErr = err

@@ -415,6 +415,20 @@ jobs:
         if: matrix.client == 'terraform' || matrix.client == 'opentofu'
         run: tools/conformance/stacks.sh http://127.0.0.1:4599
 
+      # Fault injection (#26, #356): the four real clients meeting a refusal.
+      #
+      # On `fields` because that is the only leg with scw, oapi-cli, exo and
+      # Terraform installed at once, and this suite needs all four — a 403 has
+      # to reach each client in its own dialect or the whole seam is unproven.
+      # Its traffic goes to an emulator it starts itself, on its own port, so
+      # the field gate this leg carries judges exactly what it judged before:
+      # the shared emulator's run. That separation is not a convenience, it is
+      # the point — score.sh below refuses any run carrying an injected answer,
+      # and this suite is what would trip it.
+      - name: Run the fault-injection suite
+        if: matrix.client == 'fields'
+        run: FEINT_BIN=/tmp/feint tools/conformance/faults.sh
+
       # No client at all: every route driven from its provider's own API
       # description, which is the half of conformance that needs nothing
       # installed. It proves the protocol and never touches the score.

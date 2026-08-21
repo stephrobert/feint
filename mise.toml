@@ -373,6 +373,13 @@ tools/conformance/exoscale/exo-cli.sh "http://$FEINT_ADDR"
 # configured for ch-gva-2, driven by the same real CLI. Two zones, two
 # processes — the way a real client meets a second zone: another endpoint.
 tools/conformance/exoscale/zones.sh
+# Fault injection (#26, #356), on an emulator of its own for the same reason
+# zones.sh has one: an armed rule on the shared process would put staged answers
+# into the run whose numbers describe served behaviour, and score.sh below
+# refuses exactly that. What it drives is the real clients meeting a refusal —
+# scw through a 403, terraform through 503, 503, 200 — which is the half of
+# every client's behaviour nothing here could observe before.
+tools/conformance/faults.sh
 # Every route driven from its provider's API description. Skipped when a machine
 # runtime is on: a synthetic walk of every Create* would start a container each.
 if [ "${FEINT_VM:-off}" = "off" ]; then ./feint probe --endpoint "http://$FEINT_ADDR" --contracts contracts; fi

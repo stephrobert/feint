@@ -109,11 +109,28 @@ type observer struct {
 	// span can earn. See assert.go for what each requires.
 	behaviour map[string]bool
 	negative  map[string]bool
+	// injected counts, per operation, the answers the fault injector produced
+	// instead of the handler's own (faults.go). It is the counter that keeps
+	// this feature from manufacturing its own success: none of the maps above
+	// moves for an injected answer, and this one is published beside them so a
+	// reader can see that a route which looks untouched was in fact refused on
+	// purpose. Empty on every run where nobody armed a rule, which is every run
+	// by default.
+	injected map[string]int
+	// faults is the armed rule set, shared with the Server that owns it.
+	faults *faultSet
+	// faulters maps a provider to the pack that renders its error dialect. The
+	// core decides when a call fails; this is how it asks the pack what that
+	// failure looks like, and it holds no provider name of its own.
+	faulters map[string]Faulter
 }
 
-func newObserver(contracts map[string]*contract.Doc, events *stream) *observer {
+func newObserver(contracts map[string]*contract.Doc, events *stream, faults *faultSet, faulters map[string]Faulter) *observer {
 	return &observer{
 		stream:        events,
+		injected:      map[string]int{},
+		faults:        faults,
+		faulters:      faulters,
 		calls:         map[string]int{},
 		probed:        map[string]int{},
 		probeResponse: map[string]bool{},
@@ -137,6 +154,42 @@ func (o *observer) wrap(provider string, r Route) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, req *http.Request) {
 		synthetic := req.Header.Get(ProbeHeader) != ""
+
+		// The injector goes first, and an answer it produces leaves this
+		// function here — before o.record, before the flight token, before the
+		// contract check. That ordering is the control behind bound 4 of
+		// faults.go: nothing an injected fault touches can end up on an
+		// evidence axis. TestAnInjectedAnswerDoesNotDriveItsOperation and
+		// TestAnInjectedRefusalEarnsNoNegativeEvidence fail without it.
+		//
+		// Synthetic traffic is exempt for the reason every other boundary in
+		// this file is drawn the same way: the probe's verdict is about the
+		// route's own answer, and a fault firing there would report a defect
+		// that is not one. It also keeps `feint probe` usable while rules are
+		// armed. TestAFaultDoesNotFireOnTheProbe fails without it.
+		if !synthetic {
+			if f, claimed := o.faults.fire(r.Operation); claimed {
+				started := time.Now()
+				status := o.serveFault(w, req, provider, r, f)
+				o.recordInjected(r.Operation)
+				// Offered to the open spans, marked injected, so a `negative`
+				// span cannot close on it — and published on the log, because
+				// the operator watching the emulator must see the refusal.
+				o.spanExchangeInjected(r.Operation, status)
+				o.stream.publishExchange(trace.Exchange{
+					Method:    req.Method,
+					Path:      req.URL.Path,
+					Query:     req.URL.RawQuery,
+					Status:    status,
+					Ms:        float64(time.Since(started).Microseconds()) / 1000,
+					Operation: r.Operation,
+					Provider:  provider,
+					Mounted:   true,
+				})
+				return
+			}
+		}
+
 		o.record(r.Operation, synthetic)
 		// In flight for as long as the handler runs, so a store touch the
 		// handler makes can be attributed to this operation (assert.go).
@@ -248,6 +301,14 @@ func (o *observer) recordUnread(operation string, fields []string) {
 // ProbeHeader marks a request as synthetic. The contract-driven probe sets it,
 // no client does, and it is what keeps the two counters apart.
 const ProbeHeader = "X-Feint-Probe"
+
+// recordInjected counts one answer the fault injector produced. It is the only
+// counter an injected answer moves.
+func (o *observer) recordInjected(operation string) {
+	o.mu.Lock()
+	o.injected[operation]++
+	o.mu.Unlock()
+}
 
 func (o *observer) record(operation string, synthetic bool) {
 	o.mu.Lock()
@@ -505,6 +566,17 @@ type ConformanceView struct {
 	Probed int `json:"probed"`
 	// Calls counts requests per operation, for the ones that were called.
 	Calls map[string]int `json:"calls"`
+	// Injected counts, per operation, the answers the fault injector produced
+	// instead of the handler's (faults.go). None of the other counters here
+	// moves for one, and that is the point: without this key a route could look
+	// exercised when it only ever answered injected faults, and the whole
+	// coverage story would stop being trustworthy — the risk #26 named as the
+	// one that must be closed by design rather than by discipline.
+	//
+	// Empty on any run where nobody armed a rule, which is every run by
+	// default. tools/conformance/score.sh fails when it is not, because a run
+	// whose numbers describe served behaviour must contain no staged answer.
+	Injected map[string]int `json:"injected"`
 	// Probes counts synthetic requests per operation, the same way Calls counts
 	// real ones.
 	//
@@ -703,6 +775,10 @@ func (s *Server) handleConformance(w http.ResponseWriter, _ *http.Request) {
 	for op := range s.observer.negative {
 		negative[op] = true
 	}
+	injected := make(map[string]int, len(s.observer.injected))
+	for op, n := range s.observer.injected {
+		injected[op] = n
+	}
 	s.observer.mu.Unlock()
 	sort.Strings(providers)
 
@@ -774,6 +850,7 @@ func (s *Server) handleConformance(w http.ResponseWriter, _ *http.Request) {
 		Exercised:           len(routes) - len(untouched),
 		Probed:              probedOnly,
 		Calls:               calls,
+		Injected:            injected,
 		Probes:              probed,
 		Untouched:           untouched,
 		Contracts:           providers,

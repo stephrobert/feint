@@ -186,12 +186,48 @@ answer per axis. That join is safe *only* because both legs are fresh, and a
 narrowing is refused: an artefact that loses a runtime fails rather than
 publishing a smaller truth quietly.
 
+### An injected refusal is not evidence
+
+The emulator can be made to refuse on purpose: `PUT /_feint/faults` arms a rule
+naming an operation and a status, off by default, deterministic, cleared by a
+`DELETE`. It exists because six of the seven axes above stood over 85% while
+`negative` stood at 34 of 357 — this emulator proved what its routes answer when
+everything goes well and almost nothing about what they answer when it does not,
+so a client's degradation paths could only be simulated in that client's own
+tests.
+
+**What an injected refusal proves is what the client does, and nothing about the
+real cloud.** A 403 here is not evidence that Scaleway answers 403 to that call,
+or with those fields; it is evidence that `scw` decodes a `permissions_denied`
+body as `PermissionsDeniedError` rather than as a missing resource, that
+`terraform apply` survives two 503s on `ReadNets`, that `exo` retries a 503 five
+times before giving up. Those are facts about the client, they are the ones a
+consumer needs, and they were unobservable before. What the real cloud answers
+where remains a question only a recording can settle — link 4 above, and it is a
+different mechanism on purpose.
+
+The bodies still come from upstream: the shape is the provider's own error
+struct, and where an SDK names a `type` for a status (Scaleway's
+`permissions_denied`, `denied_authentication`) the pack emits that type so the
+client's own dispatch fires. Where none is named — nobody here has measured how
+Scaleway spells a 429 — the value says plainly that it is this emulator's, since
+publishing a plausible one would be inventing a fact about a provider.
+
+And the bound that keeps the numbers honest: **an answer the injector produced
+moves no axis.** The operation stays `driven: false`, its response is not
+contract-checked, its fields join no union, and the emulator *refuses* to close a
+`negative` assertion span on it. Injected answers are counted apart, under
+`injected` on `/_feint/conformance`, and `tools/conformance/score.sh` fails any
+run that carries one — so fault injection cannot raise the very number it was
+built to expose. `tools/conformance/faults.sh` drives the four real clients
+through all of this, on an emulator of its own, on its own port.
+
 ## Link 6 — the published surface, and its version
 
-`/_feint/health`, `/_feint/routes`, `/_feint/conformance` and `/_feint/trace`
-are what a pipeline reads. Since #132 each has a committed fixture under
-`internal/cli/testdata/frozen/` — the field tree, never a value — and two tests
-gate them:
+`/_feint/health`, `/_feint/routes`, `/_feint/conformance`, `/_feint/trace` and
+`/_feint/faults` are what a pipeline reads. Since #132 each has a committed
+fixture under `internal/cli/testdata/frozen/` — the field tree, never a value —
+and two tests gate them:
 
 - a shape that moves while the fixture does not fails;
 - a fixture that moves while the declared `schema_version` does not fails.

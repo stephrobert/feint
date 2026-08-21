@@ -1,0 +1,51 @@
+{
+  "history": [
+    {
+      "schema_version": 1,
+      "content": {
+        "fields": [
+          {
+            "path": "faults",
+            "type": "array"
+          },
+          {
+            "path": "faults[]",
+            "type": "object"
+          },
+          {
+            "path": "faults[].delay",
+            "type": "string"
+          },
+          {
+            "path": "faults[].hits",
+            "type": "number"
+          },
+          {
+            "path": "faults[].operation",
+            "type": "string"
+          },
+          {
+            "path": "faults[].spent",
+            "type": "bool"
+          },
+          {
+            "path": "faults[].status",
+            "type": "number"
+          },
+          {
+            "path": "faults[].times",
+            "type": "number"
+          },
+          {
+            "path": "faults[].truncate_bytes",
+            "type": "null"
+          },
+          {
+            "path": "schema_version",
+            "type": "number"
+          }
+        ]
+      }
+    }
+  ]
+}

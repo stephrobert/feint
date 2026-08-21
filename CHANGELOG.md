@@ -17,6 +17,72 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **The emulator can be made to refuse, per operation, off by default** (#26,
+  #356). `PUT /_feint/faults` arms a rule naming an upstream operation and what
+  to answer instead: a status, a delay, or a body cut short. `GET` lists the
+  rules with their hit counts, `DELETE` clears them, and a fresh emulator arms
+  nothing.
+
+  **The measurement that asked for it.** `coverage/evidence.json` carries seven
+  axes per mounted operation. Six stood above 85%; `negative` stood at 34 of 357
+  — this emulator proved what its routes answer when everything goes well and
+  almost nothing about what they answer when it does not, so a client's
+  degradation paths could only be simulated in that client's own tests. #356
+  measured the other end of the same gap: no authentication header at all
+  answered `200`, and so did a junk bearer token.
+
+  **The core decides when; the pack decides what a failure looks like.** A 503
+  reaches a Scaleway client as `scw`'s own error shape, an Outscale client
+  inside its `ResponseContext`, an Exoscale client as its own bare-message
+  envelope (`emulator.Faulter`, new and optional). Where an SDK names a `type`
+  for a status the pack emits it — Scaleway's `permissions_denied` and
+  `denied_authentication`, both cases of `unmarshalStandardError` — so the
+  client's own dispatch fires and `errors.As` matches. Where none is named,
+  nobody here has measured how Scaleway spells a 429, and the value says plainly
+  that it is this emulator's rather than publishing a plausible fact about a
+  provider. A rule whose status a pack cannot render is refused when it is
+  written, never answered with a body the core made up.
+
+  **Deterministic, scoped, and refused early.** `times` bounds a rule to the
+  first N calls; there is no probability knob at all, because a fault that fires
+  at random cannot be the subject of a test. A rule names one operation, at the
+  name `/_feint/routes` publishes, and one rule per operation. A rule naming an
+  operation nothing serves is refused with a 400: a rule that never fires reads,
+  from outside, exactly like a client that survived the fault.
+
+  **An injected answer proves nothing**, and that is a control rather than a
+  promise. It moves no counter but the new `injected` one: the operation stays
+  `driven: false`, its answer is not contract-checked, its fields join no union,
+  and the emulator *refuses to close* a `negative` assertion span on it, naming
+  why. `tools/conformance/score.sh` fails any run carrying an injected answer,
+  so the shared conformance run cannot be padded — fault injection has its own
+  suite, its own emulator and its own port.
+
+  **Measured with the real clients** (`tools/conformance/faults.sh`, in
+  `mise run conformance` and on the `fields` leg of the workflow):
+
+  - `scw` prints `scaleway-sdk-go: insufficient permissions: GET …` on an
+    injected 403 and `Cannot find resource 'server' with ID …` on a real 404 —
+    the distinction #356's consumer needs, and one nothing here could produce
+    before;
+  - `scw` **retries a 429 and not a 503**: 429, 429, 200 completes, while the
+    first 503 ends the command. The retry is the CLI's, not the SDK's —
+    `scaleway-sdk-go/scw` contains no retry at all;
+  - the real Outscale Terraform provider survives **503, 503, 200** inside an
+    `apply`, backing off twice through `go-retryablehttp`, and reaches `Apply
+    complete`;
+  - `oapi-cli` retries both (`attempt 0 failed. Retrying in 3520 ms.`) and
+    decodes the 403 as code `4120`, which `osc.IsAuthError` reads and
+    `osc.IsNotFound` does not;
+  - `exo` retries a 503 five times and completes on the third answer, and
+    surfaces a 403 as `Forbidden` against `not found` for a real absence.
+
+  Not delivered, and stated rather than discovered: connection resets and true
+  transport failures live below the route handler; a body cut short is what this
+  offers instead. Deterministic control over how long an emulated asynchronous
+  transition takes lives in a pack's lifecycle, not in front of a handler, and
+  is not folded in.
+
 - **`feint replay` reissues a recording here and says what diverged** (#73).
   `feint replay run.jsonl --endpoint http://127.0.0.1:4599` takes every recorded
   request, sends it to a running emulator, and reports operation by operation.
@@ -157,6 +223,21 @@ what this project is judged on: **a response shape a client can observe**, and
   `replay` with `--endpoint`, `--format` and `--timeout`, `coverage --observed`,
   and `transcript --sanitise` with `--contract`. Nothing was removed and no exit
   code moved, so a pipeline keyed on version 6 keeps working.
+
+- **`/_feint/conformance` schema version 4, and a fifth frozen surface.** The
+  payload gained `injected`, the answers the fault injector produced per
+  operation. Additive, and it changes what the whole document *means* rather
+  than only what it carries: every other counter there describes what the
+  emulator served, and this one names what it staged. `/_feint/faults` is frozen
+  from its first version, with its own fixture, because a suite arming a fault
+  from a committed file is a consumer on day one. `cliSurfaceVersion` does
+  **not** move: the injector is reachable over the admin plane alone and adds no
+  verb and no flag.
+
+- **CLI surface version 7.** Both entries above are additions — the verb
+  `replay` with `--endpoint`, `--format` and `--timeout`, and `coverage
+  --observed`. Nothing was removed and no exit code moved, so a pipeline keyed
+  on version 6 keeps working.
 
 - `internal/shape.IsUUID` is exported, so the replay asks the same question of a
   recorded value that the shape catalogue asks of a path segment. Two spellings

@@ -178,12 +178,51 @@ parce que les deux passes sont fraîches, et un rétrécissement est refusé : u
 artefact qui perd un runtime échoue au lieu de publier discrètement une vérité
 plus petite.
 
+### Une faute injectée n'est pas une preuve
+
+L'émulateur sait refuser à dessein : `PUT /_feint/faults` arme une règle qui
+nomme une opération et un statut, éteinte par défaut, déterministe, effacée par
+un `DELETE`. Elle existe parce que six des sept axes ci-dessus dépassaient 85 %
+quand `negative` tenait à 34 sur 357 : cet émulateur prouvait ce que ses routes
+répondent quand tout va bien et presque rien de ce qu'elles répondent quand ça se
+passe mal, de sorte que les chemins de dégradation d'un client ne pouvaient être
+que simulés, dans les tests de ce client.
+
+**Ce qu'un refus injecté prouve, c'est ce que fait le client, et rien du vrai
+cloud.** Un 403 ici n'établit pas que Scaleway répond 403 à cet appel, ni avec
+ces champs ; il établit que `scw` décode un corps `permissions_denied` en
+`PermissionsDeniedError` plutôt qu'en ressource absente, que `terraform apply`
+survit à deux 503 sur `ReadNets`, que `exo` réessaie cinq fois un 503 avant
+d'abandonner. Ce sont des faits sur le client, ce sont ceux dont un consommateur
+a besoin, et ils étaient inobservables jusqu'ici. Ce que répond le vrai cloud, et
+où, reste une question que seul un enregistrement tranche : le maillon 4
+ci-dessus, et c'est un mécanisme distinct à dessein.
+
+Les corps viennent toujours de l'upstream : la forme est la struct d'erreur du
+fournisseur, et là où un SDK nomme un `type` pour un statut (les
+`permissions_denied` et `denied_authentication` de Scaleway), le pack émet ce
+type pour que la dispatch du client se déclenche. Là où aucun n'est nommé —
+personne ici n'a mesuré comment Scaleway écrit un 429 —, la valeur dit clairement
+qu'elle appartient à cet émulateur : en publier une plausible reviendrait à
+inventer un fait sur un fournisseur.
+
+Et la borne qui garde les chiffres honnêtes : **une réponse produite par
+l'injecteur ne déplace aucun axe.** L'opération reste `driven: false`, sa réponse
+n'est pas contrôlée contre le contrat, ses champs ne rejoignent aucune union, et
+l'émulateur *refuse* de fermer une portée d'assertion `negative` dessus. Les
+réponses injectées sont comptées à part, sous `injected` sur
+`/_feint/conformance`, et `tools/conformance/score.sh` fait échouer toute
+exécution qui en porte une : l'injection de fautes ne peut donc pas relever le
+chiffre même qu'elle a été construite pour exposer. `tools/conformance/faults.sh`
+pilote les quatre vrais clients à travers tout cela, sur un émulateur à lui, sur
+son propre port.
+
 ## Maillon 6 : la surface publiée, et sa version
 
-`/_feint/health`, `/_feint/routes`, `/_feint/conformance` et `/_feint/trace` sont
-ce qu'un pipeline lit. Depuis #132, chacun a une fixture versionnée sous
-`internal/cli/testdata/frozen/`, l'arbre des champs et jamais une valeur, et deux
-tests les gardent :
+`/_feint/health`, `/_feint/routes`, `/_feint/conformance`, `/_feint/trace` et
+`/_feint/faults` sont ce qu'un pipeline lit. Depuis #132, chacun a une fixture
+versionnée sous `internal/cli/testdata/frozen/`, l'arbre des champs et jamais
+une valeur, et deux tests les gardent :
 
 - une forme qui bouge sans que la fixture bouge échoue ;
 - une fixture qui bouge sans que le `schema_version` déclaré bouge échoue.

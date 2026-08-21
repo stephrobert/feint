@@ -182,6 +182,7 @@ promettrait tout son comportement promettrait une copie mouvante de trois clouds
 | `/_feint/routes` | `schema_version` | `internal/cli/testdata/frozen/routes.json` |
 | `/_feint/conformance` | `schema_version` | `internal/cli/testdata/frozen/conformance.json` |
 | `/_feint/trace` | `schema_version` | `internal/cli/testdata/frozen/trace.json` |
+| `/_feint/faults` | `schema_version` | `internal/cli/testdata/frozen/faults.json` |
 | les verbes, drapeaux et codes de sortie du CLI | `cliSurfaceVersion` | `internal/cli/testdata/frozen/cli.json` |
 | les formats d'état et de snapshot | la version du document | `internal/cli/snapshot.go` |
 

@@ -80,6 +80,12 @@ type spanExchange struct {
 	operation string
 	status    int
 	synthetic bool
+	// injected marks an answer the fault injector produced rather than the
+	// handler (faults.go). It is kept here, on the line itself, because the
+	// refusal it carries is real on the wire and unreal as evidence: a client
+	// did receive a 403, and the emulator did not decide it — somebody armed
+	// it. See refusedOperations.
+	injected bool
 }
 
 type spanTouch struct {
@@ -130,6 +136,16 @@ func (o *observer) soleClientFlightLocked() string {
 
 // spanExchange offers one answered request to every open span.
 func (o *observer) spanExchange(operation string, status int, synthetic bool) {
+	o.offerExchange(spanExchange{operation: operation, status: status, synthetic: synthetic})
+}
+
+// spanExchangeInjected offers one answer the fault injector produced. Callers
+// hold no lock.
+func (o *observer) spanExchangeInjected(operation string, status int) {
+	o.offerExchange(spanExchange{operation: operation, status: status, injected: true})
+}
+
+func (o *observer) offerExchange(e spanExchange) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	for _, sp := range o.spans {
@@ -137,7 +153,7 @@ func (o *observer) spanExchange(operation string, status int, synthetic bool) {
 			sp.overflowed = true
 			continue
 		}
-		sp.exchanges = append(sp.exchanges, spanExchange{operation: operation, status: status, synthetic: synthetic})
+		sp.exchanges = append(sp.exchanges, e)
 	}
 }
 
@@ -185,13 +201,33 @@ func (sp *assertSpan) close() ([]string, error) {
 
 func (sp *assertSpan) refusedOperations() ([]string, error) {
 	ops := map[string]bool{}
+	injectedOnly := false
 	for _, e := range sp.exchanges {
 		if e.synthetic || e.status < 400 || e.status >= 500 {
+			continue
+		}
+		// An injected refusal is staged, not proven. The emulator did not
+		// decide to refuse this call — somebody armed a rule saying it should —
+		// so crediting the negative axis with it would let this repository
+		// raise its own weakest number by writing a fixture. That is the bound
+		// #26 and #356 both state, and it lives here because here is where a
+		// refusal turns into evidence.
+		//
+		// The span is not merely narrowed: a span whose *only* refusals were
+		// injected is refused outright, naming why, because silently proving
+		// nothing reads to a suite exactly like proving something.
+		// TestAnInjectedRefusalEarnsNoNegativeEvidence fails without this.
+		if e.injected {
+			injectedOnly = true
 			continue
 		}
 		ops[e.operation] = true
 	}
 	if len(ops) == 0 {
+		if injectedOnly {
+			return nil, fmt.Errorf("the span demanded a refusal and every 4xx inside it was injected: " +
+				"a fault somebody armed proves what the client does, never what this emulator refuses")
+		}
 		return nil, fmt.Errorf("the span demanded a refusal and the emulator answered no client with a 4xx inside it")
 	}
 	return sortedOps(ops), nil

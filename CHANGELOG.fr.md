@@ -19,6 +19,75 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **L'émulateur sait refuser, par opération, éteint par défaut** (#26, #356).
+  `PUT /_feint/faults` arme une règle qui nomme une opération amont et ce qu'il
+  faut répondre à la place : un statut, un délai, ou un corps coupé. `GET` liste
+  les règles avec leur nombre de déclenchements, `DELETE` les efface, et un
+  émulateur neuf n'arme rien.
+
+  **La mesure qui l'a demandé.** `coverage/evidence.json` porte sept axes par
+  opération montée. Six dépassaient 85 % ; `negative` tenait à 34 sur 357 : cet
+  émulateur prouvait ce que ses routes répondent quand tout va bien et presque
+  rien de ce qu'elles répondent quand ça se passe mal, de sorte que les chemins
+  de dégradation d'un client ne pouvaient être que simulés, dans les tests de ce
+  client. #356 a mesuré l'autre bout du même trou : aucun en-tête
+  d'authentification répondait `200`, et un jeton bidon aussi.
+
+  **Le noyau décide quand ; le pack décide à quoi ressemble une panne.** Un 503
+  atteint un client Scaleway sous la forme d'erreur de `scw`, un client Outscale
+  dans son `ResponseContext`, un client Exoscale dans son enveloppe à message nu
+  (`emulator.Faulter`, nouvelle et optionnelle). Là où un SDK nomme un `type`
+  pour un statut, le pack l'émet — les `permissions_denied` et
+  `denied_authentication` de Scaleway, deux cas de `unmarshalStandardError` —
+  pour que la dispatch du client se déclenche et que `errors.As` corresponde. Là
+  où aucun n'est nommé, personne ici n'a mesuré comment Scaleway écrit un 429, et
+  la valeur dit clairement qu'elle appartient à cet émulateur plutôt que de
+  publier un fait plausible sur un fournisseur. Une règle dont un pack ne sait
+  pas rendre le statut est refusée à l'écriture, jamais servie avec un corps
+  inventé par le noyau.
+
+  **Déterministe, ciblée, et refusée tôt.** `times` borne une règle aux N
+  premiers appels ; il n'existe aucun réglage probabiliste, parce qu'une faute
+  qui se déclenche au hasard ne peut pas être le sujet d'un test. Une règle nomme
+  une opération, au nom que publie `/_feint/routes`, et une seule règle par
+  opération. Une règle qui nomme une opération que rien ne sert est refusée par
+  un 400 : une règle qui ne se déclenche jamais se lit, de l'extérieur, exactement
+  comme un client qui a survécu à la faute.
+
+  **Une réponse injectée ne prouve rien**, et c'est un contrôle plutôt qu'une
+  promesse. Elle ne déplace aucun compteur sauf le nouveau, `injected` :
+  l'opération reste `driven: false`, sa réponse n'est pas contrôlée contre le
+  contrat, ses champs ne rejoignent aucune union, et l'émulateur *refuse de
+  fermer* une portée d'assertion `negative` dessus, en disant pourquoi.
+  `tools/conformance/score.sh` fait échouer toute exécution qui porte une réponse
+  injectée : l'exécution de conformance partagée ne peut donc pas être gonflée —
+  l'injection de fautes a sa suite, son émulateur et son port.
+
+  **Mesuré avec les vrais clients** (`tools/conformance/faults.sh`, dans
+  `mise run conformance` et sur la jambe `fields` du workflow) :
+
+  - `scw` affiche `scaleway-sdk-go: insufficient permissions: GET …` sur un 403
+    injecté et `Cannot find resource 'server' with ID …` sur un vrai 404 — la
+    distinction dont le consommateur de #356 a besoin, et que rien ici ne savait
+    produire ;
+  - `scw` **réessaie un 429 et pas un 503** : 429, 429, 200 aboutit, alors que le
+    premier 503 termine la commande. Le retry est celui du CLI, pas du SDK :
+    `scaleway-sdk-go/scw` n'en contient aucun ;
+  - le vrai provider Terraform Outscale survit à **503, 503, 200** dans un
+    `apply`, avec deux temporisations de `go-retryablehttp`, et atteint `Apply
+    complete` ;
+  - `oapi-cli` réessaie les deux (`attempt 0 failed. Retrying in 3520 ms.`) et
+    décode le 403 en code `4120`, que lit `osc.IsAuthError` et que `osc.IsNotFound`
+    ne lit pas ;
+  - `exo` réessaie un 503 cinq fois et aboutit à la troisième réponse, et rend un
+    403 en `Forbidden` contre `not found` pour une absence réelle.
+
+  Non livré, et dit plutôt que découvert : les coupures de connexion et les vraies
+  pannes de transport vivent sous le handler de route ; un corps coupé est ce qui
+  est offert à la place. Le contrôle déterministe de la durée d'une transition
+  asynchrone émulée vit dans le cycle de vie d'un pack, pas devant un handler, et
+  n'est pas replié ici.
+
 - **`feint replay` rejoue un enregistrement ici et dit ce qui diverge** (#73).
   `feint replay run.jsonl --endpoint http://127.0.0.1:4599` reprend chaque
   requête enregistrée, l'envoie à un émulateur qui tourne, et rapporte opération
@@ -171,6 +240,21 @@ change ni l'un ni l'autre a sa place dans `git log`.
   --observed`, et `transcript --sanitise` avec `--contract`. Rien n'a été retiré
   et aucun code de sortie n'a bougé, donc un pipeline calé sur la version 6
   continue de fonctionner.
+
+- **`/_feint/conformance` version de schéma 4, et une cinquième surface gelée.**
+  La charge utile gagne `injected`, les réponses produites par l'injecteur de
+  fautes, par opération. Additif, et cela change ce que le document *signifie*
+  plutôt que ce qu'il porte : tous les autres compteurs décrivent ce que
+  l'émulateur a servi, celui-ci nomme ce qu'il a mis en scène. `/_feint/faults`
+  est gelée dès sa première version, avec sa propre fixture, parce qu'une suite
+  qui arme une faute depuis un fichier versionné est un consommateur dès le
+  premier jour. `cliSurfaceVersion` **ne bouge pas** : l'injecteur s'atteint par
+  le plan d'administration seul et n'ajoute ni verbe ni drapeau.
+
+- **Surface CLI version 7.** Les deux entrées ci-dessus sont des ajouts : le
+  verbe `replay` avec `--endpoint`, `--format` et `--timeout`, et `coverage
+  --observed`. Rien n'a été retiré et aucun code de sortie n'a bougé, donc un
+  pipeline calé sur la version 6 continue de fonctionner.
 
 - `internal/shape.IsUUID` est exporté, pour que le replay pose à une valeur
   enregistrée la même question que le catalogue de formes pose à un segment de

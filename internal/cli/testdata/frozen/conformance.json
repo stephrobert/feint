@@ -356,6 +356,149 @@
           }
         ]
       }
+    },
+    {
+      "schema_version": 4,
+      "content": {
+        "fields": [
+          {
+            "path": "calls",
+            "type": "object"
+          },
+          {
+            "path": "calls.*",
+            "type": "array"
+          },
+          {
+            "path": "calls.*[]",
+            "type": "number"
+          },
+          {
+            "path": "contracts",
+            "type": "array"
+          },
+          {
+            "path": "evidence",
+            "type": "object"
+          },
+          {
+            "path": "evidence.*",
+            "type": "array"
+          },
+          {
+            "path": "evidence.*[]",
+            "type": "object"
+          },
+          {
+            "path": "evidence.*[].behaviour",
+            "type": "bool"
+          },
+          {
+            "path": "evidence.*[].contract",
+            "type": "string"
+          },
+          {
+            "path": "evidence.*[].dataplane",
+            "type": "bool"
+          },
+          {
+            "path": "evidence.*[].driven",
+            "type": "bool"
+          },
+          {
+            "path": "evidence.*[].negative",
+            "type": "bool"
+          },
+          {
+            "path": "evidence.*[].probed",
+            "type": "string"
+          },
+          {
+            "path": "evidence.*[].shape",
+            "type": "string"
+          },
+          {
+            "path": "exercised",
+            "type": "number"
+          },
+          {
+            "path": "fields",
+            "type": "object"
+          },
+          {
+            "path": "fields.compared",
+            "type": "array"
+          },
+          {
+            "path": "fields.excused",
+            "type": "object"
+          },
+          {
+            "path": "fields.missing",
+            "type": "object"
+          },
+          {
+            "path": "fields.stale_declines",
+            "type": "array"
+          },
+          {
+            "path": "fields.unconfirmed",
+            "type": "object"
+          },
+          {
+            "path": "injected",
+            "type": "object"
+          },
+          {
+            "path": "injected.instance/v1/API.GetServer",
+            "type": "number"
+          },
+          {
+            "path": "machines",
+            "type": "string"
+          },
+          {
+            "path": "probed",
+            "type": "number"
+          },
+          {
+            "path": "probes",
+            "type": "object"
+          },
+          {
+            "path": "probes.*",
+            "type": "array"
+          },
+          {
+            "path": "probes.*[]",
+            "type": "number"
+          },
+          {
+            "path": "schema_version",
+            "type": "number"
+          },
+          {
+            "path": "served",
+            "type": "number"
+          },
+          {
+            "path": "unread_request_fields",
+            "type": "object"
+          },
+          {
+            "path": "untouched",
+            "type": "array"
+          },
+          {
+            "path": "untouched[]",
+            "type": "string"
+          },
+          {
+            "path": "violations",
+            "type": "object"
+          }
+        ]
+      }
     }
   ]
 }

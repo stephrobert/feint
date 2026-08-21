@@ -1,0 +1,5 @@
+{
+  "faults": [
+    {"operation": "exoscale/v2.list-anti-affinity-groups", "status": 403}
+  ]
+}

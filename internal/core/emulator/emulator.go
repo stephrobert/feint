@@ -213,18 +213,27 @@ type Server struct {
 	// shared port answered a probe with the previous build's catalogue, and
 	// nothing in the answer could say which process produced it (#309).
 	started time.Time
+	// faults are the injected failures, empty on every fresh server: only a
+	// request to /_feint/faults arms one. See faults.go.
+	faults *faultSet
 }
 
 // NewServer mounts the packs. It fails when two packs claim the same route,
 // which would otherwise panic inside net/http at a random point in startup.
 func NewServer(env *Env, packs ...Pack) (*Server, error) {
 	events := newStream()
+	faults := &faultSet{}
 	s := &Server{
-		env:      env,
-		packs:    packs,
-		mux:      http.NewServeMux(),
-		stream:   events,
-		observer: newObserver(env.Contracts, events),
+		env:    env,
+		packs:  packs,
+		mux:    http.NewServeMux(),
+		stream: events,
+		faults: faults,
+		// The injector is handed to the observer rather than wrapped around it,
+		// because an injected answer must be kept out of every count the
+		// observer keeps — see bound 4 in faults.go. A middleware outside the
+		// observer could not do that; one inside it can, and does.
+		observer: newObserver(env.Contracts, events, faults, faultersOf(packs)),
 		started:  time.Now().UTC(),
 	}
 	// The injected clock wins when there is one, so golden tests stay stable;
@@ -292,6 +301,12 @@ func NewServer(env *Env, packs ...Pack) (*Server, error) {
 	// from its own observations. See assert.go.
 	s.mountSelf("POST /_feint/assert", s.handleAssertOpen)
 	s.mountSelf("POST /_feint/assert/{id}", s.handleAssertClose)
+	// Fault injection, off until somebody arms it (faults.go). Three verbs on
+	// one path, the same pattern as /_feint/state: the set is read, replaced
+	// whole, or cleared.
+	s.mountSelf("GET /_feint/faults", s.handleFaultsRead)
+	s.mountSelf("PUT /_feint/faults", s.handleFaultsWrite)
+	s.mountSelf("DELETE /_feint/faults", s.handleFaultsClear)
 	// The store tells the observer about every touch the handlers make, which
 	// is what lets a lifecycle be observed rather than declared.
 	if env.Store != nil {

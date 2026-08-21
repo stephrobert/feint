@@ -249,7 +249,13 @@ func TestAFixtureNoSuiteAppliesIsNotAProof(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	unrun := strings.ReplaceAll(string(flow), stacksScript, "tools/conformance/nothing.sh")
+	// A suite that exists and applies no stack, rather than a name nothing
+	// answers. fixturesAppliedInCI reads every conformance script the workflow
+	// names — top-level ones included, since tools/conformance/faults.sh
+	// belongs to no provider — and refuses a workflow naming a script it cannot
+	// read, which is a defect worth failing on and not the one this test is
+	// building.
+	unrun := strings.ReplaceAll(string(flow), stacksScript, "tools/conformance/proxy.sh")
 	if unrun == string(flow) {
 		t.Fatalf("%s no longer runs %s: this test is measuring a file it does not understand",
 			conformanceWorkflow, stacksScript)

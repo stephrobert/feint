@@ -17,7 +17,7 @@ import (
 // (#174): the probe sends and receives JSON, so the check and the traffic had
 // been agreeing with each other and with nothing else.
 func TestANonJSONResponseIsNotComparedAsJSON(t *testing.T) {
-	o := newObserver(map[string]*contract.Doc{}, nil)
+	o := newObserver(map[string]*contract.Doc{}, nil, &faultSet{}, nil)
 	rec := httptest.NewRecorder()
 	rec.Header().Set("Content-Type", "text/plain")
 	rec.WriteHeader(http.StatusOK)

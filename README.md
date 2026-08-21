@@ -131,6 +131,7 @@ It needs Incus with OVN; `mise run demo:network` records it.
 - [Install](#install)
 - [Use it](#use-it)
 - [The page](#the-page)
+- [Make it refuse, on purpose](#make-it-refuse-on-purpose)
 - [Real machines, on request](#real-machines-on-request)
 - [Status](#status)
 - [Commands](#commands)
@@ -528,6 +529,44 @@ curl -s localhost:4599/_feint/trace | jq -r '.exchanges[] | "\(.method) \(.path)
 That is what makes it a mechanism rather than an interface feature: an event
 stream needs a listener before the interesting thing happens, and a conformance
 assertion runs after.
+
+---
+
+## Make it refuse, on purpose
+
+A `200` is easy to obtain anywhere. A `403`, a `429`, a `503` or an answer that
+takes thirty seconds is what a client's retry, backoff and error handling are
+actually made of, and against a real cloud those are hard to produce and
+impossible to reproduce. Here they are one request:
+
+```bash
+curl -X PUT localhost:4599/_feint/faults -d '{"faults":[
+  {"operation":"instance/v1/API.ListServers","status":503,"times":2}]}'
+
+scw instance server list zone=fr-par-1     # two 503s, then the answer
+curl -s localhost:4599/_feint/faults | jq '.faults[].hits'   # 2
+curl -X DELETE localhost:4599/_feint/faults
+```
+
+Four properties, and each is a refusal somewhere in the code rather than a
+promise here. **Off by default** — a fresh emulator arms nothing.
+**Deterministic** — "the first N calls of this operation", never a probability,
+because a fault that fires at random cannot be the subject of a test. **Per
+operation**, at the upstream name `/_feint/routes` publishes, and a rule naming
+an operation nothing serves is refused when you write it rather than never
+firing while you conclude the client survived. **In the provider's own dialect**
+— a `403` reaches `scw` as `scw`'s `PermissionsDeniedError`, an Outscale client
+inside its `ResponseContext` with a code `osc.IsAuthError` reads, an Exoscale
+client as its own bare-message envelope. A failure shaped by this tool is the
+one thing a client never sees from its cloud.
+
+And the bound that keeps the coverage numbers honest: **an injected answer proves
+nothing.** It leaves the operation un-driven and un-checked, a `negative`
+assertion span cannot be closed on it, and `tools/conformance/score.sh` refuses
+any run that carries one. What an injected refusal demonstrates is what *the
+client* does — which is the point, and it is not a claim about what the real
+cloud answers. [docs/conformance.md](docs/conformance.md) carries that
+distinction in full.
 
 ---
 

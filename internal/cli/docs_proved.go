@@ -274,19 +274,37 @@ func stacksAppliedInCI(script, workflow string) (map[string]bool, error) {
 // name. Matching the bare name would credit `tools/conformance/scaleway/terraform`
 // to a script called terraform.sh whatever it did, which is a check that always
 // answers yes.
+//
+// The scripts are read from the workflow's own invocations rather than from
+// suitesRunInCI, and that difference is a correction: suitesRunInCI drops every
+// suite clientOf maps to no client, which is right for a table of *clients* and
+// wrong for a table of *fixtures*. tools/conformance/faults.sh is cross-provider
+// — it drives all four clients against an emulator of its own — so it sits at
+// the top level and names no provider, and under the old reading its Terraform
+// fixture was published as "Applied in CI: no" while CI applied it on every
+// `fields` leg. A generated table saying that is exactly the invented
+// measurement this file exists to remove.
+// TestTheFixtureTableCreditsATopLevelSuite fails without this.
 func fixturesAppliedInCI(root, workflow string) (map[string]bool, error) {
-	runs, err := suitesRunInCI(workflow)
+	flow, err := os.ReadFile(workflow) //nolint:gosec // a path this repository owns
 	if err != nil {
 		return nil, err
 	}
 	out := map[string]bool{}
-	for _, run := range runs {
-		script := filepath.Join(root, run.provider, run.suite+".sh")
+	seen := map[string]bool{}
+	for _, match := range suiteScriptInvocation.FindAllStringSubmatch(string(flow), -1) {
+		rel := match[1]
+		if seen[rel] {
+			continue
+		}
+		seen[rel] = true
+		script := filepath.Join(root, filepath.FromSlash(rel))
 		body, err := os.ReadFile(script) //nolint:gosec // a path derived from the workflow
 		if err != nil {
-			return nil, fmt.Errorf("%s runs %s and it cannot be read: %w", workflow, script, err)
+			return nil, fmt.Errorf("%s runs tools/conformance/%s and it cannot be read: %w", workflow, rel, err)
 		}
-		entries, err := os.ReadDir(filepath.Join(root, run.provider))
+		dir := filepath.Dir(script)
+		entries, err := os.ReadDir(dir)
 		if err != nil {
 			return nil, err
 		}
@@ -295,12 +313,16 @@ func fixturesAppliedInCI(root, workflow string) (map[string]bool, error) {
 				continue
 			}
 			if strings.Contains(string(body), `}")/`+entry.Name()+`"`) {
-				out[filepath.ToSlash(filepath.Join(root, run.provider, entry.Name()))] = true
+				out[filepath.ToSlash(filepath.Join(dir, entry.Name()))] = true
 			}
 		}
 	}
 	return out, nil
 }
+
+// suiteScriptInvocation matches a conformance script the way a workflow names
+// one, with or without a provider directory in front of it.
+var suiteScriptInvocation = regexp.MustCompile(`tools/conformance/((?:[a-z]+/)?[a-z-]+\.sh)`)
 
 // unusedPins names every version this workflow declares and never interpolates.
 //

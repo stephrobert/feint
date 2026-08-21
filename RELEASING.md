@@ -172,6 +172,7 @@ its whole behaviour would be promising a moving copy of three clouds.
 | `/_feint/routes` | `schema_version` | `internal/cli/testdata/frozen/routes.json` |
 | `/_feint/conformance` | `schema_version` | `internal/cli/testdata/frozen/conformance.json` |
 | `/_feint/trace` | `schema_version` | `internal/cli/testdata/frozen/trace.json` |
+| `/_feint/faults` | `schema_version` | `internal/cli/testdata/frozen/faults.json` |
 | the CLI's verbs, flags and exit codes | `cliSurfaceVersion` | `internal/cli/testdata/frozen/cli.json` |
 | the state and snapshot formats | the document's own version | `internal/cli/snapshot.go` |
 

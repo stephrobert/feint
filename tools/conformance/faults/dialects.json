@@ -1,0 +1,7 @@
+{
+  "faults": [
+    {"operation": "instance/v1/API.ListServers", "status": 503},
+    {"operation": "osc/Client.ReadNets", "status": 503},
+    {"operation": "exoscale/v2.list-instances", "status": 503}
+  ]
+}

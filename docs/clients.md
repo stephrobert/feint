@@ -68,6 +68,7 @@ Each row is one `required_providers` entry, read where it is written.
 
 | Fixture or stack | Provider | Constraint | What that is worth | Applied in CI |
 |---|---|---|---|---|
+| `tools/conformance/faults` | `outscale/outscale` | `~> 1.7` | constraint: resolved fresh on each run, so the version that answered is not knowable here | yes |
 | `tools/conformance/outscale/terraform` | `outscale/outscale` | `~> 1.7` | constraint: resolved fresh on each run, so the version that answered is not knowable here | yes |
 | `tools/conformance/outscale/terraform-doorway` | `outscale/outscale` | `~> 1.7` | constraint: resolved fresh on each run, so the version that answered is not knowable here | yes |
 | `tools/conformance/scaleway/terraform` | `scaleway/scaleway` | `2.81.0` | exact: the version that answered | yes |

@@ -141,6 +141,7 @@ l'enregistre.
 - [Installer](#installer)
 - [S'en servir](#sen-servir)
 - [La page](#la-page)
+- [Le faire refuser, exprès](#le-faire-refuser-exprès)
 - [De vraies machines, à la demande](#de-vraies-machines-à-la-demande)
 - [État](#état)
 - [Commandes](#commandes)
@@ -348,6 +349,45 @@ loopback elle n'est pas cachée, elle n'existe pas. Et **aucune authentification
 jamais** — un secret dans le navigateur de l'opérateur est hérité par la page
 hostile, ce qui est la définition du CSRF. Le contrôle qui fonctionne est le refus
 d'origine, et il est déjà mesuré.
+
+---
+
+## Le faire refuser, exprès
+
+Un `200` s'obtient partout. Un `403`, un `429`, un `503` ou une réponse qui met
+trente secondes sont ce dont sont faits le retry, le backoff et la gestion
+d'erreur d'un client, et contre un vrai cloud ils sont difficiles à produire et
+impossibles à reproduire. Ici, c'est une requête :
+
+```bash
+curl -X PUT localhost:4599/_feint/faults -d '{"faults":[
+  {"operation":"instance/v1/API.ListServers","status":503,"times":2}]}'
+
+scw instance server list zone=fr-par-1     # deux 503, puis la réponse
+curl -s localhost:4599/_feint/faults | jq '.faults[].hits'   # 2
+curl -X DELETE localhost:4599/_feint/faults
+```
+
+Quatre propriétés, et chacune est un refus dans le code plutôt qu'une promesse
+ici. **Éteint par défaut** : un émulateur neuf n'arme rien. **Déterministe** :
+« les N premiers appels de cette opération », jamais une probabilité, parce
+qu'une faute qui se déclenche au hasard ne peut pas être le sujet d'un test.
+**Par opération**, au nom amont que publie `/_feint/routes`, et une règle qui
+nomme une opération que rien ne sert est refusée à l'écriture plutôt que muette
+au déclenchement pendant qu'on conclut que le client a survécu. **Dans le
+dialecte du provider** : un `403` atteint `scw` comme le `PermissionsDeniedError`
+de `scw`, un client Outscale dans son `ResponseContext` avec un code que lit
+`osc.IsAuthError`, un client Exoscale dans son enveloppe à message nu. Une panne
+mise en forme par cet outil est la seule chose qu'un client ne verrait jamais de
+son cloud.
+
+Et la borne qui garde les chiffres de couverture honnêtes : **une réponse
+injectée ne prouve rien.** Elle laisse l'opération non pilotée et non contrôlée,
+une portée d'assertion `negative` ne peut pas se fermer dessus, et
+`tools/conformance/score.sh` refuse toute exécution qui en porte une. Ce qu'un
+refus injecté démontre, c'est ce que fait *le client* — c'est bien l'objet, et ce
+n'est pas une affirmation sur ce que répond le vrai cloud.
+[docs/conformance.fr.md](docs/conformance.fr.md) porte la distinction en entier.
 
 ---
 

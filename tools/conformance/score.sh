@@ -20,6 +20,31 @@ command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is not installed" >&2; exit 1;
 report="$(curl -sf "$ENDPOINT/_feint/conformance")" \
   || { echo "FAIL: the emulator did not answer /_feint/conformance" >&2; exit 1; }
 
+# Before any number is printed: a run carrying a staged answer describes nothing.
+#
+# `mise run conformance` must stay green by default and must never count
+# injected errors as served behaviour (#26). The rules are off unless somebody
+# arms them, so the honest way to hold that is not a promise in a comment but
+# this: the run's own report says how many answers the fault injector produced,
+# per operation, and a score computed over a run that carries one would be
+# describing a mixture of what the emulator serves and what a rule was told to
+# say. tools/conformance/faults.sh drives the injector deliberately, on an
+# emulator of its own, on its own port, precisely so this stays at zero here.
+#
+# TestTheScoreRefusesARunCarryingAnInjectedAnswer (tools/conformance) fails
+# without it, and tools/falsify/specs/injected-is-not-evidence.json replays that.
+injected="$(printf '%s' "$report" | jq -r '
+  .injected // {} | to_entries[] | "  \(.key): \(.value) injected answer(s)"')"
+if [ -n "$injected" ]; then
+  echo "FAIL: this run answered with injected faults, so its numbers describe" >&2
+  echo "      a mixture of what the emulator serves and what a rule was told to say:" >&2
+  echo "$injected" >&2
+  echo "      Clear them (curl -X DELETE \$ENDPOINT/_feint/faults) and run again." >&2
+  echo "      Fault injection has its own suite and its own emulator:" >&2
+  echo "      tools/conformance/faults.sh." >&2
+  exit 1
+fi
+
 served="$(printf '%s' "$report" | jq -r '.served')"
 exercised="$(printf '%s' "$report" | jq -r '.exercised')"
 probed="$(printf '%s' "$report" | jq -r '.probed // 0')"

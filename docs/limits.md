@@ -708,6 +708,14 @@ because the SDKs validate their shape client-side before sending anything.
 This means Feint must never be exposed on a network you do not control. It is a
 development tool that grants everything to everyone, by design.
 
+**A refusal can now be produced on purpose, and that changes nothing here.**
+`PUT /_feint/faults` makes a named operation answer 401 or 403 (among others),
+which is what lets a client's degradation path be observed at all. It is not
+authentication: nothing inspects the credential, the rule fires on the operation
+whatever the caller sent, and clearing it makes the same request succeed. An
+injected refusal proves what the *client* does with a refusal, never that this
+emulator — or the real cloud — would refuse that call.
+
 ## Docker was removed: it cannot back an emulated network
 
 Feint shipped a Docker driver and no longer does. Incus is the only machine
