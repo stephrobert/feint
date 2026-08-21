@@ -211,6 +211,102 @@
   ],
   "accepted": [
     {
+      "file": "outscale/oapi-cli-lifecycle.jsonl",
+      "operation": "osc/Client.CreateVms",
+      "kind": "absent",
+      "path": "Vms[].BlockDeviceMappings[]",
+      "reason": "A real machine is born with a root BSU volume, and this emulator's machines model none (docs/limits.md), so the device mapping is an empty list where the cloud answers the root device with its volume, its link date and DeleteOnVmDeletion. It is where a client reads the root volume it must not delete, and the same gap #365 records on the Scaleway side. The other two fields of #378 are served since 2026-08-21; this one is left because giving every machine a volume changes a limit this repository declared on purpose rather than an oversight, and that is the owner's decision to take.",
+      "issue": "https://github.com/stephrobert/feint/issues/378"
+    },
+    {
+      "file": "outscale/oapi-cli-lifecycle.jsonl",
+      "operation": "osc/Client.DeleteSecurityGroup",
+      "kind": "status",
+      "path": "",
+      "reason": "The cloud refuses DeleteSecurityGroup with 409 ResourceConflict for about ninety seconds after the machine that wore the group is terminated, and accepts on the thirty-first attempt; this emulator releases the group the moment the machine is terminated and answers 200 at once. A REPLAY CANNOT GRADE THE DIFFERENCE EITHER WAY: the recording is thirty refusals then an acceptance, and a corpus has no ninety seconds in it, since the sanitiser normalises every timestamp to one second apart. Reproducing the delay would make every stack teardown and every conformance run wait it out, which is a product decision rather than a defect to patch. #380 carries it, and internal/providers/outscale/securitygroups.go records the measurement where the skip is.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
+    },
+    {
+      "file": "outscale/oapi-cli-lifecycle.jsonl",
+      "operation": "osc/Client.DeleteSecurityGroup",
+      "kind": "absent",
+      "path": "Errors",
+      "reason": "The cloud refuses DeleteSecurityGroup with 409 ResourceConflict for about ninety seconds after the machine that wore the group is terminated, and accepts on the thirty-first attempt; this emulator releases the group the moment the machine is terminated and answers 200 at once. A REPLAY CANNOT GRADE THE DIFFERENCE EITHER WAY: the recording is thirty refusals then an acceptance, and a corpus has no ninety seconds in it, since the sanitiser normalises every timestamp to one second apart. Reproducing the delay would make every stack teardown and every conformance run wait it out, which is a product decision rather than a defect to patch. #380 carries it, and internal/providers/outscale/securitygroups.go records the measurement where the skip is.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
+    },
+    {
+      "file": "outscale/oapi-cli-lifecycle.jsonl",
+      "operation": "osc/Client.ReadImages",
+      "kind": "absent",
+      "path": "Images[].BlockDeviceMappings[]",
+      "reason": "The fixed catalogue answers an empty device mapping where the cloud answers the root device with its size and type. Filling it was tried and measured: no state of the pack then satisfies shapes:check, tools/conformance/score.sh and tools/conformance/outscale/terraform.sh at once, because a field decline is written against an operation and ReadImages answers two kinds of object — the catalogue, and an image a client really cut from a snapshot. Naming a SnapshotId the catalogue does not hold is rule 4, and it is the fiction that killed a conformance run once. #389 backs the catalogue with a snapshot the pack really holds, which is what lets this entry go.",
+      "issue": "https://github.com/stephrobert/feint/issues/389"
+    },
+    {
+      "file": "outscale/oapi-cli-lifecycle.jsonl",
+      "operation": "osc/Client.ReadLoadBalancers",
+      "kind": "absent",
+      "path": "LoadBalancers[]",
+      "reason": "Upstream a destroyed object stays readable in a terminal state (deleting, deleted) and this emulator removes it at once, so every read of the recording's teardown answers one element there and none here. Making a delete asynchronous is a change to the lifecycle of every kind and to what 'nothing left behind' means for every conformance suite, not a line in a handler.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
+    },
+    {
+      "file": "outscale/oapi-cli-lifecycle.jsonl",
+      "operation": "osc/Client.ReadNatServices",
+      "kind": "absent",
+      "path": "NatServices[]",
+      "reason": "Upstream a destroyed object stays readable in a terminal state (deleting, deleted) and this emulator removes it at once, so every read of the recording's teardown answers one element there and none here. Making a delete asynchronous is a change to the lifecycle of every kind and to what 'nothing left behind' means for every conformance suite, not a line in a handler.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
+    },
+    {
+      "file": "outscale/oapi-cli-lifecycle.jsonl",
+      "operation": "osc/Client.ReadNets",
+      "kind": "absent",
+      "path": "Nets[]",
+      "reason": "Upstream a destroyed object stays readable in a terminal state (deleting, deleted) and this emulator removes it at once, so every read of the recording's teardown answers one element there and none here. Making a delete asynchronous is a change to the lifecycle of every kind and to what 'nothing left behind' means for every conformance suite, not a line in a handler.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
+    },
+    {
+      "file": "outscale/oapi-cli-lifecycle.jsonl",
+      "operation": "osc/Client.ReadSecurityGroups",
+      "kind": "absent",
+      "path": "SecurityGroups[]",
+      "reason": "The cloud refuses DeleteSecurityGroup with 409 ResourceConflict for about ninety seconds after the machine that wore the group is terminated, and accepts on the thirty-first attempt; this emulator releases the group the moment the machine is terminated and answers 200 at once. A REPLAY CANNOT GRADE THE DIFFERENCE EITHER WAY: the recording is thirty refusals then an acceptance, and a corpus has no ninety seconds in it, since the sanitiser normalises every timestamp to one second apart. Reproducing the delay would make every stack teardown and every conformance run wait it out, which is a product decision rather than a defect to patch. #380 carries it, and internal/providers/outscale/securitygroups.go records the measurement where the skip is.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
+    },
+    {
+      "file": "outscale/oapi-cli-lifecycle.jsonl",
+      "operation": "osc/Client.ReadVms",
+      "kind": "absent",
+      "path": "Vms[].BlockDeviceMappings[]",
+      "reason": "A real machine is born with a root BSU volume, and this emulator's machines model none (docs/limits.md), so the device mapping is an empty list where the cloud answers the root device with its volume, its link date and DeleteOnVmDeletion. It is where a client reads the root volume it must not delete, and the same gap #365 records on the Scaleway side. The other two fields of #378 are served since 2026-08-21; this one is left because giving every machine a volume changes a limit this repository declared on purpose rather than an oversight, and that is the owner's decision to take.",
+      "issue": "https://github.com/stephrobert/feint/issues/378"
+    },
+    {
+      "file": "outscale/oapi-cli-lifecycle.jsonl",
+      "operation": "osc/Client.ReadVolumes",
+      "kind": "absent",
+      "path": "Volumes[]",
+      "reason": "Upstream a destroyed object stays readable in a terminal state (deleting, deleted) and this emulator removes it at once, so every read of the recording's teardown answers one element there and none here. Making a delete asynchronous is a change to the lifecycle of every kind and to what 'nothing left behind' means for every conformance suite, not a line in a handler.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
+    },
+    {
+      "file": "outscale/oapi-cli-lifecycle.jsonl",
+      "operation": "osc/Client.UpdateVm",
+      "kind": "absent",
+      "path": "Vm.BlockDeviceMappings[]",
+      "reason": "A real machine is born with a root BSU volume, and this emulator's machines model none (docs/limits.md), so the device mapping is an empty list where the cloud answers the root device with its volume, its link date and DeleteOnVmDeletion. It is where a client reads the root volume it must not delete, and the same gap #365 records on the Scaleway side. The other two fields of #378 are served since 2026-08-21; this one is left because giving every machine a volume changes a limit this repository declared on purpose rather than an oversight, and that is the owner's decision to take.",
+      "issue": "https://github.com/stephrobert/feint/issues/378"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "block/v1alpha1/API.DeleteVolume",
+      "kind": "status",
+      "path": "",
+      "reason": "scw deletes the root volume through block/v1alpha1 after deleting the server, and the cloud answers 204 where this emulator answers 404 because the volume it created is an instance/v1 one",
+      "issue": "#365"
+    },
+    {
       "file": "scaleway/scw-instance.jsonl",
       "operation": "block/v1alpha1/API.GetVolume",
       "kind": "status",
@@ -228,34 +324,10 @@
     },
     {
       "file": "scaleway/scw-instance.jsonl",
-      "operation": "block/v1alpha1/API.DeleteVolume",
-      "kind": "status",
-      "path": "",
-      "reason": "scw deletes the root volume through block/v1alpha1 after deleting the server, and the cloud answers 204 where this emulator answers 404 because the volume it created is an instance/v1 one",
-      "issue": "#365"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
       "operation": "instance/v1/API.CreateServer",
       "kind": "absent",
       "path": "server.bootscript",
       "reason": "the cloud still writes the retired bootscript key as null and this emulator omits the key, which is a different answer from writing it empty",
-      "issue": "#366"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.GetServer",
-      "kind": "absent",
-      "path": "server.bootscript",
-      "reason": "the read agrees with the create it follows, so it carries the same omission of the retired bootscript key the cloud writes as null",
-      "issue": "#366"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.UpdateServer",
-      "kind": "absent",
-      "path": "server.bootscript",
-      "reason": "the update answers the same server view as the create and the read, so it omits the retired bootscript key the cloud writes as null",
       "issue": "#366"
     },
     {
@@ -268,47 +340,7 @@
     },
     {
       "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.GetServer",
-      "kind": "absent",
-      "path": "server.extra_networks",
-      "reason": "the read carries the same omission of extra_networks as the create, because both render one server view",
-      "issue": "#366"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.UpdateServer",
-      "kind": "absent",
-      "path": "server.extra_networks",
-      "reason": "the update carries the same omission of extra_networks as the create, because both render one server view",
-      "issue": "#366"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.GetImage",
-      "kind": "type",
-      "path": "image.from_server",
-      "reason": "the cloud answers from_server as an empty string for an image built from no server, and this emulator answers null, which retypes a field the SDK declares as a value",
-      "issue": "#367"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
       "operation": "instance/v1/API.CreateServer",
-      "kind": "type",
-      "path": "server.image.from_server",
-      "reason": "the image the server embeds carries the same from_server null where the cloud writes an empty string, because it is the same image view",
-      "issue": "#367"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.GetServer",
-      "kind": "type",
-      "path": "server.image.from_server",
-      "reason": "the image the server embeds carries the same from_server null where the cloud writes an empty string, because it is the same image view",
-      "issue": "#367"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.UpdateServer",
       "kind": "type",
       "path": "server.image.from_server",
       "reason": "the image the server embeds carries the same from_server null where the cloud writes an empty string, because it is the same image view",
@@ -324,39 +356,15 @@
     },
     {
       "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.GetServer",
-      "kind": "type",
-      "path": "server.public_ip.gateway",
-      "reason": "the read publishes the same null gateway as the create, because both render one address view",
-      "issue": "#368"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.UpdateServer",
-      "kind": "type",
-      "path": "server.public_ip.gateway",
-      "reason": "the update publishes the same null gateway as the create, because both render one address view",
+      "operation": "instance/v1/API.CreateServer",
+      "kind": "absent",
+      "path": "server.public_ip.tags[]",
+      "reason": "the tags sent on CreateIP reach the cloud's view of the attached address and this emulator answers an empty list, so the element the recording carries has no counterpart",
       "issue": "#368"
     },
     {
       "file": "scaleway/scw-instance.jsonl",
       "operation": "instance/v1/API.CreateServer",
-      "kind": "type",
-      "path": "server.public_ips[].gateway",
-      "reason": "every element of public_ips carries the same null gateway the singular public_ip carries, because the list and the field render through one function",
-      "issue": "#368"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.GetServer",
-      "kind": "type",
-      "path": "server.public_ips[].gateway",
-      "reason": "every element of public_ips carries the same null gateway the singular public_ip carries, because the list and the field render through one function",
-      "issue": "#368"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.UpdateServer",
       "kind": "type",
       "path": "server.public_ips[].gateway",
       "reason": "every element of public_ips carries the same null gateway the singular public_ip carries, because the list and the field render through one function",
@@ -366,8 +374,48 @@
       "file": "scaleway/scw-instance.jsonl",
       "operation": "instance/v1/API.CreateServer",
       "kind": "absent",
-      "path": "server.public_ip.tags[]",
-      "reason": "the tags sent on CreateIP reach the cloud's view of the attached address and this emulator answers an empty list, so the element the recording carries has no counterpart",
+      "path": "server.public_ips[].tags[]",
+      "reason": "every element of public_ips drops the address tags the cloud propagates, because the list and the singular field render through one function",
+      "issue": "#368"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.GetImage",
+      "kind": "type",
+      "path": "image.from_server",
+      "reason": "the cloud answers from_server as an empty string for an image built from no server, and this emulator answers null, which retypes a field the SDK declares as a value",
+      "issue": "#367"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.GetServer",
+      "kind": "absent",
+      "path": "server.bootscript",
+      "reason": "the read agrees with the create it follows, so it carries the same omission of the retired bootscript key the cloud writes as null",
+      "issue": "#366"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.GetServer",
+      "kind": "absent",
+      "path": "server.extra_networks",
+      "reason": "the read carries the same omission of extra_networks as the create, because both render one server view",
+      "issue": "#366"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.GetServer",
+      "kind": "type",
+      "path": "server.image.from_server",
+      "reason": "the image the server embeds carries the same from_server null where the cloud writes an empty string, because it is the same image view",
+      "issue": "#367"
+    },
+    {
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.GetServer",
+      "kind": "type",
+      "path": "server.public_ip.gateway",
+      "reason": "the read publishes the same null gateway as the create, because both render one address view",
       "issue": "#368"
     },
     {
@@ -380,31 +428,15 @@
     },
     {
       "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.UpdateServer",
-      "kind": "absent",
-      "path": "server.public_ip.tags[]",
-      "reason": "the update drops the address tags exactly as the create does, because both render one address view",
-      "issue": "#368"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.CreateServer",
-      "kind": "absent",
-      "path": "server.public_ips[].tags[]",
-      "reason": "every element of public_ips drops the address tags the cloud propagates, because the list and the singular field render through one function",
+      "operation": "instance/v1/API.GetServer",
+      "kind": "type",
+      "path": "server.public_ips[].gateway",
+      "reason": "every element of public_ips carries the same null gateway the singular public_ip carries, because the list and the field render through one function",
       "issue": "#368"
     },
     {
       "file": "scaleway/scw-instance.jsonl",
       "operation": "instance/v1/API.GetServer",
-      "kind": "absent",
-      "path": "server.public_ips[].tags[]",
-      "reason": "every element of public_ips drops the address tags the cloud propagates, because the list and the singular field render through one function",
-      "issue": "#368"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.UpdateServer",
       "kind": "absent",
       "path": "server.public_ips[].tags[]",
       "reason": "every element of public_ips drops the address tags the cloud propagates, because the list and the singular field render through one function",
@@ -419,84 +451,60 @@
       "issue": "#369"
     },
     {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.CreateVms",
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.UpdateServer",
       "kind": "absent",
-      "path": "Vms[].BlockDeviceMappings[]",
-      "reason": "A real machine is born with a root BSU volume, and this emulator's machines model none (docs/limits.md), so the device mapping is an empty list where the cloud answers the root device with its volume, its link date and DeleteOnVmDeletion. It is where a client reads the root volume it must not delete, and the same gap #365 records on the Scaleway side. The other two fields of #378 are served since 2026-08-21; this one is left because giving every machine a volume changes a limit this repository declared on purpose rather than an oversight, and that is the owner's decision to take.",
-      "issue": "https://github.com/stephrobert/feint/issues/378"
+      "path": "server.bootscript",
+      "reason": "the update answers the same server view as the create and the read, so it omits the retired bootscript key the cloud writes as null",
+      "issue": "#366"
     },
     {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.ReadVms",
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.UpdateServer",
       "kind": "absent",
-      "path": "Vms[].BlockDeviceMappings[]",
-      "reason": "A real machine is born with a root BSU volume, and this emulator's machines model none (docs/limits.md), so the device mapping is an empty list where the cloud answers the root device with its volume, its link date and DeleteOnVmDeletion. It is where a client reads the root volume it must not delete, and the same gap #365 records on the Scaleway side. The other two fields of #378 are served since 2026-08-21; this one is left because giving every machine a volume changes a limit this repository declared on purpose rather than an oversight, and that is the owner's decision to take.",
-      "issue": "https://github.com/stephrobert/feint/issues/378"
+      "path": "server.extra_networks",
+      "reason": "the update carries the same omission of extra_networks as the create, because both render one server view",
+      "issue": "#366"
     },
     {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.UpdateVm",
-      "kind": "absent",
-      "path": "Vm.BlockDeviceMappings[]",
-      "reason": "A real machine is born with a root BSU volume, and this emulator's machines model none (docs/limits.md), so the device mapping is an empty list where the cloud answers the root device with its volume, its link date and DeleteOnVmDeletion. It is where a client reads the root volume it must not delete, and the same gap #365 records on the Scaleway side. The other two fields of #378 are served since 2026-08-21; this one is left because giving every machine a volume changes a limit this repository declared on purpose rather than an oversight, and that is the owner's decision to take.",
-      "issue": "https://github.com/stephrobert/feint/issues/378"
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.UpdateServer",
+      "kind": "type",
+      "path": "server.image.from_server",
+      "reason": "the image the server embeds carries the same from_server null where the cloud writes an empty string, because it is the same image view",
+      "issue": "#367"
     },
     {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.ReadNets",
-      "kind": "absent",
-      "path": "Nets[]",
-      "reason": "Upstream a destroyed object stays readable in a terminal state (deleting, deleted) and this emulator removes it at once, so every read of the recording's teardown answers one element there and none here. Making a delete asynchronous is a change to the lifecycle of every kind and to what 'nothing left behind' means for every conformance suite, not a line in a handler.",
-      "issue": "https://github.com/stephrobert/feint/issues/380"
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.UpdateServer",
+      "kind": "type",
+      "path": "server.public_ip.gateway",
+      "reason": "the update publishes the same null gateway as the create, because both render one address view",
+      "issue": "#368"
     },
     {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.ReadVolumes",
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.UpdateServer",
       "kind": "absent",
-      "path": "Volumes[]",
-      "reason": "Upstream a destroyed object stays readable in a terminal state (deleting, deleted) and this emulator removes it at once, so every read of the recording's teardown answers one element there and none here. Making a delete asynchronous is a change to the lifecycle of every kind and to what 'nothing left behind' means for every conformance suite, not a line in a handler.",
-      "issue": "https://github.com/stephrobert/feint/issues/380"
+      "path": "server.public_ip.tags[]",
+      "reason": "the update drops the address tags exactly as the create does, because both render one address view",
+      "issue": "#368"
     },
     {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.ReadNatServices",
-      "kind": "absent",
-      "path": "NatServices[]",
-      "reason": "Upstream a destroyed object stays readable in a terminal state (deleting, deleted) and this emulator removes it at once, so every read of the recording's teardown answers one element there and none here. Making a delete asynchronous is a change to the lifecycle of every kind and to what 'nothing left behind' means for every conformance suite, not a line in a handler.",
-      "issue": "https://github.com/stephrobert/feint/issues/380"
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.UpdateServer",
+      "kind": "type",
+      "path": "server.public_ips[].gateway",
+      "reason": "every element of public_ips carries the same null gateway the singular public_ip carries, because the list and the field render through one function",
+      "issue": "#368"
     },
     {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.ReadLoadBalancers",
+      "file": "scaleway/scw-instance.jsonl",
+      "operation": "instance/v1/API.UpdateServer",
       "kind": "absent",
-      "path": "LoadBalancers[]",
-      "reason": "Upstream a destroyed object stays readable in a terminal state (deleting, deleted) and this emulator removes it at once, so every read of the recording's teardown answers one element there and none here. Making a delete asynchronous is a change to the lifecycle of every kind and to what 'nothing left behind' means for every conformance suite, not a line in a handler.",
-      "issue": "https://github.com/stephrobert/feint/issues/380"
-    },
-    {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.ReadSecurityGroups",
-      "kind": "absent",
-      "path": "SecurityGroups[]",
-      "reason": "The cloud refuses DeleteSecurityGroup with 409 ResourceConflict for about ninety seconds after the machine that wore the group is terminated, and accepts on the thirty-first attempt; this emulator releases the group the moment the machine is terminated and answers 200 at once. A REPLAY CANNOT GRADE THE DIFFERENCE EITHER WAY: the recording is thirty refusals then an acceptance, and a corpus has no ninety seconds in it, since the sanitiser normalises every timestamp to one second apart. Reproducing the delay would make every stack teardown and every conformance run wait it out, which is a product decision rather than a defect to patch. #380 carries it, and internal/providers/outscale/securitygroups.go records the measurement where the skip is.",
-      "issue": "https://github.com/stephrobert/feint/issues/380"
-    },
-    {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.DeleteSecurityGroup",
-      "kind": "status",
-      "path": "",
-      "reason": "The cloud refuses DeleteSecurityGroup with 409 ResourceConflict for about ninety seconds after the machine that wore the group is terminated, and accepts on the thirty-first attempt; this emulator releases the group the moment the machine is terminated and answers 200 at once. A REPLAY CANNOT GRADE THE DIFFERENCE EITHER WAY: the recording is thirty refusals then an acceptance, and a corpus has no ninety seconds in it, since the sanitiser normalises every timestamp to one second apart. Reproducing the delay would make every stack teardown and every conformance run wait it out, which is a product decision rather than a defect to patch. #380 carries it, and internal/providers/outscale/securitygroups.go records the measurement where the skip is.",
-      "issue": "https://github.com/stephrobert/feint/issues/380"
-    },
-    {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.DeleteSecurityGroup",
-      "kind": "absent",
-      "path": "Errors",
-      "reason": "The cloud refuses DeleteSecurityGroup with 409 ResourceConflict for about ninety seconds after the machine that wore the group is terminated, and accepts on the thirty-first attempt; this emulator releases the group the moment the machine is terminated and answers 200 at once. A REPLAY CANNOT GRADE THE DIFFERENCE EITHER WAY: the recording is thirty refusals then an acceptance, and a corpus has no ninety seconds in it, since the sanitiser normalises every timestamp to one second apart. Reproducing the delay would make every stack teardown and every conformance run wait it out, which is a product decision rather than a defect to patch. #380 carries it, and internal/providers/outscale/securitygroups.go records the measurement where the skip is.",
-      "issue": "https://github.com/stephrobert/feint/issues/380"
+      "path": "server.public_ips[].tags[]",
+      "reason": "every element of public_ips drops the address tags the cloud propagates, because the list and the singular field render through one function",
+      "issue": "#368"
     }
   ]
 }

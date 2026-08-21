@@ -158,31 +158,40 @@ const linuxProductCode = "0001"
 func imageStructure(name string) map[string]any {
 	return map[string]any{
 		// The three of #86, without which the provider dereferences nil.
+		// BlockDeviceMappings stays empty, and #383 asked for the opposite.
 		//
-		// Two of them stopped being empty in #383, and the line the earlier
-		// version drew is the line that still holds. "Inventing a device
-		// mapping would put a disk in a catalogue that has none" was about a
-		// **SnapshotId**: naming a snapshot ReadSnapshots cannot answer for is
-		// the defect that killed a whole conformance run once, when a fictional
-		// root VolumeId was written on a machine and the Terraform provider
-		// resolved it. A root device's *name*, *size* and *type* name nothing
-		// at all, and they are what a client reads to size the volume it is
-		// about to create — measured absent against a real account on
-		// 2026-08-21, where every image carries them.
+		// The mapping was filled in this branch — device name, root volume size
+		// and type — and it made two gates contradict each other, which is how
+		// the line below was found rather than argued:
 		//
-		// So: the mapping, with no SnapshotId key. The Bsu schema declares it
-		// optional, an absent key says "this emulator models no snapshot", and
-		// an invented one would say something false about an object that does
-		// not exist.
-		"BlockDeviceMappings": []any{map[string]any{
-			"DeviceName": "/dev/sda1",
-			"Bsu": map[string]any{
-				"DeleteOnVmDeletion": true,
-				"VolumeSize":         catalogueRootVolumeSize,
-				"VolumeType":         "standard",
-			},
-		}},
-		"StateComment": map[string]any{},
+		//   - `shapes --check` descends into a non-empty list and reports
+		//     Bsu.SnapshotId and Bsu.Iops missing, because the real cloud carries
+		//     them on every image (shapes/outscale.json);
+		//   - declining those two then makes tools/conformance/score.sh fail four
+		//     legs at once with "field declines whose field the emulator now
+		//     serves", because CreateImage answers both — truthfully, for an image
+		//     really cut from a snapshot this store holds;
+		//   - and omitting them from CreateImage instead fails
+		//     tools/conformance/outscale/terraform.sh, which asserts that a
+		//     registered image names the snapshot it was cut from.
+		//
+		// All three are right. A field decline is written against an *operation*,
+		// and this operation answers two kinds of object; there is no state of
+		// this file where a filled mapping, the declines and the real client all
+		// agree. An empty list is the one shape that says "this emulator models no
+		// disk behind its catalogue" without inventing a SnapshotId — the exact
+		// fiction that killed a conformance run once, when a fictional root
+		// VolumeId on a machine was resolved by the Terraform provider (rule 4).
+		//
+		// #383 is therefore reopened rather than closed here, and #389 carries
+		// what makes it deliverable: back the catalogue with a snapshot the pack
+		// really holds, so both keys can be answered truthfully everywhere and
+		// both declines can go.
+		//
+		// TestTheCatalogueMappingStaysEmptyUntilASnapshotBacksIt fails without
+		// this.
+		"BlockDeviceMappings": []any{},
+		"StateComment":        map[string]any{},
 		// The owner, which for this catalogue is this emulator's own account —
 		// the same accountID every other answer carries. An empty list said the
 		// image was launchable by nobody, where the real cloud names whoever it
@@ -219,11 +228,6 @@ func imageStructure(name string) map[string]any {
 // moved every run would put a value in a client's plan that changes for no
 // reason — the same reason coverage/ carries no scan date.
 const catalogueDate = "2025-01-01T00:00:00.000Z"
-
-// catalogueRootVolumeSize is the root disk, in gibibytes, every image of the
-// fixed catalogue declares. Committed fiction like the date above, and the
-// number a client reads before it sizes the volume it creates (#383).
-const catalogueRootVolumeSize = 10
 
 var images = func() []map[string]any {
 	out := []map[string]any{

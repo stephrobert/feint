@@ -20,39 +20,30 @@ func (p *Pack) DeclinedFields() []emulator.FieldDecline {
 			Path:      "Nics[].PrivateIps[].LinkPublicIp",
 			Reason:    "an address links to a machine here, never to a bare interface, so a standalone Nic has no link to publish",
 		},
-		// The one field of an image's device mapping that names another object.
-		// #383 served the rest of the mapping — the device name, the root
-		// volume's size and type, which a client reads before it sizes what it
-		// creates — and stops here on purpose.
+		// Two entries lived here until 2026-08-21, declining
+		// Images[].BlockDeviceMappings[].Bsu.SnapshotId and .Iops. They are gone
+		// because they stopped being true, and the way they stopped is worth
+		// keeping.
 		//
-		// A SnapshotId would name a snapshot ReadSnapshots cannot answer for,
-		// and that is not a cosmetic difference: the same shape, a fictional
-		// root VolumeId written on a machine, killed a whole conformance run
-		// once when the Terraform provider resolved it. An absent key says this
-		// emulator models no snapshot behind its catalogue; an invented one
-		// would say something false about an object that does not exist, which
-		// is rule 4.
+		// A field decline says *this pack never serves this field*. That held
+		// while ReadImages answered the catalogue alone. It stopped holding when
+		// CreateImage began answering an image cut from a real snapshot: there
+		// the SnapshotId names a snapshot ReadSnapshots can answer for, and the
+		// Iops is the one the client itself declared. Both are served, so both
+		// declines were fiction — and tools/conformance/score.sh said so, on the
+		// terraform, opentofu, oapi-cli and fields legs at once, with "field
+		// declines whose field the emulator now serves".
 		//
-		// The stale rule retires this entry by failing the gate the day the
-		// catalogue is backed by snapshots the pack really holds.
-		{
-			Operation: "osc/Client.ReadImages",
-			Path:      "Images[].BlockDeviceMappings[].Bsu.SnapshotId",
-			Reason:    "the emulated catalogue is backed by no snapshot, and naming one ReadSnapshots cannot answer for is how a client's resolve fails on an object that does not exist",
-		},
-		// The other half of the same decision, and it surfaced the moment the
-		// mapping stopped being empty: a gate that could not descend into an
-		// empty list can descend into this one.
+		// The argument they carried was not wrong, only misplaced: it is about
+		// the *catalogue*, not about the operation. It lives in catalog.go beside
+		// the mapping that omits both keys, where an absent SnapshotId says this
+		// emulator models no snapshot rather than naming a fictional one (rule
+		// 4), and an absent Iops keeps a performance figure out of a client's
+		// plan for a `standard` volume that has none.
 		//
-		// The catalogue's root volume is `standard`, and a standard volume has
-		// no provisioned IOPS — the field belongs to io1. A number here would
-		// be a performance figure entering a client's plan with nothing behind
-		// it, which is the argument the Scaleway catalogue already makes for
-		// per_volume_constraint.l_ssd.
-		{
-			Operation: "osc/Client.ReadImages",
-			Path:      "Images[].BlockDeviceMappings[].Bsu.Iops",
-			Reason:    "the catalogue's root volume is standard and a standard volume has no provisioned IOPS, so a number here would be a performance figure in a client's plan with nothing behind it",
-		},
+		// The general shape, and it is the same one corpus/accepted.json is
+		// built on: an exemption whose subject is one *object* cannot be written
+		// against an *operation* that answers more than one kind of object. It
+		// reads as true for as long as only one kind exists.
 	}
 }
