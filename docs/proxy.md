@@ -100,7 +100,7 @@ nothing on the wire — and the file holds none of them.
 
 Four properties, each of them a requirement rather than a precaution, and each
 with a test that fails without it (`tools/falsify/specs/forward-proxy.json`
-replays all seven):
+replays all thirteen, the redaction's own five included):
 
 - **The redaction survives the interception.** The tunnel records through the
   same `capture` as everything else, so there is no second path to the writer to
@@ -522,7 +522,7 @@ on.
 | `path`, `query` | the request line | verbatim, **identifiers included**: `/servers/{a real UUID}`. Only a parameter whose *name* carries a credential becomes `REDACTED` |
 | `operation`, `provider` | what the pack calls this route | invented here, carries nothing of the account |
 | `req.headers` | the request's header names | names in full, values dropped unless the name is on the allowlist (`Accept`, `Content-Type`, `User-Agent`, `Host`, …) |
-| `req.body`, `res.body` | the payloads | **verbatim**, except values under a key naming a credential. This is the measurement, and it is why the file is worth having |
+| `req.body`, `res.body` | the payloads | **verbatim**, except values under a key naming a credential — save one exemption, below. This is the measurement, and it is why the file is worth having |
 | `res.headers` | the answer's header names | same rule as the request's |
 
 So the bodies hold what the account holds: resource and project identifiers,
@@ -554,6 +554,56 @@ transcript: `feint shapes --record` stores field trees with identifiers folded
 into `{id}` and no values at all, which is why `shapes/*.json` is committed;
 `feint transcript --shape` prints the same tree out of a recording; and
 `feint transcript --sanitise`, below, converts the whole recording.
+
+
+### The one value a credential-shaped name does not take with it
+
+A body is redacted by JSON key *name*, and the list of names is over-inclusive
+on purpose: a false positive costs one unreadable value, a false negative costs
+a credential. That asymmetry held while an unreadable value was a cosmetic loss.
+It stopped holding the day a transcript became something this repository
+replays.
+
+`public_key` matches `key`. So the IAM SSH key `scw` created reached the corpus
+as `"REDACTED"`, `sshkey.Parse` refused it, the emulator answered **400** where
+the cloud answered 200 — and the read and the delete of that key answered 404
+for the same single reason. **Five of the eight divergences the first Scaleway
+corpus recorded were that one substitution**, and none of them was a defect of
+the emulator (#355). It is the same family as the `null` #73 measured: an
+over-inclusive rule is fine, a manufactured measurement is not.
+
+So exactly one value is bought back, and **by its own format rather than by its
+name**:
+
+- an OpenSSH public key line — it names its algorithm out of a closed set of
+  eight and carries base64 material and nothing else, read by the same
+  `internal/core/sshkey` the packs authenticate with, so what is written down is
+  exactly what the emulator will accept;
+- **in a body only.** Headers keep their allowlist and query parameters keep the
+  denylist. A public key travels in neither, and the query is where SigV4 puts a
+  presigned signature.
+
+That is not the denylist loosening, and the difference is the whole point of the
+section above: a *name* check answers "does this look like a credential" and
+never "is this not one", which is why headers are an allowlist. A *value* that
+identifies itself answers the second question directly. A credential does not
+arrive in that shape, and a private key does not either — OpenSSH armours those
+across several lines, which the reader refuses on its control characters before
+it looks at anything else.
+
+Four tests hold it, and `tools/falsify/specs/forward-proxy.json` replays all
+four: `TestAPublicKeyUnderACredentialNameIsWrittenDown` (the exemption exists),
+`TestASecretUnderACredentialNameIsStillRedacted` (it is the format that grants
+it, not the name), `TestAPublicKeyOutsideABodyIsStillRedacted` (it reaches
+neither header nor query) and `TestASensitiveContainerIsStillReplacedWholesale`.
+
+**What it still costs, stated rather than hidden.** A *container* named for a
+credential is replaced whole, whatever its elements look like: `ssh_keys` matches
+`key`, so `ListSSHKeys` reaches a transcript as one string and its shape is not
+graded. That is a real loss of coverage — `feint replay` reports it as a
+`redacted` finding rather than pretending to have compared — and it is a smaller
+loss than descending into every object somebody called `credentials` and keeping
+the leaves whose own names happen to look harmless.
 
 ## A transcript you can commit
 
@@ -604,6 +654,13 @@ divergence `corpus/accepted.json` does not carry, and exit 1 on a corpus that
 could not be read or that compared nothing — a corpus replaying nothing is a
 failure, never a pass. `corpus/README.md` carries the verdicts, the acceptance
 list and how a corpus ages.
+
+It has already earned its keep. The first Scaleway corpus recorded eight
+divergences; #355 retired all eight, and two of them were defects nothing else
+here could see — the default VPC answering no tags, and `CreateSSHKey` answering
+201 where the wire carried 200. The second was reachable only *after* the
+instrument stopped lying about itself, which is the argument for the whole chain
+in one line.
 
 ### Why it still replays
 

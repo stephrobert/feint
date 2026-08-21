@@ -1,0 +1,80 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the default VPC goes back to answering no tags, which is what a fresh emulator did while the real one answered [\"default\"] — the first defect the committed corpus surfaced",
+      "file": "internal/providers/scaleway/vpc.go",
+      "find": "\tres.Attrs[\"tags\"] = []string{defaultVPCTag}",
+      "replace": "\tres.Attrs[\"tags\"] = []string{}\n\t_ = defaultVPCTag",
+      "test": "TestTheDefaultVPCCarriesTheDefaultTag"
+    },
+    {
+      "label": "THE SECOND DIRECTION: the default tag leaks onto a VPC the client created, so the emulator answers a value the API never answered for it",
+      "file": "internal/providers/scaleway/vpc.go",
+      "find": "\tres.Attrs[\"tags\"] = orEmpty(req.Tags)",
+      "replace": "\tres.Attrs[\"tags\"] = append(orEmpty(req.Tags), defaultVPCTag)",
+      "test": "TestTheDefaultVPCCarriesTheDefaultTag"
+    },
+    {
+      "label": "CreateSSHKey goes back to the 201 nobody measured, where the wire carried a 200",
+      "file": "internal/providers/scaleway/sshkeys.go",
+      "find": "const sshKeyCreateStatus = http.StatusOK",
+      "replace": "const sshKeyCreateStatus = http.StatusCreated",
+      "test": "TestCreateSSHKeyAnswersTheStatusTheCloudAnswers"
+    },
+    {
+      "label": "an SSH key is published with the comment the client sent, where the cloud drops it: measured on 2026-08-21, a key sent with three fields came back with two",
+      "file": "internal/providers/scaleway/sshkeys.go",
+      "find": "\tkey.Comment = \"\"",
+      "replace": "\tkey.Comment += \"\"",
+      "test": "TestASSHKeyIsPublishedWithoutItsComment"
+    },
+    {
+      "label": "the catalogue's l_ssd refusal is spelled for the shapes gate alone again, so the replay meets no refusal and grades nine deliberate omissions as nine divergences",
+      "file": "internal/providers/scaleway/declined_fields.go",
+      "find": "\t\t\tOperation: \"instance/v1/API.ListServersTypes\",",
+      "replace": "\t\t\tOperation: \"instance/v1/API.ListServersTypes.never\",",
+      "test": "TestTheCatalogueBoundIsDeclinedWhereTheReplayJoins"
+    },
+    {
+      "label": "an entry of the cloud's inventory is graded as a field again: the emulated catalogue stocks 18 of the 136 commercial types on purpose, and the 118 others buried every other finding the corpus had to report",
+      "file": "internal/replay/replay.go",
+      "find": "\t\t\t\tif inventory {\n\t\t\t\t\tcontinue\n\t\t\t\t}",
+      "replace": "\t\t\t\tif inventory && false {\n\t\t\t\t\tcontinue\n\t\t\t\t}",
+      "test": "TestAnInventoryKeyTheRecordingHasIsNotAMissingField",
+      "package": "./internal/replay/"
+    },
+    {
+      "label": "THE SECOND DIRECTION: every object is read as an inventory, so a field the recording carries and this emulator omits stops being a finding anywhere — the comparison itself",
+      "file": "internal/replay/replay.go",
+      "find": "\t\tinventory := transcript.DataKeyedObject(w)",
+      "replace": "\t\tinventory := true\n\t\t_ = transcript.DataKeyedObject(w)",
+      "test": "TestARenamedFieldInTheRecordingProducesADiff",
+      "package": "./internal/replay/"
+    },
+    {
+      "label": "THE SECOND DIRECTION: two children of one shape are enough to call a parent an inventory, so an ordinary schema's min/max pair silences every omission below it",
+      "file": "internal/transcript/transcript.go",
+      "find": "const minDictionaryEntries = 3",
+      "replace": "const minDictionaryEntries = 2",
+      "test": "TestAnObjectOfTheAPIsOwnVocabularyIsNotADictionary",
+      "package": "./internal/transcript/"
+    },
+    {
+      "label": "THE SECOND DIRECTION: children whose key sets merely overlap are read as one repeated shape, which is how a schema becomes a dictionary by accident",
+      "file": "internal/transcript/transcript.go",
+      "find": "\t\tif !sameKeySet(first, keySet(keys)) {",
+      "replace": "\t\tif !sameKeySet(first, keySet(keys)) && false {",
+      "test": "TestAnObjectOfTheAPIsOwnVocabularyIsNotADictionary",
+      "package": "./internal/transcript/"
+    },
+    {
+      "label": "the shapes gate stops reading the shared rule and grows a second answer to \"what counts as a field\", which is the disagreement that put 127 findings in one gate and none in the other",
+      "file": "internal/cli/shapes_check.go",
+      "find": "\t\tif transcript.DataKeyed(childKeys) {",
+      "replace": "\t\tif transcript.DataKeyed(childKeys) && false {",
+      "test": "TestADictionarysKeysAreNotMissingFields",
+      "package": "./internal/cli/"
+    }
+  ]
+}

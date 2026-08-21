@@ -73,6 +73,7 @@ import (
 	"github.com/stephrobert/feint/internal/proxy"
 	"github.com/stephrobert/feint/internal/shape"
 	"github.com/stephrobert/feint/internal/trace"
+	"github.com/stephrobert/feint/internal/transcript"
 )
 
 // Verdict is what one recorded exchange came to. The three are never summed:
@@ -448,6 +449,20 @@ func compareShape(path string, want, got any, operation string, opt Options) []F
 			keys = append(keys, k)
 		}
 		sort.Strings(keys)
+		// A map whose keys are the cloud's inventory rather than its vocabulary
+		// is graded on the entries both sides carry, and an entry only the
+		// recording has is not a missing field: it is a value, and values are
+		// compared only where a pack declares an invariant. The recognition is
+		// transcript.DataKeyed, shared with `feint shapes --check` because the
+		// two gates disagreeing about what counts as a field is exactly what
+		// this fixes — the emulated catalogue serves 18 of the 136 commercial
+		// types fr-par-1 publishes, deliberately, and the corpus reported 127
+		// of its 136 findings on that one decision while the shapes gate
+		// reported none of them.
+		//
+		// TestAnInventoryKeyTheRecordingHasIsNotAMissingField fails without
+		// this.
+		inventory := transcript.DataKeyedObject(w)
 		var out []Finding
 		for _, k := range keys {
 			child := k
@@ -456,6 +471,9 @@ func compareShape(path string, want, got any, operation string, opt Options) []F
 			}
 			nested, present := g[k]
 			if !present {
+				if inventory {
+					continue
+				}
 				out = append(out, absentOrExcused(child, jsonType(w[k]), operation, opt))
 				continue
 			}

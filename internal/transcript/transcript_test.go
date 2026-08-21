@@ -192,3 +192,74 @@ func TestShapeTypesANumberAsNumber(t *testing.T) {
 		}
 	}
 }
+
+// A map from inventory name to one repeated shape is recognised as a
+// dictionary, so its keys are read as values rather than as fields.
+//
+// The subject is `GET /instance/v1/zones/{zone}/products/servers`: fr-par-1
+// publishes 136 commercial types and the emulated catalogue serves 18 on
+// purpose. Read as fields, the 118 that differ were 127 of the 136 findings the
+// first real corpus produced, and they buried everything else it had to say.
+func TestADictionaryOfInventoryIsRecognised(t *testing.T) {
+	catalogue := map[string]any{
+		"DEV1-S":  map[string]any{"ncpus": 2, "ram": 2, "arch": "x86_64"},
+		"GP1-XS":  map[string]any{"ncpus": 4, "ram": 16, "arch": "x86_64"},
+		"PRO2-XS": map[string]any{"ncpus": 2, "ram": 8, "arch": "x86_64"},
+	}
+	if !transcript.DataKeyedObject(catalogue) {
+		t.Errorf("three entries of one shape under names of the cloud's own inventory were read as "+
+			"three fields: %v", catalogue)
+	}
+}
+
+// THE SECOND DIRECTION. An object of the API's own vocabulary is not a
+// dictionary, and its absent fields stay findings.
+//
+// Four shapes that must all answer false, because each one is a way the rule
+// could widen into silencing a real omission: fields of different shapes, a
+// parent holding a scalar beside an object, two matching children (a `min` and
+// a `max` under one parent is an ordinary schema), and children whose key sets
+// merely overlap.
+func TestAnObjectOfTheAPIsOwnVocabularyIsNotADictionary(t *testing.T) {
+	for name, obj := range map[string]map[string]any{
+		"fields of different shapes": {
+			"image":  map[string]any{"id": "x", "name": "y"},
+			"volume": map[string]any{"size": 1},
+			"ip":     map[string]any{"address": "a", "dynamic": true, "id": "i"},
+		},
+		"a scalar beside the objects": {
+			"a":     map[string]any{"n": 1},
+			"b":     map[string]any{"n": 2},
+			"c":     map[string]any{"n": 3},
+			"total": 3,
+		},
+		"only two entries": {
+			"min": map[string]any{"n": 1},
+			"max": map[string]any{"n": 2},
+		},
+		"key sets that only overlap": {
+			"a": map[string]any{"n": 1, "extra": 0},
+			"b": map[string]any{"n": 2},
+			"c": map[string]any{"n": 3},
+		},
+	} {
+		if transcript.DataKeyedObject(obj) {
+			t.Errorf("%s was read as a dictionary, so every field of it missing from an emulator "+
+				"would go unreported", name)
+		}
+	}
+}
+
+// An empty object is not a dictionary either, which is the degenerate case a
+// rule written as "all children agree" answers true for.
+func TestAnEmptyObjectIsNotADictionary(t *testing.T) {
+	if transcript.DataKeyedObject(map[string]any{}) {
+		t.Error("an object with no children was read as a dictionary")
+	}
+	if transcript.DataKeyed(nil) {
+		t.Error("no children at all was read as a dictionary")
+	}
+	if transcript.DataKeyed([][]string{{}, {}, {}}) {
+		t.Error("three children with no keys of their own were read as a dictionary")
+	}
+}

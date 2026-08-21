@@ -4,6 +4,9 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/providers/scaleway"
 )
 
 const serverTypesURL = "/instance/v1/zones/fr-par-1/products/servers"
@@ -111,4 +114,41 @@ func sortedKeys(m map[string]any) []string {
 		out = append(out, k)
 	}
 	return out
+}
+
+// The bound the catalogue does not publish is declined where the replay looks
+// for it, and not only where the shapes gate does.
+//
+// Two gates read DeclinedFields() and each joins on its own spelling: `feint
+// shapes --check` on the catalogue key ("GET /instance/v1/zones/fr-par-1/
+// products/servers"), the live field gate and the corpus replay on the mounted
+// operation name ("instance/v1/API.ListServersTypes"). The decision was spelled
+// once, for the first, so the replay met no refusal and graded the nine bounds
+// the real cloud publishes as nine divergences — a third of what
+// corpus/accepted.json carried until #355.
+//
+// A decline that matches nothing is refused elsewhere as stale; a decline that
+// exists in only one dialect is the failure this holds, and nothing else can:
+// both spellings are strings, and a typo in either is invisible until a gate
+// stops excusing.
+func TestTheCatalogueBoundIsDeclinedWhereTheReplayJoins(t *testing.T) {
+	const (
+		path      = "servers.STARDUST1-S.per_volume_constraint.l_ssd"
+		operation = "instance/v1/API.ListServersTypes"
+		catalogue = "GET /instance/v1/zones/fr-par-1/products/servers"
+	)
+	declines := emulator.FieldDeclinesOf(scaleway.New(emulator.DefaultEnv()))
+	for _, spelling := range []string{operation, catalogue} {
+		found := false
+		for _, d := range declines {
+			if d.Matches(spelling, path) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("no field decline covers %s under %q: the gate that joins on that spelling "+
+				"reads the omission as a divergence", path, spelling)
+		}
+	}
 }

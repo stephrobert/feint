@@ -413,22 +413,23 @@ func readCatalogue(path, provider string) (*shape.Catalogue, error) {
 
 // dictionaries finds the paths whose children are entries rather than fields.
 //
-// A schema's fields differ from one another; a dictionary's values repeat one
-// shape under keys that are data — a product name, a zone, an identifier. So a
-// parent is a dictionary when three or more of its children are objects whose
-// own child-key sets are identical. Three rather than two, because a schema can
-// hold two similarly shaped fields by coincidence and a dictionary with two
-// entries is not worth the risk of hiding a real omission.
+// The recognition itself is [transcript.DataKeyed], and it is there rather than
+// here for a measured reason: this gate held the rule and the replay did not,
+// so `feint corpus --check` reported 127 commercial types as missing fields
+// while this one reported none of them, and the corpus carried an exemption for
+// the difference (#355). Two readers of one artefact must not disagree about
+// what counts as a field. What stays here is only the translation from a flat
+// field list to the child-key sets that rule reads.
 //
-// This is a heuristic, and it is the honest kind: it can only cause an omission
+// It is a heuristic, and it is the honest kind: it can only cause an omission
 // to go unreported, never a false one to be raised, because it strictly removes
 // findings. What it removes is stated in the output rather than silent.
 //
 // TestADictionarysKeysAreNotMissingFields fails without this.
 func dictionaries(fields []transcript.Field) map[string]bool {
-	// Children of each path, and the child-key set of each object child.
+	// Children of each path, and the direct child-key names of each object child.
 	children := map[string][]string{}
-	keysOf := map[string]map[string]bool{}
+	keysOf := map[string][]string{}
 	for _, f := range fields {
 		parent := parentPath(f.Path)
 		if parent == "" {
@@ -437,47 +438,18 @@ func dictionaries(fields []transcript.Field) map[string]bool {
 		if f.Type == "object" {
 			children[parent] = append(children[parent], f.Path)
 		}
-		grand := parentPath(parent)
-		_ = grand
-		if keysOf[parent] == nil {
-			keysOf[parent] = map[string]bool{}
-		}
-		keysOf[parent][strings.TrimPrefix(f.Path, parent+".")] = true
+		keysOf[parent] = append(keysOf[parent], strings.TrimPrefix(f.Path, parent+"."))
 	}
 
 	out := map[string]bool{}
 	for parent, objs := range children {
-		if len(objs) < 3 {
-			continue
-		}
-		var first map[string]bool
-		same := true
+		childKeys := make([][]string, 0, len(objs))
 		for _, obj := range objs {
-			keys := keysOf[obj]
-			if first == nil {
-				first = keys
-				continue
-			}
-			if !sameKeys(first, keys) {
-				same = false
-				break
-			}
+			childKeys = append(childKeys, keysOf[obj])
 		}
-		if same && len(first) > 0 {
+		if transcript.DataKeyed(childKeys) {
 			out[parent] = true
 		}
 	}
 	return out
-}
-
-func sameKeys(a, b map[string]bool) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k := range a {
-		if !b[k] {
-			return false
-		}
-	}
-	return true
 }

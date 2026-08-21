@@ -23,9 +23,27 @@ func (p *Pack) DeclinedFields() []emulator.FieldDecline {
 			Path:      "servers.*.per_volume_constraint.l_ssd",
 			Reason:    "a bound for local volumes this catalogue never attaches, which would enter the client's size arithmetic with nothing behind it",
 		},
-		// The live field gate (#88) joins on the mounted operation name, which
-		// is why this entry is spelled differently from the one above: each
-		// gate reads the declines it can resolve.
+		// The same decision, spelled for the gates that join on the mounted
+		// operation name — the live field gate (#88) and the corpus replay
+		// (#353). Without it the replay met no refusal and graded the nine
+		// bounds as nine divergences, which is what corpus/accepted.json
+		// carried until #355.
+		//
+		// Only this half of the catalogue's decision is spelled twice, and the
+		// other half is deliberately not: the 118 commercial types this
+		// catalogue does not serve are *keys of a dictionary*, and the path
+		// that would decline them ("servers.*") also names the 18 it does
+		// serve — measured, the omission gate published it as a stale decline
+		// and tools/conformance/score.sh fails on those. An inventory entry is
+		// not a field, and transcript.DataKeyed is where that is settled for
+		// both gates at once.
+		//
+		// TestTheCatalogueBoundIsDeclinedWhereTheReplayJoins fails without this.
+		{
+			Operation: "instance/v1/API.ListServersTypes",
+			Path:      "servers.*.per_volume_constraint.l_ssd",
+			Reason:    "a bound for local volumes this catalogue never attaches, which would enter the client's size arithmetic with nothing behind it",
+		},
 		{
 			Operation: "ipam/v1/API.ListIPs",
 			Path:      "ips[].source.zonal",

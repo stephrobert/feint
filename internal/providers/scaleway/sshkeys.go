@@ -21,6 +21,23 @@ import (
 // kindSSHKey is the store kind for IAM SSH keys.
 const kindSSHKey = "iam/ssh-key"
 
+// sshKeyCreateStatus is what a successful iam/v1alpha1 CreateSSHKey answers.
+//
+// 200, not the 201 a create usually writes here, and it is the same family as
+// vpcCreateStatus: read off the wire rather than off an exit code, which shows
+// neither. Recorded through `feint proxy` against a real fr-par account on
+// 2026-08-21 and again when that corpus was re-recorded for #355 —
+// corpus/scaleway/scw-cli.jsonl carries the 200 at the CreateSSHKey exchange.
+// Nothing beyond IAM's SSH keys is claimed: no other iam/v1alpha1 create was
+// measured, so no other one is touched.
+//
+// It was invisible until the corpus could replay the key's lifecycle at all:
+// the proxy's own redaction destroyed public_key, the create answered 400, and
+// the 201 hid behind a status finding that blamed the instrument (#355).
+//
+// TestCreateSSHKeyAnswersTheStatusTheCloudAnswers fails without this.
+const sshKeyCreateStatus = http.StatusOK
+
 type createSSHKeyRequest struct {
 	Name      string `json:"name"`
 	PublicKey string `json:"public_key"`
@@ -97,7 +114,8 @@ func (p *Pack) createSSHKey(w http.ResponseWriter, r *http.Request) {
 	}
 	// The API rejects anything that is not an SSH public key, and so must the
 	// emulator: a malformed key silently breaks every later login attempt.
-	if !sshkey.Valid(req.PublicKey) {
+	key, err := sshkey.Parse(req.PublicKey)
+	if err != nil {
 		writeInvalidArguments(w, ArgumentError{
 			ArgumentName: "public_key",
 			Reason:       "constraint",
@@ -105,6 +123,20 @@ func (p *Pack) createSSHKey(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// The cloud keeps the algorithm and the material and drops the comment.
+	// Measured on 2026-08-21 against a real fr-par account: a key sent as
+	// "ssh-ed25519 <material> feint-corpus-echo" (98 bytes, three fields) came
+	// back as "ssh-ed25519 <material>" (80 bytes, two fields), and the corpus
+	// recorded the same thing from the other side — the request body and the
+	// answer carried two different strings where this emulator echoed one.
+	//
+	// It is a value rather than a shape, so no gate here could have caught it:
+	// `feint replay` compares types and compares a value only where a pack
+	// declares an invariant. The fingerprint is unaffected either way, being
+	// computed over the decoded blob rather than over the line.
+	//
+	// TestASSHKeyIsPublishedWithoutItsComment fails without this.
+	key.Comment = ""
 
 	// IAM keys belong to a project, and the organization above it is the
 	// account, never the same identifier.
@@ -114,15 +146,15 @@ func (p *Pack) createSSHKey(w http.ResponseWriter, r *http.Request) {
 	res := resource.New(p.env.NewID(), kindSSHKey, resource.Tenant{Provider: Name, Project: project}, "enabled", now)
 	res.Attrs = map[string]any{
 		"name":            orDefault(req.Name, "key"),
-		"public_key":      strings.TrimSpace(req.PublicKey),
-		"fingerprint":     sshkey.FingerprintMD5(req.PublicKey),
+		"public_key":      key.String(),
+		"fingerprint":     key.FingerprintMD5(),
 		"project_id":      project,
 		"organization_id": organization,
 		"disabled":        false,
 	}
 	p.env.Store.Put(res)
 
-	emulator.WriteJSON(w, http.StatusCreated, sshKeyView(res))
+	emulator.WriteJSON(w, sshKeyCreateStatus, sshKeyView(res))
 }
 
 func (p *Pack) getSSHKey(w http.ResponseWriter, r *http.Request) {

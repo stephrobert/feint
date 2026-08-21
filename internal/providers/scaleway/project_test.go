@@ -101,8 +101,9 @@ func TestOrganizationIsNotTheProject(t *testing.T) {
 	// A key is an IAM object: same rule, different field names.
 	status, key := do(t, ts, "POST", "/iam/v1alpha1/ssh-keys",
 		`{"name":"k","public_key":"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOt7Knja0KTVDt1HPz09qrmbCjB8Zf8icc3p2eU9ubqy feint@test"}`)
-	if status != http.StatusCreated {
-		t.Fatalf("create ssh key: expected 201, got %d (%v)", status, key)
+	// 200, measured on the wire: see sshKeyCreateStatus.
+	if status != http.StatusOK {
+		t.Fatalf("create ssh key: expected 200, got %d (%v)", status, key)
 	}
 	if key["project_id"] == key["organization_id"] {
 		t.Errorf("the key reuses one id for project and organization: %v", key["project_id"])

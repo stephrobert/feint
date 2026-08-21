@@ -4,6 +4,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/stephrobert/feint/internal/core/sshkey"
 	"github.com/stephrobert/feint/internal/trace"
 )
 
@@ -39,6 +40,11 @@ const Placeholder = "REDACTED"
 // false positive costs one unreadable value in a transcript, a false negative
 // costs a credential. KeypairName matches "key" and is redacted; that is the
 // price, paid knowingly.
+//
+// One value is bought back, and by its own format rather than by its name: an
+// OpenSSH public key line, which is the one thing here called "key" that exists
+// to be published. See [publishable] — the list below is untouched, and so is
+// the header allowlist.
 var carriers = []string{
 	"auth",
 	"token",
@@ -155,7 +161,7 @@ func redactValue(v any) any {
 	switch value := v.(type) {
 	case map[string]any:
 		for k, nested := range value {
-			if sensitive(k) && nested != nil {
+			if sensitive(k) && nested != nil && !publishable(nested) {
 				// Whatever the type, except a null. A key named "secret" holding
 				// an object is still a secret, and replacing it wholesale beats
 				// descending into it to redact the leaves it happens to have
@@ -190,6 +196,48 @@ func redactValue(v any) any {
 	default:
 		return v
 	}
+}
+
+// publishable reports whether a value is one whose own format proves it is
+// meant to be published, so that the name-pattern rule above must not eat it.
+//
+// # Why this is not the denylist loosening
+//
+// `harmlessHeaders` is an allowlist because a *name* check answers "does this
+// look like a credential" and never "is this not one" — measured on 2026-08-10,
+// where `X-Auth-Token` became REDACTED while an `X-Consumer` carrying the same
+// value was written in full. Nothing here weakens that: this is not a name that
+// somebody vouched for, it is a *value* that identifies itself. An OpenSSH
+// public key line names its own algorithm out of a closed set of eight and
+// carries base64 material and nothing else; [sshkey.Parse] is the same reader
+// the packs authenticate with, so what is written down is exactly what the
+// emulator would accept. A credential does not arrive in that shape, and a
+// private key does not either: OpenSSH writes those as a multi-line PEM block,
+// which this refuses on its control characters before it looks at anything.
+//
+// It is also confined to bodies. Headers keep their allowlist untouched and a
+// query parameter keeps the denylist, because a public key travels in neither
+// and the query is where SigV4 puts a signature.
+//
+// # What it costs and what it buys
+//
+// The asymmetry `carriers` states — a false positive costs one unreadable
+// value, a false negative costs a credential — held only while an unreadable
+// value was a cosmetic loss. It stopped being one when a transcript became an
+// artefact this repository replays: `public_key` matches "key", reached the
+// corpus as "REDACTED", and `sshkey.Parse` then refused it, so the create
+// answered 400 where the cloud answered 200 and took the read and the delete of
+// that key with it. Five of the eight divergences #352 recorded were that one
+// substitution, and none of them was a defect of the emulator (#355). This is
+// the same family as the null #73 measured: over-inclusion is fine, inventing a
+// measurement is not.
+//
+// TestAPublicKeyUnderACredentialNameIsWrittenDown fails without this, and
+// TestASecretUnderACredentialNameIsStillRedacted fails without the shape check
+// that keeps it narrow.
+func publishable(v any) bool {
+	s, isText := v.(string)
+	return isText && sshkey.Valid(s)
 }
 
 // redactQuery replaces the value of every query parameter whose name carries a

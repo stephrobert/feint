@@ -56,9 +56,44 @@
     {
       "label": "a null under a credential-bearing key is overwritten with REDACTED, which invents a string where the cloud answered nothing and turns the recorded type into a false divergence",
       "file": "internal/proxy/redact.go",
-      "find": "\t\t\tif sensitive(k) && nested != nil {",
-      "replace": "\t\t\tif sensitive(k) && (nested != nil || true) {",
+      "find": "\t\t\tif sensitive(k) && nested != nil && !publishable(nested) {",
+      "replace": "\t\t\tif sensitive(k) && (nested != nil || true) && !publishable(nested) {",
       "test": "TestARedactedNullStaysNull"
+    },
+    {
+      "label": "the recorder goes back to replacing a public key, and the whole IAM SSH-key lifecycle stops being recordable: sshkey.Parse refuses REDACTED, the create answers 400 and takes the read and the delete with it",
+      "file": "internal/proxy/redact.go",
+      "find": "\t\t\tif sensitive(k) && nested != nil && !publishable(nested) {",
+      "replace": "\t\t\tif sensitive(k) && nested != nil && !(publishable(nested) && false) {",
+      "test": "TestAPublicKeyUnderACredentialNameIsWrittenDown"
+    },
+    {
+      "label": "THE SECOND DIRECTION: the exemption stops reading the value's format and becomes a guess about what a name holds, which is the denylist failure this repository has already measured once",
+      "file": "internal/proxy/redact.go",
+      "find": "\treturn isText && sshkey.Valid(s)",
+      "replace": "\treturn isText && (sshkey.Valid(s) || len(s) > 0)",
+      "test": "TestASecretUnderACredentialNameIsStillRedacted"
+    },
+    {
+      "label": "THE SECOND DIRECTION: the exemption reaches the headers, where the rule is an allowlist because a name check cannot say a value is not a credential",
+      "file": "internal/proxy/redact.go",
+      "find": "\t\tif !harmless(name) {",
+      "replace": "\t\tif !harmless(name) && !publishable(m.Headers[name]) {",
+      "test": "TestAPublicKeyOutsideABodyIsStillRedacted"
+    },
+    {
+      "label": "THE SECOND DIRECTION: the exemption reaches the query string, which is where SigV4 puts a presigned signature",
+      "file": "internal/proxy/redact.go",
+      "find": "\t\tif hasValue && sensitive(decoded) {",
+      "replace": "\t\tif value := strings.TrimPrefix(pair, name+\"=\"); hasValue && sensitive(decoded) && !publishable(value) {",
+      "test": "TestAPublicKeyOutsideABodyIsStillRedacted"
+    },
+    {
+      "label": "THE SECOND DIRECTION: a container named for a credential is descended into instead of replaced whole, so the leaves whose own names look harmless are written down",
+      "file": "internal/proxy/redact.go",
+      "find": "\t\t\tif sensitive(k) && nested != nil && !publishable(nested) {",
+      "replace": "\t\t\tif _, container := nested.(map[string]any); container {\n\t\t\t\tvalue[k] = redactValue(nested)\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tif sensitive(k) && nested != nil && !publishable(nested) {",
+      "test": "TestASensitiveContainerIsStillReplacedWholesale"
     }
   ]
 }

@@ -570,7 +570,8 @@ func TestSSHKeysHonourTheDeclaredParameters(t *testing.T) {
 	for _, name := range []string{"banana", "apple"} {
 		body := fmt.Sprintf(`{"name":%q,"public_key":"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBRuRQZ0eGdzCsIYIbHHDJdZTMEcCEbUEyKJlEUDb25B %s@feint"}`, name, name)
 		status, out := do(t, ts, "POST", path, body)
-		if status != http.StatusCreated {
+		// 200, measured on the wire: see sshKeyCreateStatus.
+		if status != http.StatusOK {
 			t.Fatalf("create %s: status %d (%v)", name, status, out)
 		}
 	}
