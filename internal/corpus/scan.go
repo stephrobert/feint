@@ -131,6 +131,13 @@ func newAlphabet(opt Options) *alphabet {
 
 // mayKeep reports whether this position is allowed to hold the value it was
 // read with.
+//
+// It is the list [mint.keepable] applies, read back off the file rather than
+// off the rules that wrote it, plus the two positions only a transcript has
+// (a literal path segment, an HTTP header's own vocabulary). The default route
+// is here for the reason [mint.keepable] states: there is one of it per family
+// and it names nothing of the account, so it is the one value the sanitiser
+// cannot replace and [Audit] must not refuse.
 func (a *alphabet) mayKeep(v value) bool {
 	switch {
 	case v.value == "", v.value == proxy.Placeholder:
@@ -140,6 +147,8 @@ func (a *alphabet) mayKeep(v value) bool {
 	case v.value == "true", v.value == "false":
 		return true
 	case isShortDigits(v.value):
+		return true
+	case isDefaultRoute(v.value):
 		return true
 	case v.kind == kindPath && a.literals[v.value]:
 		return true
@@ -178,6 +187,16 @@ func synthetic(s string) bool {
 	case isCIDR(s):
 		p, _ := netip.ParsePrefix(s)
 		return syntheticV4.Overlaps(p) || syntheticV6.Overlaps(p)
+	case netmaskBits(s) != 0:
+		// The one arm that recognises a family rather than the exact form
+		// [mint] writes, and the reason it may: [maskOf] maps 1..32 onto
+		// itself, so "the mask this package would have minted" is every mask
+		// there is and regenerating it proves nothing. That is admissible here
+		// and nowhere else, because the family is a closed set of thirty-two
+		// values, none of which can carry an identifier, an address or a name.
+		// [Audit] is still the tooth: a mask of the recording that survived is
+		// refused there, since [alphabet.mayKeep] does not list this.
+		return true
 	case isIP(s):
 		addr, _ := netip.ParseAddr(s)
 		return syntheticV4.Contains(addr) || syntheticV6.Contains(addr)

@@ -94,6 +94,62 @@
       "find": "\t\thigh = n << uint(shift-64)",
       "replace": "\t\thigh = n << uint(shift-64) & 0",
       "test": "TestTwoValuesNeverShareAReplacement"
+    },
+    {
+      "label": "the default route stops being keepable, so 0.0.0.0/0 goes back through the CIDR mint that can only hand it back unchanged — a collision with any other /0, and a run the sanitiser refuses outright",
+      "file": "internal/corpus/corpus.go",
+      "find": "\tcase isDefaultRoute(s):\n\t\treturn true",
+      "replace": "\tcase isDefaultRoute(s) && false:\n\t\treturn true",
+      "test": "TestTheDefaultRouteSurvivesSanitisation"
+    },
+    {
+      "label": "THE OTHER HALF: the audit refuses the default route as a value of the recording that survived, so every security-group rule that opens a port to the internet makes `--sanitise` write nothing — measured against a real Exoscale account on 2026-08-21",
+      "file": "internal/corpus/scan.go",
+      "find": "\tcase isDefaultRoute(v.value):\n\t\treturn true",
+      "replace": "\tcase isDefaultRoute(v.value) && false:\n\t\treturn true",
+      "test": "TestTheDefaultRouteSurvivesSanitisation"
+    },
+    {
+      "label": "a dotted netmask goes back through the address mint, so `255.255.255.0` becomes a host address, the create answers 400 `netmask is not a usable IPv4 netmask` where the cloud answered 200, and the whole private-network lifecycle 404s behind it",
+      "file": "internal/corpus/corpus.go",
+      "find": "\tcase netmaskBits(s) != 0:\n\t\treturn maskOf(33 - netmaskBits(s))",
+      "replace": "\tcase netmaskBits(s) != 0 && false:\n\t\treturn maskOf(33 - netmaskBits(s))",
+      "test": "TestANetmaskIsReplacedByANetmask"
+    },
+    {
+      "label": "THE OTHER DIRECTION: the mask maps to itself, so the account's own netmask is published while the file still reads as sanitised",
+      "file": "internal/corpus/corpus.go",
+      "find": "\t\treturn maskOf(33 - netmaskBits(s))",
+      "replace": "\t\treturn maskOf(netmaskBits(s))",
+      "test": "TestANetmaskIsReplacedByANetmask"
+    },
+    {
+      "label": "the alphabet stops recognising a minted netmask, so `feint corpus` refuses the artefact it just wrote",
+      "file": "internal/corpus/scan.go",
+      "find": "\tcase netmaskBits(s) != 0:",
+      "replace": "\tcase netmaskBits(s) != 0 && false:",
+      "test": "TestANetmaskIsReplacedByANetmask"
+    },
+    {
+      "label": "addresses are minted in the order the walk meets them again, so a start/end pair sanitises into a range running backwards and the create answers 400 `end-ip is below start-ip` where the cloud answered 200",
+      "file": "internal/corpus/corpus.go",
+      "find": "\tm.learnAddressOrder(exs)",
+      "replace": "\tif false {\n\t\tm.learnAddressOrder(exs)\n\t}",
+      "test": "TestAnAddressRangeStillRunsForwards"
+    },
+    {
+      "label": "THE OTHER DIRECTION: the order is kept by keeping the address, so the account's own addresses are published while the file still reads as sanitised",
+      "file": "internal/corpus/corpus.go",
+      "find": "\t\treturn offsetV4(uint32(m.rankOf(s, \"ipv4\"))).String() //nolint:gosec // a rank over one recording",
+      "replace": "\t\treturn s + offsetV4(uint32(m.rankOf(s, \"ipv4\"))).String()[:0] //nolint:gosec // a rank over one recording",
+      "test": "TestAnAddressRangeStillRunsForwards"
+    },
+    {
+      "label": "THE FLOOR UNDER IT: a synthetic address is no longer confined to the space the alphabet admits, so a space with no room left publishes a value outside it instead of repeating one the sanitiser refuses by name",
+      "file": "internal/corpus/corpus.go",
+      "find": "\tn &= ^uint32(0) >> uint(syntheticV4.Bits()) //nolint:gosec // a prefix length of a v4 space, 0..32",
+      "replace": "\tn &= ^uint32(0) >> uint(syntheticV4.Bits()) | ^uint32(0) //nolint:gosec // a prefix length of a v4 space, 0..32",
+      "test": "TestASpaceWithNoRoomLeftIsRefusedRatherThanOverrun"
     }
   ]
 }

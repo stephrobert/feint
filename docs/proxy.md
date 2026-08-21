@@ -479,17 +479,41 @@ half is cheap and every Go client accepts a locally minted CA through
   client asks for `api.eu-west-2.outscale.com` and the proxy re-originates to
   that same host, with the `Host` header it received.
 
-**What that means for a signed client is reasoning, not a measurement.** The
+**Half of that is now measured, and the half that is not is named.** The
 signature covers `Host`; through a tunnel the client signs the cloud's own name,
 and the header reaches the cloud unaltered, which
 `TestASecretHeaderIsStillRedactedThroughCONNECT` asserts against a local server.
-Whether a real
-`oapi-cli` against a real Outscale account then answers 200 has **not** been
-measured here, and this project takes no real-account measurement in CI. If you
-have such an account, that is the run worth making, and this page will say what
-it found rather than what it expects.
 
-Until then, a real-cloud recording is made with a client whose signed host can be
+On 2026-08-21 (#354) `oapi-cli` 0.13.0 was driven through `--forward
+api.eu-west-2.outscale.com` against the **real** Outscale endpoint, with the
+public placeholder credentials of
+`tools/conformance/outscale/fake-credentials.env`:
+
+| call | through the tunnel |
+|---|---|
+| `ReadRegions` | **200**, the real region list |
+| `ReadVmTypes`, `ReadPublicIpRanges`, `ReadPublicCatalog`, `ReadFlexibleGpuCatalog` | **200** |
+| `ReadSubregions`, `ReadCatalog`, `ReadCatalogs`, `ReadQuotas`, `ReadNets` | **400 `InvalidParameterValue` 4120**, the cloud's own answer to an unknown access key |
+
+So the transport is not in doubt: the request reaches
+`api.eu-west-2.outscale.com` with its own `Host`, and what comes back is the
+cloud's verdict rather than a transport failure. **What a *valid* credential then
+answers on an authenticated call is still unmeasured**, because 4120 is the same
+code for an unknown key and for a wrong region and cannot distinguish "the
+signature was checked and the key does not exist" from "the signature did not
+verify". That is the run left to make, and it needs an account whose owner has
+said which profile to use — `corpus/README.md` carries the rule.
+
+**One thing does change in the client, and it is the one `--forward` promises
+not to.** `oapi-cli` honours neither `SSL_CERT_FILE` nor `CURL_CA_BUNDLE`: the
+tunnel's certificate is refused with `remote error: tls: bad certificate`, the
+proxy logs *"the client did not complete the tunnel handshake"*, and the client
+retries into a backoff that reads exactly like an unreachable endpoint.
+`--insecure` is what gets past it. The hop it relaxes is loopback and the proxy
+still verifies its own hop to the cloud, but it is a flag on the tool being
+measured, and `scw` and `exo` need nothing of the sort.
+
+A real-cloud recording can also be made with a client whose signed host can be
 set — which is how the transcripts behind this page's examples were produced.
 
 Until 2026-08-20 this paragraph said the opposite: *"which is #76 and

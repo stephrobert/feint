@@ -404,3 +404,251 @@ func mustIndex(t *testing.T, field string) int {
 	}
 	return n
 }
+
+// The prefix that selects every address survives, and the audit accepts it.
+//
+// Measured before it was written: recording `exo compute security-group rule
+// add --network 0.0.0.0/0` against a real Exoscale account on 2026-08-21 made
+// `--sanitise` refuse the whole run at eleven positions, every one of them this
+// value. [mint.cidr] cannot replace it — masking a zero-length prefix yields
+// the same prefix — so without the sixth reason in [mint.keepable] the most
+// ordinary rule a cloud answers is unrecordable, and the only way past is to
+// trim the corpus until it passes.
+//
+// The second half is what keeps the reason narrow: a prefix whose address half
+// still carries something of the account is replaced like any other.
+func TestTheDefaultRouteSurvivesSanitisation(t *testing.T) {
+	exs := []trace.Exchange{{
+		Method: "POST", Path: "/thing/v1/zones/fr-par-1/things", Status: 200,
+		Req: &trace.Message{Body: map[string]any{"network": "0.0.0.0/0", "v6": "::/0"}},
+		Res: &trace.Message{Body: map[string]any{
+			"network": "0.0.0.0/0", "v6": "::/0", "unmasked": "10.0.0.0/0", "subnet": "172.16.32.0/22",
+		}},
+	}}
+	out, _ := sanitise(t, exs)
+	res, _ := out[0].Res.Body.(map[string]any)
+	req, _ := out[0].Req.Body.(map[string]any)
+
+	for where, body := range map[string]map[string]any{"req": req, "res": res} {
+		if body["network"] != "0.0.0.0/0" {
+			t.Errorf("%s: the default route became %v; a replayed rule would then open a different network",
+				where, body["network"])
+		}
+		if body["v6"] != "::/0" {
+			t.Errorf("%s: the IPv6 default route became %v", where, body["v6"])
+		}
+	}
+	if res["unmasked"] == "10.0.0.0/0" {
+		t.Error("a /0 whose address half is the account's was kept verbatim")
+	}
+	if res["subnet"] == "172.16.32.0/22" {
+		t.Error("an ordinary CIDR was kept verbatim")
+	}
+
+	if leaks := Audit(exs, out, options(t)); len(leaks) != 0 {
+		t.Fatalf("the audit refused a transcript whose only surviving value is the default route: %v", leaks)
+	}
+	if leaks := Scan(out, options(t)); len(leaks) != 0 {
+		t.Fatalf("the alphabet refused the default route: %v", leaks)
+	}
+}
+
+// A dotted netmask is replaced by a dotted netmask, and never by itself.
+//
+// Measured before it was written. Replaying the real Exoscale recording of
+// 2026-08-21, `netmask: "255.255.255.0"` had become an address of the synthetic
+// space, the emulator answered `400 netmask is not a usable IPv4 netmask` where
+// the cloud answered 200, and the get, the update, the delete and the three
+// operation polls that followed all answered 404 for that one reason: around
+// twenty findings, not one of them a defect of the emulator.
+//
+// Both halves matter and neither implies the other. Keeping the shape is what
+// stops the instrument manufacturing a divergence; keeping the *value* out is
+// what the whole package is for, and "255.255.255.0" is still a value the
+// account sent.
+func TestANetmaskIsReplacedByANetmask(t *testing.T) {
+	exs := []trace.Exchange{{
+		Method: "POST", Path: "/thing/v1/zones/fr-par-1/things", Status: 200,
+		Req: &trace.Message{Body: map[string]any{"netmask": "255.255.255.0"}},
+		Res: &trace.Message{Body: map[string]any{
+			"netmask": "255.255.255.0", "wide": "255.255.0.0", "host": "10.90.1.20", "any": "0.0.0.0",
+		}},
+	}}
+	out, _ := sanitise(t, exs)
+	res, _ := out[0].Res.Body.(map[string]any)
+	req, _ := out[0].Req.Body.(map[string]any)
+
+	for _, got := range []any{req["netmask"], res["netmask"], res["wide"]} {
+		mask, _ := got.(string)
+		if netmaskBits(mask) == 0 {
+			t.Errorf("a netmask became %q, which is not one: the create that carries it is refused 400 and every read after it 404s", mask)
+		}
+	}
+	if req["netmask"] == "255.255.255.0" || res["netmask"] == "255.255.255.0" {
+		t.Error("the account's own netmask was written down verbatim")
+	}
+	if req["netmask"] != res["netmask"] {
+		t.Errorf("one netmask got two replacements, %v and %v", req["netmask"], res["netmask"])
+	}
+	if res["netmask"] == res["wide"] {
+		t.Errorf("two netmasks share a replacement (%v): the transcript says two networks were one", res["netmask"])
+	}
+	// A host address is not a mask, and "0.0.0.0" is not one either: both go
+	// through the address mint, into the synthetic space.
+	for _, name := range []string{"host", "any"} {
+		addr, err := netip.ParseAddr(res[name].(string))
+		if err != nil || !syntheticV4.Contains(addr) {
+			t.Errorf("%s became %v, which is not an address of the synthetic space", name, res[name])
+		}
+	}
+
+	if leaks := Audit(exs, out, options(t)); len(leaks) != 0 {
+		t.Fatalf("the audit refused a clean sanitisation: %v", leaks)
+	}
+	if leaks := Scan(out, options(t)); len(leaks) != 0 {
+		t.Fatalf("the alphabet refused a minted netmask: %v", leaks)
+	}
+}
+
+// Two addresses that bound a range still bound one after sanitisation.
+//
+// Measured before it was written. Replaying the real Exoscale recording of
+// 2026-08-21, `start-ip` and `end-ip` were minted in the order the walk met
+// them — "end-ip" sorts before "start-ip" — so the artefact carried a range
+// running backwards and the emulator answered `400 end-ip is below start-ip`
+// where the cloud answered 200. Everything the create was meant to make then
+// answered 404: around twenty findings, not one a defect of the emulator.
+//
+// The rule names no field: it is the addresses that are sorted, so "start"/
+// "end", "first"/"last" and whatever a fourth provider calls them are one
+// problem with one answer.
+func TestAnAddressRangeStillRunsForwards(t *testing.T) {
+	exs := []trace.Exchange{{
+		Method: "POST", Path: "/thing/v1/zones/fr-par-1/things", Status: 200,
+		// The field names are deliberately in an order that sorts the wrong way.
+		Req: &trace.Message{Body: map[string]any{
+			"end-ip": "10.90.1.200", "start-ip": "10.90.1.20", "gateway": "10.90.1.1",
+		}},
+		Res: &trace.Message{Body: map[string]any{"v6end": "2001:41d0::20", "v6start": "2001:41d0::2"}},
+	}}
+	out, _ := sanitise(t, exs)
+	req, _ := out[0].Req.Body.(map[string]any)
+	res, _ := out[0].Res.Body.(map[string]any)
+
+	order := func(t *testing.T, lower, upper any, what string) {
+		t.Helper()
+		lo, err := netip.ParseAddr(lower.(string))
+		if err != nil {
+			t.Fatalf("%s: %v is not an address", what, lower)
+		}
+		hi, err := netip.ParseAddr(upper.(string))
+		if err != nil {
+			t.Fatalf("%s: %v is not an address", what, upper)
+		}
+		if !lo.Less(hi) {
+			t.Errorf("%s: the range now runs %v..%v, backwards; the create that carries it is refused 400 and everything it would have made 404s",
+				what, lo, hi)
+		}
+	}
+	order(t, req["gateway"], req["start-ip"], "gateway below start")
+	order(t, req["start-ip"], req["end-ip"], "start below end")
+	order(t, res["v6start"], res["v6end"], "IPv6 start below end")
+
+	for _, gone := range []string{"10.90.1.200", "10.90.1.20", "10.90.1.1", "2001:41d0::20", "2001:41d0::2"} {
+		if raw, _ := json.Marshal(out); bytes.Contains(raw, []byte(gone)) {
+			t.Errorf("the ordering was kept by keeping the value itself: %q survived", gone)
+		}
+	}
+	if leaks := Audit(exs, out, options(t)); len(leaks) != 0 {
+		t.Fatalf("the audit refused a clean sanitisation: %v", leaks)
+	}
+}
+
+// Every synthetic address and every synthetic block stays inside 198.18.0.0/15.
+//
+// Measured before it was written. Outscale's `ReadPublicIpRanges` publishes the
+// provider's whole public address space — 90 blocks on 2026-08-21, three /20s
+// among 79 /24s — and one counter shared by every prefix length shifted a
+// two-digit counter twelve bits and landed in 198.20.0.0. The alphabet refused
+// the artefact, which is the right outcome, but it named the wrong thing: the
+// message said "not a value a sanitised transcript may carry" where the fault
+// was arithmetic four functions away.
+//
+// Two halves, and the second is what makes the first true at this size: the
+// counter is per prefix length, and [offsetV4] confines whatever it is given.
+// An exhausted space then repeats a replacement, and [Sanitise] refuses that by
+// name — a corpus in which two blocks of an account read as one is the failure
+// #270 found by hand, and it must never be manufactured here.
+func TestASyntheticAddressStaysInTheSyntheticSpace(t *testing.T) {
+	body := map[string]any{}
+	// Three /20s and eighty /24s, the shape ReadPublicIpRanges answers.
+	var blocks []any
+	for i := 0; i < 3; i++ {
+		blocks = append(blocks, fmt.Sprintf("10.%d.0.0/20", i+1))
+	}
+	for i := 0; i < 80; i++ {
+		blocks = append(blocks, fmt.Sprintf("172.16.%d.0/24", i))
+	}
+	body["PublicIps"] = blocks
+	exs := []trace.Exchange{{
+		Method: "POST", Path: "/thing/v1/zones/fr-par-1/things", Status: 200,
+		Res: &trace.Message{Body: body},
+	}}
+	out, _ := sanitise(t, exs)
+
+	got, _ := out[0].Res.Body.(map[string]any)["PublicIps"].([]any)
+	if len(got) != len(blocks) {
+		t.Fatalf("%d block(s) came back for %d", len(got), len(blocks))
+	}
+	seen := map[string]bool{}
+	for _, raw := range got {
+		s, _ := raw.(string)
+		p, err := netip.ParsePrefix(s)
+		if err != nil {
+			t.Fatalf("%q is not a prefix", s)
+		}
+		if !syntheticV4.Overlaps(p) || !syntheticV4.Contains(p.Addr()) {
+			t.Errorf("%q is outside %s, which is the only IPv4 space a sanitised transcript may carry", s, syntheticV4)
+		}
+		if seen[s] {
+			t.Errorf("%q was handed out twice: two blocks of the recording read as one", s)
+		}
+		seen[s] = true
+	}
+	if leaks := Scan(out, options(t)); len(leaks) != 0 {
+		t.Fatalf("the alphabet refused the artefact: %v", leaks)
+	}
+}
+
+// A synthetic space with no room left refuses the run; it never writes outside
+// itself.
+//
+// 198.18.0.0/15 holds 512 /24s and no more, so a recording carrying more of
+// them has no shape-preserving sanitisation at all. The two ways that can end
+// are not equivalent: an address minted past the end of the block is a value
+// [Scan] refuses with "not a value a sanitised transcript may carry", which
+// names where it landed and not what happened, while a wrap repeats a
+// replacement and [Sanitise] refuses that by name — and a corpus in which two
+// blocks of an account read as one is the finding #270 made by hand, which this
+// package must never manufacture.
+//
+// TestASyntheticAddressStaysInTheSyntheticSpace holds the ordinary size;
+// this holds the edge, and both need [offsetV4]'s confinement.
+func TestASpaceWithNoRoomLeftIsRefusedRatherThanOverrun(t *testing.T) {
+	var blocks []any
+	for i := 0; i < 600; i++ {
+		blocks = append(blocks, fmt.Sprintf("172.%d.%d.0/24", 16+i/256, i%256))
+	}
+	exs := []trace.Exchange{{
+		Method: "POST", Path: "/thing/v1/zones/fr-par-1/things", Status: 200,
+		Res: &trace.Message{Body: map[string]any{"PublicIps": blocks}},
+	}}
+	out, _, err := Sanitise(exs, options(t))
+	if err == nil {
+		t.Fatalf("600 /24s were sanitised into a space that holds 512: the artefact carries %d block(s) and cannot be right",
+			len(out[0].Res.Body.(map[string]any)["PublicIps"].([]any)))
+	}
+	if !strings.Contains(err.Error(), "twice") {
+		t.Errorf("the refusal does not say a replacement was handed out twice: %v", err)
+	}
+}

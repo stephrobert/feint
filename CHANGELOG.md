@@ -369,6 +369,59 @@ what this project is judged on: **a response shape a client can observe**, and
   The report counts value checks and order checks separately, so a declaration
   that evaluated nothing cannot read as one that held.
 
+- **Two more corpora of a real cloud: Exoscale from a named account, Outscale
+  from no account at all** (#354, after #351/#352/#353). `corpus/` now holds
+  four files and 264 exchanges, and `mise run corpus:check` replays every one of
+  them offline, per file, against a fresh emulator.
+
+  `corpus/exoscale/exo-cli.jsonl` — 203 exchanges, `exo` 1.95.1 (egoscale
+  v3.1.36) against a real Exoscale account in `ch-gva-2` on 2026-08-21, through
+  `feint proxy --forward '*.exoscale.com'`. It carries the reads every stack
+  makes before it creates anything (zones, instance types, templates under an
+  explicit `visibility`, ssh keys, security groups, anti-affinity groups,
+  private networks, instances, pools, elastic IPs, block storage, load
+  balancers, quotas), two deliberate 404s, and the whole free lifecycle:
+  register/get/list/delete an SSH key, create two security groups with a rule
+  each — one on `0.0.0.0/0`, one naming the other group — create an
+  anti-affinity group, and create/read/update/read/delete a private network.
+  **Nothing billed was created**: an instance, an elastic IP, a block-storage
+  volume, an NLB and an SKS cluster are all charged and none was made. Every
+  delete was proved by a read answering 404 or an empty list, and the account
+  ends as it began, one `default` security group and nothing else.
+
+  `corpus/outscale/oapi-cli-catalogue.jsonl` — 5 exchanges, `oapi-cli` 0.13.0
+  against `api.eu-west-2.outscale.com`, **driven with the public placeholder
+  credentials of `tools/conformance/outscale/fake-credentials.env`**. Measured
+  on 2026-08-21: five operations answer 200 to an unknown access key —
+  `ReadRegions`, `ReadVmTypes`, `ReadPublicIpRanges`, `ReadPublicCatalog`,
+  `ReadFlexibleGpuCatalog` — where every authenticated one answers 400
+  `InvalidParameterValue` 4120. So a provider's own catalogue is recordable from
+  any station with no account to put at risk and no inventory in the answers,
+  and this is the first time this repository has compared its Outscale pack with
+  the **cloud** rather than with a document. Three of the five replay with no
+  divergence; the two catalogue reads nothing serves are #74's queue.
+
+  **What the Exoscale recording found: three fields the cloud answers and this
+  emulator omits**, each with an exemption in `corpus/accepted.json` naming the
+  issue that deletes it. `zones[].id` on every zone list (#370, 51 findings, the
+  most-answered operation of the whole file); `visibility` on a security group,
+  on the list and on the get alike (#371, 46); and `rules[].security-group.name`
+  where a rule names another group (#371, 8). All three have one root worth
+  stating: **`contracts/exoscale.json` does not declare them either**, so the
+  shapes gate, the probe and the pack all agree with each other because they
+  read the same document — and the document is behind the cloud. Only a
+  recording of a wire could disagree. It is the family of #352's
+  `has_s3_integration`, one provider further out.
+
+  **The account rules of #352 held without exception**, and #354 adds one that
+  is not about money: *the profile is named explicitly on every command, and a
+  region whose point is a compliance boundary is never a target*. The Exoscale
+  account is named with `exo -A <account>` on all 60-odd calls of the recording
+  script, and which account that was is in the pull request rather than here;
+  the Outscale run names its single fake profile with `--profile`, so there is
+  no default to fall back to and no stored profile of the station can be
+  presented. `corpus/README.md` carries both procedures.
+
 ### Changed
 
 - **CLI surface version 8.** Every entry above is an addition — the verb
@@ -481,6 +534,62 @@ what this project is judged on: **a response shape a client can observe**, and
   identifiers.
 
 ### Fixed
+
+- **Four defects of the sanitiser, all found by recording a second provider, and
+  all of them the kind that manufactures a divergence** (#354). Between them
+  they hid the entire Exoscale private-network lifecycle behind about twenty
+  findings, none of which was a defect of the emulator. Each is falsified in
+  `tools/falsify/specs/sanitised-corpus.json`.
+
+  **`0.0.0.0/0` could not be written down at all.** Masking a zero-length prefix
+  yields the same prefix, so the mint handed the value back unchanged, the
+  cross-reference against the recording found the same string on both sides, and
+  `--sanitise` refused the whole run and wrote nothing — on a recording whose
+  only sin was a security-group rule that opens a port to the internet. There is
+  one such prefix per family and it selects every address there is, so it now
+  survives verbatim: no replacement exists that is both of the same shape and a
+  different value. `TestTheDefaultRouteSurvivesSanitisation`.
+
+  **A dotted netmask went through the address mint.** `255.255.255.0` came out a
+  host address of the synthetic space, `exoscale/v2.create-private-network`
+  answered `400 netmask is not a usable IPv4 netmask` where the cloud answered
+  200, and the get, the update, the delete and three operation polls behind it
+  answered 404 for that one reason. A netmask is now replaced by a netmask,
+  through a map of 1..32 onto itself with no fixed point, so the account's own
+  mask never survives and the value written is always a mask.
+  `TestANetmaskIsReplacedByANetmask`.
+
+  **An address range came out running backwards.** `start-ip` and `end-ip` were
+  minted in the order the walk met them, which is alphabetical, so the artefact
+  carried `end` below `start` and the same create answered `400 end-ip is below
+  start-ip`. Addresses are now ranked by sorting the recording's own before
+  anything is written, so the synthetic ones sort the way the originals did. The
+  rule names no field, because `start`/`end`, `first`/`last` and whatever a
+  fourth provider calls them are one problem.
+  `TestAnAddressRangeStillRunsForwards`.
+
+  **A synthetic address could be minted outside the synthetic space.** Outscale's
+  `ReadPublicIpRanges` publishes the provider's whole public address space — 90
+  blocks on 2026-08-21, three /20s among 79 /24s — and the counter that reached
+  the /20s shifted twelve bits and landed in 198.20.0.0, outside the only IPv4
+  block a sanitised transcript may carry. The alphabet refused the artefact,
+  which was the right outcome and the wrong message: the fault was arithmetic
+  four functions away. `offsetV4` now confines whatever it is given, so a space
+  with no room left repeats a replacement and `Sanitise` refuses *that* by name
+  — a corpus in which two blocks of an account read as one is the finding #270
+  made by hand, and it must never be manufactured here.
+  `TestASyntheticAddressStaysInTheSyntheticSpace` and
+  `TestASpaceWithNoRoomLeftIsRefusedRatherThanOverrun`.
+
+- **The scan of the committed corpus read every file against Scaleway's
+  contract** (#354). The alphabet a sanitised transcript may carry includes the
+  values a provider's own description enumerates, and Exoscale's zone names and
+  instance families are in Exoscale's document alone: read against Scaleway's,
+  the first committed Exoscale corpus reported hundreds of leaks that were
+  nothing of the sort. The contract is now the one named by the file's own
+  directory. It was true while Scaleway was the only corpus and became a false
+  verdict the day a second one landed, which is the shape of every gate that
+  stops measuring in silence.
 
 - **The eight divergences the first real Scaleway corpus recorded are gone, and
   `corpus/accepted.json` carries an empty acceptance list** (#355). The gate went

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -87,16 +88,40 @@ func TestASanitisationThatKeptAValueWritesNothing(t *testing.T) {
 // an older version of the sanitiser, faces the same rule.
 func TestTheCommittedCorpusCarriesOnlyWhatASanitisedTranscriptMay(t *testing.T) {
 	files := committedCorpus(t)
-	opt := corpus.Options{Doc: mustContract(t), Vocabulary: vocabularyOfPacks(t)}
+	vocabulary := vocabularyOfPacks(t)
 	for _, file := range files {
 		exs := mustLoad(t, file)
 		if len(exs) == 0 {
 			t.Errorf("%s carries no exchange: a corpus file that measures nothing", file)
 		}
+		opt := corpus.Options{Doc: contractOfCorpus(t, file), Vocabulary: vocabulary}
 		for _, leak := range corpus.Scan(exs, opt) {
 			t.Errorf("%s: %s", filepath.Base(file), leak)
 		}
 	}
+}
+
+// contractOfCorpus loads the document of the provider whose directory the file
+// sits in.
+//
+// It used to be Scaleway's for every file, which was true while Scaleway was
+// the only corpus and became a false verdict the day a second one landed: the
+// alphabet a sanitised transcript may carry includes the values the provider's
+// own description enumerates, and Exoscale's zone names and instance families
+// are in Exoscale's document alone. Read against Scaleway's, the first
+// committed Exoscale corpus reported hundreds of leaks that were nothing of the
+// sort — the scan measuring its own mis-wiring rather than the file.
+//
+// TestTheCommittedCorpusCarriesOnlyWhatASanitisedTranscriptMay fails without
+// this, on corpus/exoscale/exo-cli.jsonl.
+func contractOfCorpus(t *testing.T, file string) *contract.Doc {
+	t.Helper()
+	provider := filepath.Base(filepath.Dir(file))
+	doc, err := contract.Load(filepath.Join("..", "..", "contracts", provider+".json"))
+	if err != nil {
+		t.Fatalf("%s sits in a directory named for no contract this repository holds: %v", file, err)
+	}
+	return doc
 }
 
 // identifierShapes are the spellings that must not appear in a committed
@@ -137,12 +162,48 @@ func TestNoCommittedCorpusCarriesAnIdentifier(t *testing.T) {
 				switch {
 				case synthetic.MatchString(found), inSyntheticV4.MatchString(found):
 					continue
+				// Two dotted quads that are not addresses of anybody's account,
+				// and the reason is arithmetic rather than judgement: both come
+				// from closed sets too small to hold one. "0.0.0.0" is the
+				// address half of the default route, the one prefix the
+				// sanitiser cannot replace because masking a zero-length prefix
+				// yields the same prefix — and every security-group rule that
+				// opens a port to the internet carries it. A contiguous netmask
+				// is one of thirty-two values, and the sanitiser maps that set
+				// onto itself so that a create carrying one is not answered 400.
+				// Both are checked here by their own arithmetic rather than by
+				// calling internal/corpus, because this test disbelieves those
+				// rules on purpose.
+				case found == "0.0.0.0", isContiguousNetmask(found):
+					continue
 				}
 				t.Errorf("%s carries %s: %q — it belongs to whoever recorded it",
 					filepath.Base(file), shape.name, found)
 			}
 		}
 	}
+}
+
+// isContiguousNetmask reports whether a dotted quad is a run of ones followed
+// by a run of zeros, with at least one of each: "255.255.255.0" yes,
+// "255.0.255.0" no, "0.0.0.0" and "255.255.255.255" no.
+//
+// Written out of netip rather than borrowed from internal/corpus, because this
+// test's whole value is that it knows nothing about the rules that produced the
+// file it reads.
+func isContiguousNetmask(s string) bool {
+	addr, err := netip.ParseAddr(s)
+	if err != nil || !addr.Is4() {
+		return false
+	}
+	four := addr.As4()
+	v := uint32(four[0])<<24 | uint32(four[1])<<16 | uint32(four[2])<<8 | uint32(four[3])
+	if v == 0 || v == ^uint32(0) {
+		return false
+	}
+	// A mask is exactly a value whose complement plus one is a power of two.
+	inverted := ^v
+	return inverted&(inverted+1) == 0
 }
 
 // committedCorpus lists the corpus files, and fails when there are none: a scan
@@ -186,15 +247,6 @@ func sanitisedRecording(t *testing.T) string {
 		t.Fatalf("sanitising exited %d:\n%s\n%s", code, stdout.String(), stderr.String())
 	}
 	return out
-}
-
-func mustContract(t *testing.T) *contract.Doc {
-	t.Helper()
-	doc, err := contract.Load(filepath.Join("..", "..", "contracts", "scaleway.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return doc
 }
 
 func vocabularyOfPacks(t *testing.T) []string {

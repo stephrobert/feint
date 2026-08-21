@@ -80,11 +80,34 @@ in twelve months has not silently outrun the file.
 |---|---|---|
 | `scaleway/terraform.jsonl` | terraform-provider-scaleway 2.81.0 | a VPC and a private network: create, read, update, destroy, plus the refresh reads of two `plan`s |
 | `scaleway/scw-cli.jsonl` | scw 2.56.3 | the reads every stack makes before it creates anything (server types, marketplace, servers, IPs, volumes, security groups, images, snapshots, placement groups, VPCs, private networks, IPAM, SSH keys), the same free lifecycle by hand, an IAM SSH key, and two deliberate 404s |
+| `exoscale/exo-cli.jsonl` | exo 1.95.1 (egoscale v3.1.36) | the reads every stack makes first (zones, instance types, templates under an explicit `visibility`, ssh keys, security groups, anti-affinity groups, private networks, instances, pools, elastic IPs, block storage, load balancers, quotas), two deliberate 404s, and the free lifecycle: an SSH key, two security groups with a rule each (one on `0.0.0.0/0`, one naming the other group), an anti-affinity group, and a private network created, read, updated, read again and deleted |
+| `outscale/oapi-cli-catalogue.jsonl` | oapi-cli 0.13.0 | the five operations a real Outscale endpoint answers **with no account at all**: `ReadRegions`, `ReadVmTypes`, `ReadPublicIpRanges`, `ReadPublicCatalog`, `ReadFlexibleGpuCatalog` |
 
-Both were recorded on 2026-08-21 against a real Scaleway account in `fr-par`,
-through `feint proxy`. Nothing billed was created: a VPC, a private network and
-an IAM SSH key are free, and each was destroyed with the destruction proved by a
-read that answered 404.
+The two Scaleway files were recorded on 2026-08-21 against a real Scaleway
+account in `fr-par`, through `feint proxy`. Nothing billed was created: a VPC, a
+private network and an IAM SSH key are free, and each was destroyed with the
+destruction proved by a read that answered 404.
+
+`exoscale/exo-cli.jsonl` was recorded the same day against a real Exoscale
+account in `ch-gva-2`, under the same rules: an SSH key, a security group, an
+anti-affinity group and a private network are free, while an instance, an
+elastic IP, a block-storage volume, an NLB and an SKS cluster are billed and
+none was created. Every delete is proved inside the recording by a read
+answering 404 or a list answering empty, and the account ends as it began.
+
+**`outscale/oapi-cli-catalogue.jsonl` was recorded against no account**, and
+that is a measurement rather than a shortcut. Driven with the public placeholder
+pair of `tools/conformance/outscale/fake-credentials.env`, in a config file
+holding exactly one profile named on the command line, five operations answer
+200 to an unknown access key and every authenticated one answers 400
+`InvalidParameterValue` 4120 (measured 2026-08-21: `ReadSubregions`,
+`ReadCatalog`, `ReadCatalogs`, `ReadQuotas` and `ReadNets` all refused). A
+provider's own catalogue is therefore recordable from any station, with no
+account to put at risk and no inventory in the answers. **The account half of
+Outscale is still to do** (#354): several profiles on the maintainer's station
+name third-party organisations and two sit in the sovereign
+`cloudgouv-eu-west-1`, so the profile to record against is named by a human
+before anything is driven, never guessed.
 
 ## Recording another one
 
@@ -156,19 +179,117 @@ carry.
 cannot relay a SigV4-signed request to a real Outscale account (the signature
 covers `Host`), and Exoscale hands a client an address that is not the proxy
 mid-session; `docs/proxy.md` measures both and says which flag answers which.
-Several Outscale profiles on the maintainer's station also name third-party
-organisations, two of them in a sovereign region. That is #354, with its own
-guard rails.
+`--forward` answers both at once, and the two recipes below are what #354
+measured.
+
+### Exoscale
+
+```bash
+feint proxy --provider exoscale --forward '*.exoscale.com' \
+  --addr 127.0.0.1:4611 --record raw.jsonl
+# in another shell, with the CA path the command printed:
+export HTTPS_PROXY=http://127.0.0.1:4611 SSL_CERT_FILE=/tmp/feint-intercept-ca-*.pem
+exo -A <account> compute security-group create feint-corpus-web …
+```
+
+`exo` is a Go client that installs no `Transport`, so `HTTPS_PROXY` and
+`SSL_CERT_FILE` are all it takes and nothing about the client changes. Name the
+account with `-A` on **every** call: a client that picks when nobody chose will
+eventually pick the wrong one. The handoff `--intercept` exists for does not
+bite here, because a forward proxy is reached by the cloud's own name: a run
+that lists across zones is reported at exit as *"51 response(s) handed the
+client an address that is not this proxy"*, and every one of those addresses was
+tunnelled too.
+
+### Outscale
+
+```bash
+feint proxy --provider outscale --forward api.<region>.outscale.com \
+  --addr 127.0.0.1:4611 --record raw.jsonl
+export HTTPS_PROXY=http://127.0.0.1:4611
+oapi-cli --config <one-profile.json> --profile=<name> --insecure ReadVmTypes
+```
+
+Two things are measured and neither is obvious.
+
+- **`oapi-cli` honours neither `SSL_CERT_FILE` nor `CURL_CA_BUNDLE`**, so the
+  tunnel's certificate is refused with `remote error: tls: bad certificate` and
+  the client retries into a backoff that reads like an unreachable endpoint.
+  `--insecure` is what gets past it, and the hop it relaxes is loopback: the
+  proxy still verifies its own hop to the cloud. This is the one client of the
+  three for which `--forward`'s "nothing changes in the client" is not true.
+- **The signed host is the cloud's own**, because the client asks for
+  `api.<region>.outscale.com` and the proxy re-originates to that same host with
+  the `Host` header it received. Measured on 2026-08-21 with the placeholder
+  credentials: `ReadRegions` answered **200** through the tunnel and every
+  authenticated call answered the cloud's own 4120 rather than a transport
+  failure. What a *valid* credential then answers is still unmeasured, and
+  `docs/proxy.md` says so rather than what it expects.
+
+Name the profile with `--profile` and hand `--config` a file holding that one
+profile: there is then no `default` to fall back to, and no stored profile of
+the station can be presented by a code path nobody read. **`cloudgouv-*` is
+never a recording target.**
 
 ## What the runs found
 
+### Exoscale and Outscale (#354)
+
+`exoscale/exo-cli.jsonl` replays 132 of its 203 exchanges clean and reports
+**three fields the cloud answers and this emulator omits**, each with an
+exemption in `corpus/accepted.json` naming the issue that deletes it:
+
+| operation | field | findings | issue |
+|---|---|---|---|
+| `exoscale/v2.list-zones` | `zones[].id` | 51 | [#370](https://github.com/stephrobert/feint/issues/370) |
+| `exoscale/v2.list-security-groups` | `security-groups[].visibility` | 44 | [#371](https://github.com/stephrobert/feint/issues/371) |
+| `exoscale/v2.get-security-group` | `visibility` | 2 | [#371](https://github.com/stephrobert/feint/issues/371) |
+| `exoscale/v2.list-security-groups` | `security-groups[].rules[].security-group.name` | 8 | [#371](https://github.com/stephrobert/feint/issues/371) |
+
+**All three have one root, and it is the argument for this whole directory.**
+`contracts/exoscale.json` does not declare any of them either: it is generated
+from Exoscale's own published description, and the cloud answers fields that
+description does not carry. So the shapes gate, the probe and the pack agree
+with one another because they read the same document, and no control that reads
+a document could ever have disagreed. It is the family of #352's
+`has_s3_integration`, one provider further out.
+
+`outscale/oapi-cli-catalogue.jsonl` replays **three matched, zero divergent, two
+unserved**: `ReadRegions`, `ReadVmTypes` and `ReadPublicIpRanges` answer the
+shape the cloud answers, and `ReadPublicCatalog` and `ReadFlexibleGpuCatalog`
+are #74's queue. Small, and it is the first comparison this repository has made
+between its Outscale pack and the cloud rather than a document.
+
+**Four defects of the instrument had to go first, again**, and between them they
+hid the entire private-network lifecycle behind about twenty findings, none of
+them the emulator's. `0.0.0.0/0` had no replacement of its own shape, so the
+audit found it on both sides and refused to write anything; a dotted netmask
+went through the address mint and came out a host address, so the create
+answered `400 netmask is not a usable IPv4 netmask`; `start-ip` and `end-ip`
+were minted in the order the walk met them, so the range ran backwards and the
+same create answered `400 end-ip is below start-ip`; and a counter shifted by a
+/20's twelve bits walked out of `198.18.0.0/15` on Outscale's 90 public blocks.
+Each is falsified in `tools/falsify/specs/sanitised-corpus.json`, and the
+CHANGELOG carries the whole of it.
+
+**One limit is worth writing down rather than rediscovering.** The synthetic
+IPv4 space is one /15: it holds 512 /24s and 32 /20s, and a recording carrying
+more blocks of one length than that has no shape-preserving sanitisation at all.
+It is refused, by name, as a replacement handed out twice
+(`TestASpaceWithNoRoomLeftIsRefusedRatherThanOverrun`) — never written past the
+end of the block. `ReadPublicIpRanges` publishes 90 blocks today and fits;
+another provider's whole address space might not.
+
+### Scaleway (#352)
+
 Both files replay against the emulator of 2026-08-21 with **no divergence and no
 exemption**: `terraform.jsonl` matches on all 16 exchanges, `scw-cli.jsonl` on 42
-of 58 with 16 unserved. `corpus/accepted.json` carries an empty `accepted` list,
-and that is a result rather than a default — the gate went in carrying the eight
-divergences the first run found, each with #355 written beside it, and the
-staleness rule made their deletion compulsory the day the emulator stopped
-producing them.
+of 58 with 16 unserved. `corpus/accepted.json` carried an empty `accepted` list
+after this run, and that was a result rather than a default — the gate went in
+carrying the eight divergences the first run found, each with #355 written
+beside it, and the staleness rule made their deletion compulsory the day the
+emulator stopped producing them. The four entries the file carries today are
+Exoscale's, above.
 
 The eight had three causes, and saying which was the work.
 
@@ -251,3 +372,18 @@ happened — and the alternative, descending into every object somebody called
 entirely because `contracts/scaleway.json` does not describe them; the exchanges
 and their shapes are kept, and the command that wrote the file lists what it
 blanked.
+
+The same rule costs Exoscale the same thing, on the same field name:
+`exoscale/v2.list-ssh-keys` answers `{"ssh-keys": [...]}`, `ssh-keys` matches
+`key`, and the array reaches this corpus as one string. Three of the nine
+`redacted` findings that file reports are that. The key's own lifecycle is still
+graded, because `register-ssh-key` carries the key in a field whose *value*
+proves it is published (an OpenSSH public key line, read by the same
+`internal/core/sshkey` the packs authenticate with) and `get-ssh-key` answers a
+name and a fingerprint under no credential-shaped name at all.
+
+**And the account half of Outscale is not here yet**, which is a gap rather than
+a limit: the catalogue file covers what any station can record, and nothing of
+Nets, Subnets, security groups, route tables or keypairs. #354 says why, and the
+answer is a rule rather than an obstacle — the profile is named by a human
+before anything is driven.

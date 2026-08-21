@@ -72,6 +72,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"math/bits"
 	"net/netip"
 	"sort"
 	"strings"
@@ -124,6 +125,7 @@ func Sanitise(exs []trace.Exchange, opt Options) ([]trace.Exchange, Report, erro
 		return nil, Report{}, fmt.Errorf("sanitising needs the provider's contract: naming the literal segments of a path is the document's job, and a path it does not describe is one this tool must blank rather than guess at")
 	}
 	m := newMint(opt)
+	m.learnAddressOrder(exs)
 	out := make([]trace.Exchange, len(exs))
 	var rep Report
 	for i := range exs {
@@ -178,10 +180,92 @@ type mint struct {
 	// counters are per class, so a reader of the artefact can see at a glance
 	// that the fourth UUID is the fourth UUID.
 	n map[string]int
+	// rank is the position of each address of the recording among the
+	// addresses of its own family, once they are sorted. See
+	// [mint.learnAddressOrder].
+	rank map[string]int
 }
 
 func newMint(opt Options) *mint {
-	return &mint{to: map[string]string{}, issued: map[string]bool{}, allowed: allowedValues(opt), n: map[string]int{}}
+	return &mint{to: map[string]string{}, issued: map[string]bool{}, allowed: allowedValues(opt),
+		n: map[string]int{}, rank: map[string]int{}}
+}
+
+// learnAddressOrder gives every address of the recording a rank among the
+// addresses of its own family, so that [mint.ip] hands out synthetic addresses
+// that sort the way the originals sorted.
+//
+// # Why ordering is part of the shape
+//
+// The shape of a value is whatever the emulator validates about it, and for an
+// address that includes how it compares with the other addresses of the same
+// request. Measured on 2026-08-21, replaying a real `exo compute
+// private-network create`: `start-ip` and `end-ip` were minted in the order the
+// walk met them — alphabetically, so `end-ip` first — the artefact carried a
+// range running backwards, and the emulator answered `400 end-ip is below
+// start-ip` where the cloud answered 200. The get, the update, the delete and
+// the operation polls behind it then answered 404, around twenty findings, not
+// one of them a defect of the emulator.
+//
+// A pre-pass rather than a rule about field names: "start"/"end", "first"/
+// "last", "from"/"to" and whatever a fourth provider calls them are one problem,
+// and sorting solves it without naming any of them.
+//
+// # What it publishes, stated plainly
+//
+// The relative order of the account's addresses, and nothing else — no octet of
+// any of them. It is the same trade [mint.cidr] already makes by keeping the
+// prefix length, and for the same reason: a value a client computes with, whose
+// shape is what makes the transcript replayable at all.
+//
+// The counters start above the ranks so an address met later — one the walk
+// below did not reach — is still given an address of its own rather than one
+// already handed out.
+//
+// TestAnAddressRangeStillRunsForwards fails without this.
+func (m *mint) learnAddressOrder(exs []trace.Exchange) {
+	type ranked struct {
+		raw  string
+		addr netip.Addr
+	}
+	var v4, v6 []ranked
+	seen := map[string]bool{}
+	for i := range exs {
+		for _, v := range located(&exs[i]) {
+			if v.value == "" || seen[v.value] {
+				continue
+			}
+			seen[v.value] = true
+			if m.keepable(v.value) || isCIDR(v.value) || netmaskBits(v.value) != 0 {
+				continue
+			}
+			addr, err := netip.ParseAddr(v.value)
+			if err != nil {
+				continue
+			}
+			if addr.Is4() {
+				v4 = append(v4, ranked{v.value, addr})
+			} else {
+				v6 = append(v6, ranked{v.value, addr})
+			}
+		}
+	}
+	for class, list := range map[string][]ranked{"ipv4": v4, "ipv6": v6} {
+		sort.Slice(list, func(i, j int) bool { return list[i].addr.Less(list[j].addr) })
+		for i, r := range list {
+			m.rank[r.raw] = i + 1
+		}
+		m.n[class] = len(list)
+	}
+}
+
+// rankOf is the learned rank of an address, or the next free position for one
+// this recording's walk did not reach.
+func (m *mint) rankOf(s, class string) int {
+	if r, learned := m.rank[s]; learned {
+		return r
+	}
+	return m.next(class)
 }
 
 // allowedValues is every value a sanitised transcript may keep because it is
@@ -244,9 +328,9 @@ func (m *mint) value(s string) string {
 
 // keepable reports whether a value may be written down as it was read.
 //
-// Five reasons, and no sixth: the empty string, the proxy's own placeholder for
-// a credential it dropped, a value a pack vouches for, a boolean word, and a
-// short run of digits.
+// Six reasons, and no seventh: the empty string, the proxy's own placeholder
+// for a credential it dropped, a value a pack vouches for, a boolean word, a
+// short run of digits, and the prefix that selects every address.
 //
 // The digits deserve their bound. A page number, a size and a port carry
 // nothing of an account, and replacing them would have the emulator refuse the
@@ -256,6 +340,27 @@ func (m *mint) value(s string) string {
 // shorter than every identifier of that family.
 //
 // TestALongRunOfDigitsIsNotKept fails without the bound.
+//
+// The sixth deserves its own paragraph, because it is the one reason here that
+// is not a judgement about what a value looks like. "0.0.0.0/0" selects every
+// address there is: it names no network of the account, and there is exactly
+// one of it per family, so no replacement exists that is both of the same shape
+// and a different value. [mint.cidr] duly hands back the string it was given —
+// masking a zero-length prefix yields the same prefix — and [Audit] then finds
+// that string in the recording *and* in the artefact and refuses the whole run.
+// Every real security-group rule that opens a port to the internet carries it,
+// so without this the most ordinary exchange a cloud answers is unrecordable,
+// and the only way past would be to trim the corpus until it passes.
+//
+// Measured on 2026-08-21, recording `exo compute security-group rule add
+// --network 0.0.0.0/0` against a real Exoscale account: eleven positions
+// refused, every one of them this value.
+//
+// It is narrow on purpose. Only the canonical unspecified address qualifies, so
+// "10.0.0.0/0" — a prefix whose address half still carries something of the
+// account — is replaced like any other.
+//
+// TestTheDefaultRouteSurvivesSanitisation fails without this.
 func (m *mint) keepable(s string) bool {
 	switch {
 	case s == "", s == proxy.Placeholder:
@@ -266,8 +371,16 @@ func (m *mint) keepable(s string) bool {
 		return true
 	case isShortDigits(s):
 		return true
+	case isDefaultRoute(s):
+		return true
 	}
 	return false
+}
+
+// isDefaultRoute recognises "0.0.0.0/0" and "::/0", and nothing else.
+func isDefaultRoute(s string) bool {
+	p, err := netip.ParsePrefix(s)
+	return err == nil && p.Bits() == 0 && p.Addr().IsUnspecified()
 }
 
 const maxKeptDigits = 6
@@ -300,6 +413,8 @@ func (m *mint) synthesise(s string) string {
 		return fmt.Sprintf("%s%08x", prefix, m.next("prefixed"))
 	case isCIDR(s):
 		return m.cidr(s)
+	case netmaskBits(s) != 0:
+		return maskOf(33 - netmaskBits(s))
 	case isIP(s):
 		return m.ip(s)
 	case sshkey.Valid(s):
@@ -324,6 +439,51 @@ func isPrefix(s string) bool {
 }
 
 func isIP(s string) bool { _, err := netip.ParseAddr(s); return err == nil }
+
+// netmaskBits is the prefix length of a dotted IPv4 netmask, or 0 for anything
+// that is not one.
+//
+// A netmask is an address by syntax and a length by meaning, and [mint.ip]
+// treated it as the first: "255.255.255.0" became an address of the synthetic
+// space, which is not a mask at all. Measured on 2026-08-21, replaying a real
+// `exo compute private-network create`: the emulator answered `400 netmask is
+// not a usable IPv4 netmask` where the cloud answered 200, and the read, the
+// update, the delete and the three operation polls that followed then answered
+// 404 for that one reason — around twenty findings, none of them a defect of
+// the emulator. It is the same family as the `public_key` substitution that
+// produced five of #352's eight exemptions: a value that loses its shape is a
+// value that manufactures a divergence.
+//
+// The replacement is [maskOf](33-n), which is a bijection of 1..32 onto itself
+// with no fixed point, so the account's own mask never survives and the value
+// written down is always a mask. A length of 0 is not one of them: "0.0.0.0" is
+// an ordinary address in every field but this one, and it goes through
+// [mint.ip] as before.
+//
+// TestANetmaskIsReplacedByANetmask fails without this.
+func netmaskBits(s string) int {
+	addr, err := netip.ParseAddr(s)
+	if err != nil || !addr.Is4() {
+		return 0
+	}
+	four := addr.As4()
+	v := binary.BigEndian.Uint32(four[:])
+	n := bits.OnesCount32(v)
+	if n == 0 || v != ^uint32(0)<<(32-n) {
+		return 0
+	}
+	return n
+}
+
+// maskOf is the dotted IPv4 netmask of that prefix length.
+func maskOf(n int) string {
+	if n < 1 || n > 32 {
+		return "255.255.255.255"
+	}
+	var out [4]byte
+	binary.BigEndian.PutUint32(out[:], ^uint32(0)<<(32-n))
+	return netip.AddrFrom4(out).String()
+}
 
 func isCIDR(s string) bool { _, err := netip.ParsePrefix(s); return err == nil }
 
@@ -352,9 +512,9 @@ var (
 func (m *mint) ip(s string) string {
 	addr, err := netip.ParseAddr(s)
 	if err != nil || addr.Is4() {
-		return offsetV4(uint32(m.next("ipv4"))).String() //nolint:gosec // a counter over one recording
+		return offsetV4(uint32(m.rankOf(s, "ipv4"))).String() //nolint:gosec // a rank over one recording
 	}
-	return offsetV6(uint64(m.next("ipv6"))).String() //nolint:gosec // a counter over one recording
+	return offsetV6(uint64(m.rankOf(s, "ipv6"))).String() //nolint:gosec // a rank over one recording
 }
 
 // cidr hands out a block of the same prefix length, aligned so the address it
@@ -411,9 +571,33 @@ func blockV6(n uint64, bits int) netip.Addr {
 	return netip.AddrFrom16(out)
 }
 
-// offsetV4 is the nth address of the synthetic IPv4 space.
+// offsetV4 is the nth address of the synthetic IPv4 space, and never an address
+// outside it.
+//
+// The confinement is a control rather than tidiness. [Scan] admits an IPv4
+// address only inside 198.18.0.0/15, so a counter that walks past the end of
+// that block does not produce a slightly odd address: it produces a value the
+// alphabet refuses, and the sanitisation fails on the artefact instead of on
+// the arithmetic that made it. Wrapping turns that into a repeated replacement,
+// which [mint.value] already refuses by name — "the substitution handed out a
+// replacement twice" says what happened, where "not a value a sanitised
+// transcript may carry" says only where it landed.
+//
+// Measured on 2026-08-21, recording Outscale's `ReadPublicIpRanges`, which
+// publishes the provider's whole public address space: 90 blocks, three of them
+// /20s, and the counter that reached them shifted twelve bits and landed in
+// 198.20.0.0 — outside the space, refused by the alphabet, nothing written.
+//
+// Confining rather than counting per prefix length, and that is a measurement
+// too: the arithmetic is modular once it is confined, so the *offset* a shared
+// counter reaches makes no difference at all. Only how many blocks of one
+// length a recording carries does, and 198.18.0.0/15 holds 512 /24s and 32
+// /20s whichever counter walks it.
+//
+// TestASpaceWithNoRoomLeftIsRefusedRatherThanOverrun fails without this.
 func offsetV4(n uint32) netip.Addr {
 	base := syntheticV4.Addr().As4()
+	n &= ^uint32(0) >> uint(syntheticV4.Bits()) //nolint:gosec // a prefix length of a v4 space, 0..32
 	v := binary.BigEndian.Uint32(base[:]) + n
 	var out [4]byte
 	binary.BigEndian.PutUint32(out[:], v)

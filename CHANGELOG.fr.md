@@ -392,6 +392,64 @@ change ni l'un ni l'autre a sa place dans `git log`.
   ceux d'ordre, pour qu'une déclaration qui n'a rien évalué ne puisse pas se lire
   comme une déclaration tenue.
 
+- **Deux corpus de plus d'un vrai cloud : Exoscale depuis un compte nommé,
+  Outscale depuis aucun compte du tout** (#354, après #351/#352/#353). `corpus/`
+  porte désormais quatre fichiers et 264 échanges, et `mise run corpus:check`
+  les rejoue tous hors ligne, un fichier à la fois, contre un émulateur neuf.
+
+  `corpus/exoscale/exo-cli.jsonl` : 203 échanges, `exo` 1.95.1 (egoscale
+  v3.1.36) contre un vrai compte Exoscale en `ch-gva-2` le 2026-08-21, à travers
+  `feint proxy --forward '*.exoscale.com'`. Il porte les lectures que toute
+  stack fait avant de créer quoi que ce soit (zones, types de machines,
+  templates sous un filtre `visibility` explicite, clés SSH, groupes de
+  sécurité, groupes d'anti-affinité, réseaux privés, instances, pools, IP
+  élastiques, block storage, load balancers, quotas), deux 404 délibérés, et
+  tout le cycle de vie gratuit : enregistrer, lire, lister et supprimer une clé
+  SSH, créer deux groupes de sécurité avec une règle chacun (l'une sur
+  `0.0.0.0/0`, l'autre nommant l'autre groupe), créer un groupe d'anti-affinité,
+  et créer, lire, modifier, relire puis supprimer un réseau privé. **Rien de
+  facturé n'a été créé** : une instance, une IP élastique, un volume block
+  storage, un NLB et un cluster SKS sont tous payants, et aucun n'a été fait.
+  Chaque suppression est prouvée par une lecture rendant 404 ou une liste vide,
+  et le compte finit comme il a commencé, un groupe de sécurité `default` et
+  rien d'autre.
+
+  `corpus/outscale/oapi-cli-catalogue.jsonl` : 5 échanges, `oapi-cli` 0.13.0
+  contre `api.eu-west-2.outscale.com`, **pilotés avec les identifiants
+  placeholders publics de `tools/conformance/outscale/fake-credentials.env`**.
+  Mesuré le 2026-08-21 : cinq opérations répondent 200 à une clé d'accès
+  inconnue, `ReadRegions`, `ReadVmTypes`, `ReadPublicIpRanges`,
+  `ReadPublicCatalog` et `ReadFlexibleGpuCatalog`, là où toutes les opérations
+  authentifiées répondent 400 `InvalidParameterValue` 4120. Le catalogue d'un
+  fournisseur est donc enregistrable depuis n'importe quelle station, sans
+  compte à risquer et sans inventaire dans les réponses, et c'est la première
+  fois que ce dépôt compare son pack Outscale au **cloud** plutôt qu'à un
+  document. Trois des cinq se rejouent sans divergence ; les deux lectures de
+  catalogue que rien ne sert sont la file de #74.
+
+  **Ce que l'enregistrement Exoscale a trouvé : trois champs que le cloud répond
+  et que cet émulateur omet**, chacun avec une exemption dans
+  `corpus/accepted.json` nommant l'issue qui la supprime. `zones[].id` sur toute
+  liste de zones (#370, 51 constats, l'opération la plus répondue du fichier) ;
+  `visibility` sur un groupe de sécurité, sur la liste comme sur la lecture
+  unitaire (#371, 46) ; et `rules[].security-group.name` quand une règle nomme
+  un autre groupe (#371, 8). Les trois ont une racine commune qui mérite d'être
+  dite : **`contracts/exoscale.json` ne les déclare pas non plus**, donc le gate
+  des formes, la sonde et le pack sont d'accord entre eux parce qu'ils lisent le
+  même document, et le document est en retard sur le cloud. Seul un
+  enregistrement de fil pouvait être en désaccord. C'est la famille du
+  `has_s3_integration` de #352, un fournisseur plus loin.
+
+  **Les règles de compte de #352 ont tenu sans exception**, et #354 en ajoute
+  une qui ne parle pas d'argent : *le profil est nommé explicitement à chaque
+  commande, et une région dont la raison d'être est une frontière de conformité
+  n'est jamais une cible*. Le compte Exoscale est nommé par `exo -A <compte>` sur la
+  soixantaine d'appels du script d'enregistrement, et lequel c'était figure dans
+  la pull request plutôt qu'ici ; le run Outscale nomme son
+  unique profil factice par `--profile`, de sorte qu'il n'existe aucun défaut
+  vers lequel retomber et aucun profil stocké de la station qui puisse être
+  présenté. `corpus/README.md` porte les deux procédures.
+
 ### Modifié
 
 - **Surface CLI version 8.** Toutes les entrées ci-dessus sont des ajouts : le
@@ -511,6 +569,66 @@ change ni l'un ni l'autre a sa place dans `git log`.
   replay sait qu'elles en sont.
 
 ### Corrigé
+
+- **Quatre défauts du sanitiseur, tous trouvés en enregistrant un deuxième
+  fournisseur, et tous du genre qui fabrique une divergence** (#354). À eux
+  quatre ils ont caché tout le cycle de vie du réseau privé Exoscale derrière
+  une vingtaine de constats, dont aucun n'était un défaut de l'émulateur. Chacun
+  est falsifié dans `tools/falsify/specs/sanitised-corpus.json`.
+
+  **`0.0.0.0/0` ne pouvait pas être écrit du tout.** Masquer un préfixe de
+  longueur nulle rend le même préfixe, donc le mint rendait la valeur inchangée,
+  le recoupement avec l'enregistrement trouvait la même chaîne des deux côtés,
+  et `--sanitise` refusait tout le run sans rien écrire, sur un enregistrement
+  dont le seul tort était une règle de groupe de sécurité ouvrant un port sur
+  Internet. Il existe un tel préfixe par famille et il sélectionne toutes les
+  adresses : il survit désormais verbatim, faute d'un remplacement qui soit à la
+  fois de la même forme et d'une autre valeur.
+  `TestTheDefaultRouteSurvivesSanitisation`.
+
+  **Un masque en notation pointée passait par le mint d'adresses.**
+  `255.255.255.0` en ressortait adresse d'hôte de l'espace synthétique,
+  `exoscale/v2.create-private-network` répondait `400 netmask is not a usable
+  IPv4 netmask` là où le cloud répondait 200, et la lecture, la modification, la
+  suppression et trois sondages d'opération derrière elle répondaient 404 pour
+  cette seule raison. Un masque est maintenant remplacé par un masque, via une
+  bijection de 1..32 sur lui-même sans point fixe : le masque du compte ne
+  survit jamais et la valeur écrite est toujours un masque.
+  `TestANetmaskIsReplacedByANetmask`.
+
+  **Une plage d'adresses ressortait à l'envers.** `start-ip` et `end-ip` étaient
+  frappés dans l'ordre où le parcours les rencontrait, c'est-à-dire l'ordre
+  alphabétique, donc l'artefact portait `end` en dessous de `start` et la même
+  création répondait `400 end-ip is below start-ip`. Les adresses sont
+  désormais rangées en triant celles de l'enregistrement avant que rien ne soit
+  écrit, de sorte que les synthétiques se trient comme les originales. La règle
+  ne nomme aucun champ, parce que `start`/`end`, `first`/`last` et la façon dont
+  un quatrième fournisseur les appellera sont un seul problème.
+  `TestAnAddressRangeStillRunsForwards`.
+
+  **Une adresse synthétique pouvait être frappée hors de l'espace synthétique.**
+  Le `ReadPublicIpRanges` d'Outscale publie tout l'espace d'adressage public du
+  fournisseur, 90 blocs le 2026-08-21 dont trois /20 parmi 79 /24, et le
+  compteur qui atteignait les /20 était décalé de douze bits et atterrissait en
+  198.20.0.0, hors du seul bloc IPv4 qu'un transcript assaini peut porter.
+  L'alphabet a refusé l'artefact, ce qui était la bonne issue et le mauvais
+  message : la faute était arithmétique, quatre fonctions plus loin. `offsetV4`
+  confine désormais ce qu'on lui donne, si bien qu'un espace sans place restante
+  répète un remplacement et que `Sanitise` refuse *cela* en le nommant. Un
+  corpus où deux blocs d'un compte se lisent comme un seul est le constat que
+  #270 a fait à la main, et il ne doit jamais être fabriqué ici.
+  `TestASyntheticAddressStaysInTheSyntheticSpace` et
+  `TestASpaceWithNoRoomLeftIsRefusedRatherThanOverrun`.
+
+- **Le scan du corpus committé lisait chaque fichier contre le contrat
+  Scaleway** (#354). L'alphabet qu'un transcript assaini peut porter inclut les
+  valeurs que la description du fournisseur énumère, et les noms de zones et
+  familles de machines d'Exoscale ne sont que dans le document d'Exoscale : lu
+  contre celui de Scaleway, le premier corpus Exoscale committé rapportait des
+  centaines de fuites qui n'en étaient pas. Le contrat est désormais celui que
+  nomme le répertoire du fichier. C'était vrai tant que Scaleway était le seul
+  corpus, et c'est devenu un verdict faux le jour où un deuxième est arrivé, ce
+  qui est la forme de tout gate qui cesse de mesurer en silence.
 
 - **Les huit divergences relevées par le premier corpus Scaleway réel ont
   disparu, et `corpus/accepted.json` porte une liste d'exemptions vide** (#355).
