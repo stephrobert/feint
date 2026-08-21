@@ -321,6 +321,28 @@ func checkCorpus(dir, acceptedPath string, now time.Time, stdout, stderr io.Writ
 	fmt.Fprintf(stdout, "%d divergent finding(s) knowingly accepted, each printed above with its reason\n", excused)
 	fmt.Fprintf(stdout, "%d declared value comparison(s) and %d declared order comparison(s) actually ran\n", values, orders)
 
+	// The two warnings are emitted here, before any early return, and that
+	// placement is the whole point of them.
+	//
+	// Both read `acc` alone: neither depends on a single comparison this run
+	// made, and neither moves an exit code — that is written into their own
+	// doc comments as their contract. So the only thing a later placement can
+	// do is *withhold* them, and it did: they sat below the unexercised-
+	// invariant guard (#343) and below the stale-exemption guard, so a run
+	// that went red for either reason printed no word of the corpus that a
+	// provider has been measured to have moved under. A repository whose gate
+	// is already red is the one that most needs to know its recordings are
+	// stale, because "re-record it" may be the very fix.
+	//
+	// This is the shape CLAUDE.md's "un commentaire n'est pas un contrôle" is
+	// about, one turn further in: the comment on warnMovedCorpora says "on
+	// every run", and there was no test that made it true.
+	// TestTheMovedWarningSurvivesARunThatIsRedForAnotherReason fails without
+	// this placement, and TestACorpusTheCloudHasMovedUnderWarnsAndDoesNotFail
+	// reaches its own subject only because of it.
+	warnAgedCorpora(acc, now, stdout)
+	warnMovedCorpora(acc, stdout)
+
 	// The subject of a declared comparison, asserted rather than hoped for.
 	//
 	// Presence and type are compared everywhere; a value and an order are
@@ -368,9 +390,6 @@ func checkCorpus(dir, acceptedPath string, now time.Time, stdout, stderr io.Writ
 	if stale > 0 {
 		return exitError
 	}
-
-	warnAgedCorpora(acc, now, stdout)
-	warnMovedCorpora(acc, stdout)
 
 	if divergent > 0 {
 		fmt.Fprintf(stderr, "feint: %d divergence(s) between this emulator and the recorded cloud, none of them accepted in %s\n", divergent, acceptedPath)

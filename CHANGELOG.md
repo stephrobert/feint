@@ -802,6 +802,21 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **The corpus gate withheld its "the cloud has moved" warning exactly when it
+  mattered most.** Both warnings — the aged-recording one and the measured-move
+  one #359 writes back — were emitted below the unexercised-invariant guard
+  (#343) and below the stale-exemption guard, so a run that went red for either
+  reason printed no word about a recording the provider has been measured to
+  have moved under. That is the worst moment to withhold it: *re-record this
+  file* is a candidate fix for the very redness being reported, and a maintainer
+  who does not see it goes looking for a defect in the emulator instead. Neither
+  warning reads anything but the acceptance file and neither moves an exit code,
+  which their own doc comments state as their contract; the only thing a late
+  placement could do was withhold them. `warnMovedCorpora` said "on every run"
+  and nothing made it true —
+  `TestTheMovedWarningSurvivesARunThatIsRedForAnotherReason` does, on the
+  poorest run that reaches the print.
+
 - **Four defects of the sanitiser, all found by recording a second provider, and
   all of them the kind that manufactures a divergence** (#354). Between them
   they hid the entire Exoscale private-network lifecycle behind about twenty

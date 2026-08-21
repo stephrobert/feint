@@ -196,8 +196,14 @@ func TestAPacksDeclineDoesNotExcuseTheCloud(t *testing.T) {
 	// green. Both halves are asserted, because "it is reported at the cloud" is
 	// only interesting beside "it is excused at the emulator".
 	gateDir, gateAccepted := cloudCorpusFixture(t, line)
-	if _, _, code := runCorpusGate(t, gateDir, gateAccepted); code != exitOK {
-		t.Fatalf("the declined field fails the emulator gate, so this fixture no longer isolates the decline")
+	// The subject is asserted, not the exit code. A one-exchange catalogue
+	// fixture reaches no operation carrying an invariant, so #343's guard
+	// makes the whole run exitError for a reason that has nothing to do with
+	// this decline; reading the code alone would have this test measure that
+	// guard instead of the excuse it is about.
+	gate, _, _ := runCorpusGate(t, gateDir, gateAccepted)
+	if !strings.Contains(gate, "\n0 divergent finding(s) nothing accepts") {
+		t.Fatalf("the declined field is not excused at the emulator, so this fixture no longer isolates the decline:\n%s", gate)
 	}
 
 	cloud, _ := recordingCloud(t)
@@ -821,4 +827,52 @@ func vpcCount(t *testing.T, endpoint string) int {
 		t.Fatal(err)
 	}
 	return len(body.VPCs)
+}
+
+// The moved-cloud warning survives a run that is red for another reason.
+//
+// warnMovedCorpora's own comment says the warning is on every run, and until
+// this test existed that sentence was false: the call sat below the
+// unexercised-invariant guard (#343) and below the stale-exemption guard, so a
+// corpus that tripped either printed nothing about the provider having moved
+// under it. That is the worst moment to withhold it — "re-record this file" is
+// a candidate fix for the very redness being reported, and a maintainer who
+// does not see it goes looking for a defect in the emulator instead.
+//
+// The fixture is deliberately the poorest run that reaches the print: a VPC
+// corpus reaches no operation carrying an invariant, so #343's guard returns
+// exitError before the warning's old position. Asserting the exit code as well
+// as the warning is what keeps this honest — if a later change made the run
+// green, the test would still pass while measuring nothing.
+func TestTheMovedWarningSurvivesARunThatIsRedForAnotherReason(t *testing.T) {
+	dir, accepted, _ := vpcCorpusFixture(t)
+
+	acc, err := readCorpusAcceptance(accepted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(acc.Recorded) != 1 {
+		t.Fatalf("the fixture no longer carries exactly one recording: %+v", acc.Recorded)
+	}
+	acc.Recorded[0].CloudMovedAt = "2026-08-21"
+	acc.Recorded[0].CloudMoved = 3
+	body, err := json.MarshalIndent(acc, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(accepted, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	out, errs, code := runCorpusGate(t, dir, accepted)
+	if code != exitError {
+		t.Fatalf("this fixture no longer goes red for another reason, so it cannot prove the warning survives one (exit %d).\nstdout:\n%s\nstderr:\n%s",
+			code, out, errs)
+	}
+	if !strings.Contains(errs, "invariant(s) and this corpus ran none of them") {
+		t.Fatalf("the run is red for some other reason than the one this test assumes:\n%s", errs)
+	}
+	if !strings.Contains(out, "had moved: re-record it") {
+		t.Fatalf("a run red for another reason withheld the moved-cloud warning:\n%s", out)
+	}
 }

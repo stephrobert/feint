@@ -853,6 +853,22 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **La porte du corpus retenait son avertissement « le cloud a bougé »
+  précisément quand il servait le plus.** Les deux avertissements — celui de
+  l'enregistrement vieilli et celui de la bougeotte mesurée que #359 réécrit —
+  étaient émis sous la garde des invariants non exercés (#343) et sous celle des
+  exemptions périmées : une exécution rouge pour l'une de ces deux raisons ne
+  disait pas un mot d'un enregistrement sous lequel le fournisseur a été mesuré
+  bouger. C'est le pire moment pour le taire : *ré-enregistrer ce fichier* est
+  un correctif candidat au rouge qu'on est en train de rapporter, et qui ne le
+  voit pas cherche un défaut dans l'émulateur. Aucun des deux ne lit autre chose
+  que le fichier d'acceptation, aucun ne déplace un code de sortie — leur propre
+  commentaire l'énonce comme leur contrat ; un placement tardif ne pouvait donc
+  que les retenir. `warnMovedCorpora` affirmait « à chaque exécution » sans que
+  rien ne le rende vrai :
+  `TestTheMovedWarningSurvivesARunThatIsRedForAnotherReason` le rend vrai, sur
+  l'exécution la plus pauvre qui atteigne l'impression.
+
 - **Quatre défauts du sanitiseur, tous trouvés en enregistrant un deuxième
   fournisseur, et tous du genre qui fabrique une divergence** (#354). À eux
   quatre ils ont caché tout le cycle de vie du réseau privé Exoscale derrière
