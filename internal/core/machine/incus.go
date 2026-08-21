@@ -470,7 +470,84 @@ func (d *Incus) Attach(ctx context.Context, name string, att Attachment) error {
 		// On OVN the peered subnets are only reachable through the network's
 		// router, and a statically configured NIC knows nothing about them.
 		if d.OVN {
-			return d.installGuestPrivateRoutes(ctx, name, att.Network, device)
+			if err := d.installGuestPrivateRoutes(ctx, name, att.Network, device); err != nil {
+				return err
+			}
+		}
+	}
+	return d.retireFallback(ctx, name, att.Network, device)
+}
+
+// retireFallback removes the interface a machine was born with once a client
+// placed it on a network of its own.
+//
+// A machine that starts unattached boots on DefaultMachineNetwork so cloud-init
+// has an outbound path; that interface is the runtime's plumbing, no provider
+// API publishes its address, and it survived every later attachment. The #201
+// investigation measured the consequence on all three packs: a Scaleway server
+// on one private network carried three addresses where an Outscale Vm carried
+// one, for the same request. The rule this enforces is the author's: the same
+// count of addresses on every provider for the same request — so the moment a
+// client-declared network arrives, the loan is repaid and the fallback goes.
+//
+// Public addresses ride the primary interface as /32 routes, so any that were
+// routed while the fallback was primary move to the interface that replaces
+// it, and the guest's default route moves with them: upstream, holding a
+// public address is what grants outbound, and a machine that kept one must
+// keep a way out. A private-only machine ends with no default route, which is
+// exactly what its provider sells.
+//
+// TestAttachRetiresTheFallbackInterface fails without the removal, and
+// TestAttachMovesThePublicAddressOffTheFallback without the migration.
+func (d *Incus) retireFallback(ctx context.Context, name, network, device string) error {
+	if network == DefaultMachineNetwork {
+		return nil
+	}
+	devices, err := d.instanceDevices(ctx, name)
+	if err != nil {
+		return fmt.Errorf("inspect %s after attaching: %w", name, err)
+	}
+	routeKey := d.publicRouteKey()
+	for devName, cfg := range devices.own {
+		if cfg["type"] != "nic" || cfg["network"] != DefaultMachineNetwork || devName == device {
+			continue
+		}
+		publics := strings.TrimSpace(cfg[routeKey])
+		if _, err := d.run(ctx, "config", "device", "remove", name, devName); err != nil {
+			return fmt.Errorf("retire the fallback interface of %s: %w", name, err)
+		}
+		if publics == "" {
+			continue
+		}
+		for _, route := range strings.Split(publics, ",") {
+			route = strings.TrimSpace(route)
+			if route == "" {
+				continue
+			}
+			if err := d.RouteAddress(ctx, AddressSpec{
+				Machine: name,
+				Address: strings.TrimSuffix(route, "/32"),
+				Network: network,
+			}); err != nil {
+				return fmt.Errorf("move %s off the fallback of %s: %w",
+					strings.TrimSuffix(route, "/32"), name, err)
+			}
+		}
+		// The fallback's default route died with its device; the public
+		// addresses now leave through the interface that carries them.
+		gateway, err := d.networkGateway(ctx, network)
+		if err != nil {
+			return err
+		}
+		iface, err := d.guestInterface(ctx, name, device)
+		if err != nil {
+			return err
+		}
+		if _, err := d.run(ctx, "exec", name, "--",
+			"ip", "route", "add", "default", "via", gateway.Addr().String(), "dev", iface); err != nil &&
+			!strings.Contains(strings.ToLower(err.Error()), "file exists") &&
+			!isNotRunning(err) {
+			return fmt.Errorf("restore the default route of %s: %w", name, err)
 		}
 	}
 	return nil

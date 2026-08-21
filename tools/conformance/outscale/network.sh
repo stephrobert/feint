@@ -244,21 +244,34 @@ done
 [ -n "$booted" ] || fail "no machine carries $ip_b; cannot measure reachability"
 sleep 2
 
-# reach: from the machine in Net A towards the address in Net B. The names are
-# the binding's, prefix feint-osc-.
-reach() { incus exec "feint-osc-$vm_a" -- ping -c 2 -W 2 "$ip_b" >/dev/null 2>&1; }
+# A listener on the target, so the TCP probe measures delivery rather than a
+# closed port: a SYN that dies in the network and a SYN refused by an empty
+# port are different verdicts, and only the first is isolation.
+incus exec "feint-osc-$vm_b" -- sh -c \
+  'while true; do printf "ok\n" | nc -l -p 80 >/dev/null 2>&1; done' >/dev/null 2>&1 &
+sleep 2
+
+# Both protocols, from the machine in Net A towards the address in Net B: #201
+# was measured leaking in ICMP *and* TCP, so an assertion that only pings would
+# accept a fix that closes echo and leaves connections open. The names are the
+# binding's, prefix feint-osc-.
+reach_icmp() { incus exec "feint-osc-$vm_a" -- ping -c 2 -W 2 "$ip_b" >/dev/null 2>&1; }
+reach_tcp()  { incus exec "feint-osc-$vm_a" -- timeout 3 nc -z -w 2 "$ip_b" 80 >/dev/null 2>&1; }
 
 echo "- before any peering, the Nets do not reach each other"
-if reach; then
-  fail "$vm_a reaches $ip_b across two unpeered Nets; the declared isolation does not hold"
+if reach_icmp; then
+  fail "$vm_a reaches $ip_b (ICMP) across two unpeered Nets; the declared isolation does not hold"
 fi
-ok "unreachable, as the isolation capability declares"
+if reach_tcp; then
+  fail "$vm_a reaches $ip_b:80 (TCP) across two unpeered Nets; the declared isolation does not hold"
+fi
+ok "unreachable in both protocols, as the isolation capability declares"
 
 echo "- a pending peering grants nothing"
 pcx_id="$(osc CreateNetPeering --SourceNetId "$net_a" --AccepterNetId "$net_b" \
           | jq -r '.NetPeering.NetPeeringId')"
 [ -n "$pcx_id" ] || fail "CreateNetPeering answered no id"
-if reach; then
+if reach_icmp || reach_tcp; then
   fail "a pending-acceptance peering already carries traffic"
 fi
 ok "still unreachable while pending-acceptance"
@@ -266,16 +279,17 @@ ok "still unreachable while pending-acceptance"
 echo "- an accepted peering carries traffic, both ends knowing it"
 osc AcceptNetPeering --NetPeeringId "$pcx_id" >/dev/null || fail "AcceptNetPeering rejected"
 sleep 2
-reach || fail "the peering is active and $vm_a still cannot reach $ip_b"
-ok "$vm_a reaches $ip_b through the active peering"
+reach_icmp || fail "the peering is active and $vm_a still cannot ping $ip_b"
+reach_tcp  || fail "the peering is active and $vm_a still cannot connect to $ip_b:80"
+ok "$vm_a reaches $ip_b through the active peering, both protocols"
 
 echo "- a deleted peering separates them again"
 osc DeleteNetPeering --NetPeeringId "$pcx_id" >/dev/null || fail "DeleteNetPeering rejected"
 sleep 2
-if reach; then
+if reach_icmp || reach_tcp; then
   fail "the peering is deleted and the Nets still reach each other"
 fi
-ok "unreachable again"
+ok "unreachable again, both protocols"
 
 osc DeleteVms '--VmIds[]' "$vm_a" >/dev/null && vm_a=""
 osc DeleteVms '--VmIds[]' "$vm_b" >/dev/null && vm_b=""

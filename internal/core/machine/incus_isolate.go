@@ -41,15 +41,27 @@ func isolationACL(network string) string {
 // The description cannot simply be set at creation: `network acl create` rejects
 // it as a config option ("Invalid config option \"description\""), because it is
 // a top-level field of the ACL rather than a config key. Measured, after trying.
+//
+// The uplink's own rule set (isolateUplink) is named after the uplink, not
+// after an emulated network, so it is matched here by name too; an uplink under
+// a custom name is covered by the description check alone, which only leaves
+// the interrupted-create window open for that case.
 func isolationOwned(name string) bool {
-	return strings.HasPrefix(name, "iso-"+NetworkPrefix+"-")
+	return strings.HasPrefix(name, "iso-"+NetworkPrefix+"-") ||
+		name == isolationACL(DefaultUplinkName)
 }
 
 // IsolateNetwork implements Isolator.
 func (d *Incus) IsolateNetwork(ctx context.Context, network string, foreign []string) error {
-	// An OVN network reaches nothing it is not peered with: there is no shared
-	// L2 to build reject rules against, and attaching them anyway would only
-	// claim credit for a separation the topology already provides.
+	// Under OVN the separation is not built here, out of per-network reject
+	// rules: the packs' native-isolation branch peers what must reach each
+	// other and never calls this method. The early comment claimed the
+	// topology alone provided the separation ("no shared L2 to build reject
+	// rules against") and #201 measured that claim false: the shared L2 is the
+	// emulator's own uplink, which carries every delegated block as a
+	// scope-link host route. isolateUplink closes that path at its boundary,
+	// for every network and every machine topology at once, and
+	// TestTheUplinkRejectsDelegatedBlocks holds it.
 	if d.OVN {
 		return nil
 	}

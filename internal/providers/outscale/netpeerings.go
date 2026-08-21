@@ -434,8 +434,20 @@ func (p *Pack) reconcilePeerings(ctx context.Context) {
 		if name == "" {
 			continue
 		}
+		netID := stringOf(subnet.Attrs["NetId"])
 		peers := make([]string, 0, 4)
-		for peerNet := range reaches[stringOf(subnet.Attrs["NetId"])] {
+		// Subnets of one Net route to each other upstream — the Net's local
+		// route, which no client can remove. Before #201 they reached each
+		// other anyway, through the uplink leak, which is why nothing here
+		// peered them; with the uplink closed the reachability has to be the
+		// peering's, explicitly. TestSubnetsOfOneNetArePeered fails without
+		// this.
+		for _, sibling := range backing[netID] {
+			if sibling != name {
+				peers = append(peers, sibling)
+			}
+		}
+		for peerNet := range reaches[netID] {
 			peers = append(peers, backing[peerNet]...)
 		}
 		if err := peerer.PeerNetworks(ctx, name, peers); err != nil {

@@ -1,0 +1,26 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the uplink rule set no longer rejects any delegated block (#201 restored)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\t\tprefix, err := netip.ParsePrefix(strings.TrimSpace(route))\n\t\tif err != nil || prefix.Bits() >= 32 {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tprefix, err := netip.ParsePrefix(strings.TrimSpace(route))\n\t\tif (err != nil || prefix.Bits() >= 32) || true {\n\t\t\tcontinue\n\t\t}",
+      "test": "TestTheUplinkRejectsDelegatedBlocks"
+    },
+    {
+      "label": "the rule set is written but never attached to the uplink",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tif _, err := d.run(ctx, \"network\", \"set\", uplink, \"security.acls\", name); err != nil {\n\t\treturn fmt.Errorf(\"attach isolation to uplink %s: %w\", uplink, err)\n\t}\n\treturn nil",
+      "replace": "\tif uplink == \"\\x00never\" {\n\t\tif _, err := d.run(ctx, \"network\", \"set\", uplink, \"security.acls\", name); err != nil {\n\t\t\treturn fmt.Errorf(\"attach isolation to uplink %s: %w\", uplink, err)\n\t\t}\n\t}\n\treturn nil",
+      "test": "TestTheUplinkRejectsDelegatedBlocks"
+    },
+    {
+      "label": "an already-delegated block re-asserts an empty rule set",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tfor _, route := range routes {\n\t\tif strings.TrimSpace(route) == block {\n\t\t\treturn d.isolateUplink(ctx, routes)\n\t\t}\n\t}",
+      "replace": "\tfor _, route := range routes {\n\t\tif strings.TrimSpace(route) == block {\n\t\t\treturn d.isolateUplink(ctx, routes[:0])\n\t\t}\n\t}",
+      "test": "TestADelegatedBlockAlreadyPresentStillAssertsTheUplinkRuleSet"
+    }
+  ]
+}

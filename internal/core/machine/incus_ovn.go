@@ -55,8 +55,16 @@ const (
 // refused to come up.
 //
 // Idempotent by construction: a block already delegated is left alone, so
-// creating the same network twice does not grow the list.
+// creating the same network twice does not grow the list — but the uplink rule
+// set is re-asserted even then, because an interrupted run can leave the route
+// standing without the rules that keep it from becoming a path (#201).
+//
+// Under uplinkMu like setUplinkRoute: both edit the same ipv4.routes key, and
+// two writers without the lock lose each other's entries.
 func (d *Incus) delegateRoute(ctx context.Context, block string) error {
+	d.uplinkMu.Lock()
+	defer d.uplinkMu.Unlock()
+
 	name := d.uplinkName()
 	out, err := d.run(ctx, "network", "get", name, "ipv4.routes")
 	if err != nil {
@@ -70,13 +78,91 @@ func (d *Incus) delegateRoute(ctx context.Context, block string) error {
 	}
 	for _, route := range routes {
 		if strings.TrimSpace(route) == block {
-			return nil
+			return d.isolateUplink(ctx, routes)
 		}
 	}
 	routes = append(routes, block)
 
 	if _, err := d.run(ctx, "network", "set", name, "ipv4.routes="+strings.Join(routes, ",")); err != nil {
 		return fmt.Errorf("delegate %s to uplink %s: %w", block, name, err)
+	}
+	return d.isolateUplink(ctx, routes)
+}
+
+// isolateUplink closes the one shared path between two unpeered OVN networks:
+// their own uplink.
+//
+// Every delegated block becomes a scope-link route on the host, so a packet
+// from network A towards network B's block leaves A's router by its default
+// route, is routed by the host straight back onto the uplink, and B's router
+// answers for its block there. Issue #201 measured both protocols crossing
+// that path — the "no shared L2" the OVN comments assumed does exist, and the
+// emulator builds it itself. The same transit also serves a machine whose
+// interface sits on another emulated network entirely, so the boundary is the
+// only place that closes every variant at once.
+//
+// The rule set rejects, in both directions, everything whose destination is a
+// delegated network block, and allows the rest. Destination-based on purpose:
+// a NATed network SNATs its egress to an uplink address, so a source match
+// would miss the very traffic it names, while destinations survive SNAT. The
+// /32 entries are routed public addresses and stay out of the reject set — a
+// machine reaching another network's public address mirrors two real clouds
+// talking over the internet, and the ssh conformance dials one from the host.
+//
+// Peered networks are untouched: an accepted peering carries traffic router to
+// router and never crosses the uplink — measured with this rule set attached,
+// both protocols, before this function was written.
+//
+// TestTheUplinkRejectsDelegatedBlocks fails without the rules, and without the
+// attach.
+func (d *Incus) isolateUplink(ctx context.Context, routes []string) error {
+	uplink := d.uplinkName()
+	name := isolationACL(uplink)
+
+	body := aclBody{
+		Description: aclDescription,
+		Ingress:     []aclRule{},
+		Egress:      []aclRule{},
+		Config:      map[string]string{},
+	}
+	for _, route := range routes {
+		prefix, err := netip.ParsePrefix(strings.TrimSpace(route))
+		if err != nil || prefix.Bits() >= 32 {
+			continue
+		}
+		block := prefix.String()
+		body.Egress = append(body.Egress, aclRule{
+			Action:      "reject",
+			State:       "enabled",
+			Destination: block,
+		})
+		body.Ingress = append(body.Ingress, aclRule{
+			Action:      "reject",
+			State:       "enabled",
+			Destination: block,
+		})
+	}
+	body.Egress = append(body.Egress, aclRule{Action: "allow", State: "enabled"})
+	body.Ingress = append(body.Ingress, aclRule{Action: "allow", State: "enabled"})
+
+	if _, err := d.run(ctx, "network", "acl", "show", name); err != nil {
+		if !isNotFound(err) {
+			return fmt.Errorf("inspect isolation of uplink %s: %w", uplink, err)
+		}
+		if _, err := d.run(ctx, "network", "acl", "create", name); err != nil {
+			return fmt.Errorf("create isolation of uplink %s: %w", uplink, err)
+		}
+	}
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("encode isolation of uplink %s: %w", uplink, err)
+	}
+	if _, err := d.run(ctx, "query", "-X", "PUT", "--data", string(encoded),
+		"/1.0/network-acls/"+name); err != nil {
+		return fmt.Errorf("write isolation of uplink %s: %w", uplink, err)
+	}
+	if _, err := d.run(ctx, "network", "set", uplink, "security.acls", name); err != nil {
+		return fmt.Errorf("attach isolation to uplink %s: %w", uplink, err)
 	}
 	return nil
 }

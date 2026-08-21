@@ -493,7 +493,13 @@ documents it — *"traffic between managed bridge networks on the same server is
 NATed as it's routed directly between the bridges"* — and two workarounds were
 measured here and abandoned: both stop holding once the interfaces carry a
 security group of their own. An OVN network is a logical network with its own
-router, so the separation is the topology's rather than a rule's.
+router — and the separation is still not free: every OVN network shares the
+emulator's uplink, and until #201 two unpeered networks reached each other
+through it, both protocols. The isolation is delivered by an explicit rule
+set on that uplink, rebuilt from the delegated blocks as networks come and
+go, and the conformance suites assert it in ICMP and TCP with machines that
+carry no security group. Peered networks talk router to router and never
+cross it (docs/limits.md has the measurements).
 
 Everything else — the block, the address on the interface, the firewall applying
 without a restart, a flexible IP routed and revoked — holds identically in both.

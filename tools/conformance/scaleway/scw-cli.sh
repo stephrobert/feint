@@ -119,8 +119,12 @@ scw instance security-group delete-rule security-group-id="$sg_id" security-grou
 ok "rule $rule_id"
 
 echo "- a server carries its group, and the group refuses to be deleted under it"
+# ip=none: this case is about the group, and in a real cloud a public address
+# costs money — the minimal request is the baseline everywhere but on the one
+# create above that deliberately keeps the CLI's own default (ip=new), because
+# that default is what most real users drive.
 sg_server="$(scw instance server create name=conformance-sg-server type=DEV1-S zone="$ZONE" \
-               security-group-id="$sg_id" -o json)" || fail "create with a security group rejected: $sg_server"
+               security-group-id="$sg_id" ip=none -o json)" || fail "create with a security group rejected: $sg_server"
 sg_server_id="$(printf '%s' "$sg_server" | jq -r '.id')"
 printf '%s' "$sg_server" | jq -e --arg id "$sg_id" '.security_group.id == $id' >/dev/null \
   || fail "the server did not take the group: $sg_server"
@@ -176,7 +180,7 @@ vol="$(scw instance volume create name=conformance-vol volume-type=b_ssd size=10
 vol_id="$(printf '%s' "$vol" | jq -r '(.volume // .).id')"
 [ -n "$vol_id" ] && [ "$vol_id" != null ] || fail "no id in the volume create response: $vol"
 
-vol_server="$(scw instance server create name=conformance-vol-host type=DEV1-S zone="$ZONE" -o json)" \
+vol_server="$(scw instance server create name=conformance-vol-host type=DEV1-S zone="$ZONE" ip=none -o json)" \
   || fail "create for the volume test rejected: $vol_server"
 vol_server_id="$(printf '%s' "$vol_server" | jq -r '.id')"
 
@@ -236,7 +240,7 @@ ok "resolved and deleted by address"
 # 501 on the first call.
 echo "- a volume is snapshotted, an image is cut from it, and both read back"
 span="$(prove_begin behaviour)"
-img_server="$(scw instance server create name=conformance-golden type=DEV1-S zone="$ZONE" -o json)" \
+img_server="$(scw instance server create name=conformance-golden type=DEV1-S zone="$ZONE" ip=none -o json)" \
   || fail "create for the image test rejected: $img_server"
 img_server_id="$(printf '%s' "$img_server" | jq -r '(.server // .).id')"
 img_root="$(printf '%s' "$img_server" | jq -r '(.server // .).volumes["0"].id')"

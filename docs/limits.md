@@ -576,6 +576,32 @@ The two holes, and where they are held:
   block), created on first use and removed by the sweep.
   `TestAMachineWithNoAttachmentBootsOnTheEmulatorsOwnNetwork` holds it.
 
+  **That interface is a loan, and it is repaid.** The #201 investigation
+  measured it surviving every later attachment, on all three packs: a Scaleway
+  server on one private network carried three addresses where an Outscale Vm
+  carried one, for the same request, and the extra one was published by no
+  API. Since then, the first client-declared network to arrive retires the
+  fallback: the device is removed, any public /32 riding it moves to the
+  interface that replaces it, and the guest's default route follows the public
+  address — a machine that holds one keeps its way out, a private-only machine
+  ends with none, which is what its provider sells.
+  `TestAttachRetiresTheFallbackInterface` and
+  `TestAttachMovesThePublicAddressOffTheFallback` hold the transition, and
+  `tools/conformance/parity.sh` counts the result across the three providers
+  from the runtime's own view.
+
+  **The bound that remains, stated rather than implied:** a machine that never
+  attaches anything keeps the fallback, so a Scaleway server created with
+  `ip=none` and no private network carries `10.209.84.x` where the real cloud
+  was measured carrying **zero** addresses (author's account, 2026-08-15:
+  default create publishes exactly one routed public address, `ip=none`
+  publishes none). That residual address is the price of cloud-init's outbound
+  path — openssh is installed at first boot — and of having an interface for a
+  later flexible IP to ride. It is declared here rather than carried silently;
+  making the emulated public segment itself that interface, so the address a
+  bare machine carries is the one the API publishes, is the follow-up
+  topology work and it depends on #201's uplink rule set being in place.
+
 `dynamic_ip_required` follows the same mechanism (#117): poweron allocates an
 ephemeral address from the same block — suppressed when a flexible IP is
 already attached, which is upstream's own precedence — publishes it as a
@@ -631,21 +657,39 @@ Both are in the tree, because they cost nothing and separate the simple case;
 neither is trusted, and the conformance suite reports the state rather than
 asserting a separation that is not there.
 
-**With `--vm incus-ovn`, they do not.** An OVN network is a logical network
-with its own router: another OVN network is simply not on it, so the
-separation is the topology's, not a rule's. Measured before any code was
-written: two OVN networks, one instance on each, ten probes per direction,
-zero connections, with the control probe confirming the listener answered.
-Two networks of one routing VPC are joined the runtime's own way, with
-`network peer` — five probes, five connections once peered. The conformance
-suite asserts the cross-VPC separation as a hard failure in this mode, where
-the bridge mode keeps it a documented skip.
+**With `--vm incus-ovn`, they do not — and since #201 that separation is a
+rule set, not a topology claim.** An OVN network is a logical network with its
+own router, and for months this file said another network "is simply not on
+it". Issue #201 measured that claim false: every OVN network shares the
+emulator's own uplink, every delegated block is a scope-link route on the
+host, and two unpeered Outscale Nets reached each other through that path in
+ICMP **and** TCP, with no security group anywhere. The shared L2 the old
+comment declared absent is the uplink feint creates itself.
 
-Measured again on 2026-07-29, both modes end to end: **16 checks green on
-`incus` with the isolation one skipped, 17 green on `incus-ovn` with nothing
-skipped for want of a capability.** Exactly one assertion of the whole suite
-changes verdict with the mode, and the second skip that remains in both — a
-machine carrying an address the API does not publish — is not mode-dependent.
+What made the defect invisible for so long is worth recording, because it is
+an accident and not a control: delivery through the uplink into a network
+whose backing is `ipv4.nat=true` (Scaleway's, Exoscale's) is refused by OVN,
+while a `nat=false` backing (Outscale's, deliberately — a Subnet has no
+outbound until a service grants it) accepts it. So the Scaleway cross-VPC
+assertion stayed green on NAT mode alone — measured: with wide-open
+accept/accept groups it still blocked, and `host -> private IP` reached a
+`nat=false` network while a `nat=true` one refused — and the first suite to
+place a machine directly on a subnet leaked.
+
+The fix is an explicit rule set at the one boundary every variant crosses:
+`iso-feint-uplink`, built by the driver from the uplink's own delegated
+routes, rejecting every network block in both directions and leaving the /32
+routed public addresses alone. An accepted peering never crosses the uplink —
+router to router, measured with the rule set attached, both protocols — so
+peering is untouched by construction, and a deleted peering separates again on
+the same run. `TestTheUplinkRejectsDelegatedBlocks` holds the rules, the
+falsification spec `ovn-uplink-isolation.json` holds the test, and both
+network suites assert both protocols under `capabilities.isolation`.
+
+Measured on 2026-08-15, after the fix, both suites end to end under
+`incus-ovn`: every check green, both protocols, machines with no security
+group — and the same suites red without the rule set, which is what a claim
+of isolation owes its reader.
 
 Since that run the suite no longer compares a mode name: it reads
 `capabilities.isolation` from `/_feint/health`, so a runtime that *declares*

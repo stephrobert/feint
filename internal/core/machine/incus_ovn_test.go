@@ -1,7 +1,10 @@
 package machine
 
 import (
+	"context"
+	"errors"
 	"net/netip"
+	"strings"
 	"testing"
 )
 
@@ -60,6 +63,114 @@ func TestIncusDriverNames(t *testing.T) {
 		if got := d.Name(); got != tt.want {
 			t.Errorf("(&Incus{VM: %v, OVN: %v}).Name() = %q, want %q", tt.vm, tt.ovn, got, tt.want)
 		}
+	}
+}
+
+// uplinkFake answers what EnsureNetwork asks on its OVN path: the network to
+// create is absent, the uplink exists carrying the emulator's label, its route
+// list holds one delegated block and one routed /32, and the uplink rule set
+// does not exist yet.
+func uplinkFake() *fakeRuntime {
+	return &fakeRuntime{
+		answers: map[string]string{
+			"query /1.0/networks/" + DefaultUplinkName:          `{"type":"bridge","config":{"user.` + LabelKey + `":"feint"}}`,
+			"network get " + DefaultUplinkName + " ipv4.routes": "10.191.1.0/24,203.0.113.7/32",
+		},
+		fail: map[string]error{
+			"query /1.0/networks/fnt-b": errors.New("Network not found"),
+			"network acl show":          errors.New("Network ACL not found"),
+		},
+	}
+}
+
+// Issue #201: two unpeered OVN networks reached each other through the uplink,
+// both protocols, because every delegated block is a scope-link host route and
+// nothing closed the path. Creating an OVN network must therefore write a rule
+// set on the uplink that rejects every delegated network block — the routed
+// /32 public addresses excluded, they are the emulated internet — and attach
+// it. This is the test the falsification spec names.
+func TestTheUplinkRejectsDelegatedBlocks(t *testing.T) {
+	f := uplinkFake()
+	d := newFakeDriver(f)
+	d.OVN = true
+
+	err := d.EnsureNetwork(context.Background(), NetworkSpec{
+		Name: "fnt-b", CIDR: "10.192.1.0/24", NAT: false,
+	})
+	if err != nil {
+		t.Fatalf("EnsureNetwork: %v", err)
+	}
+
+	acl := isolationACL(DefaultUplinkName)
+	puts := f.matching("query -X PUT --data ")
+	var body string
+	for _, cmd := range puts {
+		if strings.Contains(cmd, "/1.0/network-acls/"+acl) {
+			body = cmd
+		}
+	}
+	if body == "" {
+		t.Fatalf("no rule-set write for %s; calls: %v", acl, f.commands())
+	}
+	for _, block := range []string{"10.191.1.0/24", "10.192.1.0/24"} {
+		if !strings.Contains(body, `"action":"reject","state":"enabled","destination":"`+block+`"`) {
+			t.Errorf("the uplink rule set does not reject %s: %s", block, body)
+		}
+	}
+	if strings.Contains(body, "203.0.113.7") {
+		t.Errorf("the uplink rule set names a routed /32, which must stay reachable: %s", body)
+	}
+	if !strings.Contains(body, `"action":"allow"`) {
+		t.Errorf("the uplink rule set has no catch-all allow, everything else would fall to the default: %s", body)
+	}
+	if got := f.matching("network set " + DefaultUplinkName + " security.acls " + acl); len(got) == 0 {
+		t.Errorf("the rule set was written but never attached to the uplink; calls: %v", f.commands())
+	}
+}
+
+// A block already delegated returns early — and an interrupted earlier run can
+// have left exactly that state: route standing, rule set missing. The early
+// path must still assert the rule set, or the leak reopens silently on the
+// instance that recreates a network.
+func TestADelegatedBlockAlreadyPresentStillAssertsTheUplinkRuleSet(t *testing.T) {
+	f := uplinkFake()
+	f.answers["network get "+DefaultUplinkName+" ipv4.routes"] = "10.191.1.0/24,10.192.1.0/24"
+	d := newFakeDriver(f)
+	d.OVN = true
+
+	err := d.EnsureNetwork(context.Background(), NetworkSpec{
+		Name: "fnt-b", CIDR: "10.192.1.0/24", NAT: false,
+	})
+	if err != nil {
+		t.Fatalf("EnsureNetwork: %v", err)
+	}
+	acl := isolationACL(DefaultUplinkName)
+	writes := f.matching("/1.0/network-acls/" + acl)
+	if len(writes) == 0 {
+		t.Fatalf("an already-delegated block skipped the uplink rule set; calls: %v", f.commands())
+	}
+	// The write must carry the rules, not merely happen: an empty rule set is
+	// the leak with a receipt.
+	if !strings.Contains(strings.Join(writes, " "), `"destination":"10.192.1.0/24"`) {
+		t.Errorf("the re-asserted rule set does not reject the delegated block: %v", writes)
+	}
+}
+
+// The uplink rule set must be the emulator's to remove: the sweep recognises
+// it by name even when an interrupted run never wrote its description, and
+// RemoveFirewall deletes it without a description round trip.
+func TestTheUplinkIsolationIsSweepable(t *testing.T) {
+	acl := isolationACL(DefaultUplinkName)
+	if !isolationOwned(acl) {
+		t.Fatalf("isolationOwned(%q) = false; an interrupted run would leave it behind forever", acl)
+	}
+	f := &fakeRuntime{}
+	d := newFakeDriver(f)
+	if err := d.RemoveFirewall(context.Background(), acl); err != nil {
+		t.Fatalf("RemoveFirewall(%s): %v", acl, err)
+	}
+	if got := f.matching("network acl delete " + acl); len(got) == 0 {
+		t.Errorf("RemoveFirewall never deleted %s; calls: %v", acl, f.commands())
 	}
 }
 

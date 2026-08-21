@@ -203,9 +203,14 @@ fi
 # private_ip is deliberately not in the published set: the SDK says it is
 # "deprecated and always null when routed_ip_enabled is True", so a real client
 # reads a private address through ipam/v1 and a public one through public_ips.
+# And because ipam/v1 is where a private address is published, the address the
+# suite resolved there belongs in the published set: an earlier version read
+# only public_ips and accused the guard's own private-network address of being
+# unpublished, which the #201 investigation measured as a false report.
 echo "- the machine carries no address the API does not publish"
 published="$(api "$ENDPOINT/instance/v1/zones/$ZONE/servers/$guard_id" \
              | jq -r '[.server.public_ips[]?.address] | map(select(. != null)) | join(" ")')"
+published="$published $guard_ip"
 carried_all="$(incus query "/1.0/instances/$(machine "$guard_id")/state" \
                | jq -r '[.network | to_entries[] | select(.key != "lo")
                         | .value.addresses[]? | select(.family == "inet") | .address] | join(" ")')"
@@ -219,11 +224,16 @@ done
 if [ -z "$unpublished" ]; then
   ok "every address it carries is published ($carried_all)"
 else
-  # Not a failure yet: a server still gets an interface from the runtime's
-  # default profile, and the API has no field describing it. It is filtered,
-  # which is what stops it from being a hole, and docs/limits.md records the
-  # rest.
-  skip "carried but not published:$unpublished (see docs/limits.md)"
+  # A hard failure since the fallback retirement. This line spent months as a
+  # skip because nobody knew where the extra address came from; the #201
+  # investigation measured it as the carrier address of
+  # machine.DefaultMachineNetwork surviving the private-network attachment,
+  # and the real Scaleway was measured publishing every address its servers
+  # carry. The guard has a private NIC, so its fallback must be gone by now —
+  # an unpublished address here is the retirement failing. The cross-provider
+  # count is parity.sh's ground; this asserts the zero-orphan half on the
+  # machine this suite already holds.
+  fail "carried but not published:$unpublished (the fallback interface survived its retirement)"
 fi
 
 echo "- the group's drop policy closes a port, for real"
@@ -339,12 +349,19 @@ incus exec "$(machine "$far_id")" -- sh -c \
   'while true; do printf "ok\n" | nc -l -p 80 >/dev/null 2>&1; done' >/dev/null 2>&1 &
 sleep 2
 
-# On OVN the assertion is hard: two OVN networks reach each other only when
-# peered, and another VPC's network must not be. On bridges it stays a skip,
-# not silence: two managed bridges of one host are routed together, the
-# emulator tries to separate them, and the separation does not hold once the
-# NICs carry a security group. docs/limits.md records both.
-if incus exec "$(machine "$probe_id")" -- timeout 3 nc -z -w 2 "$far_ip" 80 >/dev/null 2>&1; then
+# On OVN the assertion is hard, and it is carried by the uplink rule set: two
+# OVN networks share their uplink, whose delegated blocks are scope-link host
+# routes, and #201 measured both protocols crossing that path before the rule
+# set existed. On bridges it stays a skip, not silence: two managed bridges of
+# one host are routed together, the emulator tries to separate them, and the
+# separation does not hold once the NICs carry a security group. docs/limits.md
+# records both.
+#
+# Both protocols, deliberately: the #201 leak carried ICMP and TCP alike, and
+# a probe that only connects would accept a fix that closes connections and
+# leaves echo open.
+if incus exec "$(machine "$probe_id")" -- timeout 3 nc -z -w 2 "$far_ip" 80 >/dev/null 2>&1 \
+   || incus exec "$(machine "$probe_id")" -- ping -c 2 -W 2 "$far_ip" >/dev/null 2>&1; then
   # A runtime that declares isolation and does not deliver it is a hard failure:
   # that claim is the product's strongest, and an unproven claim is worse than
   # an absent one. A runtime that declares none is skipped, not silently passed.
@@ -353,7 +370,7 @@ if incus exec "$(machine "$probe_id")" -- timeout 3 nc -z -w 2 "$far_ip" 80 >/de
   fi
   skip "$far_ip is reachable from another VPC: $MACHINES does not isolate subnets (see docs/limits.md)"
 else
-  ok "a server of another VPC is unreachable ($far_ip)"
+  ok "a server of another VPC is unreachable ($far_ip, ICMP and TCP)"
 fi
 
 echo "- a private network of the same VPC stays reachable"
@@ -377,6 +394,14 @@ if incus exec "$(machine "$probe_id")" -- timeout 3 nc -z -w 2 "$near_ip" 80 >/d
   ok "a server of the same VPC is reachable ($near_ip)"
 else
   fail "$near_ip is unreachable within one VPC; isolation is separating too much"
+fi
+# The accepting half in the other protocol too: a rule set that rejected ICMP
+# inside a VPC would pass every TCP assertion above and still break the first
+# operator who pings a neighbour.
+if incus exec "$(machine "$probe_id")" -- ping -c 2 -W 2 "$near_ip" >/dev/null 2>&1; then
+  ok "the same VPC answers ICMP as well"
+else
+  fail "$near_ip does not answer ICMP within one VPC; isolation is separating too much"
 fi
 
 echo "conformance: network passed"

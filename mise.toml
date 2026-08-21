@@ -149,6 +149,7 @@ run = [
   "tools/conformance/scaleway/network.sh http://$FEINT_ADDR",
   "tools/conformance/outscale/network.sh http://$FEINT_ADDR",
   "tools/conformance/exoscale/network.sh http://$FEINT_ADDR",
+  "tools/conformance/parity.sh http://$FEINT_ADDR",
 ]
 
 [tasks."conformance:ssh"]
@@ -271,6 +272,7 @@ if [ "${FEINT_VM:-off}" = "off" ]; then ./feint probe --endpoint "http://$FEINT_
 tools/conformance/scaleway/network.sh "http://$FEINT_ADDR"
 tools/conformance/outscale/network.sh "http://$FEINT_ADDR"
 tools/conformance/exoscale/network.sh "http://$FEINT_ADDR"
+tools/conformance/parity.sh "http://$FEINT_ADDR"
 # The evidence artefact (#123), written only when a caller asks for it: a
 # partial or ad-hoc run must not overwrite the recorded proofs by accident.
 # `mise run evidence:update` is the caller, and sets the two variables.

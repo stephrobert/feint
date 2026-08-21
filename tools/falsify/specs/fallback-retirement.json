@@ -1,0 +1,19 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the fallback interface survives every attachment (pre-fix behaviour restored)",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tif cfg[\"type\"] != \"nic\" || cfg[\"network\"] != DefaultMachineNetwork || devName == device {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif (cfg[\"type\"] != \"nic\" || cfg[\"network\"] != DefaultMachineNetwork || devName == device) || true {\n\t\t\tcontinue\n\t\t}",
+      "test": "TestAttachRetiresTheFallbackInterface"
+    },
+    {
+      "label": "the fallback goes but its public /32 is dropped instead of moved",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tpublics := strings.TrimSpace(cfg[routeKey])\n\t\tif _, err := d.run(ctx, \"config\", \"device\", \"remove\", name, devName); err != nil {\n\t\t\treturn fmt.Errorf(\"retire the fallback interface of %s: %w\", name, err)\n\t\t}\n\t\tif publics == \"\" {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tpublics := strings.TrimSpace(cfg[routeKey])\n\t\tif _, err := d.run(ctx, \"config\", \"device\", \"remove\", name, devName); err != nil {\n\t\t\treturn fmt.Errorf(\"retire the fallback interface of %s: %w\", name, err)\n\t\t}\n\t\tif publics == \"\" || true {\n\t\t\tcontinue\n\t\t}",
+      "test": "TestAttachMovesThePublicAddressOffTheFallback"
+    }
+  ]
+}

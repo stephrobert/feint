@@ -429,3 +429,41 @@ func TestAnAcceptedPeeringPeersTheBackingNetworks(t *testing.T) {
 		t.Fatalf("after delete, %s still peers with %v", networkB, got)
 	}
 }
+
+// TestSubnetsOfOneNetArePeered: upstream a Net routes between its own subnets
+// — the local route no client can remove — so on a natively-isolating runtime
+// two sibling subnets must be peered from the moment the second one exists.
+// Before #201 the uplink leak carried the sibling traffic and hid that nothing
+// peered them; with the leak closed, this is what keeps a Net a Net. Another
+// Net's subnet stays out of the peer set until a peering says otherwise.
+func TestSubnetsOfOneNetArePeered(t *testing.T) {
+	env := emulator.DefaultEnv()
+	rt := newPeererRuntime()
+	env.Machines = rt
+	srv, err := emulator.NewServer(env, outscale.New(env))
+	if err != nil {
+		t.Fatalf("build emulator: %v", err)
+	}
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+
+	netA, subnetA := netAndSubnet(t, ts, "10.60.0.0/16", "10.60.1.0/24")
+	_, out := post(t, ts, "CreateSubnet", `{"NetId":"`+netA+`","IpRange":"10.60.2.0/24"}`)
+	s, _ := out["Subnet"].(map[string]any)
+	subnetB, _ := s["SubnetId"].(string)
+	_, foreign := netAndSubnet(t, ts, "10.61.0.0/16", "10.61.1.0/24")
+
+	networkA := machine.NetworkName(machine.NetworkPrefix, subnetA)
+	networkB := machine.NetworkName(machine.NetworkPrefix, subnetB)
+	networkForeign := machine.NetworkName(machine.NetworkPrefix, foreign)
+
+	if got := rt.peersOf(networkA); !has(got, networkB) {
+		t.Fatalf("sibling subnets are not peered: %s peers with %v, want %s", networkA, got, networkB)
+	}
+	if got := rt.peersOf(networkB); !has(got, networkA) {
+		t.Fatalf("sibling subnets are not peered: %s peers with %v, want %s", networkB, got, networkA)
+	}
+	if got := rt.peersOf(networkA); has(got, networkForeign) {
+		t.Fatalf("%s peers with another Net's subnet %s without a peering", networkA, networkForeign)
+	}
+}
