@@ -10,7 +10,6 @@ import (
 
 	"github.com/stephrobert/feint/internal/contract"
 	"github.com/stephrobert/feint/internal/core/sshkey"
-	"github.com/stephrobert/feint/internal/proxy"
 	"github.com/stephrobert/feint/internal/trace"
 	"github.com/stephrobert/feint/internal/transcript"
 )
@@ -140,7 +139,7 @@ func newAlphabet(opt Options) *alphabet {
 // cannot replace and [Audit] must not refuse.
 func (a *alphabet) mayKeep(v value) bool {
 	switch {
-	case v.value == "", v.value == proxy.Placeholder:
+	case v.value == "", isMintedPlaceholder(v.value):
 		return true
 	case a.vocabulary[v.value]:
 		return true

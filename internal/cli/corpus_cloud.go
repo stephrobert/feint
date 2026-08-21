@@ -559,7 +559,7 @@ func redactedRequest(x trace.Exchange) bool {
 	}
 	found := false
 	walkStrings(x.Req.Body, func(s string) {
-		if s == proxy.Placeholder {
+		if proxy.IsPlaceholder(s) {
 			found = true
 		}
 	})

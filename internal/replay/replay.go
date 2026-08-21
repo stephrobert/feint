@@ -615,7 +615,7 @@ func compareShape(path string, want, got any, operation string, opt Options) []F
 		}
 		return out
 	default:
-		if want == proxy.Placeholder {
+		if proxy.IsPlaceholder(want) {
 			// The recorder replaced this value, so its type is erased rather
 			// than observed: a redacted number reads as a string on disk.
 			// Comparing it would manufacture a divergence out of the proxy's

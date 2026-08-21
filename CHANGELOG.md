@@ -959,6 +959,34 @@ what this project is judged on: **a response shape a client can observe**, and
   and nothing made it true —
   `TestTheMovedWarningSurvivesARunThatIsRedForAnotherReason` does, on the
   poorest run that reaches the print.
+- **The recorder no longer writes two different values as one** (#384). A
+  redaction replaced every value the rules matched with the same string, which
+  is right for a credential and wrong for everything else a *name*-pattern rule
+  catches. Measured recording a real Outscale account: `KeypairName` matches
+  `key`, so the imported key's name and the invented one of a deliberate refusal
+  both reached the transcript as `REDACTED`, and the file said the two calls
+  addressed the same object. Replayed, the emulator deleted the real key on the
+  exchange meant to answer 404 and had nothing left for the one meant to answer
+  200.
+
+  A placeholder now carries a per-value suffix — `REDACTED-<8 hex>`, an HMAC
+  under a key drawn once per process and never written down. Three properties,
+  and the third is why it is keyed rather than hashed: the same original keeps
+  the same placeholder throughout a recording, two originals get two, and **the
+  value cannot be recovered from the placeholder whatever its entropy** — a
+  plain digest of a short secret is a brute force away from being the secret.
+  `internal/corpus` renumbers them to `REDACTED-<n>` so the committed artefact
+  carries the sanitiser's own counter and the alphabet has one spelling to
+  admit.
+
+  Nothing about *which* names are redacted moved: `carriers` is untouched, the
+  header allowlist is untouched, and the one value bought back by its own format
+  (an OpenSSH public key line) still is. `internal/corpus` already refused this
+  exact shape one stage later — "the transcript would then say that two objects
+  of the account were one" — and could not see it, because the merge happened in
+  the recorder before the sanitiser met two values. Six falsified mutations in
+  `tools/falsify/specs/distinct-placeholders.json`.
+
 - **A subnet no longer lands outside the net that contains it** (#354). The
   sanitiser minted each CIDR from one counter, so a recorded Net of
   `10.111.0.0/16` and its Subnet of `10.111.1.0/24` came out two disjoint

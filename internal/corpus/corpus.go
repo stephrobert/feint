@@ -512,6 +512,12 @@ func (m *mint) keepable(s string) bool {
 	switch {
 	case s == "", s == proxy.Placeholder:
 		return true
+	case proxy.IsPlaceholder(s):
+		// A suffixed placeholder is NOT kept: it goes through [mint.value] like
+		// everything else, so the committed artefact carries the counter this
+		// package hands out rather than the recorder's keyed digest. See
+		// [mint.synthesise], and #384 for why a placeholder has a suffix at all.
+		return false
 	case m.allowed[s]:
 		return true
 	case s == "true", s == "false":
@@ -522,6 +528,39 @@ func (m *mint) keepable(s string) bool {
 		return true
 	}
 	return false
+}
+
+// isMintedPlaceholder recognises the spelling THIS package hands out — the bare
+// placeholder, or one suffixed with a decimal counter.
+//
+// Deliberately narrower than [proxy.IsPlaceholder], which also admits the
+// recorder's keyed digest (#384). The two ask different questions: the replay
+// asks "did the recorder replace this", and must recognise everything it wrote;
+// the audit asks "may this value stand in a committed artefact", and a digest
+// from the recording standing there would be a value of the recording that
+// survived — which is exactly what the audit exists to refuse.
+//
+// TestARecordersPlaceholderIsRenumberedRatherThanKept fails without the
+// narrowing.
+func isMintedPlaceholder(s string) bool {
+	if s == proxy.Placeholder {
+		return true
+	}
+	rest, found := strings.CutPrefix(s, proxy.Placeholder+"-")
+	return found && isDigits(rest)
+}
+
+// isDigits reports whether s is a non-empty run of decimal digits.
+func isDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // isDefaultRoute recognises "0.0.0.0/0" and "::/0", and nothing else.
@@ -553,6 +592,14 @@ func isShortDigits(s string) bool {
 // any comparison happens.
 func (m *mint) synthesise(s string) string {
 	switch {
+	case proxy.IsPlaceholder(s):
+		// The recorder's placeholder carries a keyed digest of the value it
+		// replaced, so that two originals are two placeholders (#384). Nothing
+		// is recoverable from it, and it is still replaced here: what a
+		// committed artefact should carry is this package's own counter, so a
+		// reader can see at a glance that the fourth redaction is the fourth,
+		// and so the alphabet has one spelling to admit rather than two.
+		return fmt.Sprintf("%s-%d", proxy.Placeholder, m.next("redacted"))
 	case shape.IsUUID(s):
 		return fmt.Sprintf("00000000-0000-4000-8000-%012d", m.next("uuid"))
 	case isPrefix(s):

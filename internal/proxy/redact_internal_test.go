@@ -107,9 +107,9 @@ func TestAQueryWithNothingToRedactIsUnchanged(t *testing.T) {
 		{"ordering is preserved", "zone=fr-par-1&a=1", "zone=fr-par-1&a=1"},
 		{"escaping is preserved", "name=a%2Bb&per_page=50", "name=a%2Bb&per_page=50"},
 		{"a flag with no value", "dry_run&zone=fr-par-1", "dry_run&zone=fr-par-1"},
-		{"a signature goes", "X-Amz-Signature=abc&zone=fr-par-1", "X-Amz-Signature=" + Placeholder + "&zone=fr-par-1"},
-		{"an encoded name still matches", "X%2DAmz%2DSignature=abc", "X%2DAmz%2DSignature=" + Placeholder},
-		{"only the value goes", "token=abc", "token=" + Placeholder},
+		{"a signature goes", "X-Amz-Signature=abc&zone=fr-par-1", "X-Amz-Signature=" + placeholderFor("abc") + "&zone=fr-par-1"},
+		{"an encoded name still matches", "X%2DAmz%2DSignature=abc", "X%2DAmz%2DSignature=" + placeholderFor("abc")},
+		{"only the value goes", "token=abc", "token=" + placeholderFor("abc")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := redactQuery(tc.in); got != tc.want {
@@ -212,7 +212,7 @@ func TestAnUnknownHeaderIsRedacted(t *testing.T) {
 	redactMessage(msg)
 
 	for name, value := range msg.Headers {
-		if value != Placeholder {
+		if !IsPlaceholder(value) {
 			t.Errorf("%s was written as %q", name, value)
 		}
 	}
@@ -284,7 +284,7 @@ func TestARedactedNullStaysNull(t *testing.T) {
 			t.Errorf("%s vanished from the body; the key always stays", key)
 		}
 	}
-	if out["secret_key"] != Placeholder {
+	if !IsPlaceholder(out["secret_key"]) {
 		t.Errorf("a non-null credential came back %#v, want %q: this is the half that must not move",
 			out["secret_key"], Placeholder)
 	}
@@ -357,7 +357,7 @@ func TestASensitiveContainerIsStillReplacedWholesale(t *testing.T) {
 		t.Fatalf("redactValue did not answer an object")
 	}
 	for _, at := range []string{"ssh_keys", "credentials"} {
-		if out[at] != Placeholder {
+		if !IsPlaceholder(out[at]) {
 			t.Errorf("%s came back %#v, want %q: a container named for a credential is "+
 				"replaced whole, and one publishable leaf inside it does not lift that",
 				at, out[at], Placeholder)
@@ -386,7 +386,7 @@ func TestASecretUnderACredentialNameIsStillRedacted(t *testing.T) {
 		t.Fatalf("redactValue did not answer an object")
 	}
 	for _, at := range []string{"secret_key", "auth_token", "private_key", "ssh_key", "api_key"} {
-		if out[at] != Placeholder {
+		if !IsPlaceholder(out[at]) {
 			t.Errorf("%s came back %#v, want %q: the exemption is for a value whose format "+
 				"proves it is published, and none of these has that format", at, out[at], Placeholder)
 		}
@@ -407,12 +407,15 @@ func TestAPublicKeyOutsideABodyIsStillRedacted(t *testing.T) {
 		Req:   &trace.Message{Headers: map[string]string{"X-Ssh-Key": key, "X-Consumer": key}},
 	}
 	redactExchange(&x)
-	if x.Query != "public_key="+Placeholder {
+	if x.Query != "public_key="+placeholderFor(key) {
 		t.Errorf("the query came back %q, want the parameter redacted: the query is where a "+
 			"presigned signature lives, and it is not a place a public key travels", x.Query)
 	}
+	if strings.Contains(x.Query, key) {
+		t.Errorf("the key itself is in the query: %q", x.Query)
+	}
 	for name, value := range x.Req.Headers {
-		if value != Placeholder {
+		if !IsPlaceholder(value) {
 			t.Errorf("header %s came back %q; headers are an allowlist and no key format lifts it", name, value)
 		}
 	}

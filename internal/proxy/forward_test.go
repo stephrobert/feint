@@ -273,11 +273,11 @@ func TestASecretHeaderIsStillRedactedThroughCONNECT(t *testing.T) {
 			t.Errorf("%s is missing from the transcript: the name always stays, only the value goes", name)
 			continue
 		}
-		if value != proxy.Placeholder {
+		if !proxy.IsPlaceholder(value) {
 			t.Errorf("%s reads %q, want %q", name, value, proxy.Placeholder)
 		}
 	}
-	if value := x.Res.Headers["X-Session-Token"]; value != proxy.Placeholder {
+	if value := x.Res.Headers["X-Session-Token"]; !proxy.IsPlaceholder(value) {
 		t.Errorf("the response header X-Session-Token reads %q, want %q", value, proxy.Placeholder)
 	}
 
@@ -349,7 +349,7 @@ func TestAClientWithACompiledInEndpointIsRecordedEndToEnd(t *testing.T) {
 		t.Errorf("recorded %s %s%s -> %d, want GET %s/instance/v1/servers -> 200",
 			x.Method, x.Host, x.Path, x.Status, compiledInHost)
 	}
-	if value := x.Req.Headers["X-Auth-Token"]; value != proxy.Placeholder {
+	if value := x.Req.Headers["X-Auth-Token"]; !proxy.IsPlaceholder(value) {
 		t.Errorf("the child's credential reads %q in the transcript, want %q", value, proxy.Placeholder)
 	}
 	servers, ok := x.Res.Body.(map[string]any)

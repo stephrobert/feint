@@ -601,22 +601,6 @@
       "path": "Images[].PermissionsToLaunch.AccountIds[]",
       "reason": "The emulated image catalogue serves three images on purpose, and the count is not the finding: the shape of an element is. Every real image carries its root device mapping and the accounts it is shared with, and both are empty here, so a stack that sizes its root volume from the image reads nothing.",
       "issue": "https://github.com/stephrobert/feint/issues/383"
-    },
-    {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.DeleteKeypair",
-      "kind": "status",
-      "path": "",
-      "reason": "NOT THE EMULATOR: the recorder replaced two different keypair names with one placeholder, because KeypairName matches the credential denylist of internal/proxy/redact.go, so the transcript says the deliberate delete of a name that never existed and the delete of the real key addressed the same object. The replay then deletes the real key on the first and has nothing left for the second. The sanitiser refuses exactly this shape one stage later (TestTwoValuesNeverShareAReplacement); the merge happens before it can see it.",
-      "issue": "https://github.com/stephrobert/feint/issues/384"
-    },
-    {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.DeleteKeypair",
-      "kind": "absent",
-      "path": "Errors",
-      "reason": "NOT THE EMULATOR: the recorder replaced two different keypair names with one placeholder, because KeypairName matches the credential denylist of internal/proxy/redact.go, so the transcript says the deliberate delete of a name that never existed and the delete of the real key addressed the same object. The replay then deletes the real key on the first and has nothing left for the second. The sanitiser refuses exactly this shape one stage later (TestTwoValuesNeverShareAReplacement); the merge happens before it can see it.",
-      "issue": "https://github.com/stephrobert/feint/issues/384"
     }
   ]
 }

@@ -151,7 +151,7 @@ func TestAMappedTunnelRecordsTheHostTheClientAsked(t *testing.T) {
 	if x.Path != "/instance/v1/servers" || x.Status != http.StatusOK {
 		t.Errorf("recorded %s %s -> %d, want POST /instance/v1/servers -> 200", x.Method, x.Path, x.Status)
 	}
-	if value := x.Req.Headers["X-Auth-Token"]; value != proxy.Placeholder {
+	if value := x.Req.Headers["X-Auth-Token"]; !proxy.IsPlaceholder(value) {
 		t.Errorf("the credential reads %q in the transcript, want %q: the redaction has to survive "+
 			"this door too", value, proxy.Placeholder)
 	}

@@ -1026,6 +1026,37 @@ change ni l'un ni l'autre a sa place dans `git log`.
   rien ne le rende vrai :
   `TestTheMovedWarningSurvivesARunThatIsRedForAnotherReason` le rend vrai, sur
   l'exécution la plus pauvre qui atteigne l'impression.
+- **L'enregistreur n'écrit plus deux valeurs différentes comme une seule**
+  (#384). Une expurgation remplaçait toute valeur reconnue par la même chaîne,
+  ce qui est juste pour un identifiant secret et faux pour tout le reste que
+  capture une règle portant sur les *noms*. Mesuré en enregistrant un vrai
+  compte Outscale : `KeypairName` contient `key`, donc le nom de la clé importée
+  et celui, inventé, d'un refus délibéré sont tous deux arrivés dans la
+  transcription en `REDACTED`, et le fichier affirmait que les deux appels
+  visaient le même objet. Au rejeu, l'émulateur supprimait la vraie clé sur
+  l'échange censé répondre 404 et n'avait plus rien pour celui censé répondre
+  200.
+
+  Un remplaçant porte désormais un suffixe par valeur : `REDACTED-<8 hex>`, un
+  HMAC sous une clé tirée une fois par processus et jamais écrite. Trois
+  propriétés, et la troisième explique pourquoi c'est un HMAC et non un
+  condensat : une même valeur garde le même remplaçant dans tout
+  l'enregistrement, deux valeurs en obtiennent deux, et **la valeur reste
+  irrécupérable depuis le remplaçant quelle que soit son entropie**, là où un
+  condensat simple d'un secret court se retrouve en essayant des candidats.
+  `internal/corpus` les renumérote en `REDACTED-<n>` pour que l'artefact
+  commité porte le compteur du sanitiseur et que l'alphabet n'ait qu'une seule
+  graphie à admettre.
+
+  Rien n'a bougé sur *quels* noms sont expurgés : `carriers` est intact, la
+  liste blanche des en-têtes est intacte, et la seule valeur rachetée par son
+  propre format (une ligne de clé publique OpenSSH) l'est toujours.
+  `internal/corpus` refusait déjà exactement cette forme une étape plus loin
+  (« la transcription dirait alors que deux objets du compte n'en font qu'un »)
+  et ne pouvait pas la voir, la fusion ayant lieu dans l'enregistreur avant que
+  le sanitiseur ne rencontre deux valeurs. Six mutations falsifiées dans
+  `tools/falsify/specs/distinct-placeholders.json`.
+
 - **Un subnet ne tombe plus hors du net qui le contient** (#354). Le sanitiseur
   frappait chaque CIDR depuis un compteur unique : un Net enregistré en
   `10.111.0.0/16` et son Subnet en `10.111.1.0/24` ressortaient en deux blocs

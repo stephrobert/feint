@@ -8,15 +8,6 @@ import (
 	"github.com/stephrobert/feint/internal/trace"
 )
 
-// Placeholder is what replaces a value the rules match.
-//
-// The name beside it always stays. A transcript exists to be read — by a human
-// looking for the call a client made before the one that failed, by X-3 (#73)
-// replaying it, by X-4 (#74) ranking what to serve next — and a record whose
-// keys have been erased along with its values answers none of those questions.
-// So: names in full, values gone.
-const Placeholder = "REDACTED"
-
 // carriers are the header and JSON key names whose value never reaches the
 // writer.
 //
@@ -139,13 +130,13 @@ func redactMessage(m *trace.Message) {
 	if m == nil {
 		return
 	}
-	for name := range m.Headers {
+	for name, value := range m.Headers {
 		if !harmless(name) {
 			// The whole value, scheme included. Keeping "EXO2-HMAC-SHA256" and
 			// dropping the rest would be more readable and would mean splitting a
 			// credential and writing part of it down, which is how the interesting
 			// half ends up on the wrong side of the split.
-			m.Headers[name] = Placeholder
+			m.Headers[name] = placeholderFor(value)
 		}
 	}
 	m.Body = redactValue(m.Body)
@@ -182,7 +173,12 @@ func redactValue(v any) any {
 				// instead of a false measurement.
 				//
 				// TestARedactedNullStaysNull fails without this.
-				value[k] = Placeholder
+				//
+				// One placeholder per distinct value, not one for all of them:
+				// a name-pattern rule catches names as well as secrets, and two
+				// names written as one string make a transcript claim two
+				// objects were the same. See [placeholderFor] and #384.
+				value[k] = placeholderFor(textOf(nested))
 				continue
 			}
 			value[k] = redactValue(nested)
@@ -266,9 +262,10 @@ func redactQuery(raw string) string {
 			decoded = name
 		}
 		if hasValue && sensitive(decoded) {
+			_, value, _ := strings.Cut(pair, "=")
 			out.WriteString(name)
 			out.WriteByte('=')
-			out.WriteString(Placeholder)
+			out.WriteString(placeholderFor(value))
 			changed = true
 			continue
 		}

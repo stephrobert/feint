@@ -1,0 +1,49 @@
+{
+  "package": "./internal/proxy/",
+  "mutations": [
+    {
+      "label": "every redacted value becomes the same string again, so two different keypair names are written down as one and the transcript claims two objects of the account were the same object (#384)",
+      "file": "internal/proxy/placeholder.go",
+      "find": "\treturn Placeholder + \"-\" + hex.EncodeToString(mac.Sum(nil)[:4])",
+      "replace": "\treturn Placeholder + (\"-\" + hex.EncodeToString(mac.Sum(nil)[:4]))[:0]",
+      "test": "TestTwoDifferentValuesGetTwoDifferentPlaceholders"
+    },
+    {
+      "label": "THE OTHER DIRECTION: the suffix stops depending on the value, so one value gets a different placeholder in each position and the delete no longer names what the create made",
+      "file": "internal/proxy/placeholder.go",
+      "find": "\tmac.Write([]byte(value))",
+      "replace": "\tmac.Write([]byte(value)[:0])\n\tmac.Write([]byte(hex.EncodeToString(newPlaceholderKey()[:4])))",
+      "test": "TestOneValueGetsOnePlaceholderThroughoutARecording"
+    },
+    {
+      "label": "THE FLOOR UNDER IT: the suffix becomes an unkeyed digest, so a short secret can be recovered by hashing candidates and the redaction becomes a hint",
+      "file": "internal/proxy/placeholder.go",
+      "find": "\tmac := hmac.New(sha256.New, placeholderKey)",
+      "replace": "\tmac := hmac.New(sha256.New, placeholderKey[:0])",
+      "test": "TestAPlaceholderIsNotADigestAnybodyCanInvert"
+    },
+    {
+      "label": "a value that merely starts with the word is taken for a placeholder, so the replay skips comparing a field the cloud really answered and the audit keeps a value of the recording",
+      "file": "internal/proxy/placeholder.go",
+      "find": "\t\tif (r < '0' || r > '9') && (r < 'a' || r > 'f') {\n\t\t\treturn false\n\t\t}",
+      "replace": "\t\tif ((r < '0' || r > '9') && (r < 'a' || r > 'f')) && false {\n\t\t\treturn false\n\t\t}",
+      "test": "TestIsPlaceholderRecognisesTheFamilyAndNothingElse"
+    },
+    {
+      "label": "the sanitiser keeps the recorder's keyed digest instead of renumbering it, so a value read from the recording stands in the committed artefact and the audit is the only thing that could have said so",
+      "file": "internal/corpus/scan.go",
+      "find": "\tcase v.value == \"\", isMintedPlaceholder(v.value):",
+      "replace": "\tcase v.value == \"\", isMintedPlaceholder(v.value) || strings.HasPrefix(v.value, \"REDACTED\"):",
+      "test": "TestARecordersPlaceholderIsRenumberedRatherThanKept",
+      "package": "./internal/corpus/"
+    },
+    {
+      "label": "THE OTHER HALF: two distinct placeholders are minted to one value, so the sanitiser undoes #384 one stage after the recorder got it right",
+      "file": "internal/corpus/corpus.go",
+      "find": "\t\treturn fmt.Sprintf(\"%s-%d\", proxy.Placeholder, m.next(\"redacted\"))",
+      "replace": "\t\treturn fmt.Sprintf(\"%s-%d\", proxy.Placeholder, m.next(\"redacted\")*0)",
+      "test": "TestARecordersPlaceholderIsRenumberedRatherThanKept",
+      "package": "./internal/corpus/"
+    }
+  ]
+}
