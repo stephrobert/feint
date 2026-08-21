@@ -867,6 +867,49 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **The conformance run orphaned one of its own networks mid-run, and that one
+  teardown race is what #316, #342 and #375 were all downstream of** (#386).
+  `mise run evidence:update` failed twice in bridge mode on 2026-08-21, each
+  time on a subnet of `examples/stacks/outscale/main.tf`, and each failure was
+  preceded in the emulator log by `detach isolation from fnt-…: open
+  /var/lib/incus/networks/…/dnsmasq.raw: no such file or directory`. That is one
+  request's isolation reconciliation reaching a network another request had
+  already deleted: the pass lists the store, a concurrent delete removes one of
+  the members it listed, and the config edit lands on a network the daemon no
+  longer knows. The object dies, the interface and its `dnsmasq` outlive it, and
+  the next run wanting that block dies minutes in on "Address already in use".
+  **The three issues before it made the leftover visible or survivable; none
+  addressed what produces it**, and no doorstep can, because the host is clean
+  when the run starts and the run dirties it at step twelve.
+
+  **Two halves, because either alone leaves the race open.** The Incus driver
+  now takes `serialise.Lock("incus.network." + name)` in `EnsureNetwork`,
+  `IsolateNetwork` and `RemoveNetwork`, so no config edit of a network is in
+  flight while its delete runs. Per network and never global: a global lock
+  would queue every subnet of a stack behind one delete, which is the mistake
+  `internal/core/machine/serialise.go` already records having made once, with
+  interface allocation (#348). And `IsolateNetwork`, holding that lock, asks the
+  daemon whether the network is still there before it edits anything, because
+  the lock alone still lets a delete that won it run first, and the question
+  alone is a time-of-check a delete crosses.
+
+  **A detach that could not happen is reported, never counted as done.** The
+  driver returns `machine.ErrNetworkGone` and `ReconcileIsolation` logs it,
+  naming the network. At warn rather than error: no rule set was needed and none
+  is missing, and a line that fires on every parallel destroy is how a log stops
+  being evidence. The rule set that isolated the network is now dropped by the
+  delete itself, since the pass that used to drop it is the one that now refuses
+  to run against a network that is gone.
+
+  Reproduced deliberately before anything was changed. The fake runtime models
+  the daemon behaviour the log showed — an edit re-applies the network, bringing
+  its bridge and its `dnsmasq` back up, before it opens `dnsmasq.raw` — so an
+  edit that meets a delete leaves a service standing for a network that is gone,
+  which is exactly the leftover #342 measured. Falsified in
+  `tools/falsify/specs/teardown-race.json`: five mutations, all red, and the
+  lock mutation measured out of tree at red 10/10 with the lock removed and
+  green 10/10 with it back.
+
 - **Three fields the real Exoscale API answers and this emulator omitted, all
   invisible to every control that reads a document** (#370, #371). They are 105
   of the 192 divergences the 2026-08-21 recording of a real `ch-gva-2` account

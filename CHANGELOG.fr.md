@@ -922,6 +922,54 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **La suite de conformance orphelinait un de ses propres réseaux en cours
+  d'exécution, et cette seule course de démantèlement est ce dont #316, #342 et
+  #375 étaient tous en aval** (#386). `mise run evidence:update` a échoué deux
+  fois en mode pont le 2026-08-21, chaque fois sur un sous-réseau de
+  `examples/stacks/outscale/main.tf`, et chaque échec était précédé dans le
+  journal de l'émulateur par `detach isolation from fnt-… : open
+  /var/lib/incus/networks/…/dnsmasq.raw: no such file or directory`. C'est la
+  réconciliation d'isolation d'une requête qui atteint un réseau qu'une autre
+  requête a déjà supprimé : la passe liste le store, une suppression concurrente
+  retire un des membres qu'elle avait listés, et l'édition de configuration
+  arrive sur un réseau que le démon ne connaît plus. L'objet meurt, l'interface
+  et son `dnsmasq` lui survivent, et l'exécution suivante qui veut ce bloc meurt
+  au bout de plusieurs minutes sur « Address already in use ». **Les trois
+  issues précédentes ont rendu le résidu visible ou survivable ; aucune n'a
+  traité ce qui le produit**, et aucun contrôle sur le pas de la porte ne le
+  peut, puisque l'hôte est propre au démarrage et que c'est l'exécution
+  elle-même qui le salit à la douzième étape.
+
+  **Deux moitiés, parce que l'une sans l'autre laisse la course ouverte.** Le
+  pilote Incus prend désormais `serialise.Lock("incus.network." + name)` dans
+  `EnsureNetwork`, `IsolateNetwork` et `RemoveNetwork` : aucune édition de
+  configuration d'un réseau n'est en vol pendant que sa suppression tourne. Par
+  réseau et jamais global, car un verrou global mettrait tous les sous-réseaux
+  d'une pile en file derrière une seule suppression, c'est-à-dire l'erreur que
+  `internal/core/machine/serialise.go` consigne déjà avoir commise une fois,
+  avec l'allocation d'interface (#348). Et `IsolateNetwork`, sous ce verrou,
+  demande au démon si le réseau est encore là avant d'éditer quoi que ce soit :
+  le verrou seul laisse encore passer une suppression qui l'a gagné, et la
+  question seule est un temps de contrôle qu'une suppression traverse.
+
+  **Un détachement qui n'a pas pu avoir lieu est rapporté, jamais compté comme
+  fait.** Le pilote rend `machine.ErrNetworkGone` et `ReconcileIsolation` le
+  journalise en nommant le réseau. En avertissement plutôt qu'en erreur : aucun
+  jeu de règles n'était nécessaire et aucun ne manque, et une ligne qui se
+  déclenche à chaque destruction parallèle est la façon dont un journal cesse
+  d'être une preuve. Le jeu de règles qui isolait le réseau est maintenant
+  retiré par la suppression elle-même, puisque la passe qui le retirait est
+  celle qui refuse désormais de tourner contre un réseau disparu.
+
+  Reproduite délibérément avant toute correction. Le faux runtime modélise le
+  comportement du démon que le journal a montré (une édition réapplique le
+  réseau, ce qui relève son pont et son `dnsmasq`, avant d'ouvrir
+  `dnsmasq.raw`), de sorte qu'une édition qui croise une suppression laisse un
+  service debout pour un réseau disparu, exactement le résidu mesuré par #342.
+  Falsifiée dans `tools/falsify/specs/teardown-race.json` : cinq mutations,
+  toutes rouges, et la mutation du verrou mesurée hors dépôt à 10/10 rouge sans
+  le verrou et 10/10 vert avec.
+
 - **Trois champs que la vraie API Exoscale répond et que cet émulateur omettait,
   tous invisibles à tout contrôle qui lit un document** (#370, #371). Ils font
   105 des 192 divergences rapportées par l'enregistrement du 2026-08-21 d'un
