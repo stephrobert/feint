@@ -19,6 +19,98 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Exoscale sert le Network Load Balancer, et aucun backend ne porte de
+  verdict de santé** (#345, successeur de #14). Toute la famille est montée :
+  `exoscale/v2.create-load-balancer`, `exoscale/v2.list-load-balancers`,
+  `exoscale/v2.get-load-balancer`, `exoscale/v2.update-load-balancer`,
+  `exoscale/v2.delete-load-balancer`,
+  `exoscale/v2.add-service-to-load-balancer`,
+  `exoscale/v2.get-load-balancer-service`,
+  `exoscale/v2.update-load-balancer-service`,
+  `exoscale/v2.delete-load-balancer-service`,
+  `exoscale/v2.reset-load-balancer-field` et
+  `exoscale/v2.reset-load-balancer-service-field`. Exoscale passe de 93 à 104
+  opérations servies.
+
+  **Le refus qui rouvre la famille est celui que #14 avait écrit.** #14
+  déclinait les onze parce que `load-balancer-service.healthcheck-status` est un
+  verdict par backend dont l'énumération vaut `success` ou `failure`, sans
+  troisième valeur : un émulateur qui ne sonde aucun backend devrait donc en
+  inventer une des deux. Cette lecture était juste sur l'énumération et fausse
+  sur le champ. `healthcheck-status` est un **tableau**, et le schéma de ses
+  éléments (`load-balancer-server-status`) ne déclare aucune propriété
+  obligatoire. Une entrée peut donc nommer un backend sans porter de verdict, et
+  c'est ce qui est servi : une entrée par membre du pool d'instances que le
+  service vise, chacune avec le `public-ip` qu'un client sonderait, aucune avec
+  un `status`. Mesuré avec le CLI officiel : `exo compute load-balancer service
+  show` affiche `"healthcheck_status":[{"instance_ip":"192.0.2.2","status":""},
+  …]`. Le tableau vide était l'autre candidat, et il est pire : il se lit « ce
+  service n'a aucun backend », ce qui est une affirmation sur le pool et non sur
+  la mesure. Ce qui n'est *pas* mesuré est dit dans `docs/limits.md` : aucun
+  enregistrement d'un NLB vivant n'existe ici, donc la forme de l'entrée vient
+  de leur document publié et de deux clients qui l'acceptent, jamais de la
+  réponse du cloud lui-même.
+
+  **Aucun plan de données interne, et c'est une mesure, pas un renoncement.**
+  #345 demandait si le NLB pouvait être le second client de `machine.Balancer`,
+  l'interface neutre bâtie par #315 pour le LBU Outscale. Il ne peut pas, et
+  `internal/core` n'a rien gagné pour l'y forcer. Sur une station `incus-ovn`
+  vivante le 2026-08-21, sur un réseau OVN créé par l'émulateur (10.63.7.0/24) :
+  `EnsureBalancer`, avec l'adresse que ce pack donne à un NLB, répond « listens
+  on 192.0.2.1, which is outside … 10.63.7.0/24: an address the runtime has to
+  announce goes dark within minutes (#315) » ; le même appel avec 10.63.7.240 et
+  un backend répond `<nil>` ; et le démon lui-même refuse l'adresse publique
+  avec « Uplink network doesn't contain `"192.0.2.1/32"` in its routes ». Un NLB
+  Exoscale publie exactement une adresse, `ip`, et leur schéma n'en déclare
+  aucune autre : ni subnet, ni réseau privé, rien qui ressemble au `PrivateIp`
+  du LBU. Ce qui manque est donc une adresse, pas un champ de l'interface, et la
+  face publique du balanceur reste ce que décrit `docs/limits.md` : une adresse
+  TEST-NET-1 qui ne route nulle part.
+
+  **Ce qu'un vrai client a tranché, contre ce qui semblait évident.**
+  L'opération que rend une mutation de service référence le **balanceur**, pas
+  le service qui vient d'être créé. Référencer le service, ce que fait toute
+  autre mutation de ce pack, faisait échouer `terraform apply` sur `Get
+  …/v2/load-balancer/<id de service> : resource not found`, parce qu'egoscale v2
+  passe cette référence directement à `GetNetworkLoadBalancer` et retrouve le
+  nouveau service en comparant la liste du balanceur avant et après
+  (`v2/network_load_balancer_service.go:121` en v0.102.4). Le CLI exo ne
+  pouvait pas le trouver : il résout chaque objet en listant et en filtrant, et
+  ne lit jamais une référence.
+
+  **Un membre de pool porte désormais l'adresse publique que son pool
+  déclare**, et `public-ip-assignment` est lu sur le pool. Elle manquait sans
+  que personne le voie, parce que personne ne la lisait : les backends d'un
+  service sont identifiés par cette adresse, donc des membres sans adresse
+  faisaient répondre à chaque service une liste de backends vide. L'allocateur
+  TEST-NET-1 du pack compte aussi les balanceurs, si bien qu'un balanceur et une
+  IP élastique ne peuvent plus recevoir la même adresse.
+
+  **Prouvé avec de vrais clients.** `tools/conformance/exoscale/exo-cli.sh`
+  pilote la création, l'ajout d'un service avec sonde https, la relecture, le
+  changement de port, la suppression du service et celle du balanceur, et
+  affirme que les entrées de backend existent et ne portent aucun verdict. La
+  pile d'exemple `examples/stacks/exoscale/` gagne un `exoscale_nlb` et un
+  `exoscale_nlb_service` : avec le provider corrigé que `docs/limits.md` épingle,
+  **15 créées, second plan vide, 15 détruites**. Et la pile recensée que le refus
+  bloquait — PhilippeChepy/platform, couche `terraform-base`, rejouée le
+  2026-08-21 contre un émulateur `de-fra-1` — passe de **19 appliquées / replan
+  `6 to add`** à **20 appliquées / replan `5 to add` / 20 détruites** : son
+  `exoscale_nlb` s'applique et sa source `data "exoscale_nlb"` se relit. Son
+  unique `exoscale_nlb_service` ne s'applique toujours pas, et pas pour une
+  raison qui vienne de cet émulateur : il est derrière la branche des buckets
+  SOS, qui vise le vrai `sos-de-muc-1.exo.io` et échoue sur des identifiants
+  factices, exactement comme le recensement l'avait noté.
+
+  **Les deux remises à zéro par champ portent une raison que nulle autre ne
+  porte.** Toute autre famille de ce pack dit que le CLI vide un champ en
+  envoyant la mise à jour avec une valeur vide. Mesuré sur celle-ci le
+  2026-08-21, il n'en fait rien : `exo compute load-balancer update
+  --description ""` envoie `PUT {}`, et la forme service n'envoie que le bloc de
+  sonde qu'elle renvoie à chaque appel. Ce CLI ne vide aucun champ, ni par mise
+  à jour ni par remise à zéro, et recopier la phrase habituelle aurait consigné
+  un comportement qu'il n'a pas.
+
 - **L'émulateur sait refuser, par opération, éteint par défaut** (#26, #356).
   `PUT /_feint/faults` arme une règle qui nomme une opération amont et ce qu'il
   faut répondre à la place : un statut, un délai, ou un corps coupé. `GET` liste

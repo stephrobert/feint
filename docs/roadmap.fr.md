@@ -245,8 +245,8 @@ documents archivés expliquent comment chaque lot a été découpé.
    réglées : stocké d'un
    côté, calculé de l'autre, règles de suppression testées par le destroy de
    la fixture.
-6. **Load balancing et gateways** : **ouvert.** SW-5 (#17), SW-6 (#18), OSC-5
-   (#16), EXO-5 (#14), EXO-6 (#15). En dernier parce que rien d'autre n'en
+6. **Load balancing et gateways** : **ouvert**, à un lot près : EXO-5 est
+   livrée par #345. Restent SW-5 (#17), SW-6 (#18), OSC-5 (#16) et EXO-6 (#15). En dernier parce que rien d'autre n'en
    dépend et que tout ce dont ils dépendent (IPAM, réseaux, la discipline des
    waiters) est au-dessus ; chacun est plan de contrôle d'abord, adossement
    sous capacité ensuite.
@@ -281,7 +281,7 @@ comme affirmation.
 | **SW-5** | 6 | `lb/v1` ZonedAPI | ouvert (#17) |
 | **SW-6** | 6 | `vpcgw/v2` | ouvert (#18) |
 | **OSC-5** | 6 | load balancing | ouvert (#16) |
-| **EXO-5** | 6 | NLB | ouvert (#14) |
+| **EXO-5** | 6 | NLB | faite (#345) |
 | **EXO-6** | 6 | VPC et routes | ouvert (#15) |
 
 Les tailles et les listes d'opérations restent avec les issues et les

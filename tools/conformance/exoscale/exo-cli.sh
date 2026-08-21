@@ -566,6 +566,102 @@ exoc -Q compute instance-pool evict "$pool_id" "$victim" --force >/dev/null \
   || fail "instance-pool evict rejected"
 [ "$(members_of)" = "1" ] || fail "after evicting one member the pool holds $(members_of)"
 
+# The Network Load Balancer (EXO-5, #345), driven while the pool it forwards to
+# still exists — which is the only order a real stack can build it in.
+#
+# The assertion that matters is the last one, and it is the reason #14 declined
+# this family for a year: a service must name its backends and give none of them
+# a health verdict. Nothing here probes a backend, so `success` or `failure` on
+# any of them would be a verdict this emulator invented. The check demands the
+# entries exist first, because "no entry carries a status" is satisfied for free
+# by a list with nothing in it.
+echo "- a network load balancer, its service, and no health this emulator did not measure"
+span_nlb="$(prove_begin behaviour)"
+members="$(members_of)"
+[ "$members" -ge 1 ] || fail "the pool holds no member, so a service would have no backend to name"
+
+exoc -Q compute load-balancer create conformance-nlb --description 'conformance entrypoint' >/dev/null \
+  || fail "load-balancer create rejected"
+nlb="$(exoc -O json compute load-balancer show conformance-nlb)" || fail "load-balancer show rejected: $nlb"
+address="$(printf '%s' "$nlb" | jq -r '.ip_address')"
+# TEST-NET-1, RFC 5737: the block this pack publishes and routes nowhere. A
+# balancer answering an address outside it would be one the emulator could not
+# account for.
+case "$address" in
+  192.0.2.*) : ;;
+  *) fail "the balancer publishes $address, which is outside the emulated public block" ;;
+esac
+# And it is nobody else's. The allocator counts balancers now; before #345 it did
+# not, and the next elastic IP was handed the balancer's own address.
+taken="$(exoc -O json compute instance list | jq -r '.[].ip_address')"
+[ -n "$taken" ] || fail "no instance publishes an address, so this check compares nothing"
+if printf '%s\n' "$taken" | grep -qx "$address"; then
+  fail "the balancer was given $address, which an instance already holds"
+fi
+ok "balancer at $address, in the emulated public block and held by nothing else"
+
+exoc -Q compute load-balancer service add conformance-nlb web \
+  --instance-pool "$pool_id" --port 80 --target-port 8080 \
+  --protocol tcp --strategy round-robin \
+  --healthcheck-mode http --healthcheck-uri /healthz --healthcheck-port 8080 \
+  --healthcheck-interval 10 --healthcheck-timeout 5 --healthcheck-retries 2 >/dev/null \
+  || fail "load-balancer service add rejected"
+
+service="$(exoc -O json compute load-balancer service show conformance-nlb web)" \
+  || fail "load-balancer service show rejected: $service"
+printf '%s' "$service" | jq -e --arg p "$pool_id" '
+  .instance_pool_id == $p and .port == 80 and .target_port == 8080
+  and .protocol == "tcp" and .strategy == "round-robin"
+  and .healthcheck.mode == "http" and .healthcheck.uri == "/healthz"' >/dev/null \
+  || fail "the service did not come back as it was sent: $service"
+
+# The refusal #14 stated, still standing now that the family is served.
+#
+# Not bracketed as negative evidence: that axis means a real client met a
+# refusal, and this is an absence in a 200. The refusal below is the negative
+# one.
+backends="$(printf '%s' "$service" | jq '.healthcheck_status | length')"
+[ "$backends" = "$members" ] \
+  || fail "the service names $backends backend(s) for a pool of $members: an empty list would read as a pool with nobody in it"
+printf '%s' "$service" | jq -e 'all(.healthcheck_status[]; .instance_ip != "" and .status == "")' >/dev/null \
+  || fail "a backend carries a health verdict, and nothing here probed one: $service"
+ok "$backends backend(s) named, not one of them given a verdict"
+
+# A health check the API's own document refuses: interval 1, where it declares a
+# floor of 5. Stored here, it would be a plan that converges against the
+# emulator and fails against the cloud.
+neg_nlb="$(prove_begin negative)"
+if exoc -Q compute load-balancer service add conformance-nlb refused \
+  --instance-pool "$pool_id" --port 81 --target-port 81 \
+  --healthcheck-interval 1 --healthcheck-timeout 1 >/dev/null 2>&1; then
+  fail "a health check outside the declared ranges was accepted"
+fi
+prove_end "$neg_nlb"
+ok "a health check below the documented floor is refused, as upstream refuses it"
+
+exoc -Q compute load-balancer service update conformance-nlb web --port 443 >/dev/null \
+  || fail "load-balancer service update rejected"
+exoc -O json compute load-balancer service show conformance-nlb web \
+  | jq -e '.port == 443 and .target_port == 8080' >/dev/null \
+  || fail "the service port did not move, or took the target port with it"
+
+exoc -Q compute load-balancer update conformance-nlb --description 'moved on' >/dev/null \
+  || fail "load-balancer update rejected"
+exoc -O json compute load-balancer show conformance-nlb | jq -e '.description == "moved on"' >/dev/null \
+  || fail "the balancer description did not move"
+
+exoc -Q compute load-balancer service delete conformance-nlb web --force >/dev/null \
+  || fail "load-balancer service delete rejected"
+exoc -O json compute load-balancer show conformance-nlb | jq -e '.services | length == 0' >/dev/null \
+  || fail "the service survived its delete"
+
+exoc -Q compute load-balancer delete conformance-nlb --force >/dev/null \
+  || fail "load-balancer delete rejected"
+exoc -O json compute load-balancer list | jq -e 'all(.[]; .name != "conformance-nlb")' >/dev/null \
+  || fail "the balancer survived its delete"
+prove_end "$span_nlb"
+ok "created, serviced, updated, and removed in order"
+
 exoc -Q compute instance-pool delete "$pool_id" --force >/dev/null \
   || fail "instance-pool delete rejected"
 exoc -O json compute instance-pool list \

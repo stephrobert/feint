@@ -76,7 +76,7 @@ type Pack struct {
 }
 
 // lockAddresses serializes elastic IP and lease allocation, which is
-// read-modify-write over the store: freeElasticAddress rebuilds the used set
+// read-modify-write over the store: freeAddress rebuilds the used set
 // from what exists, answers the lowest free address, and the caller then
 // stores it. Two requests interleaving there receive the same address.
 //
@@ -330,6 +330,45 @@ func (p *Pack) Routes() []emulator.Route {
 			Undriven: "`exo limits` reads the whole quota list and prints it, so the per-name read has no client path even though the SDK declares one"},
 		{Method: "GET", Path: "/v2/ssh-key/{name}", Operation: operation("get-ssh-key"), Handler: p.getSSHKey},
 		{Method: "DELETE", Path: "/v2/ssh-key/{name}", Operation: operation("delete-ssh-key"), Handler: p.deleteSSHKey},
+
+		// The Network Load Balancer (EXO-5, #345). Eleven operations, which is
+		// the whole family: the balancer, its services, and the two per-field
+		// resets. loadbalancers.go says what is stored, why a service is a
+		// resource of its own, why no backend ever carries a health verdict,
+		// and why nothing here reaches the machine runtime.
+		{Method: "POST", Path: "/v2/load-balancer", Operation: operation("create-load-balancer"), Handler: p.createLoadBalancer},
+		{Method: "GET", Path: "/v2/load-balancer", Operation: operation("list-load-balancers"), Handler: p.listLoadBalancers},
+		{Method: "GET", Path: "/v2/load-balancer/{id}", Operation: operation("get-load-balancer"), Handler: p.getLoadBalancer,
+			// The sixth per-id read this CLI never makes, measured on this one
+			// rather than assumed from the pattern: `exo compute load-balancer
+			// show`, `service show` and `list` all issue GET /v2/load-balancer and
+			// filter in the client (recorded 2026-08-21 through a proxy that keeps
+			// the Host header, so the zone signpost points back at it). The
+			// Terraform provider's `data "exoscale_nlb"` does read by id, and that
+			// is why the route is served rather than declined — but the build that
+			// reaches this emulator is the fork docs/limits.md pins, and a client
+			// this project patched is not the official client.
+			Undriven: "`exo compute load-balancer show` resolves a balancer by name, which it does by listing and filtering in the client, so the per-id read has no caller among the published clients"},
+		{Method: "PUT", Path: "/v2/load-balancer/{id}", Operation: operation("update-load-balancer"), Handler: p.updateLoadBalancer},
+		{Method: "DELETE", Path: "/v2/load-balancer/{id}", Operation: operation("delete-load-balancer"), Handler: p.deleteLoadBalancer},
+		{Method: "POST", Path: "/v2/load-balancer/{id}/service", Operation: operation("add-service-to-load-balancer"), Handler: p.addServiceToLoadBalancer},
+		{Method: "GET", Path: "/v2/load-balancer/{id}/service/{serviceID}", Operation: operation("get-load-balancer-service"), Handler: p.getLoadBalancerService,
+			Undriven: "`exo compute load-balancer service show` reads the balancer list and picks its service out of the balancer it found, so the per-id service read is never called"},
+		{Method: "PUT", Path: "/v2/load-balancer/{id}/service/{serviceID}", Operation: operation("update-load-balancer-service"), Handler: p.updateLoadBalancerService},
+		{Method: "DELETE", Path: "/v2/load-balancer/{id}/service/{serviceID}", Operation: operation("delete-load-balancer-service"), Handler: p.deleteLoadBalancerService},
+		// The two per-field resets, and their reason is NOT the sentence every
+		// other family of this pack carries. That sentence says the CLI clears a
+		// field by sending the update with an empty value; measured on this
+		// family on 2026-08-21, it does no such thing. `exo compute load-balancer
+		// update <name> --description ""` sends `PUT {}` — an empty body — and
+		// `service update --description ""` sends only the healthcheck block it
+		// re-sends on every call. The CLI therefore offers no way to clear either
+		// field at all, by update or by reset, and copying the familiar sentence
+		// here would have recorded a behaviour this client does not have.
+		{Method: "DELETE", Path: "/v2/load-balancer/{id}/{field}", Operation: operation("reset-load-balancer-field"), Handler: p.resetLoadBalancerField,
+			Undriven: "`exo compute load-balancer update --description \"\"` sends an empty body rather than the empty value, so this CLI clears no field by either route and the per-field DELETE is never issued"},
+		{Method: "DELETE", Path: "/v2/load-balancer/{id}/service/{serviceID}/{field}", Operation: operation("reset-load-balancer-service-field"), Handler: p.resetLoadBalancerServiceField,
+			Undriven: "`exo compute load-balancer service update --description \"\"` sends only the healthcheck block it re-sends on every call, so this CLI clears no field by either route and the per-field DELETE is never issued"},
 	})
 }
 
@@ -350,11 +389,16 @@ func (p *Pack) Declined() []emulator.Decline {
 	// anti-affinity groups. Declining any of those to flatten the report would
 	// be the widened denominator docs/roadmap.md forbids.
 	//
-	// Two IaaS families ARE here, and they are not that: the network load
-	// balancer and the VPC each carry the demand measured by the fifteen-stack
-	// survey (examples/stacks/surveyed.md) and name the roadmap batch that owns
-	// the decision to serve them. Their refusal replaces silence until that
-	// decision is made; it does not make it.
+	// One IaaS family IS here, and it is not that: the VPC carries the demand
+	// measured by the fifteen-stack survey (examples/stacks/surveyed.md) and
+	// names the roadmap batch that owns the decision to serve it. Its refusal
+	// replaces silence until that decision is made; it does not make it.
+	//
+	// The network load balancer stood beside it until #345 and no longer does.
+	// It was refused because a service's `healthcheck-status` publishes a
+	// verdict this emulator cannot measure — and the measurement that reopened
+	// it is that the field is an array whose element schema requires nothing,
+	// so a backend can be named without a verdict. See loadbalancers.go.
 	return slices.Concat(
 		// Managed databases: PostgreSQL, MySQL, Kafka, OpenSearch, Valkey,
 		// ClickHouse, Grafana, their users, their settings, their integrations
@@ -688,34 +732,6 @@ func (p *Pack) Declined() []emulator.Decline {
 			"exoscale/v2.get-impact-report",
 			"exoscale/v2.get-live-balance",
 			"exoscale/v2.get-usage-report"),
-
-		// The network load balancer, whole: the balancer, its services, and
-		// the two per-field resets.
-		//
-		// Not out of scope — batch EXO-5 (#14) is scoped to serve it, and #284
-		// holds the decision. This entry does not make that decision; it only
-		// ends the silence around it, which is the one state this file exists
-		// to forbid. What blocks a cheap serve today is the schema itself:
-		// `load-balancer-service.healthcheck-status` is a read-only,
-		// per-backend verdict whose enum is `success` or `failure` with no
-		// third value, so an emulator that probes no backend has to invent one
-		// of the two for every server of every pool a service targets. The
-		// survey puts a number on the demand: one stack of the fifteen reaches
-		// this refusal (PhilippeChepy/platform, `exoscale_nlb` plus five
-		// `exoscale_nlb_service`, replayed 2026-08-18), and its apply survives
-		// it — 19 resources, the NLB branch alone refused by name.
-		emulator.Because("a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
-			"exoscale/v2.add-service-to-load-balancer",
-			"exoscale/v2.create-load-balancer",
-			"exoscale/v2.delete-load-balancer",
-			"exoscale/v2.delete-load-balancer-service",
-			"exoscale/v2.get-load-balancer",
-			"exoscale/v2.get-load-balancer-service",
-			"exoscale/v2.list-load-balancers",
-			"exoscale/v2.reset-load-balancer-field",
-			"exoscale/v2.reset-load-balancer-service-field",
-			"exoscale/v2.update-load-balancer",
-			"exoscale/v2.update-load-balancer-service"),
 
 		// The VPC family: VPCs, their subnets, instance attachment and
 		// detachment, and routes at both the VPC and the subnet level. A
@@ -1054,7 +1070,7 @@ func (p *Pack) createInstance(w http.ResponseWriter, r *http.Request) {
 	// TestAnInstanceIsGivenAPublicAddressAtCreation fails without this.
 	if assignment, _ := res.Attrs["public-ip-assignment"].(string); assignment != "none" {
 		unlock := p.lockAddresses()
-		if ip, ok := p.freeElasticAddress(); ok {
+		if ip, ok := p.freeAddress(); ok {
 			res.Attrs["public-ip"] = ip
 		}
 		unlock()

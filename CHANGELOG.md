@@ -17,6 +17,95 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **Exoscale serves the Network Load Balancer, and no backend carries a health
+  verdict** (#345, successor to #14). The whole family is mounted:
+  `exoscale/v2.create-load-balancer`, `exoscale/v2.list-load-balancers`,
+  `exoscale/v2.get-load-balancer`, `exoscale/v2.update-load-balancer`,
+  `exoscale/v2.delete-load-balancer`,
+  `exoscale/v2.add-service-to-load-balancer`,
+  `exoscale/v2.get-load-balancer-service`,
+  `exoscale/v2.update-load-balancer-service`,
+  `exoscale/v2.delete-load-balancer-service`,
+  `exoscale/v2.reset-load-balancer-field` and
+  `exoscale/v2.reset-load-balancer-service-field`. Exoscale moves from 93 to 104
+  implemented operations.
+
+  **The refusal that reopened the family is the one #14 wrote down.** #14
+  declined all eleven because `load-balancer-service.healthcheck-status` is a
+  per-backend verdict whose enum is `success` or `failure` with no third value,
+  so an emulator that probes no backend would have to invent one of the two.
+  That reading was right about the enum and wrong about the field:
+  `healthcheck-status` is an **array**, and its element schema
+  (`load-balancer-server-status`) declares no required property at all. An entry
+  may therefore name a backend and carry no verdict, which is what this serves —
+  one entry per member of the service's instance pool, each with the
+  `public-ip` a client would probe and none with a `status`. Measured through
+  the official CLI: `exo compute load-balancer service show` prints
+  `"healthcheck_status":[{"instance_ip":"192.0.2.2","status":""}, …]`. An empty
+  array was the other candidate and it is worse — it reads as "this service has
+  no backend", which is a claim about the pool rather than about the
+  measurement. What is *not* measured is said in `docs/limits.md`: no recording
+  of a live NLB exists here, so the entry's shape comes from their published
+  document and from two clients accepting it, never from the cloud's own
+  answer.
+
+  **No internal dataplane, and that is a measurement rather than a shortcut.**
+  #345 asked whether the NLB could be the second customer of `machine.Balancer`,
+  the provider-neutral interface #315 built for the Outscale LBU. It cannot, and
+  `internal/core` gained nothing to make it so. On a live `incus-ovn` host on
+  2026-08-21, on an OVN network of this emulator's own making (10.63.7.0/24):
+  `EnsureBalancer` with the address this pack gives an NLB answers *"listens on
+  192.0.2.1, which is outside … 10.63.7.0/24: an address the runtime has to
+  announce goes dark within minutes (#315)"*; the same call with 10.63.7.240 and
+  one backend answers `<nil>`; and the daemon itself refuses the public address
+  with *Uplink network doesn't contain `"192.0.2.1/32"` in its routes*. An
+  Exoscale NLB publishes exactly one address, `ip`, and their schema declares no
+  other — no subnet, no private network, nothing like the LBU's `PrivateIp`. So
+  the missing piece is an address, not a field of the interface, and the
+  balancer's public face stays what `docs/limits.md` describes: a TEST-NET-1
+  address routed nowhere.
+
+  **What a real client settled, against what looked obvious.** A service
+  mutation's operation refers to the **balancer**, not to the service it just
+  created. Referring to the service — what every other mutation of this pack
+  does — made `terraform apply` fail with `Get …/v2/load-balancer/<service id>:
+  resource not found`, because egoscale v2 passes that reference straight to
+  `GetNetworkLoadBalancer` and finds the new service by diffing the balancer's
+  list (`v2/network_load_balancer_service.go:121` at v0.102.4). The exo CLI
+  could not have found it: it resolves every object by listing and filtering,
+  and never reads a reference.
+
+  **A pool member now carries the public address its pool declares**, and
+  `public-ip-assignment` is read on the pool. It was missing and nothing
+  noticed, because nothing read it: a service's backends are identified by that
+  address, so members without one made every service answer an empty backend
+  list. The pack's TEST-NET-1 allocator counts balancers too, so a balancer and
+  an elastic IP can no longer be handed the same address.
+
+  **Proven with real clients.** `tools/conformance/exoscale/exo-cli.sh` drives
+  the create, the service add with an https health check, the read-back, the
+  port change, the service delete and the balancer delete, and asserts the
+  backend entries exist and carry no verdict. The example stack
+  `examples/stacks/exoscale/` gained an `exoscale_nlb` and an
+  `exoscale_nlb_service`: with the patched provider `docs/limits.md` pins,
+  **15 added, second plan empty, 15 destroyed**. And the surveyed stack the
+  refusal blocked — PhilippeChepy/platform, layer `terraform-base`, replayed
+  2026-08-21 against a `de-fra-1` emulator — moves from **19 applied / re-plan
+  `6 to add`** to **20 applied / re-plan `5 to add` / 20 destroyed**: its
+  `exoscale_nlb` applies and its `data "exoscale_nlb"` reads back. Its single
+  `exoscale_nlb_service` still does not, and not for a reason of this emulator's:
+  it sits behind the SOS bucket branch, which points at the real
+  `sos-de-muc-1.exo.io` and fails on fake credentials exactly as the survey
+  recorded.
+
+  **Two per-field resets carry a reason nobody else's does.** Every other family
+  of this pack says the CLI clears a field by sending the update with an empty
+  value. Measured on this one on 2026-08-21, it does not: `exo compute
+  load-balancer update --description ""` sends `PUT {}`, and the service form
+  sends only the healthcheck block it re-sends on every call. This CLI clears no
+  field at all, by update or by reset, and copying the familiar sentence would
+  have recorded a behaviour it does not have.
+
 - **The emulator can be made to refuse, per operation, off by default** (#26,
   #356). `PUT /_feint/faults` arms a rule naming an upstream operation and what
   to answer instead: a status, a delay, or a body cut short. `GET` lists the

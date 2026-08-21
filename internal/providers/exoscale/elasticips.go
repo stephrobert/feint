@@ -157,7 +157,7 @@ func (p *Pack) createElasticIP(w http.ResponseWriter, r *http.Request) {
 	unlock := p.lockAddresses()
 	defer unlock()
 
-	ip, ok := p.freeElasticAddress()
+	ip, ok := p.freeAddress()
 	if !ok {
 		writeError(w, http.StatusBadRequest, "no elastic IP left in the emulated pool")
 		return
@@ -176,9 +176,17 @@ func (p *Pack) createElasticIP(w http.ResponseWriter, r *http.Request) {
 	p.writeOperation(w, p.operationReferring(nounElasticIP, res.ID))
 }
 
-// freeElasticAddress hands out the lowest unused address of the pool. Computed
+// freeAddress hands out the lowest unused address of the pool. Computed
 // from what exists rather than counted, so a deleted IP returns to the pool.
-func (p *Pack) freeElasticAddress() (string, bool) {
+//
+// Every kind that publishes an address of this block is scanned, and the list
+// is the whole point: handing one address to two resources makes the driver
+// route a single /32 to two machines, and makes two clients read the same
+// address off two different objects.
+//
+// TestABalancerAndAnElasticIPNeverShareAnAddress fails when a kind drops out
+// of it.
+func (p *Pack) freeAddress() (string, bool) {
 	used := map[string]bool{}
 	for _, res := range p.env.Store.List(kindElasticIP, resource.Tenant{Provider: Name}) {
 		if ip, _ := res.Attrs["ip"].(string); ip != "" {
@@ -191,6 +199,15 @@ func (p *Pack) freeElasticAddress() (string, bool) {
 	// route a single /32 to two machines.
 	for _, res := range p.env.Store.List(kindInstance, resource.Tenant{Provider: Name}) {
 		if ip, _ := res.Attrs["public-ip"].(string); ip != "" {
+			used[ip] = true
+		}
+	}
+	// And network load balancers (#345), whose `ip` is the one address that
+	// family owns. One RFC 5737 block per pack is the rule the file header
+	// states, so the balancer cannot be given a block of its own the way the
+	// Outscale LBU has one; it shares this pool and is counted in it.
+	for _, res := range p.env.Store.List(kindLoadBalancer, resource.Tenant{Provider: Name}) {
+		if ip, _ := res.Attrs["ip"].(string); ip != "" {
 			used[ip] = true
 		}
 	}

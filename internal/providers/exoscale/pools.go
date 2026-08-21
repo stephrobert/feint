@@ -160,6 +160,12 @@ type poolRequest struct {
 	// members inherit it — the same field the template registration dropped
 	// until a real client drove it (#174).
 	ApplicationConsistentSnapshotEnabled *bool `json:"application-consistent-snapshot-enabled"`
+	// What the members do about a public address, declared by their pool
+	// schema and read here since #345, because a pool's members are what a
+	// load balancer service forwards to and a backend is identified by its
+	// public address. Same vocabulary as the instance's own field, and the
+	// same default: inet4 unless the client says none.
+	PublicIPAssignment string `json:"public-ip-assignment"`
 }
 
 type ref struct {
@@ -265,6 +271,7 @@ func (r poolRequest) attrs(size int64) map[string]any {
 	}
 	// Present and empty rather than absent, which is what the schema declares
 	// and what `exo compute instance-pool show` dereferences.
+	attrs["public-ip-assignment"] = orDefault(r.PublicIPAssignment, "inet4")
 	attrs["anti-affinity-groups"] = listOrEmpty(r.AntiAffinityGroups)
 	attrs["security-groups"] = listOrEmpty(r.SecurityGroups)
 	attrs["private-networks"] = listOrEmpty(r.PrivateNetworks)
@@ -348,6 +355,24 @@ func (p *Pack) newPoolMember(pool *resource.Resource, index int64) *resource.Res
 	if t, ok := pool.Attrs["instance-type"].(map[string]any); ok {
 		member.Attrs["instance-type"] = t
 	}
+	// The address the API publishes for a member, taken from the pack's own
+	// pool under the same lock every other allocation here takes (#345).
+	//
+	// It was missing, and the gap was invisible until a load balancer service
+	// had to name its backends: `load-balancer-server-status` identifies a
+	// backend by its public address, so members with none made every service
+	// answer an empty backend list — which reads as "this pool has nobody in
+	// it" rather than as "nobody measured these". createInstance has assigned
+	// one since #202 and said why in a comment this path never read.
+	//
+	// TestAPoolMemberCarriesThePublicAddressItsPoolDeclares fails without it.
+	if assignment, _ := pool.Attrs["public-ip-assignment"].(string); assignment != "none" {
+		unlock := p.lockAddresses()
+		if ip, ok := p.freeAddress(); ok {
+			member.Attrs["public-ip"] = ip
+		}
+		unlock()
+	}
 	member.Runtime = map[string]string{runtimePoolKey: pool.ID}
 	return member
 }
@@ -413,6 +438,9 @@ func (p *Pack) updateInstancePool(w http.ResponseWriter, r *http.Request) {
 		}
 		if req.MinAvailable != nil {
 			stored.Attrs["min-available"] = *req.MinAvailable
+		}
+		if req.PublicIPAssignment != "" {
+			stored.Attrs["public-ip-assignment"] = req.PublicIPAssignment
 		}
 		// The lists the CLI re-sends on every update, whether or not they moved.
 		// Written when present rather than when non-empty: emptying a pool's

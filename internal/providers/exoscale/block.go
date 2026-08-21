@@ -119,6 +119,14 @@ func Owns(res *resource.Resource) (kind, id string, ok bool) {
 		if poolID := res.Runtime[runtimePoolKey]; poolID != "" {
 			return kindPool, poolID, true
 		}
+	case kindLoadBalancerService:
+		// A load balancer service (#345). It is addressable only under its
+		// balancer's path, so one that outlived its balancer could never be
+		// read or deleted by any client call — a leak no API request can
+		// clear, which is exactly what this sweep is for.
+		if balancerID := res.Runtime[runtimeLoadBalancerKey]; balancerID != "" {
+			return kindLoadBalancer, balancerID, true
+		}
 	}
 	return "", "", false
 }

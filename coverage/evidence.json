@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "0f89ca163b0fb5f1",
     "shapes": "8e5226e786207180",
-    "suites": "a1a7ffa1e784dc5f"
+    "suites": "96f6fcc623b51c01"
   },
   "operations": {
     "block/v1/API.CreateSnapshot": {
@@ -26,7 +26,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "block/v1/API.DeleteSnapshot": {
@@ -35,7 +35,7 @@
       "contract": "unchecked",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": true,
+      "behaviour": false,
       "negative": false
     },
     "block/v1/API.DeleteVolume": {
@@ -236,6 +236,15 @@
       "behaviour": true,
       "negative": false
     },
+    "exoscale/v2.add-service-to-load-balancer": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": true
+    },
     "exoscale/v2.attach-block-storage-volume-to-instance": {
       "driven": true,
       "probed": "refusal",
@@ -335,6 +344,15 @@
       "behaviour": true,
       "negative": false
     },
+    "exoscale/v2.create-load-balancer": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
     "exoscale/v2.create-private-network": {
       "driven": true,
       "probed": "response",
@@ -408,6 +426,24 @@
       "negative": true
     },
     "exoscale/v2.delete-instance-pool": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "exoscale/v2.delete-load-balancer": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "exoscale/v2.delete-load-balancer-service": {
       "driven": true,
       "probed": "response",
       "contract": "clean",
@@ -596,6 +632,24 @@
       "behaviour": false,
       "negative": false
     },
+    "exoscale/v2.get-load-balancer": {
+      "driven": false,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
+    "exoscale/v2.get-load-balancer-service": {
+      "driven": false,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
     "exoscale/v2.get-operation": {
       "driven": false,
       "probed": "response",
@@ -741,6 +795,15 @@
       "negative": false
     },
     "exoscale/v2.list-instances": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "observed",
+      "behaviour": true,
+      "negative": false
+    },
+    "exoscale/v2.list-load-balancers": {
       "driven": true,
       "probed": "response",
       "contract": "clean",
@@ -902,6 +965,24 @@
       "behaviour": false,
       "negative": false
     },
+    "exoscale/v2.reset-load-balancer-field": {
+      "driven": false,
+      "probed": "none",
+      "contract": "unchecked",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
+    "exoscale/v2.reset-load-balancer-service-field": {
+      "driven": false,
+      "probed": "none",
+      "contract": "unchecked",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
     "exoscale/v2.reset-private-network-field": {
       "driven": false,
       "probed": "none",
@@ -1013,6 +1094,24 @@
     "exoscale/v2.update-instance-pool": {
       "driven": true,
       "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "exoscale/v2.update-load-balancer": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": true,
+      "negative": false
+    },
+    "exoscale/v2.update-load-balancer-service": {
+      "driven": true,
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "unobserved",
@@ -3140,7 +3239,7 @@
       "contract": "unchecked",
       "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "vpcgw/v2/API.GetGateway": {

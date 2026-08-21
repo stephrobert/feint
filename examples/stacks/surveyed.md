@@ -350,6 +350,16 @@ answered everything the modern provider sent.
   change`, 19 destroyed**; the six re-adds are the NLB branch (refused, its
   five services behind it) and the SOS pair at the real
   `sos-de-muc-1.exo.io` on fake credentials, exactly as on `ch-dk-2`.
+- **Replayed 2026-08-21 on the #345 branch, against a `de-fra-1` emulator**:
+  the NLB branch is no longer refused. **20 applied** where every earlier
+  replay gave 19 — the extra resource is `exoscale_nlb.load_balancer` — and
+  `module.vault_cluster.data.exoscale_nlb.endpoint` resolves, which is the
+  per-id read the exo CLI never makes. Re-plan **`5 to add / 0 to change`**
+  against the previous `6`, **20 destroyed**. The five are the two SOS buckets
+  at the real `sos-de-muc-1.exo.io` on fake credentials, the vault module's
+  instance pool, the `local_file` behind it, and the one
+  `exoscale_nlb_service` behind that: the service is blocked by the SOS
+  branch, not by this emulator.
 
 ### 3. PhilippeChepy/terraform-exoscale-vault — applied after a recorded edit, fully green
 
@@ -714,7 +724,7 @@ them to meet, written for whoever offers the next one, is in
 | Scaleway | instance types outside the table (`STARDUST1-S`, `COPARM1-*`) | 2 (kiwinet, talos) | the provider pre-validates against `/products/servers`, so the fictional table is a hard whitelist — resolved by #279: `STARDUST1-S` is served from the measured catalogue (kiwinet applies whole), and `COPARM1-*` is refused because the real cloud withdrew the family |
 | Exoscale | SKS | 3 (camptocamp, eu-data, WhizUs*) | dominates that ecosystem |
 | Exoscale | DNS (`exoscale_domain`) | 1 (openshift4) | fails as a zone-lookup error, which misleads |
-| Exoscale | NLB | 1 (platform) | |
+| Exoscale | NLB | 1 (platform) | **served since #345**: platform's `exoscale_nlb` and its `data "exoscale_nlb"` apply and read back, replayed 2026-08-21 (20 applied against 19, re-plan `5 to add` against `6`); its one `exoscale_nlb_service` stays behind the SOS branch |
 | Exoscale | DBaaS | 1 (eu-data) | |
 | Exoscale | SOS | 2 (platform, eu-data) | |
 | Exoscale | a zone other than `ch-dk-2` | 3 (eu-data `ch-gva-2`, platform `de-fra-1` default, openshift4's DNS client) | the single-zone decision is measured (catalog.go), and this is its measured cost |

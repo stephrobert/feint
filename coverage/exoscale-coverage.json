@@ -1,23 +1,23 @@
 {
   "provider": "exoscale",
   "total": 374,
-  "implemented": 93,
-  "declined": 281,
+  "implemented": 104,
+  "declined": 270,
   "unknown": 0,
   "orphans": null,
   "products": [
     {
       "product": "exoscale",
       "total": 374,
-      "implemented": 93,
-      "declined": 281,
+      "implemented": 104,
+      "declined": 270,
       "unknown": 0,
       "versions": [
         {
           "version": "2.0.0",
           "total": 374,
-          "implemented": 93,
-          "declined": 281,
+          "implemented": 104,
+          "declined": 270,
           "unknown": 0
         }
       ]
@@ -48,8 +48,8 @@
     {
       "group": "compute",
       "total": 111,
-      "implemented": 74,
-      "declined": 37,
+      "implemented": 85,
+      "declined": 26,
       "unknown": 0
     },
     {
@@ -148,10 +148,9 @@
     {
       "operation": "exoscale/v2.add-service-to-load-balancer",
       "product": "exoscale",
-      "reason": "a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.assume-iam-role",
@@ -537,10 +536,9 @@
     {
       "operation": "exoscale/v2.create-load-balancer",
       "product": "exoscale",
-      "reason": "a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.create-model",
@@ -936,18 +934,16 @@
     {
       "operation": "exoscale/v2.delete-load-balancer",
       "product": "exoscale",
-      "reason": "a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.delete-load-balancer-service",
       "product": "exoscale",
-      "reason": "a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.delete-model",
@@ -1674,18 +1670,16 @@
     {
       "operation": "exoscale/v2.get-load-balancer",
       "product": "exoscale",
-      "reason": "a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.get-load-balancer-service",
       "product": "exoscale",
-      "reason": "a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.get-model",
@@ -2057,10 +2051,9 @@
     {
       "operation": "exoscale/v2.list-load-balancers",
       "product": "exoscale",
-      "reason": "a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.list-models",
@@ -2352,18 +2345,16 @@
     {
       "operation": "exoscale/v2.reset-load-balancer-field",
       "product": "exoscale",
-      "reason": "a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.reset-load-balancer-service-field",
       "product": "exoscale",
-      "reason": "a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.reset-private-network-field",
@@ -2915,18 +2906,16 @@
     {
       "operation": "exoscale/v2.update-load-balancer",
       "product": "exoscale",
-      "reason": "a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.update-load-balancer-service",
       "product": "exoscale",
-      "reason": "a network load balancer's services publish a per-backend healthcheck verdict, success or failure with no third value, and nothing here probes a backend yet, so every verdict would be invented; one surveyed stack in fifteen reaches this refusal (platform, 2026-08), and serving the NLB is #284's decision, scoped as batch EXO-5 (#14)",
       "version": "2.0.0",
       "group": "compute",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "exoscale/v2.update-private-network",

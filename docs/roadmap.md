@@ -226,8 +226,8 @@ the archived documents explain how each batch was cut.
    is merged too: block storage, thirteen operations a real client drives,
    aligned with the relation rules Scaleway settled — stored on one side,
    computed on the other, deletion rules tested by the fixture's destroy.
-6. **Load balancing and gateways** — **open.** SW-5 (#17), SW-6 (#18), OSC-5
-   (#16), EXO-5 (#14), EXO-6 (#15). Last because nothing else depends on them
+6. **Load balancing and gateways** — **open**, one batch short: EXO-5 landed
+   with #345. SW-5 (#17), SW-6 (#18), OSC-5 (#16) and EXO-6 (#15) remain. Last because nothing else depends on them
    and everything they depend on (IPAM, networks, the waiter discipline) is
    above; each is control plane first, capability-gated backing later.
 
@@ -259,7 +259,7 @@ the table carries the state as an issue reference rather than a claim.
 | **SW-5** | 6 | `lb/v1` ZonedAPI | open (#17) |
 | **SW-6** | 6 | `vpcgw/v2` | open (#18) |
 | **OSC-5** | 6 | load balancing | open (#16) |
-| **EXO-5** | 6 | NLB | open (#14) |
+| **EXO-5** | 6 | NLB | done (#345) |
 | **EXO-6** | 6 | VPC and routes | open (#15) |
 
 Sizes and operation lists stay with the issues and the archived documents,

@@ -1,0 +1,61 @@
+{
+  "package": "./internal/providers/exoscale/",
+  "mutations": [
+    {
+      "label": "a backend is given the health verdict nothing here measured, which is exactly what #14 declined the family over (#345)",
+      "file": "internal/providers/exoscale/loadbalancers.go",
+      "find": "\t\tout = append(out, map[string]any{\"public-ip\": address})",
+      "replace": "\t\tout = append(out, map[string]any{\"public-ip\": address, \"status\": \"success\"})",
+      "test": "TestNoBackendEverCarriesAHealthVerdict"
+    },
+    {
+      "label": "a service mutation references the service instead of its balancer, which is how it shipped and what made terraform apply fail on a load-balancer read (#345)",
+      "file": "internal/providers/exoscale/loadbalancers.go",
+      "find": "\tres.Runtime = map[string]string{runtimeLoadBalancerKey: balancerID}\n\tp.env.Store.Put(res)\n\tp.writeOperation(w, p.serviceOperation(balancerID))",
+      "replace": "\tres.Runtime = map[string]string{runtimeLoadBalancerKey: balancerID}\n\tp.env.Store.Put(res)\n\tp.writeOperation(w, p.serviceOperation(res.ID))",
+      "test": "TestAServiceMutationReferencesItsBalancer"
+    },
+    {
+      "label": "the address pool stops counting balancers, and the next elastic IP is handed one already published (#345)",
+      "file": "internal/providers/exoscale/elasticips.go",
+      "find": "\tfor _, res := range p.env.Store.List(kindLoadBalancer, resource.Tenant{Provider: Name}) {",
+      "replace": "\tfor _, res := range p.env.Store.List(kindLoadBalancer, resource.Tenant{Provider: Name})[:0] {",
+      "test": "TestABalancerAndAnElasticIPNeverShareAnAddress"
+    },
+    {
+      "label": "a pool member gets no public address, so every service in front of it answers an empty backend list (#345)",
+      "file": "internal/providers/exoscale/pools.go",
+      "find": "\tif assignment, _ := pool.Attrs[\"public-ip-assignment\"].(string); assignment != \"none\" {",
+      "replace": "\tif assignment, _ := pool.Attrs[\"public-ip-assignment\"].(string); assignment != \"none\" && false {",
+      "test": "TestAPoolMemberCarriesThePublicAddressItsPoolDeclares"
+    },
+    {
+      "label": "a service is readable and editable through a balancer that does not hold it: well formed is not authorised (#345)",
+      "file": "internal/providers/exoscale/loadbalancers.go",
+      "find": "\tif !found || res.Runtime[runtimeLoadBalancerKey] != balancerID {",
+      "replace": "\tif !found || (res.Runtime[runtimeLoadBalancerKey] != balancerID && false) {",
+      "test": "TestAServiceIsOnlyReachableThroughItsOwnBalancer"
+    },
+    {
+      "label": "a deleted balancer leaves its services behind, addressable by nothing and deletable by no client call (#345)",
+      "file": "internal/providers/exoscale/loadbalancers.go",
+      "find": "\tfor _, service := range p.loadBalancerServices(id) {\n\t\tp.env.Store.Delete(Name, kindLoadBalancerService, service.ID)\n\t}",
+      "replace": "\tfor _, service := range p.loadBalancerServices(id)[:0] {\n\t\tp.env.Store.Delete(Name, kindLoadBalancerService, service.ID)\n\t}",
+      "test": "TestDeletingABalancerTakesItsServices"
+    },
+    {
+      "label": "the health-check ranges stop biting, and values their own document refuses are stored with a 200 (#345)",
+      "file": "internal/providers/exoscale/loadbalancers.go",
+      "find": "\t\tif *field.value < bounds[0] || *field.value > bounds[1] {",
+      "replace": "\t\tif *field.value < bounds[0] && *field.value > bounds[1] {",
+      "test": "TestAServiceRefusesAHealthcheckOutsideItsDeclaredRanges"
+    },
+    {
+      "label": "a service accepts an instance pool nothing holds, and then publishes a backend list that can never fill (#345)",
+      "file": "internal/providers/exoscale/loadbalancers.go",
+      "find": "\tif _, found := p.env.Store.Get(Name, kindPool, req.InstancePool.ID); !found {",
+      "replace": "\tif _, found := p.env.Store.Get(Name, kindPool, req.InstancePool.ID); !found && false {",
+      "test": "TestAServiceRefusesAPoolThatIsNotThere"
+    }
+  ]
+}

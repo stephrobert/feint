@@ -1909,6 +1909,95 @@ type catalogues (`ListLBTypes`, `ListGatewayTypes` — unmeasured inventory; the
 gateway create still refuses an offer outside VPC-GW-S/M/L/XL, the #279
 lesson).
 
+## An Exoscale network load balancer records its configuration, names its backends, and grades none of them
+
+The NLB family is served whole since #345 — the balancer, its services, and the
+two per-field resets — after a year declined by #14. What #14 refused is what
+this section exists to keep refused, and it is worth stating in the same breath
+as what is now served.
+
+**The configuration round-trips, and a real client converges on it.** Name,
+description, labels, and per service the protocol, the ports, the strategy, the
+instance pool and the whole healthcheck block come back field for field. The
+example stack under `examples/stacks/exoscale/` applies with an `exoscale_nlb`
+and an `exoscale_nlb_service`, re-plans empty, and destroys clean (15 resources,
+measured 2026-08-21 with the patched provider this document pins).
+
+**The health of a backend is not measured here, and none is invented.** A
+service publishes `healthcheck-status`, and every entry it publishes carries the
+backend's `public-ip` and **no `status`**. That is upstream's own shape rather
+than a compromise: the element schema `load-balancer-server-status` declares no
+required property, so an entry naming a server with no verdict on it is
+well-formed. The official CLI prints it as
+`{"instance_ip":"192.0.2.2","status":""}`, which is the honest sentence — these
+are the servers behind the service, and nothing graded them.
+
+The two alternatives were both worse, and both were considered rather than
+skipped. Publishing `success` is the fabrication #14 declined the family over.
+Publishing an empty array reads as *this service has no backend*, which is a
+claim about the pool, false for every pool this emulator holds, and one a client
+could plan against.
+
+**What is not measured about it, said plainly.** No recording of a live NLB
+exists here: `shapes/exoscale.json` carries `GET /v2/load-balancer` from an
+account that held none, so it pins the envelope key and nothing inside it.
+What is measured is that their published document allows an entry with no
+`status`, and that the official CLI and the Terraform provider both accept one.
+Whether the real API ever omits the field on a service it is actually probing is
+a question a recording would settle and nothing here answers.
+
+**Nothing forwards a packet, and the reason is an address rather than a
+missing feature.** The Outscale LBU distributes real connections under
+`--vm incus-ovn` because its `PrivateIp` is an address of the Subnet it sits in,
+and `machine.EnsureBalancer` accepts exactly that. An Exoscale NLB publishes one
+address, `ip`, and their `load-balancer` schema declares no other — no subnet,
+no private network, no counterpart to `PrivateIp`. That single address comes
+from `192.0.2.0/24` (TEST-NET-1, RFC 5737), which is outside every emulated
+network's own block.
+
+Measured on 2026-08-21 against a live `incus-ovn` host, on an OVN network of
+this emulator's own making (10.63.7.0/24):
+
+- `EnsureBalancer` with `192.0.2.1` — the address this pack gives an NLB —
+  answers *"balancer … listens on 192.0.2.1, which is outside … 's own block
+  10.63.7.0/24: an address the runtime has to announce goes dark within minutes
+  (#315)"*;
+- the same call with `10.63.7.240` and one backend answers `<nil>`, so the
+  refusal is about the address and not about the call;
+- and the daemon itself refuses the public address before any guard of ours is
+  consulted: *Failed creating load balancer: Uplink network doesn't contain
+  `"192.0.2.1/32"` in its routes*.
+
+So `capabilities.balancing` is irrelevant to this family: the pack never asks
+the runtime at all, because the only call it could make is one whose refusal is
+guaranteed. `machine.Balancer` needed no provider-shaped concession to reach
+that answer, and `internal/core` gained no Exoscale knowledge — what is missing
+is an address upstream does not publish, and no field of an interface can supply
+one.
+
+**Two client facts that are the pack's and not the API's, recorded because they
+surprised.**
+
+- A service mutation's operation refers to the **balancer**, never to the
+  service. egoscale v2 passes that reference straight to
+  `GetNetworkLoadBalancer` and finds the new service by diffing the balancer's
+  list (`v2/network_load_balancer_service.go:121` at v0.102.4), so referring to
+  the service makes `terraform apply` fail with `Get …/v2/load-balancer/<service
+  id>: resource not found`. Measured; the exo CLI cannot arbitrate it, because
+  it resolves every object by listing and never reads a reference.
+- **This CLI clears no field of this family.** Every other family here records
+  that the CLI clears a field by sending the update with an empty value; on the
+  NLB it does not. `exo compute load-balancer update --description ""` sends
+  `PUT {}`, and the service form sends only the healthcheck block it re-sends on
+  every call. The per-field DELETEs are served because their document declares
+  them, and no published client issues one.
+
+**What a service's backends are.** The members of the instance pool it targets,
+which is where upstream takes them from too — a service names a pool, never a
+list of machines. Pool members carry a public address since #345 (their pool's
+`public-ip-assignment` decides, `inet4` by default); before that they carried
+none, and every service in front of a pool answered an empty backend list.
+
 ## An Outscale Vm's options round-trip as data; their behavioural half has nothing to act on here
 
 `BootMode`, `Performance` and `VmInitiatedShutdownBehavior` used to be

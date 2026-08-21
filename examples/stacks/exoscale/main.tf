@@ -243,6 +243,48 @@ resource "exoscale_instance_pool" "app" {
   network_ids = [exoscale_private_network.back.id]
 }
 
+# ---------------------------------------------------------------------------
+# The Network Load Balancer in front of the pool (#345). This is the shape the
+# one surveyed stack that reaches the family uses — PhilippeChepy/platform
+# declares an `exoscale_nlb` and five `exoscale_nlb_service`, each pointing at
+# an instance pool with an https health check.
+#
+# What a plan gets from it here: the configuration round-trips, the service
+# names the pool's members as its backends, and not one of them carries a
+# health verdict, because nothing in this emulator probes a backend. The
+# balancer's own `ip_address` is a TEST-NET-1 address that routes nowhere —
+# docs/limits.md says why, and why the internal dataplane the Outscale LBU has
+# cannot exist for this family.
+# ---------------------------------------------------------------------------
+
+resource "exoscale_nlb" "front" {
+  zone        = var.zone
+  name        = "platform-front"
+  description = "the application tier's entrypoint"
+}
+
+resource "exoscale_nlb_service" "app" {
+  zone   = var.zone
+  nlb_id = exoscale_nlb.front.id
+  name   = "app"
+
+  instance_pool_id = exoscale_instance_pool.app.id
+  protocol         = "tcp"
+  port             = 443
+  target_port      = 8080
+  strategy         = "round-robin"
+
+  healthcheck {
+    mode     = "https"
+    port     = 8080
+    uri      = "/healthz"
+    tls_sni  = "platform.example"
+    interval = 10
+    timeout  = 5
+    retries  = 2
+  }
+}
+
 output "ingress_address" {
   value = exoscale_elastic_ip.ingress.ip_address
 }
@@ -254,4 +296,9 @@ output "pool_instances" {
 output "template_id" {
   # Resolved through an explicit visibility filter — the #271 read path.
   value = data.exoscale_template.ubuntu.id
+}
+
+output "nlb_address" {
+  # TEST-NET-1, and routed nowhere on purpose: see docs/limits.md.
+  value = exoscale_nlb.front.ip_address
 }
