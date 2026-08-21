@@ -102,6 +102,38 @@ depends = ["build"]
 # gets forgotten: a corpus replaying nothing is a failure, never a pass.
 run = "./feint corpus --check"
 
+[tasks."corpus:cloud"]
+description = "Reissue one committed corpus at the REAL Scaleway account and report what the cloud answers differently now"
+depends = ["build"]
+# The other half of the comparison above, and the only one that can arbitrate it
+# (#359). `corpus:check` holds one side: a red run there says the emulator and
+# the recording disagree, and nothing in it knows which of the two moved. This
+# asks the cloud.
+#
+# It is what internal/drift cannot be. The surface scan reads the provider's own
+# generated SDK and sees that a method exists; it sees nothing of what the method
+# answers. A status that moves from 200 to 201, a field that appears or goes, a
+# list that reorders, a refusal that stops being one — the Go signature is
+# identical before and after. #270 measured three of those in one read.
+#
+# **This is not a gate and must never become one.** It needs a credential, it
+# creates real objects, and its verdict depends on whose account ran it, so it is
+# out of `prepush` and out of the pull-request path for the reason `conformance`
+# already is, only stronger. It runs on demand here and on a schedule in
+# .github/workflows/corpus-cloud.yml, which opens a pull request when something
+# moved — the shape drift.yml already has for the surface.
+#
+# The account rules are in tools/corpus/cloud.sh and are not negotiable: an
+# inventory before and after, free resources only, everything named
+# feint-corpus-*, a trap armed before the first call, and every destruction
+# proved by a read rather than by the delete's own answer.
+#
+#   FEINT_SCW_PROFILE=<name> mise run corpus:cloud -- corpus/scaleway/terraform.jsonl
+#
+# Add --dry-run as a second argument to see what a run would send without
+# sending any of it.
+run = "tools/corpus/cloud.sh ./feint"
+
 # ---- Upstream tracking (the anti-drift loop) --------------------------------------------------
 [tasks."upstream:sync"]
 description = "Fetch the upstream SDKs and API descriptions the scan and the contracts read"

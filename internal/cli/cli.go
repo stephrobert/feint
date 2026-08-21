@@ -115,11 +115,19 @@ const (
 // not be read or that compared nothing. A pipeline keyed on version 8 keeps
 // working.
 //
+// Version 10 adds the second direction of that same comparison (#359):
+// `corpus --against-cloud`, with --file, --endpoint, --credential, --bind,
+// --format, --timeout, --dry-run and --mark-stale. The corpus is reissued at the provider it
+// was recorded from, where a divergence means the *cloud* moved rather than the
+// emulator — the half `corpus --check` cannot hold, being one side of a
+// comparison. Additions to one existing verb; nothing was removed, no exit code
+// moved, and a pipeline keyed on version 9 keeps working.
+//
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 9
+const cliSurfaceVersion = 10
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -369,6 +377,22 @@ Usage:
                     pass. An ageing recording warns and never fails: this gate
                     holds one side of the comparison and cannot tell a cloud
                     that moved from an emulator that broke.
+                   --against-cloud --file <corpus> --endpoint <url>
+                   [--credential Header=ENV_VAR] [--bind field=value]
+                   [--format text|json] [--timeout 60s] [--dry-run] [--mark-stale]
+                    The other half of that comparison: reissue one committed
+                    corpus at the cloud it was recorded from, where a divergence
+                    means the CLOUD moved. Never a gate — it spends real calls
+                    on a real account, so it runs on a schedule and on demand.
+                    It creates only what a written-down list says is free,
+                    refuses to delete or reconfigure anything this run did not
+                    create, names everything feint-corpus-*, and destroys its
+                    own ledger at exit with the destruction proved by a read.
+                    Exit 2 when the cloud answers differently, 1 when a call
+                    could not be made. A credential travels by environment
+                    variable, never in argv. --mark-stale writes the finding
+                    into corpus/accepted.json, so the gate above warns with a
+                    measured date instead of a chosen horizon.
 
   feint shapes     <recording.jsonl> --provider <name> [--dir shapes] [--dry-run]
                    [--record [--profile <name>]] [--check]

@@ -1,0 +1,241 @@
+name: Corpus against the cloud
+
+# The drift no SDK scan can see (#359).
+#
+# .github/workflows/drift.yml reads the providers' generated SDKs every Monday and reports an
+# operation that appeared or disappeared. It sees that a method exists; it sees nothing of what
+# the method answers. A status that moves from 200 to 201, a field that appears or goes, a list
+# that reorders, a refusal that stops being one — the Go signature is identical before and after,
+# the baseline stays green, and this emulator goes on serving what the cloud stopped answering.
+# #270 measured three of those in one read of one private network.
+#
+# So this job reissues a committed corpus at the provider it was recorded from, and opens a pull
+# request when the answers have moved. Same shape as drift.yml, deliberately: one mechanism for
+# "something upstream changed", not two.
+#
+# WHAT MAKES THIS DIFFERENT FROM EVERY OTHER WORKFLOW HERE, AND WHY IT IS NOT ON PULL REQUESTS
+#
+# It authenticates against a real Scaleway account, and it creates real objects. That is three
+# reasons it can never be a gate: it needs a credential, its verdict depends on whose account ran
+# it, and a create is a resource somebody pays for. `mise run conformance` is already outside the
+# pre-commit hook for a weaker version of the same argument, and CLAUDE.md is explicit that a gate
+# people skip by habit is worse than no gate.
+#
+# The account rules live in tools/corpus/cloud.sh and are not restated here — one file, two
+# callers, for the reason tools/drift/gate.sh gives: the same procedure written twice drifts, and
+# the copy that drifts is the one that touches somebody's account.
+
+on:
+  schedule:
+    - cron: '41 6 1 * *'   # the 1st of each month, 06:41 UTC
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  replay:
+    name: Reissue the Scaleway corpus at Scaleway
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      moved: ${{ steps.replay.outputs.moved }}
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.6'
+          cache: false
+
+      # Asserted, never skipped. A job that quietly did nothing when the credential was absent
+      # would report success on every run and measure the provider on none of them — the SKIP that
+      # measures nothing, which this repository has shipped once and refuses to ship again.
+      #
+      # So the first scheduled run on a repository without these secrets is RED, and that is the
+      # honest state: this measurement is configured nowhere. Adding SCW_SECRET_KEY,
+      # SCW_DEFAULT_PROJECT_ID and SCW_DEFAULT_ORGANIZATION_ID is a decision the account holder
+      # makes, and a silent green would be this workflow making it for them.
+      - name: The account this run measures must be named
+        env:
+          SECRET: ${{ secrets.SCW_SECRET_KEY }}
+          ACCESS: ${{ secrets.SCW_ACCESS_KEY }}
+          PROJECT: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
+          ORGANISATION: ${{ secrets.SCW_DEFAULT_ORGANIZATION_ID }}
+        run: |
+          missing=""
+          [ -n "$SECRET" ]       || missing="$missing SCW_SECRET_KEY"
+          [ -n "$ACCESS" ]       || missing="$missing SCW_ACCESS_KEY"
+          [ -n "$PROJECT" ]      || missing="$missing SCW_DEFAULT_PROJECT_ID"
+          [ -n "$ORGANISATION" ] || missing="$missing SCW_DEFAULT_ORGANIZATION_ID"
+          if [ -n "$missing" ]; then
+            echo "This workflow reissues a committed corpus at a real Scaleway account and has no" >&2
+            echo "account to reissue it at. Add these repository secrets, or disable the schedule:" >&2
+            echo "  $missing" >&2
+            echo "Nothing was sent anywhere." >&2
+            exit 1
+          fi
+
+      - name: Install the Scaleway CLI
+        run: |
+          set -euo pipefail
+          version="2.56.3"
+          url="https://github.com/scaleway/scaleway-cli/releases/download/v${version}/scaleway-cli_${version}_linux_amd64"
+          curl --fail --silent --show-error --location "$url" -o "$RUNNER_TEMP/scw"
+          chmod +x "$RUNNER_TEMP/scw"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Build feint
+        run: go build -o "$RUNNER_TEMP/feint" ./cmd/feint
+
+      # One profile, named on every command. The rule corpus/README.md states for Outscale and
+      # that applies everywhere: a config holding exactly one profile means there is no `default`
+      # to fall back to, and no stored profile of anybody's station a code path nobody read can
+      # present instead.
+      - name: Write the one profile this run may use
+        env:
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
+          SCW_DEFAULT_ORGANIZATION_ID: ${{ secrets.SCW_DEFAULT_ORGANIZATION_ID }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/scw"
+          cat > "$RUNNER_TEMP/scw/config.yaml" <<'YAML'
+          profiles:
+            corpus:
+          YAML
+          {
+            printf '    access_key: %s\n' "$SCW_ACCESS_KEY"
+            printf '    secret_key: %s\n' "$SCW_SECRET_KEY"
+            printf '    default_project_id: %s\n' "$SCW_DEFAULT_PROJECT_ID"
+            printf '    default_organization_id: %s\n' "$SCW_DEFAULT_ORGANIZATION_ID"
+            printf '    default_region: fr-par\n'
+            printf '    default_zone: fr-par-1\n'
+          } >> "$RUNNER_TEMP/scw/config.yaml"
+
+      # --mark-stale is what makes the pull request below carry something real. A cloud that moved
+      # changes no source file by itself; what it does change is the standing of a committed
+      # recording, and corpus/accepted.json is where that is written down.
+      - name: Reissue every Scaleway corpus
+        id: replay
+        env:
+          SCW_CONFIG_PATH: ${{ runner.temp }}/scw/config.yaml
+          FEINT_SCW_PROFILE: corpus
+        run: |
+          set -uo pipefail
+          status=0
+          for corpus in corpus/scaleway/*.jsonl; do
+            echo "::group::$corpus"
+            tools/corpus/cloud.sh "$RUNNER_TEMP/feint" "$corpus" --mark-stale || status=$?
+            echo "::endgroup::"
+          done
+          if [ -n "$(git status --porcelain corpus/accepted.json)" ]; then
+            echo "moved=true" >> "$GITHUB_OUTPUT"
+            {
+              echo '## The cloud answers differently from the committed corpus'
+              echo '```diff'
+              git diff -- corpus/accepted.json
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "moved=false" >> "$GITHUB_OUTPUT"
+            echo 'The committed Scaleway corpus still describes what the cloud answers.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          # Exit 2 is "the cloud moved", which the pull request below is the response to, so it is
+          # not a failure of this job. Exit 1 is "a call could not be made", which is.
+          [ "$status" != 2 ] || status=0
+          exit "$status"
+
+      - name: The account must be as it was found
+        if: always()
+        env:
+          SCW_CONFIG_PATH: ${{ runner.temp }}/scw/config.yaml
+        run: |
+          set -uo pipefail
+          left=0
+          for kind in "vpc private-network" "vpc vpc" "iam ssh-key"; do
+            # shellcheck disable=SC2086
+            names="$(scw --profile corpus $kind list -o json | grep -c 'feint-corpus-' || true)"
+            [ "$names" = "0" ] || { echo "$kind still holds $names feint-corpus-* object(s)" >&2; left=1; }
+          done
+          exit "$left"
+
+      - name: Upload the marked acceptance file
+        if: steps.replay.outputs.moved == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: corpus-acceptance
+          path: corpus/accepted.json
+
+  propose:
+    name: Open the corpus pull request
+    needs: replay
+    if: needs.replay.outputs.moved == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write        # push the branch
+      pull-requests: write   # open the PR
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The one thing this job does is push a branch, so it keeps the credentials checkout
+          # leaves behind. It downloads an artifact and uploads none, which is the risk that
+          # setting exists for.
+          persist-credentials: true
+
+      - name: Download the marked acceptance file
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: corpus-acceptance
+          path: corpus/
+
+      # gh rather than a third-party PR action: one less dependency with write access to the repo.
+      - name: Open or update the pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          branch="chore/corpus-cloud-drift"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          git add corpus/accepted.json
+          git commit -m "chore(corpus): the cloud has moved under a committed recording"
+          git fetch origin "+refs/heads/$branch:refs/remotes/origin/$branch" || true
+          git push --force-with-lease origin "$branch"
+          cat > "$RUNNER_TEMP/body.md" <<'BODY'
+          A committed corpus was reissued at the provider it was recorded from and the
+          answers had moved. The diff marks which file and how many findings; the run log
+          names each one with its operation, its path and the kind of change.
+
+          **What this is not.** It is not proof that the provider changed for everybody: a
+          corpus records one account, in one region, at one time, and a difference can
+          equally be that account's quota or a region's rollout. Deciding which is a
+          human's job, and this pull request does not pretend otherwise.
+
+          **What to do with it.** Re-record the corpus (corpus/README.md, *Recording
+          another one*) and delete the `cloud_moved_at` marks the re-recording makes
+          false. If the emulator now answers what the old recording said and the cloud
+          does not, that is a defect of this emulator and gets its own issue with the
+          recording attached.
+          BODY
+          if [ -z "$(gh pr list --head "$branch" --json number --jq '.[0].number')" ]; then
+            gh pr create --head "$branch" \
+              --title "chore(corpus): the cloud answers differently from a committed recording" \
+              --body-file "$RUNNER_TEMP/body.md"
+          fi

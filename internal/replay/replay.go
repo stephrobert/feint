@@ -98,6 +98,12 @@ const (
 	// rather than dropped, because a total that shrinks in silence is the
 	// failure `feint shapes --check` already has a paragraph about.
 	Skipped Verdict = "skipped"
+	// Refused: a [Guard] the caller supplied would not let the request go out.
+	// Never a divergence and never a pass — the call was not made, so nothing
+	// was measured, and #359's third verdict is exactly that distinction. It
+	// exists because the same replay that grades an emulator also reissues a
+	// recording at a real account, where a DELETE is a real deletion.
+	Refused Verdict = "refused"
 )
 
 // FindingKind names what went wrong at one place.
@@ -147,6 +153,18 @@ type Result struct {
 	Provider  string    `json:"provider,omitempty"`
 	Verdict   Verdict   `json:"verdict"`
 	Findings  []Finding `json:"findings,omitempty"`
+	// Status is what the endpoint answered, 0 when nothing was sent. A status
+	// is the endpoint's own word and not a value read from the recording, so it
+	// may be published where a body may not: a caller replaying at a real cloud
+	// has to tell "the answer differs" from "the answer never came" (a 401, a
+	// 429, a 502), and reading that off a KindStatus finding only works while
+	// there is one.
+	Status int `json:"status,omitempty"`
+	// Refused is the [Guard]'s own sentence for a request it would not let go
+	// out, empty for every other verdict. Written by the caller, so it carries
+	// whatever the caller put in it — every guard in this repository names an
+	// operation and a rule, never a value of the account.
+	Refused string `json:"refused,omitempty"`
 }
 
 // Report is the whole run.
@@ -156,6 +174,8 @@ type Report struct {
 	Divergent int      `json:"divergent"`
 	Unserved  int      `json:"unserved"`
 	Skipped   int      `json:"skipped"`
+	// RefusedCount is how many requests a [Guard] would not let go out.
+	RefusedCount int `json:"refused"`
 	// Excused counts fields subtracted by a pack's DeclinedFields().
 	Excused int `json:"excused"`
 	// Redacted counts fields the recorder replaced before writing, whose type
@@ -206,6 +226,61 @@ type Options struct {
 	// caller because it is the caller that holds the packs.
 	Declined   []emulator.FieldDecline
 	Invariants []emulator.Invariant
+	// Bind seeds the rebinding table before the first request: a field name,
+	// and the value every recorded identifier sitting at that field must be
+	// sent as.
+	//
+	// Rebinding otherwise learns from what the endpoint answers, which needs a
+	// read before the first write. A recording that opens on a create has none
+	// — corpus/scaleway/terraform.jsonl starts with POST /vpc/v2/…/vpcs — so
+	// its project_id would go out as the identifier the recording carries,
+	// which belongs to no account the replay is pointed at. Seeding it is the
+	// caller saying "this account is the one that stands in for the recorded
+	// one", and only for identifiers: a seed never rewrites a free-text field,
+	// because a name is not something a later request refers back to.
+	Bind map[string]string
+	// Guard, when set, is asked before every request goes out and is handed
+	// every answer that comes back. nil means send everything, which is what
+	// replaying at an emulator wants.
+	//
+	// It exists because the same comparison runs in two directions (#359): at
+	// this emulator, where a request costs nothing and a DELETE deletes a
+	// fixture, and at the provider itself, where a DELETE deletes an account's
+	// property. The refusal has to sit where the rebound path is known — a
+	// caller inspecting the recording sees the identifier the *cloud minted
+	// last time*, not the one this run just created — and that is here.
+	Guard Guard
+}
+
+// Guard is consulted around every request a run would issue.
+//
+// Two methods rather than one, because they answer different questions and only
+// the caller can answer either: whether this request may be sent at all, and
+// what the answer means for the ledger of objects the caller will have to
+// destroy. Neither belongs in this package — a [Report] is published, and the
+// identifiers a real account minted are not.
+type Guard interface {
+	// Before reports why this request must not be sent, or "" to allow it. A
+	// refused request is not issued and its exchange is [Refused].
+	Before(Attempt) string
+	// After is handed the status and the decoded body the endpoint answered,
+	// so the caller can record what the request created.
+	After(a Attempt, status int, body any)
+}
+
+// Attempt is one request as it will actually go out: after rebinding, after
+// seeding, with the operation the route table names it by.
+//
+// Body is the decoded request body, nil when there is none. It is the *sent*
+// body rather than the recorded one, which is the whole point for a guard that
+// has to tell a value this run resolved from a value the recording invented.
+type Attempt struct {
+	Seq       int    `json:"seq"`
+	Operation string `json:"operation,omitempty"`
+	Method    string `json:"method"`
+	Path      string `json:"path"`
+	Query     string `json:"query,omitempty"`
+	Body      any    `json:"-"`
 }
 
 // Run replays a recording in order and reports on each exchange.
@@ -222,6 +297,17 @@ func Run(ctx context.Context, exs []trace.Exchange, opt Options) (Report, error)
 		return Report{}, fmt.Errorf("replay needs the emulator's route table to tell an unserved operation from a divergent one")
 	}
 	b := newBindings()
+	for field, value := range opt.Bind {
+		if field == "" || value == "" {
+			// A seed with no field would apply to path segments, which is the
+			// one place [bindings.resolve] falls back to when nothing else
+			// names the value: it would rewrite every identifier of every URL
+			// to one string. Refused rather than ignored.
+			// TestASeedWithNoFieldIsRefused fails without this.
+			return Report{}, fmt.Errorf("a seeded binding needs both a field name and a value to send under it")
+		}
+		b.forced[field] = value
+	}
 	var rep Report
 	for i := range exs {
 		res, ran, err := replayOne(ctx, &exs[i], i+1, b, opt)
@@ -247,6 +333,8 @@ func Run(ctx context.Context, exs []trace.Exchange, opt Options) (Report, error)
 			rep.Unserved++
 		case Skipped:
 			rep.Skipped++
+		case Refused:
+			rep.RefusedCount++
 		}
 		rep.Results = append(rep.Results, res)
 	}
@@ -297,8 +385,26 @@ func replayOne(ctx context.Context, x *trace.Exchange, seq int, b *bindings, opt
 	res.Operation = mounted.Route.Operation
 	res.Provider = mounted.Provider
 
+	attempt := Attempt{Seq: seq, Operation: mounted.Route.Operation, Method: x.Method, Path: path, Query: query}
 	if x.Req != nil && x.Req.Body != nil {
-		body, err := encodeBody(b.applyValue("", x.Req.Body))
+		attempt.Body = b.applyValue("", x.Req.Body)
+	}
+	// Asked before anything is sent, and after rebinding, because what a guard
+	// has to judge is the request that would actually go out. A DELETE whose
+	// path still carries the identifier the recording holds addresses nothing;
+	// the same DELETE after rebinding addresses whatever this run just created,
+	// or — if the rebinding went wrong — something that was already there.
+	// TestAGuardRefusalIsNotSentAndIsNotADivergence fails without this.
+	if opt.Guard != nil {
+		if why := opt.Guard.Before(attempt); why != "" {
+			res.Verdict = Refused
+			res.Refused = why
+			return res, checked{}, nil
+		}
+	}
+
+	if attempt.Body != nil {
+		body, err := encodeBody(attempt.Body)
 		if err != nil {
 			return res, checked{}, fmt.Errorf("line %d: encode the recorded request body: %w", seq, err)
 		}
@@ -316,6 +422,14 @@ func replayOne(ctx context.Context, x *trace.Exchange, seq int, b *bindings, opt
 	got, err := readBody(resp)
 	if err != nil {
 		return res, checked{}, fmt.Errorf("line %d: read the answer: %w", seq, err)
+	}
+	res.Status = resp.StatusCode
+	// Handed over before the comparison, so that a caller keeping a ledger of
+	// what it created holds the identifier even when the exchange goes on to be
+	// graded divergent. An object created by a request whose answer was not the
+	// recorded one is still an object somebody has to destroy.
+	if opt.Guard != nil {
+		opt.Guard.After(attempt, resp.StatusCode, got)
 	}
 
 	// Compared first, learned from second.
@@ -784,6 +898,12 @@ type bindings struct {
 	// name for "this recording says less than the replay needs", and a run that
 	// resolved one by field name should be able to say so.
 	ambiguous map[string]struct{}
+	// forced is [Options.Bind]: a field name, and the value every recorded
+	// identifier at that field is sent as, whatever the endpoint has answered
+	// so far. It wins over both maps above, because it is the caller stating
+	// which account stands in for the recorded one rather than the replay
+	// inferring it.
+	forced map[string]string
 }
 
 func newBindings() *bindings {
@@ -791,8 +911,16 @@ func newBindings() *bindings {
 		to:        map[string]string{},
 		byField:   map[string]map[string]string{},
 		ambiguous: map[string]struct{}{},
+		forced:    map[string]string{},
 	}
 }
+
+// substituting reports whether anything could be substituted at all. Both maps
+// have to be consulted: a run seeded with [Options.Bind] and no answer yet has
+// learned nothing, and testing only the learned map made every seed inert until
+// the first identifier moved — which on a recording that opens with a create is
+// never.
+func (b *bindings) substituting() bool { return len(b.to) > 0 || len(b.forced) > 0 }
 
 func (b *bindings) count() int { return len(b.to) }
 
@@ -869,6 +997,13 @@ func (b *bindings) learn(field string, want, got any) {
 // ask about: a path segment, or a query parameter whose name no body field
 // carried.
 func (b *bindings) resolve(field, value string) (string, bool) {
+	// The seed, and only over an identifier. A field name the caller seeded is
+	// still an ordinary field for everything else it may carry: `name` is a
+	// free-text field on one operation and an identifier on none, and a seed
+	// that rewrote free text would send a request the recording never made.
+	if to, seeded := b.forced[field]; seeded && looksMinted(value) {
+		return to, true
+	}
 	if to, bound := b.byField[field][value]; bound {
 		return to, true
 	}
@@ -880,7 +1015,7 @@ func (b *bindings) resolve(field, value string) (string, bool) {
 // only: a substring replacement inside a free-text segment would corrupt a
 // request rather than repair it.
 func (b *bindings) applyPath(path string) string {
-	if len(b.to) == 0 {
+	if !b.substituting() {
 		return path
 	}
 	segments := strings.Split(path, "/")
@@ -910,7 +1045,7 @@ func (b *bindings) applyPath(path string) string {
 // spelled exactly like the body fields they filter on. Resolving them globally
 // is what sent one list to the organisation and made the verdict flap.
 func (b *bindings) applyQuery(raw string) string {
-	if raw == "" || len(b.to) == 0 {
+	if raw == "" || !b.substituting() {
 		return raw
 	}
 	pairs := strings.Split(raw, "&")
@@ -935,7 +1070,7 @@ func (b *bindings) applyQuery(raw string) string {
 // field name each value sits at. Whole string values only, for the reason
 // applyPath keeps to whole segments.
 func (b *bindings) applyValue(field string, v any) any {
-	if len(b.to) == 0 {
+	if !b.substituting() {
 		return v
 	}
 	switch value := v.(type) {

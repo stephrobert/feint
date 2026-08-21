@@ -17,6 +17,69 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **The committed corpus is now replayed at the cloud, and catches the drift no
+  SDK scan can see** (#359). `feint corpus --against-cloud --file <corpus>
+  --endpoint <url>` reissues a committed recording at the provider it was
+  recorded from. Same artefact, same comparator, opposite conclusion: `corpus
+  --check` replays it against a fresh emulator and a divergence means *the
+  emulator is wrong*; this replays it at the provider and a divergence means
+  *the cloud has changed*. There is no second recorder and no second comparison
+  to keep in step — `internal/replay` is called by both, and what the second
+  direction adds is only what a real account demands.
+
+  **This is what `internal/drift` cannot see.** The surface scan reads the
+  providers' own generated SDKs and reports an operation that appeared or
+  disappeared, exactly, because those SDKs are generated from their IDL. It sees
+  that a method exists; it sees nothing of what the method answers. A status
+  that moves from 200 to 201, a field that appears or goes, a list that
+  reorders, a refusal that stops being one — the Go signature is identical
+  before and after, the baseline stays green, and #270 found three of that
+  family in one read of one private network.
+
+  **Three verdicts, never blurred**: *the cloud answers differently* (exit 2),
+  *the recording could not be reissued as recorded* (an instrument defect, never
+  counted as a change), and *the call could not be made* (exit 1 — a 401, a 429,
+  a 502, or a guard refusing). The middle one is not a courtesy: #73 found the
+  proxy's own redaction manufacturing nine false divergences and #354 four more,
+  three of which hid an entire lifecycle. So a request whose path or enumerated
+  query value the sanitiser blanked is never reissued, one still carrying the
+  recorder's `REDACTED` is never reissued, and a finding whose request still
+  holds a value the sanitiser minted is attributed to the recording. **That last
+  rule came from a measurement, not a worry**: dry-running
+  `scaleway/terraform.jsonl` at the real account on 2026-08-21 produced 145
+  findings, not one of them the cloud — the creates were refused, so every read
+  that followed answered 404 and every recorded field read as absent.
+
+  **It is not a gate and must not become one.** It needs a credential, it creates
+  real objects, and its verdict depends on whose account ran it — three reasons
+  where `conformance` has one. It runs on demand (`mise run corpus:cloud`) and on
+  a schedule (`.github/workflows/corpus-cloud.yml`, the first of each month),
+  opening a pull request when something moved, which is the shape `drift.yml`
+  already has for the surface. **That workflow is red until the account holder
+  adds `SCW_SECRET_KEY`, `SCW_ACCESS_KEY`, `SCW_DEFAULT_PROJECT_ID` and
+  `SCW_DEFAULT_ORGANIZATION_ID`**, deliberately: a job that quietly did nothing
+  without them would report success on every run and measure the provider on
+  none, which is the SKIP that measures nothing this repository has shipped once
+  and refuses to ship again.
+
+  Measured against the real Scaleway account on 2026-08-21, the day both files
+  were recorded: `scaleway/terraform.jsonl` compared 16 of 16 exchanges and
+  `scaleway/scw-cli.jsonl` 42 of 58, **zero findings saying the cloud had
+  moved**, eleven attributed to the recording (the blanked paths `corpus/README.md`
+  already documents) and five to routes this emulator does not mount. Two facts
+  worth not rediscovering came out of it: Scaleway accepts a private-network
+  subnet inside `198.18.0.0/15`, the synthetic space the sanitiser mints, and it
+  accepts the synthetic `ssh-ed25519` key whose material is all zeroes — either
+  one refusing would have made a whole lifecycle unreplayable.
+
+- **How a corpus ages is now measured rather than guessed** (#353's open
+  question, answered). A run that finds the provider answering differently
+  writes `cloud_moved_at` and `cloud_moved` back into that recording's entry in
+  `corpus/accepted.json` (`--mark-stale`), and `corpus --check` then warns with a
+  date somebody measured instead of the 180-day horizon somebody picked. It still
+  warns and never fails, for the reason it always did: the file to change is the
+  recording, not the emulator.
+
 - **`--forward` can say where a terminated host actually goes** (#357). An entry
   of `feint proxy --forward` may now name its target — `--forward
   'api.scaleway.com=http://127.0.0.1:4599'` — so a client whose endpoint is
@@ -583,7 +646,50 @@ what this project is judged on: **a response shape a client can observe**, and
   no default to fall back to and no stored profile of the station can be
   presented. `corpus/README.md` carries both procedures.
 
+### Security
+
+- **A replay against a real account refuses to touch what it did not create**
+  (#359). Every identifier in the path of a state-changing request has to be one
+  this run's own creates minted — `mustOwn` applied where getting it wrong
+  destroys somebody's property, and it is needed because a recorded request is
+  well formed by construction, which was never the same question as authorised.
+  A create is refused unless its operation is on a written-down list of what
+  costs nothing, and the refusal names the operation, so the report says which
+  measurement is out of reach without spending rather than spending to find out.
+  Everything created is named `feint-corpus-*` and destroyed at exit from a
+  ledger armed before the first call, with **each destruction proved by a read
+  answering 404** rather than by the delete's own answer; an object that survives
+  fails the run whatever the comparison found. A credential travels by
+  environment variable and never in argv, and is refused outright to a
+  plain-HTTP endpoint off loopback.
+
+  **Twenty-two mutations, all of them falsified**
+  (`tools/falsify/specs/corpus-cloud.json`, run of 2026-08-21): remove the
+  ownership question and a recorded `DELETE` removes an account's own VPC; remove
+  the free-to-create list and the account is billed to make a measurement;
+  believe the delete's own answer and a provider that deletes asynchronously
+  leaves the object behind under a green run. Against the real account the same
+  day, five objects were created and five destroyed with every destruction proved
+  by a read, and the inventory taken before each run matched the one taken after.
+
 ### Changed
+
+- **`internal/replay` gained the two seams a real account needs, and nothing
+  else** (#359). `Options.Guard` is asked before every request goes out — on the
+  request *after* rebinding, which is the only form worth judging, since a
+  recorded `DELETE` names the identifier the cloud minted last time — and is
+  handed every answer that comes back. `Options.Bind` seeds the rebinding table
+  before the first request, which is what makes a recording that opens on a
+  create replayable at all: `corpus/scaleway/terraform.jsonl` starts with a POST
+  carrying a `project_id` that belongs to no account the replay is pointed at. A
+  refused exchange is `Refused` — never a match, never a divergence, because the
+  call was not made. Replaying at this emulator passes neither guard nor seed, so
+  `feint corpus --check` and `feint replay` are unchanged.
+
+- **The CLI surface is version 10.** `corpus` gains `--against-cloud`, `--file`,
+  `--endpoint`, `--credential`, `--bind`, `--format`, `--timeout`, `--dry-run`
+  and `--mark-stale`. Additions to one existing verb; nothing was removed, no
+  exit code moved, and a pipeline keyed on version 9 keeps working.
 
 - **CLI surface version 8.** Every entry above is an addition — the verb
   `replay` with `--endpoint`, `--format` and `--timeout`, `coverage --observed`,

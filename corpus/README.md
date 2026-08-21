@@ -77,11 +77,118 @@ preference: this gate holds one side of the comparison. A red run says the
 emulator and the recording disagree, and nothing in the process knows which of
 the two moved. Failing on age would be asserting exactly what it cannot measure.
 
-The half that can arbitrate is #359, which replays this corpus against the
-**cloud**. Until it exists, the warning names the file, its age and the
-procedure below, and 180 days is a chosen horizon rather than a measured one:
+The half that can arbitrate is the one below, which replays this corpus against
+the **cloud**. 180 days remains a chosen horizon rather than a measured one —
 about two releases, and short enough that a surface which gained 453 SDK methods
-in twelve months has not silently outrun the file.
+in twelve months has not silently outrun the file — but it is no longer the only
+signal: a run against the provider writes `cloud_moved_at` and `cloud_moved` back
+into the recording's entry, and the gate then warns with a date somebody measured
+instead of a horizon somebody picked. Still a warning, for the same reason: the
+file to change is the recording, not the emulator.
+
+## The other direction: ask the cloud
+
+```bash
+FEINT_SCW_PROFILE=<profile> mise run corpus:cloud -- corpus/scaleway/terraform.jsonl
+```
+
+Same artefact, same comparator, opposite conclusion. `corpus --check` replays a
+recording against a fresh emulator and a divergence means **the emulator is
+wrong**; `corpus --against-cloud` reissues the same file at the provider it was
+recorded from and a divergence means **the cloud has changed**. There is no
+second recorder and no second comparison to keep in step — `internal/replay` is
+called by both, and everything that differs is what a real account demands.
+
+**This is what `internal/drift` cannot see.** The surface scan reads the
+providers' own generated SDKs and reports an operation that appeared or
+disappeared, exactly. It sees that a method exists; it sees nothing of what the
+method answers. A status that moves from 200 to 201, a field that appears or
+goes, a list that reorders, a refusal that stops being one — the Go signature is
+identical before and after, the baseline stays green, and #270 found three of
+that family in one read of one private network.
+
+**It is not a gate and must not become one.** It needs a credential, it creates
+real objects, its verdict depends on whose account ran it. It runs on demand and
+on a schedule (`.github/workflows/corpus-cloud.yml`, the first of each month),
+and opens a pull request when something moved — the shape `drift.yml` already
+has for the surface.
+
+### Three verdicts, and the first reflex is to doubt the instrument
+
+| | |
+|---|---|
+| **the cloud answers differently** | exit 2, and the finding this exists for |
+| **the recording could not be reissued as recorded** | an instrument defect, never counted as a change |
+| **the call could not be made** | exit 1 — a 401, a 429, a 502, or a guard refusing |
+
+The middle one is not a theoretical courtesy. #73 found the proxy's own
+redaction manufacturing nine false divergences and #354 four more, three of which
+hid an entire lifecycle. So the run refuses to reissue a request the sanitiser
+blanked (a path or an enumerated query value), refuses one still carrying the
+recorder's `REDACTED`, and marks any finding whose request still holds a value
+the sanitiser minted — because a corpus is a causal sequence, and a read whose
+create did not happen addresses an identifier that exists nowhere.
+
+That last rule was written because of a measurement, not a worry. Dry-running
+`scaleway/terraform.jsonl` at the real account on 2026-08-21 produced **145
+findings, not one of them the cloud**: the creates were refused by `--dry-run`,
+so every read that followed answered 404 and every recorded field read as absent.
+Grading those as "the provider changed" would have been this tool committing the
+defect it exists to detect.
+
+### What it does to the account, and what it refuses to do
+
+The rules of #352 are mechanical here rather than remembered:
+
+- an **inventory before and after**, compared, and a difference fails the run;
+- **free resources only** — a closed list of operations in
+  `internal/cli/corpus_cloud.go`, each with the reason it costs nothing. An
+  operation absent from it is refused *by name*, so the report says which
+  measurement is out of reach without spending;
+- **nothing this run did not create is ever deleted or reconfigured**: every
+  identifier in the path of a state-changing request has to be one this run's own
+  creates minted. That is `mustOwn` applied where getting it wrong destroys
+  somebody's property, and well-formed was never the same question as authorised;
+- everything is named **`feint-corpus-*`**, so an object an aborted run left
+  behind is identifiable in a console by eye;
+- a **ledger destroyed at exit**, armed before the first call, with each
+  destruction **proved by a read answering 404** — never by the delete's own
+  answer. An object that survives makes the run fail, whatever the comparison
+  found;
+- the **profile is named on every single command**, and the secret key travels by
+  environment variable and never in argv.
+
+### What the first run found, on 2026-08-21
+
+Both Scaleway files were reissued at `https://api.scaleway.com`, the same day
+they were recorded, against the same account:
+
+| file | compared | the cloud moved | the recording | not measured | unserved |
+|---|---|---|---|---|---|
+| `scaleway/terraform.jsonl` | 16 of 16 | 0 | 0 | 0 | 0 |
+| `scaleway/scw-cli.jsonl` | 42 of 58 | 0 | 11 | 0 | 5 |
+
+**Nothing had moved, and at zero days old that is the expected answer rather
+than an impressive one.** What the run does prove is that the loop closes: five
+objects created across the two files (two VPCs, two private networks, one IAM SSH
+key), five destroyed, every destruction proved by a read answering 404, and both
+inventories identical before and after. The eleven under *the recording* are the
+blanked paths this directory already documents below, reported as the instrument
+and never as the cloud.
+
+Two things were measured on the way and are worth writing down rather than
+rediscovering: Scaleway accepts a private-network subnet inside `198.18.0.0/15`,
+which is the synthetic space the sanitiser mints, and it accepts the synthetic
+`ssh-ed25519` key whose material is all zeroes. Neither was obvious, and either
+one refusing would have made a whole lifecycle unreplayable.
+
+### The honest limit
+
+A corpus records one account, in one region, at one time. A difference it
+reports may be the cloud changing for everybody, or one account's quota, or a
+region's rollout. **The tool reports what it measured; deciding which of the
+three it is remains a human's job**, and the report says so on every run rather
+than pretending otherwise.
 
 ## What is here
 

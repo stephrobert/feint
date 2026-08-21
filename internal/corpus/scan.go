@@ -171,6 +171,17 @@ func (a *alphabet) refuse(v value) string {
 	return "not a value a sanitised transcript may carry"
 }
 
+// Minted reports whether a value is one this package invented.
+//
+// Exported for the direction that reads a committed corpus back and reissues it
+// at the provider it was recorded from (#359). There, a value the sanitiser
+// minted is a value the *cloud* never said, so a refusal landing on a request
+// that still carries one is a defect of the instrument before it is anything
+// about the cloud — the class #73 measured as nine false divergences and #354
+// as four more. The question belongs here, where the answer is regenerated from
+// the rules that wrote the value, and not in a caller re-spelling the alphabet.
+func Minted(s string) bool { return synthetic(s) }
+
 // synthetic reports whether a value is one this package mints.
 //
 // Each arm recognises the exact form [mint] writes, rather than a family it

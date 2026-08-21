@@ -1,0 +1,163 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "THE COMMAND: a corpus that says the cloud answers differently stops failing the run, which is the whole of #359 — mutate one recorded status and the run goes green",
+      "file": "internal/cli/corpus_cloud.go",
+      "find": "\tcase rep.Moved > 0:",
+      "replace": "\tcase rep.Moved > 0 && false:",
+      "test": "TestAMutatedCorpusIsReportedAsACloudChangeAndAnUnchangedOneIsNot"
+    },
+    {
+      "label": "every finding is blamed on the recording, so the cloud can move as much as it likes and nothing is ever reported as a change",
+      "file": "internal/cli/corpus_cloud.go",
+      "find": "\t\t\t\tif len(one.Instrument) > 0 {",
+      "replace": "\t\t\t\tif len(one.Instrument) >= 0 {",
+      "test": "TestAMutatedCorpusIsReportedAsACloudChangeAndAnUnchangedOneIsNot"
+    },
+    {
+      "label": "the ownership question goes and a recorded DELETE deletes an account's own VPC: well formed was never the same question as authorised",
+      "file": "internal/cli/corpus_cloud.go",
+      "find": "\t\tif !g.owned[id] {",
+      "replace": "\t\tif !g.owned[id] && false {",
+      "test": "TestADeleteOfSomethingThisRunDidNotCreateIsRefused"
+    },
+    {
+      "label": "a create nobody wrote down as free is sent, and the account is billed to make a measurement",
+      "file": "internal/cli/corpus_cloud.go",
+      "find": "\t\tif _, free := freeToCreate[a.Operation]; !free {",
+      "replace": "\t\tif _, free := freeToCreate[a.Operation]; !free && false {",
+      "test": "TestABillableCreateIsRefusedRatherThanSent"
+    },
+    {
+      "label": "a path the sanitiser blanked is reissued at the provider, and the 404 the instrument caused is graded as a cloud that changed",
+      "file": "internal/cli/corpus_cloud.go",
+      "find": "\t\tcase blankedSegment(x.Path):",
+      "replace": "\t\tcase blankedSegment(x.Path) && false:",
+      "test": "TestABlankedPathIsNeverSentToTheCloud"
+    },
+    {
+      "label": "a value the recorder wrote REDACTED over goes out as the client's own, which is #73's nine false divergences reproduced exactly",
+      "file": "internal/cli/corpus_cloud.go",
+      "find": "\t\tcase redactedRequest(x):",
+      "replace": "\t\tcase redactedRequest(x) && false:",
+      "test": "TestARedactedRequestIsNeverSentToTheCloud"
+    },
+    {
+      "label": "a 401, a 429 or a 502 is graded as a change of the cloud, so an expired token opens a pull request saying the provider moved",
+      "file": "internal/cli/corpus_cloud.go",
+      "find": "\t\tcase notAboutTheResource(recorded, r.Status):",
+      "replace": "\t\tcase notAboutTheResource(recorded, r.Status) && false:",
+      "test": "TestAnAnswerAboutTheCallerIsNotACloudChange"
+    },
+    {
+      "label": "THE SECOND DIRECTION: a pack's own declines excuse the provider too, so the day the cloud stops answering a field this emulator never served, nothing anywhere reports it",
+      "file": "internal/cli/corpus_cloud.go",
+      "find": "func excusedAtTheCloud([]emulator.FieldDecline) []emulator.FieldDecline { return nil }",
+      "replace": "func excusedAtTheCloud(d []emulator.FieldDecline) []emulator.FieldDecline { return d }",
+      "test": "TestAPacksDeclineDoesNotExcuseTheCloud"
+    },
+    {
+      "label": "the ledger stops recording what a create answered, so an object this run made is never destroyed and the account keeps it",
+      "file": "internal/cli/corpus_cloud.go",
+      "find": "\tif id, named := objectID(body); named {",
+      "replace": "\tif id, named := objectID(body); named && false {",
+      "test": "TestEveryObjectThisRunCreatesIsNamedForItAndIsDestroyed"
+    },
+    {
+      "label": "objects are no longer named for the run that made them, so nothing in a console says which resource an aborted replay left behind",
+      "file": "internal/cli/corpus_cloud.go",
+      "find": "\t\tif x.Method == http.MethodGet || x.Method == http.MethodHead || x.Req == nil {",
+      "replace": "\t\tif x.Method == http.MethodGet || x.Method == http.MethodHead || x.Req == nil || true {",
+      "test": "TestEveryObjectThisRunCreatesIsNamedForItAndIsDestroyed"
+    },
+    {
+      "label": "a destruction is believed rather than read back: the delete's own answer becomes the proof, and a provider that deletes asynchronously leaves the object behind under a green run",
+      "file": "internal/cli/corpus_cloud.go",
+      "find": "\t\t\tgone = res.StatusCode == http.StatusNotFound || res.StatusCode == http.StatusGone",
+      "replace": "\t\t\tgone = res.StatusCode == http.StatusNotFound || res.StatusCode == http.StatusGone || true",
+      "test": "TestADestructionIsProvedByAReadAndNotByTheDeletesOwnAnswer"
+    },
+    {
+      "label": "an object left behind stops failing the run, so a report says the cloud has not moved while a resource of the account survives it",
+      "file": "internal/cli/corpus_cloud.go",
+      "find": "\t\tif len(leftovers) > 0 {",
+      "replace": "\t\tif len(leftovers) > 0 && false {",
+      "test": "TestADestructionIsProvedByAReadAndNotByTheDeletesOwnAnswer"
+    },
+    {
+      "label": "an account's credential travels in clear to a plain-HTTP endpoint off loopback, which one typo in a scheme is enough to reach",
+      "file": "internal/cli/corpus_cloud.go",
+      "find": "\tif ip := net.ParseIP(host); (ip != nil && ip.IsLoopback()) || host == \"localhost\" {",
+      "replace": "\tif ip := net.ParseIP(host); (ip != nil && ip.IsLoopback()) || host == \"localhost\" || true {",
+      "test": "TestACredentialNeverTravelsInClear"
+    },
+    {
+      "label": "an undated corpus is reissued anyway, so a difference is reported with no way to tell a cloud that moved from a recording eight months old",
+      "file": "internal/cli/corpus_cloud.go",
+      "find": "\tif rec.File == \"\" {",
+      "replace": "\tif rec.File == \"\" && false {",
+      "test": "TestAnUndatedCorpusIsNotReplayedAtTheCloud"
+    },
+    {
+      "label": "the guard is never consulted, so a replay against a real account sends every recorded request including its deletes",
+      "file": "internal/replay/replay.go",
+      "find": "\tif opt.Guard != nil {\n\t\tif why := opt.Guard.Before(attempt); why != \"\" {",
+      "replace": "\tif opt.Guard != nil && false {\n\t\tif why := opt.Guard.Before(attempt); why != \"\" {",
+      "test": "TestAGuardRefusalIsNotSentAndIsNotADivergence",
+      "package": "./internal/replay/"
+    },
+    {
+      "label": "the guard is asked about the recorded path rather than the one that will go out, so a DELETE is judged against an identifier that exists nowhere and the rebound one goes through unexamined",
+      "file": "internal/replay/replay.go",
+      "find": "\tattempt := Attempt{Seq: seq, Operation: mounted.Route.Operation, Method: x.Method, Path: path, Query: query}",
+      "replace": "\tattempt := Attempt{Seq: seq, Operation: mounted.Route.Operation, Method: x.Method, Path: x.Path + path[:0], Query: query}",
+      "test": "TestAGuardSeesTheRequestAfterRebinding",
+      "package": "./internal/replay/"
+    },
+    {
+      "label": "THE SECOND DIRECTION: the seeded binding is inert until something has been learned, which on a recording that opens with a create is never — the defect this pair was written to catch",
+      "file": "internal/replay/replay.go",
+      "find": "func (b *bindings) substituting() bool { return len(b.to) > 0 || len(b.forced) > 0 }",
+      "replace": "func (b *bindings) substituting() bool { return len(b.to) > 0 && len(b.forced) >= 0 }",
+      "test": "TestASeededBindingIsSentBeforeAnythingIsLearned",
+      "package": "./internal/replay/"
+    },
+    {
+      "label": "a seed rewrites free text as well as identifiers, so a request goes out carrying values the recording never held",
+      "file": "internal/replay/replay.go",
+      "find": "\tif to, seeded := b.forced[field]; seeded && looksMinted(value) {",
+      "replace": "\tif to, seeded := b.forced[field]; seeded && (looksMinted(value) || true) {",
+      "test": "TestASeedReplacesAnIdentifierAndNotWhateverElseTheFieldMayCarry",
+      "package": "./internal/replay/"
+    },
+    {
+      "label": "the path stops being read for values the sanitiser invented, so a read whose create never happened answers 404 and the 145 findings of one dry run are published as a provider that changed",
+      "file": "internal/cli/corpus_cloud.go",
+      "find": "\tfor _, seg := range strings.Split(a.Path, \"/\") {\n\t\tid, _, _ := strings.Cut(seg, \":\")\n\t\tnote(id)\n\t}",
+      "replace": "\tfor _, seg := range strings.Split(a.Path, \"/\") {\n\t\tid, _, _ := strings.Cut(seg, \":\")\n\t\tnote(id[:0])\n\t}",
+      "test": "TestARequestStillCarryingASyntheticIdentifierIsNotACloudChange"
+    },
+    {
+      "label": "a run that measured the cloud moving writes nothing back, so the emulator gate goes on warning about a chosen horizon instead of a measurement",
+      "file": "internal/cli/corpus_cloud.go",
+      "find": "\tif req.markStale && rep.Moved > 0 {",
+      "replace": "\tif req.markStale && rep.Moved > 0 && false {",
+      "test": "TestACorpusTheCloudHasMovedUnderWarnsAndDoesNotFail"
+    },
+    {
+      "label": "the emulator gate stops saying that the cloud has been measured to move under a corpus, and the one signal that dates a re-recording goes silent",
+      "file": "internal/cli/corpus.go",
+      "find": "\t\tif r.CloudMovedAt == \"\" || r.CloudMoved == 0 {",
+      "replace": "\t\tif r.CloudMovedAt == \"\" || r.CloudMoved == 0 || true {",
+      "test": "TestACorpusTheCloudHasMovedUnderWarnsAndDoesNotFail"
+    },
+    {
+      "label": "a file name nobody recorded is marked without complaint, so a typo in a scheduled job writes nothing and reports success",
+      "file": "internal/cli/corpus_cloud.go",
+      "find": "\tif !marked {",
+      "replace": "\tif !marked && false {",
+      "test": "TestMarkingACorpusStaleWritesTheMeasurementAndNothingElse"
+    }
+  ]
+}

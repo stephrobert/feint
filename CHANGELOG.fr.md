@@ -19,6 +19,75 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Le corpus commité est maintenant rejoué contre le cloud, et attrape la
+  dérive qu'aucun scan de SDK ne voit** (#359). `feint corpus --against-cloud
+  --file <corpus> --endpoint <url>` réémet un enregistrement commité chez le
+  fournisseur qui l'a produit. Même artefact, même comparateur, conclusion
+  inverse : `corpus --check` le rejoue contre un émulateur neuf et une divergence
+  veut dire *l'émulateur a tort* ; celui-ci le rejoue chez le fournisseur et une
+  divergence veut dire *le cloud a changé*. Il n'y a ni second enregistreur ni
+  seconde comparaison à tenir en phase — `internal/replay` est appelé par les
+  deux, et ce que la seconde direction ajoute est seulement ce qu'un vrai compte
+  exige.
+
+  **C'est précisément ce que `internal/drift` ne peut pas voir.** Le scan de
+  surface lit les SDK générés des fournisseurs et rapporte exactement une
+  opération apparue ou disparue, parce que ces SDK sont générés depuis leur IDL.
+  Il voit qu'une méthode existe ; il ne voit rien de ce qu'elle répond. Un statut
+  qui passe de 200 à 201, un champ qui apparaît ou disparaît, une liste qui
+  change d'ordre, un refus qui n'en est plus un : la signature Go est identique
+  avant et après, la baseline reste verte, et #270 a trouvé trois cas de cette
+  famille dans une seule lecture d'un seul réseau privé.
+
+  **Trois verdicts, jamais confondus** : *le cloud répond différemment* (code 2),
+  *l'enregistrement n'a pas pu être réémis tel quel* (un défaut d'instrument,
+  jamais compté comme un changement) et *l'appel n'a pas pu être fait* (code 1 —
+  un 401, un 429, un 502, ou un garde qui refuse). Le deuxième n'est pas une
+  politesse : #73 a trouvé la redaction du proxy fabriquant neuf fausses
+  divergences, et #354 quatre de plus, dont trois masquaient tout un cycle de
+  vie. Une requête dont le chemin ou une valeur énumérée a été blanchi par
+  l'assainisseur n'est donc jamais réémise, une requête portant encore le
+  `REDACTED` du proxy non plus, et toute divergence dont la requête porte encore
+  une valeur inventée par l'assainisseur est attribuée à l'enregistrement.
+  **Cette dernière règle vient d'une mesure, pas d'une inquiétude** : un
+  `--dry-run` de `scaleway/terraform.jsonl` contre le vrai compte le 2026-08-21 a
+  produit 145 divergences dont aucune n'était le cloud — les créations étaient
+  refusées, donc chaque lecture suivante répondait 404 et chaque champ enregistré
+  manquait.
+
+  **Ce n'est pas un gate et cela ne doit jamais le devenir.** Il faut des
+  identifiants, il crée de vraies ressources, et son verdict dépend du compte qui
+  l'a exécuté : trois raisons là où `conformance` en a une. Il tourne à la
+  demande (`mise run corpus:cloud`) et sur planification
+  (`.github/workflows/corpus-cloud.yml`, le 1er de chaque mois), et ouvre une
+  pull request quand quelque chose a bougé, ce qui est la forme que `drift.yml` a
+  déjà pour la surface. **Ce workflow est rouge tant que le titulaire du compte
+  n'a pas ajouté `SCW_SECRET_KEY`, `SCW_ACCESS_KEY`, `SCW_DEFAULT_PROJECT_ID` et
+  `SCW_DEFAULT_ORGANIZATION_ID`**, délibérément : un job qui ne ferait rien en
+  silence sans eux rapporterait un succès à chaque exécution et ne mesurerait le
+  fournisseur à aucune, ce qui est le SKIP qui ne mesure rien que ce dépôt a
+  livré une fois et refuse de livrer à nouveau.
+
+  Mesuré contre le vrai compte Scaleway le 2026-08-21, le jour même où les deux
+  fichiers ont été enregistrés : `scaleway/terraform.jsonl` a comparé 16 échanges
+  sur 16 et `scaleway/scw-cli.jsonl` 42 sur 58, **zéro divergence disant que le
+  cloud avait bougé**, onze attribuées à l'enregistrement (les chemins blanchis
+  que `corpus/README.md` documente déjà) et cinq à des routes que cet émulateur
+  ne monte pas. Deux faits qu'il vaut mieux ne pas redécouvrir en sont sortis :
+  Scaleway accepte un sous-réseau de réseau privé dans `198.18.0.0/15`, l'espace
+  synthétique que frappe l'assainisseur, et il accepte la clé `ssh-ed25519`
+  synthétique dont le matériel est entièrement à zéro — l'un ou l'autre refusé
+  aurait rendu tout un cycle de vie irrejouable.
+
+- **Le vieillissement d'un corpus est maintenant mesuré et non plus deviné** (la
+  question ouverte de #353, tranchée). Une exécution qui trouve le fournisseur
+  répondant différemment écrit `cloud_moved_at` et `cloud_moved` dans l'entrée de
+  cet enregistrement dans `corpus/accepted.json` (`--mark-stale`), et `corpus
+  --check` avertit alors avec une date mesurée au lieu de l'horizon de 180 jours
+  choisi de mémoire. Il avertit toujours sans jamais échouer, pour la raison
+  qu'il l'a toujours fait : le fichier à changer est l'enregistrement, pas
+  l'émulateur.
+
 - **`--forward` peut dire où atterrit vraiment un hôte terminé** (#357). Une
   entrée de `feint proxy --forward` peut désormais nommer sa cible — `--forward
   'api.scaleway.com=http://127.0.0.1:4599'` — de sorte qu'un client dont
@@ -617,7 +686,54 @@ change ni l'un ni l'autre a sa place dans `git log`.
   vers lequel retomber et aucun profil stocké de la station qui puisse être
   présenté. `corpus/README.md` porte les deux procédures.
 
+### Sécurité
+
+- **Un rejeu contre un vrai compte refuse de toucher ce qu'il n'a pas créé**
+  (#359). Tout identifiant dans le chemin d'une requête qui change l'état doit
+  être un identifiant que les créations de cette exécution ont produit : c'est
+  `mustOwn` appliqué là où se tromper détruit le bien d'autrui, et il le faut
+  parce qu'une requête enregistrée est bien formée par construction, ce qui n'a
+  jamais été la même question qu'autorisée. Une création est refusée si son
+  opération n'est pas sur une liste écrite de ce qui ne coûte rien, et le refus
+  nomme l'opération, pour que le rapport dise quelle mesure est hors de portée
+  sans dépense au lieu de dépenser pour le découvrir. Tout ce qui est créé
+  s'appelle `feint-corpus-*` et est détruit à la sortie depuis un registre armé
+  avant le premier appel, **chaque destruction étant prouvée par une lecture qui
+  répond 404** et non par le code de retour du delete ; un objet qui survit fait
+  échouer l'exécution quelle qu'ait été la comparaison. Une clé secrète voyage
+  par variable d'environnement et jamais dans argv, et est refusée à un point
+  d'entrée en HTTP clair hors loopback.
+
+  **Vingt-deux mutations, toutes falsifiées**
+  (`tools/falsify/specs/corpus-cloud.json`, exécution du 2026-08-21) : retirer la
+  question de propriété et un `DELETE` enregistré supprime le VPC du compte ;
+  retirer la liste des créations gratuites et le compte est facturé pour une
+  mesure ; croire le code de retour du delete et un fournisseur qui supprime en
+  asynchrone laisse l'objet derrière lui sous une exécution verte. Contre le vrai
+  compte le même jour, cinq objets ont été créés et cinq détruits avec chaque
+  destruction prouvée par une lecture, et l'inventaire pris avant chaque
+  exécution correspondait à celui pris après.
+
 ### Modifié
+
+- **`internal/replay` a gagné les deux coutures qu'un vrai compte exige, et rien
+  d'autre** (#359). `Options.Guard` est consulté avant chaque envoi — sur la
+  requête *après* rebinding, la seule forme qu'il vaille la peine de juger,
+  puisqu'un `DELETE` enregistré nomme l'identifiant que le cloud a frappé la fois
+  précédente — et reçoit chaque réponse. `Options.Bind` amorce la table de
+  rebinding avant la première requête, ce qui est ce qui rend rejouable un
+  enregistrement qui s'ouvre sur une création :
+  `corpus/scaleway/terraform.jsonl` commence par un POST portant un `project_id`
+  qui n'appartient à aucun compte visé. Un échange refusé est `Refused` : jamais
+  une correspondance, jamais une divergence, parce que l'appel n'a pas été fait.
+  Un rejeu contre cet émulateur ne passe ni garde ni amorce, donc `feint corpus
+  --check` et `feint replay` sont inchangés.
+
+- **La surface CLI passe en version 10.** `corpus` gagne `--against-cloud`,
+  `--file`, `--endpoint`, `--credential`, `--bind`, `--format`, `--timeout`,
+  `--dry-run` et `--mark-stale`. Des ajouts sur un verbe existant ; rien n'a été
+  retiré, aucun code de sortie n'a bougé, et un pipeline calé sur la version 9
+  continue de fonctionner.
 
 - **Surface CLI version 8.** Toutes les entrées ci-dessus sont des ajouts : le
   verbe `replay` avec `--endpoint`, `--format` et `--timeout`, `coverage
