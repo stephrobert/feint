@@ -10,6 +10,7 @@ import (
 
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/replay"
+	"github.com/stephrobert/feint/internal/trace"
 )
 
 // replayCommand reissues a recording at a running emulator and reports what
@@ -29,8 +30,11 @@ func replayCommand(args []string, stdout, stderr io.Writer) int {
 	endpoint := fs.String("endpoint", "http://"+DefaultAddr, "the running emulator to replay against")
 	format := fs.String("format", "text", "output format: text or json")
 	timeout := fs.Duration("timeout", 30*time.Second, "how long one replayed request may take")
+	refusalsOnly := fs.Bool("refusals-only", false,
+		"refuse to send anything unless every exchange of the recording is a 4xx; "+
+			"for replaying beside other suites, where a mutating recording would disturb them")
 	fs.Usage = func() {
-		fmt.Fprint(stderr, "usage: feint replay <recording.jsonl> [--endpoint http://127.0.0.1:4599] [--format text|json] [--timeout 30s]\n")
+		fmt.Fprint(stderr, "usage: feint replay <recording.jsonl> [--endpoint http://127.0.0.1:4599] [--refusals-only] [--format text|json] [--timeout 30s]\n")
 		fs.PrintDefaults()
 	}
 	// The file comes first, the way `transcript` and `shapes` take theirs: Go's
@@ -54,6 +58,15 @@ func replayCommand(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", err)
 		return exitError
+	}
+	// Read before anything is sent, which is the whole of the guarantee: a
+	// caller that hands this flag the wrong file learns so from a refusal, not
+	// from the servers it created in somebody else's emulator.
+	if *refusalsOnly {
+		if why := notRefusalsOnly(exs); why != "" {
+			fmt.Fprintf(stderr, "feint: %s: %s\n", file, why)
+			return exitError
+		}
 	}
 
 	env := emulator.DefaultEnv()
@@ -106,6 +119,34 @@ func replayCommand(args []string, stdout, stderr io.Writer) int {
 		return exitDrift
 	}
 	return exitOK
+}
+
+// notRefusalsOnly names why a recording is not a corpus of refusals, or answers
+// "" when it is one.
+//
+// A file whose every exchange is a 4xx mutates nothing, and that is what lets
+// tools/conformance/refusals.sh replay it beside the other suites of a run
+// instead of against an emulator of its own (#390). The property belongs to the
+// file, so it is read off the file here — before the first request goes out —
+// rather than promised by the caller that picked the file.
+//
+// An empty recording is not "refusals only": it is empty, and answering yes to
+// it would let a replay of nothing read as a replay that proved something. That
+// is the SKIP `feint corpus --check` already has a paragraph about.
+//
+// TestRefusalsOnlyRefusesARecordingThatWouldMutate fails without this.
+func notRefusalsOnly(exs []trace.Exchange) string {
+	if len(exs) == 0 {
+		return "the recording holds no exchange, so replaying it would prove nothing"
+	}
+	for i := range exs {
+		if exs[i].Status < 400 || exs[i].Status >= 500 {
+			return fmt.Sprintf("exchange %d answered %d, so this recording is not refusals only "+
+				"and replaying it here could change what the other suites see",
+				i+1, exs[i].Status)
+		}
+	}
+	return ""
 }
 
 // replayDeclarations gathers what the packs declare comparable, holding each

@@ -37,6 +37,42 @@ import (
 //     emulator answered with a 4xx. The operations marked are the refused
 //     ones.
 //
+// # What counts as a demanded refusal, and what never will
+//
+// The axis is written here, where it is computed, because it is the one axis
+// somebody could raise without measuring anything (#390).
+//
+// A refusal counts when all four hold:
+//
+//  1. **a client asked for it.** The request came in over the wire from
+//     something outside this process — one of the official CLIs, a Terraform
+//     provider, or `feint replay` reissuing a request one of them made against
+//     the provider's real cloud and that the cloud refused
+//     (tools/conformance/refusals.sh). A synthetic call the contract-driven
+//     probe composed is excluded by [spanExchange.synthetic]: the probe builds
+//     its request from a schema, so a 4xx it meets says the schema and the
+//     handler disagree, never that a client was refused.
+//  2. **this emulator decided it.** The status came out of a handler, from the
+//     store it read and the request it parsed.
+//  3. **a suite said so first.** The span was opened before the traffic, so the
+//     claim is an assertion rather than a reading of whatever happened to fail.
+//  4. **it is a 4xx.** A 5xx is this emulator breaking, not refusing, and
+//     counting it would turn a defect into evidence.
+//
+// **An injected refusal never counts, and that bound is what the number is
+// worth.** `PUT /_feint/faults` can make any operation answer 403; the answer
+// is real on the wire and unreal as evidence, because nobody's rule about
+// nobody's account produced it — somebody armed it here. Point 2 is the one it
+// fails. If it counted, this axis could be moved to any figure by writing a
+// fixture, which is precisely the failure #26 refused and #390 was written to
+// avoid: a number to reach is not a measurement. [assertSpan.refusedOperations]
+// carries the check, and it refuses the whole span rather than narrowing it,
+// because proving nothing reads to a suite exactly like proving something.
+//
+// What the axis does *not* say, stated so nobody reads more into it: one
+// demanded refusal earns it, so an operation marked here has had one of its
+// refusals observed and says nothing about the others it owes.
+//
 // Attribution of a store touch to an operation goes through the in-flight set:
 // a touch is attributed only while exactly one non-probe request is being
 // handled. Sequential suites — every span-emitting block is one — always

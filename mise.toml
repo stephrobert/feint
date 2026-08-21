@@ -437,6 +437,14 @@ tools/conformance/exoscale/zones.sh
 # scw through a 403, terraform through 503, 503, 200 — which is the half of
 # every client's behaviour nothing here could observe before.
 tools/conformance/faults.sh
+# The refusals a real cloud actually answered (#390), reissued from the
+# committed corpora against this run's emulator. It is the only thing here that
+# can raise the `negative` axis: an injected fault deliberately cannot, so the
+# axis moves by observing refusals or it does not move. Safe beside the other
+# suites because a corpus of 4xx mutates nothing, and `feint replay
+# --refusals-only` reads the whole file before it sends anything rather than
+# taking that on trust.
+tools/conformance/refusals.sh "http://$FEINT_ADDR"
 # Every route driven from its provider's API description. Skipped when a machine
 # runtime is on: a synthetic walk of every Create* would start a container each.
 if [ "${FEINT_VM:-off}" = "off" ]; then ./feint probe --endpoint "http://$FEINT_ADDR" --contracts contracts; fi

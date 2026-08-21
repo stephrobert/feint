@@ -403,3 +403,81 @@ func TestTheDeclaredOrderIsActuallyEvaluatedOnARecordedRun(t *testing.T) {
 			"the check for an argument the API accepted and ignored ran on nothing.\n%s", out)
 	}
 }
+
+// A recording that would mutate is refused before a single request goes out.
+//
+// `tools/conformance/refusals.sh` replays the committed refusal corpora beside
+// every other suite of a run, against the emulator they all share (#390). That
+// is only safe because a 4xx mutates nothing, and "this file is refusals only"
+// is a property of the file rather than a promise from whoever named it — so
+// --refusals-only reads it, and reads it before sending anything.
+//
+// THE WITNESS IS THE POINT OF THE THIRD CASE. A guard that looks for the
+// absence of something has to be shown finding it, or it is a comment: the
+// recording below carries one 200 among refusals, and the run has to name that
+// exchange and reach the emulator with nothing at all. Without the guard the
+// same file replays, the 200 is a create, and it lands in whatever run was
+// borrowing that emulator.
+func TestRefusalsOnlyRefusesARecordingThatWouldMutate(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name string, lines ...string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	refusal := `{"method":"GET","path":"/instance/v1/zones/fr-par-1/servers/11111111-1111-1111-1111-111111111111",` +
+		`"status":404,"mounted":true,"operation":"instance/v1/API.GetServer","res":{"body":{"message":"x"}}}`
+	create := `{"method":"POST","path":"/instance/v1/zones/fr-par-1/security_groups","status":201,"mounted":true,` +
+		`"operation":"instance/v1/API.CreateSecurityGroup","req":{"body":{"name":"witness"}},` +
+		`"res":{"body":{"security_group":{"id":"22222222-2222-4222-8222-222222222222"}}}}`
+
+	target := freshEmulator(t)
+
+	// It accepts what it is for.
+	if out, errs, code := runReplay(t, write("refusals.jsonl", refusal), "--refusals-only",
+		"--endpoint", target.URL); code != exitOK {
+		t.Fatalf("a corpus of refusals exited %d, want 0.\nstdout:\n%s\nstderr:\n%s", code, out, errs)
+	}
+
+	// An empty file is not "refusals only": replaying nothing must not read as
+	// having replayed something.
+	if _, errs, code := runReplay(t, write("empty.jsonl"), "--refusals-only",
+		"--endpoint", target.URL); code != exitError {
+		t.Errorf("an empty recording exited %d, want %d.\nstderr:\n%s", code, exitError, errs)
+	}
+
+	// THE WITNESS: one 200 among refusals, and nothing may be sent.
+	before := countSecurityGroups(t, target.URL)
+	_, errs, code := runReplay(t, write("mixed.jsonl", refusal, create), "--refusals-only",
+		"--endpoint", target.URL)
+	if code != exitError {
+		t.Fatalf("a recording carrying a create exited %d, want %d.\nstderr:\n%s", code, exitError, errs)
+	}
+	if !strings.Contains(errs, "201") {
+		t.Errorf("the refusal does not name the exchange that broke the rule:\n%s", errs)
+	}
+	if after := countSecurityGroups(t, target.URL); after != before {
+		t.Errorf("the guard refused and the emulator still gained %d group(s): nothing may be sent",
+			after-before)
+	}
+}
+
+// countSecurityGroups reads how many the emulator holds, which is what the
+// witness above counts before and after.
+func countSecurityGroups(t *testing.T, endpoint string) int {
+	t.Helper()
+	res, err := http.Get(endpoint + "/instance/v1/zones/fr-par-1/security_groups") //nolint:gosec,noctx // a test server
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	var body struct {
+		Groups []json.RawMessage `json:"security_groups"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	return len(body.Groups)
+}

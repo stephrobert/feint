@@ -17,6 +17,32 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **The unhappy path is recorded, and the `negative` evidence axis moves for the
+  first time by measuring rather than by asserting** (#390). Three corpora of
+  refusals a real cloud actually answered — `corpus/scaleway/scw-refusals.jsonl`,
+  `corpus/outscale/oapi-cli-refusals.jsonl`, `corpus/exoscale/exo-refusals.jsonl` —
+  recorded from named accounts on 2026-08-21 through `feint proxy`, sanitised,
+  committed, replayed by `feint corpus --check` on every pull request, and
+  reissued against the run's own emulator by `tools/conformance/refusals.sh`.
+
+  **No injected fault is in any of it, and that bound is what the number is
+  worth.** `PUT /_feint/faults` can make any operation answer 403, and #26 made
+  sure such an answer earns nothing: the axis can only be raised by observing
+  refusals somebody's client really met. The definition now lives where the axis
+  is computed (`internal/core/emulator/assert.go`): what counts as a *demanded*
+  refusal, and why an injected one never will.
+
+  An operation whose refusal nobody could record stays at zero, visibly, and
+  three families are named in `corpus/README.md` with the reason: nothing was
+  created, so no duplicate-name 409, no dependency 409 and no quota refusal is in
+  here.
+
+- **`feint replay --refusals-only`**: the flag reads a recording whole and sends
+  nothing unless every exchange of it is a 4xx. It is what lets a corpus of
+  refusals be replayed beside the other suites of a run, against the one emulator
+  they share, instead of needing one of its own — a 4xx mutates nothing, and that
+  is now read off the file rather than promised about it. CLI surface version 12.
+
 - **A contract can now carry a field the provider's own document does not
   declare, and only with the recording that proves it** (#370, #371).
   `tools/contract/extract-openapi.py --recorded-fields` folds such a field into
@@ -909,6 +935,34 @@ what this project is judged on: **a response shape a client can observe**, and
   `tools/falsify/specs/teardown-race.json`: five mutations, all red, and the
   lock mutation measured out of tree at red 10/10 with the lock removed and
   green 10/10 with it back.
+
+- **An OpenSSH public key whose material names another algorithm is refused**
+  (#390). `ssh-ed25519 AAAA` used to parse: the first field is a known algorithm
+  and the second is valid base64, which was everything `sshkey.Parse` checked.
+  The material names its own algorithm (RFC 4253) and it must be the one the
+  line declares — the real cloud makes exactly that check and answers 400
+  `invalid key type`, measured against a real account. Well formed is not valid,
+  and two fixtures in this repository were leaning on the gap. Every pack that
+  accepts a public key gains the refusal.
+
+- **Listing the routes of a load balancer frontend that does not exist answers
+  404 instead of an empty page** (#390). `scw lb route list frontend-id=<absent>`
+  answered 200 with `routes: []`, which a client reads as "that frontend carries
+  no route" rather than "there is no such frontend". The cloud answers 404
+  `frontend not Found`.
+
+- **An Outscale DHCP options set naming a server that is not an IPv4 address is
+  refused** (#390). `CreateDhcpOptions` stored the string and answered 200; the
+  cloud answers 400 `InvalidParameterValue` before it stores anything. The
+  platform's own `OutscaleProvidedDNS` keyword is still accepted, being the one
+  value of that field which is not an address.
+
+- **The sanitiser no longer publishes an address outside its own synthetic
+  space** (#390). A block shorter than `198.18.0.0/15` itself cannot be placed
+  inside it, and masking the replacement to that length walked straight out:
+  `10.0.0.0/8` came back as `198.0.0.0/8`, whose address half belongs to
+  somebody. The prefix length is what an API validates, so it survives, and the
+  address half becomes the space's own.
 
 - **Three fields the real Exoscale API answers and this emulator omitted, all
   invisible to every control that reads a document** (#370, #371). They are 105

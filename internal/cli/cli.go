@@ -130,11 +130,18 @@ const (
 // addition to one existing verb; nothing was removed, no exit code moved, and a
 // pipeline keyed on version 10 keeps working.
 //
+// Version 12 adds `replay --refusals-only` (#390): the flag reads a recording
+// before it sends anything and refuses one carrying an answer that is not a
+// 4xx, which is what lets the committed corpora of recorded refusals be
+// replayed beside every other suite of a run against the one emulator they
+// share. An addition to one existing verb; nothing was removed, no exit code
+// moved, and a pipeline keyed on version 11 keeps working.
+//
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 11
+const cliSurfaceVersion = 12
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -361,7 +368,7 @@ Usage:
                     own; nothing is written if a value of the recording survives.
 
   feint replay     <recording.jsonl> [--endpoint http://127.0.0.1:4599]
-                   [--format text|json] [--timeout 30s]
+                   [--refusals-only] [--format text|json] [--timeout 30s]
                     Reissue every recorded request at a running emulator and
                     compare the two answers, operation by operation. The status
                     is exact, the fields and their types are exact minus what a
@@ -372,6 +379,10 @@ Usage:
                     is printed: a finding names a path, a type and a position.
                     Exit 2 on a divergence; an operation no route serves is
                     reported and never counted against the verdict.
+                    --refusals-only reads the whole recording first and sends
+                    nothing unless every exchange of it is a 4xx, which is what
+                    lets a corpus of recorded refusals be replayed beside other
+                    suites against one shared emulator.
 
   feint corpus     --check [--dir corpus] [--accepted corpus/accepted.json]
                     Replay every committed corpus against a fresh emulator and

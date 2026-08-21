@@ -429,6 +429,17 @@ jobs:
         if: matrix.client == 'fields'
         run: FEINT_BIN=/tmp/feint tools/conformance/faults.sh
 
+      # The refusals a real cloud answered (#390), reissued from the committed
+      # corpora. It needs no client binary, and it runs here rather than on
+      # every leg because this is the leg whose emulator the evidence record is
+      # read from. It shares that emulator, which the suite above deliberately
+      # does not: a corpus of 4xx mutates nothing, and `feint replay
+      # --refusals-only` reads each file whole before sending anything instead
+      # of taking that on trust.
+      - name: Replay the recorded refusals
+        if: matrix.client == 'fields'
+        run: FEINT_BIN=/tmp/feint tools/conformance/refusals.sh http://127.0.0.1:4599
+
       # No client at all: every route driven from its provider's own API
       # description, which is the half of conformance that needs nothing
       # installed. It proves the protocol and never touches the score.

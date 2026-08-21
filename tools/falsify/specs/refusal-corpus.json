@@ -1,0 +1,42 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "a recording carrying anything but refusals is replayed beside the other suites, so a lifecycle corpus creates servers in an emulator four other clients are asserting against",
+      "file": "internal/cli/replay.go",
+      "find": "\t\tif why := notRefusalsOnly(exs); why != \"\" {",
+      "replace": "\t\tif why := notRefusalsOnly(exs); why != \"\" && false {",
+      "test": "TestRefusalsOnlyRefusesARecordingThatWouldMutate"
+    },
+    {
+      "label": "the guard reads the file and lets the 2xx through anyway, which is the shape a status check takes when somebody writes >= 400 and forgets the other side",
+      "file": "internal/cli/replay.go",
+      "find": "\t\tif exs[i].Status < 400 || exs[i].Status >= 500 {",
+      "replace": "\t\tif exs[i].Status >= 500 {",
+      "test": "TestRefusalsOnlyRefusesARecordingThatWouldMutate"
+    },
+    {
+      "label": "an empty recording passes as refusals-only, so a replay of nothing reads as a replay that proved something — the SKIP corpus --check already has a paragraph about",
+      "file": "internal/cli/replay.go",
+      "find": "\tif len(exs) == 0 {\n\t\treturn \"the recording holds no exchange, so replaying it would prove nothing\"",
+      "replace": "\tif len(exs) == 0 && false {\n\t\treturn \"the recording holds no exchange, so replaying it would prove nothing\"",
+      "test": "TestRefusalsOnlyRefusesARecordingThatWouldMutate"
+    },
+    {
+      "label": "an injected refusal earns the negative axis, and this whole lot would be raising the number it exists to expose",
+      "file": "internal/core/emulator/assert.go",
+      "find": "\t\tif e.injected {",
+      "replace": "\t\tif e.injected && false {",
+      "test": "TestAnInjectedRefusalEarnsNoNegativeEvidence",
+      "package": "./internal/core/emulator/"
+    },
+    {
+      "label": "a negative span closes on a run where the emulator refused nobody, so a suite that demanded a refusal and got none reads as having proved one",
+      "file": "internal/core/emulator/assert.go",
+      "find": "\tif len(ops) == 0 {",
+      "replace": "\tif len(ops) == 0 && false {",
+      "test": "TestANegativeSpanNeedsARefusal",
+      "package": "./internal/core/emulator/"
+    }
+  ]
+}

@@ -19,6 +19,35 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Le chemin malheureux est enregistré, et l'axe de preuve `negative` bouge pour
+  la première fois par une mesure et non par une affirmation** (#390). Trois
+  corpus de refus qu'un vrai cloud a réellement rendus
+  (`corpus/scaleway/scw-refusals.jsonl`, `corpus/outscale/oapi-cli-refusals.jsonl`,
+  `corpus/exoscale/exo-refusals.jsonl`), enregistrés depuis des comptes nommés le
+  2026-08-21 avec `feint proxy`, assainis, commités, rejoués par
+  `feint corpus --check` à chaque pull request, et réémis contre l'émulateur de
+  la passe par `tools/conformance/refusals.sh`.
+
+  **Aucune faute injectée n'y figure, et c'est cette borne qui donne sa valeur au
+  chiffre.** `PUT /_feint/faults` sait faire répondre 403 à n'importe quelle
+  opération, et #26 a fait en sorte qu'une telle réponse ne gagne rien : l'axe ne
+  monte qu'en observant des refus qu'un client a réellement rencontrés. La
+  définition vit désormais là où l'axe est calculé
+  (`internal/core/emulator/assert.go`) : ce qui compte comme refus **demandé**, et
+  pourquoi un refus injecté n'en sera jamais un.
+
+  Une opération dont personne n'a pu enregistrer le refus reste à zéro, de façon
+  visible, et trois familles sont nommées dans `corpus/README.md` avec leur
+  raison : rien n'a été créé, donc ni 409 de nom déjà pris, ni 409 de dépendance,
+  ni refus de quota n'entrent ici.
+
+- **`feint replay --refusals-only`** : le drapeau lit l'enregistrement en entier
+  et n'envoie rien tant que chaque échange n'est pas un 4xx. C'est ce qui permet
+  de rejouer un corpus de refus à côté des autres suites d'une passe, contre
+  l'unique émulateur qu'elles partagent, au lieu de lui en donner un à lui seul :
+  un 4xx ne modifie rien, et cela se lit maintenant sur le fichier au lieu d'être
+  promis à son sujet. Surface CLI version 12.
+
 - **Un contrat peut désormais porter un champ que la description d'API du
   fournisseur ne déclare pas, et seulement avec l'enregistrement qui le prouve**
   (#370, #371). `tools/contract/extract-openapi.py --recorded-fields` replie un
@@ -969,6 +998,34 @@ change ni l'un ni l'autre a sa place dans `git log`.
   Falsifiée dans `tools/falsify/specs/teardown-race.json` : cinq mutations,
   toutes rouges, et la mutation du verrou mesurée hors dépôt à 10/10 rouge sans
   le verrou et 10/10 vert avec.
+
+- **Une clé publique OpenSSH dont la matière nomme un autre algorithme est
+  refusée** (#390). `ssh-ed25519 AAAA` passait : le premier champ est un
+  algorithme connu et le second est du base64 valide, ce qui était tout ce que
+  `sshkey.Parse` contrôlait. La matière nomme son propre algorithme (RFC 4253) et
+  ce doit être celui que la ligne déclare : le vrai cloud fait exactement ce
+  contrôle et répond 400 `invalid key type`, mesuré contre un compte réel. Bien
+  formé n'est pas valide, et deux fixtures de ce dépôt s'appuyaient sur ce trou.
+  Chaque pack qui accepte une clé publique gagne le refus.
+
+- **Lister les routes d'un frontend d'équilibreur qui n'existe pas répond 404 au
+  lieu d'une page vide** (#390). `scw lb route list frontend-id=<absent>`
+  répondait 200 avec `routes: []`, ce qu'un client lit comme « ce frontend ne
+  porte aucune route » et non comme « ce frontend n'existe pas ». Le cloud répond
+  404 `frontend not Found`.
+
+- **Un jeu d'options DHCP Outscale nommant un serveur qui n'est pas une adresse
+  IPv4 est refusé** (#390). `CreateDhcpOptions` stockait la chaîne et répondait
+  200 ; le cloud répond 400 `InvalidParameterValue` avant de rien stocker. Le
+  mot-clé `OutscaleProvidedDNS` de la plateforme reste accepté, étant la seule
+  valeur de ce champ qui ne soit pas une adresse.
+
+- **L'assainisseur ne publie plus une adresse hors de son propre espace
+  synthétique** (#390). Un bloc plus court que `198.18.0.0/15` lui-même ne peut
+  pas y être placé, et masquer le remplacement à cette longueur en sortait
+  aussitôt : `10.0.0.0/8` revenait en `198.0.0.0/8`, dont la moitié adresse
+  appartient à quelqu'un. C'est la longueur de préfixe qu'une API valide, donc
+  elle survit, et la moitié adresse devient celle de l'espace.
 
 - **Trois champs que la vraie API Exoscale répond et que cet émulateur omettait,
   tous invisibles à tout contrôle qui lit un document** (#370, #371). Ils font

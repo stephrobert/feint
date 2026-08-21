@@ -199,6 +199,9 @@ than pretending otherwise.
 | `exoscale/exo-cli.jsonl` | exo 1.95.1 (egoscale v3.1.36) | the reads every stack makes first (zones, instance types, templates under an explicit `visibility`, ssh keys, security groups, anti-affinity groups, private networks, instances, pools, elastic IPs, block storage, load balancers, quotas), two deliberate 404s, and the free lifecycle: an SSH key, two security groups with a rule each (one on `0.0.0.0/0`, one naming the other group), an anti-affinity group, and a private network created, read, updated, read again and deleted |
 | `outscale/oapi-cli-catalogue.jsonl` | oapi-cli 0.13.0 | the five operations a real Outscale endpoint answers **with no account at all**: `ReadRegions`, `ReadVmTypes`, `ReadPublicIpRanges`, `ReadPublicCatalog`, `ReadFlexibleGpuCatalog` |
 | `outscale/oapi-cli-lifecycle.jsonl` | oapi-cli 0.13.0 | the whole lifecycle a surveyed Outscale stack drives, against a real account in `cloudgouv-eu-west-1`: the catalogue reads, an imported keypair, a Net with a tag, a Subnet updated in place, two security groups with a rule each (one on `0.0.0.0/0`, one naming the other group), a route table linked to the subnet, an internet service and a default route, **a machine** created `BootOnCreation=false` and never booted, its tag, its security-group reconciliation, a public IP linked to it, a 1 GiB volume attached and snapshotted, a second NIC linked, a NAT service, an internal load balancer, two deliberate refusals, and the teardown of all of it with every destruction proved by a read |
+| `scaleway/scw-refusals.jsonl` | scw 2.56.3 | 113 refusals a real `fr-par` account answered on 2026-08-21, over 105 operations: every `Get`, `Delete`, `Update`, `Set` and sub-resource `Create` of instance, vpc, vpc-gw, lb, block, ipam, iam and marketplace addressed at an identifier that names nothing, plus every top-level `Create` naming a project that does not exist |
+| `outscale/oapi-cli-refusals.jsonl` | oapi-cli 0.13.0 | 67 refusals a real `cloudgouv-eu-west-1` account answered the same day, one per operation: every `Delete`, `Update`, `Link`, `Unlink`, `Start`, `Stop`, `Reboot`, `Accept`, `Reject` and `Register` addressed at an identifier that does not exist, every `Create` whose parent does not exist or whose value the API validates, and the one `Read` that refuses a filter value which is not an identifier |
+| `exoscale/exo-refusals.jsonl` | exo 1.95.1 (egoscale v3.1.36) | 3 refusals a real `ch-gva-2` account answered: `get-ssh-key` and `delete-ssh-key` on a name that does not exist, and `create-private-network` whose start address is above its end address |
 
 The two Scaleway files were recorded on 2026-08-21 against a real Scaleway
 account in `fr-par`, through `feint proxy`. Nothing billed was created: a VPC, a
@@ -292,6 +295,74 @@ to control is how a gate gets disabled.
 holds: stop and ask.** What made this one defensible was not that it was cheap,
 it was that the owner said which two objects, in which region, and for how long,
 and that the script proved the account was as it was found.
+
+## The refusal corpora, and what a client meets on its worst day
+
+`negative` is the seventh evidence axis and it stood at **35 of 370** while the
+other six stood between 85 and 100 % (#390). This emulator proved what it
+answers when everything goes well and almost nothing about what it answers when
+it does not, and the three files above are the measurement that changes that.
+
+**No injected fault is in any of them, and that bound is the whole value.**
+`PUT /_feint/faults` can make any operation answer 403; #26 built it and
+deliberately made such an answer earn nothing, so the axis can only be raised by
+*observing* refusals. `internal/core/emulator/assert.go` states, where the axis
+is computed, what counts as a demanded refusal and why an injected one never
+does. `tools/conformance/refusals.sh` is what drives these files during a
+conformance run, against the emulator every other suite shares: a 4xx mutates
+nothing, and `feint replay --refusals-only` reads the whole file before sending
+anything rather than taking that on trust.
+
+### The account rules, and the one thing they cost
+
+A refusal is the cheapest recording there is, because most of them create
+nothing at all. That is what let three live accounts be driven in one afternoon:
+
+- **Every Scaleway create names a project identifier that does not exist**, so
+  the API refuses before it allocates. That is what makes a battery containing
+  `lb lb create`, `instance ip create`, `block volume create` and
+  `vpc-gw gateway create` safe to send at all. The battery asks the cloud to
+  *prove* that refusal on a free resource before it sends the first billed one,
+  and aborts if the cloud ever answers 200 to it.
+- **Every Outscale identifier ends in a suffix the full account inventory was
+  read first to prove absent.** The account is live, in a qualified region, with
+  four Nets against a quota of five, two running machines and five public
+  addresses. A cleanup driven by a listing is one live name away from a real
+  loss, so nothing here is driven by a listing.
+- **Two Outscale operations are therefore absent**, and that is the cost.
+  `CreateInternetService` and `CreatePublicIp` take no parameter at all: there
+  is no way to ask for them and be refused, and `DryRun` is not a refusal here
+  (measured: it answers 200 with an empty context). They stay at zero, visibly,
+  which is the rule an operation nobody could record falls under.
+
+### What is not in here, and why
+
+Three families of refusal a cloud answers constantly are absent, and they share
+one cause: **nothing was created**.
+
+- **409 on a name already taken** needs the first resource to exist.
+- **409 naming a dependency** needs the parent *and* the child to exist.
+- **a quota refusal** needs the quota to be reached, which on the Outscale
+  account means creating a fifth Net against a quota of five.
+
+Recording them means creating and destroying real resources, which is the
+procedure the section above already carries and the owner's decision to take
+per account. Until somebody takes it, those refusals are not in the corpus and
+the operations that would carry them are not counted.
+
+### The one thing that went wrong, recorded rather than tidied away
+
+`exo compute block-storage create --size 0` was meant to be refused, and the
+API clamped the size to its 10 GiB minimum and created the volume instead. It
+lived about four minutes and its destruction is proved by a read of the list.
+`exo compute instance create` also registers a keypair named
+`<instance>-<timestamp>` *before* it posts the instance, so the create that was
+refused on its template still left a key behind; it was removed by name, from
+the run's own registry, and the removal proved by a read.
+
+The lesson is the one this directory keeps learning: **a value chosen because it
+"must" be refused is a guess until the cloud answers.** A parent that does not
+exist is a fact; a value out of range is a hope about the validator.
 
 ## Recording another one
 

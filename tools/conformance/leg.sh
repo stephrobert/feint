@@ -90,6 +90,11 @@ case "$leg" in
     # run this script started, and that separation is what the score's own
     # injected-answer refusal is there to hold.
     tools/conformance/faults.sh
+    # The recorded refusals (#390). Unlike the suite above it shares this leg's
+    # emulator, which is safe by construction and checked rather than assumed:
+    # `feint replay --refusals-only` reads each corpus whole and sends nothing
+    # unless every exchange of it is a 4xx.
+    tools/conformance/refusals.sh "$endpoint"
     ;;
 esac
 

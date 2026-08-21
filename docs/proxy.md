@@ -786,6 +786,51 @@ more emulator-versus-cloud divergences (#343, #365 to #369).
 made it defensible and the reason the gate is now red when a declared
 comparison runs nowhere.
 
+### Recording the unhappy path
+
+A refusal is the cheapest recording there is, and for a long time this project
+had none. Six evidence axes stood between 85 and 100 % and `negative` stood at
+35 of 370: this emulator proved what it answers when everything goes well and
+almost nothing about what it answers when it does not (#390).
+
+**It cannot be closed by fabricating refusals.** `PUT /_feint/faults` can make
+any operation answer 403, and #26 made sure such an answer earns nothing, so the
+axis moves by *observing* refusals or it does not move. So they were recorded,
+with the same proxy and the same sanitiser, from three named accounts:
+
+```bash
+feint proxy --provider scaleway --upstream https://api.scaleway.com \
+  --addr 127.0.0.1:4611 --record raw.jsonl &
+SCW_API_URL=http://127.0.0.1:4611 scw instance server get 11111111-2222-4333-8444-555555555555
+# … a battery of calls that name identifiers, parents and values the cloud refuses
+
+jq -c 'select(.status >= 400 and .status < 500 and .mounted == true)' raw.jsonl > refusals.jsonl
+feint transcript refusals.jsonl --sanitise corpus/scaleway/scw-refusals.jsonl \
+  --contract contracts/scaleway.json
+```
+
+Three things about this are worth carrying to another provider.
+
+- **Most refusals create nothing, which is what makes the run cheap and safe.**
+  A create refused leaves no resource and no bill. Every Scaleway create in that
+  battery names a project identifier that does not exist, so the API refuses
+  before it allocates: that is what lets `lb lb create` and `block volume
+  create` be sent at a real account at all. The battery proves the refusal on a
+  free resource first and aborts if the cloud ever answers 200 to it.
+- **The filter to 4xx is not tidying, it is what the corpus is.** A file whose
+  every exchange is a refusal mutates nothing, so it can be replayed beside
+  every other suite of a conformance run against the emulator they share
+  (`tools/conformance/refusals.sh`), where a lifecycle corpus needs one of its
+  own. `feint replay --refusals-only` reads the file whole and refuses to send
+  anything unless that holds, rather than trusting whoever named the file.
+- **A client that resolves names before it calls records almost nothing.**
+  Measured: of 65 `exo` commands driven at bogus identifiers, **three** reached
+  the API. The CLI resolves a `NAME|ID` argument by listing first and fails
+  client-side, so the refusal never leaves the station. `oapi-cli` sends the
+  Action straight through and produced 67 refusals from 91 commands. That is a
+  property of the client, not of the cloud, and it decides how much of this
+  corpus a provider can have.
+
 ### Why it still replays
 
 Because the replay already rebinds (above). A transcript whose identifiers are
