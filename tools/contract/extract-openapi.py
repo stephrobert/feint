@@ -48,6 +48,29 @@ declares a shape its own SDK does not read, `--error-shape` supplies a YAML
 fragment transcribed from the SDK's error structs — rule 4: the shape comes
 from the SDK, never from a guess. The fragment file carries the citation.
 
+Fields the wire carries and the document does not declare
+---------------------------------------------------------
+A published API description can be behind the API it describes, and Exoscale's
+is: `GET /v2/zone` answers an `id` per zone and `GET /v2/security-group` a
+`visibility` per group, neither of which their `source.yaml` declares. Nothing
+that reads a document could ever see that — the contract gate, the probe and the
+pack all read this artefact, so they agree with each other by construction. Only
+a recording of the real wire disagrees, and `corpus/` holds one.
+
+`--recorded-fields` folds such a field into the schema it belongs to, from a
+versioned YAML fragment where every entry cites the recording that proves it:
+the corpus file, the operation, the path inside the answer, and the day it was
+recorded. This is not a door for inventing a shape — rule 4 forbids that — and
+three refusals keep it shut:
+
+  * a schema the extracted document does not define is a typo or a rename;
+  * a property the document *does* declare means upstream has caught up, and
+    the entry has to go rather than quietly do nothing;
+  * the citation is copied into the artefact under `recordedFields`, where
+    `TestEveryRecordedFieldIsStillOnTheWire` (internal/cli) holds it against the
+    corpus it names. An entry no recording still carries fails that gate, on the
+    model of corpus/accepted.json: an entry that excuses nothing is deleted.
+
 Usage:
   tools/contract/extract-openapi.py <output.json> --provider <name>
       --spec <file>                      one document for the whole API
@@ -55,6 +78,8 @@ Usage:
       [--source <where it came from>] [--assume-closed]
       [--error-shape <fragment.yaml>]    the refusal shape, when the documents
                                          declare none or the SDK disagrees
+      [--recorded-fields <fragment.yaml>] fields a recording of the real cloud
+                                         carries and the document omits
 """
 
 import argparse
@@ -334,6 +359,77 @@ def read_spec(
     return spec["info"]["version"], path_prefix(spec), declared_closed
 
 
+# The keys every recorded-field entry must carry. `why` is in the list because
+# an entry without one is a field with no argument behind it, and that is the
+# shape of an invented format: the citation says the cloud answers it, the
+# sentence says why the document does not.
+RECORDED_FIELD_KEYS = (
+    "schema",
+    "property",
+    "shape",
+    "corpus",
+    "operation",
+    "path",
+    "recorded",
+    "why",
+)
+
+
+def apply_recorded_fields(path: str, schemas: dict) -> tuple[list[dict], list[str]]:
+    """Fold the fragment's fields into their schemas, and return their citations.
+
+    The second return is the refusals. They are collected rather than raised at
+    the first one, so an author fixing a fragment sees every problem in one run
+    instead of one per attempt.
+    """
+    with open(path) as f:
+        fragment = yaml.safe_load(f) or {}
+
+    entries = fragment.get("fields") or []
+    if not entries:
+        return [], [f"{path} declares no field, so passing it adds nothing"]
+
+    cited, refusals = [], []
+    for entry in entries:
+        if missing := [k for k in RECORDED_FIELD_KEYS if not entry.get(k)]:
+            refusals.append(f"{path}: an entry is missing {', '.join(missing)}: {entry!r}")
+            continue
+        name, prop = entry["schema"], entry["property"]
+        schema = schemas.get(name)
+        if schema is None:
+            refusals.append(
+                f"{path}: schema {name!r} is not in the extracted document, so {prop!r} "
+                f"would be added to nothing; the schema was renamed or the name is a typo"
+            )
+            continue
+        properties = schema.setdefault("properties", {})
+        if prop in properties:
+            # Upstream caught up. Keeping the entry would leave a citation
+            # standing for a field the document now carries on its own, which is
+            # a claim nobody would ever re-check.
+            refusals.append(
+                f"{path}: {name}.{prop} is declared by the document itself now, so this entry "
+                f"adds nothing — delete it, and the pack keeps answering the field"
+            )
+            continue
+        properties[prop] = property_shape(entry["shape"])
+        schema["properties"] = dict(sorted(properties.items()))
+        cited.append(
+            {
+                "schema": name,
+                "property": prop,
+                "corpus": entry["corpus"],
+                "operation": entry["operation"],
+                "path": entry["path"],
+                "recorded": str(entry["recorded"]),
+                "why": " ".join(str(entry["why"]).split()),
+            }
+        )
+
+    cited.sort(key=lambda c: (c["schema"], c["property"]))
+    return cited, refusals
+
+
 def main() -> int:
     global NAMESPACE
 
@@ -358,6 +454,12 @@ def main() -> int:
         metavar="FILE",
         help="a YAML fragment {name, schema} stating the refusal shape, transcribed "
         "from the SDK's error structs; overrides whatever the documents declare",
+    )
+    parser.add_argument(
+        "--recorded-fields",
+        metavar="FILE",
+        help="a YAML fragment {fields: [...]} adding fields a recording of the real cloud "
+        "carries and the document does not declare; every entry cites its recording",
     )
     args = parser.parse_args()
 
@@ -410,6 +512,18 @@ def main() -> int:
         print(f"errorSchema {error_schema} names no extracted schema", file=sys.stderr)
         return 1
 
+    # The fields the wire carries and the document does not declare. Applied
+    # last, so "the document already declares this" is judged against every
+    # document folded in, and a refusal here fails the extraction rather than
+    # writing an artefact whose citations nobody has checked.
+    recorded_fields: list[dict] = []
+    if args.recorded_fields:
+        recorded_fields, refusals = apply_recorded_fields(args.recorded_fields, schemas)
+        for line in refusals:
+            print(line, file=sys.stderr)
+        if refusals:
+            return 1
+
     artefact = {
         "provider": args.provider,
         "source": args.source or ", ".join(args.spec),
@@ -419,6 +533,8 @@ def main() -> int:
     }
     if error_schema:
         artefact["errorSchema"] = error_schema
+    if recorded_fields:
+        artefact["recordedFields"] = recorded_fields
     artefact["operations"] = dict(sorted(operations.items()))
     artefact["schemas"] = dict(sorted(schemas.items()))
 
@@ -443,6 +559,11 @@ def main() -> int:
         f"{len(operations)} operations, {len(schemas)} schemas "
         f"({closed} closed, {declared_closed} of them declared), "
         f"errorSchema {error_schema or 'none — refusals cannot be validated'}"
+        + (
+            f", {len(recorded_fields)} field(s) from a recording the document does not declare"
+            if recorded_fields
+            else ""
+        )
     )
     return 0
 

@@ -1,0 +1,93 @@
+# Fields a recording of the real Exoscale API carries that their own published
+# API description does not declare.
+#
+# Sibling of exoscale-error.yaml, and the same kind of correction: the document
+# is not always the API. That fragment overrides an error envelope the document
+# declares and egoscale does not read; this one adds two fields the wire answers
+# and the document never mentions. Both say out loud where the shape came from,
+# because rule 4 forbids inventing one.
+#
+# WHY NOTHING HAD SEEN THIS, AND IT IS THE POINT OF THE FILE. contracts/
+# exoscale.json is generated from https://openapi-v2.exoscale.com/source.yaml.
+# The pack was written from it, the shapes gate reads it, the probe validates
+# against it, and the contract checker refuses any field it does not declare. So
+# all four agree with one another by construction, and every one of them was
+# wrong in the same direction. Only a recording of the wire could disagree —
+# corpus/exoscale/exo-cli.jsonl, taken on 2026-08-21 against a real ch-gva-2
+# account through `feint proxy --forward '*.exoscale.com'` — and it reported the
+# two fields below 97 times between them (#370, #371).
+#
+# WHAT KEEPS THIS FROM BECOMING A PLACE TO INVENT A FORMAT. Three refusals, and
+# the third is the one that matters:
+#
+#   1. extract-openapi.py refuses a schema its documents do not define;
+#   2. it refuses a property the document declares itself — upstream catching up
+#      retires the entry rather than leaving a citation nobody re-reads;
+#   3. every entry's citation is copied into contracts/exoscale.json under
+#      recordedFields, and internal/cli's TestEveryRecordedFieldIsStillOnTheWire
+#      replays the named corpus and requires the named path to still be in it.
+#      An entry no recording carries fails that test, exactly as an entry that
+#      excuses nothing fails the corpus gate (corpus/accepted.json).
+#
+# So a field may be added here only by recording it, and it stays only while the
+# recording does. Deleting the recording does not silence the claim: it fails it.
+#
+# WHAT `exo` SHOWS, MEASURED, BECAUSE SOMEBODY WILL ASK. Neither field changes a
+# line of the official CLI's output: `exo -O json zone` prints `{"name": …}` and
+# drops everything else, and `exo -O json compute security-group list` prints
+# `"visibility":"private"` even against a server that sends no visibility at all
+# (measured 2026-08-21 against a stub answering the list without the field). That
+# is not an argument against serving them, it is the argument for corpus/. The
+# north star is that a client cannot tell this emulator from the cloud, and a
+# client that drops a field can no more confirm the answer is right than deny it
+# — only a recording of the wire arbitrates, which is the whole reason one is
+# committed.
+#
+# WHAT IS NOT HERE, AND WHY. The third divergence #371 names —
+# `rules[].security-group.name`, a rule that points at another group publishing
+# `{id, name}` upstream against `{id}` here — needed no entry: the document
+# already declares `name` on security-group-resource, which is the schema that
+# reference uses. It was a pack omission alone, and the pack now answers it.
+# Worth knowing before anybody reasons from #371's wording: `exo compute
+# security-group show` prints the target's name with or without the field,
+# because it resolves the reference by id itself. The wire is the subject, and
+# the recording is the only thing that can arbitrate it.
+#
+# `visibility` is likewise already declared on security-group-resource. It is
+# `security-group`, the schema a list and a get answer, that omits it — so the
+# entry below names that schema and not the reference one. The recording agrees:
+# the rule's `security-group` object carries `{id, name}` and no visibility.
+
+fields:
+  - schema: zone
+    property: id
+    shape: {type: string, format: uuid}
+    corpus: exoscale/exo-cli.jsonl
+    operation: exoscale/v2.list-zones
+    path: zones[].id
+    recorded: 2026-08-21
+    why: >
+      Every zone the real API lists carries an id and their `zone` schema
+      declares three fields, none of them it. `exo` lists the zones before very
+      nearly every command it runs, which is why one omission produced 51 of the
+      105 divergences that recording reported — the single most-answered
+      operation of the whole file. Raised once before as #94, from a shape diff,
+      and closed as not-a-defect on the grounds that serving it would fail this
+      emulator's own contract check. That was true, and it was the wrong end to
+      fix: the contract is what had to move.
+
+  - schema: security-group
+    property: visibility
+    shape: {type: string, enum: [private, public]}
+    corpus: exoscale/exo-cli.jsonl
+    operation: exoscale/v2.list-security-groups
+    path: security-groups[].visibility
+    recorded: 2026-08-21
+    why: >
+      Every group a real account answers carries visibility, private included,
+      on the list and on the read of one group alike. The document declares the
+      field on security-group-resource — the shape a rule uses to point at
+      another group — and not on security-group, the shape a list answers, which
+      is precisely the kind of gap no document-reading control can see. 46 of
+      the recording's divergences, and the enum is the document's own, taken
+      from the schema that does declare the field.

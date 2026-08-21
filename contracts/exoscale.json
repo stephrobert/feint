@@ -5,6 +5,26 @@
  "pathPrefix": "/v2",
  "closedPolicy": "assumed",
  "errorSchema": "egoscale.APIError",
+ "recordedFields": [
+  {
+   "schema": "security-group",
+   "property": "visibility",
+   "corpus": "exoscale/exo-cli.jsonl",
+   "operation": "exoscale/v2.list-security-groups",
+   "path": "security-groups[].visibility",
+   "recorded": "2026-08-21",
+   "why": "Every group a real account answers carries visibility, private included, on the list and on the read of one group alike. The document declares the field on security-group-resource \u2014 the shape a rule uses to point at another group \u2014 and not on security-group, the shape a list answers, which is precisely the kind of gap no document-reading control can see. 46 of the recording's divergences, and the enum is the document's own, taken from the schema that does declare the field."
+  },
+  {
+   "schema": "zone",
+   "property": "id",
+   "corpus": "exoscale/exo-cli.jsonl",
+   "operation": "exoscale/v2.list-zones",
+   "path": "zones[].id",
+   "recorded": "2026-08-21",
+   "why": "Every zone the real API lists carries an id and their `zone` schema declares three fields, none of them it. `exo` lists the zones before very nearly every command it runs, which is why one omission produced 51 of the 105 divergences that recording reported \u2014 the single most-answered operation of the whole file. Raised once before as #94, from a shape diff, and closed as not-a-defect on the grounds that serving it would fail this emulator's own contract check. That was true, and it was the wrong end to fix: the contract is what had to move."
+  }
+ ],
  "operations": {
   "add-external-source-to-security-group": {
    "path": "/security-group/{id}:add-source",
@@ -11413,6 +11433,13 @@
      "items": {
       "ref": "security-group-rule"
      }
+    },
+    "visibility": {
+     "type": "string",
+     "enum": [
+      "private",
+      "public"
+     ]
     }
    }
   },
@@ -12981,6 +13008,9 @@
    "closed": true,
    "properties": {
     "api-endpoint": {
+     "type": "string"
+    },
+    "id": {
      "type": "string"
     },
     "name": {

@@ -55,9 +55,22 @@ type Doc struct {
 	// struct, and Scaleway's scw/errors.go does the same. Empty when nothing
 	// upstream states the shape, and a refusal is then not validatable — which
 	// the probe reports as such rather than passing it.
-	ErrorSchema string               `json:"errorSchema,omitempty"`
-	Operations  map[string]Operation `json:"operations"`
-	Schemas     map[string]Schema    `json:"schemas"`
+	ErrorSchema string `json:"errorSchema,omitempty"`
+	// RecordedFields are the properties the extraction added to a schema
+	// because a recording of the real cloud carries them and the provider's own
+	// document does not declare them. Empty for a provider whose document is
+	// level with its API, which is where every provider is presumed to be until
+	// a recording says otherwise.
+	//
+	// They are here rather than folded silently into Schemas so that the
+	// artefact says which of its fields came from a wire instead of a document,
+	// and so that a gate can hold each one against the recording it names —
+	// internal/cli's TestEveryRecordedFieldIsStillOnTheWire, on the model
+	// corpus/accepted.json states: an entry that covers nothing is deleted, or
+	// the register quietly becomes a place where a shape can be invented.
+	RecordedFields []RecordedField      `json:"recordedFields,omitempty"`
+	Operations     map[string]Operation `json:"operations"`
+	Schemas        map[string]Schema    `json:"schemas"`
 
 	// folded indexes the operations by their name lower-cased, so a lookup can
 	// survive the one difference between a document and the SDK generated from
@@ -65,6 +78,32 @@ type Doc struct {
 	// their SDK, and the routes here carry the SDK spelling because that is what
 	// the drift scan reads. Same operation, two ways of writing it.
 	folded map[string]string
+}
+
+// RecordedField is one property a recording of the real cloud carries and the
+// provider's own API description does not declare, with the citation that
+// proves it.
+//
+// Every field is load-bearing, and each one answers a question somebody will
+// ask of the entry later: Schema and Property say what was added and where;
+// Corpus, Operation and Path say where to go and look; Recorded says how old
+// the measurement is; Why says what the reader is meant to conclude. An entry
+// missing any of them is refused by the extraction, because a field with no
+// citation behind it is exactly what rule 4 calls an invented format.
+type RecordedField struct {
+	Schema   string `json:"schema"`
+	Property string `json:"property"`
+	// Corpus is the recording, relative to corpus/ — the same spelling
+	// corpus/accepted.json uses for its own files, so one name reaches both.
+	Corpus string `json:"corpus"`
+	// Operation is the name the recording files the exchange under, and Path is
+	// where the field sits in the answer, in the notation internal/transcript
+	// produces: zones[].id, security-groups[].visibility.
+	Operation string `json:"operation"`
+	Path      string `json:"path"`
+	// Recorded is the day the recording was made, YYYY-MM-DD.
+	Recorded string `json:"recorded"`
+	Why      string `json:"why"`
 }
 
 // Operation ties an API call to the schemas on either side of it.

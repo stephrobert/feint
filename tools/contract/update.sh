@@ -34,9 +34,15 @@ extract contracts/outscale.json --provider outscale \
 #
 # --error-shape overrides the document's RFC 9457 error envelope with what
 # egoscale actually decodes; the fragment file carries the citation.
+#
+# --recorded-fields adds the two fields corpus/exoscale/exo-cli.jsonl proves the
+# live API answers and their document never declares (#370, #371). Its own
+# header explains what stops it becoming a place to invent a shape, and
+# TestEveryRecordedFieldIsStillOnTheWire is the half of that which executes.
 extract contracts/exoscale.json --provider exoscale \
   --source "https://openapi-v2.exoscale.com/source.yaml" --assume-closed \
   --error-shape tools/contract/exoscale-error.yaml \
+  --recorded-fields tools/contract/exoscale-recorded-fields.yaml \
   --spec "$SPEC_EXOSCALE"
 
 # Scaleway publishes one document per product, so its names are qualified: it
