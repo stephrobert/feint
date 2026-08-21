@@ -81,13 +81,17 @@ for corpus in "$ROOT"/corpus/*/*.jsonl; do
   # The replay's own verdict is not this suite's business: a divergence is
   # `feint corpus --check`'s to judge against corpus/accepted.json, and judging
   # it twice with two different lists is how the two answers drift apart. What
-  # this suite needs is that the requests went out, so only a hard failure —
-  # an unreadable file, an endpoint that is not there — stops the run.
-  if ! out="$("$FEINT" replay "$corpus" --refusals-only --endpoint "$ENDPOINT" 2>&1)"; then
-    case "$out" in
-      *"divergence"*|*divergent*) ;;
-      *) echo "FAIL: replaying $name: $out" >&2; exit 1 ;;
-    esac
+  # this suite needs is that the requests went out.
+  #
+  # So the exit CODE decides, not a substring of the output: rule 9 fixes 2 for
+  # a divergence and 1 for "this tool failed", and reading the text instead
+  # would swallow an unreadable file whose message happens to carry the word.
+  out=""
+  code=0
+  out="$("$FEINT" replay "$corpus" --refusals-only --endpoint "$ENDPOINT" 2>&1)" || code=$?
+  if [ "$code" != "0" ] && [ "$code" != "2" ]; then
+    echo "FAIL: replaying $name exited $code: $out" >&2
+    exit 1
   fi
   printf '  %-42s %s\n' "$name" "$(printf '%s' "$out" | grep -E '^[0-9]+ matched' || true)"
   # A span the emulator refuses to close fails the run, and that is the point:
