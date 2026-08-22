@@ -1,0 +1,54 @@
+{
+  "subject": "the work queue behind `feint coverage --evidence --gaps` (#408)",
+  "why": "A score says where we stand; this says what to do next. Its whole value is that four zeros name four different jobs, so every mutation below turns the queue back into an undifferentiated list — which is the state it was built to replace, and which reads exactly the same to somebody who did not write it.",
+  "mutations": [
+    {
+      "file": "internal/cli/evidence_gaps.go",
+      "find": "\tif v := axis.verdict(ev); v == \"violating\" {\n\t\treturn gapViolating\n\t}",
+      "replace": "\tif v := axis.verdict(ev); v == \"violating\" && false {\n\t\treturn gapViolating\n\t}",
+      "expect": "a defect stops outranking the rest, so an operation the record says broke its own contract is queued among the ones nobody ever drove",
+      "test": "TestAGapIsClassifiedFromTheRecordRatherThanTheName",
+      "label": "a defect no longer outranks the rest"
+    },
+    {
+      "file": "internal/cli/evidence_gaps.go",
+      "find": "\tif !ev.Driven {\n\t\treturn gapUndriven\n\t}",
+      "replace": "\tif !ev.Driven && false {\n\t\treturn gapUndriven\n\t}",
+      "expect": "an operation no client reaches is filed as a recording session, so somebody records a cloud answer for a route nothing calls",
+      "test": "TestAGapIsClassifiedFromTheRecordRatherThanTheName",
+      "label": "an undriven operation is filed as a recording"
+    },
+    {
+      "file": "internal/cli/evidence_gaps.go",
+      "find": "\t\t\tsort.SliceStable(group.Entries, func(i, j int) bool {\n\t\t\t\tki, kj := kindRank(group.Entries[i].Kind), kindRank(group.Entries[j].Kind)\n\t\t\t\tif ki != kj {\n\t\t\t\t\treturn ki < kj\n\t\t\t\t}\n\t\t\t\treturn group.Entries[i].Operation < group.Entries[j].Operation\n\t\t\t})",
+      "replace": "\t\t\tsort.SliceStable(group.Entries, func(i, j int) bool {\n\t\t\t\tki, kj := kindRank(group.Entries[i].Kind), kindRank(group.Entries[j].Kind)\n\t\t\t\tif ki != kj && false {\n\t\t\t\t\treturn ki < kj\n\t\t\t\t}\n\t\t\t\treturn group.Entries[i].Operation < group.Entries[j].Operation\n\t\t\t})",
+      "expect": "the queue sorts alphabetically, which hands one list to three people with three different jobs",
+      "test": "TestTheQueueIsOrderedByTheWorkItNames",
+      "label": "the queue sorts alphabetically"
+    },
+    {
+      "file": "internal/cli/evidence_gaps.go",
+      "find": "\t\tif !ok {\n\t\t\t// An operation no pack claims cannot be attributed to a cloud, and\n\t\t\t// #402's own guard already refuses the record in that state. Skipped\n\t\t\t// rather than bucketed under a provider it does not belong to.\n\t\t\tcontinue\n\t\t}\n\t\tbyProvider[owner] = append(byProvider[owner], op)",
+      "replace": "\t\tif !ok {\n\t\t\t// An operation no pack claims cannot be attributed to a cloud, and\n\t\t\t// #402's own guard already refuses the record in that state. Skipped\n\t\t\t// rather than bucketed under a provider it does not belong to.\n\t\t\towner = providers[0]\n\t\t}\n\t\tbyProvider[owner] = append(byProvider[owner], op)",
+      "expect": "an operation no pack claims is queued under whichever provider sorts first, so a reader is sent to implement something in the wrong cloud",
+      "test": "TestTheQueueOnlyNamesOperationsTheRecordHolds",
+      "label": "an unclaimed operation is queued under the wrong cloud"
+    },
+    {
+      "file": "internal/cli/evidence_gaps.go",
+      "find": "\tfor k, name := range gapKindNames {\n\t\treport.Kinds[name] = gapKindWork[k]\n\t}",
+      "replace": "\tfor k, name := range gapKindNames {\n\t\t_ = report\n\t\t_, _ = name, gapKindWork[k]\n\t}",
+      "expect": "the JSON publishes kinds and never says what they mean, so every consumer that did not read this file invents its own reading",
+      "test": "TestTheJSONCarriesWhatEachKindMeans",
+      "label": "the JSON stops saying what a kind means"
+    },
+    {
+      "file": "internal/cli/evidence_gaps.go",
+      "find": "\t\tif !found {\n\t\t\treturn nil, fmt.Errorf(\"no axis named %q; the record holds %s\",\n\t\t\t\tonlyAxis, strings.Join(evidenceAxisNames(), \", \"))\n\t\t}",
+      "replace": "\t\tif !found && false {\n\t\t\treturn nil, fmt.Errorf(\"no axis named %q; the record holds %s\",\n\t\t\t\tonlyAxis, strings.Join(evidenceAxisNames(), \", \"))\n\t\t}",
+      "expect": "a typo in --axis prints an empty queue, and 'no gap on that axis' reads exactly like 'there is no such axis'",
+      "test": "TestAnUnknownAxisIsRefused",
+      "label": "an unknown axis prints an empty queue"
+    }
+  ]
+}

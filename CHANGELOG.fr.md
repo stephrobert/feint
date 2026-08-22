@@ -19,6 +19,41 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Un score dit où l'on en est ; une file dit quoi faire ensuite** (#408).
+  `feint coverage --evidence <record> --gaps` liste, par cloud et par axe, les
+  opérations à zéro **et le travail que chaque zéro nomme**. C'est cette seconde
+  moitié qui compte : un zéro ne veut pas dire une seule chose. Une opération
+  sans `shape` parce qu'aucun client ne l'atteint est un travail de suite de
+  conformance ; le même zéro sur une opération qu'un client pilote à chaque
+  exécution est une session d'enregistrement contre un vrai compte ; et un axe
+  dont le registre dit que l'opération a *violé* son propre contrat est un
+  défaut du pack. Trois zéros, trois personnes différentes — une file qui les
+  confond tend la même liste de 158 noms aux trois.
+
+  Quatre natures, chacune dérivée du registre et jamais d'un nom, d'une
+  supposition ou d'une liste tenue à la main : `violating`, `unrecorded`,
+  `undriven`, et `unproven` pour ce que le registre n'explique pas. La dernière
+  est nommée plutôt que fondue dans une voisine, parce qu'un seau qui absorbe
+  l'inexpliqué est la façon dont une file se met à mentir. Le vocabulaire voyage
+  dans `--format json` : un consommateur n'a jamais à ouvrir le code pour savoir
+  ce qu'une nature signifie.
+
+  Ordonnée par le travail, puis par nom, et l'ordre est déclaré plutôt que
+  calculé : le défaut d'abord parce que c'est le seul ici, puis
+  l'enregistrement qui est à une session de la preuve, puis la suite qui est en
+  amont de la plupart des axes. **Aucun pourcentage cible** — une file se
+  travaille, elle ne s'atteint pas.
+
+  Mesuré sur le registre commité le jour de la livraison : Exoscale demande 111
+  suites de conformance, Scaleway 151 enregistrements. Deux métiers différents,
+  que le score seul ne pouvait pas dire.
+
+  `tools/falsify/specs/evidence-gaps.json`, six mutations, toutes rouges. L'une
+  est restée verte au premier essai et a nommé une faiblesse de la fixture, pas
+  du code : aucune de ses opérations n'était orpheline de pack, donc la garde
+  qui écarte une telle opération pouvait être retirée sans qu'une assertion
+  bronche.
+
 - **L'axe de preuve `negative`, remesuré : de 35 sur 370 à 173 sur 370** (#390),
   et ce chiffre est celui qui sort, pas celui que quelqu'un visait. Par
   fournisseur : Scaleway de 18 à 97 sur 173, Outscale de 11 à 66 sur 93, Exoscale

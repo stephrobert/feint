@@ -149,7 +149,7 @@ const (
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 13
+const cliSurfaceVersion = 14
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -321,6 +321,7 @@ Usage:
                     [--baseline <file> [--write-baseline]] [--fail-on-unknown]
                     [--artefact <file>] [--observed <recording.jsonl|dir>]
                     [--axis driven|probed|contract|dataplane|shape|behaviour|negative]
+                    [--gaps]
                     Compare the upstream API surface with what the packs serve.
                     --artefact compares the committed coverage artefact against
                     what the pack declares today — statuses and decline reasons —
@@ -345,6 +346,12 @@ Usage:
                     --axis names one and lists the operations at zero on it, which
                     is what turns a score into a work queue; --format json
                     publishes the same numbers for a workflow.
+                    --gaps answers what to do next rather than where we
+                    stand: with --evidence it lists, per cloud and per axis,
+                    the operations at zero and the work each zero names — a
+                    defect, a recording, a conformance suite, or unexplained.
+                    Four zeros, four different jobs; a queue that merges them
+                    hands one list to three people.
 
   feint probe      [--endpoint http://127.0.0.1:4599] [--contracts <dir>] [--provider <name>]
                     Drive every mounted route from its API description and check
@@ -979,6 +986,7 @@ func coverage(args []string, stdout, stderr io.Writer) int {
 	observed := fs.String("observed", "", "a proxy recording, or a directory of them: rank what the packs decline by how often a real client called it")
 	evidenceRecord := fs.String("evidence", "", "the committed evidence record: report its seven axes per provider, offline, instead of the upstream comparison")
 	axis := fs.String("axis", "", "with --evidence, name an axis and list the operations at zero on it")
+	gaps := fs.Bool("gaps", false, "with --evidence, list what is missing on every axis and what work each zero names, instead of the score")
 	if err := fs.Parse(args); err != nil {
 		return exitError
 	}
@@ -1000,7 +1008,18 @@ func coverage(args []string, stdout, stderr io.Writer) int {
 		if wasSet(fs, "provider") {
 			only = *provider
 		}
+		// --gaps answers the other half. --evidence says where we stand; this
+		// says what to do next, and the two are one command because they read
+		// one record: a second source of truth for "what is missing" is exactly
+		// the drift #408 exists to remove.
+		if *gaps {
+			return evidenceGapsView(*evidenceRecord, only, *axis, *format, stdout, stderr)
+		}
 		return evidenceAxesView(*evidenceRecord, only, *axis, *format, stdout, stderr)
+	}
+	if *gaps {
+		fmt.Fprintln(stderr, "feint: --gaps reads the evidence record, so it needs --evidence <file>")
+		return exitError
 	}
 
 	if *sdk == "" && *contractPath == "" {

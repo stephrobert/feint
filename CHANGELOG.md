@@ -17,6 +17,37 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **A score says where we stand; a queue says what to do next** (#408). `feint
+  coverage --evidence <record> --gaps` lists, per cloud and per axis, the
+  operations at zero **and the work each zero names**. That last half is the
+  point: a zero does not mean one thing. An operation missing `shape` because no
+  client ever drove it is a conformance-suite job; the same zero on one a client
+  drives every run is a recording session against a real account; and an axis
+  whose record says the operation *violated* its own contract is a defect in the
+  pack. Three zeros, three different people — a queue that merges them hands one
+  list of 158 names to all three.
+
+  Four kinds, each derived from the record rather than from a name, a guess or a
+  hand-kept list: `violating`, `unrecorded`, `undriven`, and `unproven` for what
+  the record does not explain. The last one is named rather than folded into a
+  neighbour, because a bucket that absorbs the unexplained is how a queue starts
+  lying. The vocabulary travels inside `--format json`, so a consumer never has
+  to open the source to learn what a kind means.
+
+  Ordered by the work, then by name, and the order is declared rather than
+  scored: a defect first because it is the only one here, then the recording
+  that is one session from earned, then the suite that is upstream of most axes.
+  **No target percentage anywhere** — a queue exists to be worked, not reached.
+
+  Measured on the committed record the day it landed: Exoscale needs 111
+  conformance suites, Scaleway 151 recordings. Two different jobs, which the
+  score alone could never have said.
+
+  `tools/falsify/specs/evidence-gaps.json`, six mutations, all red. One stayed
+  green on the first run and named a weakness in the fixture rather than in the
+  code: no operation of it was unclaimed by any pack, so the guard that skips
+  such an operation could be removed with every assertion still passing.
+
 - **The evidence axes are readable per provider by a command** (#402):
   `feint coverage --evidence coverage/evidence.json` prints, for each pack, the
   operations it serves and the count and percentage on each of the seven axes;
