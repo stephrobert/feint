@@ -11,15 +11,15 @@
     {
       "label": "an emulator that answered nothing reads as an emulator with no runtime, so the guard reports fine about a host it never reached",
       "file": "tools/conformance/guard.sh",
-      "find": "  if [ -z \"$health\" ]; then",
-      "replace": "  if [ -z \"$health\" ] && false; then",
+      "find": "  local health machines binary\n\n  health=\"$(curl -sf \"$endpoint/_feint/health\" || true)\"\n  if [ -z \"$health\" ]; then",
+      "replace": "  local health machines binary\n\n  health=\"$(curl -sf \"$endpoint/_feint/health\" || true)\"\n  if [ -z \"$health\" ] && false; then",
       "test": "TestTheImageGuardRefusesAnEndpointThatAnswersNothing"
     },
     {
       "label": "the missing binary stops being named, so the one refusal a first-contact host meets says nothing useful",
       "file": "tools/conformance/guard.sh",
-      "find": "  if [ ! -x \"$binary\" ]; then",
-      "replace": "  if [ ! -x \"$binary\" ] && false; then",
+      "find": "  if [ ! -x \"$binary\" ]; then\n    cat >&2 <<EOF\nFAIL: no feint binary at $binary.\n\nThis suite needs it to ask what images the $machines runtime holds.",
+      "replace": "  if [ ! -x \"$binary\" ] && false; then\n    cat >&2 <<EOF\nFAIL: no feint binary at $binary.\n\nThis suite needs it to ask what images the $machines runtime holds.",
       "test": "TestTheImageGuardRefusesWhenItCannotAsk"
     },
     {

@@ -358,17 +358,46 @@ def lint_selftest():
         with open(subject, "w", encoding="utf-8") as fh:
             fh.write("package p\n\nfunc guard() bool { return true }\n")
 
+        # A second subject carrying the same fragment twice, which is what a
+        # spec meets when its subject is duplicated after the spec was written.
+        # The witness for the ambiguity rule: without a file that really holds
+        # two matches, the case would pass by finding nothing.
+        twice = os.path.join(tmp, "twice.go")
+        with open(twice, "w", encoding="utf-8") as fh:
+            fh.write(
+                "package p\n\nfunc a() bool { return true }\n\nfunc b() bool { return true }\n"
+            )
+
         cases = [
-            ("live.json", "func guard() bool { return true }", 0, "a fragment that is in the file"),
-            ("dead.json", "func guard() bool { return gone }", 2, "a fragment that is not"),
+            (
+                subject,
+                "live.json",
+                "func guard() bool { return true }",
+                0,
+                "a fragment that is in the file",
+            ),
+            (
+                subject,
+                "dead.json",
+                "func guard() bool { return gone }",
+                2,
+                "a fragment that is not",
+            ),
+            (
+                twice,
+                "ambiguous.json",
+                "bool { return true }",
+                2,
+                "a fragment that matches two places, where only the first is rewritten",
+            ),
         ]
-        for name, find, want, why in cases:
+        for target, name, find, want, why in cases:
             spec = {
                 "package": "./p/",
                 "mutations": [
                     {
                         "label": "selftest",
-                        "file": subject,
+                        "file": target,
                         "find": find,
                         "replace": find.replace("true", "false"),
                         "test": "TestNothing",
@@ -394,6 +423,43 @@ def every_spec(directory):
     return sorted(
         os.path.join(directory, name) for name in os.listdir(directory) if name.endswith(".json")
     )
+
+
+def fragment_problem(target, find):
+    """Why this fragment cannot be rewritten, or None.
+
+    Two answers, and the second is the one that cost #399. The harness rewrites
+    the FIRST occurrence only (`body.replace(find, replace, 1)`), because a
+    mutation is meant to name one place. A fragment that matches several places
+    therefore neutralises one of them and leaves the rest standing — and the
+    guard stays green for a reason that has nothing to do with the guard.
+
+    Measured: `shared-layer-is-enforced.json` names
+    `storetest.NoLostUpdate(40, func(trial int) []storetest.Write {`, which was
+    one call site in internal/providers/exoscale/lostupdate_test.go on the day
+    the spec was written and became three two days later. The mutation kept
+    renaming the first, `TestEveryPackRunsTheSharedBarrage` kept reading the
+    other two, and the falsification reported STILL GREEN for two months while
+    the guard it names was never actually removed. `--lint` could not see it:
+    the fragment was still there, so "every declared fragment still applies" was
+    true and useless.
+
+    So the fragment must match exactly once. It is the same class as the dead
+    fragment above — a spec describing code that is no longer what it thinks —
+    and it is checked in the same millisecond.
+    """
+    if not target or not os.path.exists(target):
+        return f"{target}: no such file"
+    with open(target, encoding="utf-8") as fh:
+        found = fh.read().count(find)
+    if found == 0:
+        return f"{target}: fragment not found"
+    if found > 1:
+        return (
+            f"{target}: fragment matches {found} places and only the first is rewritten, "
+            f"so the mutation leaves {found - 1} of them standing"
+        )
+    return None
 
 
 def lint(directory):
@@ -430,13 +496,9 @@ def lint(directory):
         with open(path, encoding="utf-8") as fh:
             spec = json.load(fh)
         for m in spec.get("mutations") or []:
-            target = m.get("file")
-            if not target or not os.path.exists(target):
-                stale.append((path, m.get("label", "?"), f"{target}: no such file"))
-                continue
-            with open(target, encoding="utf-8") as fh:
-                if m.get("find") not in fh.read():
-                    stale.append((path, m.get("label", "?"), f"{target}: fragment not found"))
+            why = fragment_problem(m.get("file"), m.get("find"))
+            if why:
+                stale.append((path, m.get("label", "?"), why))
 
     if stale:
         print(
@@ -528,6 +590,11 @@ def main(argv):
                 return refuse(f"a mutation is missing {key!r}: {m.get('label', m)}")
         if m["find"] == m["replace"]:
             return refuse(f"{m['label']!r} replaces a fragment with itself")
+        # Ambiguity is refused before anything is copied, on the same terms as a
+        # dead fragment: see fragment_problem.
+        ambiguous = fragment_problem(m["file"], m["find"])
+        if ambiguous:
+            return refuse(f"{m['label']!r}: {ambiguous}")
         lost = dropped_identifiers(m["find"], m["replace"])
         if lost:
             return refuse(

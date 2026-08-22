@@ -33,8 +33,8 @@
     {
       "label": "a negative span closes on a run where the emulator refused nobody, so a suite that demanded a refusal and got none reads as having proved one",
       "file": "internal/core/emulator/assert.go",
-      "find": "\tif len(ops) == 0 {",
-      "replace": "\tif len(ops) == 0 && false {",
+      "find": "\t\tops[e.operation] = true\n\t}\n\tif len(ops) == 0 {",
+      "replace": "\t\tops[e.operation] = true\n\t}\n\tif len(ops) == 0 && false {",
       "test": "TestANegativeSpanNeedsARefusal",
       "package": "./internal/core/emulator/"
     }
