@@ -1,0 +1,41 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "the per-provider split is removed and every operation is filed under one cloud — the throwaway script's own first bug, which printed \"scaleway: 370 served\" and looked like a measurement",
+      "file": "internal/cli/evidence_axes.go",
+      "find": "\t\t\towners[r.Operation] = p.Name()",
+      "replace": "\t\t\towners[r.Operation] = strings.Replace(p.Name(), p.Name(), \"scaleway\", 1)",
+      "test": "TestTheAxisTableIsTheCommittedRecordCountedPerProvider"
+    },
+    {
+      "label": "an operation no pack serves is counted instead of refused, so a stale record renders a table missing rows and says so nowhere",
+      "file": "internal/cli/evidence_axes.go",
+      "find": "\tif len(unclaimed) > 0 {",
+      "replace": "\tif len(unclaimed) > 0 && false {",
+      "test": "TestAnOperationNoPackServesIsRefusedRatherThanFiled"
+    },
+    {
+      "label": "a percentage truncates again, so 166 of 173 prints 95 where the record says 96",
+      "file": "internal/cli/evidence_axes.go",
+      "find": "\treturn (200*n + total) / (2 * total)",
+      "replace": "\treturn (200*n + total*0) / (2 * total)",
+      "test": "TestAPercentageIsRoundedToNearestNotTruncated"
+    },
+    {
+      "label": "an axis is counted under a name the record does not publish, so one of the seven silently reads zero everywhere",
+      "file": "internal/cli/evidence_axes.go",
+      "find": "\t\t\tName:    \"negative\",",
+      "replace": "\t\t\tName:    \"negatives\",",
+      "test": "TestTheAxisListIsEveryFieldTheRecordPublishes"
+    },
+    {
+      "label": "naming an axis lists nothing, so the output is a score and never a work queue",
+      "file": "internal/cli/evidence_axes.go",
+      "find": "\t\t\tif named.earned(ev) {\n\t\t\t\tcontinue\n\t\t\t}",
+      "replace": "\t\t\tif named.earned(ev) || len(op) >= 0 {\n\t\t\t\tcontinue\n\t\t\t}",
+      "test": "TestNamingAnAxisListsTheOperationsAtZeroOnIt"
+    }
+  ],
+  "note": "The first mutation is the one #402 asks for by name. It is not a deletion: p.Name() is still called twice, so the harness's own rule (a mutation must not drop an identifier the original used) is satisfied and the package still builds — the failure it produces is a wrong table, which is exactly the failure the issue is about."
+}

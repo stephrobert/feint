@@ -229,6 +229,16 @@ func docs(args []string, stdout, stderr io.Writer) int {
 		return exitError
 	}
 
+	// The per-provider axis table (#402), on the same page and from the same
+	// artefact: the summary of the very rows spliceRoutes just wrote. A
+	// conformance table nobody regenerates reads as a measurement, which is
+	// worse than no table, so it rides the same gate as everything else here.
+	axesChanged, axesErr := spliceAxes(*routesDoc, evidenceArt)
+	if axesErr != nil {
+		fmt.Fprintf(stderr, "feint: %v\n", axesErr)
+		return exitError
+	}
+
 	// The confidence page's two figures (#130): the same artefact the routes
 	// page reads, so a reader cannot be told two different numbers by two pages.
 	confidenceChanged, confidenceErr := spliceConfidence(*confidenceDoc, evidenceArt)
@@ -344,6 +354,11 @@ func docs(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "feint: %s is out of date; run `mise run docs:coverage`\n", *routesDoc)
 			return exitDrift
 		}
+		if axesChanged {
+			fmt.Fprintf(stderr, "feint: the per-provider axis table in %s no longer matches "+
+				"coverage/evidence.json; run `mise run docs:coverage`\n", *routesDoc)
+			return exitDrift
+		}
 		if confidenceChanged {
 			fmt.Fprintf(stderr, "feint: %s is out of date; run `mise run docs:coverage`\n", *confidenceDoc)
 			return exitDrift
@@ -403,6 +418,13 @@ func docs(args []string, stdout, stderr io.Writer) int {
 			return exitError
 		}
 		fmt.Fprintf(stdout, "%s updated\n", *routesDoc)
+	}
+	if axesChanged {
+		if err := writeSplicedAxes(*routesDoc, evidenceArt); err != nil {
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
+		fmt.Fprintf(stdout, "the per-provider axis table in %s updated\n", *routesDoc)
 	}
 	if confidenceChanged {
 		if err := writeSplicedConfidence(*confidenceDoc, evidenceArt); err != nil {

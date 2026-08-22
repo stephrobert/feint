@@ -17,6 +17,28 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **The evidence axes are readable per provider by a command** (#402):
+  `feint coverage --evidence coverage/evidence.json` prints, for each pack, the
+  operations it serves and the count and percentage on each of the seven axes;
+  `--axis <name>` lists the operations at zero on one of them, which is what
+  turns a score into a work queue; `--format json` publishes the same numbers.
+  Offline, from the committed record, no SDK checkout and no socket.
+
+  It exists because the question was answered once by a throwaway script, and
+  **that script was wrong twice before it was right**: it first looked for a key
+  named `operation` inside each entry — the operation name is the map *key* — so
+  all 370 operations fell into one bucket and it printed `scaleway: 370 served,
+  93 % driven`. Right shape, right headers, plausible numbers, no relation to the
+  record. The provider of an operation is therefore never inferred from its name:
+  it is the pack that mounts a route declaring it, and a record naming an
+  operation no pack serves is refused rather than filed somewhere plausible.
+
+  The table is in [docs/routes.md](docs/routes.md), generated and held by
+  `feint docs --check`, with one line per axis saying what earns it — including
+  that an injected fault earns none of them, which is what the `negative` column
+  is worth. `cliSurfaceVersion` moves 12 to 13: two additions to one existing
+  verb, nothing removed, no exit code moved.
+
 - **The `negative` evidence axis, measured again: 35 of 370 to 173 of 370**
   (#390), and the number is what came out rather than a figure anybody aimed at.
   Per provider: Scaleway 18 to 97 of 173, Outscale 11 to 66 of 93, Exoscale 6 to

@@ -45,3 +45,22 @@ func newFlagSet(name string) *flag.FlagSet {
 // fs.String/Bool/Int/Duration call has landed on it. There is no second copy to
 // keep in step, which is the whole point.
 var observeFlagSet func(name string, fs *flag.FlagSet)
+
+// wasSet answers whether the caller named this flag on the command line, as
+// opposed to it holding its declared default.
+//
+// `feint coverage --provider` defaults to scaleway because the upstream
+// comparison reports on one provider at a time. `--evidence` shares the flag and
+// must not share that default: "which cloud is weakest" answered about Scaleway
+// alone, silently, is precisely the plausible-wrong output #402 exists to stop.
+// A second flag for the same idea would have been the alternative, and two names
+// for one concept is how a CLI surface starts contradicting itself.
+func wasSet(fs *flag.FlagSet, name string) bool {
+	set := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			set = true
+		}
+	})
+	return set
+}

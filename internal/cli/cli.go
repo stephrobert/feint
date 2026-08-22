@@ -137,11 +137,19 @@ const (
 // share. An addition to one existing verb; nothing was removed, no exit code
 // moved, and a pipeline keyed on version 11 keeps working.
 //
+// Version 13 adds `coverage --evidence` and `coverage --axis` (#402): the
+// committed evidence record counted per provider, offline, so "which cloud is
+// weakest, and on which axis" is answered by a command rather than by a script
+// somebody writes again each time — and, named an axis, by the list of
+// operations at zero on it. Additions to one existing verb; nothing was
+// removed, no exit code moved, and a pipeline keyed on version 12 keeps
+// working.
+//
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 12
+const cliSurfaceVersion = 13
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -307,10 +315,12 @@ Usage:
                     than at exit. Loading replaces the store: a fixture must not
                     depend on what the session did before it.
 
-  feint coverage   (--sdk <dir> | --contract <file>) [--provider scaleway|outscale|exoscale]
+  feint coverage   (--sdk <dir> | --contract <file> | --evidence <file>)
+                    [--provider scaleway|outscale|exoscale]
                     [--products <a,b,c>] [--format text|json|triage|list]
                     [--baseline <file> [--write-baseline]] [--fail-on-unknown]
                     [--artefact <file>] [--observed <recording.jsonl|dir>]
+                    [--axis driven|probed|contract|dataplane|shape|behaviour|negative]
                     Compare the upstream API surface with what the packs serve.
                     --artefact compares the committed coverage artefact against
                     what the pack declares today — statuses and decline reasons —
@@ -327,6 +337,14 @@ Usage:
                     publishes an OpenAPI document, so it is read with --contract.
                     Given both, the SDK lists the operations and the contract adds
                     the upstream's own grouping, which the SDK flattens away.
+                    --evidence answers a different question again, offline and
+                    from the committed record: of the operations each pack serves,
+                    how many have earned each of the seven axes. It needs no SDK
+                    and no network. Without --provider it reports all three, so
+                    "which cloud is weakest" is not answered about one of them.
+                    --axis names one and lists the operations at zero on it, which
+                    is what turns a score into a work queue; --format json
+                    publishes the same numbers for a workflow.
 
   feint probe      [--endpoint http://127.0.0.1:4599] [--contracts <dir>] [--provider <name>]
                     Drive every mounted route from its API description and check
@@ -959,9 +977,32 @@ func coverage(args []string, stdout, stderr io.Writer) int {
 	writeBaseline := fs.Bool("write-baseline", false, "rewrite the baseline file from the current upstream surface")
 	artefact := fs.String("artefact", "", "compare this committed coverage artefact against what the pack declares and exit 2 on any skew")
 	observed := fs.String("observed", "", "a proxy recording, or a directory of them: rank what the packs decline by how often a real client called it")
+	evidenceRecord := fs.String("evidence", "", "the committed evidence record: report its seven axes per provider, offline, instead of the upstream comparison")
+	axis := fs.String("axis", "", "with --evidence, name an axis and list the operations at zero on it")
 	if err := fs.Parse(args); err != nil {
 		return exitError
 	}
+
+	// --evidence asks a different question from every other flag here, and it
+	// answers it from the committed record rather than from an upstream surface:
+	// no SDK checkout, no contract, no network. It runs before the requirement
+	// below for that reason, and it renders instead of the report rather than
+	// beside it, on the same terms as --observed.
+	//
+	// --provider is shared rather than duplicated, and its default is not "every
+	// provider" but scaleway, which the upstream comparison needs and this view
+	// must not inherit: asking "which cloud is weakest" and being answered about
+	// one of them would be the plausible-wrong output this view exists to stop.
+	// So an unset --provider means all three here, and fs.Visit is what tells
+	// unset from explicitly set to the default value.
+	if *evidenceRecord != "" {
+		only := ""
+		if wasSet(fs, "provider") {
+			only = *provider
+		}
+		return evidenceAxesView(*evidenceRecord, only, *axis, *format, stdout, stderr)
+	}
+
 	if *sdk == "" && *contractPath == "" {
 		fmt.Fprintln(stderr, "feint: one of --sdk (a provider SDK checkout) or --contract (a contract artefact) is required")
 		return exitError
