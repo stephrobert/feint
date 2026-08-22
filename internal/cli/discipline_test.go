@@ -142,22 +142,16 @@ func TestEveryPackRunsTheSharedBarrage(t *testing.T) {
 			continue
 		}
 
-		found := map[string]bool{}
+		found := map[string]int{}
 		for _, file := range files {
-			source, err := os.ReadFile(file)
-			if err != nil {
-				t.Fatalf("read %s: %v", file, err)
-			}
-			for _, control := range controls {
-				if strings.Contains(string(source), "storetest."+control+"(") {
-					found[control] = true
-				}
+			for control, n := range barrageCalls(t, file) {
+				found[control] += n
 			}
 		}
 
 		var missing []string
 		for _, control := range controls {
-			if found[control] {
+			if found[control] > 0 {
 				continue
 			}
 			if reason := notInTheBarrage[pack+"/"+control]; reason != "" {
@@ -173,6 +167,50 @@ func TestEveryPackRunsTheSharedBarrage(t *testing.T) {
 				pack, strings.Join(missing, ", storetest."))
 		}
 	}
+}
+
+// barrageCalls counts, per control, the calls to storetest.<Control>(…) a pack's
+// test file really makes.
+//
+// It used to be strings.Contains(source, "storetest."+control+"("), and that is
+// two different weaknesses at once, both of the family CLAUDE.md calls "bien
+// formé n'est pas autorisé": a mention inside a comment or a string literal
+// satisfies a substring search exactly like a call, so a pack could be recorded
+// as running the barrage by naming it in a sentence. This resolves a real
+// CallExpr on a SelectorExpr whose package identifier is storetest, so only a
+// call counts.
+//
+// The count matters as much as the boolean, and #399 is why. The falsification
+// for this guard rewrites one call site, and the harness rewrites the first
+// match only; the moment a second identical call appeared in the same pack
+// (#289, two days after the spec was written) the mutation stopped removing the
+// last one and the falsification reported STILL GREEN for two months. The
+// harness now refuses an ambiguous fragment, and this returns a count so a
+// failure can say how many calls it saw rather than only that it saw none.
+func barrageCalls(t *testing.T, file string) map[string]int {
+	t.Helper()
+	parsed, err := parser.ParseFile(token.NewFileSet(), file, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", file, err)
+	}
+	calls := map[string]int{}
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		call, isCall := n.(*ast.CallExpr)
+		if !isCall {
+			return true
+		}
+		sel, isSelector := call.Fun.(*ast.SelectorExpr)
+		if !isSelector {
+			return true
+		}
+		pkg, isIdent := sel.X.(*ast.Ident)
+		if !isIdent || pkg.Name != "storetest" {
+			return true
+		}
+		calls[sel.Sel.Name]++
+		return true
+	})
+	return calls
 }
 
 // A reason that says nothing is not a reason, which is the lesson the declines

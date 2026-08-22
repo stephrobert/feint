@@ -406,6 +406,30 @@ func checkCorpus(dir, acceptedPath string, now time.Time, stdout, stderr io.Writ
 		return exitError
 	}
 
+	// A provider whose recordings are replayed while its pack declares nothing
+	// comparable beyond presence and type.
+	//
+	// The check above is global per kind, and that is the hole #399 measured:
+	// Scaleway's declarations keep both counters above zero, so one pack losing
+	// every invariant it declares changes no verdict. The Outscale pack's own
+	// header says this is exactly what happened for the whole of the corpus's
+	// first life — "the gate printed 0 divergent finding(s) over a run in which
+	// no value and no order of an Outscale answer had ever been compared" — and
+	// #354 fixed it by declaring them, while nothing stopped them going away
+	// again. The falsification that claimed to cover it removed them and stayed
+	// green.
+	// TestAProviderWhoseRecordingsCompareNothingDeclaredIsRed fails without this.
+	if silent := providersDeclaringNoInvariant(packs, files); len(silent) > 0 {
+		for _, name := range silent {
+			fmt.Fprintf(stderr, "feint: %s has recordings in this corpus and its pack declares no "+
+				"replay invariant, so no value and no order of its answers is compared beyond "+
+				"presence and type — which prints as \"0 divergent finding(s)\" and means the "+
+				"comparison did not happen. Declare one, or name %q in noReplayInvariants with "+
+				"the reason\n", name, name)
+		}
+		return exitError
+	}
+
 	// An exemption that excused nothing. The rule tools/compat/accepted.json
 	// states and this one inherits: a stale exemption is a gate that quietly
 	// stopped covering what it names, and the day the defect is fixed is the day
@@ -746,4 +770,44 @@ func agedCorpora(recorded []corpusRecording, now time.Time, days int) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// noReplayInvariants lists the providers whose pack legitimately declares no
+// replay invariant, with the reason. Same shape and same discipline as
+// Declined() and as notInTheBarrage: an absence somebody wrote down, which a
+// reviewer can weigh, rather than an absence nobody can see.
+//
+// TestEveryCorpusInvariantExemptionSaysWhy refuses an entry that argues nothing.
+var noReplayInvariants = map[string]string{
+	"exoscale": "nothing has been triaged here yet, and this entry says so rather than hiding it: " +
+		"the pack answers, its two corpora replay, and no value and no order of an Exoscale answer " +
+		"is compared beyond presence and type. It is a work queue and not a decision — the entry " +
+		"goes the day the pack declares its first invariant, and the gate then holds it",
+}
+
+// providersDeclaringNoInvariant answers which providers this corpus replays
+// while their pack declares nothing for a replay to compare.
+//
+// The provider of a recording is the directory it sits in, which is the layout
+// corpus/README.md fixes and checkCorpusRecordings already relies on. A
+// recording under a directory no mounted pack answers for is not this guard's
+// business: the replay itself reports those exchanges as unserved.
+func providersDeclaringNoInvariant(packs []emulator.Pack, files []string) []string {
+	recorded := map[string]bool{}
+	for _, f := range files {
+		if dir, _, found := strings.Cut(filepath.ToSlash(f), "/"); found {
+			recorded[dir] = true
+		}
+	}
+	var silent []string
+	for _, p := range packs {
+		if !recorded[p.Name()] || noReplayInvariants[p.Name()] != "" {
+			continue
+		}
+		if len(emulator.InvariantsOf(p)) == 0 {
+			silent = append(silent, p.Name())
+		}
+	}
+	sort.Strings(silent)
+	return silent
 }

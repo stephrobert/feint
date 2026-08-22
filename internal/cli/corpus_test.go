@@ -579,3 +579,57 @@ func keepOperations(t *testing.T, path string, ops ...string) string {
 	}
 	return filtered
 }
+
+// A provider whose recordings are replayed while its pack declares nothing
+// comparable is named, and the exemption list is what makes that a decision.
+//
+// #399: the falsification "the Outscale pack declares no ReplayInvariant again"
+// stayed green because unexercisedInvariantKinds counts kinds over every pack at
+// once, so Scaleway's five declarations kept both counters above zero and one
+// pack losing all of its changed no verdict. The Outscale pack's own header
+// (internal/providers/outscale/invariants.go) describes that exact state as what
+// held for the whole of the corpus's first life, and nothing stopped it coming
+// back.
+//
+// The witness is the second half: the guard is shown finding a provider before
+// its green is read as "every provider declares something".
+func TestAProviderWhoseRecordingsCompareNothingDeclaredIsRed(t *testing.T) {
+	packs := mustPacks(t)
+	files := []string{"exoscale/exo-cli.jsonl", "outscale/oapi-cli-lifecycle.jsonl", "scaleway/scw-cli.jsonl"}
+
+	if silent := providersDeclaringNoInvariant(packs, files); len(silent) > 0 {
+		t.Errorf("the committed corpus is refused today: %v", silent)
+	}
+
+	// The witness. Exoscale declares no invariant and is exempted by name; drop
+	// the exemption and the guard must say so, or its silence above means only
+	// that it looked nowhere.
+	restore := noReplayInvariants["exoscale"]
+	delete(noReplayInvariants, "exoscale")
+	defer func() { noReplayInvariants["exoscale"] = restore }()
+
+	silent := providersDeclaringNoInvariant(packs, files)
+	if len(silent) != 1 || silent[0] != "exoscale" {
+		t.Fatalf("with its exemption removed the guard names %v, want [exoscale]: it cannot "+
+			"report the absence of a declaration it is unable to find", silent)
+	}
+
+	// And a provider with no recording in this corpus is not this guard's
+	// business: it compares nothing here because there is nothing to compare.
+	if silent := providersDeclaringNoInvariant(packs, []string{"scaleway/scw-cli.jsonl"}); len(silent) > 0 {
+		t.Errorf("a provider with no recording was named anyway: %v", silent)
+	}
+}
+
+// An exemption that argues nothing is not an exemption.
+func TestEveryCorpusInvariantExemptionSaysWhy(t *testing.T) {
+	if len(noReplayInvariants) == 0 {
+		t.Skip("no provider is exempted, so there is nothing to weigh")
+	}
+	for name, reason := range noReplayInvariants {
+		if len(strings.Fields(reason)) < 5 {
+			t.Errorf("the exemption for %s says %q, which is not a reason a reviewer can weigh",
+				name, reason)
+		}
+	}
+}

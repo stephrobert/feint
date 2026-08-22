@@ -16,11 +16,12 @@
       "test": "TestASanitisedOutscaleTranscriptKeepsWhatThePackValidates"
     },
     {
-      "label": "the Outscale pack declares no ReplayInvariant again, so no value and no order of an Outscale answer is ever compared, the two exemptions #379 carries excuse nothing, and the gate goes red naming them — which is what the corpus could not tell anybody before #354",
+      "label": "the Outscale pack declares no ReplayInvariant again, so no value and no order of an Outscale answer is compared and the gate names the provider instead of printing \"0 divergent finding(s)\" over a comparison that did not happen",
       "file": "internal/providers/outscale/invariants.go",
       "find": "\treturn []emulator.Invariant{",
       "replace": "\treturn []emulator.Invariant{}[:0]; return []emulator.Invariant{",
-      "test": "TestTheCommittedCorpusPassesItsOwnGateAndSaysTheSameThingTwice"
+      "test": "TestAProviderWhoseRecordingsCompareNothingDeclaredIsRed"
     }
-  ]
+  ],
+  "note": "The mutation was retargeted for #399: it named TestTheCommittedCorpusPassesItsOwnGateAndSaysTheSameThingTwice, which compares two runs of the same tree and so agrees with itself on mutated counters, and it asserted a consequence — two #379 exemptions going stale — that PR #388 retired within its own branch before the spec landed. It had therefore never bitten on main. The guard it names now is per provider, which is the hole the old label described and nothing enforced."
 }
