@@ -362,3 +362,88 @@ accorde a ce worktree, c'est la seule modification de configuration.
 Le fichier `internal/cli/zz402_scratch_test.go` a existe pendant l'exploration et
 a ete **supprime** : un fichier non suivi dans `internal/cli` est copie par le
 harnais de falsification et peut invalider une replique.
+
+---
+
+## Ajout du 2026-08-22, après l'arrêt de l'agent : #408 livrée
+
+Une cinquième chose est sur cette branche, faite après le brief de reprise
+ci-dessus. Elle n'était pas dans le lot d'origine.
+
+### Ce qui est livré
+
+**#408 — la file de travail.** `feint coverage --evidence <record> --gaps`
+répond, par cloud et par axe, aux opérations à zéro **et au travail que chaque
+zéro nomme**. C'est le complément de #402 : le score dit où l'on en est, la file
+dit quoi faire ensuite.
+
+Fichiers : `internal/cli/evidence_gaps.go`, `evidence_gaps_test.go`,
+`tools/falsify/specs/evidence-gaps.json`. Le drapeau est branché dans `cli.go`
+à côté de `--evidence`, décrit dans le bloc d'aide de `coverage`.
+
+Quatre natures, **toutes dérivées du registre** et jamais d'un nom ou d'une
+liste tenue à la main : `violating` (défaut du pack), `unrecorded` (piloté,
+jamais confronté à une vraie réponse), `undriven` (aucun client ne l'atteint),
+`unproven` (le registre n'explique pas). La dernière est nommée plutôt que
+fondue dans une voisine — un seau qui absorbe l'inexpliqué est la façon dont une
+file se met à mentir.
+
+Ordre : par nature, puis par nom. Déclaré, pas calculé. **Aucun pourcentage
+cible nulle part.**
+
+### Ce que la mesure a donné
+
+```
+                suites à écrire   enregistrements   inexpliqué
+  exoscale            111                71             83
+  scaleway             36               151            141
+  outscale              0                70             43
+```
+
+Exoscale a surtout besoin de suites de conformance, Scaleway d'enregistrements.
+Deux métiers différents, que le score seul ne pouvait pas nommer.
+
+### Trois choses qui ont mordu, et qu'il faut connaître avant de toucher à ça
+
+1. **Le gel de surface CLI** refuse tout drapeau nouveau tant que
+   `cliSurfaceVersion` n'est pas bumpé (13 → 14 ici) et la fixture régénérée par
+   `mise run frozen:update`.
+2. **`TestTheHelpNamesEveryFlagTheBinaryAccepts`** refuse un drapeau que
+   `feint --help` ne nomme pas : « un drapeau que seuls la source et
+   `coverage --help` connaissent est un drapeau qui a livré muet ». Le bloc
+   d'aide de `coverage` est dans `cli.go`, vers la ligne 318.
+3. **Le harnais de falsification exige que tout nom du fragment survive dans le
+   remplacement** — commentaires compris. Un terme supprimé qui orpheline un nom
+   fait échouer tout le paquet, ce qui se lit exactement comme la garde prouvée.
+   Neutraliser la condition (`… && false`), ne jamais supprimer le terme. C'est
+   la correction que #399 vient d'apporter sur cette même branche, et elle a
+   servi le jour même.
+
+### Une mutation restée verte au premier essai
+
+Elle nommait une faiblesse de la **fixture**, pas du code : aucune de ses
+opérations n'était orpheline de pack, donc la garde qui écarte une telle
+opération pouvait être retirée sans qu'une assertion bronche. Une opération
+`nobody/v1/API.Orphan` a été ajoutée, et la mutation mord. Les six mordent
+maintenant.
+
+### Ce que ça a produit en aval, et qui n'est pas sur cette branche
+
+Sept issues et un jalon, créés depuis la sortie de `--gaps` :
+
+- **jalon 0.14.0 — *Every cloud is proven the same way***
+- **#409** machines · **#410** réseau privé · **#411** stockage bloc ·
+  **#412** répartiteur · **#413** groupe de sécurité · **#414** adresses IP
+- **#415** les 44 opérations qu'aucun domaine ne rangeait
+
+#415 porte une question qui concerne directement cette branche : **le
+classificateur de domaines vit dans un script jetable**. S'il devient la façon
+de piloter la parité, il appartient à côté de `--gaps` avec un test qui échoue
+quand une opération ne correspond à aucun domaine — sinon le prochain jalon
+s'écrira sur une carte partielle. C'est le motif que ce dépôt a déjà payé deux
+fois cette semaine.
+
+### État des portes
+
+`mise run prepush` vert, `docs:check` vert, `tools/falsify/specs/evidence-gaps.json`
+six mutations rouges. Rien poussé, rien de rebasé depuis.
