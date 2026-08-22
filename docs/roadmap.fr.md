@@ -14,6 +14,74 @@ ce qui est intéressant à construire.
 Ce qui est *mesuré* plutôt que planifié vit dans [limits.md](limits.md) ; la
 façon dont les pièces s'assemblent, dans [architecture.md](architecture.md).
 
+
+## L'ordre dans lequel la 0.11.0 est traitée
+
+Figé le 2026-08-22. Treize issues restent, et elles ne sont pas indépendantes :
+deux d'entre elles déplacent les chiffres que les onze autres citent. L'ordre
+ci-dessous est la dépendance, pas une préférence.
+
+**1 — Rendre la mesure digne de confiance. Bloquant.**
+
+- **#398** — `behaviour` n'est pas reproductible : 313 puis 314 sur deux
+  exécutions identiques. Cause localisée dans `soleClientFlightLocked`, qui jette
+  l'attribution quand deux requêtes clientes sont en vol, sous un span couvrant
+  tout le cycle de vie d'un Terraform en `-parallelism=10`.
+- **#406** — trois pourcentages d'axe publiés sont faux, et rien ne refuse qu'un
+  chiffre mesuré soit écrit à la main hors d'un bloc généré.
+
+*Pourquoi d'abord :* les sept issues de parité citent des chiffres que ces deux-là
+vont déplacer. L'ordre inverse revient à viser une cible mouvante et à republier
+des nombres faux. Les deux sont courtes.
+
+**2 — Répondre à la question qui peut annuler l'essentiel du reste.**
+
+- **#407** — `shape` est le maillon faible à 14 %, et **292 de ses 318 zéros sont
+  `unrecorded`** : des opérations qu'un vrai client pilote déjà, dont la réponse
+  réelle n'a jamais été gardée. Ce dépôt possède déjà **619 échanges enregistrés**
+  dans `corpus/`, et ils n'alimentent pas `shapes/`. Savoir s'ils le peuvent se
+  répond **hors ligne, sans compte, en une session** — et si oui, l'essentiel du
+  volume de parité disparaît sans toucher un cloud.
+
+*Pourquoi ici :* retourner demander à trois comptes des réponses déjà commitées
+serait le pire ordre possible.
+
+**3 — La chaîne du catalogue d'images.**
+
+- **#389**, puis **#383**, puis **#378** — un seul modèle : catalogue → un
+  snapshot que le store détient vraiment → volume BSU racine → Vm, où chaque
+  identifiant publié désigne un objet qui existe. Les deux dernières se ferment
+  derrière sans travail propre.
+
+**4 — La parité, une fois les cibles stables.**
+
+- **#414** d'abord : plus de la moitié de ses opérations sont servies et atteintes
+  par personne — les routes existent, les clients existent, rien ne les a reliés.
+- puis **#413**, **#411**, **#412**, **#410**, et **#409** en dernier (134
+  manques).
+- **#415** voyage avec elles, et relève en partie d'une *décision* : un pool
+  d'instances qu'aucun client supporté ne pilote vaut peut-être mieux décliné
+  avec une raison que servi sans preuve. Elle porte aussi la question de commiter
+  le classificateur de domaines, qui vit encore dans un script jetable.
+
+**5 — La documentation, juste avant le tag.**
+
+- **#403** — délibérément en dernier : la roadmap, `confidence.md` et le README
+  doivent décrire l'état *final* de la release. Les corriger plus tôt, c'est les
+  corriger deux fois.
+
+### La coupe, si la release doit sortir plus tôt
+
+La rupture naturelle est **après la vague 3** : la 0.11.0 livrerait alors la
+mesure, sa fiabilité et la chaîne du catalogue, et les six issues de parité
+deviendraient le cœur de la release suivante. Une release qui ne sort jamais ne
+prouve rien à personne. Prendre cette coupe est une décision, pas un renoncement,
+et elle appartient au mainteneur.
+
+> **Le reste de cette page est périmé et #403 la réécrit.** Elle présente encore
+> `feint replay`, `coverage --observed` et l'injection de fautes comme du travail
+> à venir ; les trois sont livrés. Lire les jalons pour ce qui est vrai.
+
 ## Comment lire cette page
 
 Chaque élément énonce sa **preuve** : la chose qui sera vraie quand il sera
