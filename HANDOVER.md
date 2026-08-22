@@ -1,245 +1,364 @@
-# Reprise du lot #341 + #342 (jalon 0.10.0)
+# Reprise du lot #402 + #398 + #399 + #395
 
-> **Note d'intégration, ajoutée par le coordinateur.** L'agent qui a écrit ce
-> document a épuisé son crédit *avant* de committer : il écrivait « commité » au
-> futur. Le commit a été fait à sa place, tel quel, sans rien modifier de son
-> travail — l'arbre compile et `go test -race ./internal/core/machine/
-> ./internal/cli/` passe, vérifié avant le commit. Ce qui suit décrit donc
-> exactement le contenu de ce commit, mais **`mise run prepush` n'a pas été
-> rejoué** et les deux passages OVN consécutifs exigés par #341 n'ont pas eu
-> lieu.
+> **Ce fichier remplace le brief du lot #341 + #342.** Celui-ci decrivait un
+> travail dont les commits sont dans `main` depuis `0d39fc3`, il n'avait plus de
+> sujet. L'ancien contenu reste accessible par `git show 0d39fc3:HANDOVER.md`.
 
-Base : `1df41a1` (main au moment du départ). **`main` a avancé depuis avec #337
-(`d735385`, NIC routée, capacité `firewall_public_only`, schéma santé v5) : il
-faudra rebaser.** Les sujets ne se recouvrent pas (doctor et uplink ici, NIC
-là-bas), le conflit devrait être nul ou trivial.
+Branche : `feat/402-evidence-axes`, worktree
+`/home/bob/Projets/coucou/.claude/worktrees/402-evidence`.
+Base : `5bee14a` (`origin/main` au moment du depart). Trois commits locaux,
+**rien n'est pousse**.
 
-## Ce qui est FAIT et prouvé
+Arret demande par le coordinateur : budget hebdomadaire a 99 %. Ce qui suit est
+ecrit pour quelqu'un qui reprend dimanche soir sans contexte.
 
-Tout ce qui suit est commité, compile, et passe `go test -race
-./internal/core/machine/ ./internal/cli/`. Les trois specs de falsification
-passent (`compiled=yes / the test bit` sur les 11 mutations) :
+## Changement de jalon, signale pendant le travail
+
+**#398 et #399 sont passees en 0.11.0** (elles etaient sans jalon), parce qu'un
+axe dont la valeur oscille et deux falsifications mortes rendent douteux les
+chiffres de la release qu'on s'apprete a taguer. **#395 reste en 0.12.0.** #402
+est en 0.12.0.
+
+Consequence sur la priorite de reprise : **#398 d'abord**, c'est la seule des
+quatre qui reste entierement a faire et elle bloque une release.
+
+## La premiere commande a taper
+
+```bash
+cd /home/bob/Projets/coucou/.claude/worktrees/402-evidence
+mise trust && mise run prepush
+```
+
+Elle doit rendre **0**. Le worktree a du etre `mise trust`e une fois : sans ca
+`mise` refuse le repertoire et l'echec ressemble a du code casse.
+
+Puis, pour voir l'outil livre :
+
+```bash
+./feint coverage --evidence coverage/evidence.json
+```
+
+Elle doit imprimer le tableau de la section suivante, exactement.
+
+## Etat des quatre issues
+
+### #402 : LIVREE, prouvee
+
+Commit `5c06280`. `feint coverage --evidence <record>` rend par fournisseur les
+operations servies et le compte plus le pourcentage sur les sept axes.
+`--axis <nom>` liste les operations a zero sur cet axe (la file de travail),
+`--provider <nom>` restreint les lignes sans jamais restreindre la ligne `all`,
+`--format json` publie les memes chiffres. Hors ligne : lit l'artefact commite et
+monte les packs en processus, n'ouvre aucune socket. Codes de sortie 0 et 1.
+
+Le bloc genere demande par le coordinateur **est fait** : marqueurs
+`<!-- axes:start -->` / `<!-- axes:end -->` dans `docs/routes.md`, rendu par
+`internal/cli/docs_axes.go` sur le modele de `<!-- contracts:start -->`, tenu par
+`feint docs --check` donc par `prepush` et par le crochet pre-commit. Il porte la
+ligne d'avertissement `docsGenerated`, les trois commandes qui le reproduisent en
+prose, une ligne par axe disant ce qui le gagne, et la phrase sur les fautes
+injectees.
+
+`cliSurfaceVersion` passe de 12 a 13, `internal/cli/testdata/frozen/cli.json`
+regenere, ligne CHANGELOG ecrite.
+
+Falsification : `tools/falsify/specs/evidence-axes.json`, cinq mutations,
+**les cinq ont mordu au premier essai**, dont celle que l'issue nomme (ranger
+toutes les operations sous un seul cloud).
+
+### #399 : LIVREE, prouvee
+
+Commits `98a11c3` et `dc27ef3`. Les deux falsifications mortes sont reparees **au
+niveau de la garde**, pas en reecrivant la spec pour la faire passer.
+
+### #398 : PAS COMMENCEE, mais la cause est trouvee et ecrite ci-dessous
+
+Aucune ligne de code. La section « La cause du non-determinisme » est la partie
+qui coute cher a retrouver, elle est complete.
+
+### #395 : PAS COMMENCEE
+
+Aucune ligne de code. L'enquete est faite, elle est resumee plus bas, et elle a
+trouve **trois collisions et non une**.
+
+## Ce que j'ai mesure
+
+### Le tableau, et il ne differe pas du tien
 
 ```
-python3 tools/falsify/falsify.py tools/falsify/specs/dhcp-leftover-ownership.json
-python3 tools/falsify/falsify.py tools/falsify/specs/uplink-serialisation.json
-python3 tools/falsify/falsify.py tools/falsify/specs/dhcp-doctor-network-question.json
+370 operations served, from coverage/evidence.json (machines: incus, none)
+
+provider   served    driven    probed  contract dataplane     shape behaviour  negative
+exoscale      104   85  82%   96  92%   95  91%   85  82%   14  13%   78  75%   10  10%
+outscale       93   93 100%   93 100%   93 100%   93 100%   23  25%   77  83%   66  71%
+scaleway      173  166  96%  141  82%  141  82%  166  96%   15   9%  157  91%   97  56%
+all           370  344  93%  330  89%  329  89%  344  93%   52  14%  312  84%  173  47%
 ```
 
-## #341 — LA CAUSE, NOMMÉE ET MESURÉE (ne pas re-payer cette mesure)
+Servies 173 / 93 / 104, totaux 370 servies, `driven` 344, `negative` 173,
+`behaviour` 312. **Identique au tableau du brief, cellule par cellule.** Le
+script jetable etait juste.
 
-Un passage complet `FEINT_VM=incus-ovn mise run conformance` sur cette station
-(2026-08-20, 297 s, exit 1) a reproduit l'échec exact de l'issue **du premier
-coup, depuis une station propre** — la théorie « état accumulé de runs
-précédents » est donc partiellement démentie, voir Prémisses. Artefacts :
+Un detail qui a failli faire croire l'inverse : les pourcentages doivent etre
+**arrondis au plus proche, pas tronques**. 166 sur 173 vaut 95,95 %, ce qui
+tronque a 95 et arrondit a 96. Trois des douze cellules du tableau de reference
+en dependent. `percentOf` fait l'arrondi en arithmetique entiere et
+`TestAPercentageIsRoundedToNearestNotTruncated` epingle les neuf cas mesures.
 
-- `/tmp/claude-1000/-home-bob-Projets-coucou/642e21ac-a973-45b5-ac8e-3ed5bef14b39/scratchpad/pass-baseline.log` (la suite outscale-tofu meurt sur `delegate 10.70.1.0/24 … Failed deleting nftables chain "fwd.feint-uplink" … No such file or directory`, lignes ~1668)
-- `…/scratchpad/monitor-baseline.log` (`incus monitor --pretty --type=logging --loglevel=debug` pendant tout le passage — **c'est la pièce à conviction**, lignes 5115–5145)
-- `…/scratchpad/watch-baseline.log` (routes de l'uplink + chaînes nftables toutes les 2 s)
+### Trois sources independantes s'accordent
 
-La chaîne causale, lisible dans monitor-baseline.log à 20:39:34–35 :
+- les packs montes en processus : 370 operations distinctes (pour **372 routes**,
+  deux operations sont servies par deux routes) ;
+- `coverage/evidence.json` : 370 entrees ;
+- `coverage/<fournisseur>-coverage.json` : 173 + 93 + 104 = 370, disjoints.
 
-1. `tools/conformance/outscale/oapi-cli.sh:785` lance **`feint clean` en fin de
-   suite** : l'uplink est vidé (`Update … ipv4.routes:` vide, ligne 4979) puis
-   **supprimé**. La suite outscale-tofu, juste derrière, doit donc tout
-   recréer d'un coup.
-2. tofu (parallélisme par défaut) crée en même temps : le subnet 10.70.1.0/24,
-   le subnet azb 10.70.2.0/24, et une VM sans subnet qui déclenche la création
-   du réseau machine par défaut `fnt-default`.
-3. Côté feint, la délégation d'un bloc est un `incus network set feint-uplink
-   ipv4.routes=…` (`delegateRoute`), qui ne prenait **pas** `uplinkMu` (le
-   verrou ne couvrait que `setUplinkRoute`) ; la création `network create
-   --type=ovn network=feint-uplink` n'était pas verrouillée non plus.
-4. Côté Incus 7.2 (source lu dans
-   `…/scratchpad/incus-src`) : un `PUT /1.0/networks/feint-uplink` (bridge
-   `Update → setup → Firewall.NetworkClear`) **et** un `POST /1.0/networks`
-   créant un réseau OVN attaché à l'uplink **reconstruisent tous deux le
-   pare-feu nftables de l'uplink** (mesuré : `Clearing firewall
-   driver=bridge network=feint-uplink` sous les deux requêtes, lignes 5133 et
-   5143). `removeChains` (`internal/server/firewall/drivers/drivers_nftables.go:766`)
-   est un **snapshot-puis-suppression** : il liste le ruleset, puis émet un
-   `nft flush chain … ; delete chain …` par chaîne trouvée. Les deux chemins ne
-   partagent **aucun verrou** dans le démon (`networkPut` n'en prend pas ; le
-   verrou `network.ovn.<uplink>` ne couvre que les opérations de port OVN).
-   Donc : la chaîne est **supprimée par l'autre requête d'abord**, et le
-   perdant meurt sur ENOENT. C'est la réponse à la question de l'issue
-   (« supprimée deux fois / par autre chose d'abord / jamais créée ») :
-   **supprimée par l'opération concurrente entre le snapshot du perdant et sa
-   suppression**.
-5. Pourquoi « seule une jambe complète le produit » : en jambe isolée,
-   `feint-uplink` et `fnt-default` **survivent du run précédent** (restes
-   volontairement gardés) — pas de création concurrente, pas de course. Le
-   passage complet intercale le `feint clean` d'oapi-cli, qui force la
-   recréation simultanée.
+Aucune operation orpheline dans un sens ni dans l'autre.
 
-Corroboration de la moitié « restes » : dans CE MÊME passage, l'uplink portait
-déjà 9 routes accumulées (10.182–10.186, 172.16.8/9, 10.190.x) avant le clean —
-`RemoveNetwork` ne retirait jamais le bloc délégué. Les « sept routes » de
-l'issue s'accumulent **dans un seul passage**, pas seulement entre passages.
+### La cause du non-determinisme de `behaviour` (#398)
 
-### Le correctif (commité)
+**C'est une course entre goroutines, pas un ordre de map.**
 
-`internal/core/machine/incus.go` :
-- `uplinkMu` re-documenté : il sérialise désormais **toute** opération qui fait
-  reconstruire l'uplink par le démon. `EnsureNetwork` (branche OVN) tient le
-  verrou sur ensureUplink + delegateRoute + **le `network create` lui-même**.
-- `RemoveNetwork` : lit le bloc du réseau avant suppression
-  (`networkGateway` → `Masked()`), le **retire des routes de l'uplink après une
-  suppression réussie** (`dropUplinkRouteOVN`), sous le même verrou.
-- `networkCreateError` : nomme aussi un service DHCP **étranger** qui tient une
-  adresse du bloc demandé (seam `holderScan`), sans jamais proposer de le tuer.
+`internal/core/emulator/assert.go:159-171`, `soleClientFlightLocked` :
 
-`internal/core/machine/incus_ovn.go` :
-- `delegateRoute`/`ensureUplink` : appelant tient `uplinkMu` ;
-  `addUplinkRoute`/`dropUplinkRoute` factorisent l'édition (écriture évitée
-  quand rien ne change — chaque écriture est une reconstruction du pare-feu).
-- `adoptUplink` (nouveau) : à la première réutilisation d'un uplink laissé par
-  un run mort, **les routes des réseaux disparus sont retirées** (on ne garde
-  que les blocs des réseaux OVN étiquetés encore debout), une fois par
-  processus (`uplinkAdopt sync.Once`, brûlé à la création pour ne pas
-  « réconcilier » nos propres /32).
-- `UplinkHolderKey` (`user.feint.holder` = pid) : un uplink tenu par un **autre
-  émulateur vivant** est **refusé** au lieu d'être partagé (le partage
-  inter-processus est la même corruption sans verrou possible). Un pid mort est
-  repris. Seam `holderProbe` pour les tests.
+```go
+func (o *observer) soleClientFlightLocked() string {
+	found := ""
+	for _, f := range o.flight {
+		if f.synthetic {
+			continue
+		}
+		if found != "" {
+			return ""
+		}
+		found = f.operation
+	}
+	return found
+}
+```
 
-Tests : `internal/core/machine/incus_uplink_test.go` (5 tests, dont la
-sérialisation prouvée par un runner qui détecte deux reconstructions en vol).
-Falsification : `tools/falsify/specs/uplink-serialisation.json` (5 mutations,
-toutes mordent).
+Appelee au seul endroit qui compte, `assert.go:206`, pour donner une operation a
+un `spanTouch`. L'evenement du store (`internal/core/store/store.go:43-49`) ne
+porte que `Action, Provider, Kind, ID` : **aucun nom d'operation**, il faut
+l'inferer. Quand deux requetes clientes sont en vol, l'inference rend `""` et
+`lifecycleOperations` jette la touche (`assert.go:300-302`).
 
-## #342 — fait aussi
+Donc : `behaviour` est gagne ou perdu selon qu'une requete etait, a la
+microseconde ou son evenement de store est parti, la seule en vol. C'est une
+piece qu'on lance.
 
-La question posée passe de l'interface au **réseau**. `classifyDHCP`
-(`internal/core/machine/leftover.go`) : un dnsmasq aux interfaces toutes
-`fnt-` est un reste si chaque interface est disparue **ou** si l'objet réseau
-n'existe plus dans **aucun projet** du runtime (`incus query
-/1.0/networks?recursion=1&all-projects=true`, prédicat conservateur trois fois
-— runtime muet, JSON illisible, nom trouvé quelque part ⇒ pas un reste) **et**
-que le processus tourne sur `/var/lib/incus/networks/<iface>/` (preuve la plus
-forte exigée quand le sujet est vivant). Nouveau champ
-`DHCPLeftover.InterfaceAlive`.
+Ce qui l'amplifie, et qu'il faut savoir avant de toucher quoi que ce soit :
 
-- `feint doctor` (`internal/cli/doctor.go`) : le reste est un **FAIL** (rouge),
-  nomme bloc et pid ; la ligne verte dit « no DHCP service of the emulator's
-  outlives its network » avec le périmètre mesuré en détail.
-- `feint clean` (`internal/cli/clean.go`) : tue le service, et **dit ce qu'il
-  ne touchera pas** — le pont survivant, sans étiquette, n'est pas
-  démontrablement à nous (`sudo ip link delete <pont>` proposé à l'opérateur).
-- Relecture des lignes vertes de doctor (le point 4 de l'issue) — reformulées :
-  images (« le daemon ssh est la promesse de la recette, pas de ce contrôle »),
-  env hazards (« la liste mesurée du pack, pas tout le shell »), ProxyJump
-  (« les deux motifs mesurés, * et 10.* » ; « could not look » devient warn au
-  lieu d'un ok).
-- `DHCPHolders(block)` : la moitié « à nous ou non » de la question, répondue
-  au seul moment où le bloc voulu est connu : l'erreur de création.
+- les suites de conformance ne tournent **pas** en parallele entre elles
+  (`mise.toml`, tache `conformance`, script sequentiel). Le client parallele,
+  c'est **Terraform**, avec son `-parallelism=10` par defaut (aucun `-parallelism`
+  nulle part dans le depot), et le span `behaviour` entoure **tout** le cycle de
+  vie Terraform : `tools/conformance/scaleway/terraform.sh:84` a `:282`, 22
+  blocs `resource` ;
+- `mise run evidence:update` lance `conformance` **deux fois** (machines off puis
+  on) et fait le OU des deux jambes (`internal/cli/evidence.go:283`). L'artefact
+  commite est donc l'union de deux series de lancers de piece ;
+- pourquoi `vpcgw/v2/API.GetIP` precisement : la suite `scw` sequentielle ne fait
+  jamais `scw vpc-gw ip get`, donc cette operation n'a **aucun** chemin
+  deterministe vers l'axe. Son seul pilote est le client parallele.
 
-## Ce qui RESTE, dans l'ordre
+Pourquoi `negative` est reproductible et `behaviour` non : `negative` est
+alimente par `spanExchange` (`conformance.go:229`) ou le nom de l'operation est
+**connu**, c'est la route servie sur cette goroutine. `behaviour` doit le
+deviner. La regle d'attribution est volontairement conservatrice (elle ne
+sur-affirme jamais), ce qui la rend juste mais pas stable.
 
-1. **Rejouer `mise run prepush`** (jamais rejoué après les derniers edits ;
-   `golangci-lint cache clean` d'abord si le lint parle de worktrees
-   supprimés — piège rencontré deux fois le 2026-08-20).
-2. **Entrées `## [Unreleased]` dans les DEUX changelogs** (CHANGELOG.md et
-   CHANGELOG.fr.md) — non faites.
-3. **LE CRITÈRE DE #341 : deux passages complets `FEINT_VM=incus-ovn mise run
-   conformance` verts d'affilée sur cette station** (~5 min chacun ici). Non
-   lancés après correctif — c'est la preuve d'acceptation, sans elle le lot
-   n'est pas clos. Utiliser
-   `…/scratchpad/run-pass.sh <label>` qui capture aussi monitor incus +
-   watcher (état avant/après inclus).
-4. Vérifier que la suite ssh/balancer OVN accepte le refus d'uplink partagé
-   (aucun scénario connu ne partage, zones.sh tourne sans --vm, mais le
-   passage complet tranchera).
-5. Rebaser sur main (#337). Commit final au format du dépôt, PR non ouverte
-   (consigne : commits locaux seulement).
+**Le trou de garde, confirme** : `runtimesLost` (`internal/cli/evidence.go:73-96`)
+ne compare que `Machines`, jamais `Operations`. Le commentaire de
+`evidence.go:186-190` dit explicitement que le retrecissement d'un axe n'est pas
+garde. Rien ne refuse donc une regeneration qui perd des operations sur un axe.
+`TestEvidenceRefusesToNarrowTheRuntimesItWasEarnedUnder` ne teste que la
+dimension runtime.
 
-## Pièges rencontrés
+**Aucun test de determinisme n'existe** : les six tests de `assert_test.go` sont
+tous mono-goroutine, aucun n'exerce le vol concurrent.
 
-- **`mise` non « trusted » dans un worktree neuf** : `mise trust` d'abord,
-  sinon tout `mise run` échoue.
-- Les patterns de `fakeRuntime` (answers/fail) matchent par **sous-chaîne** sur
-  la commande jointe : choisir des clés qui ne se recouvrent pas
-  (`ipv4.address` vs `ipv4.routes`).
-- Le harnais falsify **refuse toute mutation qui perd un identifiant** (même un
-  const) : neutraliser par `&& false`, `[:0]`, `* 0`, jamais par suppression.
-- `feint clean` au milieu du passage complet (oapi-cli.sh:785) supprime
-  l'uplink pendant que l'émulateur sert : c'est voulu et ça marche parce que
-  les requêtes sont séquencées à ce moment-là. Ne pas « corriger » ça par un
-  refus de clean : le garde holder ne vise que les émulateurs vivants.
-- Le sandbox de l'agent refuse les heredocs/redirections composées : écrire les
-  scripts via Write puis `bash --noprofile --norc <fichier>`.
+### #395 : trois collisions, pas une
 
-## Prémisses démenties par la mesure
+L'issue en decrit une. Il y en a trois, et les deux autres ne sont classees nulle
+part :
 
-- « L'échec dépend de l'état accumulé par des runs antérieurs » : **non** — il
-  se reproduit depuis une station vierge, au premier passage complet. Ce qui le
-  produit est le `feint clean` de fin d'oapi-cli + le parallélisme de tofu.
-  L'accumulation (les 7 routes) est réelle mais c'est un défaut **frère**
-  (restes), pas le déclencheur du crash.
-- « La même jambe isolée passe » s'explique par les restes gardés
-  (fnt-default et l'uplink survivent d'un run à l'autre), pas par une
-  différence d'arbre.
-- L'issue #342 dit « an unmanaged bridge » : exact, et la conséquence non
-  écrite est que **le pont survivant ne porte plus d'étiquette** — c'est
-  pourquoi clean ne peut pas le supprimer (mustOwn n'a plus rien à lire) et se
-  contente de le nommer.
+1. **la classee** : `ami-00000001..3` (`internal/providers/outscale/catalog.go:234-236`)
+   dans l'espace que le mint produit (`%08x`, `internal/corpus/corpus.go:608-633`).
+   **Et aussi `pl-00000001..7`** au meme endroit, lignes 397-403, meme espace,
+   jamais signalees ;
+2. **Exoscale, espace UUID** : `defaultSecurityGroupID =
+   "00000000-0000-4000-8000-000000000001"`
+   (`internal/providers/exoscale/securitygroups.go:26-29`) est **octet pour
+   octet** la premiere valeur que `mint.synthesise` distribue pour un UUID. Plus
+   probable de tirer que la collision `ami-`, puisque c'est le compteur 1 ;
+3. **Scaleway, espace IPv6** : `lbV6Block = "2001:db8:0:1::/64"`
+   (`internal/providers/scaleway/loadbalancer.go:59-62`) est **inclus** dans
+   `syntheticV6 = 2001:db8::/32` (`internal/corpus/corpus.go:717`). Toute adresse
+   IPv6 de load balancer que cet emulateur distribue est dans l'espace du
+   sanitiseur.
 
-## État de la station à l'instant du handover
+Le compteur `prefixed` est **partage entre tous les prefixes**, pas un par
+prefixe : dans `corpus/outscale/oapi-cli-refusals.jsonl` la suite hexadecimale
+court de 1 a 0x11 sur seize prefixes differents (`igw-0000000a` le prouve). Donc
+`ami-` entre en collision quand il se trouve etre la 1re, 2e ou 3e valeur
+prefixee de l'enregistrement. Ici c'etait la 2e.
 
-Laissé par le passage baseline (le passage a échoué puis la suite tofu a
-détruit ses ressources ; l'émulateur est arrêté, aucun processus feint) :
+Le predicat existe deja et est exporte : `corpus.Minted(s)`
+(`internal/corpus/scan.go:159`). Il rend `true` sur les quatre valeurs ci-dessus,
+verifie a la main. **Toute la difficulte est la couture** : ou obtenir la liste
+des valeurs qu'un pack epingle.
 
-- `feint-uplink` (bridge, étiqueté feint) avec `ipv4.routes =
-  10.209.84.0/24,10.70.2.0/24` — **10.70.2.0/24 est un reste** (le subnet azb a
-  été détruit par le cleanup tofu, l'arbre commité ne portait pas encore le
-  retrait) ; il illustre exactement le défaut corrigé.
-- `fnt-default` (ovn, étiqueté) — reste volontairement gardé (politique
-  existante).
-- dnsmasq de `feint-uplink` (celui du runtime, normal tant que l'uplink vit).
-- Aucune machine, aucun pont orphelin, pas de dnsmasq orphelin.
-- `feint clean --vm incus-ovn` remettrait tout à zéro ; il a été laissé en
-  l'état **exprès** pour que le successeur puisse voir l'adoption
-  (`adoptUplink`) retirer 10.70.2.0/24 en vrai au premier
-  `FEINT_VM=incus-ovn mise run serve`.
-- Scratchpad : `…/scratchpad/` contient les logs de mesure et
-  `incus-src` (clone shallow d'Incus v7.2.0, lecture seule).
+La couture a copier existe : `emulator.Vocabulary` + `UnsafeVocabulary`
+(`internal/core/emulator/vocabulary.go:36-91`), declaration sur le pack, garde
+dans le noyau, test de cablage dans `internal/cli` qui monte les trois packs
+(`TestThePacksVocabularyPassesItsOwnGuard`, `sanitise_test.go:224-238`). Un
+`emulator.Fixtured { Fixtures() []string }` sur ce modele couvre les trois
+collisions, la ou un parcours des catalogues declares n'attraperait que la
+premiere (Outscale ne declare que `ReadVmTypes` et `ReadImages`).
 
+**A verifier avant de s'engager, non fait** : `internal/core/emulator` devrait
+importer `internal/corpus`, qui importe deja `internal/contract`,
+`internal/core/sshkey`, `internal/trace`, `internal/transcript`, `internal/shape`
+et `internal/proxy`. Le graphe d'import n'a pas ete construit. Si ca fait un
+cycle, la garde va dans `internal/cli` ou les predicats descendent dans
+`internal/shape`.
 
----
+**Piege operationnel** : les deux entrees `#395` de `corpus/accepted.json`
+(lignes 550-568) sont porteuses aujourd'hui. Le jour ou la collision disparait,
+elles n'excusent plus rien et `corpus --check` sort en 1 sur la garde
+« exemption perimee » (`internal/cli/corpus.go:409-424`). **Elles doivent partir
+dans le meme commit que le correctif.** Les deux entrees `#392` juste au-dessus
+(lignes 538-549) portent sur `CreateVms` de la meme ligne 7 du meme
+enregistrement : elles peuvent bouger aussi.
 
-## Suite donnée par le coordinateur (2026-08-20, après épuisement du crédit)
+## Ce que j'ai ecarte, et pourquoi
 
-Rebase sur `d735385` (#337) fait, `prepush` vert, entrées de changelog écrites
-dans les deux langues. Puis le critère d'acceptation de #341 a été lancé, et il
-a produit un résultat que ce brief ne pouvait pas prévoir.
+**#398, attribution exacte par le contexte de requete.** `store.Observe`
+documente que le callback tourne **sur la goroutine qui a fait la touche**
+(`store.go:60-63`), donc l'operation pourrait etre portee par le contexte au lieu
+d'etre inferee, et `soleClientFlightLocked` disparaitrait. C'est la bonne
+reponse sur le fond et elle **renforcerait** la propriete « ne jamais
+sur-affirmer » au lieu de l'affaiblir. **Ecartee pour ce lot** : il y a
+**593 sites d'appel** `Store.{Get,Put,Delete,List,Commit}` dans
+`internal/providers/`, tous devraient prendre un `ctx`. C'est un diff enorme sur
+les trois packs, et ca ferait bouger le chiffre vers le haut (~314-316 stable),
+donc ca demande une regeneration de `coverage/evidence.json`, donc une passe de
+conformance complete.
 
-**Le correctif de #341 marche, et c'est mesuré des deux côtés :**
+**#398, serialiser Terraform (`-parallelism=1`).** L'issue le propose. **A ne pas
+faire sans en discuter** : ce parallelisme est ce qui exerce reellement la
+concurrence du store, et toute la section « Un effet de bord lent ne tient pas
+dans le verrou » de CLAUDE.md existe a cause de defauts que seul un client
+parallele revele. On echangerait un chiffre stable contre une couverture perdue.
+L'issue mentionne le cout en temps de run, pas celui-la.
 
-| | référence `d735385` | avec ce lot |
-|---|---|---|
-| `Failed deleting nftables chain` | **1** | **0** |
-| suite `outscale-tofu` | morte dessus | passée |
-| stacks d'exemple atteintes | **jamais** (`stacks=0`) | oui |
+**#398, elargir l'attribution.** Non, et l'issue le dit deja : l'axe ne pourrait
+plus que sur-affirmer. Ce qui reste jouable est la troisieme voie, « rendre
+l'oscillation explicite et bornee » : `spanTouch` retiendrait l'ensemble des
+operations en vol au moment de la touche, `lifecycleOperations` rendrait un
+second ensemble « peut-etre prouvees », publie a cote de `behaviour`. Cout :
+`emulator.ConformanceView` bouge donc surface gelee plus `schemaVersion` plus
+`frozen:update`, et `coverage/evidence.json` ne porterait la borne qu'apres une
+passe de conformance.
 
-Vérifié sur tous les logs de passage OVN du scratchpad : `stacks=0` partout.
-**`pass-1.log` est le premier passage `incus-ovn` de ce dépôt à atteindre les
-stacks d'exemple.** Le mur tombé en révèle donc un autre, exactement comme
-#335 avait masqué #341.
+**#399, supprimer les specs mortes.** Explicitement refuse par le brief, et de
+toute facon les deux gardes avaient un vrai trou derriere.
 
-**Le mur suivant**, et il n'est pas de notre fait : la stack d'exemple Scaleway
-échoue *immédiatement* sur `init and apply`, sur **les deux** serveurs —
-`scaleway_instance_private_nic.web[0]` et `web[1]` — avec `the server is
-already attached to this private network`. Pas de `Still creating`, donc pas
-un timeout ni un retry lent. `run_stack` copie la stack dans un `mktemp -d`,
-donc pas d'état résiduel. Et la même stack passe en mode `incus` simple (la
-conformance de #337 était entièrement verte). C'est donc un défaut **propre au
-mode OVN**, invisible jusqu'ici faute d'y arriver.
+**#402, deviner le fournisseur au prefixe du nom d'operation.** C'est ce que
+faisait le script jetable. Le proprietaire d'une operation est le pack qui monte
+une route la declarant, demande en processus. Une table de prefixes serait juste
+aujourd'hui et fausse en silence au premier renommage de produit.
 
-Filé séparément plutôt que traité ici : le corriger demande d'instrumenter un
-passage OVN de plus, et il ne conditionne pas la valeur de ce lot.
+**#402, mettre le tableau dans `docs/confidence.md`.** Cette page se termine par
+« It is not a coverage percentage, and it deliberately carries no score ». Y
+mettre un tableau de pourcentages la contredirait dans ses propres mots.
+`docs/routes.md` a ete choisi : la legende longue qui definit chaque axe y est
+deja, dans l'autre bloc genere de la meme page, et le tableau est le total des
+colonnes des lignes juste en dessous.
 
-**Conséquence sur le critère de #341** : « deux passages complets verts
-d'affilée » n'est pas atteignable tant que ce nouveau mur tient. Ce qui est
-prouvé, et qui était la question de l'issue, c'est que la course nftables ne se
-produit plus — mesurée présente sur la référence, absente ici, dans le même
-passage complet.
+## Les premisses du brief que la mesure a contredites
+
+1. **« `operations` est une map nom d'operation vers sept booleens ».** Non :
+   **trois des sept sont des verdicts, pas des booleens.** `probed` vaut
+   `response` / `refusal` / `none`, `contract` vaut `clean` / `violating` /
+   `unchecked`, `shape` vaut `observed` / `unobserved` / `unknown`. Compter
+   `probed` par verite compte `none` comme gagne. C'est le piege suivant apres
+   celui que le script jetable a rencontre, et c'est pour ca que chaque axe porte
+   son propre predicat dans `evidenceAxisList` et que le test de comparaison
+   verifie le type JSON de chaque champ.
+
+2. **« Si ta commande rend autre chose, trouve lequel des deux se trompe ».** Ni
+   l'un ni l'autre : ma commande rend exactement ton tableau. La seule chose qui
+   pouvait faire croire a un ecart etait le mode d'arrondi.
+
+3. **#399, « le test lui-meme ne semble pas lire ce que la mutation change »**
+   (a propos de `TestEveryPackRunsTheSharedBarrage`). **Faux.** Il lit bien ce que
+   la mutation change. Ce qui a casse, c'est que le pack Exoscale est passe de un
+   a trois sites d'appel `storetest.NoLostUpdate(` le 2026-08-18 (#289), et que
+   le harnais ne reecrit que **la premiere** occurrence. La garde avait quand meme
+   une vraie faiblesse, corrigee separement : elle cherchait une sous-chaine, donc
+   une mention en commentaire la satisfaisait.
+
+4. **#399, « la premiere a cesse de mordre parce que la liste d'acceptation a
+   fait son travail » (retiree par #388).** Vrai sur le fond, faux sur la date :
+   `corpus/accepted.json` portait **zero** entree de genre `value` ou `order` deja
+   a `1f971e3`, **le commit meme qui a cree la spec**. Le retrait a eu lieu
+   **a l'interieur** de la PR #388, apres l'ecriture du label. **Cette
+   falsification n'a jamais mordu sur `main`.**
+
+5. **Portee de #399 : « 2 falsifications sur 83 ».** La mesure en trouve **4 sur
+   460** avec un fragment ambigu, dans 3 specs. Les deux autres
+   (`refusal-corpus.json`, `ssh-suite-needs-its-images.json` deux fois) etaient
+   affaiblies de la meme facon sans que personne l'ait vu.
+
+6. **Portee de #395 : « l'assainisseur frappe des identifiants Outscale ».** Trois
+   espaces reserves sur trois sont violes, pas un. Voir plus haut.
+
+## Ce qui est casse ou a moitie fait
+
+**Rien n'est casse.** `mise run prepush` et `./feint corpus --check` sortent tous
+les deux en 0, verifie en capturant le code de sortie avant tout tube (`mise run
+prepush | tail` mesure `tail`, pas la tache).
+
+A moitie fait, nomme sans euphemisme :
+
+- **`internal/cli/corpus.go`, `noReplayInvariants`** : l'entree `exoscale` est une
+  exemption que j'ai ecrite moi-meme parce que le pack ne declare aucun
+  `ReplayInvariant` et que personne n'avait ecrit pourquoi. Elle dit que c'est une
+  file de travail et non une decision. **Ce n'est pas un correctif, c'est un
+  constat rendu visible.** Le vrai travail est de declarer les invariants
+  Exoscale ; il n'a pas d'issue a ma connaissance, il en faudrait une.
+- **Pas de ligne CHANGELOG pour #399.** Les deux commits touchent des gardes
+  internes, pas une forme de reponse ni une limite, donc la regle du fichier les
+  laisse a `git log`. A trancher si la 0.11.0 veut annoncer que deux
+  falsifications ne mordaient plus.
+- **`mise run falsify:all` n'a pas ete rejoue en entier** (des minutes, et l'arret
+  est demande). Ont ete rejouees et vertes : `evidence-axes.json` (5 sur 5) et
+  `outscale-corpus.json` (3 sur 3). `shared-layer-is-enforced.json` **n'a pas ete
+  rejouee apres son reciblage** : `falsify:lint` passe et la garde a ete prouvee a
+  la main par le temoin decrit dans le message de commit, mais la replique
+  complete reste a faire. **C'est la premiere chose a lancer en reprenant, apres
+  `prepush`.**
+
+```bash
+mise run falsify -- tools/falsify/specs/shared-layer-is-enforced.json
+```
+
+## Etat de la station
+
+Ce qui subsiste et qui est a moi :
+
+- le worktree `/home/bob/Projets/coucou/.claude/worktrees/402-evidence` sur
+  `feat/402-evidence-axes`, 3 commits locaux, arbre propre, **non pousse** ;
+- le binaire `./feint` reconstruit dans ce worktree (ignore par git) ;
+- des fichiers temporaires dans le scratchpad de la session
+  `/tmp/claude-1000/-home-bob-Projets-coucou/642e21ac-.../scratchpad/`, tous
+  prefixes `402-`, dont un binaire `402-feint-mutated`. Rien d'utile, effacables.
+
+Ce que j'ai touche hors du worktree : **rien**. Aucun conteneur, aucun reseau,
+aucun processus laisse en vie, aucune suite longue lancee. `mise trust` a ete
+accorde a ce worktree, c'est la seule modification de configuration.
+
+Le fichier `internal/cli/zz402_scratch_test.go` a existe pendant l'exploration et
+a ete **supprime** : un fichier non suivi dans `internal/cli` est copie par le
+harnais de falsification et peut invalider une replique.
