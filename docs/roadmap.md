@@ -8,6 +8,73 @@ done. It is ordered by what unblocks a user, not by what is interesting to build
 What is *measured* rather than planned lives in [limits.md](limits.md), and how
 the pieces fit together in [architecture.md](architecture.md).
 
+
+## The order 0.11.0 is being worked in
+
+Frozen 2026-08-22. Thirteen issues remain, and they are not independent: two of
+them move the numbers the other eleven quote. The order below is the dependency,
+not a preference.
+
+**1 — Make the measurement trustworthy. Blocking.**
+
+- **#398** — `behaviour` is not reproducible: 313 and 314 on two identical runs.
+  Cause located in `soleClientFlightLocked`, which discards the attribution when
+  two client requests are in flight, under a span covering the whole lifecycle
+  of a Terraform running at `-parallelism=10`.
+- **#406** — three published axis percentages are wrong, and nothing refuses a
+  measured number written by hand outside a generated block.
+
+*Why first:* the seven parity issues quote figures these two will move. Working
+them in the other order means aiming at a moving target and republishing wrong
+numbers. Both are short.
+
+**2 — Answer the question that can cancel most of the remaining work.**
+
+- **#407** — `shape` is the weakest axis at 14 %, and **292 of its 318 zeros are
+  `unrecorded`**: operations a real client already drives, whose real answer was
+  never kept. This repository already holds **619 recorded exchanges** in
+  `corpus/`, and they do not feed `shapes/`. Whether they can is answerable
+  **offline, without an account, in one sitting** — and if they can, most of the
+  parity volume disappears without touching a cloud.
+
+*Why here:* going back to three accounts for answers already committed would be
+the worst possible order.
+
+**3 — The image catalogue chain.**
+
+- **#389**, then **#383**, then **#378** — one model: catalogue → a snapshot the
+  store really holds → root BSU volume → Vm, where every published identifier
+  names an object that exists. The last two close behind it with no work of
+  their own.
+
+**4 — Parity, once the targets stop moving.**
+
+- **#414** first: more than half its operations are served and reached by
+  nobody — the routes exist, the clients exist, nothing connected them.
+- then **#413**, **#411**, **#412**, **#410**, and **#409** last (134 gaps).
+- **#415** travels with them, and is partly a *decision*: an instance pool no
+  supported client drives may be better declined with a reason than served
+  without evidence. It also carries the question of committing the domain
+  classifier, which still lives in a throwaway script.
+
+**5 — Documentation, immediately before the tag.**
+
+- **#403** — deliberately last: the roadmap, `confidence.md` and the README must
+  describe the release's final state. Correcting them earlier means correcting
+  them twice.
+
+### The cut, if the release needs to ship sooner
+
+The natural break is **after wave 3**: 0.11.0 would then deliver the
+measurement, its trustworthiness and the catalogue chain, and the six parity
+issues would become the core of the next release. A release that never ships
+proves nothing to anybody. Taking that cut is a decision, not a slip, and it
+belongs to the maintainer.
+
+> **The rest of this page is out of date and #403 rewrites it.** It still
+> presents `feint replay`, `coverage --observed` and fault injection as work to
+> come; all three shipped. Read the milestones for what is true.
+
 ## How to read this
 
 Every item states its **evidence**: the thing that will be true when it is done,
