@@ -190,8 +190,8 @@ publishing a smaller truth quietly.
 
 The emulator can be made to refuse on purpose: `PUT /_feint/faults` arms a rule
 naming an operation and a status, off by default, deterministic, cleared by a
-`DELETE`. It exists because six of the seven axes above stood over 85% while
-`negative` stood at 34 of 357 — this emulator proved what its routes answer when
+`DELETE`. It exists because `negative` stood at 34 of 357 while every other axis
+stood far above it — this emulator proved what its routes answer when
 everything goes well and almost nothing about what they answer when it does not,
 so a client's degradation paths could only be simulated in that client's own
 tests.

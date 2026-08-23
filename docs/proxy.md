@@ -789,9 +789,20 @@ comparison runs nowhere.
 ### Recording the unhappy path
 
 A refusal is the cheapest recording there is, and for a long time this project
-had none. Six evidence axes stood between 85 and 100 % and `negative` stood at
-35 of 370: this emulator proved what it answers when everything goes well and
-almost nothing about what it answers when it does not (#390).
+had none. `negative` stood at 35 of 370 while every other axis stood far above
+it: this emulator proved what it answers when everything goes well and almost
+nothing about what it answers when it does not (#390).
+
+> **What this paragraph used to say, because a number corrected in silence
+> teaches nothing.** It published a percentage band and put six of the seven
+> evidence axes inside it. Three of those six were outside it, one of them by a
+> factor of six, and #390's opening table repeated the same figures. The cause
+> was a throwaway script that read each axis as a boolean when three of the
+> seven are verdicts: `"unobserved"` is a non-empty string, so every operation
+> whose shape had never been compared to a real cloud answer counted as one that
+> had (#406). The figures now live in one place, the generated table in
+> [What the three packs have proven](routes.md#what-the-three-packs-have-proven),
+> and `feint docs --check` refuses a page that states one by hand.
 
 **It cannot be closed by fabricating refusals.** `PUT /_feint/faults` can make
 any operation answer 403, and #26 made sure such an answer earns nothing, so the

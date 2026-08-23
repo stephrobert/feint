@@ -299,7 +299,7 @@ and that the script proved the account was as it was found.
 ## The refusal corpora, and what a client meets on its worst day
 
 `negative` is the seventh evidence axis and it stood at **35 of 370** while the
-other six stood between 85 and 100 % (#390). This emulator proved what it
+other six stood far above it (#390). This emulator proved what it
 answers when everything goes well and almost nothing about what it answers when
 it does not, and the three files above are the measurement that changes that.
 
@@ -320,7 +320,7 @@ and reported as it came rather than as anybody wanted it:
 
 | | before | after |
 |---|---|---|
-| `negative`, all providers | 35 of 370 (9.5 %) | **173 of 370 (46.8 %)** |
+| `negative`, all providers | 35 of 370 | **173 of 370** |
 | Scaleway | 18 of 173 | 97 of 173 |
 | Outscale | 11 of 93 | 66 of 93 |
 | Exoscale | 6 of 104 | 10 of 104 |

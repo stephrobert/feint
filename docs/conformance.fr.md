@@ -182,8 +182,8 @@ plus petite.
 
 L'émulateur sait refuser à dessein : `PUT /_feint/faults` arme une règle qui
 nomme une opération et un statut, éteinte par défaut, déterministe, effacée par
-un `DELETE`. Elle existe parce que six des sept axes ci-dessus dépassaient 85 %
-quand `negative` tenait à 34 sur 357 : cet émulateur prouvait ce que ses routes
+un `DELETE`. Elle existe parce que `negative` tenait à 34 sur 357 quand tous les
+autres axes se tenaient loin au-dessus : cet émulateur prouvait ce que ses routes
 répondent quand tout va bien et presque rien de ce qu'elles répondent quand ça se
 passe mal, de sorte que les chemins de dégradation d'un client ne pouvaient être
 que simulés, dans les tests de ce client.

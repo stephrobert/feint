@@ -495,8 +495,9 @@ change ni l'un ni l'autre a sa place dans `git log`.
   émulateur neuf n'arme rien.
 
   **La mesure qui l'a demandé.** `coverage/evidence.json` porte sept axes par
-  opération montée. Six dépassaient 85 % ; `negative` tenait à 34 sur 357 : cet
-  émulateur prouvait ce que ses routes répondent quand tout va bien et presque
+  opération montée. `negative` tenait à 34 sur 357, loin en dessous de tous les
+  autres : cet émulateur prouvait ce que ses routes répondent quand tout va bien
+  et presque
   rien de ce qu'elles répondent quand ça se passe mal, de sorte que les chemins
   de dégradation d'un client ne pouvaient être que simulés, dans les tests de ce
   client. #356 a mesuré l'autre bout du même trou : aucun en-tête
@@ -993,6 +994,60 @@ change ni l'un ni l'autre a sa place dans `git log`.
   replay sait qu'elles en sont.
 
 ### Corrigé
+
+- **L'axe `behaviour` était une fonction de l'ordonnanceur, et deux exécutions
+  identiques s'accordaient sur le total en désaccord sur six opérations**
+  (#398). Deux `mise run conformance` du même commit, machines éteintes, ont
+  marqué **311** opérations chacune sans marquer les mêmes :
+  `block/v1/API.CreateVolume`, `osc/Client.DeleteSecurityGroupRule` et
+  `osc/Client.UnlinkLoadBalancerBackendMachines` dans la première,
+  `instance/v2alpha1/API.DeletePrivateNetworkInterface`,
+  `instance/v2alpha1/API.GetPlacementGroup` et `osc/Client.UnlinkVolume` dans la
+  seconde. L'égalité des totaux est le piège, et c'est pourquoi le correctif se
+  mesure sur les ensembles : le critère d'acceptation de l'issue, le même chiffre
+  deux fois, passe sur le code défectueux.
+
+  Une touche du store n'était attribuée que tant qu'une seule requête non sonde
+  était en vol dans tout le processus, et terraform tourne en `-parallelism=10`
+  sous un span qui couvre tout son cycle de vie. Le store répond déjà à la
+  question que cette règle approximait : `Observe` exécute son rappel de façon
+  synchrone, hors du verrou du store, **sur la goroutine qui a fait la touche**.
+  C'est ce qui est lu maintenant, et cela met fin à une surestimation que
+  personne n'avait vue : une touche faite par la goroutine de la sonde, ou par un
+  handler que `serveFault` appelle directement et qui n'entre jamais dans
+  l'ensemble en vol, était créditée à n'importe quelle requête cliente qui se
+  trouvait en vol à côté.
+
+  Mesuré après le changement, même machine, même commit, machines éteintes :
+  **316 et 316, et les mêmes 316**. Le registre entier, sept axes et 370
+  opérations, est désormais identique entre deux exécutions, là où six entrées
+  `behaviour` exactement différaient avant, et rien d'autre. Cinq opérations
+  récupérées, aucune perdue, et chaque span de chaque suite a rapporté zéro
+  touche non attribuée. Ce qui reste
+  inattribuable est borné et dit plutôt que jeté : une requête déjà en vol quand
+  un span s'ouvre ne porte pas d'identité, la fermeture du span publie combien de
+  touches cela a coûté, et `tools/conformance/prove.sh` l'affiche.
+
+- **Trois pourcentages d'axe publiés dans la documentation étaient faux, et rien
+  dans le dépôt ne refusait un chiffre mesuré écrit à la main** (#406).
+  `docs/proxy.md`, `docs/conformance.md`, `corpus/README.md`, les deux CHANGELOG
+  et le tableau d'ouverture de #390 affirmaient que six des sept axes de preuve
+  se tenaient dans une plage de pourcentages. Mesuré avec `feint coverage
+  --evidence coverage/evidence.json` sur le même artefact, trois des six en
+  sortaient, et l'un d'un facteur six. La cause est la règle 2 du skill
+  measurement-integrity appliquée aux chiffres phares du projet : ils venaient
+  d'un script jetable qui lisait chaque axe comme un booléen, `if o.get(axe)`,
+  alors que trois des sept sont des verdicts. `"unobserved"` est une chaîne non
+  vide, donc toute opération dont la forme n'avait jamais été comparée à une
+  réponse de vrai cloud comptait comme une opération qui l'avait été.
+
+  Tous sont corrigés, et `docs/proxy.md` porte une note qui dit ce qu'il
+  affirmait, parce qu'un chiffre édité en silence n'apprend rien. La récidive est
+  l'objet du changement : **un pourcentage d'axe vit dans un bloc généré ou nulle
+  part**, et `feint docs --check`, que lancent prepush et le crochet pre-commit,
+  refuse un pourcentage posé à côté d'un nom d'axe hors d'un bloc, dans tout
+  Markdown du dépôt. Les décomptes sont laissés tels quels : « 35 sur 370 » est
+  ce dont une file de travail est faite.
 
 - **La suite de conformance orphelinait un de ses propres réseaux en cours
   d'exécution, et cette seule course de démantèlement est ce dont #316, #342 et

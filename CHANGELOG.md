@@ -489,8 +489,8 @@ what this project is judged on: **a response shape a client can observe**, and
   nothing.
 
   **The measurement that asked for it.** `coverage/evidence.json` carries seven
-  axes per mounted operation. Six stood above 85%; `negative` stood at 34 of 357
-  — this emulator proved what its routes answer when everything goes well and
+  axes per mounted operation. `negative` stood at 34 of 357, far below every
+  other — this emulator proved what its routes answer when everything goes well and
   almost nothing about what they answer when it does not, so a client's
   degradation paths could only be simulated in that client's own tests. #356
   measured the other end of the same gap: no authentication header at all
@@ -953,6 +953,60 @@ what this project is judged on: **a response shape a client can observe**, and
   identifiers.
 
 ### Fixed
+
+- **The `behaviour` axis was a function of the scheduler, and two identical runs
+  agreed on the total while disagreeing on six operations** (#398). Two
+  `mise run conformance` runs of the same commit, machines off, marked **311**
+  operations each and did not mark the same 311: `block/v1/API.CreateVolume`,
+  `osc/Client.DeleteSecurityGroupRule` and
+  `osc/Client.UnlinkLoadBalancerBackendMachines` in the first,
+  `instance/v2alpha1/API.DeletePrivateNetworkInterface`,
+  `instance/v2alpha1/API.GetPlacementGroup` and `osc/Client.UnlinkVolume` in the
+  second. The equal totals are the trap, and they are why the fix is measured on
+  sets: the issue's own acceptance criterion — the same figure twice — passes on
+  the broken code.
+
+  A store touch was credited to an operation only while exactly one non-probe
+  request was in flight anywhere in the process, and terraform runs at
+  `-parallelism=10` under a span bracketing its whole lifecycle. The store
+  already answers the question that rule approximated: `Observe` runs its
+  callback synchronously, outside the store's lock, **on the goroutine that made
+  the touch**, so the handler goroutine is the causal link between a request and
+  what it touches. That is read now, and it ends an over-claim nobody had
+  noticed as well: a touch made by the probe's goroutine, or by a handler
+  `serveFault` calls directly and which never enters the flight set, used to be
+  credited to whichever unrelated client request happened to be in flight beside
+  it.
+
+  Measured after the change, same host, same commit, machines off: **316 and
+  316, and the same 316** — the whole record, all seven axes and all 370
+  operations, is now identical between two runs, where before exactly six
+  `behaviour` entries differed and nothing else. Five operations were recovered,
+  none lost, and every span of every suite reported zero touches it could not
+  attribute. What is still
+  unattributable is bounded and said rather than dropped: a request already in
+  flight when a span opens carries no identity, the close of the span publishes
+  how many touches that cost, and `tools/conformance/prove.sh` prints it.
+
+- **Three axis percentages published in the documentation were wrong, and
+  nothing in the repository refused a measured number written by hand** (#406).
+  `docs/proxy.md`, `docs/conformance.md`, `corpus/README.md`, both CHANGELOGs and
+  #390's opening table stated that six of the seven evidence axes stood in a
+  percentage band. Measured with `feint coverage --evidence coverage/evidence.json`
+  on the same artefact, three of the six were outside it and one by a factor of
+  six. The cause is rule 2 of the measurement-integrity skill met on this
+  project's own headline numbers: the figures came from a throwaway script that
+  read each axis as a boolean, `if o.get(axis)`, when three of the seven are
+  verdicts — `"unobserved"` is a non-empty string, so every operation whose shape
+  had never been compared to a real cloud answer counted as one that had.
+
+  Every one of them is corrected, and `docs/proxy.md` carries a note saying what
+  it used to claim, because a number edited in silence teaches nothing. The
+  recurrence is what the change is for: **an axis percentage now lives inside a
+  generated block or nowhere**, and `feint docs --check` — which prepush and the
+  pre-commit hook run — refuses a percentage sitting next to an axis name outside
+  one, in any Markdown of this repository. Counts are untouched: "35 of 370" is
+  what a work queue is made of.
 
 - **The conformance run orphaned one of its own networks mid-run, and that one
   teardown race is what #316, #342 and #375 were all downstream of** (#386).

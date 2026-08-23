@@ -36,7 +36,7 @@ des nombres faux. Les deux sont courtes.
 
 **2 — Répondre à la question qui peut annuler l'essentiel du reste.**
 
-- **#407** — `shape` est le maillon faible à 14 %, et **292 de ses 318 zéros sont
+- **#407** — `shape` est le maillon faible de loin, et **292 de ses 318 zéros sont
   `unrecorded`** : des opérations qu'un vrai client pilote déjà, dont la réponse
   réelle n'a jamais été gardée. Ce dépôt possède déjà **619 échanges enregistrés**
   dans `corpus/`, et ils n'alimentent pas `shapes/`. Savoir s'ils le peuvent se

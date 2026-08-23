@@ -312,6 +312,12 @@ func docs(args []string, stdout, stderr io.Writer) int {
 	// stack CI applies with nothing, declared nowhere. Neither is repaired by
 	// regenerating, which is why they belong here rather than in the render.
 	problems = append(problems, stackProofProblems(*workflow, conformanceRoot, stacksRoot, stacksScript)...)
+	// And the class #406 measured: a percentage about an evidence axis, typed
+	// into a page, that nothing ever compared to coverage/evidence.json. Three
+	// of them were wrong when somebody finally did, one by a factor of six.
+	// Regenerating repairs none of it — the sentence has to go — which is why it
+	// belongs here and not among the splices. See docs_axis_figures.go.
+	problems = append(problems, axisFigureProblems(filepath.Dir(*target))...)
 	if len(problems) > 0 {
 		for _, line := range problems {
 			fmt.Fprintf(stderr, "feint: %s\n", line)

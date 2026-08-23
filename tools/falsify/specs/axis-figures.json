@@ -1,0 +1,34 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "the sentence docs/proxy.md published is written back into the page",
+      "file": "docs/proxy.md",
+      "find": "had none. `negative` stood at 35 of 370 while every other axis stood far above\nit: this emulator proved what it answers when everything goes well and almost",
+      "replace": "had none. Six evidence axes stood between 85 and 100 % and `negative` stood at\n35 of 370 while every other axis stood far above\nit: this emulator proved what it answers when everything goes well and almost",
+      "test": "TestNoDocumentInThisRepositoryStatesAnAxisPercentage"
+    },
+    {
+      "label": "no percentage is ever near enough to an axis name to be reported",
+      "file": "internal/cli/docs_axis_figures.go",
+      "find": "\t\t\tif abs(anchor[0]-at[0]) > axisFigureWindow {",
+      "replace": "\t\t\tif abs(anchor[0]-at[0]) > axisFigureWindow || true {",
+      "test": "TestAHandWrittenAxisPercentageIsRefused"
+    },
+    {
+      "label": "a generated block is blanked with its newlines, and every line after it is reported wrong",
+      "file": "internal/cli/docs_axis_figures.go",
+      "find": "\t\t\tif m[i] == '\\n' {\n\t\t\t\tb.WriteByte('\\n')",
+      "replace": "\t\t\tif m[i] == '\\n' && false {\n\t\t\t\tb.WriteByte('\\n')",
+      "test": "TestTheReportedLineSurvivesAGeneratedBlock"
+    },
+    {
+      "label": "the walk descends into the neighbouring worktrees and reports each sentence twice",
+      "file": "internal/cli/docs_axis_figures.go",
+      "find": "\t\t\tcase \".git\", \".upstream\", \".claude\", \".terraform\", \"node_modules\", \"dist\":",
+      "replace": "\t\t\tcase \".git\", \".upstream\", \".terraform\", \"node_modules\", \"dist\":",
+      "test": "TestTheAxisFigureScanReadsTheWholeDocumentationTree"
+    }
+  ],
+  "note": "#406. Three axis percentages published in docs/proxy.md, docs/conformance.md, both CHANGELOGs, corpus/README.md and #390's opening table were wrong — `probed` and `contract` at 89 % where 100 % was printed, `shape` at 14 % where 100 % was printed — because the script that produced them read a verdict as a boolean and counted `\"unobserved\"` as a success. The correction alone would not survive the next hand, so this is the gate: mutation 1 is the exact sentence going back in, and the other three hold the check's own reading — its window, its line numbers, and the tree it walks."
+}
