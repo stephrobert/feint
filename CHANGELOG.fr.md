@@ -857,6 +857,18 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Modifié
 
+- **Le registre de preuves est régénéré sur l'attribution causale, et
+  `behaviour` vaut 316** (#398). Le registre commité portait 312, un tirage fait
+  avant qu'une écriture dans le store soit créditée à la requête qui l'a faite.
+  Outscale passe de 77 à 79, Scaleway de 157 à 159, et **aucune opération n'a
+  rien perdu sur aucun axe** : vérifié opération par opération contre le registre
+  remplacé, et non en comparant des totaux, parce qu'un total peut cacher une
+  perte sous un gain. Les six autres axes sont inchangés à l'opération près.
+
+  Les deux jambes ont tourné sur une station au calme, machines allumées pour la
+  seconde, et l'hôte a été relu ensuite : aucun conteneur ni réseau de
+  l'exécution ne subsistait.
+
 - **`internal/replay` a gagné les deux coutures qu'un vrai compte exige, et rien
   d'autre** (#359). `Options.Guard` est consulté avant chaque envoi — sur la
   requête *après* rebinding, la seule forme qu'il vaille la peine de juger,

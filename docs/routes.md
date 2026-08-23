@@ -42,9 +42,9 @@ a workflow. None of them opens a socket.
 | Cloud | Served | `driven` | `probed` | `contract` | `dataplane` | `shape` | `behaviour` | `negative` |
 |---|---|---|---|---|---|---|---|---|
 | Exoscale | 104 | 82 % (85) | 92 % (96) | 91 % (95) | 82 % (85) | 13 % (14) | 75 % (78) | 10 % (10) |
-| Outscale | 93 | 100 % (93) | 100 % (93) | 100 % (93) | 100 % (93) | 25 % (23) | 83 % (77) | 71 % (66) |
-| Scaleway | 173 | 96 % (166) | 82 % (141) | 82 % (141) | 96 % (166) | 9 % (15) | 91 % (157) | 56 % (97) |
-| **All three** | 370 | 93 % (344) | 89 % (330) | 89 % (329) | 93 % (344) | 14 % (52) | 84 % (312) | 47 % (173) |
+| Outscale | 93 | 100 % (93) | 100 % (93) | 100 % (93) | 100 % (93) | 25 % (23) | 85 % (79) | 71 % (66) |
+| Scaleway | 173 | 96 % (166) | 82 % (141) | 82 % (141) | 96 % (166) | 9 % (15) | 92 % (159) | 56 % (97) |
+| **All three** | 370 | 93 % (344) | 89 % (330) | 89 % (329) | 93 % (344) | 14 % (52) | 85 % (316) | 47 % (173) |
 
 What each axis says, one line each. They are independent and are never added
 into one number: none of them implies another, and an operation can be driven
@@ -165,7 +165,7 @@ disappears from the suite.
 | `GET` | `/block/v1alpha1/zones/{zone}/volumes/{id}` | `block/v1alpha1/API.GetVolume` | `client` `contract` `runtime` `probe` `negative` |
 | `GET` | `/block/v1alpha1/zones/{zone}/volumes` | `block/v1alpha1/API.ListVolumes` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PATCH` | `/block/v1/zones/{zone}/snapshots/{id}` | `block/v1/API.UpdateSnapshot` | `client` `contract` `runtime` `probe` `behaviour` |
-| `PATCH` | `/block/v1/zones/{zone}/volumes/{id}` | `block/v1/API.UpdateVolume` | `client` `contract` `runtime` `probe` |
+| `PATCH` | `/block/v1/zones/{zone}/volumes/{id}` | `block/v1/API.UpdateVolume` | `client` `contract` `runtime` `probe` `behaviour` |
 | `PATCH` | `/block/v1alpha1/zones/{zone}/snapshots/{id}` | `block/v1alpha1/API.UpdateSnapshot` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `PATCH` | `/block/v1alpha1/zones/{zone}/volumes/{id}` | `block/v1alpha1/API.UpdateVolume` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/block/v1/zones/{zone}/snapshots` | `block/v1/API.CreateSnapshot` | `client` `contract` `runtime` `probe` `behaviour` |
@@ -249,7 +249,7 @@ disappears from the suite.
 | `POST` | `/instance/v1/zones/{zone}/servers` | `instance/v1/API.CreateServer` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/instance/v1/zones/{zone}/snapshots` | `instance/v1/API.CreateSnapshot` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/instance/v1/zones/{zone}/volumes` | `instance/v1/API.CreateVolume` | `client` `contract` `runtime` `probe` `behaviour` |
-| `POST` | `/instance/v2alpha1/zones/{zone}/placement-groups` | `instance/v2alpha1/API.CreatePlacementGroup` | `client` `contract` `runtime` `probe` |
+| `POST` | `/instance/v2alpha1/zones/{zone}/placement-groups` | `instance/v2alpha1/API.CreatePlacementGroup` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/instance/v2alpha1/zones/{zone}/private-network-interfaces` | `instance/v2alpha1/API.CreatePrivateNetworkInterface` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
 | `PUT` | `/instance/v1/zones/{zone}/placement_groups/{id}/servers` | `instance/v1/API.SetPlacementGroupServers` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
 | `PUT` | `/instance/v1/zones/{zone}/placement_groups/{id}` | `instance/v1/API.SetPlacementGroup` | `client` `contract` `runtime` `probe` `behaviour` |
@@ -479,7 +479,7 @@ are in `coverage/`, one artefact per provider.
 | `POST` | `/api/v1/LinkLoadBalancerBackendMachines` | `osc/Client.LinkLoadBalancerBackendMachines` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
 | `POST` | `/api/v1/ReadLoadBalancers` | `osc/Client.ReadLoadBalancers` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/RegisterVmsInLoadBalancer` | `osc/Client.RegisterVmsInLoadBalancer` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
-| `POST` | `/api/v1/UnlinkLoadBalancerBackendMachines` | `osc/Client.UnlinkLoadBalancerBackendMachines` | `client` `contract` `runtime` `probe-refusal` |
+| `POST` | `/api/v1/UnlinkLoadBalancerBackendMachines` | `osc/Client.UnlinkLoadBalancerBackendMachines` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
 | `POST` | `/api/v1/UpdateLoadBalancer` | `osc/Client.UpdateLoadBalancer` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
 
 ### `NatService`
@@ -633,7 +633,7 @@ are in `coverage/`, one artefact per provider.
 | `POST` | `/api/v1/DeleteVolume` | `osc/Client.DeleteVolume` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/LinkVolume` | `osc/Client.LinkVolume` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/ReadVolumes` | `osc/Client.ReadVolumes` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
-| `POST` | `/api/v1/UnlinkVolume` | `osc/Client.UnlinkVolume` | `client` `contract` `runtime` `probe` `negative` |
+| `POST` | `/api/v1/UnlinkVolume` | `osc/Client.UnlinkVolume` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/UpdateVolume` | `osc/Client.UpdateVolume` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 
 ### Declined on purpose (170)
