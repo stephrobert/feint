@@ -497,8 +497,7 @@ change ni l'un ni l'autre a sa place dans `git log`.
   **La mesure qui l'a demandé.** `coverage/evidence.json` porte sept axes par
   opération montée. `negative` tenait à 34 sur 357, loin en dessous de tous les
   autres : cet émulateur prouvait ce que ses routes répondent quand tout va bien
-  et presque
-  rien de ce qu'elles répondent quand ça se passe mal, de sorte que les chemins
+  et presque rien de ce qu'elles répondent quand ça se passe mal, et les chemins
   de dégradation d'un client ne pouvaient être que simulés, dans les tests de ce
   client. #356 a mesuré l'autre bout du même trou : aucun en-tête
   d'authentification répondait `200`, et un jeton bidon aussi.
@@ -1023,8 +1022,8 @@ change ni l'un ni l'autre a sa place dans `git log`.
   opérations, est désormais identique entre deux exécutions, là où six entrées
   `behaviour` exactement différaient avant, et rien d'autre. Cinq opérations
   récupérées, aucune perdue, et chaque span de chaque suite a rapporté zéro
-  touche non attribuée. Ce qui reste
-  inattribuable est borné et dit plutôt que jeté : une requête déjà en vol quand
+  touche non attribuée. Ce qui reste inattribuable est borné et dit plutôt que
+  jeté : une requête déjà en vol quand
   un span s'ouvre ne porte pas d'identité, la fermeture du span publie combien de
   touches cela a coûté, et `tools/conformance/prove.sh` l'affiche.
 

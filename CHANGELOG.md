@@ -490,8 +490,8 @@ what this project is judged on: **a response shape a client can observe**, and
 
   **The measurement that asked for it.** `coverage/evidence.json` carries seven
   axes per mounted operation. `negative` stood at 34 of 357, far below every
-  other — this emulator proved what its routes answer when everything goes well and
-  almost nothing about what they answer when it does not, so a client's
+  other — this emulator proved what its routes answer when everything goes well
+  and almost nothing about what they answer when it does not, so a client's
   degradation paths could only be simulated in that client's own tests. #356
   measured the other end of the same gap: no authentication header at all
   answered `200`, and so did a junk bearer token.
