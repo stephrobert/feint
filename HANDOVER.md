@@ -315,6 +315,27 @@ enregistrement : elles peuvent bouger aussi.
 
 ## Ce que j'ai ecarte, et pourquoi
 
+> **Fait, et par une troisieme voie que cette section n'avait pas envisagee**
+> (branche `feat/398-406-measurement`). L'identite causale n'a pas demande de
+> `ctx` : `runtime.Stack` publie l'identifiant de la goroutine appelante, et
+> comme `store.Observe` garantit deja que le rappel tourne sur la goroutine qui
+> a fait la touche, cela suffit a attribuer exactement, sans toucher un seul des
+> 593 sites d'appel. `soleClientFlightLocked` a disparu comme prevu. Le cout,
+> une marche de pile de 12 a 22 microsecondes, n'est paye que pendant qu'un span
+> est ouvert.
+>
+> **Mesure** : avant, deux passes identiques marquaient **311 et 311** en
+> desaccord sur **six operations** — le total qui s'accorde est le piege, et le
+> critere « le meme chiffre deux fois » passait sur le code casse. Apres,
+> **316 et 316, et les memes 316** : le registre entier, sept axes et 370
+> operations, est identique entre deux passes, machines eteintes. La prediction
+> « ~314-316 stable » ci-dessous etait juste.
+>
+> **Reste a faire** : `coverage/evidence.json` n'a pas ete regenere, faute
+> d'avoir a demarrer des machines. Sa colonne `behaviour` (312) est donc encore
+> un tirage d'avant le correctif. `mise run evidence:update` sur un hote qui
+> peut demarrer des machines la remet a jour, et `feint docs` suit.
+
 **#398, attribution exacte par le contexte de requete.** `store.Observe`
 documente que le callback tourne **sur la goroutine qui a fait la touche**
 (`store.go:60-63`), donc l'operation pourrait etre portee par le contexte au lieu
