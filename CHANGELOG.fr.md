@@ -904,6 +904,13 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Modifié
 
+- **Le registre est régénéré après que les suites ont gagné les appels que le
+  repli a fait apparaître** (#407) : `driven` de 344 à 345, `dataplane` de 344 à
+  345, `behaviour` de 316 à 317. **Aucune opération n'a rien perdu sur aucun
+  axe**, vérifié opération par opération contre le registre remplacé plutôt
+  qu'en comparant des totaux. `shape` reste à 134, ce que le repli avait mesuré
+  et non un second tirage.
+
 - **Le registre de preuves est régénéré sur l'attribution causale, et
   `behaviour` vaut 316** (#398). Le registre commité portait 312, un tirage fait
   avant qu'une écriture dans le store soit créditée à la requête qui l'a faite.

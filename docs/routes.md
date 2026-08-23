@@ -41,10 +41,10 @@ a workflow. None of them opens a socket.
 
 | Cloud | Served | `driven` | `probed` | `contract` | `dataplane` | `shape` | `behaviour` | `negative` |
 |---|---|---|---|---|---|---|---|---|
-| Exoscale | 104 | 82 % (85) | 92 % (96) | 91 % (95) | 82 % (85) | 30 % (31) | 75 % (78) | 10 % (10) |
-| Outscale | 93 | 100 % (93) | 100 % (93) | 100 % (93) | 100 % (93) | 71 % (66) | 85 % (79) | 71 % (66) |
+| Exoscale | 104 | 83 % (86) | 92 % (96) | 91 % (95) | 83 % (86) | 30 % (31) | 75 % (78) | 10 % (10) |
+| Outscale | 93 | 100 % (93) | 100 % (93) | 100 % (93) | 100 % (93) | 71 % (66) | 86 % (80) | 71 % (66) |
 | Scaleway | 173 | 96 % (166) | 82 % (141) | 82 % (141) | 96 % (166) | 21 % (37) | 92 % (159) | 56 % (97) |
-| **All three** | 370 | 93 % (344) | 89 % (330) | 89 % (329) | 93 % (344) | 36 % (134) | 85 % (316) | 47 % (173) |
+| **All three** | 370 | 93 % (345) | 89 % (330) | 89 % (329) | 93 % (345) | 36 % (134) | 86 % (317) | 47 % (173) |
 
 What each axis says, one line each. They are independent and are never added
 into one number: none of them implies another, and an operation can be driven
@@ -623,7 +623,7 @@ are in `coverage/`, one artefact per provider.
 | `POST` | `/api/v1/RebootVms` | `osc/Client.RebootVms` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/StartVms` | `osc/Client.StartVms` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/StopVms` | `osc/Client.StopVms` | `client` `contract` `runtime` `probe` `negative` |
-| `POST` | `/api/v1/UpdateVm` | `osc/Client.UpdateVm` | `client` `contract` `shape` `runtime` `probe` `negative` |
+| `POST` | `/api/v1/UpdateVm` | `osc/Client.UpdateVm` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 
 ### `Volume`
 
@@ -730,7 +730,7 @@ are in `coverage/`, one artefact per provider.
 | `DELETE` | `/v2/load-balancer/{id}` | `exoscale/v2.delete-load-balancer` | `client` `contract` `runtime` `probe` `behaviour` |
 | `DELETE` | `/v2/private-network/{id}/{field}` | `exoscale/v2.reset-private-network-field` | `no-client` |
 | `DELETE` | `/v2/private-network/{id}` | `exoscale/v2.delete-private-network` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
-| `DELETE` | `/v2/security-group/{id}/rules/{rule}` | `exoscale/v2.delete-rule-from-security-group` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `DELETE` | `/v2/security-group/{id}/rules/{rule}` | `exoscale/v2.delete-rule-from-security-group` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` |
 | `DELETE` | `/v2/security-group/{id}` | `exoscale/v2.delete-security-group` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `DELETE` | `/v2/snapshot/{id}` | `exoscale/v2.delete-snapshot` | `client` `contract` `runtime` `probe` `behaviour` |
 | `DELETE` | `/v2/ssh-key/{name}` | `exoscale/v2.delete-ssh-key` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
@@ -752,7 +752,7 @@ are in `coverage/`, one artefact per provider.
 | `GET` | `/v2/load-balancer` | `exoscale/v2.list-load-balancers` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/private-network/{id}` | `exoscale/v2.get-private-network` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/private-network` | `exoscale/v2.list-private-networks` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
-| `GET` | `/v2/security-group/{id}` | `exoscale/v2.get-security-group` | `no-client` `contract` `shape` `probe` |
+| `GET` | `/v2/security-group/{id}` | `exoscale/v2.get-security-group` | `client` `contract` `shape` `runtime` `probe` |
 | `GET` | `/v2/security-group` | `exoscale/v2.list-security-groups` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/v2/snapshot/{id}` | `exoscale/v2.get-snapshot` | `no-client` `contract` `probe` |
 | `GET` | `/v2/snapshot` | `exoscale/v2.list-snapshots` | `client` `contract` `shape` `runtime` `probe` `behaviour` |

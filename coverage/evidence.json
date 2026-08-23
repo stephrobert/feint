@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "785544edee4f7a99",
     "shapes": "218e191863d7cf4b",
-    "suites": "1403171316f810e7"
+    "suites": "65c7a2789386062e"
   },
   "operations": {
     "block/v1/API.CreateSnapshot": {
@@ -463,7 +463,7 @@
     },
     "exoscale/v2.delete-rule-from-security-group": {
       "driven": true,
-      "probed": "response",
+      "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
@@ -687,10 +687,10 @@
       "negative": false
     },
     "exoscale/v2.get-security-group": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "observed",
       "behaviour": false,
       "negative": false
@@ -3023,7 +3023,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
-      "behaviour": false,
+      "behaviour": true,
       "negative": true
     },
     "osc/Client.UpdateVolume": {

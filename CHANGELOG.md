@@ -869,6 +869,12 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Changed
 
+- **The record is regenerated after the suites gained the calls the fold
+  surfaced** (#407): `driven` 344 to 345, `dataplane` 344 to 345, `behaviour`
+  316 to 317. **No operation lost anything on any axis**, checked operation by
+  operation against the replaced record rather than by comparing totals. `shape`
+  holds at 134, which is what the fold measured and not a second draw.
+
 - **The evidence record is regenerated on causal attribution, and `behaviour`
   reads 316** (#398). The committed record carried 312, a draw made before a
   store touch was credited to the request that made it. Outscale goes 77 to 79,
