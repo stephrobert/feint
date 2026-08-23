@@ -132,11 +132,11 @@ func renderAxes(evidence *evidenceArtefact) (string, error) {
 	b.WriteString("refusals real clients really got, and no amount of arming faults can raise them.\n\n")
 	b.WriteString("A percentage here is of the operations this emulator *serves*, never of the\n")
 	b.WriteString("provider's whole API — that comparison is the coverage table in the\n")
-	b.WriteString("[README](../README.md#coverage), which counts the upstream surface. And one\n")
-	b.WriteString("axis is not reproducible to the operation: `behaviour` attributes a store touch\n")
-	b.WriteString("only while a single client request is in flight, so a parallel client loses\n")
-	b.WriteString("attribution rather than being guessed about, and the count moves by about one\n")
-	b.WriteString("between runs (#398).\n")
+	b.WriteString("[README](../README.md#coverage), which counts the upstream surface. And every\n")
+	b.WriteString("column is reproducible: `behaviour` used to attribute a store touch only while\n")
+	b.WriteString("a single client request was in flight, so two identical runs disagreed on which\n")
+	b.WriteString("operations earned it. It now reads the goroutine that made the touch, and a\n")
+	b.WriteString("span that still cannot attribute one says how many it lost (#398).\n")
 	return b.String(), nil
 }
 

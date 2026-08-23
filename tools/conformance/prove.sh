@@ -42,13 +42,25 @@ prove_begin() {
 # that supports the span's claim, and that verdict fails the suite: an
 # assertion that says "I proved a lifecycle" or "I demanded a refusal" without
 # the traffic to show for it is a suite defect, not a detail.
+#
+# It also answers how many store touches it could not attribute to a request,
+# and that number is printed rather than dropped. #398 is why: the axis used to
+# lose attribution under a parallel client without saying so, and two identical
+# runs then marked the same *count* of operations while disagreeing on six of
+# them. A span that under-claims must say by how much on the suite's own output,
+# where somebody reads it, rather than by moving a figure in an artefact.
 prove_end() {
-  local id="$1" out code body
+  local id="$1" out code body lost
   out="$(curl -s -w '\n%{http_code}' -X POST "$ENDPOINT/_feint/assert/$id")"
   code="${out##*$'\n'}"
   body="${out%$'\n'*}"
   if [ "$code" != "200" ]; then
     echo "FAIL: the emulator did not observe what this span claims (HTTP $code): $body" >&2
     exit 1
+  fi
+  lost="$(printf '%s' "$body" | jq -r '.unattributed // 0')"
+  if [ "$lost" != "0" ]; then
+    echo "  note: this span made $lost store touch(es) it could not attribute to a request," >&2
+    echo "        so the behaviour axis is short by that much for this block (#398)" >&2
   fi
 }

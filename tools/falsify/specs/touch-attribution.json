@@ -1,0 +1,27 @@
+{
+  "package": "./internal/core/emulator/",
+  "mutations": [
+    {
+      "label": "a touch is attributed to any request in flight, not to the one that made it",
+      "file": "internal/core/emulator/assert.go",
+      "find": "\t\tif f.goroutine != gid || token < at {",
+      "replace": "\t\tif (f.goroutine != gid && false) || token < at {",
+      "test": "TestConcurrentClientsKeepTheirAttribution"
+    },
+    {
+      "label": "no request records the goroutine handling it, so nothing can be attributed",
+      "file": "internal/core/emulator/assert.go",
+      "find": "\tif o.spansOpen.Load() > 0 {\n\t\tgid = goroutineID()\n\t}",
+      "replace": "\tif o.spansOpen.Load() > 0 && false {\n\t\tgid = goroutineID()\n\t}",
+      "test": "TestConcurrentClientsKeepTheirAttribution"
+    },
+    {
+      "label": "the span stops counting the touches it could not attribute, and under-claims in silence",
+      "file": "internal/core/emulator/assert.go",
+      "find": "\t\tif t.operation == \"\" {\n\t\t\tunattributed++\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif t.operation == \"\" {\n\t\t\t_ = unattributed\n\t\t\tcontinue\n\t\t}",
+      "test": "TestASpanReportsTheTouchesItCouldNotAttribute"
+    }
+  ],
+  "note": "#398. The `behaviour` axis marked 311 operations on two identical conformance runs of the same commit and disagreed on six of them — block/v1/API.CreateVolume, osc/Client.DeleteSecurityGroupRule and osc/Client.UnlinkLoadBalancerBackendMachines in one, instance/v2alpha1/API.DeletePrivateNetworkInterface, instance/v2alpha1/API.GetPlacementGroup and osc/Client.UnlinkVolume in the other. The equal totals are the trap: the count alone reads as reproducible and the set is not, which is why the proof of the fix compares sets. Mutation 1 is the old rule's shape (attribution that does not depend on who touched); mutation 2 removes the identity altogether; mutation 3 removes the confession that bounds what is left. All three are neutralising: every identifier the original expression used stays evaluated."
+}

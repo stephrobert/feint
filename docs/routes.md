@@ -68,11 +68,11 @@ refusals real clients really got, and no amount of arming faults can raise them.
 
 A percentage here is of the operations this emulator *serves*, never of the
 provider's whole API — that comparison is the coverage table in the
-[README](../README.md#coverage), which counts the upstream surface. And one
-axis is not reproducible to the operation: `behaviour` attributes a store touch
-only while a single client request is in flight, so a parallel client loses
-attribution rather than being guessed about, and the count moves by about one
-between runs (#398).
+[README](../README.md#coverage), which counts the upstream surface. And every
+column is reproducible: `behaviour` used to attribute a store touch only while
+a single client request was in flight, so two identical runs disagreed on which
+operations earned it. It now reads the goroutine that made the touch, and a
+span that still cannot attribute one says how many it lost (#398).
 <!-- axes:end -->
 
 ## Every route

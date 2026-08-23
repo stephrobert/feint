@@ -73,12 +73,33 @@ import (
 // demanded refusal earns it, so an operation marked here has had one of its
 // refusals observed and says nothing about the others it owes.
 //
-// Attribution of a store touch to an operation goes through the in-flight set:
-// a touch is attributed only while exactly one non-probe request is being
-// handled. Sequential suites — every span-emitting block is one — always
-// satisfy that; a parallel client like terraform loses attribution for the
-// overlapping windows rather than being guessed about, so the axis can only
-// under-claim, never over-claim.
+// # Attribution: which request caused a store touch
+//
+// The store answers that question itself. `store.Observe` runs its callback
+// synchronously, outside the store's lock, on the goroutine that made the
+// touch, so the goroutine handling a request is the causal link between that
+// request and every touch the handler makes. That is what is read here, and
+// goroutine.go carries how and what it costs.
+//
+// It used to be approximated instead: a touch was attributed while exactly one
+// non-probe request was in flight *anywhere in the process*, and dropped
+// otherwise. The approximation reads as conservative and is not only that:
+//
+//   - it made the axis a function of the scheduler. Terraform runs at
+//     `-parallelism=10` under a span bracketing its whole lifecycle, so how
+//     much the axis lost depended on how the run happened to interleave: 313
+//     and 314 on two identical runs of the same commit (#398).
+//   - it could also over-claim, which is the half nobody had noticed. A touch
+//     made by the probe's goroutine, or by a handler the fault injector calls
+//     directly (serveFault, which never enters the flight set), was attributed
+//     to whichever unrelated client request happened to be in flight beside it.
+//     Reading the goroutine ends both, because a touch is now credited to the
+//     request that made it or to nobody.
+//
+// What remains unattributable is named rather than dropped in silence: a touch
+// made outside any request, or by a request already in flight when the span
+// opened, is counted on the span and reported when it closes.
+// TestASpanReportsTheTouchesItCouldNotAttribute holds that.
 //
 // TestABehaviourSpanNeedsAnObservedLifecycle and
 // TestANegativeSpanNeedsARefusal fail without the verification;
@@ -138,13 +159,28 @@ type spanTouch struct {
 type flightEntry struct {
 	operation string
 	synthetic bool
+	// goroutine identifies the handler goroutine, and is 0 when no span was
+	// open at the moment this request began — see beginFlight. A touch can only
+	// be attributed to an entry carrying a real identity.
+	goroutine uint64
 }
 
+// beginFlight records a request as being handled and returns the token that
+// ends it.
+//
+// The goroutine identity is read only while a span is open. It is not free
+// (goroutine.go measures it), and outside a measurement nothing reads it: a
+// `feint serve` nobody is bracketing must not pay for an axis nobody is
+// computing.
 func (o *observer) beginFlight(operation string, synthetic bool) int64 {
+	var gid uint64
+	if o.spansOpen.Load() > 0 {
+		gid = goroutineID()
+	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.flightSeq++
-	o.flight[o.flightSeq] = flightEntry{operation: operation, synthetic: synthetic}
+	o.flight[o.flightSeq] = flightEntry{operation: operation, synthetic: synthetic, goroutine: gid}
 	return o.flightSeq
 }
 
@@ -154,18 +190,30 @@ func (o *observer) endFlight(token int64) {
 	delete(o.flight, token)
 }
 
-// soleClientFlightLocked names the operation of the only non-probe request in
-// flight, or "" when there is none or more than one. Callers hold o.mu.
-func (o *observer) soleClientFlightLocked() string {
-	found := ""
-	for _, f := range o.flight {
-		if f.synthetic {
+// attributedOperationLocked names the operation of the request being handled on
+// goroutine gid, or "" when that goroutine is handling none, is handling the
+// probe, or carries no identity. Callers hold o.mu.
+//
+// The probe is excluded here rather than at the call site for the reason every
+// other synthetic boundary in this package is drawn: a request the probe
+// composed from a schema says what the schema allows, never what a client did.
+//
+// The last entry wins when a goroutine holds more than one, which today happens
+// nowhere — no handler re-enters wrap — and would mean the inner call is the
+// one that touched the store.
+func (o *observer) attributedOperationLocked(gid uint64) string {
+	if gid == 0 {
+		return ""
+	}
+	found, at := "", int64(0)
+	for token, f := range o.flight {
+		if f.goroutine != gid || token < at {
 			continue
 		}
-		if found != "" {
-			return ""
+		found, at = f.operation, token
+		if f.synthetic {
+			found = ""
 		}
-		found = f.operation
 	}
 	return found
 }
@@ -197,13 +245,21 @@ func (o *observer) offerExchange(e spanExchange) {
 // and offers it to every open span. It runs on the request path, outside the
 // store's lock, and must not call back into the store.
 func (o *observer) storeTouch(ev store.Event) {
+	// Read before the lock, and only when a span could be open: the identity is
+	// of this goroutine either way, and taking o.mu around a stack walk would
+	// queue every other handler behind it.
+	if o.spansOpen.Load() == 0 {
+		return
+	}
+	gid := goroutineID()
+
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if len(o.spans) == 0 {
 		return
 	}
 	touch := spanTouch{
-		operation: o.soleClientFlightLocked(),
+		operation: o.attributedOperationLocked(gid),
 		action:    ev.Action,
 		provider:  ev.Provider,
 		kind:      ev.Kind,
@@ -221,18 +277,25 @@ func (o *observer) storeTouch(ev store.Event) {
 // close computes what a span proved, or explains why it proved nothing. The
 // error is the emulator refusing the claim, and the suite must treat it as a
 // failure of its own.
-func (sp *assertSpan) close() ([]string, error) {
+//
+// unattributed is the second return because it is the span's own account of
+// what it could not measure: touches that took part in the lifecycle and that
+// no request could be credited with. It is zero for every span in every suite
+// here, and a span that ever reports otherwise is saying its number is short by
+// that much rather than letting the shortfall pass as a smaller measurement.
+func (sp *assertSpan) close() (ops []string, unattributed int, err error) {
 	if sp.overflowed {
-		return nil, fmt.Errorf("%s", spanOverflowMsg)
+		return nil, 0, fmt.Errorf("%s", spanOverflowMsg)
 	}
 	switch sp.proves {
 	case ProvesNegative:
-		return sp.refusedOperations()
+		ops, err = sp.refusedOperations()
+		return ops, 0, err
 	case ProvesBehaviour:
 		return sp.lifecycleOperations()
 	}
 	// Unreachable through the handler, which validates the axis on open.
-	return nil, fmt.Errorf("unknown axis %q", sp.proves)
+	return nil, 0, fmt.Errorf("unknown axis %q", sp.proves)
 }
 
 func (sp *assertSpan) refusedOperations() ([]string, error) {
@@ -269,7 +332,7 @@ func (sp *assertSpan) refusedOperations() ([]string, error) {
 	return sortedOps(ops), nil
 }
 
-func (sp *assertSpan) lifecycleOperations() ([]string, error) {
+func (sp *assertSpan) lifecycleOperations() (ops []string, unattributed int, err error) {
 	resourceKey := func(t spanTouch) string { return t.provider + "|" + t.kind + "|" + t.id }
 	created := map[string]bool{}
 	completed := map[string]bool{}
@@ -286,7 +349,7 @@ func (sp *assertSpan) lifecycleOperations() ([]string, error) {
 		}
 	}
 	if len(completed) == 0 {
-		return nil, fmt.Errorf("the span declared a lifecycle and the store observed no resource created and then destroyed inside it")
+		return nil, 0, fmt.Errorf("the span declared a lifecycle and the store observed no resource created and then destroyed inside it")
 	}
 
 	// The kinds whose listing counts as reading the lifecycle back.
@@ -295,25 +358,30 @@ func (sp *assertSpan) lifecycleOperations() ([]string, error) {
 		provider, kind, _ := splitResourceKey(k)
 		kinds[provider+"|"+kind] = true
 	}
-	ops := map[string]bool{}
+	marked := map[string]bool{}
 	for _, t := range sp.touches {
-		if t.operation == "" {
-			continue
-		}
+		// Only a touch that would have marked something counts as a loss. A
+		// touch on a resource outside the lifecycle is not attributed and costs
+		// the axis nothing, so counting it would report a shortfall that is not
+		// one — the "three outcomes, never two" rule of the measurement skill
+		// applied to the span's own confession.
+		partOfLifecycle := completed[resourceKey(t)]
 		if t.action == store.EventListed {
-			if kinds[t.provider+"|"+t.kind] {
-				ops[t.operation] = true
-			}
+			partOfLifecycle = kinds[t.provider+"|"+t.kind]
+		}
+		if !partOfLifecycle {
 			continue
 		}
-		if completed[resourceKey(t)] {
-			ops[t.operation] = true
+		if t.operation == "" {
+			unattributed++
+			continue
 		}
+		marked[t.operation] = true
 	}
-	if len(ops) == 0 {
-		return nil, fmt.Errorf("a lifecycle was observed but no operation could be attributed to it")
+	if len(marked) == 0 {
+		return nil, unattributed, fmt.Errorf("a lifecycle was observed but no operation could be attributed to it")
 	}
-	return sortedOps(ops), nil
+	return sortedOps(marked), unattributed, nil
 }
 
 func splitResourceKey(k string) (provider, kind, id string) {
@@ -361,6 +429,7 @@ func (s *Server) handleAssertOpen(w http.ResponseWriter, r *http.Request) {
 	}
 	id := newID()
 	o.spans[id] = &assertSpan{proves: req.Proves}
+	o.spansOpen.Store(int64(len(o.spans)))
 	o.mu.Unlock()
 
 	writeJSON(w, http.StatusCreated, map[string]any{"id": id, "proves": req.Proves})
@@ -379,7 +448,8 @@ func (s *Server) handleAssertClose(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	delete(o.spans, id)
-	ops, err := sp.close()
+	o.spansOpen.Store(int64(len(o.spans)))
+	ops, unattributed, err := sp.close()
 	if err == nil {
 		mark := o.behaviour
 		if sp.proves == ProvesNegative {
@@ -392,8 +462,14 @@ func (s *Server) handleAssertClose(w http.ResponseWriter, r *http.Request) {
 	o.mu.Unlock()
 
 	if err != nil {
-		writeJSON(w, http.StatusConflict, map[string]any{"proves": sp.proves, "error": err.Error()})
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"proves": sp.proves, "error": err.Error(), "unattributed": unattributed})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"proves": sp.proves, "operations": ops})
+	// unattributed travels with the answer, always, because a span that
+	// silently marked fewer operations than it observed is the defect #398
+	// filed: prove.sh prints it, so a run that loses attribution says so on the
+	// suite's own output instead of moving a number in coverage/evidence.json.
+	writeJSON(w, http.StatusOK, map[string]any{
+		"proves": sp.proves, "operations": ops, "unattributed": unattributed})
 }

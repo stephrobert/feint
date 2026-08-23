@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/stephrobert/feint/internal/contract"
@@ -97,14 +98,18 @@ type observer struct {
 	// above say how many; the stream says what happened, once, with its time and
 	// its status.
 	stream *stream
-	// flight is the set of requests currently being handled, so a store touch
-	// can be attributed to the one client exchange that caused it — and only
-	// when there is exactly one, because attributing under concurrency would be
-	// guessing. See assert.go.
+	// flight is the set of requests currently being handled, each with the
+	// identity of its handler goroutine, so a store touch is attributed to the
+	// request that actually made it rather than to whatever else was in flight
+	// beside it. See assert.go and goroutine.go.
 	flight    map[int64]flightEntry
 	flightSeq int64
-	// spans are the assertion spans a suite has opened and not yet closed.
-	spans map[string]*assertSpan
+	// spans are the assertion spans a suite has opened and not yet closed, and
+	// spansOpen is len(spans) readable without the lock: the attribution above
+	// costs a stack walk, and nothing outside a measurement should pay it.
+	// Written under mu, beside every write to spans.
+	spans     map[string]*assertSpan
+	spansOpen atomic.Int64
 	// behaviour and negative record, per operation, the two axes only a closed
 	// span can earn. See assert.go for what each requires.
 	behaviour map[string]bool
