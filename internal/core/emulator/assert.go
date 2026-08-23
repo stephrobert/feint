@@ -87,8 +87,11 @@ import (
 //
 //   - it made the axis a function of the scheduler. Terraform runs at
 //     `-parallelism=10` under a span bracketing its whole lifecycle, so how
-//     much the axis lost depended on how the run happened to interleave: 313
-//     and 314 on two identical runs of the same commit (#398).
+//     much the axis lost depended on how the run happened to interleave. #398
+//     filed 313 and 314 on two identical runs of the same commit; two more runs
+//     marked 311 each and disagreed on six operations, which is the sharper
+//     measurement and the one to remember: the count agreeing proves nothing,
+//     only the set does.
 //   - it could also over-claim, which is the half nobody had noticed. A touch
 //     made by the probe's goroutine, or by a handler the fault injector calls
 //     directly (serveFault, which never enters the flight set), was attributed
