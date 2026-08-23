@@ -1,41 +1,98 @@
-# Reprise du lot #402 + #398 + #399 + #395
+# Reprise du travail sur feint
 
-> ## Mise à jour du 2026-08-23, à lire avant tout le reste
->
-> **Ce document décrit l'état d'avant la fusion. Trois choses ont changé, et la
-> première rendrait la reprise impossible si on la suivait telle quelle.**
->
-> 1. **La branche `feat/402-evidence-axes` n'existe plus, et son worktree non
->    plus.** Tout est dans `main` (pull request #416, commit `ea7296f`).
->    Ci-dessous, « rien n'est poussé » et « trois commits locaux » ne valent
->    plus : partir de `main` à jour.
-> 2. **#402, #399 et #408 sont fermées.** Une quatrième chose a été livrée après
->    l'arrêt : #408, la file de travail (`feint coverage --evidence --gaps`).
->    Elle est décrite à la fin de ce fichier.
-> 3. **L'ordre de reprise de la 0.11.0 est désormais figé** dans
->    `docs/roadmap.md` et dans la description du jalon. Il place **#398 en
->    premier**, ce qui confirme ce que dit ce brief, puis #406, puis #407.
->
-> **Ce qui reste vrai et fait toute la valeur de ce fichier** : les causes de
-> #398 et de #395, trouvées et écrites, plus les prémisses que la mesure a
-> contredites. C'est ce qui coûte cher à retrouver.
->
-> Une réserve de forme : le corps de ce document a été écrit sans accents. La
-> règle du projet impose les diacritiques complètes. Il n'a pas été récrit pour
-> ne pas risquer d'altérer une mesure en le retouchant ; à corriger lors du
-> prochain passage sur ce fichier.
+> Écrit le 2026-08-23. Ce fichier est le point d'entrée unique pour reprendre :
+> l'état du dépôt d'abord, le détail du dernier lot ensuite.
 
-> **Ce fichier remplace le brief du lot #341 + #342.** Celui-ci decrivait un
-> travail dont les commits sont dans `main` depuis `0d39fc3`, il n'avait plus de
-> sujet. L'ancien contenu reste accessible par `git show 0d39fc3:HANDOVER.md`.
+## En une minute
 
-Branche : `feat/402-evidence-axes`, worktree
-`/home/bob/Projets/coucou/.claude/worktrees/402-evidence`.
-Base : `5bee14a` (`origin/main` au moment du depart). Trois commits locaux,
-**rien n'est pousse**.
+`main` est propre et à jour, tout ce qui a été fusionné y est. Aucun agent ne
+tourne. Une seule pull request est ouverte : **#418**, qui met à jour ce fichier.
 
-Arret demande par le coordinateur : budget hebdomadaire a 99 %. Ce qui suit est
-ecrit pour quelqu'un qui reprend dimanche soir sans contexte.
+**La prochaine chose à faire est #398**, et sa cause est déjà trouvée : elle est
+écrite plus bas, section « La cause du non-déterminisme de `behaviour` ».
+
+L'ordre complet de la 0.11.0 est figé dans `docs/roadmap.md` et dans la
+description du jalon. Il ne dépend plus d'aucune conversation.
+
+## L'état du dépôt, mesuré
+
+**Distant** : `main`, `wip/172-peering`, et la branche de la pull request en
+cours. Rien d'autre.
+
+**Local** : une quarantaine de branches, et la mesure du 2026-08-23 les répartit
+en deux tas seulement.
+
+**Tas 1, sans valeur : 33 branches `worktree-agent-*`**, résidus d'agents. Leur
+contenu est intégralement dans `main`. Suppression sans perte.
+
+**Tas 2, à regarder avant de supprimer.** Ces branches portent des commits que
+`git` ne voit pas dans `main` parce que les fusions ont été faites en squash,
+donc les SHA diffèrent. **Leur contenu, lui, est arrivé sur `main` par d'autres
+pull requests**, et deux vérifications le prouvent :
+`internal/core/serialise/serialise.go` et `internal/core/resource/resource.go`
+existent sur `main` alors que ce sont les sujets de `refactor/serialise-keyed-locking`
+et `refactor/resource-new`.
+
+Sont dans ce cas : les cinq `refactor/*`, les trois `feat/172-*`, `fix286`,
+`fix292`, `release/0.10.0`, `feat/354-outscale-corpus`, `feat/402-evidence-axes`,
+`fix/386-teardown-race`.
+
+### La seule exception, et elle est importante
+
+**`wip/172-peering` porte quatre fichiers qui n'existent nulle part ailleurs :**
+
+- `tools/conformance/parity.sh` — environ 300 lignes qui vérifient qu'une même
+  requête produit la même machine chez les trois fournisseurs, **en lisant
+  l'hôte plutôt qu'en interrogeant l'API examinée** ;
+- `internal/core/machine/incus_fallback_test.go` ;
+- `tools/falsify/specs/fallback-retirement.json` ;
+- `tools/falsify/specs/ovn-uplink-isolation.json`.
+
+Plus trois commits sur l'appairage de Nets. Le tout a été commité en urgence le
+2026-08-21, quelques minutes avant un redémarrage forcé. Le travail s'est arrêté
+là.
+
+**C'est suivi par l'issue #419.** Ne pas supprimer cette branche pendant un
+ménage : c'est la seule où cela ferait perdre quelque chose.
+
+### Quatre worktrees encore montés
+
+`.claude/worktrees/172-dhcp`, `172-driven`, `172-peering` et
+`agent-ac06bc2d90eae7172`. Le dernier pointe sur une branche déjà fusionnée. Ils
+se démontent par `git worktree remove`, mais celui de `172-peering` porte le
+travail ci-dessus : le retirer avant que #419 soit traitée demande de garder la
+branche.
+
+## Les jalons
+
+| jalon | état | thème |
+|---|---|---|
+| 0.11.0 | 14 ouvertes, 26 fermées | *Observed coverage* — l'ordre est figé dans `docs/roadmap.md` |
+| 0.12.0 | 8 ouvertes | *Failure is part of the API* |
+| 0.13.0 | 7 ouvertes | *The cloud lab lives in the repository* — `feint.yaml`, `up`/`down`, `verify` |
+
+## Ce qu'il faut savoir avant de toucher au code
+
+Trois gardes mordent systématiquement et coûtent du temps si on les découvre en
+route :
+
+1. **Le gel de surface CLI** refuse tout drapeau nouveau tant que
+   `cliSurfaceVersion` n'est pas incrémenté et la fixture régénérée par
+   `mise run frozen:update`.
+2. **`TestTheHelpNamesEveryFlagTheBinaryAccepts`** refuse un drapeau que
+   `feint --help` ne nomme pas.
+3. **Le harnais de falsification exige que tout nom du fragment survive dans le
+   remplacement**, commentaires compris. Neutraliser une condition
+   (`… && false`), ne jamais supprimer le terme.
+
+Et un piège d'environnement : `mise run lint` échoue sur un cache golangci-lint
+empoisonné dès qu'un worktree voisin disparaît. `golangci-lint cache clean`
+règle le problème, ce n'est jamais le code.
+
+## Le détail du dernier lot
+
+Ce qui suit a été écrit à l'arrêt du lot #402 + #398 + #399 + #395, et garde
+toute sa valeur pour les deux issues non traitées.
 
 ## Changement de jalon, signale pendant le travail
 
