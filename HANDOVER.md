@@ -1,5 +1,30 @@
 # Reprise du lot #402 + #398 + #399 + #395
 
+> ## Mise à jour du 2026-08-23, à lire avant tout le reste
+>
+> **Ce document décrit l'état d'avant la fusion. Trois choses ont changé, et la
+> première rendrait la reprise impossible si on la suivait telle quelle.**
+>
+> 1. **La branche `feat/402-evidence-axes` n'existe plus, et son worktree non
+>    plus.** Tout est dans `main` (pull request #416, commit `ea7296f`).
+>    Ci-dessous, « rien n'est poussé » et « trois commits locaux » ne valent
+>    plus : partir de `main` à jour.
+> 2. **#402, #399 et #408 sont fermées.** Une quatrième chose a été livrée après
+>    l'arrêt : #408, la file de travail (`feint coverage --evidence --gaps`).
+>    Elle est décrite à la fin de ce fichier.
+> 3. **L'ordre de reprise de la 0.11.0 est désormais figé** dans
+>    `docs/roadmap.md` et dans la description du jalon. Il place **#398 en
+>    premier**, ce qui confirme ce que dit ce brief, puis #406, puis #407.
+>
+> **Ce qui reste vrai et fait toute la valeur de ce fichier** : les causes de
+> #398 et de #395, trouvées et écrites, plus les prémisses que la mesure a
+> contredites. C'est ce qui coûte cher à retrouver.
+>
+> Une réserve de forme : le corps de ce document a été écrit sans accents. La
+> règle du projet impose les diacritiques complètes. Il n'a pas été récrit pour
+> ne pas risquer d'altérer une mesure en le retouchant ; à corriger lors du
+> prochain passage sur ce fichier.
+
 > **Ce fichier remplace le brief du lot #341 + #342.** Celui-ci decrivait un
 > travail dont les commits sont dans `main` depuis `0d39fc3`, il n'avait plus de
 > sujet. L'ancien contenu reste accessible par `git show 0d39fc3:HANDOVER.md`.
