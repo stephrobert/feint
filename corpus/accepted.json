@@ -127,7 +127,8 @@
     "",
     "  - #378, a Vm answers no UserData, no BlockDeviceMappings and no Tags. The",
     "    middle one is the one with teeth: it is where a client reads the root",
-    "    volume it must not delete, the same gap #365 records on Scaleway.",
+    "    volume it must not delete, the same gap #365 records on Scaleway. ALL",
+    "    THREE ARE SERVED SINCE 2026-08-24, and its entries are gone.",
     "  - #379, the order of a machine's security groups is the reverse of the",
     "    cloud's, on the update and on the reads after it. #320 one provider out,",
     "    and the very first order this repository has compared against a real",
@@ -141,7 +142,8 @@
     "  - #381, DeleteRoute and DeleteLoadBalancer answer no body.",
     "  - #382, a rule whose source is another group omits that group's AccountId.",
     "  - #383, the emulated image catalogue's entries carry neither their device",
-    "    mapping nor their launch permissions.",
+    "    mapping nor their launch permissions. BOTH ARE SERVED SINCE 2026-08-24",
+    "    (#389 backed the catalogue with real snapshots), and its entry is gone.",
     "  - #384 IS NOT THE EMULATOR. The recorder replaces the value under",
     "    KeypairName, because the name carries `key`, so the real keypair's name",
     "    and the invented one of a deliberate refusal both became \"REDACTED\" and",
@@ -231,14 +233,6 @@
   "accepted": [
     {
       "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.CreateVms",
-      "kind": "absent",
-      "path": "Vms[].BlockDeviceMappings[]",
-      "reason": "A real machine is born with a root BSU volume, and this emulator's machines model none (docs/limits.md), so the device mapping is an empty list where the cloud answers the root device with its volume, its link date and DeleteOnVmDeletion. It is where a client reads the root volume it must not delete, and the same gap #365 records on the Scaleway side. The other two fields of #378 are served since 2026-08-21; this one is left because giving every machine a volume changes a limit this repository declared on purpose rather than an oversight, and that is the owner's decision to take.",
-      "issue": "https://github.com/stephrobert/feint/issues/378"
-    },
-    {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
       "operation": "osc/Client.DeleteSecurityGroup",
       "kind": "status",
       "path": "",
@@ -252,14 +246,6 @@
       "path": "Errors",
       "reason": "The cloud refuses DeleteSecurityGroup with 409 ResourceConflict for about ninety seconds after the machine that wore the group is terminated, and accepts on the thirty-first attempt; this emulator releases the group the moment the machine is terminated and answers 200 at once. A REPLAY CANNOT GRADE THE DIFFERENCE EITHER WAY: the recording is thirty refusals then an acceptance, and a corpus has no ninety seconds in it, since the sanitiser normalises every timestamp to one second apart. Reproducing the delay would make every stack teardown and every conformance run wait it out, which is a product decision rather than a defect to patch. #380 carries it, and internal/providers/outscale/securitygroups.go records the measurement where the skip is.",
       "issue": "https://github.com/stephrobert/feint/issues/380"
-    },
-    {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.ReadImages",
-      "kind": "absent",
-      "path": "Images[].BlockDeviceMappings[]",
-      "reason": "The fixed catalogue answers an empty device mapping where the cloud answers the root device with its size and type. Filling it was tried and measured: no state of the pack then satisfies shapes:check, tools/conformance/score.sh and tools/conformance/outscale/terraform.sh at once, because a field decline is written against an operation and ReadImages answers two kinds of object — the catalogue, and an image a client really cut from a snapshot. Naming a SnapshotId the catalogue does not hold is rule 4, and it is the fiction that killed a conformance run once. #389 backs the catalogue with a snapshot the pack really holds, which is what lets this entry go.",
-      "issue": "https://github.com/stephrobert/feint/issues/389"
     },
     {
       "file": "outscale/oapi-cli-lifecycle.jsonl",
@@ -295,27 +281,11 @@
     },
     {
       "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.ReadVms",
-      "kind": "absent",
-      "path": "Vms[].BlockDeviceMappings[]",
-      "reason": "A real machine is born with a root BSU volume, and this emulator's machines model none (docs/limits.md), so the device mapping is an empty list where the cloud answers the root device with its volume, its link date and DeleteOnVmDeletion. It is where a client reads the root volume it must not delete, and the same gap #365 records on the Scaleway side. The other two fields of #378 are served since 2026-08-21; this one is left because giving every machine a volume changes a limit this repository declared on purpose rather than an oversight, and that is the owner's decision to take.",
-      "issue": "https://github.com/stephrobert/feint/issues/378"
-    },
-    {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
       "operation": "osc/Client.ReadVolumes",
       "kind": "absent",
       "path": "Volumes[]",
       "reason": "Upstream a destroyed object stays readable in a terminal state (deleting, deleted) and this emulator removes it at once, so every read of the recording's teardown answers one element there and none here. Making a delete asynchronous is a change to the lifecycle of every kind and to what 'nothing left behind' means for every conformance suite, not a line in a handler.",
       "issue": "https://github.com/stephrobert/feint/issues/380"
-    },
-    {
-      "file": "outscale/oapi-cli-lifecycle.jsonl",
-      "operation": "osc/Client.UpdateVm",
-      "kind": "absent",
-      "path": "Vm.BlockDeviceMappings[]",
-      "reason": "A real machine is born with a root BSU volume, and this emulator's machines model none (docs/limits.md), so the device mapping is an empty list where the cloud answers the root device with its volume, its link date and DeleteOnVmDeletion. It is where a client reads the root volume it must not delete, and the same gap #365 records on the Scaleway side. The other two fields of #378 are served since 2026-08-21; this one is left because giving every machine a volume changes a limit this repository declared on purpose rather than an oversight, and that is the owner's decision to take.",
-      "issue": "https://github.com/stephrobert/feint/issues/378"
     },
     {
       "file": "scaleway/scw-instance.jsonl",

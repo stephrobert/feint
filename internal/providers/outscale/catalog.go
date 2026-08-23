@@ -130,7 +130,8 @@ var vmTypes = []map[string]any{
 const linuxProductCode = "0001"
 
 // imageStructure is the three fields the Terraform provider dereferences
-// without a nil guard, published so it does not segfault.
+// without a nil guard, published so it does not segfault, plus the device
+// mapping that names the snapshot the image was cut from.
 //
 // Reported by @vde-dis on #86, from the provider's own sources: at v1.7.0,
 // data_source_outscale_images.go reads `*image.BlockDeviceMappings` (:289),
@@ -148,50 +149,42 @@ const linuxProductCode = "0001"
 // VolumeType,SnapshotId,Iops,DeleteOnVmDeletion}, Images[].PermissionsToLaunch
 // .{AccountIds,GlobalPermission}, Images[].StateComment.
 //
-// Empty is enough and is what is served: the reporter injected an empty
-// BlockDeviceMappings through a proxy, watched the crash move to StateComment,
-// then to PermissionsToLaunch, then stop. Inventing a device mapping would put
-// a disk in a catalogue that has none, which is the invented format rule 4
-// refuses.
-//
 // TestTheImageCatalogueCarriesWhatTheProviderDereferences fails without this.
-func imageStructure(name string) map[string]any {
+func imageStructure(name string, snapshot map[string]any) map[string]any {
 	return map[string]any{
 		// The three of #86, without which the provider dereferences nil.
-		// BlockDeviceMappings stays empty, and #383 asked for the opposite.
 		//
-		// The mapping was filled in this branch — device name, root volume size
-		// and type — and it made two gates contradict each other, which is how
-		// the line below was found rather than argued:
+		// The mapping names catalogueSnapshots' entry for this image, and that
+		// is the whole of #389: it was empty for a year because filling it with
+		// an invented SnapshotId is rule 4 — the exact fiction that killed a
+		// conformance run once, when a fictional root VolumeId on a machine was
+		// resolved by the Terraform provider. A snapshot ReadSnapshots really
+		// answers for removes the choice between lying and omitting.
 		//
-		//   - `shapes --check` descends into a non-empty list and reports
-		//     Bsu.SnapshotId and Bsu.Iops missing, because the real cloud carries
-		//     them on every image (shapes/outscale.json);
-		//   - declining those two then makes tools/conformance/score.sh fail four
-		//     legs at once with "field declines whose field the emulator now
-		//     serves", because CreateImage answers both — truthfully, for an image
-		//     really cut from a snapshot this store holds;
-		//   - and omitting them from CreateImage instead fails
-		//     tools/conformance/outscale/terraform.sh, which asserts that a
-		//     registered image names the snapshot it was cut from.
+		// The four keys are the ones a real OMI carries, measured rather than
+		// argued: in corpus/outscale/oapi-cli-lifecycle.jsonl, 396 of the 399
+		// device mappings the account answered carry exactly DeleteOnVmDeletion,
+		// SnapshotId, VolumeSize and VolumeType. Iops is on the other three, and
+		// only on those — the three whose VolumeType is the provisioned-IOPS one.
+		// declined_fields.go carries that measurement where the decline is.
 		//
-		// All three are right. A field decline is written against an *operation*,
-		// and this operation answers two kinds of object; there is no state of
-		// this file where a filled mapping, the declines and the real client all
-		// agree. An empty list is the one shape that says "this emulator models no
-		// disk behind its catalogue" without inventing a SnapshotId — the exact
-		// fiction that killed a conformance run once, when a fictional root
-		// VolumeId on a machine was resolved by the Terraform provider (rule 4).
-		//
-		// #383 is therefore reopened rather than closed here, and #389 carries
-		// what makes it deliverable: back the catalogue with a snapshot the pack
-		// really holds, so both keys can be answered truthfully everywhere and
-		// both declines can go.
-		//
-		// TestTheCatalogueMappingStaysEmptyUntilASnapshotBacksIt fails without
-		// this.
-		"BlockDeviceMappings": []any{},
-		"StateComment":        map[string]any{},
+		// TestACatalogueImageNamesASnapshotReadSnapshotsAnswersFor fails
+		// without this.
+		"BlockDeviceMappings": []any{
+			map[string]any{
+				"DeviceName": defaultRootDevice,
+				"Bsu": map[string]any{
+					// True on 364 of the 399 measured mappings, and true of what
+					// this pack does: terminating a Vm deletes the root volume
+					// CreateVms cut from this snapshot.
+					"DeleteOnVmDeletion": true,
+					"SnapshotId":         snapshot["SnapshotId"],
+					"VolumeSize":         snapshot["VolumeSize"],
+					"VolumeType":         defaultVolumeType,
+				},
+			},
+		},
+		"StateComment": map[string]any{},
 		// The owner, which for this catalogue is this emulator's own account —
 		// the same accountID every other answer carries. An empty list said the
 		// image was launchable by nobody, where the real cloud names whoever it
@@ -216,7 +209,7 @@ func imageStructure(name string) map[string]any {
 		"Description":    name,
 		"FileLocation":   "",
 		"ImageType":      "machine",
-		"RootDeviceName": "/dev/sda1",
+		"RootDeviceName": defaultRootDevice,
 		"Tags":           []any{},
 		"TpmMandatory":   false,
 	}
@@ -229,6 +222,109 @@ func imageStructure(name string) map[string]any {
 // reason — the same reason coverage/ carries no scan date.
 const catalogueDate = "2025-01-01T00:00:00.000Z"
 
+// catalogueSnapshots is what the catalogue's images were cut from: one
+// snapshot per OMI, answered by ReadSnapshots like any other, so the
+// SnapshotId an image publishes names an object a client can read back.
+//
+// This is #389's whole content. The alternative — a SnapshotId in the image
+// and nothing behind it — is rule 4, and this repository has already paid for
+// it once: a fictional root VolumeId on a machine was resolved by the Terraform
+// provider and "volume vol-rooti149 not found" killed a conformance run.
+//
+// Held here rather than seeded into the store, for three measured reasons, and
+// the first two are the ones that decide it:
+//
+//  1. store.Restore replaces s.items wholesale (internal/core/store/store.go),
+//     and snapshot.go documents its format as designed to be loaded into
+//     another instance. A seeded snapshot does not survive that, so the
+//     catalogue would start naming snapshots nobody can read — the dangling
+//     identifier this chain exists to remove, reintroduced by the one path
+//     that is explicitly meant to cross instances.
+//  2. CreationDate has to be catalogueDate. A store resource takes env.Now(),
+//     which moves every run, and this file already says why a catalogue date
+//     that moves is a value in a client's plan that changes for no reason.
+//  3. The image at the other end of the same link is a fixed table too. One
+//     mechanism for one kind of object: what makes a catalogue entry different
+//     from a client's is exactly that the client did not create it and cannot
+//     destroy it, which isCatalogueImage and isCatalogueSnapshot both say.
+//
+// The identifiers are deliberately outside the corpus sanitiser's minting
+// space. It hands out prefixed identifiers as a shared counter in eight
+// hexadecimal digits (internal/corpus/corpus.go), so ami-00000001..3 collide
+// with recorded values and #395 carries the two corpus exemptions that
+// collision costs. Numbering three more objects the same way would have widened
+// a known defect for no gain; fe1a7… is as valid an Outscale identifier and
+// cannot be reached by a small counter.
+//
+// TestTheCatalogueIdentifiersStayOutOfTheMintingSpace fails without that choice.
+var catalogueSnapshots = []map[string]any{
+	{"SnapshotId": "snap-fe1a7001", "VolumeId": "vol-fe1a7001", "VolumeSize": 10, "Description": "Ubuntu-24.04-2025.01 root"},
+	{"SnapshotId": "snap-fe1a7002", "VolumeId": "vol-fe1a7002", "VolumeSize": 10, "Description": "Debian-12-2025.01 root"},
+	{"SnapshotId": "snap-fe1a7003", "VolumeId": "vol-fe1a7003", "VolumeSize": 10, "Description": "Alpine-3.21-2025.01 root"},
+}
+
+// snapshotStructure completes a catalogue snapshot with what every snapshot of
+// a real account carries, measured in the recording rather than assumed:
+// State "completed", Progress 100, an empty PermissionsToCreateVolume and an
+// empty Tags list (X-2 sweep, 2026-08-08, and shapes/outscale.json).
+//
+// VolumeId names the volume the image was cut from, and that volume is gone —
+// which is the state every OMI of a real account is in, and a state this pack
+// already reaches by ordinary means: CreateVolume, CreateSnapshot, DeleteVolume
+// leaves exactly it, because deleteSnapshot's own comment holds that provenance
+// is history rather than a live reference. It is the one identifier of this
+// chain that names nothing, and it is the one no client resolves: the three
+// links a response invites a client to follow — image to snapshot, snapshot to
+// the volume CreateVms cuts, volume to Vm — all name objects a read answers for.
+func snapshotStructure(entry map[string]any) map[string]any {
+	out := map[string]any{
+		"State":        "completed",
+		"Progress":     100,
+		"AccountId":    accountID,
+		"CreationDate": catalogueDate,
+		"PermissionsToCreateVolume": map[string]any{
+			"AccountIds":       []any{},
+			"GlobalPermission": false,
+		},
+		"Tags": []any{},
+	}
+	for key, value := range entry {
+		out[key] = value
+	}
+	return out
+}
+
+// catalogueSnapshotViews is the wire shape of every catalogue snapshot, built
+// once because the table is fixed.
+var catalogueSnapshotViews = func() []map[string]any {
+	out := make([]map[string]any, 0, len(catalogueSnapshots))
+	for _, entry := range catalogueSnapshots {
+		out = append(out, snapshotStructure(entry))
+	}
+	return out
+}()
+
+// isCatalogueSnapshot reports whether an id names one of the fixed snapshots.
+// They are the emulator's, not the client's, exactly as isCatalogueImage says
+// of the images they back: a delete on one is refused rather than answered with
+// a success nothing acted on — and here it would also leave every catalogue
+// image naming a snapshot that no longer answers.
+//
+// TestACatalogueSnapshotRefusesItsDelete fails without this.
+func isCatalogueSnapshot(id string) bool {
+	for _, snapshot := range catalogueSnapshots {
+		if snapshot["SnapshotId"] == id {
+			return true
+		}
+	}
+	return false
+}
+
+// catalogueSnapshotOf is the snapshot a catalogue image was cut from, by index:
+// the two tables are paired, and pairing them by position keeps a fourth image
+// from being added without the snapshot that backs it.
+func catalogueSnapshotOf(i int) map[string]any { return catalogueSnapshots[i] }
+
 var images = func() []map[string]any {
 	out := []map[string]any{
 		{"ImageId": "ami-00000001", "ImageName": "Ubuntu-24.04-2025.01", "Architecture": "x86_64", "State": "available", "RootDeviceType": "bsu", "SecureBoot": false, "AccountId": accountID, "ProductCodes": []any{linuxProductCode}},
@@ -238,9 +334,16 @@ var images = func() []map[string]any {
 	// Added here rather than written into each literal: three copies of the
 	// same structure is three places for it to drift, and a fourth image would
 	// be added without them.
-	for _, image := range out {
+	//
+	// The panic is the pairing made mechanical. A fourth image added without a
+	// fourth snapshot would otherwise publish an empty mapping again, silently,
+	// and the gate that catches that lives in a test rather than at startup.
+	if len(out) != len(catalogueSnapshots) {
+		panic("outscale: every catalogue image needs the snapshot it was cut from")
+	}
+	for i, image := range out {
 		name, _ := image["ImageName"].(string)
-		for key, value := range imageStructure(name) {
+		for key, value := range imageStructure(name, catalogueSnapshotOf(i)) {
 			image[key] = value
 		}
 	}

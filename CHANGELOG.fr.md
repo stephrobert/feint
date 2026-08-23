@@ -19,6 +19,42 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **Tout identifiant qu'une réponse Outscale publie désigne désormais un objet
+  qu'une lecture retrouve** (#389, #383, #378). Une seule chaîne plutôt que
+  trois rustines : le catalogue d'images est adossé à des snapshots que
+  `ReadSnapshots` sert réellement, et `CreateVms` taille à chaque machine un
+  volume BSU racine dans le snapshot que son image nomme.
+
+  Ce qu'un client voit changer :
+
+  - `ReadImages` répond `BlockDeviceMappings` sur chaque image du catalogue —
+    `/dev/sda1`, sa taille, son type, `DeleteOnVmDeletion` et le `SnapshotId`
+    dont elle est issue — là où la liste était vide. Une stack qui dimensionne
+    son disque racine depuis l'image ne lisait rien.
+  - `ReadSnapshots` répond les trois snapshots derrière le catalogue, et un
+    volume peut être taillé dans l'un d'eux.
+  - `CreateVms`, `ReadVms` et `UpdateVm` répondent le périphérique racine de la
+    machine, en nommant un volume que `ReadVolumes` sert. C'est par là qu'une
+    stack trouve le disque qu'elle ne doit pas supprimer, et c'était une liste
+    vide.
+  - `DeleteVms` détruit ce volume et libère ceux que le client a liés, chacun
+    selon son propre `DeleteOnVmDeletion` — que `ReadVolumes` publie et filtre
+    désormais par volume au lieu de la constante `false`.
+  - `CreateImage` refuse un `Iops` sur un device mapping au lieu d'en stocker un.
+
+  **Une limite a bougé** : une machine Outscale ne possédait ici aucun disque,
+  elle en possède un. « Rien laissé derrière » change de sens d'autant pour
+  chaque suite : le volume part avec la machine.
+
+  La mesure qui renverse une prémisse : `Iops` valait 100 par défaut au motif
+  que « le vrai cloud écrit Iops sur chaque Bsu d'image qu'il rend ». Sur les
+  399 device mappings que le compte enregistré répond, **396 ne portent aucune
+  clé `Iops`**, et les 3 qui en portent une sont les 3 d'un type de volume à
+  IOPS provisionnées. `shapes/outscale.json` est l'union de tout ce qui a été
+  observé, pas une exigence par élément. Le champ est décliné avec cette mesure
+  à côté, et les quatre exemptions de `corpus/accepted.json` que cette chaîne
+  périme sont supprimées.
+
 - **L'axe `shape` était saturé à son propre plafond, et 619 échanges enregistrés
   ne nourrissaient rien** (#407). `shape` lisait 52 opérations sur 370, et son
   plafond valait **52 lui aussi**, à l'unité près par

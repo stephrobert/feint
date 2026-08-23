@@ -100,15 +100,19 @@ func (p *Pack) readSnapshots(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	out := make([]map[string]any, 0)
-	for _, res := range p.env.Store.List(kindSnapshot, resource.Tenant{Provider: Name}) {
-		if !matchesStrings(req.Filters, "SnapshotIds", res.ID) ||
-			!matchesStrings(req.Filters, "VolumeIds", stringOf(res.Attrs["VolumeId"])) ||
-			!matchesStrings(req.Filters, "States", res.State) ||
-			!matchesStrings(req.Filters, "Descriptions", stringOf(res.Attrs["Description"])) {
-			continue
+	// The catalogue first and the client's own after, exactly as readImages
+	// orders the two halves it answers: an image names one of these, so an
+	// image a client can read must not name a snapshot it cannot (#389).
+	out := make([]map[string]any, 0, len(catalogueSnapshotViews))
+	for _, view := range catalogueSnapshotViews {
+		if snapshotMatches(view, req.Filters) {
+			out = append(out, view)
 		}
-		out = append(out, snapshotView(res))
+	}
+	for _, res := range p.env.Store.List(kindSnapshot, resource.Tenant{Provider: Name}) {
+		if view := snapshotView(res); snapshotMatches(view, req.Filters) {
+			out = append(out, view)
+		}
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"Snapshots":       page(out, req.ResultsPerPage),
@@ -126,6 +130,14 @@ func (p *Pack) deleteSnapshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, found := p.env.Store.Get(Name, kindSnapshot, req.SnapshotID); !found {
+		// A catalogue snapshot is not the client's to destroy, the way a
+		// catalogue image is not — and here it would also strand every image
+		// that names it, which is the dangling identifier #389 removed.
+		// TestACatalogueSnapshotRefusesItsDelete fails without this.
+		if isCatalogueSnapshot(req.SnapshotID) {
+			p.conflict(w, "the snapshot "+req.SnapshotID+" backs the emulated catalogue and cannot be deleted")
+			return
+		}
 		p.notFound(w, "snapshot", req.SnapshotID)
 		return
 	}
@@ -146,3 +158,38 @@ func snapshotView(res *resource.Resource) map[string]any {
 	out["CreationDate"] = res.Created.Format(time.RFC3339)
 	return out
 }
+
+// snapshotMatches filters a rendered snapshot, so a catalogue entry and one a
+// client cut are filtered by exactly the same rules — the reason imageMatches
+// exists on the other half of the same pair.
+func snapshotMatches(view map[string]any, f filterSet) bool {
+	return matchesStrings(f, "SnapshotIds", stringOf(view["SnapshotId"])) &&
+		matchesStrings(f, "VolumeIds", stringOf(view["VolumeId"])) &&
+		matchesStrings(f, "States", stringOf(view["State"])) &&
+		matchesStrings(f, "Descriptions", stringOf(view["Description"]))
+}
+
+// findSnapshot resolves a SnapshotId to what it holds, whichever half of the
+// answer it comes from. Every path that turns a SnapshotId into a size goes
+// through it — createVolume, createImage and the root volume CreateVms cuts —
+// because a client that can read a snapshot must be able to use it, and three
+// separate Store.Get calls is three places for one of them to forget the
+// catalogue.
+//
+// TestAVolumeIsCutFromACatalogueSnapshot fails without this.
+func (p *Pack) findSnapshot(id string) (map[string]any, bool) {
+	if res, found := p.env.Store.Get(Name, kindSnapshot, id); found {
+		return snapshotView(res), true
+	}
+	for _, view := range catalogueSnapshotViews {
+		if view["SnapshotId"] == id {
+			return view, true
+		}
+	}
+	return nil, false
+}
+
+// snapshotSize is a snapshot's VolumeSize, whatever numeric type it was stored
+// as. The catalogue holds ints and a client's snapshot copies the volume's, so
+// reading it with a single type assertion returned zero for one of the two.
+func snapshotSize(view map[string]any) int { return int(numOf(view["VolumeSize"])) }

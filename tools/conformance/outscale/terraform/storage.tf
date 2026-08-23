@@ -23,10 +23,12 @@ resource "outscale_snapshot" "conformance" {
   description = "feint conformance"
 }
 
-# Cut from the snapshot rather than from the machine: the emulator models no
-# root volume, so an image made from a VmId would carry an empty mapping list.
-# From a snapshot the provenance is real — the snapshot exists, has a size, and
-# the image inherits it.
+# Cut from the snapshot rather than from the machine, and still so after #378
+# gave every machine a root volume: an image made from a VmId would carry an
+# empty mapping list, because an image copies bytes and this emulator holds
+# none, so it cuts no snapshot of the machine's disk. From a snapshot the
+# provenance is real — the snapshot exists, has a size, and the image inherits
+# it, which is what terraform.sh asserts below.
 resource "outscale_image" "conformance" {
   image_name       = "feint-conformance-omi"
   description      = "cut from a conformance snapshot"

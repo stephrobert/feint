@@ -4,8 +4,8 @@
     {
       "label": "a terminated Vm keeps its volumes, so they can never be attached anywhere else",
       "file": "internal/providers/outscale/vms.go",
-      "find": "\t\t\tp.detachVolumesOf(res.ID)",
-      "replace": "\t\t\tif false {\n\t\t\t\tp.detachVolumesOf(res.ID)\n\t\t\t}",
+      "find": "\t\t\t// volume is destroyed, a volume the client linked is freed.\n\t\t\tp.releaseVolumesOf(res.ID)",
+      "replace": "\t\t\t// volume is destroyed, a volume the client linked is freed.\n\t\t\tif false {\n\t\t\t\tp.releaseVolumesOf(res.ID)\n\t\t\t}",
       "test": "TestTerminatingAVmFreesItsVolumes"
     },
     {

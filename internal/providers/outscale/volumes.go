@@ -65,13 +65,16 @@ func (p *Pack) createVolume(w http.ResponseWriter, r *http.Request) {
 		// record, snapshots.go says what that means — and inherits its size when
 		// none is asked. An unknown SnapshotId is refused the way the real API
 		// refuses one; the old blanket refusal predates served snapshots.
-		snapshot, found := p.env.Store.Get(Name, kindSnapshot, req.SnapshotID)
+		// Through findSnapshot, so the catalogue's own snapshots count: an
+		// image publishes one, ReadSnapshots answers for it, and a client that
+		// can read it must be able to cut a volume from it (#389).
+		snapshot, found := p.findSnapshot(req.SnapshotID)
 		if !found {
 			p.notFound(w, "snapshot", req.SnapshotID)
 			return
 		}
 		if size == 0 {
-			size, _ = snapshot.Attrs["VolumeSize"].(int)
+			size = snapshotSize(snapshot)
 		}
 	}
 
@@ -285,10 +288,11 @@ func (p *Pack) unlinkVolume(w http.ResponseWriter, r *http.Request) {
 		// the unread report cannot see (the same trap SecurityGroupIds fell into
 		// on CreateVms). What it does upstream is force a detach past a busy
 		// device — a filesystem still mounted, or the root volume of a running
-		// machine. Neither can arise here: the emulator holds no bytes and
-		// models no root volume, so every detach it can be asked for is already
-		// the unforced case. Honouring the flag would mean inventing a busy
-		// state to force past.
+		// machine. Neither can arise here: the emulator holds no bytes, so
+		// nothing is ever mounted, and the root volume a machine now owns
+		// (#378) is not busy in any sense this emulator can observe. Every
+		// detach it can be asked for is already the unforced case, and
+		// honouring the flag would mean inventing a busy state to force past.
 		ForceUnlink *bool `json:"ForceUnlink"`
 		DryRun      *bool `json:"DryRun"`
 	}
@@ -329,6 +333,11 @@ func volumeMatches(res *resource.Resource, f filterSet) bool {
 	if n, ok := res.Attrs["Size"].(int); ok {
 		size = strconv.Itoa(n)
 	}
+	// Read from the volume, not written here as false. It became a per-volume
+	// fact when a Vm's root device arrived (#378): a machine's root volume dies
+	// with the machine, a volume the client linked does not, and a filter that
+	// answered one constant for both told a client every volume survives.
+	// TestARootVolumeAnswersItsDeleteOnVmDeletionFilter fails without this.
 	return matchesStrings(f, "VolumeIds", res.ID) &&
 		matchesStrings(f, "VolumeStates", res.State) &&
 		matchesStrings(f, "VolumeTypes", stringOf(res.Attrs["VolumeType"])) &&
@@ -339,7 +348,7 @@ func volumeMatches(res *resource.Resource, f filterSet) bool {
 		matchesStrings(f, "LinkVolumeVmIds", linkedVM) &&
 		matchesStrings(f, "LinkVolumeDeviceNames", device) &&
 		matchesStrings(f, "LinkVolumeLinkStates", linkState) &&
-		matchesBool(f, "LinkVolumeDeleteOnVmDeletion", false)
+		matchesBool(f, "LinkVolumeDeleteOnVmDeletion", deleteOnVmDeletion(res))
 }
 
 // volumeView is the wire shape. LinkedVolumes is derived from the link stored on
@@ -348,7 +357,10 @@ func volumeMatches(res *resource.Resource, f filterSet) bool {
 func (p *Pack) volumeView(res *resource.Resource) map[string]any {
 	out := make(map[string]any, len(res.Attrs)+4)
 	for key, value := range res.Attrs {
-		if key == "LinkedVmId" || key == "DeviceName" {
+		// The three keys the link is stored under. They are published inside
+		// LinkedVolumes below, in the API's own shape, and a volume that also
+		// carried them at top level would be answering one fact twice.
+		if key == "LinkedVmId" || key == "DeviceName" || key == attrDeleteOnVmDeletion {
 			continue
 		}
 		out[key] = value
@@ -365,7 +377,7 @@ func (p *Pack) volumeView(res *resource.Resource) map[string]any {
 			"VmId":               vmID,
 			"DeviceName":         device,
 			"State":              "attached",
-			"DeleteOnVmDeletion": false,
+			"DeleteOnVmDeletion": deleteOnVmDeletion(res),
 		})
 	}
 	out["LinkedVolumes"] = links
@@ -426,8 +438,8 @@ func (p *Pack) readVmsState(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// detachVolumesOf releases the volumes a terminated Vm held, the way
-// detachNicsOf releases its interfaces.
+// releaseVolumesOf disposes of the volumes a terminated Vm held, each the way
+// its own DeleteOnVmDeletion says — deleted, or detached and left available.
 //
 // Same invariant as the NICs and the same reason it was missed: an exclusive
 // resource has one live owner, and the pack re-checked that on every link and on
@@ -437,23 +449,34 @@ func (p *Pack) readVmsState(w http.ResponseWriter, r *http.Request) {
 // terminated and the volume is supposed to be free. The emulator has to be
 // restarted.
 //
-// Unlinked and not deleted: this pack publishes DeleteOnVmDeletion false on every
-// volume link, and upstream is explicit that false means "the volume is not
-// deleted when terminating the VM". Deleting here would contradict what the same
-// pack tells the client one field earlier.
+// The flag decides, and it is read from the volume rather than assumed. This
+// function used to detach unconditionally and say so: "this pack publishes
+// DeleteOnVmDeletion false on every volume link". That was true while no
+// machine owned a disk. A Vm's root volume is created with the flag true, and
+// upstream is as explicit about true as it is about false, so honouring one and
+// not the other would contradict what the same pack tells the client one field
+// earlier — which is exactly the argument the old comment made, now applied to
+// both values instead of one.
 //
-// TestTerminatingAVmFreesItsVolumes fails without this.
-func (p *Pack) detachVolumesOf(vmID string) {
+// TestTerminatingAVmDeletesItsRootVolumeAndFreesTheRest fails without this.
+func (p *Pack) releaseVolumesOf(vmID string) {
 	for _, vol := range p.env.Store.List(kindVolume, resource.Tenant{Provider: Name}) {
 		if stringOf(vol.Attrs["LinkedVmId"]) != vmID {
 			continue
 		}
 		// Re-checked under the lock: the link may have moved between the List
 		// above and this write, and detaching somebody else's fresh link would
-		// be this loop erasing a 200 it never saw (#295).
+		// be this loop erasing a 200 it never saw (#295). The delete goes
+		// through the same window, so a volume relinked to another machine in
+		// between is not destroyed on this machine's behalf.
+		doomed := false
 		_ = p.env.Store.Update(Name, kindVolume, vol.ID, func(stored *resource.Resource) error {
 			if stringOf(stored.Attrs["LinkedVmId"]) != vmID {
 				return errVolumeHeld
+			}
+			if deleteOnVmDeletion(stored) {
+				doomed = true
+				return nil
 			}
 			delete(stored.Attrs, "LinkedVmId")
 			delete(stored.Attrs, "DeviceName")
@@ -461,7 +484,24 @@ func (p *Pack) detachVolumesOf(vmID string) {
 			stored.Updated = p.env.Now()
 			return nil
 		})
+		if doomed {
+			p.env.Store.Delete(Name, kindVolume, vol.ID)
+		}
 	}
+}
+
+// attrDeleteOnVmDeletion is where the link's disposal rule is stored. Named
+// rather than spelt in five places, because the wire shape publishes it under
+// LinkedVolumes and the store holds it beside the link it belongs to.
+const attrDeleteOnVmDeletion = "DeleteOnVmDeletion"
+
+// deleteOnVmDeletion reports whether this volume dies with the machine holding
+// it. False for anything a client linked itself, which is what LinkVolume can
+// answer: upstream's LinkVolumeRequest declares no such field, so the only
+// volume that carries true is one the platform created with the machine.
+func deleteOnVmDeletion(res *resource.Resource) bool {
+	flag, _ := res.Attrs[attrDeleteOnVmDeletion].(bool)
+	return flag
 }
 
 // The refusals updateVolume and linkVolume answer from inside the store lock,

@@ -320,6 +320,13 @@ func (p *Pack) createVms(w http.ResponseWriter, r *http.Request) {
 		for _, res := range created {
 			p.removeMachine(r.Context(), res)
 			p.env.Store.Delete(Name, kindVM, res.ID)
+			// And the root volume that came with it. Left behind, it would be
+			// a disk belonging to a machine the client was told it never got —
+			// the same leak the batch undo exists to prevent, one object over,
+			// and one the orphan sweep would report for ever because nothing
+			// answers to its LinkedVmId.
+			// TestAFailedBatchLeavesNoRootVolume fails without this.
+			p.releaseVolumesOf(res.ID)
 		}
 		if errors.Is(err, errUnknownSubnet) {
 			p.notFound(w, "Subnet", req.SubnetID)
@@ -445,6 +452,16 @@ func (p *Pack) allocateVms(req createVmsRequest, count int, now time.Time) ([]*r
 			res.Attrs["SecurityGroupIds"] = req.SecurityGroupIDs
 		}
 		p.env.Store.Put(res)
+		// The root device, cut from the snapshot the image names — the last
+		// link of the chain #389 built, and the third of the three fields #378
+		// measured missing on every Vm.
+		//
+		// Stored before the machine is answered for, so no read can catch a Vm
+		// without the device it was born with. Inside the addressing lock is
+		// not where it wants to be, but it is where the Vm is stored, and a
+		// volume minted after the lock is released is a window in which
+		// ReadVms answers a machine with no root device.
+		p.env.Store.Put(p.rootVolumeFor(res, now))
 		created = append(created, res)
 	}
 	return created, nil
@@ -487,7 +504,13 @@ func (p *Pack) blockDeviceMappingsOf(vmID string) []any {
 		out = append(out, map[string]any{
 			"DeviceName": orDefault(stringOf(vol.Attrs["DeviceName"]), defaultRootDevice),
 			"Bsu": map[string]any{
-				"DeleteOnVmDeletion": false,
+				// Read from the volume. It was the constant false, which was
+				// true only for as long as no machine owned a disk: the root
+				// device a Vm is born with carries true, and the recording
+				// says the real cloud carries true on it too —
+				// corpus/outscale/oapi-cli-lifecycle.jsonl, every ReadVms of
+				// the live machine.
+				"DeleteOnVmDeletion": deleteOnVmDeletion(vol),
 				"LinkDate":           vol.Updated.Format(time.RFC3339),
 				"State":              "attached",
 				"VolumeId":           vol.ID,
@@ -824,7 +847,9 @@ func (p *Pack) deleteVms(w http.ResponseWriter, r *http.Request) {
 			p.detachNicsOf(res.ID)
 			// And its volumes, for the same reason and by the same rule: an
 			// exclusive resource has one live owner, and the owner just died.
-			p.detachVolumesOf(res.ID)
+			// Each goes the way its own DeleteOnVmDeletion says — the root
+			// volume is destroyed, a volume the client linked is freed.
+			p.releaseVolumesOf(res.ID)
 			deleted = append(deleted, map[string]any{
 				"VmId":          res.ID,
 				"CurrentState":  stateTerminated,
@@ -1026,10 +1051,14 @@ func (p *Pack) vmView(res *resource.Resource) map[string]any {
 	// #88). Derived from the volumes actually linked to this Vm, never
 	// invented: a first version wrote a fictional root VolumeId here, and the
 	// Terraform provider promptly resolved it — "volume vol-rooti149 not
-	// found" killed the whole suite. A mapping must name a volume ReadVolumes
-	// can answer for, and a Vm with no linked volume has an empty list, which
-	// this emulator's machines truthfully have (they model no root volume,
-	// docs/limits.md).
+	// found" killed the whole suite.
+	//
+	// The list is no longer empty, and the difference is that the volume is
+	// real: CreateVms cuts a root volume from the snapshot the image names,
+	// ReadVolumes answers for it, and terminating the machine deletes it
+	// (#378, #389). A terminated Vm answers an empty list again — which is
+	// what the recording shows the real cloud answering, in the two ReadVms
+	// that follow the DeleteVms of oapi-cli-lifecycle.jsonl.
 	out["BlockDeviceMappings"] = p.blockDeviceMappingsOf(res.ID)
 	return out
 }
@@ -1053,4 +1082,131 @@ func Owns(res *resource.Resource) (kind, id string, ok bool) {
 		}
 	}
 	return "", "", false
+}
+
+// rootVolumeFor is the BSU device a machine is born with.
+//
+// Every value comes from the image the client named, resolved through
+// rootDeviceOf: the snapshot it was cut from, the size that snapshot holds, the
+// device name and the volume type it declares. Nothing here is minted except
+// the volume's own identifier, which is the point of #389 — the mapping ReadVms
+// publishes must name a volume ReadVolumes answers for, and that volume's
+// provenance must name a snapshot ReadSnapshots answers for.
+//
+// DeleteOnVmDeletion is true, and it is measured rather than assumed: in
+// corpus/outscale/oapi-cli-lifecycle.jsonl the account's own machine answers
+// Bsu.DeleteOnVmDeletion true on its root device in every one of the seven
+// ReadVms of its life, and 364 of the 399 image mappings the same recording
+// carries say true as well. releaseVolumesOf is the half that honours it.
+//
+// TestAMachineIsBornWithARootVolumeItsImageNames fails without this.
+func (p *Pack) rootVolumeFor(vm *resource.Resource, now time.Time) *resource.Resource {
+	device := p.rootDeviceOf(stringOf(vm.Attrs["ImageId"]))
+	res := resource.New(newID("vol", p.env.NewID()), kindVolume, resource.Tenant{Provider: Name}, volumeStateInUse, now)
+	res.Attrs = map[string]any{
+		"SubregionName":        p.vmSubregion(vm),
+		"Size":                 device.size,
+		"VolumeType":           device.volumeType,
+		"Iops":                 0,
+		"ClientToken":          "",
+		"LinkedVmId":           vm.ID,
+		"DeviceName":           device.name,
+		attrDeleteOnVmDeletion: true,
+		"Tags":                 []any{},
+	}
+	// Written only when there is one, which is createVolume's own rule and the
+	// same measurement behind it: the real cloud omits the key on a volume with
+	// no provenance, and "" never appears on a real account. Absent and empty
+	// are not the same claim — and here the claim would be false as well as
+	// empty, since an image that names no snapshot was not cut from one.
+	if device.snapshotID != "" {
+		res.Attrs["SnapshotId"] = device.snapshotID
+	}
+	return res
+}
+
+// rootDevice is what an image says its root volume is made of.
+type rootDevice struct {
+	name       string
+	snapshotID string
+	size       int
+	volumeType string
+}
+
+// rootDeviceOf reads an image's own root device mapping, catalogue or client's,
+// and falls back to the catalogue's first entry for an identifier that names
+// nothing.
+//
+// The fallback is not laziness, it is the standing decision of #392 kept
+// intact: CreateVms answers success for an unknown ImageId here — getImage
+// serves the default catalogue entry for an unknown id, docs/limits.md says so,
+// and corpus/accepted.json carries the two exemptions that decision costs. This
+// function must not turn that 200 into a 404, because doing so would change a
+// refusal the corpus is arbitrating in another issue, from inside this one.
+//
+// TestAnUnknownImageStillYieldsARootVolume fails without this.
+func (p *Pack) rootDeviceOf(imageID string) rootDevice {
+	fallback := images[0]
+	view := fallback
+	for _, image := range images {
+		if image["ImageId"] == imageID {
+			view = image
+			break
+		}
+	}
+	if res, found := p.env.Store.Get(Name, kindImage, imageID); found {
+		view = imageView(res)
+	}
+	device := rootDevice{
+		name:       orDefault(stringOf(view["RootDeviceName"]), defaultRootDevice),
+		volumeType: defaultVolumeType,
+	}
+	mappings, _ := view["BlockDeviceMappings"].([]any)
+	for _, raw := range mappings {
+		mapping, _ := raw.(map[string]any)
+		bsu, _ := mapping["Bsu"].(map[string]any)
+		if bsu == nil {
+			continue
+		}
+		// The root device is the one whose name the image itself calls root.
+		// An image with a second data device would otherwise hand the machine
+		// whichever mapping the list happened to start with.
+		if name := stringOf(mapping["DeviceName"]); name != "" && name != device.name {
+			continue
+		}
+		device.snapshotID = stringOf(bsu["SnapshotId"])
+		device.size = int(numOf(bsu["VolumeSize"]))
+		device.volumeType = orDefault(stringOf(bsu["VolumeType"]), defaultVolumeType)
+		return device
+	}
+	// An image a client registered from a VmId carries no mapping. Its machine
+	// still gets a disk, because a Vm answering an empty device list is the
+	// omission #378 measured — but the disk is cut from NOTHING, and says so.
+	//
+	// The size is the catalogue's, because a volume has to have one and this is
+	// the only number available. The provenance is left empty on purpose:
+	// naming the catalogue's snapshot here would say this machine's disk came
+	// from Ubuntu when the image was cut from another machine entirely, which
+	// is a false relation rather than a missing one — and a false relation is
+	// what the whole of #389 was about. rootVolumeFor omits the key when this
+	// is empty, exactly as createVolume omits it.
+	//
+	// TestAMachineFromAnImageWithNoMappingGetsAnUnsourcedRootVolume fails
+	// without this.
+	device.size = p.rootDeviceOfCatalogue(fallback).size
+	return device
+}
+
+// rootDeviceOfCatalogue reads the fixed catalogue's own mapping, which is
+// always there: images[] is built from catalogueSnapshots and panics at init
+// if the two ever stop pairing.
+func (p *Pack) rootDeviceOfCatalogue(image map[string]any) rootDevice {
+	mappings, _ := image["BlockDeviceMappings"].([]any)
+	for _, raw := range mappings {
+		mapping, _ := raw.(map[string]any)
+		if bsu, ok := mapping["Bsu"].(map[string]any); ok {
+			return rootDevice{size: int(numOf(bsu["VolumeSize"]))}
+		}
+	}
+	return rootDevice{}
 }

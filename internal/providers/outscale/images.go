@@ -85,23 +85,46 @@ func (p *Pack) createImage(w http.ResponseWriter, r *http.Request) {
 			p.badRequest(w, "each BlockDeviceMappings entry needs a Bsu.SnapshotId")
 			return
 		}
-		snapshot, found := p.env.Store.Get(Name, kindSnapshot, snapshotID)
+		snapshot, found := p.findSnapshot(snapshotID)
 		if !found {
 			p.notFound(w, "snapshot", snapshotID)
 			return
 		}
-		size, _ := snapshot.Attrs["VolumeSize"].(int)
+		size := snapshotSize(snapshot)
 		if asked := int(numOf(bsu["VolumeSize"])); asked > 0 {
 			size = asked
 		}
-		// Iops mirrors what the client declared, with the platform's floor as
-		// the default: the real cloud writes Iops on every image Bsu it
-		// returns — measured in shapes/outscale.json, and the field gate (#88)
-		// holds ReadImages to it — so omitting it here served a mapping no
-		// real answer has.
-		iops := int(numOf(bsu["Iops"]))
-		if iops == 0 {
-			iops = 100
+		// Iops is refused rather than stored, and the reason is a measurement
+		// that reverses what the line here used to claim.
+		//
+		// It said "the real cloud writes Iops on every image Bsu it returns —
+		// measured in shapes/outscale.json" and defaulted it to 100. That read
+		// the shape catalogue, which is the UNION of every field ever observed,
+		// as if it were a per-element requirement. The recording itself says
+		// otherwise: of the 399 device mappings the account answered in
+		// corpus/outscale/oapi-cli-lifecycle.jsonl, 396 carry no Iops key at
+		// all, and the 3 that do are the 3 whose VolumeType is the
+		// provisioned-IOPS one. Iops is a property of that volume type, and
+		// this emulator's images are standard.
+		//
+		// Refused rather than dropped, because a field accepted and discarded
+		// tells a client its request landed — the defect this pack has paid for
+		// on Placement (#268) and on the Vm scalars (#276). The exact upstream
+		// answer to this combination is unmeasured; the refusal itself is what
+		// must not be traded away.
+		//
+		// It is also what keeps the decline in declined_fields.go true. A
+		// decline is written against an *operation*, and ReadImages answers two
+		// kinds of object: the catalogue and an image a client cut. #389 is the
+		// record of what happens when one kind serves a field the other
+		// declines — score.sh fails four legs at once. No path here fills Iops,
+		// so the decline is true for both kinds and cannot rot into fiction.
+		//
+		// TestCreateImageRefusesAnIopsItCannotHonour fails without this.
+		if numOf(bsu["Iops"]) > 0 {
+			p.badRequest(w, "Iops names a provisioned-IOPS volume, and an image's root device is "+
+				defaultVolumeType+" here: this emulator models no provisioned-IOPS storage")
+			return
 		}
 		mappings = append(mappings, map[string]any{
 			"DeviceName": orDefault(stringOf(raw["DeviceName"]), defaultRootDevice),
@@ -110,14 +133,22 @@ func (p *Pack) createImage(w http.ResponseWriter, r *http.Request) {
 				"VolumeSize":         size,
 				"VolumeType":         orDefault(stringOf(bsu["VolumeType"]), defaultVolumeType),
 				"DeleteOnVmDeletion": true,
-				"Iops":               iops,
 			},
 		})
 	}
 	// From a machine rather than from a snapshot: the real API accepts VmId and
-	// derives the mappings. Refused when the machine is unknown, and the
-	// mapping list stays empty because this emulator models no root volume —
-	// stated in docs/limits.md rather than invented here.
+	// derives the mappings, cutting a fresh snapshot of each device. Refused
+	// when the machine is unknown, and the mapping list stays empty because
+	// this emulator does not cut those snapshots: a machine now owns a root
+	// volume (#378), but an image is a copy of its bytes and this emulator
+	// holds none, so there is nothing to snapshot. What a client gets is an
+	// image with no device mapping, and a machine created from it gets a disk
+	// with a size and NO provenance — rootDeviceOf says why naming one anyway
+	// would be a relation that resolves and is false.
+	//
+	// (The comment this replaces cited docs/limits.md for a limit that page
+	// never carried. Measured: "root volume" appears there only under a
+	// Scaleway heading.)
 	if req.VMID != "" {
 		if _, found := p.env.Store.Get(Name, kindVM, req.VMID); !found {
 			p.notFound(w, "Vm", req.VMID)

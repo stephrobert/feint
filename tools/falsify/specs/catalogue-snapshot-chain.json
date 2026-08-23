@@ -1,0 +1,103 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "the catalogue names a snapshot no read answers for, which is the invented identifier #389 exists to remove",
+      "file": "internal/providers/outscale/snapshots.go",
+      "find": "\tfor _, view := range catalogueSnapshotViews {\n\t\tif snapshotMatches(view, req.Filters) {\n\t\t\tout = append(out, view)\n\t\t}\n\t}",
+      "replace": "\tfor _, view := range catalogueSnapshotViews {\n\t\tif snapshotMatches(view, req.Filters) && false {\n\t\t\tout = append(out, view)\n\t\t}\n\t}",
+      "test": "TestACatalogueImageNamesASnapshotReadSnapshotsAnswersFor"
+    },
+    {
+      "label": "a machine is born with no root volume, so a client cannot find the disk it must not delete",
+      "file": "internal/providers/outscale/vms.go",
+      "find": "\t\tp.env.Store.Put(p.rootVolumeFor(res, now))",
+      "replace": "\t\tif false {\n\t\t\tp.env.Store.Put(p.rootVolumeFor(res, now))\n\t\t}",
+      "test": "TestAMachineIsBornWithARootVolumeItsImageNames"
+    },
+    {
+      "label": "the root volume is cut from no snapshot, so the mapping's provenance names nothing",
+      "file": "internal/providers/outscale/vms.go",
+      "find": "\t\tdevice.snapshotID = stringOf(bsu[\"SnapshotId\"])",
+      "replace": "\t\tdevice.snapshotID = stringOf(bsu[\"SnapshotId\"]) + \"\\x00never\"",
+      "test": "TestAMachineIsBornWithARootVolumeItsImageNames"
+    },
+    {
+      "label": "the root device answers DeleteOnVmDeletion false, where the recorded account answers true on every read of its machine's life",
+      "file": "internal/providers/outscale/vms.go",
+      "find": "\t\t\t\t\"DeleteOnVmDeletion\": deleteOnVmDeletion(vol),",
+      "replace": "\t\t\t\t\"DeleteOnVmDeletion\": deleteOnVmDeletion(vol) && false,",
+      "test": "TestAMachineIsBornWithARootVolumeItsImageNames"
+    },
+    {
+      "label": "terminating a machine leaves its root volume behind, although the API published DeleteOnVmDeletion true on it",
+      "file": "internal/providers/outscale/volumes.go",
+      "find": "\t\t\tif deleteOnVmDeletion(stored) {\n\t\t\t\tdoomed = true\n\t\t\t\treturn nil\n\t\t\t}",
+      "replace": "\t\t\tif deleteOnVmDeletion(stored) && false {\n\t\t\t\tdoomed = true\n\t\t\t\treturn nil\n\t\t\t}",
+      "test": "TestTerminatingAVmDeletesItsRootVolumeAndFreesTheRest"
+    },
+    {
+      "label": "terminating a machine destroys the volume the client linked, although its link published DeleteOnVmDeletion false",
+      "file": "internal/providers/outscale/volumes.go",
+      "find": "\t\t\tif deleteOnVmDeletion(stored) {\n\t\t\t\tdoomed = true\n\t\t\t\treturn nil\n\t\t\t}",
+      "replace": "\t\t\tif deleteOnVmDeletion(stored) || true {\n\t\t\t\tdoomed = true\n\t\t\t\treturn nil\n\t\t\t}",
+      "test": "TestTerminatingAVmDeletesItsRootVolumeAndFreesTheRest"
+    },
+    {
+      "label": "a refused batch leaves the root volume of the machine it undid, linked to a machine the client was told it never got",
+      "file": "internal/providers/outscale/vms.go",
+      "find": "\t\t\tp.releaseVolumesOf(res.ID)\n\t\t}\n\t\tif errors.Is(err, errUnknownSubnet) {",
+      "replace": "\t\t\tif false {\n\t\t\t\tp.releaseVolumesOf(res.ID)\n\t\t\t}\n\t\t}\n\t\tif errors.Is(err, errUnknownSubnet) {",
+      "test": "TestAFailedBatchLeavesNoRootVolume"
+    },
+    {
+      "label": "the link filter answers a constant, so a client filtering on DeleteOnVmDeletion selects nothing",
+      "file": "internal/providers/outscale/volumes.go",
+      "find": "\t\tmatchesBool(f, \"LinkVolumeDeleteOnVmDeletion\", deleteOnVmDeletion(res))",
+      "replace": "\t\tmatchesBool(f, \"LinkVolumeDeleteOnVmDeletion\", deleteOnVmDeletion(res) && false)",
+      "test": "TestARootVolumeAnswersItsDeleteOnVmDeletionFilter"
+    },
+    {
+      "label": "a catalogue snapshot can be deleted, stranding every image that names it",
+      "file": "internal/providers/outscale/snapshots.go",
+      "find": "\t\tif isCatalogueSnapshot(req.SnapshotID) {",
+      "replace": "\t\tif isCatalogueSnapshot(req.SnapshotID) && false {",
+      "test": "TestACatalogueSnapshotRefusesItsDelete"
+    },
+    {
+      "label": "a volume cannot be cut from a catalogue snapshot, so the snapshot a client can read is one it cannot use",
+      "file": "internal/providers/outscale/snapshots.go",
+      "find": "\tfor _, view := range catalogueSnapshotViews {\n\t\tif view[\"SnapshotId\"] == id {\n\t\t\treturn view, true\n\t\t}\n\t}",
+      "replace": "\tfor _, view := range catalogueSnapshotViews {\n\t\tif view[\"SnapshotId\"] == id && false {\n\t\t\treturn view, true\n\t\t}\n\t}",
+      "test": "TestAVolumeIsCutFromACatalogueSnapshot"
+    },
+    {
+      "label": "createImage stores an Iops it cannot honour, which makes the ReadImages decline fiction for one of the two kinds of object it answers",
+      "file": "internal/providers/outscale/images.go",
+      "find": "\t\tif numOf(bsu[\"Iops\"]) > 0 {",
+      "replace": "\t\tif numOf(bsu[\"Iops\"]) > 0 && false {",
+      "test": "TestCreateImageRefusesAnIopsItCannotHonour"
+    },
+    {
+      "label": "a machine from an image that names no snapshot borrows the catalogue's, which is a relation that resolves and is false",
+      "file": "internal/providers/outscale/vms.go",
+      "find": "\tif device.snapshotID != \"\" {\n\t\tres.Attrs[\"SnapshotId\"] = device.snapshotID\n\t}",
+      "replace": "\tif device.snapshotID != \"\" || true {\n\t\tres.Attrs[\"SnapshotId\"] = p.rootDeviceOfCatalogue(images[0]).name + device.snapshotID + \"snap-fe1a7001\"\n\t}",
+      "test": "TestAMachineFromAnImageWithNoMappingGetsAnUnsourcedRootVolume"
+    },
+    {
+      "label": "a machine from an image with no mapping gets a zero-sized disk, so a client sizing a root device reads nothing",
+      "file": "internal/providers/outscale/vms.go",
+      "find": "\tdevice.size = p.rootDeviceOfCatalogue(fallback).size",
+      "replace": "\tdevice.size = p.rootDeviceOfCatalogue(fallback).size * 0",
+      "test": "TestAMachineFromAnImageWithNoMappingGetsAnUnsourcedRootVolume"
+    },
+    {
+      "label": "an unknown image resolves to no catalogue entry, so #392's machine gets a disk with no provenance instead of the default image's",
+      "file": "internal/providers/outscale/vms.go",
+      "find": "\tfallback := images[0]\n\tview := fallback",
+      "replace": "\tfallback := images[0]\n\tview := map[string]any{\"RootDeviceName\": fallback[\"RootDeviceName\"]}",
+      "test": "TestAnUnknownImageStillYieldsARootVolume"
+    }
+  ]
+}

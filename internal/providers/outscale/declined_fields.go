@@ -20,30 +20,36 @@ func (p *Pack) DeclinedFields() []emulator.FieldDecline {
 			Path:      "Nics[].PrivateIps[].LinkPublicIp",
 			Reason:    "an address links to a machine here, never to a bare interface, so a standalone Nic has no link to publish",
 		},
-		// Two entries lived here until 2026-08-21, declining
-		// Images[].BlockDeviceMappings[].Bsu.SnapshotId and .Iops. They are gone
-		// because they stopped being true, and the way they stopped is worth
-		// keeping.
+		// Iops on an image's root device, and this is the one decline of the
+		// pair that #389 did not dissolve. SnapshotId went the moment the
+		// catalogue named a snapshot the pack really holds; Iops stayed,
+		// because the premise under it was wrong in the other direction.
 		//
-		// A field decline says *this pack never serves this field*. That held
-		// while ReadImages answered the catalogue alone. It stopped holding when
-		// CreateImage began answering an image cut from a real snapshot: there
-		// the SnapshotId names a snapshot ReadSnapshots can answer for, and the
-		// Iops is the one the client itself declared. Both are served, so both
-		// declines were fiction — and tools/conformance/score.sh said so, on the
-		// terraform, opentofu, oapi-cli and fields legs at once, with "field
+		// The measurement, and it reverses what this file used to assume. Of
+		// the 399 image device mappings the real account answered in
+		// corpus/outscale/oapi-cli-lifecycle.jsonl, 396 carry NO Iops key at
+		// all. The 3 that do are exactly the 3 whose VolumeType is the
+		// provisioned-IOPS one. Iops is a property of that volume type, not of
+		// every image — and shapes/outscale.json carries it only because that
+		// catalogue is the UNION of every field ever observed, which is what
+		// an earlier reading took for a per-element requirement and defaulted
+		// to 100.
+		//
+		// What makes this decline honest where the 2026-08-21 pair was not: a
+		// decline is written against an *operation*, and ReadImages answers two
+		// kinds of object. It is true here for BOTH — the catalogue's images
+		// are standard volumes, and createImage refuses an Iops rather than
+		// storing one, so no image this operation can answer carries the field.
+		// #389 is the record of what happens otherwise: score.sh fails the
+		// terraform, opentofu, oapi-cli and fields legs at once with "field
 		// declines whose field the emulator now serves".
 		//
-		// The argument they carried was not wrong, only misplaced: it is about
-		// the *catalogue*, not about the operation. It lives in catalog.go beside
-		// the mapping that omits both keys, where an absent SnapshotId says this
-		// emulator models no snapshot rather than naming a fictional one (rule
-		// 4), and an absent Iops keeps a performance figure out of a client's
-		// plan for a `standard` volume that has none.
-		//
-		// The general shape, and it is the same one corpus/accepted.json is
-		// built on: an exemption whose subject is one *object* cannot be written
-		// against an *operation* that answers more than one kind of object. It
-		// reads as true for as long as only one kind exists.
+		// TestNoImageThisPackServesCarriesADeclinedField fails without the
+		// property this decline depends on.
+		{
+			Operation: "osc/Client.ReadImages",
+			Path:      "Images[].BlockDeviceMappings[].Bsu.Iops",
+			Reason:    "Iops is a property of a provisioned-IOPS volume type, which this emulator does not model: 396 of the 399 device mappings the recorded account answered carry no Iops key, and the 3 that do are the 3 on that volume type",
+		},
 	}
 }
