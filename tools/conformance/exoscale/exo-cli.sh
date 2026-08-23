@@ -199,9 +199,37 @@ rules="$(exoc -O json compute security-group show conformance-sg | jq '.ingress_
   || fail "security-group show rejected"
 printf '%s' "$rules" | jq -e 'length == 1 and .[0].network == "203.0.113.0/24"' >/dev/null \
   || fail "the delete did not take exactly the rule it was given: $rules"
+# A rule that names another group as its source, and carries a description.
+# Both are fields the real cloud returns on every such rule and this suite had
+# no answer carrying either, so the field gate (#88) had nothing to hold
+# `security-groups[].rules[].description` and `.security-group` to and deleting
+# them from the view would have stayed green. Found the day the committed
+# corpora started feeding shapes/ (#407): the recording had them, the run did
+# not, and the gate said so.
+exoc compute security-group create conformance-src --description 'the source group' >/dev/null \
+  || fail "the source security group was rejected"
+# The source group gets a rule of its own before anything reads it. `rule add`
+# resolves the group it points at by reading that group, so a source with no
+# rule is the one read the run makes of get-security-group — and `rules` is a
+# key the real cloud omits on an empty group and sends on a populated one
+# (measured in corpus/exoscale/exo-cli.jsonl), so the run would compare the
+# operation against an answer that legitimately carries nothing.
+exoc compute security-group rule add conformance-src --flow ingress --protocol tcp --port 443 \
+  --description 'https from a range' --network 192.0.2.0/24 >/dev/null \
+  || fail "the source group's own rule was rejected"
+exoc compute security-group rule add conformance-sg --flow ingress --protocol tcp --port 2222 \
+  --description 'ssh from the source group' --security-group conformance-src >/dev/null \
+  || fail "a rule sourced from another group was rejected"
+sourced="$(exoc -O json compute security-group show conformance-sg | jq '.ingress_rules')" \
+  || fail "security-group show rejected"
+# The CLI renders a group reference as "SG:<name>"; the API answers the object
+# under `security-group`, which is the field the gate holds.
+printf '%s' "$sourced" | jq -e \
+  'any(.[]; .description == "ssh from the source group" and .security_group == "SG:conformance-src")' \
+  >/dev/null || fail "the rule came back without its description or its source group: $sourced"
 exoc compute instance security-group add "$id" conformance-sg >/dev/null || fail "sg attach rejected"
 exoc compute instance security-group remove "$id" conformance-sg >/dev/null || fail "sg detach rejected"
-ok "default present, rule round-trips, attach and detach pass"
+ok "default present, rule round-trips, a group-sourced rule keeps its description, attach and detach pass"
 
 echo "- anti-affinity groups: membership is computed"
 exoc compute anti-affinity-group create conformance-aag --description 'conformance' >/dev/null \

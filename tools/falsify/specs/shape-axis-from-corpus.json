@@ -1,0 +1,78 @@
+{
+  "subject": "the shape axis reading the whole catalogue, and the fold that refuses a redaction (#407)",
+  "why": "This axis published 52 of 370 while its ceiling was also 52: it walked a hand-written read list, so no amount of recording could move it, and it still named 292 operations 'no answer of the real cloud has been kept' — including the 619 exchanges already committed under corpus/. Two families of guard now hold it up: one that makes the axis ask the catalogue rather than the list, and one that keeps a sanitised recording from teaching a type it does not carry. A mutation of either reads exactly like the working code, because the first is invisible in a total and the second writes a plausible type.",
+  "mutations": [
+    {
+      "file": "internal/cli/evidence.go",
+      "find": "\tobserved, err := observedFieldsByOperation(dir, srv)\n\tif err != nil || observed == nil {\n\t\treturn nil, err\n\t}\n\tcovered := make(map[string]bool, len(observed))\n\tfor op := range observed {\n\t\tcovered[op] = true\n\t}\n\treturn covered, nil",
+      "replace": "\tobserved, err := observedFieldsByOperation(dir, srv)\n\tif err != nil || observed == nil {\n\t\treturn nil, err\n\t}\n\tcovered := make(map[string]bool, len(observed))\n\tfor op := range observed {\n\t\tif !strings.Contains(op, \"List\") {\n\t\t\tcontinue\n\t\t}\n\t\tcovered[op] = true\n\t}\n\treturn covered, nil",
+      "expect": "the axis counts only the operations a curated read list could ever name, which is the cap #407 measured: recorded creates stop counting however many are recorded",
+      "test": "TestAShapeRecordedOutsideTheReadListStillCounts",
+      "label": "the axis goes back to counting reads only"
+    },
+    {
+      "file": "internal/cli/evidence.go",
+      "find": "\t\tfor key, rec := range cat.Operations {\n\t\t\tif len(rec.Fields) == 0 {\n\t\t\t\tcontinue\n\t\t\t}",
+      "replace": "\t\tfor key, rec := range cat.Operations {\n\t\t\tif len(rec.Fields) == 0 && false {\n\t\t\t\tcontinue\n\t\t\t}",
+      "expect": "an operation recorded only refusing counts as a recorded shape, so a corpus of 4xx raises the axis that says a response was held against a real one",
+      "test": "TestAnOperationRecordedWithoutFieldsEarnsNoShape",
+      "label": "a recorded refusal counts as a recorded shape"
+    },
+    {
+      "file": "internal/shape/shape.go",
+      "find": "\tfor _, f := range transcript.FieldsOfObserved(x.Res.Body, IsRedacted) {",
+      "replace": "\tfor _, f := range transcript.FieldsOfObserved(x.Res.Body, func(any) bool { _ = IsRedacted; return false }) {",
+      "expect": "a value the recorder replaced teaches its replacement's type, so folding a sanitised corpus turns an array into array|string and a bool into bool|string, over types a direct --record read had right",
+      "test": "TestARedactedValueTeachesNoType",
+      "label": "a redaction teaches the type of its replacement"
+    },
+    {
+      "file": "internal/shape/shape.go",
+      "find": "\t\tif PathIsRedacted(path) {\n\t\t\tif x.Operation == \"\" {\n\t\t\t\tch.Unkeyable++\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tpath = \"\"\n\t\t}",
+      "replace": "\t\tif PathIsRedacted(path) && false {\n\t\t\tif x.Operation == \"\" {\n\t\t\t\tch.Unkeyable++\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tpath = \"\"\n\t\t}",
+      "expect": "a path the sanitiser rewrote becomes a catalogue key, so the committed file carries a name that names no API and whose number moves every time the corpus is re-sanitised",
+      "test": "TestARedactedPathIsNeverAKey",
+      "label": "a sanitised path becomes a catalogue key"
+    },
+    {
+      "file": "internal/transcript/transcript.go",
+      "find": "\t\tif redacted != nil && redacted(v) {\n\t\t\treturn\n\t\t}\n\t\tinto[path] = jsonType(v)",
+      "replace": "\t\tif redacted != nil && redacted(v) && false {\n\t\t\treturn\n\t\t}\n\t\tinto[path] = jsonType(v)",
+      "expect": "the predicate is accepted and ignored, so every caller believes it is filtering replaced values and none is",
+      "test": "TestAReplacedValueContributesNoPath",
+      "label": "the walk accepts the predicate and ignores it"
+    },
+    {
+      "file": "internal/cli/evidence.go",
+      "find": "\tif len(moved) > 0 {\n\t\tfmt.Fprintf(stderr,\n\t\t\t\"feint: %s was produced from other %s, so its other axes are stale and a fresh shape \"+",
+      "replace": "\tif len(moved) > 0 && false {\n\t\tfmt.Fprintf(stderr,\n\t\t\t\"feint: %s was produced from other %s, so its other axes are stale and a fresh shape \"+",
+      "expect": "a reshape writes a fresh shape column onto a record whose suites moved, so the six axes beside it are stale and nothing says so",
+      "test": "TestAReshapeRefusesARecordWhoseOtherInputsMoved",
+      "label": "a reshape refreshes one axis of a stale record"
+    },
+    {
+      "file": "internal/cli/evidence.go",
+      "find": "\t\tev.Shape = emulator.ShapeUnobserved\n\t\tif covered[op] {\n\t\t\tev.Shape = emulator.ShapeObserved\n\t\t\tnow++\n\t\t}",
+      "replace": "\t\tif covered[op] {\n\t\t\tev.Shape = emulator.ShapeObserved\n\t\t\tnow++\n\t\t} else if ev.Shape != emulator.ShapeObserved {\n\t\t\tev.Shape = emulator.ShapeUnobserved\n\t\t}",
+      "expect": "the shape column becomes a high-water mark: an operation the catalogue no longer covers keeps the level a deleted recording once earned it",
+      "test": "TestAReshapeDemotesAnOperationTheCatalogueNoLongerCovers",
+      "label": "the reshape only ever raises"
+    },
+    {
+      "file": "internal/shape/redaction.go",
+      "find": "const recorderToken = \"REDACTED\"",
+      "replace": "const recorderToken = \"REDACTED_RENAMED_BY_THE_RECORDER\"",
+      "expect": "the restated prefix drifts from the one the recorder actually writes, which is the whole risk of restating it instead of importing it: every replaced value reads as an observation again",
+      "test": "TestEveryValueTheRecorderWritesIsOneShapeRefuses",
+      "label": "the restated recorder prefix drifts from the recorder"
+    },
+    {
+      "file": "internal/corpus/corpus.go",
+      "find": "const Token = shape.RedactionToken",
+      "replace": "const Token = \"redacted_\" // was shape.RedactionToken, restated as a literal",
+      "expect": "internal/corpus stops aliasing the constant internal/shape refuses and restates it, which is the only way the two can drift: the sanitiser then mints a spelling the fold reads as an observation of the API",
+      "test": "TestTheSanitisersTokenIsTheOneShapeRefuses",
+      "label": "the sanitiser restates the token instead of aliasing it"
+    }
+  ]
+}

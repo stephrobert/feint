@@ -139,6 +139,54 @@ seven-axis evidence record, and the versioned surface a pipeline reads.
 [The conformance system](conformance.md) describes the whole of it, what each
 link proves, and which links are stated but not yet enforced.
 
+## `shapes/` and `corpus/`: one derives nothing from the other
+
+Two committed artefacts hold what a real cloud answered, and the difference
+between them is a decision rather than an accident.
+
+`shapes/*.json` holds **field paths and JSON types, no values**. That is what
+makes it committable: a shape describes an API, not an account. `corpus/*.jsonl`
+holds **whole exchanges, sanitised**: request, response body, status, so a
+replay can reissue the call and compare the answer.
+
+The second is strictly richer, which invites the obvious question: should
+`shapes/` simply be generated from `corpus/`? **No, and the measurement is why.**
+
+- **13 operations are recorded in `shapes/` and in no corpus.** Six of them are
+  served by no pack at all: `osc/Client.ReadQuotas`, `ReadAccounts`,
+  `ReadListenerRules`, `ReadNetAccessPoints`, `ReadServerCertificates`,
+  `ReadVolumeUpdateTasks`. That is the "learning side" of `upstream.Reads` doing
+  its job, a shape known before the handler is written. A corpus cannot hold
+  them, because a corpus is a recording of a client that had a reason to call.
+  Deriving would delete them.
+- **The two artefacts pass different admissibility bars.** A shape is
+  committable because it carries no value; a corpus is committable only after a
+  sanitiser rewrites every value, and that sanitiser has had defects of its own
+  (#390, #395). Deriving would put the shape axis behind the sanitiser's
+  correctness, for no gain.
+- **A sanitised value has lost its type.** The recorder writes a string over
+  whatever it replaced, so `osc/Client.ReadKeypairs.Keypairs` reaches the corpus
+  as `"REDACTED-20"` where the API answers an array, and
+  `instance-types[].authorized` as a string where it is a bool. A shape is
+  nothing but types, so folding those in would publish a polymorphism no
+  provider has. `shape.IsRedacted` refuses them at the boundary.
+
+So the relationship is a **one-way fold**, not a derivation:
+`mise run shapes:fold` folds every committed corpus into `shapes/`, offline and
+without an account, and `shapes/` remains the artefact the shape axis and the
+field gate read. It closed 80 of the 292 recordings the axis was asking for.
+
+One consequence worth knowing before reading a catalogue: an operation can
+appear under two keys, `"GET /instance/v1/zones/fr-par-1/servers"` from a direct
+`feint shapes --record` read and `"instance/v1/API.ListServers"` from a corpus
+that could name it — 25 operations are in that state. The readers cope
+(`observedFieldsByOperation` resolves both onto the mounted operation and unions
+them), but the offline `feint shapes --check` walks the read list, so it reads
+only the first spelling. That gate compares by *reissuing* the call against an
+empty store, which is why it can only ever walk reads: it is a narrower
+population than the shape axis by construction, and the two must not be read as
+one number.
+
 ## Adding a provider
 
 **Adding a provider requires no behavioural change to `internal/core`; the

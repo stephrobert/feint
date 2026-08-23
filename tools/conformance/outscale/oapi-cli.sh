@@ -709,6 +709,55 @@ osc DeleteNet --NetId "$nic_net_id" >/dev/null || fail "DeleteNet rejected once 
 prove_end "$reads_span"
 ok "ranges, services, admin password, a tag removed, a secondary address linked and unlinked"
 
+# A machine inside a Net, updated there. The machine above is created without a
+# Subnet, so every UpdateVm answer of a run carried none of the five keys a
+# machine in a Net carries — NetId, SubnetId, PrivateIp, Nics, SecurityGroups —
+# and the field gate (#88) had no populated answer to hold them to. Verified
+# before this block was written: the view emits all five when the machine has
+# them, so what was missing was the call and not the view. Found the day the
+# committed corpora started feeding shapes/ (#407).
+echo "- a machine inside a Net, updated there"
+in_net="$(osc CreateNet --IpRange 10.194.0.0/16)" || fail "CreateNet rejected: $in_net"
+in_net_id="$(printf '%s' "$in_net" | jq -r '.Net.NetId // empty')"
+[ -n "$in_net_id" ] || fail "no NetId for the in-Net machine: $in_net"
+in_sub="$(osc CreateSubnet --NetId "$in_net_id" --IpRange 10.194.1.0/24)" \
+  || fail "CreateSubnet rejected: $in_sub"
+in_sub_id="$(printf '%s' "$in_sub" | jq -r '.Subnet.SubnetId // empty')"
+[ -n "$in_sub_id" ] || fail "no SubnetId for the in-Net machine: $in_sub"
+in_sg="$(osc CreateSecurityGroup --NetId "$in_net_id" --SecurityGroupName conformance-in-net \
+  --Description 'the group the in-Net machine wears')" || fail "CreateSecurityGroup rejected: $in_sg"
+in_sg_id="$(printf '%s' "$in_sg" | jq -r '.SecurityGroup.SecurityGroupId // empty')"
+[ -n "$in_sg_id" ] || fail "no SecurityGroupId: $in_sg"
+# A rule whose source is another group rather than a range. SecurityGroupsMembers
+# is what the real cloud answers there and no rule of this run named a group, so
+# the key had never been held to anything.
+peer_sg="$(osc CreateSecurityGroup --NetId "$in_net_id" --SecurityGroupName conformance-peer \
+  --Description 'the group a rule points at')" || fail "CreateSecurityGroup rejected: $peer_sg"
+peer_sg_id="$(printf '%s' "$peer_sg" | jq -r '.SecurityGroup.SecurityGroupId // empty')"
+ruled="$(osc CreateSecurityGroupRule --SecurityGroupId "$in_sg_id" --Flow Inbound \
+  --Rules "[{\"FromPortRange\":22,\"ToPortRange\":22,\"IpProtocol\":\"tcp\",\"SecurityGroupsMembers\":[{\"SecurityGroupId\":\"$peer_sg_id\"}]}]")" \
+  || fail "a rule sourced from another group was rejected: $ruled"
+printf '%s' "$ruled" | jq -e --arg id "$peer_sg_id" \
+  'any(.SecurityGroup.InboundRules[]; any(.SecurityGroupsMembers[]?; .SecurityGroupId == $id))' \
+  >/dev/null || fail "the rule came back without the group it points at: $ruled"
+in_vm="$(osc CreateVms --ImageId "$image_id" --VmType "$default_type" --SubnetId "$in_sub_id" \
+  '--SecurityGroupIds[]' "$in_sg_id")" || fail "CreateVms in a Subnet rejected: $in_vm"
+in_vm_id="$(printf '%s' "$in_vm" | jq -r '.Vms[0].VmId // empty')"
+[ -n "$in_vm_id" ] || fail "no VmId for the in-Net machine: $in_vm"
+osc StopVms '--VmIds[]' "$in_vm_id" >/dev/null || fail "StopVms rejected for the in-Net machine"
+in_updated="$(osc UpdateVm --VmId "$in_vm_id" --VmType tinav6.c2r2p2)" \
+  || fail "UpdateVm rejected for the in-Net machine: $in_updated"
+printf '%s' "$in_updated" | jq -e --arg n "$in_net_id" --arg s "$in_sub_id" \
+  '.Vm | .NetId == $n and .SubnetId == $s and (.PrivateIp | length > 0)
+        and (.Nics | length >= 1) and (.SecurityGroups | length >= 1)' >/dev/null \
+  || fail "an updated machine in a Net answers without its network keys: $in_updated"
+osc DeleteVms '--VmIds[]' "$in_vm_id" >/dev/null || fail "DeleteVms rejected for the in-Net machine"
+osc DeleteSecurityGroup --SecurityGroupId "$in_sg_id" >/dev/null || fail "DeleteSecurityGroup rejected"
+osc DeleteSecurityGroup --SecurityGroupId "$peer_sg_id" >/dev/null || fail "DeleteSecurityGroup rejected"
+osc DeleteSubnet --SubnetId "$in_sub_id" >/dev/null || fail "DeleteSubnet rejected"
+osc DeleteNet --NetId "$in_net_id" >/dev/null || fail "DeleteNet rejected once empty"
+ok "a machine in a Net keeps its network keys through an update, and a rule names a group"
+
 echo "- delete"
 deleted="$(osc DeleteVms '--VmIds[]' "$vm_id")" || fail "DeleteVms rejected: $deleted"
 printf '%s' "$deleted" | jq -e --arg id "$vm_id" \
