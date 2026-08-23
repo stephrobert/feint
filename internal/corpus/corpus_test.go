@@ -12,6 +12,7 @@ import (
 
 	"github.com/stephrobert/feint/internal/contract"
 	"github.com/stephrobert/feint/internal/core/sshkey"
+	"github.com/stephrobert/feint/internal/shape"
 	"github.com/stephrobert/feint/internal/trace"
 	"github.com/stephrobert/feint/internal/transcript"
 )
@@ -819,5 +820,31 @@ func TestABlockShorterThanTheSyntheticSpaceStaysInsideIt(t *testing.T) {
 	}
 	if leaks := Scan(out, options(t)); len(leaks) != 0 {
 		t.Fatalf("the alphabet refused a block it minted itself: %v", leaks)
+	}
+}
+
+// The token this package hands out is the one internal/shape refuses.
+//
+// Token is an alias rather than a second literal, which makes them equal by
+// construction — but the property that matters is not that two constants match,
+// it is that a value this package actually mints is one a fold will not learn a
+// type from. So this mints values and asks internal/shape about them, and it is
+// what goes red the day the sanitiser writes a spelling shape does not know.
+//
+// Without it, `mise run shapes:fold` would record every sanitised string as an
+// observation of the API, when it is an observation of this package.
+func TestTheSanitisersTokenIsTheOneShapeRefuses(t *testing.T) {
+	m := newMint(Options{})
+	for _, original := range []string{"my-vm", "some description", "eu-west-2"} {
+		minted := m.synthesise(original)
+		if !shape.IsRedacted(minted) {
+			t.Errorf("this package mints %q for %q, and shape.IsRedacted says it is an observation",
+				minted, original)
+		}
+	}
+	// The witness: a value this package leaves alone must stay learnable, or a
+	// predicate refusing everything would pass and empty every catalogue.
+	if shape.IsRedacted("running") {
+		t.Errorf("shape.IsRedacted(%q) = true, and nothing mints it", "running")
 	}
 }

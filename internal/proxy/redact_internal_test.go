@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stephrobert/feint/internal/core/sshkey"
+	"github.com/stephrobert/feint/internal/shape"
 	"github.com/stephrobert/feint/internal/trace"
 )
 
@@ -454,4 +455,36 @@ func privateKeyArmour(t *testing.T) string {
 		t.Fatalf("the key reader accepts an armoured private key, which would make the exemption a hole")
 	}
 	return armoured
+}
+
+// Every value this recorder writes is one internal/shape refuses to learn from.
+//
+// internal/shape restates the `REDACTED` prefix rather than importing it: this
+// package mounts an emulator and internal/core/emulator reads internal/shape,
+// so the import can only go one way. A restatement is a second spelling, and
+// this repository has paid twice for two spellings of one fact — so the
+// restatement is not trusted, it is fed this recorder's own output.
+//
+// Without it, a recorder that changed its placeholder would leave the fold
+// learning "string" for every bool and array it replaced, silently, and the
+// catalogue would publish a polymorphism no provider has.
+func TestEveryValueTheRecorderWritesIsOneShapeRefuses(t *testing.T) {
+	for _, value := range []string{
+		Placeholder,
+		placeholderFor(""),
+		placeholderFor("a-secret"),
+		placeholderFor("feint-corpus-key"),
+	} {
+		if !shape.IsRedacted(value) {
+			t.Errorf("shape.IsRedacted(%q) = false: the recorder writes it and the catalogue would learn its type", value)
+		}
+	}
+	// The witness: a value the recorder never writes must not be refused, or a
+	// predicate that answered true to everything would pass this test and erase
+	// the catalogue.
+	for _, value := range []string{"REDACTEDLY", "REDACTED-zz", "running", ""} {
+		if shape.IsRedacted(value) {
+			t.Errorf("shape.IsRedacted(%q) = true, and the recorder never writes it", value)
+		}
+	}
 }

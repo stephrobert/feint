@@ -7,7 +7,7 @@
   ],
   "generated_from": {
     "contracts": "785544edee4f7a99",
-    "shapes": "8e5226e786207180",
+    "shapes": "218e191863d7cf4b",
     "suites": "1403171316f810e7"
   },
   "operations": {
@@ -142,7 +142,7 @@
       "probed": "none",
       "contract": "unchecked",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -160,7 +160,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": false,
       "negative": true
     },
@@ -232,7 +232,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": false
     },
@@ -295,7 +295,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": false
     },
@@ -358,7 +358,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -367,7 +367,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": false
     },
@@ -385,7 +385,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": false
     },
@@ -457,7 +457,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -466,7 +466,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": false
     },
@@ -475,7 +475,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": false
     },
@@ -493,7 +493,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -565,7 +565,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": false
     },
@@ -655,7 +655,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": false,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": false,
       "negative": false
     },
@@ -673,7 +673,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": false
     },
@@ -691,7 +691,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": false,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": false,
       "negative": false
     },
@@ -745,7 +745,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": false
     },
@@ -826,7 +826,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": false,
       "negative": false
     },
@@ -898,7 +898,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -1123,7 +1123,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": false
     },
@@ -1150,7 +1150,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -1159,7 +1159,7 @@
       "probed": "none",
       "contract": "unchecked",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -1168,7 +1168,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -1204,7 +1204,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": false
     },
@@ -1258,7 +1258,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": false
     },
@@ -1285,7 +1285,7 @@
       "probed": "none",
       "contract": "unchecked",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -1339,7 +1339,7 @@
       "probed": "none",
       "contract": "unchecked",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": false
     },
@@ -1393,7 +1393,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": false
     },
@@ -1447,7 +1447,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -1681,7 +1681,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": false
     },
@@ -2095,7 +2095,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": false
     },
@@ -2194,7 +2194,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": false,
       "negative": false
     },
@@ -2230,7 +2230,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": false
     },
@@ -2239,7 +2239,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2248,7 +2248,7 @@
       "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2266,7 +2266,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2275,7 +2275,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2293,7 +2293,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2302,7 +2302,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": false
     },
@@ -2311,7 +2311,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2320,7 +2320,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2329,7 +2329,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2338,7 +2338,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2347,7 +2347,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2356,7 +2356,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2365,7 +2365,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2374,7 +2374,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2383,7 +2383,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2410,7 +2410,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2419,7 +2419,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2428,7 +2428,7 @@
       "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2446,7 +2446,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2455,7 +2455,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2473,7 +2473,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2482,7 +2482,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2491,7 +2491,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2500,7 +2500,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2509,7 +2509,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2527,7 +2527,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2536,7 +2536,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2545,7 +2545,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": false,
       "negative": true
     },
@@ -2554,7 +2554,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2563,7 +2563,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2572,7 +2572,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2590,7 +2590,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2608,7 +2608,7 @@
       "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2617,7 +2617,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2626,7 +2626,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2896,7 +2896,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2914,7 +2914,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2932,7 +2932,7 @@
       "probed": "refusal",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2941,7 +2941,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -2950,7 +2950,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -3013,7 +3013,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -3022,7 +3022,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": false,
       "negative": true
     },
@@ -3040,7 +3040,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -3058,7 +3058,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": false
     },
@@ -3067,7 +3067,7 @@
       "probed": "none",
       "contract": "unchecked",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -3085,7 +3085,7 @@
       "probed": "none",
       "contract": "unchecked",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -3139,7 +3139,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -3184,7 +3184,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -3202,7 +3202,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": true
     },
@@ -3301,7 +3301,7 @@
       "probed": "response",
       "contract": "clean",
       "dataplane": true,
-      "shape": "unobserved",
+      "shape": "observed",
       "behaviour": true,
       "negative": false
     },

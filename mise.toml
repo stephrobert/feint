@@ -84,6 +84,30 @@ depends = ["build"]
 # with the field list and the exit-code contract (0 ok, 1 error, 2 drift).
 run = "./feint shapes --check"
 
+[tasks."shapes:fold"]
+description = "Fold every committed corpus into shapes/, so an answer already recorded from a real cloud feeds the shape axis"
+depends = ["build"]
+# Offline, no credential, no account. The 619 exchanges under corpus/ are real
+# cloud answers this repository already paid for; until #407 they fed the replay
+# and nothing else, because the shape axis reads shapes/ and nobody had ever
+# folded one artefact into the other. This is the fold, and it is one-way on
+# purpose: shapes/ keeps entries no corpus holds — the "learning side" of
+# upstream.Reads, operations recorded before a handler exists and which no
+# client drives — so deriving shapes/ from corpus/ would delete 13 recorded
+# shapes, measured. See docs/architecture.md.
+#
+# Idempotent: a merge that learns nothing prints so. Re-run it after
+# `mise run corpus:cloud`, then commit shapes/ with the corpus that taught it.
+run = """
+set -e
+for provider in scaleway outscale exoscale; do
+  for file in corpus/"$provider"/*.jsonl; do
+    [ -e "$file" ] || continue
+    ./feint shapes "$file" --provider "$provider"
+  done
+done
+"""
+
 [tasks."corpus:check"]
 description = "Replay every committed corpus and fail (exit 2) where this emulator answers differently from the real cloud"
 depends = ["build"]

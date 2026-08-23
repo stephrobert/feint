@@ -639,7 +639,12 @@ func (m *mint) synthesise(s string) string {
 // Exported because [Scan] recognises it and because a reader of a committed
 // corpus should be able to tell an invented value from a surviving one at a
 // glance.
-const Token = "redacted-"
+//
+// Aliased rather than restated: internal/shape refuses to learn a type or a
+// route from a value carrying this prefix, and two spellings of the same token
+// would let a fold read as observed exactly what this package invented.
+// TestTheSanitisersTokenIsTheOneShapeRefuses fails if they drift apart.
+const Token = shape.RedactionToken
 
 // isPrefix recognises Outscale's "i-<hex>" family without recognising a UUID,
 // which shape.IsMintedIdentifier answers for as well.

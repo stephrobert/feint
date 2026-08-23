@@ -19,6 +19,53 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **L'axe `shape` était saturé à son propre plafond, et 619 échanges enregistrés
+  ne nourrissaient rien** (#407). `shape` lisait 52 opérations sur 370, et son
+  plafond valait **52 lui aussi**, à l'unité près par
+  cloud : exoscale 14, outscale 23, scaleway 15 ; les chiffres publiés vivent
+  dans le tableau généré de docs/routes.md. Il résolvait la couverture en
+  parcourant `upstream.Reads`, une liste tenue à la main d'une soixantaine
+  d'appels : aucun enregistrement ne pouvait donc le déplacer. Il nommait
+  pourtant 292 opérations « aucune réponse du vrai cloud n'a été gardée », dont
+  chacun des 619 échanges que ce dépôt détient déjà dans `corpus/`, qu'il n'a
+  jamais consultés. Un contrôle dont le numérateur ne peut pas bouger n'est pas
+  une mesure, et personne n'avait lu celui-ci depuis son écriture.
+
+  Il parcourt désormais tout le catalogue, exactement comme
+  `observedFieldsByOperation` dix lignes plus bas le faisait déjà, et
+  `mise run shapes:fold` verse chaque corpus commité dans `shapes/`, hors ligne,
+  sans compte. **`shape` passe de 52 à 134 sur 370**, et les 52 d'avant y sont
+  toutes : c'est le même ensemble plus 82, pas un nombre neuf. 80 des 292
+  enregistrements réclamés étaient déjà payés ; la file qui reste en compte 212,
+  et `feint coverage --evidence coverage/evidence.json --gaps --axis shape` la
+  nomme.
+
+  **Une rédaction efface un type, elle n'en rapporte pas un**, et verser sans
+  garde l'aurait écrit dans l'artefact dont tout le contenu est fait de types :
+  l'enregistreur remplace une valeur par une chaîne, si bien que
+  `osc/Client.ReadKeypairs.Keypairs` revenait en `array|string` et
+  `LoadBalancers[].SecuredCookies` en `bool|string`, par-dessus des types qu'une
+  lecture directe `--record` avait justes. Vingt-trois couples (opération,
+  champ) des corpus portent un remplaçant, sept d'entre eux sur autre chose
+  qu'une chaîne. `shape.IsRedacted` les refuse, et un chemin réécrit par
+  l'assainisseur ne sert plus de clé du tout.
+
+  `shapes/` n'est **pas** dérivé de `corpus/`, et c'est la mesure qui tranche :
+  13 opérations sont enregistrées dans `shapes/` et dans aucun corpus, dont six
+  qu'aucun pack ne sert, c'est-à-dire le versant « apprentissage » de la liste
+  de lectures, une forme connue avant que le handler existe. Dériver les
+  supprimerait. Le versement va dans un seul sens.
+
+- **`feint evidence --reshape`** (#407) recalcule le seul axe `shape` d'un
+  registre existant, hors ligne, depuis les catalogues sur disque. `shape` est
+  le seul axe qui ne soit pas une propriété d'une exécution : `evidence` jette
+  déjà ce que le serveur a répondu et le redérive. Un catalogue qui a grossi
+  hors ligne ne coûte donc plus deux jambes de conformance, dont une sur un hôte
+  capable de démarrer des machines, pour être publié. La commande refuse un
+  registre dont les contrats ou les suites ont bougé depuis son écriture, et
+  recalcule la colonne en entier : un catalogue qui a perdu une preuve fait
+  baisser le chiffre au lieu de laisser une laisse de haute mer.
+
 - **Un score dit où l'on en est ; une file dit quoi faire ensuite** (#408).
   `feint coverage --evidence <record> --gaps` liste, par cloud et par axe, les
   opérations à zéro **et le travail que chaque zéro nomme**. C'est cette seconde

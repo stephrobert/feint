@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
-	"github.com/stephrobert/feint/internal/upstream"
 )
 
 // The per-operation evidence record (#123): what is proven about an operation
@@ -173,8 +172,13 @@ func evidence(args []string, stdout, stderr io.Writer) int {
 	allowNarrowing := fs.Bool("allow-narrowing", false,
 		"write even when this run reaches fewer runtimes than the record it replaces; "+
 			"for the single-leg caller of evidence:update, never for a committed artefact")
+	reshape := fs.Bool("reshape", false,
+		"recompute only the shape axis of an existing record from --shapes, offline, without a run")
 	if err := fs.Parse(args); err != nil {
 		return exitError
+	}
+	if *reshape {
+		return reshapeEvidence(*out, *shapesDir, *contractsDir, *suitesDir, stdout, stderr)
 	}
 
 	var view emulator.ConformanceView
@@ -287,18 +291,25 @@ func evidence(args []string, stdout, stderr io.Writer) int {
 	// Said before the write, so it is still true of the file being replaced.
 	reportAxesLost(stderr, *out, art)
 
-	blob, err := json.MarshalIndent(art, "", "  ")
-	if err != nil {
-		fmt.Fprintf(stderr, "feint: %v\n", err)
-		return exitError
-	}
-	if err := os.WriteFile(*out, append(blob, '\n'), 0o644); err != nil { //nolint:gosec // a versioned artefact is world-readable by design
+	if err := writeEvidence(*out, art); err != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", err)
 		return exitError
 	}
 	fmt.Fprintf(stdout, "evidence for %d operation(s) written to %s (machines: %s)\n",
 		len(art.Operations), *out, strings.Join(art.Machines, ", "))
 	return exitOK
+}
+
+// writeEvidence renders an artefact where every writer of one puts it: indented,
+// key-sorted by encoding/json, and newline-terminated, because the file is
+// committed and read by `git diff`.
+func writeEvidence(path string, art *evidenceArtefact) error {
+	blob, err := json.MarshalIndent(art, "", "  ")
+	if err != nil {
+		return err
+	}
+	//nolint:gosec // a versioned artefact is world-readable by design
+	return os.WriteFile(path, append(blob, '\n'), 0o644)
 }
 
 // readEvidence loads an artefact, refusing what it cannot account for — the
@@ -429,49 +440,126 @@ func strongerShape(a, b string) string {
 	return a
 }
 
-// shapeCoveredOperations maps the observed catalogues onto mounted
-// operations: for every entry of the curated read list that the catalogue
-// covers with at least one field — the same bar the shapes gate applies — the
-// mounted route answering that call contributes its operation name.
+// reshapeEvidence recomputes the shape axis of a record already on disk, from
+// the catalogues on disk, and writes nothing else.
+//
+// It exists because the shape axis is the one axis that is *not* a property of
+// a run: [evidence] already discards whatever the server answered and re-derives
+// it from --shapes. So a catalogue that grows — `mise run shapes:fold` folding
+// the committed corpora is the case #407 built it for — moves a published figure
+// that no conformance run is needed to establish. Without this, refreshing it
+// would mean two full conformance legs, one of them on a host that can start
+// machines, to publish a number computed offline in milliseconds.
+//
+// Two refusals keep it from becoming a way to write a number by hand, which is
+// the defect #406 closed elsewhere and which a narrow rewrite invites:
+//
+//   - the contracts and the suites must digest to what the record was produced
+//     from. If either moved, the record is stale for a reason a reshape cannot
+//     fix, and refreshing one axis would put a fresh figure on a stale record.
+//   - every other axis is carried over untouched, and the shape column is
+//     recomputed wholesale rather than raised: an operation the catalogue no
+//     longer covers is demoted, so a fold that removed evidence lowers the
+//     figure instead of leaving a high-water mark.
+//
+// TestAReshapeRefusesARecordWhoseOtherInputsMoved and
+// TestAReshapeDemotesAnOperationTheCatalogueNoLongerCovers fail without these.
+func reshapeEvidence(path, shapesDir, contractsDir, suitesDir string, stdout, stderr io.Writer) int {
+	if shapesDir == "" {
+		fmt.Fprintln(stderr, "feint: --reshape reads the catalogues; it cannot run with --shapes empty")
+		return exitError
+	}
+	art, err := readEvidence(path)
+	if err != nil {
+		fmt.Fprintf(stderr, "feint: %v\n", err)
+		return exitError
+	}
+	from, err := provenanceOf(contractsDir, shapesDir, suitesDir)
+	if err != nil {
+		fmt.Fprintf(stderr, "feint: %v\n", err)
+		return exitError
+	}
+	var moved []string
+	if from.Contracts != art.GeneratedFrom.Contracts {
+		moved = append(moved, "contracts")
+	}
+	if from.Suites != art.GeneratedFrom.Suites {
+		moved = append(moved, "suites")
+	}
+	if len(moved) > 0 {
+		fmt.Fprintf(stderr,
+			"feint: %s was produced from other %s, so its other axes are stale and a fresh shape "+
+				"column would sit on them; regenerate it with `mise run evidence:update`\n",
+			path, strings.Join(moved, " and "))
+		return exitError
+	}
+
+	covered, err := shapeCoveredOperations(shapesDir)
+	if err != nil {
+		fmt.Fprintf(stderr, "feint: %v\n", err)
+		return exitError
+	}
+	if covered == nil {
+		fmt.Fprintf(stderr, "feint: no catalogue in %s, so there is nothing to resolve the shape axis from\n", shapesDir)
+		return exitError
+	}
+
+	was, now := 0, 0
+	for op, ev := range art.Operations {
+		if ev.Shape == emulator.ShapeObserved {
+			was++
+		}
+		ev.Shape = emulator.ShapeUnobserved
+		if covered[op] {
+			ev.Shape = emulator.ShapeObserved
+			now++
+		}
+		art.Operations[op] = ev
+	}
+	art.GeneratedFrom.Shapes = from.Shapes
+
+	reportAxesLost(stderr, path, art)
+	if err := writeEvidence(path, art); err != nil {
+		fmt.Fprintf(stderr, "feint: %v\n", err)
+		return exitError
+	}
+	fmt.Fprintf(stdout, "%s: shape %d -> %d of %d operation(s), from %s; no other axis touched\n",
+		path, was, now, len(art.Operations), shapesDir)
+	return exitOK
+}
+
+// shapeCoveredOperations names the mounted operations whose answer has been
+// held against one recorded from the real cloud: every catalogue entry
+// carrying at least one field, resolved onto the operation that serves the
+// same call.
+//
+// It walks the whole catalogue, and that is the correction #407 measured. It
+// used to walk [upstream.Reads] instead — thirty-odd curated calls per
+// provider — which capped the axis at the size of a hand-written list however
+// much had been recorded. The cap was not theoretical: the axis read 52 of 370
+// and its ceiling was **also 52**, per provider to the unit (exoscale 14,
+// outscale 23, scaleway 15). Saturated at its own ceiling, it published 14 %
+// and named 292 operations "no answer of the real cloud has been kept" —
+// including every operation the committed corpora had already recorded, which
+// the axis never asked about. A control whose numerator cannot move is not a
+// measurement.
 //
 // nil with no error means no catalogue exists at all, which callers report as
 // "unknown" rather than demoting every operation to "unobserved".
+//
+// TestAShapeRecordedOutsideTheReadListStillCounts fails without this.
 func shapeCoveredOperations(dir string) (map[string]bool, error) {
 	srv, _, err := newServer(nil)
 	if err != nil {
 		return nil, err
 	}
-	routes := srv.AllRoutes()
-
-	covered := map[string]bool{}
-	found := false
-	for _, p := range srv.Packs() {
-		cat, err := readCatalogue(filepath.Join(dir, p.Name()+".json"), p.Name())
-		if err != nil {
-			return nil, err
-		}
-		if cat == nil {
-			continue
-		}
-		found = true
-		provider := upstream.Provider(p.Name())
-		for _, call := range upstream.Reads[provider] {
-			key, method, path := callIdentity(provider, call)
-			want, known := cat.Operations[key]
-			if !known || len(want.Fields) == 0 {
-				continue
-			}
-			op, err := operationForCall(routes, method, path)
-			if err != nil {
-				return nil, fmt.Errorf("%s: %w", key, err)
-			}
-			if op != "" {
-				covered[op] = true
-			}
-		}
+	observed, err := observedFieldsByOperation(dir, srv)
+	if err != nil || observed == nil {
+		return nil, err
 	}
-	if !found {
-		return nil, nil
+	covered := make(map[string]bool, len(observed))
+	for op := range observed {
+		covered[op] = true
 	}
 	return covered, nil
 }

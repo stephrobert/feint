@@ -1,6 +1,7 @@
 package transcript_test
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -261,5 +262,49 @@ func TestAnEmptyObjectIsNotADictionary(t *testing.T) {
 	}
 	if transcript.DataKeyed([][]string{{}, {}, {}}) {
 		t.Error("three children with no keys of their own were read as a dictionary")
+	}
+}
+
+// A value the caller calls replaced contributes no path at all — not the path
+// with the replacement's type, which is the failure this guards.
+//
+// FieldsOfObserved is the grammar; which values count as replaced belongs to
+// whoever recorded them, so it arrives as a predicate. internal/shape passes
+// shape.IsRedacted; this test passes a predicate of its own, which is what
+// proves the parameter is honoured rather than a rule of this package.
+func TestAReplacedValueContributesNoPath(t *testing.T) {
+	body := map[string]any{
+		"Keypairs":  "GONE",
+		"Nested":    map[string]any{"Flag": "GONE", "Name": "kept"},
+		"Numbers":   []any{json.Number("1")},
+		"Untouched": true,
+	}
+	replaced := func(v any) bool { s, ok := v.(string); return ok && s == "GONE" }
+
+	got := map[string]string{}
+	for _, f := range transcript.FieldsOfObserved(body, replaced) {
+		got[f.Path] = f.Type
+	}
+	for _, path := range []string{"Keypairs", "Nested.Flag"} {
+		if typ, present := got[path]; present {
+			t.Errorf("%s was learned as %q from a replaced value", path, typ)
+		}
+	}
+	// The witness, in both directions: the walk must still reach a sibling of a
+	// replaced field, and a container above one must survive.
+	for path, want := range map[string]string{
+		"Nested": "object", "Nested.Name": "string", "Numbers": "array", "Untouched": "bool",
+	} {
+		if got[path] != want {
+			t.Errorf("%s = %q, want %q: the walk stopped short of what it must still see", path, got[path], want)
+		}
+	}
+	// And FieldsOf, which passes no predicate, learns everything as before.
+	plain := map[string]string{}
+	for _, f := range transcript.FieldsOf(body) {
+		plain[f.Path] = f.Type
+	}
+	if plain["Keypairs"] != "string" {
+		t.Errorf("FieldsOf lost Keypairs: a nil predicate must change nothing")
 	}
 }

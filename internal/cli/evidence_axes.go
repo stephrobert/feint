@@ -110,7 +110,7 @@ func evidenceAxisList() []evidenceAxis {
 		},
 		{
 			Name:    "shape",
-			Meaning: "a recorded real-cloud answer covers it and the shapes gate holds the emulator to that record, field by field",
+			Meaning: "a recorded real-cloud answer covers it, from `shapes/` — which `mise run shapes:fold` also fills from the committed corpora; it says the answer has been held against a real one, not that the offline gate re-issues the call",
 			earned:  func(e emulator.Evidence) bool { return e.Shape == emulator.ShapeObserved },
 			verdict: func(e emulator.Evidence) string { return e.Shape },
 		},

@@ -17,6 +17,49 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **The shape axis was saturated at its own ceiling, and 619 recorded exchanges
+  fed nothing** (#407). `shape` read 52 of 370 operations, and its ceiling
+  was **also 52** — per cloud to the unit: exoscale 14,
+  outscale 23, scaleway 15; the published figures live in the generated
+  table of docs/routes.md. It resolved coverage by walking `upstream.Reads`, a
+  curated list of about sixty calls, so no amount of recording could move it.
+  It nevertheless named 292 operations "no answer of the real cloud has been
+  kept", including every one of the 619 exchanges this repository already holds
+  under `corpus/`, which it never asked about. A control whose numerator cannot
+  move is not a measurement, and this one had never been read since it was
+  written.
+
+  It now walks the whole catalogue — the traversal `observedFieldsByOperation`
+  ten lines below it already used — and `mise run shapes:fold` folds every
+  committed corpus into `shapes/`, offline, without an account. **`shape` goes
+  from 52 to 134 of 370**, and the 52 it already had are all still there: it is
+  the same set plus 82, not a new number. 80 of the 292 recording jobs were
+  already paid for; the queue that remains is 212, and it is named by
+  `feint coverage --evidence coverage/evidence.json --gaps --axis shape`.
+
+  **A redaction erases a type rather than reporting one**, and folding blind
+  would have written that into the artefact whose whole content is types: the
+  recorder replaces a value with a string, so `osc/Client.ReadKeypairs.Keypairs`
+  came back `array|string` and `LoadBalancers[].SecuredCookies` came back
+  `bool|string`, on top of types a direct `--record` read had got right.
+  Twenty-three (operation, field) pairs of the corpora carry a placeholder,
+  seven of them over a non-string. `shape.IsRedacted` refuses them, and a path
+  the sanitiser rewrote keys nothing at all.
+
+  `shapes/` is **not** derived from `corpus/`, and the measurement is why: 13
+  operations are recorded in `shapes/` and in no corpus — six of them served by
+  no pack at all, which is the read list's "learning side", a shape known before
+  a handler exists. Deriving would delete them. The fold is one-way.
+
+- **`feint evidence --reshape`** (#407) recomputes only the shape axis of an
+  existing record, offline, from the catalogues on disk. The shape axis is the
+  one axis that is not a property of a run — `evidence` already discards what
+  the server answered and re-derives it — so a catalogue that grew offline no
+  longer costs two conformance legs, one of them on a host that can start
+  machines, to publish. It refuses a record whose contracts or suites moved
+  since it was written, and recomputes the column wholesale so a catalogue that
+  lost evidence lowers the figure instead of leaving a high-water mark.
+
 - **A score says where we stand; a queue says what to do next** (#408). `feint
   coverage --evidence <record> --gaps` lists, per cloud and per axis, the
   operations at zero **and the work each zero names**. That last half is the

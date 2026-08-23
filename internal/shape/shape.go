@@ -90,6 +90,18 @@ func (c *Catalogue) Merge(exs []trace.Exchange) Changes {
 		// operation key when the recording could not name the operation, and it
 		// is stored on the operation either way.
 		path := AnonymisePath(x.Path)
+		// A path the sanitiser rewrote names no API, so it can key nothing and
+		// describe nothing. An exchange that also carries no operation name is
+		// therefore unkeyable, and is counted rather than dropped in silence:
+		// a fold that quietly ignored part of its input would be a fold whose
+		// total nobody could check.
+		if PathIsRedacted(path) {
+			if x.Operation == "" {
+				ch.Unkeyable++
+				continue
+			}
+			path = ""
+		}
 		key := keyFor(x, path)
 		op, known := c.Operations[key]
 		if !known {
@@ -102,6 +114,14 @@ func (c *Catalogue) Merge(exs []trace.Exchange) Changes {
 			op = &Operation{Method: x.Method, Path: path, Fields: []transcript.Field{}}
 			c.Operations[key] = op
 			ch.Added = append(ch.Added, key)
+		}
+		// A named operation first met through a sanitised path has no route to
+		// show; the first exchange that carries a real one fills it in. Written
+		// as an upgrade rather than an overwrite so the merge stays commutative:
+		// whichever order the recordings arrive in, the route that survives is
+		// the one that was actually recorded.
+		if op.Path == "" && path != "" {
+			op.Method, op.Path = x.Method, path
 		}
 		op.absorb(x, key, &ch)
 	}
@@ -136,7 +156,7 @@ func (o *Operation) absorb(x *trace.Exchange, key string, ch *Changes) {
 		seen[f.Path] = f.Type
 	}
 	fresh := map[string]string{}
-	for _, f := range transcript.FieldsOf(x.Res.Body) {
+	for _, f := range transcript.FieldsOfObserved(x.Res.Body, IsRedacted) {
 		fresh[f.Path] = f.Type
 	}
 
@@ -281,6 +301,11 @@ func IsUUID(seg string) bool {
 type Changes struct {
 	Added  []string      `json:"added_operations,omitempty"`
 	Fields []FieldChange `json:"fields,omitempty"`
+	// Unkeyable counts the exchanges this merge could not name: their path was
+	// rewritten by the sanitiser and they carry no operation, so there is no
+	// honest key for what they answered. Reported so a fold says how much of
+	// its input it left on the floor.
+	Unkeyable int `json:"unkeyable,omitempty"`
 }
 
 // FieldChange is one field that appeared or changed type.

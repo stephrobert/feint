@@ -145,11 +145,20 @@ const (
 // removed, no exit code moved, and a pipeline keyed on version 12 keeps
 // working.
 //
+// Version 15 adds `evidence --reshape` (#407): the shape axis is the one axis
+// that is not a property of a run — `evidence` already discards whatever the
+// server answered and re-derives it from --shapes — so a catalogue that grew
+// offline can be published without two conformance legs, one of them on a host
+// that can start machines. It refuses a record whose contracts or suites moved,
+// and it recomputes the column wholesale so a catalogue that lost evidence
+// lowers the figure. An addition to one existing verb; nothing was removed, no
+// exit code moved, and a pipeline keyed on version 14 keeps working.
+//
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 14
+const cliSurfaceVersion = 15
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -449,7 +458,7 @@ Usage:
   feint evidence   [--endpoint http://127.0.0.1:4599] [--shapes shapes]
                    [--contracts contracts] [--suites tools/conformance]
                    [--out coverage/evidence.json] [--join <other.json>]
-                   [--allow-narrowing]
+                   [--allow-narrowing] [--reshape]
                     Write the per-operation evidence record from a running
                     emulator's /_feint/conformance: which independent proofs
                     each operation has earned, side by side, never summed.
@@ -458,6 +467,10 @@ Usage:
                     regeneration, and --allow-narrowing is what a run reaching
                     fewer runtimes than the record it replaces has to say out
                     loud before it may overwrite it.
+                    --reshape needs no run at all: it recomputes only the shape
+                    axis of the record at --out from the catalogues in --shapes,
+                    offline, and refuses a record whose contracts or suites have
+                    moved since it was written.
 
   feint docs       [--file README.md] [--coverage <dir>] [--contracts <dir>] [--check]
                     [--limits <file>] [--routes <file>] [--confidence <file>]

@@ -664,9 +664,22 @@ type Evidence struct {
 	// the behaviour axis, which does not exist yet.
 	Dataplane bool `json:"dataplane"`
 	// Shape: "observed" when a real cloud's recorded answer covers this
-	// operation and the shapes gate holds the emulator to it, "unobserved"
-	// when the catalogue does not cover it, "unknown" when this server was
-	// given no catalogue to look in.
+	// operation with at least one field, "unobserved" when the catalogue does
+	// not cover it, "unknown" when this server was given no catalogue to look
+	// in.
+	//
+	// It says the answer has been held against a real one; it does not say the
+	// offline shapes gate re-issues the call. That gate can only compare what
+	// it can safely reissue against an empty store, so it drives a curated list
+	// of reads (upstream.Reads) and no create — which is why this axis and
+	// `feint shapes --check` count different populations, and why the sentence
+	// used to conflate them: until #407 the axis walked that same read list, so
+	// the two happened to coincide at 52 operations, which was also the axis's
+	// ceiling.
+	//
+	// What does hold the emulator to the whole catalogue is the live field gate
+	// (SetObservedFields below), which corroborates a declared-but-absent field
+	// against every recorded answer, not against a read list.
 	Shape string `json:"shape"`
 	// Behaviour: this operation touched a resource whose full lifecycle —
 	// created, then destroyed — the store itself observed inside an assertion

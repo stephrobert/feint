@@ -204,7 +204,7 @@ func Shape(exs []trace.Exchange, selector string) ([]Field, bool) {
 			continue
 		}
 		found = true
-		walk("", x.Res.Body, fields)
+		walk("", x.Res.Body, fields, nil)
 	}
 	if !found {
 		return nil, false
@@ -300,12 +300,37 @@ func lastSegment(s string) string {
 // merged, an empty list not a type change) have to hold identically for the
 // reader and for the store, which is only true when there is one of them.
 func FieldsOf(body any) []Field {
+	return FieldsOfObserved(body, nil)
+}
+
+// FieldsOfObserved is [FieldsOf] restricted to the values a recording actually
+// observed: a scalar the caller's predicate recognises as replaced contributes
+// no path at all.
+//
+// It exists because a redaction erases a type rather than preserving it. The
+// recorder writes a string over whatever it replaces, so a bool comes back as
+// `"REDACTED-3f2a"` and an array as `"REDACTED-20"` — measured on the committed
+// corpora, where `osc/Client.ReadKeypairs.Keypairs` is an array the recorder
+// replaced with a string, and `exoscale/v2.list-instance-types` carries the same
+// loss on `instance-types[].authorized`, a bool, forty-nine times. A catalogue
+// whose entire content is paths and types must not learn "string" from one of
+// those: it would publish a polymorphism the provider does not have, and
+// [internal/shape.mergeType] would join the two into `array|string` on top of a
+// type a real recording had got right.
+//
+// The predicate is a parameter rather than a rule of this package: which values
+// count as replaced is the recorder's and the sanitiser's business, and this
+// walk is only the grammar. A nil predicate means every value was observed,
+// which is what [FieldsOf] asks for.
+//
+// TestARedactedValueTeachesNoType fails without this.
+func FieldsOfObserved(body any, redacted func(any) bool) []Field {
 	fields := map[string]string{}
-	walk("", body, fields)
+	walk("", body, fields, redacted)
 	return sortedFields(fields)
 }
 
-func walk(path string, v any, into map[string]string) {
+func walk(path string, v any, into map[string]string, redacted func(any) bool) {
 	switch val := v.(type) {
 	case map[string]any:
 		if path != "" {
@@ -316,16 +341,19 @@ func walk(path string, v any, into map[string]string) {
 			if path != "" {
 				child = path + "." + k
 			}
-			walk(child, nested, into)
+			walk(child, nested, into, redacted)
 		}
 	case []any:
 		if path != "" {
 			into[path] = "array"
 		}
 		for _, item := range val {
-			walk(path+"[]", item, into)
+			walk(path+"[]", item, into, redacted)
 		}
 	default:
+		if redacted != nil && redacted(v) {
+			return
+		}
 		into[path] = jsonType(v)
 	}
 }

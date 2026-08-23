@@ -338,6 +338,755 @@
       "statuses": [
         200
       ]
+    },
+    "exoscale/v2.add-rule-to-security-group": {
+      "method": "POST",
+      "path": "/v2/security-group/{id}/rules",
+      "fields": [
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "reference",
+          "type": "object"
+        },
+        {
+          "path": "reference.id",
+          "type": "string"
+        },
+        {
+          "path": "state",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.create-anti-affinity-group": {
+      "method": "POST",
+      "path": "/v2/anti-affinity-group",
+      "fields": [
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "reference",
+          "type": "object"
+        },
+        {
+          "path": "reference.id",
+          "type": "string"
+        },
+        {
+          "path": "state",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.create-private-network": {
+      "method": "POST",
+      "path": "/v2/private-network",
+      "fields": [
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "reference",
+          "type": "object"
+        },
+        {
+          "path": "reference.id",
+          "type": "string"
+        },
+        {
+          "path": "state",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200,
+        400
+      ]
+    },
+    "exoscale/v2.create-security-group": {
+      "method": "POST",
+      "path": "/v2/security-group",
+      "fields": [
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "reference",
+          "type": "object"
+        },
+        {
+          "path": "reference.id",
+          "type": "string"
+        },
+        {
+          "path": "state",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.delete-anti-affinity-group": {
+      "method": "DELETE",
+      "path": "/v2/anti-affinity-group/{id}",
+      "fields": [
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "reference",
+          "type": "object"
+        },
+        {
+          "path": "reference.id",
+          "type": "string"
+        },
+        {
+          "path": "state",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.delete-private-network": {
+      "method": "DELETE",
+      "path": "/v2/private-network/{id}",
+      "fields": [
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "reference",
+          "type": "object"
+        },
+        {
+          "path": "reference.id",
+          "type": "string"
+        },
+        {
+          "path": "state",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.delete-rule-from-security-group": {
+      "method": "DELETE",
+      "path": "/v2/security-group/{id}/rules/{id}",
+      "fields": [
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "reference",
+          "type": "object"
+        },
+        {
+          "path": "reference.id",
+          "type": "string"
+        },
+        {
+          "path": "state",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.delete-security-group": {
+      "method": "DELETE",
+      "path": "/v2/security-group/{id}",
+      "fields": [
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "reference",
+          "type": "object"
+        },
+        {
+          "path": "reference.id",
+          "type": "string"
+        },
+        {
+          "path": "state",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.delete-ssh-key": {
+      "method": "DELETE",
+      "fields": [
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "state",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200,
+        404
+      ]
+    },
+    "exoscale/v2.get-anti-affinity-group": {
+      "method": "GET",
+      "path": "/v2/anti-affinity-group/{id}",
+      "fields": [
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "instances",
+          "type": "array"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.get-operation": {
+      "method": "GET",
+      "path": "/v2/operation/{id}",
+      "fields": [
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "reference",
+          "type": "object"
+        },
+        {
+          "path": "reference.id",
+          "type": "string"
+        },
+        {
+          "path": "state",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.get-private-network": {
+      "method": "GET",
+      "path": "/v2/private-network/{id}",
+      "fields": [
+        {
+          "path": "end-ip",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "netmask",
+          "type": "string"
+        },
+        {
+          "path": "start-ip",
+          "type": "string"
+        },
+        {
+          "path": "vni",
+          "type": "number"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.get-security-group": {
+      "method": "GET",
+      "path": "/v2/security-group/{id}",
+      "fields": [
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "rules",
+          "type": "array"
+        },
+        {
+          "path": "rules[]",
+          "type": "object"
+        },
+        {
+          "path": "rules[].description",
+          "type": "string"
+        },
+        {
+          "path": "rules[].end-port",
+          "type": "number"
+        },
+        {
+          "path": "rules[].flow-direction",
+          "type": "string"
+        },
+        {
+          "path": "rules[].id",
+          "type": "string"
+        },
+        {
+          "path": "rules[].network",
+          "type": "string"
+        },
+        {
+          "path": "rules[].protocol",
+          "type": "string"
+        },
+        {
+          "path": "rules[].start-port",
+          "type": "number"
+        },
+        {
+          "path": "visibility",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.get-ssh-key": {
+      "method": "GET",
+      "fields": [],
+      "statuses": [
+        200,
+        404
+      ]
+    },
+    "exoscale/v2.list-anti-affinity-groups": {
+      "method": "GET",
+      "path": "/v2/anti-affinity-group",
+      "fields": [
+        {
+          "path": "anti-affinity-groups",
+          "type": "array"
+        },
+        {
+          "path": "anti-affinity-groups[]",
+          "type": "object"
+        },
+        {
+          "path": "anti-affinity-groups[].id",
+          "type": "string"
+        },
+        {
+          "path": "anti-affinity-groups[].instances",
+          "type": "array"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.list-block-storage-volumes": {
+      "method": "GET",
+      "path": "/v2/block-storage",
+      "fields": [
+        {
+          "path": "block-storage-volumes",
+          "type": "array"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.list-elastic-ips": {
+      "method": "GET",
+      "path": "/v2/elastic-ip",
+      "fields": [
+        {
+          "path": "elastic-ips",
+          "type": "array"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.list-instance-pools": {
+      "method": "GET",
+      "path": "/v2/instance-pool",
+      "fields": [
+        {
+          "path": "instance-pools",
+          "type": "array"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.list-instance-types": {
+      "method": "GET",
+      "path": "/v2/instance-type",
+      "fields": [
+        {
+          "path": "instance-types",
+          "type": "array"
+        },
+        {
+          "path": "instance-types[]",
+          "type": "object"
+        },
+        {
+          "path": "instance-types[].cpus",
+          "type": "number"
+        },
+        {
+          "path": "instance-types[].family",
+          "type": "string"
+        },
+        {
+          "path": "instance-types[].gpus",
+          "type": "number"
+        },
+        {
+          "path": "instance-types[].id",
+          "type": "string"
+        },
+        {
+          "path": "instance-types[].memory",
+          "type": "number"
+        },
+        {
+          "path": "instance-types[].size",
+          "type": "string"
+        },
+        {
+          "path": "instance-types[].zones",
+          "type": "array"
+        },
+        {
+          "path": "instance-types[].zones[]",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.list-instances": {
+      "method": "GET",
+      "path": "/v2/instance",
+      "fields": [
+        {
+          "path": "instances",
+          "type": "array"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.list-load-balancers": {
+      "method": "GET",
+      "path": "/v2/load-balancer",
+      "fields": [
+        {
+          "path": "load-balancers",
+          "type": "array"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.list-private-networks": {
+      "method": "GET",
+      "path": "/v2/private-network",
+      "fields": [
+        {
+          "path": "private-networks",
+          "type": "array"
+        },
+        {
+          "path": "private-networks[]",
+          "type": "object"
+        },
+        {
+          "path": "private-networks[].end-ip",
+          "type": "string"
+        },
+        {
+          "path": "private-networks[].id",
+          "type": "string"
+        },
+        {
+          "path": "private-networks[].netmask",
+          "type": "string"
+        },
+        {
+          "path": "private-networks[].start-ip",
+          "type": "string"
+        },
+        {
+          "path": "private-networks[].vni",
+          "type": "number"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.list-quotas": {
+      "method": "GET",
+      "path": "/v2/quota",
+      "fields": [
+        {
+          "path": "quotas",
+          "type": "array"
+        },
+        {
+          "path": "quotas[]",
+          "type": "object"
+        },
+        {
+          "path": "quotas[].limit",
+          "type": "number"
+        },
+        {
+          "path": "quotas[].resource",
+          "type": "string"
+        },
+        {
+          "path": "quotas[].usage",
+          "type": "number"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.list-security-groups": {
+      "method": "GET",
+      "path": "/v2/security-group",
+      "fields": [
+        {
+          "path": "security-groups",
+          "type": "array"
+        },
+        {
+          "path": "security-groups[]",
+          "type": "object"
+        },
+        {
+          "path": "security-groups[].id",
+          "type": "string"
+        },
+        {
+          "path": "security-groups[].rules",
+          "type": "array"
+        },
+        {
+          "path": "security-groups[].rules[]",
+          "type": "object"
+        },
+        {
+          "path": "security-groups[].rules[].description",
+          "type": "string"
+        },
+        {
+          "path": "security-groups[].rules[].end-port",
+          "type": "number"
+        },
+        {
+          "path": "security-groups[].rules[].flow-direction",
+          "type": "string"
+        },
+        {
+          "path": "security-groups[].rules[].id",
+          "type": "string"
+        },
+        {
+          "path": "security-groups[].rules[].network",
+          "type": "string"
+        },
+        {
+          "path": "security-groups[].rules[].protocol",
+          "type": "string"
+        },
+        {
+          "path": "security-groups[].rules[].security-group",
+          "type": "object"
+        },
+        {
+          "path": "security-groups[].rules[].security-group.id",
+          "type": "string"
+        },
+        {
+          "path": "security-groups[].rules[].start-port",
+          "type": "number"
+        },
+        {
+          "path": "security-groups[].visibility",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.list-ssh-keys": {
+      "method": "GET",
+      "path": "/v2/ssh-key",
+      "fields": [],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.list-templates": {
+      "method": "GET",
+      "path": "/v2/template",
+      "fields": [
+        {
+          "path": "templates",
+          "type": "array"
+        },
+        {
+          "path": "templates[]",
+          "type": "object"
+        },
+        {
+          "path": "templates[].application-consistent-snapshot-enabled",
+          "type": "bool"
+        },
+        {
+          "path": "templates[].boot-mode",
+          "type": "string"
+        },
+        {
+          "path": "templates[].created-at",
+          "type": "string"
+        },
+        {
+          "path": "templates[].default-user",
+          "type": "string"
+        },
+        {
+          "path": "templates[].id",
+          "type": "string"
+        },
+        {
+          "path": "templates[].size",
+          "type": "number"
+        },
+        {
+          "path": "templates[].version",
+          "type": "string"
+        },
+        {
+          "path": "templates[].visibility",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.list-zones": {
+      "method": "GET",
+      "path": "/v2/zone",
+      "fields": [
+        {
+          "path": "zones",
+          "type": "array"
+        },
+        {
+          "path": "zones[]",
+          "type": "object"
+        },
+        {
+          "path": "zones[].id",
+          "type": "string"
+        },
+        {
+          "path": "zones[].name",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "exoscale/v2.register-ssh-key": {
+      "method": "POST",
+      "path": "/v2/ssh-key",
+      "fields": [
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "state",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200,
+        409
+      ]
+    },
+    "exoscale/v2.update-private-network": {
+      "method": "PUT",
+      "path": "/v2/private-network/{id}",
+      "fields": [
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "reference",
+          "type": "object"
+        },
+        {
+          "path": "reference.id",
+          "type": "string"
+        },
+        {
+          "path": "state",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
     }
   }
 }

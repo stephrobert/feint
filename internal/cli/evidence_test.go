@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/upstream"
 )
 
 // The artefact is what docs/routes.md prints and what the /falsify criterion
@@ -482,5 +483,265 @@ func TestAnAxisWithNoVerdictIsNotEarned(t *testing.T) {
 	})
 	if _, err := readEvidence(path); err != nil {
 		t.Errorf("a record that accounts for itself was refused: %v", err)
+	}
+}
+
+// A shape recorded outside the curated read list still counts.
+//
+// This is the defect #407 measured, and it is invisible from a total.
+// shapeCoveredOperations used to walk upstream.Reads — thirty-odd calls per
+// provider — so the axis could not exceed the length of a hand-written list
+// however much had been recorded. The measurement: the axis read 52 of 370 and
+// its ceiling was **also 52**, per provider to the unit (exoscale 14, outscale
+// 23, scaleway 15). Saturated at its own ceiling, it named 292 operations "no
+// answer of the real cloud has been kept", including every one of the 619
+// exchanges already committed under corpus/, which it never asked about.
+//
+// The fixture below is the shape of that blindness: `CreateServer` is mounted,
+// it is recorded, and it is not a read, so no entry of upstream.Reads can ever
+// name it.
+func TestAShapeRecordedOutsideTheReadListStillCounts(t *testing.T) {
+	dir := t.TempDir()
+	catalogue := `{
+	  "provider": "scaleway",
+	  "operations": {
+	    "instance/v1/API.CreateServer": {
+	      "method": "POST",
+	      "path": "/instance/v1/zones/fr-par-1/servers",
+	      "fields": [{"path": "server.id", "type": "string"}],
+	      "statuses": [201]
+	    }
+	  }
+	}`
+	if err := os.WriteFile(filepath.Join(dir, "scaleway.json"), []byte(catalogue), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, call := range upstream.Reads[upstream.Scaleway] {
+		if strings.Contains(call, "CreateServer") {
+			t.Fatalf("the fixture stopped being a fixture: %q is in the read list, so this "+
+				"test would pass on the code it exists to refuse", call)
+		}
+	}
+
+	covered, err := shapeCoveredOperations(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !covered["instance/v1/API.CreateServer"] {
+		t.Errorf("a recorded create is mounted and observed, and the axis did not count it; covered = %v", covered)
+	}
+}
+
+// An entry with no field is not an observation, whichever list it is in.
+//
+// A refusal recorded against a real cloud lands in the catalogue with its
+// status and an empty field list — deliberately, so "called and refused" is
+// distinguishable from "never called". Counting it would credit the shape axis
+// for corpora of 4xx, which prove something else entirely (the negative axis).
+func TestAnOperationRecordedWithoutFieldsEarnsNoShape(t *testing.T) {
+	dir := t.TempDir()
+	catalogue := `{
+	  "provider": "scaleway",
+	  "operations": {
+	    "instance/v1/API.CreateServer": {
+	      "method": "POST",
+	      "path": "/instance/v1/zones/fr-par-1/servers",
+	      "fields": [],
+	      "statuses": [404]
+	    },
+	    "instance/v1/API.ListServers": {
+	      "method": "GET",
+	      "path": "/instance/v1/zones/fr-par-1/servers",
+	      "fields": [{"path": "servers", "type": "array"}],
+	      "statuses": [200]
+	    }
+	  }
+	}`
+	if err := os.WriteFile(filepath.Join(dir, "scaleway.json"), []byte(catalogue), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	covered, err := shapeCoveredOperations(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if covered["instance/v1/API.CreateServer"] {
+		t.Errorf("a refusal with no field was counted as a recorded shape")
+	}
+	// The witness: the reader must still find the operation beside it, or a
+	// scan that read nothing would pass this test.
+	if !covered["instance/v1/API.ListServers"] {
+		t.Fatalf("the reader found nothing at all; covered = %v", covered)
+	}
+}
+
+// writeRecord puts an artefact on disk the way `feint evidence` would, with a
+// provenance matching the directories named.
+func writeRecord(t *testing.T, path, contractsDir, shapesDir, suitesDir string, ops map[string]emulator.Evidence) {
+	t.Helper()
+	from, err := provenanceOf(contractsDir, shapesDir, suitesDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	art := &evidenceArtefact{
+		Format: evidenceFormat, Version: evidenceVersion,
+		Machines: []string{"none"}, GeneratedFrom: from, Operations: ops,
+	}
+	if err := writeEvidence(path, art); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A reshape refuses a record whose other inputs moved.
+//
+// It rewrites one axis of a file it did not produce, which is exactly the
+// operation that can put a fresh figure on a stale record. The shape axis is
+// static, so recomputing it needs no run — but the six axes beside it are not,
+// and a suite that gained or lost an assertion since the record was written
+// makes them wrong in a way no reshape can see.
+func TestAReshapeRefusesARecordWhoseOtherInputsMoved(t *testing.T) {
+	dir := t.TempDir()
+	record := filepath.Join(dir, "evidence.json")
+	suites := filepath.Join(dir, "suites")
+	shapes := filepath.Join(dir, "shapes")
+	if err := os.MkdirAll(suites, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(shapes, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shapes, "scaleway.json"), []byte(`{
+	  "provider": "scaleway",
+	  "operations": {"instance/v1/API.ListServers": {"method":"GET",
+	    "path":"/instance/v1/zones/fr-par-1/servers",
+	    "fields":[{"path":"servers","type":"array"}],"statuses":[200]}}
+	}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(suites, "one.sh"), []byte("echo one\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeRecord(t, record, "contracts", shapes, suites,
+		map[string]emulator.Evidence{"instance/v1/API.ListServers": {
+			Probed: emulator.ProbeNone, Contract: emulator.ContractUnchecked,
+			Shape: emulator.ShapeUnobserved,
+		}})
+
+	// An assertion is removed from the suite: the digest moves.
+	if err := os.WriteFile(filepath.Join(suites, "one.sh"), []byte("echo nothing\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out, errs strings.Builder
+	if code := reshapeEvidence(record, shapes, "contracts", suites, &out, &errs); code != exitError {
+		t.Fatalf("exit %d, want %d: a reshape wrote onto a record whose suites moved", code, exitError)
+	}
+	if !strings.Contains(errs.String(), "suites") {
+		t.Errorf("the refusal must name what moved, got %q", errs.String())
+	}
+	// The witness: with the suite put back, the same call must go through, or
+	// this test would pass on a reshape that refuses everything.
+	if err := os.WriteFile(filepath.Join(suites, "one.sh"), []byte("echo one\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	errs.Reset()
+	if code := reshapeEvidence(record, shapes, "contracts", suites, &out, &errs); code != exitOK {
+		t.Fatalf("exit %d, want %d, on unmoved inputs: %s", code, exitOK, errs.String())
+	}
+}
+
+// A reshape demotes an operation the catalogue no longer covers.
+//
+// The column is recomputed wholesale rather than raised, so a catalogue that
+// lost evidence lowers the figure. Written as a control because a "refresh"
+// that only ever adds is a high-water mark, which is the thing this record was
+// built not to be.
+func TestAReshapeDemotesAnOperationTheCatalogueNoLongerCovers(t *testing.T) {
+	dir := t.TempDir()
+	record := filepath.Join(dir, "evidence.json")
+	shapes := filepath.Join(dir, "shapes")
+	if err := os.MkdirAll(shapes, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	catalogue := `{
+	  "provider": "scaleway",
+	  "operations": {
+	    "instance/v1/API.ListServers": {
+	      "method": "GET", "path": "/instance/v1/zones/fr-par-1/servers",
+	      "fields": [{"path": "servers", "type": "array"}], "statuses": [200]
+	    }
+	  }
+	}`
+	if err := os.WriteFile(filepath.Join(shapes, "scaleway.json"), []byte(catalogue), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeRecord(t, record, "contracts", shapes, filepath.Join("tools", "conformance"),
+		map[string]emulator.Evidence{
+			"instance/v1/API.ListServers": {Probed: emulator.ProbeNone,
+				Contract: emulator.ContractUnchecked, Shape: emulator.ShapeObserved},
+			"instance/v1/API.CreateIP": {Probed: emulator.ProbeNone,
+				Contract: emulator.ContractUnchecked, Shape: emulator.ShapeObserved},
+		})
+
+	var out, errs strings.Builder
+	code := reshapeEvidence(record, shapes, "contracts", filepath.Join("tools", "conformance"), &out, &errs)
+	if code != exitOK {
+		t.Fatalf("exit %d: %s", code, errs.String())
+	}
+	got, err := readEvidence(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Operations["instance/v1/API.CreateIP"].Shape != emulator.ShapeUnobserved {
+		t.Errorf("CreateIP is covered by no catalogue entry and kept %q: the column is a high-water mark",
+			got.Operations["instance/v1/API.CreateIP"].Shape)
+	}
+	// The witness: the operation the catalogue does cover must survive, or a
+	// reshape that demoted everything would pass.
+	if got.Operations["instance/v1/API.ListServers"].Shape != emulator.ShapeObserved {
+		t.Errorf("ListServers is covered and was demoted; the reshape demotes indiscriminately")
+	}
+	if !strings.Contains(errs.String(), "instance/v1/API.CreateIP") {
+		t.Errorf("a demotion must be said out loud, got %q", errs.String())
+	}
+}
+
+// A reshape touches the shape axis and nothing else.
+func TestAReshapeMovesNoOtherAxis(t *testing.T) {
+	dir := t.TempDir()
+	record := filepath.Join(dir, "evidence.json")
+	shapes := filepath.Join(dir, "shapes")
+	if err := os.MkdirAll(shapes, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shapes, "scaleway.json"), []byte(`{
+	  "provider": "scaleway",
+	  "operations": {"instance/v1/API.ListServers": {"method":"GET",
+	    "path":"/instance/v1/zones/fr-par-1/servers",
+	    "fields":[{"path":"servers","type":"array"}],"statuses":[200]}}
+	}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	before := emulator.Evidence{
+		Driven: true, Probed: emulator.ProbeResponse, Contract: emulator.ContractClean,
+		Dataplane: true, Shape: emulator.ShapeUnobserved, Behaviour: true, Negative: true,
+	}
+	writeRecord(t, record, "contracts", shapes, filepath.Join("tools", "conformance"),
+		map[string]emulator.Evidence{"instance/v1/API.ListServers": before})
+
+	var out, errs strings.Builder
+	if code := reshapeEvidence(record, shapes, "contracts", filepath.Join("tools", "conformance"), &out, &errs); code != exitOK {
+		t.Fatalf("exit %d: %s", code, errs.String())
+	}
+	got, err := readEvidence(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after := got.Operations["instance/v1/API.ListServers"]
+	if after.Shape != emulator.ShapeObserved {
+		t.Fatalf("the shape axis did not move, so this test measures nothing")
+	}
+	after.Shape = before.Shape
+	if after != before {
+		t.Errorf("another axis moved: %+v became %+v", before, after)
 	}
 }
