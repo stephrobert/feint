@@ -85,7 +85,15 @@ func evidenceAxisList() []evidenceAxis {
 		{
 			Name:    "probed",
 			Meaning: "the contract-driven probe validated an answer here against the operation's own schema, a success (`response`) or a refusal (`refusal`)",
-			earned:  func(e emulator.Evidence) bool { return e.Probed != emulator.ProbeNone },
+			// Named positively, and that is the point. Written as `!= ProbeNone`
+			// it counted a record carrying no verdict at all — an empty string,
+			// a key encoding/json never found — as a success, which is the very
+			// defect #406 measured in the throwaway script that read a verdict
+			// as a boolean. The other two verdict axes were already positive.
+			// TestAnAxisWithNoVerdictIsNotEarned fails without it.
+			earned: func(e emulator.Evidence) bool {
+				return e.Probed == emulator.ProbeResponse || e.Probed == emulator.ProbeRefusal
+			},
 			verdict: func(e emulator.Evidence) string { return e.Probed },
 		},
 		{

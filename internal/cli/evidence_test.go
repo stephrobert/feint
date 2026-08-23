@@ -275,8 +275,13 @@ func TestEvidenceRefusesToNarrowTheRuntimesItWasEarnedUnder(t *testing.T) {
 
 	earned := &evidenceArtefact{
 		Format: evidenceFormat, Version: evidenceVersion,
-		Machines:   []string{"incus", "none"},
-		Operations: map[string]emulator.Evidence{"instance/v1/API.ListServers": {}},
+		Machines: []string{"incus", "none"},
+		// The three verdict fields carry a declared value, because a record that
+		// leaves them empty is one readEvidence refuses (#406) — and a fixture
+		// that cannot be read measures the reader, not the guard under test.
+		Operations: map[string]emulator.Evidence{
+			"instance/v1/API.ListServers": row(false, false, emulator.ShapeUnobserved),
+		},
 	}
 	writeArtefact(t, path, earned)
 
@@ -284,8 +289,10 @@ func TestEvidenceRefusesToNarrowTheRuntimesItWasEarnedUnder(t *testing.T) {
 	// incus. It must refuse, and name what would go.
 	offOnly := &evidenceArtefact{
 		Format: evidenceFormat, Version: evidenceVersion,
-		Machines:   []string{"none"},
-		Operations: map[string]emulator.Evidence{"instance/v1/API.ListServers": {}},
+		Machines: []string{"none"},
+		Operations: map[string]emulator.Evidence{
+			"instance/v1/API.ListServers": row(false, false, emulator.ShapeUnobserved),
+		},
 	}
 	lost, _ := runtimesLost(path, offOnly)
 	if len(lost) != 1 || lost[0] != "incus" {
@@ -319,5 +326,161 @@ func writeArtefact(t *testing.T, path string, art *evidenceArtefact) {
 	}
 	if err := os.WriteFile(path, append(blob, '\n'), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
+	}
+}
+
+// #398. `runtimesLost` refuses a regeneration that reaches fewer runtimes, and
+// nothing looked at the operations. So a record could quietly demote one whose
+// assertion was still in the suite and still passing — which is exactly the
+// property #123 says this artefact must not have, stated for its own evidence
+// and equally true of a scheduling accident.
+//
+// Report, never refusal: an axis may legitimately shrink when a claim is
+// corrected, and a suite that loses an assertion *must* demote what it proved.
+// Both halves are asserted here, because a check that named every write would
+// pass the first and be worthless.
+func TestARegenerationNamesTheOperationsItDemotes(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "evidence.json")
+
+	writeArtefact(t, path, &evidenceArtefact{
+		Format: evidenceFormat, Version: evidenceVersion,
+		Machines: []string{"none"},
+		Operations: map[string]emulator.Evidence{
+			"instance/v1/API.ListServers": row(true, true, emulator.ShapeObserved),
+			"instance/v1/API.GetServer":   row(true, true, emulator.ShapeUnobserved),
+			"instance/v1/API.CreateIP":    row(true, false, emulator.ShapeUnobserved),
+		},
+	})
+
+	// One operation loses `behaviour`, one loses `shape`, one disappears from
+	// the record entirely, and one is untouched.
+	thinner := &evidenceArtefact{
+		Format: evidenceFormat, Version: evidenceVersion,
+		Machines: []string{"none"},
+		Operations: map[string]emulator.Evidence{
+			"instance/v1/API.ListServers": row(true, false, emulator.ShapeUnobserved),
+			"instance/v1/API.GetServer":   row(true, true, emulator.ShapeUnobserved),
+		},
+	}
+	lost := axesLost(path, thinner)
+	for axis, want := range map[string][]string{
+		"behaviour": {"instance/v1/API.ListServers"},
+		"shape":     {"instance/v1/API.ListServers"},
+		"driven":    {"instance/v1/API.CreateIP"},
+	} {
+		if got := lost[axis]; len(got) != len(want) || (len(got) > 0 && got[0] != want[0]) {
+			t.Errorf("%s: demoted %v, want %v", axis, got, want)
+		}
+	}
+	if len(lost) != 3 {
+		t.Errorf("three axes lost something and the report names %d: %v", len(lost), lost)
+	}
+
+	var said strings.Builder
+	reportAxesLost(&said, path, thinner)
+	for _, want := range []string{"instance/v1/API.ListServers", "`behaviour`", "`shape`", "(#398)"} {
+		if !strings.Contains(said.String(), want) {
+			t.Errorf("the report does not mention %s:\n%s", want, said.String())
+		}
+	}
+
+	// The accepting halves. A record that keeps everything says nothing, and a
+	// record that gains an axis is a widening.
+	wider := &evidenceArtefact{
+		Format: evidenceFormat, Version: evidenceVersion,
+		Machines: []string{"none"},
+		Operations: map[string]emulator.Evidence{
+			"instance/v1/API.ListServers": row(true, true, emulator.ShapeObserved),
+			"instance/v1/API.GetServer":   negativeToo(row(true, true, emulator.ShapeUnobserved)),
+			"instance/v1/API.CreateIP":    row(true, false, emulator.ShapeUnobserved),
+		},
+	}
+	if got := axesLost(path, wider); len(got) != 0 {
+		t.Errorf("a record that loses nothing reports %v", got)
+	}
+	var quiet strings.Builder
+	reportAxesLost(&quiet, path, wider)
+	if quiet.Len() != 0 {
+		t.Errorf("a write that demotes nothing must say nothing, and says: %s", quiet.String())
+	}
+	// And the first write of an artefact demotes nothing.
+	if got := axesLost(filepath.Join(dir, "absent.json"), thinner); len(got) != 0 {
+		t.Errorf("writing where no record exists reports %v", got)
+	}
+}
+
+// row is one evidence line whose three verdict fields carry a value the record
+// actually uses. Written as a helper because a literal that leaves them empty is
+// exactly the row TestAnAxisWithNoVerdictIsNotEarned refuses, and a fixture that
+// cannot be read is a fixture that measures the reader.
+func row(driven, behaviour bool, shape string) emulator.Evidence {
+	return emulator.Evidence{
+		Driven: driven, Behaviour: behaviour, Shape: shape,
+		Probed: emulator.ProbeNone, Contract: emulator.ContractUnchecked,
+	}
+}
+
+func negativeToo(e emulator.Evidence) emulator.Evidence {
+	e.Negative = true
+	return e
+}
+
+// #406's cause, in this repository's own reader rather than in the throwaway
+// script that carried it first: three of the seven axes are verdicts, and a
+// predicate written as "not the losing value" counts a row that carries no
+// verdict at all as a success. `probed` was written that way — `!= "none"` — so
+// an artefact missing the key, which encoding/json decodes to "", earned it.
+//
+// Two controls, because either alone leaves the hole open: the predicate names
+// what earns the axis, and the boundary refuses a row it cannot account for so
+// no future consumer has to decide again.
+func TestAnAxisWithNoVerdictIsNotEarned(t *testing.T) {
+	// The verdict axes, asked of the list rather than named here, so a fourth
+	// one added later is held to the same rule without editing this test.
+	full := emulator.Evidence{
+		Probed: emulator.ProbeResponse, Contract: emulator.ContractClean, Shape: emulator.ShapeObserved,
+	}
+	var axes []evidenceAxis
+	for _, a := range evidenceAxisList() {
+		if a.verdict(full) != "" {
+			axes = append(axes, a)
+		}
+	}
+	if len(axes) != 3 {
+		t.Fatalf("three axes are verdicts and the list carries %d", len(axes))
+	}
+	// A row with every verdict field empty: nothing about it was ever measured,
+	// so it earns none of the three.
+	for _, a := range axes {
+		if a.earned(emulator.Evidence{}) {
+			t.Errorf("`%s` is earned by a row that carries no verdict at all", a.Name)
+		}
+	}
+
+	// And such a row never reaches a predicate, because the record is refused.
+	dir := t.TempDir()
+	path := filepath.Join(dir, "evidence.json")
+	writeArtefact(t, path, &evidenceArtefact{
+		Format: evidenceFormat, Version: evidenceVersion,
+		Machines:   []string{"none"},
+		Operations: map[string]emulator.Evidence{"instance/v1/API.ListServers": {Driven: true}},
+	})
+	_, err := readEvidence(path)
+	if err == nil {
+		t.Fatal("a record whose verdicts are outside their vocabulary was accepted")
+	}
+	if !strings.Contains(err.Error(), "instance/v1/API.ListServers") || !strings.Contains(err.Error(), "probed") {
+		t.Errorf("the refusal must name the operation and the field, and says: %v", err)
+	}
+
+	// The accepting half: a record whose verdicts are all declared reads back.
+	writeArtefact(t, path, &evidenceArtefact{
+		Format: evidenceFormat, Version: evidenceVersion,
+		Machines:   []string{"none"},
+		Operations: map[string]emulator.Evidence{"instance/v1/API.ListServers": row(true, true, emulator.ShapeObserved)},
+	})
+	if _, err := readEvidence(path); err != nil {
+		t.Errorf("a record that accounts for itself was refused: %v", err)
 	}
 }

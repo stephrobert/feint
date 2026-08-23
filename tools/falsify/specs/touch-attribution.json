@@ -21,7 +21,15 @@
       "find": "\t\tif t.operation == \"\" {\n\t\t\tunattributed++\n\t\t\tcontinue\n\t\t}",
       "replace": "\t\tif t.operation == \"\" {\n\t\t\t_ = unattributed\n\t\t\tcontinue\n\t\t}",
       "test": "TestASpanReportsTheTouchesItCouldNotAttribute"
+    },
+    {
+      "label": "a record that reaches fewer operations is written without a word",
+      "file": "internal/cli/evidence.go",
+      "package": "./internal/cli/",
+      "find": "\t\t\tif still && axis.earned(now) {\n\t\t\t\tcontinue\n\t\t\t}",
+      "replace": "\t\t\tif still || axis.earned(now) || true {\n\t\t\t\tcontinue\n\t\t\t}",
+      "test": "TestARegenerationNamesTheOperationsItDemotes"
     }
   ],
-  "note": "#398. The `behaviour` axis marked 311 operations on two identical conformance runs of the same commit and disagreed on six of them — block/v1/API.CreateVolume, osc/Client.DeleteSecurityGroupRule and osc/Client.UnlinkLoadBalancerBackendMachines in one, instance/v2alpha1/API.DeletePrivateNetworkInterface, instance/v2alpha1/API.GetPlacementGroup and osc/Client.UnlinkVolume in the other. The equal totals are the trap: the count alone reads as reproducible and the set is not, which is why the proof of the fix compares sets. Mutation 1 is the old rule's shape (attribution that does not depend on who touched); mutation 2 removes the identity altogether; mutation 3 removes the confession that bounds what is left. All three are neutralising: every identifier the original expression used stays evaluated."
+  "note": "#398. The `behaviour` axis marked 311 operations on two identical conformance runs of the same commit and disagreed on six of them — block/v1/API.CreateVolume, osc/Client.DeleteSecurityGroupRule and osc/Client.UnlinkLoadBalancerBackendMachines in one, instance/v2alpha1/API.DeletePrivateNetworkInterface, instance/v2alpha1/API.GetPlacementGroup and osc/Client.UnlinkVolume in the other. The equal totals are the trap: the count alone reads as reproducible and the set is not, which is why the proof of the fix compares sets. Mutation 1 is the old rule's shape (attribution that does not depend on who touched); mutation 2 removes the identity altogether; mutation 3 removes the confession that bounds what is left. All three are neutralising: every identifier the original expression used stays evaluated. Mutation 4 holds the other half of the issue: runtimesLost refuses a regeneration reaching fewer runtimes and nothing looked at the operations, so a record could demote one whose assertion was still passing without a word."
 }

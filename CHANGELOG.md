@@ -988,6 +988,15 @@ what this project is judged on: **a response shape a client can observe**, and
   flight when a span opens carries no identity, the close of the span publishes
   how many touches that cost, and `tools/conformance/prove.sh` prints it.
 
+  And the other half of the same issue: `runtimesLost` refused a regeneration
+  that reached fewer *runtimes*, and nothing ever looked at the operations, so a
+  record could demote one whose assertion was still in the suite and still
+  passing without a word. `feint evidence` now names, axis by axis, every
+  operation the record it replaces had earned and this run does not. A report
+  and not a refusal, because an axis may legitimately shrink when a claim is
+  corrected and a suite that loses an assertion *must* demote what it proved —
+  that is the falsification this record lives under.
+
 - **Three axis percentages published in the documentation were wrong, and
   nothing in the repository refused a measured number written by hand** (#406).
   `docs/proxy.md`, `docs/conformance.md`, `corpus/README.md`, both CHANGELOGs and
@@ -1007,6 +1016,16 @@ what this project is judged on: **a response shape a client can observe**, and
   pre-commit hook run — refuses a percentage sitting next to an axis name outside
   one, in any Markdown of this repository. Counts are untouched: "35 of 370" is
   what a work queue is made of.
+
+  **The same defect was found in this repository's own reader while the
+  correction was being tested**, which is the part worth keeping. `probed` was
+  earned by `e.Probed != "none"`, so a row carrying no verdict at all — the empty
+  string `encoding/json` leaves for a missing key — earned the axis, exactly as
+  `if o.get(axis)` did in the script. It is named positively now, and
+  `readEvidence` refuses a record whose `probed`, `contract` or `shape` is
+  outside its own vocabulary: the function's comment already claimed it "refuses
+  what it cannot account for" and did not, which is this repository's most
+  expensive recurring defect met once more.
 
 - **The conformance run orphaned one of its own networks mid-run, and that one
   teardown race is what #316, #342 and #375 were all downstream of** (#386).

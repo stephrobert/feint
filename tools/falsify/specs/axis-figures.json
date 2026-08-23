@@ -28,7 +28,21 @@
       "find": "\t\t\tcase \".git\", \".upstream\", \".claude\", \".terraform\", \"node_modules\", \"dist\":",
       "replace": "\t\t\tcase \".git\", \".upstream\", \".terraform\", \"node_modules\", \"dist\":",
       "test": "TestTheAxisFigureScanReadsTheWholeDocumentationTree"
+    },
+    {
+      "label": "`probed` is earned by anything that is not the losing verdict, an absent one included",
+      "file": "internal/cli/evidence_axes.go",
+      "find": "\t\t\t\treturn e.Probed == emulator.ProbeResponse || e.Probed == emulator.ProbeRefusal",
+      "replace": "\t\t\t\treturn e.Probed != emulator.ProbeNone && (e.Probed == emulator.ProbeResponse || e.Probed == emulator.ProbeRefusal || true)",
+      "test": "TestAnAxisWithNoVerdictIsNotEarned"
+    },
+    {
+      "label": "the record is read without checking that its verdicts are values it uses",
+      "file": "internal/cli/evidence.go",
+      "find": "\t\tif bad := unknownVerdict(ev); bad != \"\" {",
+      "replace": "\t\tif bad := unknownVerdict(ev); bad != \"\" && false {",
+      "test": "TestAnAxisWithNoVerdictIsNotEarned"
     }
   ],
-  "note": "#406. Three axis percentages published in docs/proxy.md, docs/conformance.md, both CHANGELOGs, corpus/README.md and #390's opening table were wrong — `probed` and `contract` at 89 % where 100 % was printed, `shape` at 14 % where 100 % was printed — because the script that produced them read a verdict as a boolean and counted `\"unobserved\"` as a success. The correction alone would not survive the next hand, so this is the gate: mutation 1 is the exact sentence going back in, and the other three hold the check's own reading — its window, its line numbers, and the tree it walks."
+  "note": "#406. Three axis percentages published in docs/proxy.md, docs/conformance.md, both CHANGELOGs, corpus/README.md and #390's opening table were wrong — `probed` and `contract` at 89 % where 100 % was printed, `shape` at 14 % where 100 % was printed — because the script that produced them read a verdict as a boolean and counted `\"unobserved\"` as a success. The correction alone would not survive the next hand, so this is the gate: mutation 1 is the exact sentence going back in, and the other three hold the check's own reading — its window, its line numbers, and the tree it walks. Two later mutations hold the same defect found in this repository's own Go reader while the correction was being tested: `probed` was written as `!= \"none\"`, so a row carrying no verdict at all — the empty string encoding/json leaves for a missing key — earned the axis, and readEvidence accepted such a row despite a comment claiming it refuses what it cannot account for."
 }

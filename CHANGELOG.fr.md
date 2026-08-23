@@ -1028,6 +1028,16 @@ change ni l'un ni l'autre a sa place dans `git log`.
   un span s'ouvre ne porte pas d'identité, la fermeture du span publie combien de
   touches cela a coûté, et `tools/conformance/prove.sh` l'affiche.
 
+  Et l'autre moitié de la même issue : `runtimesLost` refusait une régénération
+  qui atteint moins de *runtimes*, et rien ne regardait les opérations, de sorte
+  qu'un registre pouvait rétrograder une opération dont l'assertion était encore
+  dans la suite et passait encore, sans un mot. `feint evidence` nomme désormais,
+  axe par axe, chaque opération que le registre remplacé avait gagnée et que
+  cette exécution n'atteint pas. Un rapport et non un refus : un axe peut
+  légitimement rétrécir quand une affirmation est corrigée, et une suite qui perd
+  une assertion *doit* rétrograder ce qu'elle prouvait, ce qui est la
+  falsification sous laquelle ce registre vit.
+
 - **Trois pourcentages d'axe publiés dans la documentation étaient faux, et rien
   dans le dépôt ne refusait un chiffre mesuré écrit à la main** (#406).
   `docs/proxy.md`, `docs/conformance.md`, `corpus/README.md`, les deux CHANGELOG
@@ -1048,6 +1058,17 @@ change ni l'un ni l'autre a sa place dans `git log`.
   refuse un pourcentage posé à côté d'un nom d'axe hors d'un bloc, dans tout
   Markdown du dépôt. Les décomptes sont laissés tels quels : « 35 sur 370 » est
   ce dont une file de travail est faite.
+
+  **Le même défaut a été trouvé dans le lecteur Go du dépôt pendant que la
+  correction était testée**, et c'est la partie qui mérite d'être gardée.
+  `probed` était gagné par `e.Probed != "none"`, donc une ligne ne portant aucun
+  verdict, la chaîne vide qu'`encoding/json` laisse pour une clé absente, gagnait
+  l'axe, exactement comme `if o.get(axe)` le faisait dans le script. Il est
+  nommé positivement maintenant, et `readEvidence` refuse un registre dont
+  `probed`, `contract` ou `shape` sort de son propre vocabulaire : le commentaire
+  de cette fonction affirmait déjà qu'elle « refuse ce dont elle ne peut rendre
+  compte » et ne le faisait pas, ce qui est le défaut récurrent le plus coûteux
+  de ce dépôt rencontré une fois de plus.
 
 - **La suite de conformance orphelinait un de ses propres réseaux en cours
   d'exécution, et cette seule course de démantèlement est ce dont #316, #342 et

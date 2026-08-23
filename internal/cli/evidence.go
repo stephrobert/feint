@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -93,6 +94,72 @@ func runtimesLost(path string, next *evidenceArtefact) ([]string, error) {
 	}
 	sort.Strings(lost)
 	return lost, nil
+}
+
+// axesLost answers, per axis, the operations the record already at path had
+// earned and this one does not.
+//
+// It is a report and not a refusal, and the distinction is the one runtimesLost
+// already draws for a different reason: an axis may legitimately shrink when a
+// claim is corrected — #156 took `probed` from 181 arrivals down to 83 verdicts
+// — and a suite that loses an assertion *must* demote what it proved, which is
+// the falsification this record lives under. Refusing a narrowing here would
+// break that.
+//
+// What it must not do is happen in silence. #398 measured why: two identical
+// conformance runs marked 311 operations each on `behaviour` and disagreed on
+// six of them, so a regeneration could demote an operation whose assertion was
+// still in the suite and still passing, and nothing said a word. The attribution
+// is deterministic now, so a loss printed here names real work — an assertion
+// that went, or a suite that did not run — rather than a scheduling accident.
+//
+// A record that cannot be read loses nothing it can name: the caller has already
+// been told, by runtimesLost, that the comparison could not be made.
+// TestARegenerationNamesTheOperationsItDemotes fails without this.
+func axesLost(path string, next *evidenceArtefact) map[string][]string {
+	existing, err := readEvidence(path)
+	if err != nil || existing == nil {
+		return nil
+	}
+	lost := map[string][]string{}
+	for _, axis := range evidenceAxisList() {
+		for op, was := range existing.Operations {
+			if !axis.earned(was) {
+				continue
+			}
+			now, still := next.Operations[op]
+			if still && axis.earned(now) {
+				continue
+			}
+			lost[axis.Name] = append(lost[axis.Name], op)
+		}
+	}
+	for _, ops := range lost {
+		sort.Strings(ops)
+	}
+	return lost
+}
+
+// reportAxesLost prints what a write demotes, axis by axis, or nothing at all
+// when it demotes nothing.
+func reportAxesLost(w io.Writer, path string, next *evidenceArtefact) {
+	lost := axesLost(path, next)
+	if len(lost) == 0 {
+		return
+	}
+	for _, axis := range evidenceAxisList() {
+		ops := lost[axis.Name]
+		if len(ops) == 0 {
+			continue
+		}
+		fmt.Fprintf(w, "feint: this run no longer reaches %d operation(s) that %s had earned on `%s`:\n",
+			len(ops), path, axis.Name)
+		for _, op := range ops {
+			fmt.Fprintf(w, "feint:   %s\n", op)
+		}
+	}
+	fmt.Fprintf(w, "feint: a record may legitimately shrink when a claim is corrected or an "+
+		"assertion is removed, and this is not a failure — it is the demotion said out loud (#398).\n")
 }
 
 func evidence(args []string, stdout, stderr io.Writer) int {
@@ -217,6 +284,9 @@ func evidence(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
+	// Said before the write, so it is still true of the file being replaced.
+	reportAxesLost(stderr, *out, art)
+
 	blob, err := json.MarshalIndent(art, "", "  ")
 	if err != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", err)
@@ -248,7 +318,38 @@ func readEvidence(path string) (*evidenceArtefact, error) {
 	if art.Version != evidenceVersion {
 		return nil, fmt.Errorf("%s carries version %d, this binary writes %d; regenerate rather than mix", path, art.Version, evidenceVersion)
 	}
+	// The three axes that are verdicts rather than booleans, held to their own
+	// vocabulary. The comment above this function claims it refuses what it
+	// cannot account for and it did not: a missing key decodes to the empty
+	// string, every reader downstream then had to decide what an empty verdict
+	// means, and #406 is the record of what happens when one of them decides
+	// wrong. Refused here, at the boundary, so no consumer has to.
+	// TestAnAxisWithNoVerdictIsNotEarned fails without it.
+	for op, ev := range art.Operations {
+		if bad := unknownVerdict(ev); bad != "" {
+			return nil, fmt.Errorf("%s: %s carries %s, which is not one of the values this record uses; regenerate it", path, op, bad)
+		}
+	}
 	return &art, nil
+}
+
+// unknownVerdict names the first field of one row whose value is outside its
+// declared vocabulary, or "" when the row accounts for itself.
+func unknownVerdict(ev emulator.Evidence) string {
+	for _, field := range []struct {
+		name  string
+		value string
+		valid []string
+	}{
+		{"probed", ev.Probed, []string{emulator.ProbeResponse, emulator.ProbeRefusal, emulator.ProbeNone}},
+		{"contract", ev.Contract, []string{emulator.ContractClean, emulator.ContractViolating, emulator.ContractUnchecked}},
+		{"shape", ev.Shape, []string{emulator.ShapeObserved, emulator.ShapeUnobserved, emulator.ShapeUnknown}},
+	} {
+		if !slices.Contains(field.valid, field.value) {
+			return fmt.Sprintf("%s: %q", field.name, field.value)
+		}
+	}
+	return ""
 }
 
 // joinEvidence merges the two legs of one regeneration. Booleans take the
