@@ -894,6 +894,82 @@ printf '%s' "$keys" | jq -e '.Keypairs | length == 0' >/dev/null \
 prove_end "$span"
 ok "nothing left behind"
 
+# The refusals a client can ask for, on the reads nothing else ever refused.
+#
+# `negative` is earned by an operation really answering 4xx to a real client
+# inside a span where a suite demanded a refusal, and until now the only thing
+# in this repository that earned it for Outscale was refusals.sh, which reissues
+# what the real cloud refused (#390). That left the whole read surface at zero:
+# a recording session is driven at bogus *identifiers*, and a bogus identifier
+# in a Read is an empty list, not a refusal (#428).
+#
+# What refuses a read here is the filter guard of filters.go: a filter this pack
+# does not apply is answered 400 naming the field, never ignored. Each line
+# below sends ONE filter that Outscale's own API description declares on that
+# call and this pack does not serve, so the request is valid to the client,
+# valid to the API, and refused by the emulator on its own terms. That is the
+# whole point of the axis: nobody armed this, and `--Filters.<x>[]` is checked
+# against oapi-cli's embedded schema before it goes out, so a name this client
+# accepts is a name the API declares.
+#
+# It is a table rather than eighteen blocks because the assertion is one
+# assertion — every entry is "the emulator refuses what it does not emulate" —
+# and eighteen copies of it is eighteen places for one of them to rot.
+echo "- every read refuses the filter it does not emulate"
+
+# refuse_read drives one call that must be refused, and distinguishes three
+# outcomes rather than two: refused in the Outscale envelope, accepted, or
+# unreadable. The middle one is the defect this guards, and the third is the
+# harness breaking — reported as itself, never folded into "not refused".
+refuse_read() { # operation args...
+  local op="$1" out rc; shift
+  out="$(osc "$op" "$@" 2>&1)" && rc=0 || rc=$?
+  if [ "$rc" -eq 0 ]; then
+    fail "$op accepted a filter it does not emulate, and answering 200 to a filter nobody applies is what filters.go exists to stop: $out"
+  fi
+  printf '%s' "$out" | jq -e '.Errors[0].Code == "4001" and .Errors[0].Type == "InvalidParameterValue"' >/dev/null 2>&1 \
+    || fail "$op did not refuse in the Outscale error envelope: $out"
+}
+
+neg="$(prove_begin negative)"
+refuse_read ReadVms               '--Filters.Architectures[]' x86_64
+refuse_read ReadNets              '--Filters.TagKeys[]' owner
+refuse_read ReadSubnets           '--Filters.TagKeys[]' owner
+refuse_read ReadKeypairs          '--Filters.KeypairIds[]' key-feintnone
+refuse_read ReadSecurityGroups    '--Filters.InboundRuleAccountIds[]' 000000000001
+refuse_read ReadRouteTables       '--Filters.LinkRouteTableLinkRouteTableIds[]' rtbassoc-feintnone
+refuse_read ReadNics              '--Filters.Descriptions[]' none
+refuse_read ReadVolumes           '--Filters.CreationDates[]' 2026-01-01
+refuse_read ReadSnapshots         '--Filters.AccountAliases[]' none
+refuse_read ReadPublicIps         '--Filters.NicAccountIds[]' 000000000001
+refuse_read ReadNatServices       '--Filters.ClientTokens[]' none
+refuse_read ReadInternetServices  '--Filters.LinkStates[]' available
+refuse_read ReadDhcpOptions       '--Filters.DomainNameServers[]' 192.0.2.53
+refuse_read ReadNetPeerings       '--Filters.ExpirationDates[]' 2026-01-01
+refuse_read ReadImages            '--Filters.AccountAliases[]' none
+refuse_read ReadVmsState          '--Filters.MaintenanceEventCodes[]' none
+prove_end "$neg"
+ok "sixteen reads named the filter they do not apply, instead of answering the whole inventory"
+
+# The two attach spellings, at a balancer that does not exist. LBU is the one
+# family where a wrong name is a refusal rather than an empty list, because the
+# call names its target instead of filtering for it — so this is the refusal
+# these two operations actually own, and the only one they own.
+#
+# LinkLoadBalancerBackendMachines and RegisterVmsInLoadBalancer share a handler
+# and are two routes: each declares its own upstream operation, so the span
+# marks the name that was called. Driving one would say nothing about the other.
+echo "- attaching a backend to a balancer that does not exist is refused"
+neg="$(prove_begin negative)"
+for attach in LinkLoadBalancerBackendMachines UnlinkLoadBalancerBackendMachines; do
+  out="$(osc "$attach" --LoadBalancerName feint-no-such-balancer '--BackendVmIds[]' i-feintnone 2>&1)" && rc=0 || rc=$?
+  [ "${rc:-0}" -ne 0 ] || fail "$attach accepted a balancer that does not exist: $out"
+  printf '%s' "$out" | jq -e '.Errors[0].Code == "5063"' >/dev/null 2>&1 \
+    || fail "$attach did not answer the not-found code a client branches on: $out"
+done
+prove_end "$neg"
+ok "both spellings answered 5063, which osc.IsNotFound reports true on"
+
 # Started with --contracts, the emulator has been validating every response
 # above against Outscale's own OpenAPI document. Reading the verdict here is
 # what makes the check part of the run rather than a report nobody opens.
