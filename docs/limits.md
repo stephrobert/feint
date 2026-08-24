@@ -1688,6 +1688,45 @@ entry is one recording away (`feint shapes --record`) from becoming either a
 failure or nothing. That list is this page's kind of sentence: it names
 exactly what nobody has proven.
 
+### An operation the document says answers nothing
+
+A missing response schema in `contracts/*.json` has three causes, and only one
+of them can be checked. The artefact distinguishes them because folding them
+together is what left thirty-one served Scaleway operations reading `unchecked`
+on the contract axis, and thirty-two reading `none` on `probed`, for months
+(#429).
+
+- **The document declares a body.** `response` names its schema, and the answer
+  is validated against it. 306 of Scaleway's 370 documented operations, all 236
+  of Outscale's, 371 of Exoscale's 374.
+- **The document declares a success with no content at all.** Scaleway writes
+  `204: {description: ''}` on 64 operations, and it is the only provider here
+  that does. `noContent` carries the status, and the answer is held to it in both
+  directions — a body where none is declared, and a status the document does not
+  name. **This is a validation, not a silence**, and reading it as one is what
+  put those thirty-one at zero.
+
+  The 64 are not simply "the DELETEs", and that is what makes the field worth
+  reading rather than the method: 52 of Scaleway's 56 DELETEs are here, and the
+  other four — `vpcgw/v2.DeleteGateway`, `vpcgw/v2.DeleteGatewayNetwork`,
+  `lb/v1.RemoveBackendServers`, `lb/v1.UnsubscribeFromLb` — declare a body and
+  answer one. Twelve operations that are not DELETEs are here too, the `Set*`
+  user-data and cloud-init family among them.
+- **The document declares a body this extraction cannot name.** A top-level
+  array, a free-form object, a media type that is not JSON. Three Exoscale
+  operations are in this case — `list-events`, `get-sks-cluster-inspection`,
+  `list-sks-cluster-deprecated-resources` — and they stay `unchecked`, correctly:
+  nothing about the emulator's answer is known.
+
+One thing the probe cannot reach, and it is a property of the probe rather than
+of any pack: `instance/v1/API.{Get,Set,Delete}ServerUserData` address a key by
+name, and no call in a probe run produces one. Measured — a server the probe
+creates answers `{"user_data":[]}`, because the only operation that could put a
+key there is the one that needs the key. A client invents the name
+(`scw instance user-data set key=cloud-init` does), and the probe may not invent
+anything. Those three earn the contract axis from client traffic and stay at
+zero on `probed`.
+
 ## `feint start` detaches on Linux, and not on macOS
 
 `start` backgrounds the emulator itself, with no `&` and no container runtime,

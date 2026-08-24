@@ -17,6 +17,44 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **An operation whose API description says it answers no body is now checked
+  against exactly that, and thirty-one Scaleway operations stop reading
+  "nobody looked"** (#429). Scaleway writes `204: {description: ''}` on 64 of
+  its 370 documented operations, and it is the only provider here that does.
+  That is the provider stating what its answer carries: nothing. Not simply
+  "the DELETEs" either — four of its DELETEs declare a body and answer one, and
+  twelve of the 64 are not DELETEs at all.
+
+  The extraction recorded the statement as the *absence* of a response schema,
+  which is also what a body it cannot name looks like, so two readers could only
+  see silence. `internal/probe` skipped every such operation, and the contract
+  check returned before recording anything as soon as a body was empty. A `scw
+  instance server delete` answering precisely what Scaleway documents was filed
+  as `unchecked` — the value that axis defines as *nobody has ever looked*.
+
+  `noContent` now carries the declared status, and only where the document
+  declares a 2xx with no content at all. The third case stays apart and stays
+  unchecked: Exoscale's `list-events`, `get-sks-cluster-inspection` and
+  `list-sks-cluster-deprecated-resources` declare a body this extraction cannot
+  name, and reading their silence as "answers nothing" would be the axis
+  inventing a verdict. What is validated is the document's own words in both
+  directions — a body where none is declared, and a status the document does not
+  name, which is what a generated SDK branches on to decide whether to unmarshal.
+
+  Measured on two runs of `mise run conformance` differing only by this change,
+  same host, same task: Scaleway goes from 141 to 170 of its 173 served
+  operations on `probed`, and from 142 to **173 of 173** on `contract` — its
+  second complete axis — while every other cell of the seven-axis table, on all
+  three packs, is identical. The 31 operations that gained `contract` are
+  exactly the 31 served operations whose document declares an empty answer, set
+  for set. No pack code moved. The per-provider table is in `docs/routes.md`.
+
+  Three stay at zero on `probed` and the cause is the probe's, not a pack's:
+  `Get`, `Set` and `DeleteServerUserData` address a key by name, and nothing in a
+  probe run produces one — a server the probe creates answers `{"user_data":[]}`,
+  because the only operation that could put a key there is the one that needs it.
+  A client invents that name; a probe may not.
+
 - **Outscale bounds `ResultsPerPage` where its own API bounds it, and a page
   size outside 1 to 1000 is now refused** (#428). Twenty-one Read* request
   schemas of Outscale's published description carry the same sentence — "between

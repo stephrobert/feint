@@ -1734,6 +1734,49 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Une opération dont la description d'API dit qu'elle ne répond aucun corps
+  est désormais contrôlée sur exactement cela, et trente et une opérations
+  Scaleway cessent d'afficher « personne n'a regardé »** (#429). Scaleway écrit
+  `204: {description: ''}` sur 64 de ses 370 opérations documentées, et c'est le
+  seul fournisseur ici à le faire. C'est le fournisseur qui déclare ce que porte
+  sa réponse : rien. Et ce n'est pas « les DELETE » : quatre de ses DELETE
+  déclarent un corps et en répondent un, et douze des 64 ne sont pas des DELETE.
+
+  L'extraction enregistrait cette déclaration comme l'*absence* de schéma de
+  réponse, ce à quoi ressemble aussi un corps qu'elle ne sait pas nommer, et les
+  deux lecteurs en aval ne voyaient donc qu'un silence. `internal/probe` sautait
+  chacune de ces opérations, et le contrôle de contrat rendait la main avant
+  d'enregistrer quoi que ce soit dès que le corps était vide. Un `scw instance
+  server delete` répondant précisément ce que Scaleway documente était classé
+  `unchecked` — la valeur que cet axe définit comme *personne n'a jamais
+  regardé*.
+
+  `noContent` porte maintenant le statut déclaré, et seulement là où le document
+  déclare un 2xx sans aucun contenu. Le troisième cas reste à part et reste non
+  contrôlé : `list-events`, `get-sks-cluster-inspection` et
+  `list-sks-cluster-deprecated-resources` d'Exoscale déclarent un corps que cette
+  extraction ne sait pas nommer, et lire leur silence comme « ne répond rien »
+  serait un verdict inventé par l'axe. Ce qui est validé, ce sont les mots du
+  document, dans les deux sens : un corps là où il n'en déclare aucun, et un
+  statut qu'il ne nomme pas — celui-là même sur lequel un SDK généré branche pour
+  décider s'il désérialise.
+
+  Mesuré sur deux passes de `mise run conformance` ne différant que par ce
+  changement, même station, même tâche : Scaleway passe de 141 à 170 de ses 173
+  opérations servies sur `probed`, et de 142 à **173 sur 173** sur `contract` —
+  son deuxième axe complet — tandis que toutes les autres cellules du tableau à
+  sept axes, sur les trois packs, sont identiques. Les 31 opérations qui gagnent
+  `contract` sont exactement les 31 opérations servies dont le document déclare
+  une réponse vide, ensemble pour ensemble. Aucune ligne de code de pack n'a
+  bougé. Le tableau par fournisseur est dans `docs/routes.md`.
+
+  Trois restent à zéro sur `probed`, et la cause appartient à la sonde et non à
+  un pack : `Get`, `Set` et `DeleteServerUserData` adressent une clé par son nom,
+  et rien dans une passe de sonde n'en produit — un serveur que la sonde crée
+  répond `{"user_data":[]}`, puisque la seule opération capable d'y poser une clé
+  est celle qui en réclame une. Un client invente ce nom ; une sonde n'a pas le
+  droit.
+
 - **Outscale borne `ResultsPerPage` là où sa propre API la borne, et une taille
   de page hors de 1 à 1000 est désormais refusée** (#428). Vingt et un schémas de
   requête Read* de la description publiée par Outscale portent la même phrase —
