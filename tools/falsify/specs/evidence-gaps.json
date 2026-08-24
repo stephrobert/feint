@@ -1,6 +1,6 @@
 {
   "subject": "the work queue behind `feint coverage --evidence --gaps` (#408)",
-  "why": "A score says where we stand; this says what to do next. Its whole value is that four zeros name four different jobs, so every mutation below turns the queue back into an undifferentiated list — which is the state it was built to replace, and which reads exactly the same to somebody who did not write it.",
+  "why": "A score says where we stand; this says what to do next. Its whole value is that four zeros name four different jobs, so every mutation below turns the queue back into an undifferentiated list — which is the state it was built to replace, and which reads exactly the same to somebody who did not write it. Since 2026-08-24 it also separates work from decisions: the four mutations added last turn the `declared` kind back into an undifferentiated `undriven` backlog, honour a reason on an operation a client drives, strip the reason from the line, or cut the packs off as the source of reasons entirely.",
   "mutations": [
     {
       "file": "internal/cli/evidence_gaps.go",
@@ -12,8 +12,8 @@
     },
     {
       "file": "internal/cli/evidence_gaps.go",
-      "find": "\tif !ev.Driven {\n\t\treturn gapUndriven\n\t}",
-      "replace": "\tif !ev.Driven && false {\n\t\treturn gapUndriven\n\t}",
+      "find": "\tif !ev.Driven {\n\t\tif reason != \"\" {\n\t\t\treturn gapDeclared\n\t\t}\n\t\treturn gapUndriven\n\t}",
+      "replace": "\tif !ev.Driven && false {\n\t\tif reason != \"\" {\n\t\t\treturn gapDeclared\n\t\t}\n\t\treturn gapUndriven\n\t}",
       "expect": "an operation no client reaches is filed as a recording session, so somebody records a cloud answer for a route nothing calls",
       "test": "TestAGapIsClassifiedFromTheRecordRatherThanTheName",
       "label": "an undriven operation is filed as a recording"
@@ -49,6 +49,38 @@
       "expect": "a typo in --axis prints an empty queue, and 'no gap on that axis' reads exactly like 'there is no such axis'",
       "test": "TestAnUnknownAxisIsRefused",
       "label": "an unknown axis prints an empty queue"
+    },
+    {
+      "file": "internal/cli/evidence_gaps.go",
+      "find": "\t\tif reason != \"\" {\n\t\t\treturn gapDeclared\n\t\t}\n\t\treturn gapUndriven",
+      "replace": "\t\tif reason != \"\" && false {\n\t\t\treturn gapDeclared\n\t\t}\n\t\treturn gapUndriven",
+      "expect": "the reason a pack wrote at the route stops retiring its zero, so all 141 of them go back to asking for a conformance suite that no client exists to write",
+      "test": "TestADeclaredReasonSplitsTheUndrivenQueue",
+      "label": "a declared reason stops retiring its zero"
+    },
+    {
+      "file": "internal/cli/evidence_gaps.go",
+      "find": "\tif !ev.Driven {\n\t\tif reason != \"\" {\n\t\t\treturn gapDeclared\n\t\t}\n\t\treturn gapUndriven\n\t}\n\tif axis.Name == \"shape\" {",
+      "replace": "\tif !ev.Driven || true {\n\t\tif reason != \"\" {\n\t\t\treturn gapDeclared\n\t\t}\n\t\treturn gapUndriven\n\t}\n\tif axis.Name == \"shape\" {",
+      "expect": "a reason is honoured on an operation a client does drive, so a stale excuse — the exact thing TestEveryUndrivenOperationSaysWhy exists to reject — empties a real recording queue",
+      "test": "TestAGapIsClassifiedFromTheRecordRatherThanTheName",
+      "label": "a stale reason excuses an operation a client drives"
+    },
+    {
+      "file": "internal/cli/evidence_gaps.go",
+      "find": "\t\t\t\tif kind == gapDeclared {\n\t\t\t\t\tentry.Reason = reasons[op]\n\t\t\t\t}",
+      "replace": "\t\t\t\tif kind == gapDeclared && false {\n\t\t\t\t\tentry.Reason = reasons[op]\n\t\t\t\t}",
+      "expect": "the queue calls an operation declared and never says on what grounds, so a decision it names is one no reader can re-examine without opening three pack files",
+      "test": "TestADeclaredReasonSplitsTheUndrivenQueue",
+      "label": "a declared line stops carrying its reason"
+    },
+    {
+      "file": "internal/cli/evidence_axes.go",
+      "find": "\t\tif r.Operation == \"\" || r.Undriven == \"\" {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif r.Operation == \"\" || r.Undriven == \"\" || true {\n\t\t\tcontinue\n\t\t}",
+      "expect": "no reason is ever read from the packs, so the split has no input and the guard's own non-vacuity check is what must catch it",
+      "test": "TestADeclaredReasonSplitsTheUndrivenQueue",
+      "label": "the reasons are never read from the packs"
     }
   ]
 }
