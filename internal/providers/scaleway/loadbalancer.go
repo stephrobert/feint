@@ -413,6 +413,10 @@ func (p *Pack) createLB(w http.ResponseWriter, r *http.Request) {
 		"ip_ids":     ipIDs,
 		"ssl_compatibility_level": orDefault(req.SslCompatibilityLevel,
 			"ssl_compatibility_level_intermediate"),
+		// The node this balancer publishes as its own. Minted here rather than
+		// rendered on the fly so that it is stable across reads: anything
+		// Terraform stores has to read back identically.
+		"instance_id": p.env.NewID(),
 	}
 	p.env.Store.Put(res)
 	for _, ipID := range ipIDs {
@@ -534,6 +538,41 @@ func (p *Pack) countLBChildren(id string, kind, key string) int {
 	return count
 }
 
+// lbInstancesView publishes the one node a balancer of this size runs on.
+//
+// It used to be an empty array, on the argument that "publishing invented
+// instance IDs would claim machines that do not exist". The recording reversed
+// the premise rather than the argument: corpus/scaleway/scw-billed-shapes.jsonl
+// seq 7 is a real fr-par balancer, and the one instance it answers carries
+// `ip_address: ""`. So the field a client could act on is empty upstream too,
+// and what the emulator was withholding was not an address but the shape — a
+// balancer that answers no node at all is the divergence, since 17 findings of
+// `feint corpus --check` were exactly that one empty array seen through eleven
+// operations (a backend nests a balancer, a frontend nests a backend).
+//
+// The status is "ready" and never "pending": lb_utils.go's waitForLbInstances
+// blocks until every instance reaches a terminal status, and this emulator's
+// lifecycle transitions are immediate (docs/limits.md).
+//
+// TestABalancerPublishesTheNodeItRunsOn fails without this.
+func (p *Pack) lbInstancesView(res *resource.Resource) []any {
+	id := textOf(res.Attrs["instance_id"])
+	if id == "" {
+		return []any{}
+	}
+	return []any{map[string]any{
+		"id":     id,
+		"status": "ready",
+		// Empty upstream as well, on the recorded balancer: the node's address
+		// is not the balancer's, and no client dials it.
+		"ip_address": "",
+		"created_at": res.Created.Format(time.RFC3339),
+		"updated_at": res.Updated.Format(time.RFC3339),
+		"region":     regionOfZone(res.Tenant.Zone),
+		"zone":       res.Tenant.Zone,
+	}}
+}
+
 func (p *Pack) lbView(res *resource.Resource) map[string]any {
 	ips := make([]map[string]any, 0, 2)
 	for _, ipID := range stringsOf(res.Attrs["ip_ids"]) {
@@ -548,17 +587,11 @@ func (p *Pack) lbView(res *resource.Resource) map[string]any {
 		}
 	}
 	return map[string]any{
-		"id":          res.ID,
-		"name":        res.Attrs["name"],
-		"description": res.Attrs["description"],
-		"status":      res.State,
-		// Empty, and deliberately: the underlying Instances are the provider's
-		// fleet, and nothing runs behind this balancer. The SDK's own waiter
-		// treats an LB with no instances as terminal (lb_utils.go,
-		// waitForLbInstances iterates an empty list), so no client waits on
-		// this. Publishing invented instance IDs would claim machines that do
-		// not exist.
-		"instances":               []any{},
+		"id":                      res.ID,
+		"name":                    res.Attrs["name"],
+		"description":             res.Attrs["description"],
+		"status":                  res.State,
+		"instances":               p.lbInstancesView(res),
 		"organization_id":         defaultOrganization,
 		"project_id":              res.Attrs["project_id"],
 		"ip":                      ips,

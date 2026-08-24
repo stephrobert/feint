@@ -44,6 +44,49 @@ func (p *Pack) DeclinedFields() []emulator.FieldDecline {
 			Path:      "servers.*.per_volume_constraint.l_ssd",
 			Reason:    "a bound for local volumes this catalogue never attaches, which would enter the client's size arithmetic with nothing behind it",
 		},
+		// The gateway's software version, on the two doors that answer a
+		// gateway. Declined rather than served because there is no truthful
+		// value: `version` is "version of the running gateway software"
+		// (vpcgw/v2/vpcgw_sdk.go), and nothing runs here — the same argument
+		// that already declines vpcgw/v2/API.UpgradeGateway, which is the
+		// operation that would change it. A number would let a client branch
+		// on a build this emulator does not carry.
+		//
+		// It goes the day a gateway is backed by a real runtime, and the gate
+		// makes that compulsory: an entry that excuses nothing fails.
+		//
+		// TestTheGatewaySoftwareVersionIsDeclinedRatherThanInvented fails
+		// without this.
+		{
+			Operation: "vpcgw/v2/API.GetGateway",
+			Path:      "version",
+			Reason:    "the version of the gateway software, which this emulator does not run: a build number here would let a client branch on a release that is not installed anywhere",
+		},
+		{
+			Operation: "vpcgw/v2/API.CreateGateway",
+			Path:      "version",
+			Reason:    "the version of the gateway software, which this emulator does not run: a build number here would let a client branch on a release that is not installed anywhere",
+		},
+		// The element of the bastion allow-list, and only the element: the
+		// array itself is served, empty. The three operations that write it
+		// are already declined at operation level in pack.go, in these words —
+		// "the bastion allow-list filters connections to a bastion that
+		// accepts none here, so a recorded range would claim a filter nothing
+		// enforces". A response carrying 0.0.0.0/0 while Set, Add and Delete
+		// all refuse would state a filter no client can change and nothing
+		// applies, which is the half-truth measurement-integrity's rule 5
+		// exists for: the decision has to hold at both levels or it holds at
+		// neither.
+		{
+			Operation: "vpcgw/v2/API.GetGateway",
+			Path:      "bastion_allowed_ips[]",
+			Reason:    "a range allowed through a bastion that accepts no connection here, while the three operations that would change the list are themselves declined: publishing one would claim a filter nothing enforces and no client can edit",
+		},
+		{
+			Operation: "vpcgw/v2/API.CreateGateway",
+			Path:      "bastion_allowed_ips[]",
+			Reason:    "a range allowed through a bastion that accepts no connection here, while the three operations that would change the list are themselves declined: publishing one would claim a filter nothing enforces and no client can edit",
+		},
 		{
 			Operation: "ipam/v1/API.ListIPs",
 			Path:      "ips[].source.zonal",

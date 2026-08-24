@@ -110,13 +110,31 @@ type updateGatewayNetworkRequest struct {
 
 // zoneProjectScopeOf mirrors regionScopeOf for the zonal products that spell
 // the filter project_id (vpc-gw, lb), where instance/v1 spells it project.
+//
+// A request that names no project is scoped to the zone and not to
+// defaultProject, and listBlockVolumes already states the rule this now
+// shares: "comparing the identifier against the pack's constant would deny a
+// client its own volumes for a configuration detail". Substituting the
+// constant did exactly that here — a client that creates an address under its
+// own project and then lists without a filter got an empty page, where the
+// real cloud answers the token's project. Measured on
+// corpus/scaleway/scw-billed-shapes.jsonl seq 12 and 37: two ListIPs, both
+// answering one address upstream and none here.
+//
+// TestAListWithoutAProjectFilterAnswersWhatTheClientCreated fails without this.
 func (p *Pack) zoneProjectScopeOf(r *http.Request, zone string) resource.Tenant {
 	q := r.URL.Query()
-	if q.Get("organization_id") != "" && q.Get("project_id") == "" {
+	// organization_id names the account, and one organization lives here
+	// (scopeOf's rule), so it narrows to the zone. Read rather than ignored:
+	// a declared query parameter its handler never names is a parameter
+	// silently dropped, which #277 turned into a gate.
+	if q.Get("organization_id") != "" {
 		return resource.Tenant{Provider: Name, Zone: zone}
 	}
-	project := orDefault(q.Get("project_id"), defaultProject)
-	return resource.Tenant{Provider: Name, Project: project, Zone: zone}
+	if project := q.Get("project_id"); project != "" {
+		return resource.Tenant{Provider: Name, Project: project, Zone: zone}
+	}
+	return resource.Tenant{Provider: Name, Zone: zone}
 }
 
 // zonalResourceOf resolves a zonal resource by path segment, writing the error.
@@ -236,7 +254,18 @@ func (p *Pack) mintGatewayIP(zone, project string, tags []string) (*resource.Res
 		"address":    addr.String(),
 		"project_id": project,
 		"tags":       tags,
-		"reverse":    nil,
+		// The empty string and not null, which is what the sibling lb IP
+		// already answers. The recording settled the type and not the value:
+		// corpus/scaleway/scw-billed-shapes.jsonl seq 34-37 shows fr-par
+		// answering a reverse on a freshly created gateway address, and the
+		// sanitiser replaced the name itself, so there is nothing to copy. An
+		// invented hostname would be the fabricated format this repository
+		// refuses; null is the one answer the recording rules out, since a
+		// client decoding *string finds nothing where the cloud always has a
+		// name. UpdateIP still carries a real one when a client sets it.
+		//
+		// TestAGatewayAddressAnswersAReverseOfTheRecordedType fails without this.
+		"reverse":    "",
 		"gateway_id": "",
 	}
 	return res, nil
@@ -271,11 +300,7 @@ func (p *Pack) updateGatewayIP(w http.ResponseWriter, r *http.Request) {
 			stored.Attrs["tags"] = orEmpty(*req.Tags)
 		}
 		if req.Reverse != nil {
-			if *req.Reverse == "" {
-				stored.Attrs["reverse"] = nil
-			} else {
-				stored.Attrs["reverse"] = *req.Reverse
-			}
+			stored.Attrs["reverse"] = *req.Reverse
 		}
 		if req.GatewayID != nil {
 			stored.Attrs["gateway_id"] = *req.GatewayID
@@ -577,12 +602,18 @@ func (p *Pack) gatewayView(res *resource.Resource) map[string]any {
 		"tags":             res.Attrs["tags"],
 		"ipv4":             ipv4,
 		"gateway_networks": networks,
-		"version":          nil,
-		"can_upgrade_to":   nil,
-		"bastion_enabled":  res.Attrs["bastion_enabled"],
-		"bastion_port":     res.Attrs["bastion_port"],
-		"smtp_enabled":     res.Attrs["smtp_enabled"],
-		"is_legacy":        false,
+		// version is absent rather than null, and DeclinedFields carries the
+		// reason. The distinction is what makes the decline work at all: a
+		// field decline excuses a field the answer does not carry, so a key
+		// present with a null value is a *type* divergence no decline can
+		// reach — the emulator would be claiming "no version" in a shape the
+		// cloud never answers. Absent, the decline states the decision and
+		// the gate holds it to being true.
+		"can_upgrade_to":  nil,
+		"bastion_enabled": res.Attrs["bastion_enabled"],
+		"bastion_port":    res.Attrs["bastion_port"],
+		"smtp_enabled":    res.Attrs["smtp_enabled"],
+		"is_legacy":       false,
 		// Served empty until SetBastionAllowedIPs is: the bastion accepts no
 		// connection here, and a recorded allow-list nothing enforces is the
 		// exact shape docs/limits.md warns about.

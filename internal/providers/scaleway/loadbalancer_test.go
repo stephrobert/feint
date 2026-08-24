@@ -383,3 +383,167 @@ func TestAFrontendCarriesTheCertificateKeyItCanOnlyEverHoldNull(t *testing.T) {
 	}
 	carries("CreateACL.frontend", inline, "certificate")
 }
+
+// TestABackendAnswersTheCloudsConcreteDefaults pins the three optional fields a
+// real fr-par account answers with a value where a nil pointer would serialise
+// to null.
+//
+// Measured, not guessed: corpus/scaleway/scw-billed-shapes.jsonl seq 13 is a
+// CreateBackend whose body names none of the three, and the cloud answers
+// host "", send_proxy_v2 false, ssl_bridging false. The same body comes back
+// null for failover_host, ignore_ssl_server_verify and timeout_queue, so those
+// stay nil and are asserted here too — a fix that turned every optional
+// pointer into a zero value would diverge the other way, and this test is what
+// says which three.
+func TestABackendAnswersTheCloudsConcreteDefaults(t *testing.T) {
+	ts := newTestServer(t)
+	ipID, _ := lbIP(t, ts, `{}`)
+	status, lb := do(t, ts, "POST", lbURL+"/lbs",
+		fmt.Sprintf(`{"name":"edge","type":"LB-S","ip_ids":[%q]}`, ipID))
+	if status != http.StatusOK {
+		t.Fatalf("create lb: expected 200, got %d (%v)", status, lb)
+	}
+	lbID, _ := lb["id"].(string)
+
+	status, backend := do(t, ts, "POST", lbURL+"/lbs/"+lbID+"/backends",
+		`{"name":"api","forward_protocol":"tcp","forward_port":80,
+		  "forward_port_algorithm":"roundrobin","sticky_sessions":"none",
+		  "health_check":{"port":80,"check_delay":3000,"check_timeout":1000,
+		                  "check_max_retries":3,"tcp_config":{}}}`)
+	if status != http.StatusOK {
+		t.Fatalf("create backend: expected 200, got %d (%v)", status, backend)
+	}
+	for _, tc := range []struct {
+		field string
+		want  any
+	}{
+		{"host", ""},
+		{"send_proxy_v2", false},
+		{"ssl_bridging", false},
+	} {
+		got, present := backend[tc.field]
+		if !present {
+			t.Errorf("%s is absent; the cloud answers %v", tc.field, tc.want)
+			continue
+		}
+		if got != tc.want {
+			t.Errorf("%s = %v (%T), want %v as the recorded cloud answers", tc.field, got, got, tc.want)
+		}
+	}
+	// The other direction, so the fix cannot widen: these are null upstream on
+	// the very same exchange.
+	for _, field := range []string{"failover_host", "ignore_ssl_server_verify", "timeout_queue"} {
+		if got, present := backend[field]; !present || got != nil {
+			t.Errorf("%s = %v, want null as the recorded cloud answers", field, got)
+		}
+	}
+
+	// A backend read back through its own door, and through the frontend that
+	// nests it, answers the same: the three fields appear on eleven operations
+	// because a frontend carries a backend and an ACL carries a frontend.
+	backendID, _ := backend["id"].(string)
+	status, reread := do(t, ts, "GET", lbURL+"/backends/"+backendID, "")
+	if status != http.StatusOK {
+		t.Fatalf("get backend: expected 200, got %d (%v)", status, reread)
+	}
+	if reread["host"] != "" || reread["send_proxy_v2"] != false || reread["ssl_bridging"] != false {
+		t.Errorf("a re-read backend answers %v/%v/%v, want the create's own values",
+			reread["host"], reread["send_proxy_v2"], reread["ssl_bridging"])
+	}
+}
+
+// TestABalancerPublishesTheNodeItRunsOn holds the shape a real fr-par balancer
+// answers: one instance, terminal, with an empty address.
+//
+// The identifier has to be stable across reads — anything Terraform stores and
+// finds changed is a permanent diff — and the status has to be terminal, since
+// lb_utils.go's waitForLbInstances blocks until every instance reaches one.
+func TestABalancerPublishesTheNodeItRunsOn(t *testing.T) {
+	ts := newTestServer(t)
+	ipID, _ := lbIP(t, ts, `{}`)
+	status, lb := do(t, ts, "POST", lbURL+"/lbs",
+		fmt.Sprintf(`{"name":"edge","type":"LB-S","ip_ids":[%q]}`, ipID))
+	if status != http.StatusOK {
+		t.Fatalf("create lb: expected 200, got %d (%v)", status, lb)
+	}
+	lbID, _ := lb["id"].(string)
+
+	instances, _ := lb["instances"].([]any)
+	if len(instances) != 1 {
+		t.Fatalf("the balancer publishes %d node(s), want the one a real LB-S runs on: %v", len(instances), lb["instances"])
+	}
+	node, _ := instances[0].(map[string]any)
+	if node["status"] != "ready" {
+		t.Errorf("node status = %v; waitForLbInstances blocks on anything but a terminal status", node["status"])
+	}
+	if node["ip_address"] != "" {
+		t.Errorf("node ip_address = %v, want the empty string the recorded cloud answers", node["ip_address"])
+	}
+	firstID, _ := node["id"].(string)
+	if firstID == "" {
+		t.Fatal("the node carries no identifier")
+	}
+
+	status, reread := do(t, ts, "GET", lbURL+"/lbs/"+lbID, "")
+	if status != http.StatusOK {
+		t.Fatalf("get lb: expected 200, got %d (%v)", status, reread)
+	}
+	again, _ := reread["instances"].([]any)
+	if len(again) != 1 {
+		t.Fatalf("a re-read balancer publishes %d node(s), want 1", len(again))
+	}
+	if got, _ := again[0].(map[string]any)["id"].(string); got != firstID {
+		t.Errorf("the node identifier moved between two reads: %s then %s", firstID, got)
+	}
+}
+
+// TestAListWithoutAProjectFilterAnswersWhatTheClientCreated covers the scope
+// substitution that hid a client's own objects: an address created under the
+// project the client names, then listed without a project_id filter, used to
+// come back on a page scoped to the pack's own defaultProject constant.
+//
+// Two products, because zoneProjectScopeOf serves both and a fix in one would
+// have left the other: lb and vpc-gw.
+func TestAListWithoutAProjectFilterAnswersWhatTheClientCreated(t *testing.T) {
+	const project = "7c1f4e2a-0000-4000-8000-00000000abcd"
+	for _, tc := range []struct {
+		name   string
+		create string
+		list   string
+	}{
+		{"lb", lbURL + "/ips", lbURL + "/ips"},
+		{"vpc-gw", "/vpc-gw/v2/zones/fr-par-1/ips", "/vpc-gw/v2/zones/fr-par-1/ips"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := newTestServer(t)
+			status, created := do(t, ts, "POST", tc.create, fmt.Sprintf(`{"project_id":%q}`, project))
+			if status != http.StatusOK {
+				t.Fatalf("create: expected 200, got %d (%v)", status, created)
+			}
+			id, _ := created["id"].(string)
+
+			status, page := do(t, ts, "GET", tc.list, "")
+			if status != http.StatusOK {
+				t.Fatalf("list: expected 200, got %d (%v)", status, page)
+			}
+			ips, _ := page["ips"].([]any)
+			if len(ips) != 1 {
+				t.Fatalf("a list with no project filter answers %d address(es), want the one just created: %v", len(ips), page)
+			}
+			if got, _ := ips[0].(map[string]any)["id"].(string); got != id {
+				t.Errorf("the page names %s, want the created %s", got, id)
+			}
+
+			// The filter still filters: naming another project must answer
+			// nothing, or the fix would have deleted the scoping rather than
+			// corrected its default.
+			status, other := do(t, ts, "GET", tc.list+"?project_id=11111111-2222-4000-8000-000000000000", "")
+			if status != http.StatusOK {
+				t.Fatalf("filtered list: expected 200, got %d (%v)", status, other)
+			}
+			if ips, _ := other["ips"].([]any); len(ips) != 0 {
+				t.Errorf("a list filtered on another project answers %d address(es), want none", len(ips))
+			}
+		})
+	}
+}
