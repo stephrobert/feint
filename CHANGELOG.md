@@ -17,6 +17,17 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **A load balancer frontend answers `certificate`, and it is null** (#427). The
+  real cloud carries the deprecated singular beside `certificate_ids` on every
+  frontend and on the frontend an ACL embeds; this emulator omitted the key.
+  Invisible to a client that decodes into a struct, visible to one that compares
+  field sets — and it was the recording of a real LB-S that turned "we serve no
+  certificates" from a silence into a stated answer. Null is the only value this
+  emulator could ever hold there, and it is the value that was observed.
+
+  Found by the omission gate of a conformance run, on eight operations at once,
+  the moment the new shapes were committed. The gate did exactly what it is for.
+
 - **The gateway offer was validated against a list nothing vouched for, and one
   recording proved it cost 143 replay findings** (#427). A sanitised transcript
   replaces every value a pack does not publish as its own, so a closed list the

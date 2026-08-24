@@ -565,12 +565,28 @@ func (p *Pack) lbFrontendView(res *resource.Resource) map[string]any {
 		backendView = p.lbBackendView(backend)
 	}
 	return map[string]any{
-		"id":                    res.ID,
-		"name":                  res.Attrs["name"],
-		"inbound_port":          res.Attrs["inbound_port"],
-		"backend":               backendView,
-		"lb":                    lbView,
-		"timeout_client":        res.Attrs["timeout_client"],
+		"id":             res.ID,
+		"name":           res.Attrs["name"],
+		"inbound_port":   res.Attrs["inbound_port"],
+		"backend":        backendView,
+		"lb":             lbView,
+		"timeout_client": res.Attrs["timeout_client"],
+		// The deprecated singular the SDK still declares beside the plural, and
+		// which the real cloud answers on every frontend: null when none is
+		// bound. Measured on 2026-08-24 on a real LB-S
+		// (corpus/scaleway/scw-billed-shapes.jsonl, #427), where it is null on
+		// the frontend and on the frontend an ACL carries.
+		//
+		// Serving null invents nothing: this emulator has no certificate
+		// surface at all, so null is the only value it could ever have, and it
+		// is exactly the value that was observed. Omitting the key was the
+		// difference a client comparing field sets would see.
+		//
+		// TestAFrontendCarriesTheCertificateKeyItCanOnlyEverHoldNull fails
+		// without it, and so does the omission gate of a conformance run
+		// (tools/conformance/score.sh, FEINT_FIELD_GATE), which is what
+		// reported it.
+		"certificate":           nil,
 		"certificate_ids":       []any{},
 		"created_at":            res.Created.Format(time.RFC3339),
 		"updated_at":            res.Updated.Format(time.RFC3339),

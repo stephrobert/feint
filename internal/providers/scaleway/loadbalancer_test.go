@@ -301,3 +301,85 @@ func TestListingRoutesOfAnAbsentFrontendIsRefused(t *testing.T) {
 		t.Fatalf("listing every route answered %d (%v), want 200", status, body)
 	}
 }
+
+// A frontend carries `certificate`, and it is null on every door.
+//
+// The real cloud answers the deprecated singular beside `certificate_ids` on
+// every frontend, null when none is bound — measured on a real LB-S on
+// 2026-08-24 (corpus/scaleway/scw-billed-shapes.jsonl, #427), on the frontend
+// itself and on the frontend an ACL carries. This emulator omitted the key
+// entirely, which is invisible to a client that decodes into a struct and
+// visible to one that compares field sets.
+//
+// Null is not an invention here: there is no certificate surface in this
+// emulator at all, so null is the only value the field could ever hold, and it
+// is the value that was observed. The recording is what turned "we do not
+// serve certificates" from a silence into a stated answer.
+//
+// Every door, because the omission gate found it on eight operations at once:
+// the frontend's own create, read, update and list, and the four ACL
+// operations that carry a frontend inline.
+func TestAFrontendCarriesTheCertificateKeyItCanOnlyEverHoldNull(t *testing.T) {
+	ts := newTestServer(t)
+
+	status, lb := do(t, ts, "POST", lbURL+"/lbs", `{"name":"certs","type":"LB-S"}`)
+	if status != http.StatusOK {
+		t.Fatalf("create lb: %d (%v)", status, lb)
+	}
+	lbID, _ := lb["id"].(string)
+
+	status, backend := do(t, ts, "POST", lbURL+"/lbs/"+lbID+"/backends",
+		`{"name":"be","forward_protocol":"tcp","forward_port":80,"forward_port_algorithm":"roundrobin",
+		  "sticky_sessions":"none","health_check":{"port":80,"check_delay":3000,"check_timeout":1000,
+		  "check_max_retries":3,"tcp_config":{}}}`)
+	if status != http.StatusOK {
+		t.Fatalf("create backend: %d (%v)", status, backend)
+	}
+	backendID, _ := backend["id"].(string)
+
+	carries := func(what string, body map[string]any, key string) {
+		t.Helper()
+		value, present := body[key]
+		if !present {
+			t.Errorf("%s carries no %s, and the real cloud carries it on every frontend", what, key)
+			return
+		}
+		if value != nil {
+			t.Errorf("%s answers %s=%v; this emulator has no certificate surface, so null is the only honest value", what, key, value)
+		}
+	}
+
+	status, created := do(t, ts, "POST", lbURL+"/lbs/"+lbID+"/frontends",
+		`{"name":"fe","inbound_port":80,"backend_id":"`+backendID+`"}`)
+	if status != http.StatusOK {
+		t.Fatalf("create frontend: %d (%v)", status, created)
+	}
+	carries("CreateFrontend", created, "certificate")
+	frontendID, _ := created["id"].(string)
+
+	_, read := do(t, ts, "GET", lbURL+"/frontends/"+frontendID, "")
+	carries("GetFrontend", read, "certificate")
+
+	_, listed := do(t, ts, "GET", lbURL+"/lbs/"+lbID+"/frontends", "")
+	frontends, _ := listed["frontends"].([]any)
+	if len(frontends) == 0 {
+		t.Fatalf("ListFrontends answered none: %v", listed)
+	}
+	for _, raw := range frontends {
+		entry, _ := raw.(map[string]any)
+		carries("ListFrontends", entry, "certificate")
+	}
+
+	// And on the frontend an ACL carries inline, which is where four of the
+	// eight findings were.
+	status, acl := do(t, ts, "POST", lbURL+"/frontends/"+frontendID+"/acls",
+		`{"name":"a","index":0,"action":{"type":"allow"},"match":{"ip_subnet":["192.168.0.0/24"]}}`)
+	if status != http.StatusOK {
+		t.Fatalf("create acl: %d (%v)", status, acl)
+	}
+	inline, _ := acl["frontend"].(map[string]any)
+	if inline == nil {
+		t.Fatalf("CreateACL carries no frontend: %v", acl)
+	}
+	carries("CreateACL.frontend", inline, "certificate")
+}

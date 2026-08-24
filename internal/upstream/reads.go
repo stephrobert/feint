@@ -85,6 +85,31 @@ var Reads = map[Provider][]string{
 		"/v2/instance-pool",
 		"/v2/load-balancer",
 		"/v2/zone",
+		// A collection read no client-driven recording reaches, and it answers
+		// on an account that owns nothing: an organization exists because the
+		// credential belongs to one.
+		//
+		// /v2/event is deliberately NOT here, and it was, briefly. The event
+		// log is the account's own history, so its field tree changes with
+		// what the account did last week -- an iam-api-key block appears the
+		// day somebody makes a key. That is exactly the volatility this
+		// package's own contract forbids ("Nothing volatile is stored … a
+		// field that moves every run would make the signal noise"), and the
+		// drift workflow decides something changed with `git diff --quiet`.
+		"/v2/organization",
+		// The two "read one" entries an emulator most needs and a sanitised
+		// corpus cannot supply. A template and an instance type are catalogue
+		// objects: they exist on every account, they carry no tenant of
+		// anybody's, and the collection above resolves the identifier so none
+		// is written here. Recorded through this path rather than through
+		// `feint proxy` for a measured reason — the fold refuses to learn a
+		// type from a value the sanitiser replaced, so an answer that is
+		// *entirely* account data (get-ssh-key: a name and a fingerprint,
+		// nothing else) can never teach its shape from a committed corpus,
+		// while reading the cloud directly stores the field tree and no value
+		// at all.
+		"/v2/template/" + shape.Placeholder,
+		"/v2/instance-type/" + shape.Placeholder,
 	},
 }
 

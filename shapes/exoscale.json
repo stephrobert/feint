@@ -140,6 +140,47 @@
         200
       ]
     },
+    "GET /v2/instance-type/{id}": {
+      "method": "GET",
+      "path": "/v2/instance-type/{id}",
+      "fields": [
+        {
+          "path": "authorized",
+          "type": "bool"
+        },
+        {
+          "path": "cpus",
+          "type": "number"
+        },
+        {
+          "path": "family",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "memory",
+          "type": "number"
+        },
+        {
+          "path": "size",
+          "type": "string"
+        },
+        {
+          "path": "zones",
+          "type": "array"
+        },
+        {
+          "path": "zones[]",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
     "GET /v2/load-balancer": {
       "method": "GET",
       "path": "/v2/load-balancer",
@@ -151,6 +192,14 @@
       ],
       "statuses": [
         200
+      ]
+    },
+    "GET /v2/organization": {
+      "method": "GET",
+      "path": "/v2/organization",
+      "fields": [],
+      "statuses": [
+        403
       ]
     },
     "GET /v2/private-network": {
@@ -299,6 +348,79 @@
         },
         {
           "path": "templates[].visibility",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "GET /v2/template/{id}": {
+      "method": "GET",
+      "path": "/v2/template/{id}",
+      "fields": [
+        {
+          "path": "application-consistent-snapshot-enabled",
+          "type": "bool"
+        },
+        {
+          "path": "boot-mode",
+          "type": "string"
+        },
+        {
+          "path": "build",
+          "type": "string"
+        },
+        {
+          "path": "checksum",
+          "type": "string"
+        },
+        {
+          "path": "created-at",
+          "type": "string"
+        },
+        {
+          "path": "default-user",
+          "type": "string"
+        },
+        {
+          "path": "description",
+          "type": "string"
+        },
+        {
+          "path": "family",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "maintainer",
+          "type": "string"
+        },
+        {
+          "path": "name",
+          "type": "string"
+        },
+        {
+          "path": "password-enabled",
+          "type": "bool"
+        },
+        {
+          "path": "size",
+          "type": "number"
+        },
+        {
+          "path": "ssh-key-enabled",
+          "type": "bool"
+        },
+        {
+          "path": "version",
+          "type": "string"
+        },
+        {
+          "path": "visibility",
           "type": "string"
         }
       ],

@@ -1813,14 +1813,6 @@
       "file": "scaleway/scw-billed-shapes.jsonl",
       "operation": "lb/v1/ZonedAPI.CreateFrontend",
       "kind": "absent",
-      "path": "certificate",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
-      "issue": "https://github.com/stephrobert/feint/issues/434"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "lb/v1/ZonedAPI.CreateFrontend",
-      "kind": "absent",
       "path": "lb.instances[]",
       "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
       "issue": "https://github.com/stephrobert/feint/issues/434"
@@ -1851,14 +1843,6 @@
     },
     {
       "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "lb/v1/ZonedAPI.GetFrontend",
-      "kind": "absent",
-      "path": "certificate",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
-      "issue": "https://github.com/stephrobert/feint/issues/434"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
       "operation": "lb/v1/ZonedAPI.UpdateFrontend",
       "kind": "type",
       "path": "backend.host",
@@ -1878,14 +1862,6 @@
       "operation": "lb/v1/ZonedAPI.UpdateFrontend",
       "kind": "type",
       "path": "backend.ssl_bridging",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
-      "issue": "https://github.com/stephrobert/feint/issues/434"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "lb/v1/ZonedAPI.UpdateFrontend",
-      "kind": "absent",
-      "path": "certificate",
       "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
       "issue": "https://github.com/stephrobert/feint/issues/434"
     },
@@ -1933,14 +1909,6 @@
       "file": "scaleway/scw-billed-shapes.jsonl",
       "operation": "lb/v1/ZonedAPI.ListFrontends",
       "kind": "absent",
-      "path": "frontends[].certificate",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
-      "issue": "https://github.com/stephrobert/feint/issues/434"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "lb/v1/ZonedAPI.ListFrontends",
-      "kind": "absent",
       "path": "frontends[].lb.instances[]",
       "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
       "issue": "https://github.com/stephrobert/feint/issues/434"
@@ -1971,14 +1939,6 @@
     },
     {
       "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "lb/v1/ZonedAPI.CreateACL",
-      "kind": "absent",
-      "path": "frontend.certificate",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
-      "issue": "https://github.com/stephrobert/feint/issues/434"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
       "operation": "lb/v1/ZonedAPI.GetACL",
       "kind": "type",
       "path": "frontend.backend.host",
@@ -2003,14 +1963,6 @@
     },
     {
       "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "lb/v1/ZonedAPI.GetACL",
-      "kind": "absent",
-      "path": "frontend.certificate",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
-      "issue": "https://github.com/stephrobert/feint/issues/434"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
       "operation": "lb/v1/ZonedAPI.UpdateACL",
       "kind": "type",
       "path": "frontend.backend.host",
@@ -2030,14 +1982,6 @@
       "operation": "lb/v1/ZonedAPI.UpdateACL",
       "kind": "type",
       "path": "frontend.backend.ssl_bridging",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
-      "issue": "https://github.com/stephrobert/feint/issues/434"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "lb/v1/ZonedAPI.UpdateACL",
-      "kind": "absent",
-      "path": "frontend.certificate",
       "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
       "issue": "https://github.com/stephrobert/feint/issues/434"
     },
@@ -2070,14 +2014,6 @@
       "operation": "lb/v1/ZonedAPI.ListACLs",
       "kind": "type",
       "path": "acls[].frontend.backend.ssl_bridging",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
-      "issue": "https://github.com/stephrobert/feint/issues/434"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "lb/v1/ZonedAPI.ListACLs",
-      "kind": "absent",
-      "path": "acls[].frontend.certificate",
       "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
       "issue": "https://github.com/stephrobert/feint/issues/434"
     },

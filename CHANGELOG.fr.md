@@ -1096,6 +1096,19 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Un frontend de répartiteur rend `certificate`, et il vaut null** (#427). Le
+  vrai cloud porte le singulier déprécié à côté de `certificate_ids` sur chaque
+  frontend et sur le frontend qu'une ACL embarque ; cet émulateur omettait la
+  clé. Invisible pour un client qui décode dans une structure, visible pour un
+  client qui compare des ensembles de champs — et c'est l'enregistrement d'un
+  vrai LB-S qui a transformé « nous ne servons pas de certificats » d'un silence
+  en une réponse énoncée. Null est la seule valeur que cet émulateur pourrait y
+  porter, et c'est la valeur observée.
+
+  Trouvé par la garde d'omission d'une passe de conformance, sur huit opérations
+  d'un coup, dès les nouvelles formes commitées. La garde a fait exactement ce
+  pour quoi elle existe.
+
 - **L'offre de passerelle était validée contre une liste dont personne ne se
   portait garant, et un enregistrement a prouvé que cela coûtait 143 constats de
   rejeu** (#427). Une transcription assainie remplace toute valeur qu'un pack ne
