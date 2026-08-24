@@ -23,12 +23,14 @@
   "block/v1.DeleteSnapshot": {
    "path": "/block/v1/zones/{zone}/snapshots/{snapshot_id}",
    "method": "DELETE",
-   "group": "Snapshot"
+   "group": "Snapshot",
+   "noContent": 204
   },
   "block/v1.DeleteVolume": {
    "path": "/block/v1/zones/{zone}/volumes/{volume_id}",
    "method": "DELETE",
-   "group": "Volume"
+   "group": "Volume",
+   "noContent": 204
   },
   "block/v1.ExportSnapshotToObjectStorage": {
    "path": "/block/v1/zones/{zone}/snapshots/{snapshot_id}/export-to-object-storage",
@@ -186,12 +188,14 @@
   "block/v1alpha1.DeleteSnapshot": {
    "path": "/block/v1alpha1/zones/{zone}/snapshots/{snapshot_id}",
    "method": "DELETE",
-   "group": "Snapshot"
+   "group": "Snapshot",
+   "noContent": 204
   },
   "block/v1alpha1.DeleteVolume": {
    "path": "/block/v1alpha1/zones/{zone}/volumes/{volume_id}",
    "method": "DELETE",
-   "group": "Volume"
+   "group": "Volume",
+   "noContent": 204
   },
   "block/v1alpha1.ExportSnapshotToObjectStorage": {
    "path": "/block/v1alpha1/zones/{zone}/snapshots/{snapshot_id}/export-to-object-storage",
@@ -414,62 +418,74 @@
   "iam/v1alpha1.DeleteAPIKey": {
    "path": "/iam/v1alpha1/api-keys/{access_key}",
    "method": "DELETE",
-   "group": "API Keys"
+   "group": "API Keys",
+   "noContent": 204
   },
   "iam/v1alpha1.DeleteApplication": {
    "path": "/iam/v1alpha1/applications/{application_id}",
    "method": "DELETE",
-   "group": "Applications"
+   "group": "Applications",
+   "noContent": 204
   },
   "iam/v1alpha1.DeleteGroup": {
    "path": "/iam/v1alpha1/groups/{group_id}",
    "method": "DELETE",
-   "group": "Groups"
+   "group": "Groups",
+   "noContent": 204
   },
   "iam/v1alpha1.DeleteJWT": {
    "path": "/iam/v1alpha1/jwts/{jti}",
    "method": "DELETE",
-   "group": "JWTs"
+   "group": "JWTs",
+   "noContent": 204
   },
   "iam/v1alpha1.DeletePolicy": {
    "path": "/iam/v1alpha1/policies/{policy_id}",
    "method": "DELETE",
-   "group": "Policies"
+   "group": "Policies",
+   "noContent": 204
   },
   "iam/v1alpha1.DeleteSSHKey": {
    "path": "/iam/v1alpha1/ssh-keys/{ssh_key_id}",
    "method": "DELETE",
-   "group": "SSH Keys"
+   "group": "SSH Keys",
+   "noContent": 204
   },
   "iam/v1alpha1.DeleteSaml": {
    "path": "/iam/v1alpha1/saml/{saml_id}",
    "method": "DELETE",
-   "group": "SAML"
+   "group": "SAML",
+   "noContent": 204
   },
   "iam/v1alpha1.DeleteSamlCertificate": {
    "path": "/iam/v1alpha1/saml-certificates/{certificate_id}",
    "method": "DELETE",
-   "group": "SAML"
+   "group": "SAML",
+   "noContent": 204
   },
   "iam/v1alpha1.DeleteScim": {
    "path": "/iam/v1alpha1/scim/{scim_id}",
    "method": "DELETE",
-   "group": "SCIM"
+   "group": "SCIM",
+   "noContent": 204
   },
   "iam/v1alpha1.DeleteScimToken": {
    "path": "/iam/v1alpha1/scim-tokens/{token_id}",
    "method": "DELETE",
-   "group": "SCIM"
+   "group": "SCIM",
+   "noContent": 204
   },
   "iam/v1alpha1.DeleteUser": {
    "path": "/iam/v1alpha1/users/{user_id}",
    "method": "DELETE",
-   "group": "Users"
+   "group": "Users",
+   "noContent": 204
   },
   "iam/v1alpha1.DeleteUserMFAOTP": {
    "path": "/iam/v1alpha1/users/{user_id}/mfa-otp",
    "method": "DELETE",
-   "group": "Users"
+   "group": "Users",
+   "noContent": 204
   },
   "iam/v1alpha1.EnableOrganizationSaml": {
    "path": "/iam/v1alpha1/organizations/{organization_id}/saml",
@@ -584,7 +600,8 @@
   "iam/v1alpha1.JoinUserConnection": {
    "path": "/iam/v1alpha1/users/{user_id}/join-connection",
    "method": "POST",
-   "request": "iam/v1alpha1.JoinUserConnection.Request"
+   "request": "iam/v1alpha1.JoinUserConnection.Request",
+   "noContent": 204
   },
   "iam/v1alpha1.ListAPIKeys": {
    "path": "/iam/v1alpha1/api-keys",
@@ -1000,7 +1017,8 @@
   "iam/v1alpha1.RemoveUserConnection": {
    "path": "/iam/v1alpha1/users/{user_id}/remove-connection",
    "method": "POST",
-   "request": "iam/v1alpha1.RemoveUserConnection.Request"
+   "request": "iam/v1alpha1.RemoveUserConnection.Request",
+   "noContent": 204
   },
   "iam/v1alpha1.SetGroupMembers": {
    "path": "/iam/v1alpha1/groups/{group_id}/members",
@@ -1128,7 +1146,8 @@
   "instance/v1.CheckBlockMigrationOrganizationQuotas": {
    "path": "/instance/v1/zones/{zone}/block-migration/check-organization-quotas",
    "method": "POST",
-   "request": "instance/v1.CheckBlockMigrationOrganizationQuotas.Request"
+   "request": "instance/v1.CheckBlockMigrationOrganizationQuotas.Request",
+   "noContent": 204
   },
   "instance/v1.CreateImage": {
    "path": "/instance/v1/zones/{zone}/images",
@@ -1196,52 +1215,62 @@
   "instance/v1.DeleteImage": {
    "path": "/instance/v1/zones/{zone}/images/{image_id}",
    "method": "DELETE",
-   "group": "Images"
+   "group": "Images",
+   "noContent": 204
   },
   "instance/v1.DeleteIp": {
    "path": "/instance/v1/zones/{zone}/ips/{ip}",
    "method": "DELETE",
-   "group": "IPs"
+   "group": "IPs",
+   "noContent": 204
   },
   "instance/v1.DeletePlacementGroup": {
    "path": "/instance/v1/zones/{zone}/placement_groups/{placement_group_id}",
    "method": "DELETE",
-   "group": "Placement Groups"
+   "group": "Placement Groups",
+   "noContent": 204
   },
   "instance/v1.DeletePrivateNIC": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/private_nics/{private_nic_id}",
    "method": "DELETE",
-   "group": "Private NICs"
+   "group": "Private NICs",
+   "noContent": 204
   },
   "instance/v1.DeleteSecurityGroup": {
    "path": "/instance/v1/zones/{zone}/security_groups/{security_group_id}",
    "method": "DELETE",
-   "group": "Security Groups"
+   "group": "Security Groups",
+   "noContent": 204
   },
   "instance/v1.DeleteSecurityGroupRule": {
    "path": "/instance/v1/zones/{zone}/security_groups/{security_group_id}/rules/{security_group_rule_id}",
    "method": "DELETE",
-   "group": "Security Groups"
+   "group": "Security Groups",
+   "noContent": 204
   },
   "instance/v1.DeleteServer": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}",
    "method": "DELETE",
-   "group": "Instances"
+   "group": "Instances",
+   "noContent": 204
   },
   "instance/v1.DeleteServerUserData": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/user_data/{key}",
    "method": "DELETE",
-   "group": "User Data"
+   "group": "User Data",
+   "noContent": 204
   },
   "instance/v1.DeleteSnapshot": {
    "path": "/instance/v1/zones/{zone}/snapshots/{snapshot_id}",
    "method": "DELETE",
-   "group": "Snapshots"
+   "group": "Snapshots",
+   "noContent": 204
   },
   "instance/v1.DeleteVolume": {
    "path": "/instance/v1/zones/{zone}/volumes/{volume_id}",
    "method": "DELETE",
-   "group": "Volumes"
+   "group": "Volumes",
+   "noContent": 204
   },
   "instance/v1.DetachServerFileSystem": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/detach-filesystem",
@@ -1673,7 +1702,8 @@
   "instance/v1.ReleaseIpToIpam": {
    "path": "/instance/v1/zones/{zone}/ips/{ip_id}/release-to-ipam",
    "method": "POST",
-   "group": "IPs"
+   "group": "IPs",
+   "noContent": 204
   },
   "instance/v1.ServerAction": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/action",
@@ -1727,7 +1757,8 @@
   "instance/v1.SetServerUserData": {
    "path": "/instance/v1/zones/{zone}/servers/{server_id}/user_data/{key}",
    "method": "PATCH",
-   "group": "User Data"
+   "group": "User Data",
+   "noContent": 204
   },
   "instance/v1.SetSnapshot": {
    "path": "/instance/v1/zones/{zone}/snapshots/{snapshot_id}",
@@ -1851,7 +1882,8 @@
   "instance/v2alpha1.CheckTemplate": {
    "path": "/instance/v2alpha1/zones/{zone}/templates/{template_id}/check",
    "method": "GET",
-   "group": "Templates"
+   "group": "Templates",
+   "noContent": 204
   },
   "instance/v2alpha1.CreatePlacementGroup": {
    "path": "/instance/v2alpha1/zones/{zone}/placement-groups",
@@ -1898,43 +1930,51 @@
   "instance/v2alpha1.DeletePlacementGroup": {
    "path": "/instance/v2alpha1/zones/{zone}/placement-groups/{placement_group_id}",
    "method": "DELETE",
-   "group": "Placement Groups"
+   "group": "Placement Groups",
+   "noContent": 204
   },
   "instance/v2alpha1.DeletePrivateNetworkInterface": {
    "path": "/instance/v2alpha1/zones/{zone}/private-network-interfaces/{private_network_interface_id}",
    "method": "DELETE",
-   "group": "Private Network Interfaces"
+   "group": "Private Network Interfaces",
+   "noContent": 204
   },
   "instance/v2alpha1.DeleteSecurityGroup": {
    "path": "/instance/v2alpha1/zones/{zone}/security-groups/{security_group_id}",
    "method": "DELETE",
-   "group": "Security Groups"
+   "group": "Security Groups",
+   "noContent": 204
   },
   "instance/v2alpha1.DeleteSecurityGroupRules": {
    "path": "/instance/v2alpha1/zones/{zone}/security-group-rules",
    "method": "DELETE",
    "group": "Security Groups",
-   "request": "instance/v2alpha1.DeleteSecurityGroupRules.Request"
+   "request": "instance/v2alpha1.DeleteSecurityGroupRules.Request",
+   "noContent": 204
   },
   "instance/v2alpha1.DeleteServer": {
    "path": "/instance/v2alpha1/zones/{zone}/servers/{server_id}",
    "method": "DELETE",
-   "group": "Instances"
+   "group": "Instances",
+   "noContent": 204
   },
   "instance/v2alpha1.DeleteTemplate": {
    "path": "/instance/v2alpha1/zones/{zone}/templates/{template_id}",
    "method": "DELETE",
-   "group": "Templates"
+   "group": "Templates",
+   "noContent": 204
   },
   "instance/v2alpha1.DeleteTemplateUserData": {
    "path": "/instance/v2alpha1/zones/{zone}/templates/{template_id}/user-data/{key}",
    "method": "DELETE",
-   "group": "Templates"
+   "group": "Templates",
+   "noContent": 204
   },
   "instance/v2alpha1.DeleteUserData": {
    "path": "/instance/v2alpha1/zones/{zone}/servers/{server_id}/user-data/{key}",
    "method": "DELETE",
-   "group": "User Data"
+   "group": "User Data",
+   "noContent": 204
   },
   "instance/v2alpha1.DetachServerFileSystem": {
    "path": "/instance/v2alpha1/zones/{zone}/servers/{server_id}/detach-filesystem",
@@ -2312,7 +2352,8 @@
    "path": "/instance/v2alpha1/zones/{zone}/servers/{server_id}/user-data/cloud-init",
    "method": "PUT",
    "group": "User Data",
-   "request": "instance/v2alpha1.SetServerCloudInit.Request"
+   "request": "instance/v2alpha1.SetServerCloudInit.Request",
+   "noContent": 204
   },
   "instance/v2alpha1.SetServerDefaultIP": {
    "path": "/instance/v2alpha1/zones/{zone}/servers/{server_id}/set-default-ip",
@@ -2325,19 +2366,22 @@
    "path": "/instance/v2alpha1/zones/{zone}/templates/{template_id}/user-data/cloud-init",
    "method": "PUT",
    "group": "Templates",
-   "request": "instance/v2alpha1.SetTemplateCloudInit.Request"
+   "request": "instance/v2alpha1.SetTemplateCloudInit.Request",
+   "noContent": 204
   },
   "instance/v2alpha1.SetTemplateUserData": {
    "path": "/instance/v2alpha1/zones/{zone}/templates/{template_id}/user-data/{key}",
    "method": "PUT",
    "group": "Templates",
-   "request": "instance/v2alpha1.SetTemplateUserData.Request"
+   "request": "instance/v2alpha1.SetTemplateUserData.Request",
+   "noContent": 204
   },
   "instance/v2alpha1.SetUserData": {
    "path": "/instance/v2alpha1/zones/{zone}/servers/{server_id}/user-data/{key}",
    "method": "PUT",
    "group": "User Data",
-   "request": "instance/v2alpha1.SetUserData.Request"
+   "request": "instance/v2alpha1.SetUserData.Request",
+   "noContent": 204
   },
   "instance/v2alpha1.StartServer": {
    "path": "/instance/v2alpha1/zones/{zone}/servers/{server_id}/start",
@@ -2505,12 +2549,14 @@
   "ipam/v1.ReleaseIP": {
    "path": "/ipam/v1/regions/{region}/ips/{ip_id}",
    "method": "DELETE",
-   "group": "IPs"
+   "group": "IPs",
+   "noContent": 204
   },
   "ipam/v1.ReleaseIPSet": {
    "path": "/ipam/v1/regions/{region}/ip-sets/release",
    "method": "POST",
-   "request": "ipam/v1.ReleaseIPSet.Request"
+   "request": "ipam/v1.ReleaseIPSet.Request",
+   "noContent": 204
   },
   "ipam/v1.UpdateIP": {
    "path": "/ipam/v1/regions/{region}/ips/{ip_id}",
@@ -2592,27 +2638,32 @@
   "lb/v1.DeleteAcl": {
    "path": "/lb/v1/zones/{zone}/acls/{acl_id}",
    "method": "DELETE",
-   "group": "ACLs"
+   "group": "ACLs",
+   "noContent": 204
   },
   "lb/v1.DeleteBackend": {
    "path": "/lb/v1/zones/{zone}/backends/{backend_id}",
    "method": "DELETE",
-   "group": "Backends"
+   "group": "Backends",
+   "noContent": 204
   },
   "lb/v1.DeleteCertificate": {
    "path": "/lb/v1/zones/{zone}/certificates/{certificate_id}",
    "method": "DELETE",
-   "group": "Certificate"
+   "group": "Certificate",
+   "noContent": 204
   },
   "lb/v1.DeleteFrontend": {
    "path": "/lb/v1/zones/{zone}/frontends/{frontend_id}",
    "method": "DELETE",
-   "group": "Frontends"
+   "group": "Frontends",
+   "noContent": 204
   },
   "lb/v1.DeleteLb": {
    "path": "/lb/v1/zones/{zone}/lbs/{lb_id}",
    "method": "DELETE",
    "group": "Load Balancer",
+   "noContent": 204,
    "query": {
     "release_ip": {
      "type": "boolean"
@@ -2622,18 +2673,21 @@
   "lb/v1.DeleteRoute": {
    "path": "/lb/v1/zones/{zone}/routes/{route_id}",
    "method": "DELETE",
-   "group": "Route"
+   "group": "Route",
+   "noContent": 204
   },
   "lb/v1.DeleteSubscriber": {
    "path": "/lb/v1/zones/{zone}/lb/subscription/{subscriber_id}",
    "method": "DELETE",
-   "group": "Alert Subscribers"
+   "group": "Alert Subscribers",
+   "noContent": 204
   },
   "lb/v1.DetachPrivateNetwork": {
    "path": "/lb/v1/zones/{zone}/lbs/{lb_id}/detach-private-network",
    "method": "POST",
    "group": "Private Networks",
-   "request": "lb/v1.DetachPrivateNetwork.Request"
+   "request": "lb/v1.DetachPrivateNetwork.Request",
+   "noContent": 204
   },
   "lb/v1.GetAcl": {
    "path": "/lb/v1/zones/{zone}/acls/{acl_id}",
@@ -2948,7 +3002,8 @@
   "lb/v1.ReleaseIp": {
    "path": "/lb/v1/zones/{zone}/ips/{ip_id}",
    "method": "DELETE",
-   "group": "IP addresses"
+   "group": "IP addresses",
+   "noContent": 204
   },
   "lb/v1.RemoveBackendServers": {
    "path": "/lb/v1/zones/{zone}/backends/{backend_id}/servers",
@@ -3202,32 +3257,38 @@
   "vpc/v2.DeleteIngressRule": {
    "path": "/vpc/v2/regions/{region}/ingress-rules/{rule_id}",
    "method": "DELETE",
-   "group": "Ingress Rules"
+   "group": "Ingress Rules",
+   "noContent": 204
   },
   "vpc/v2.DeletePrivateNetwork": {
    "path": "/vpc/v2/regions/{region}/private-networks/{private_network_id}",
    "method": "DELETE",
-   "group": "Private Networks"
+   "group": "Private Networks",
+   "noContent": 204
   },
   "vpc/v2.DeletePrivateNetworkS3Endpoint": {
    "path": "/vpc/v2/regions/{region}/s3-integration/{vpc_id}/private-networks/{private_network_id}",
    "method": "DELETE",
-   "group": "S3 integration"
+   "group": "S3 integration",
+   "noContent": 204
   },
   "vpc/v2.DeleteRoute": {
    "path": "/vpc/v2/regions/{region}/routes/{route_id}",
    "method": "DELETE",
-   "group": "Routes"
+   "group": "Routes",
+   "noContent": 204
   },
   "vpc/v2.DeleteVPC": {
    "path": "/vpc/v2/regions/{region}/vpcs/{vpc_id}",
    "method": "DELETE",
-   "group": "VPCs"
+   "group": "VPCs",
+   "noContent": 204
   },
   "vpc/v2.DeleteVPCConnector": {
    "path": "/vpc/v2/regions/{region}/vpc-connectors/{vpc_connector_id}",
    "method": "DELETE",
-   "group": "VPC Connectors"
+   "group": "VPC Connectors",
+   "noContent": 204
   },
   "vpc/v2.DisableS3Endpoint": {
    "path": "/vpc/v2/regions/{region}/s3-integration/{vpc_id}/disable",
@@ -3608,7 +3669,8 @@
   "vpcgw/v2.DeleteBastionAllowedIPs": {
    "path": "/vpc-gw/v2/zones/{zone}/gateways/{gateway_id}/bastion-allowed-ips/{ip_range}",
    "method": "DELETE",
-   "group": "Allowed IPs"
+   "group": "Allowed IPs",
+   "noContent": 204
   },
   "vpcgw/v2.DeleteGateway": {
    "path": "/vpc-gw/v2/zones/{zone}/gateways/{gateway_id}",
@@ -3630,12 +3692,14 @@
   "vpcgw/v2.DeleteIP": {
    "path": "/vpc-gw/v2/zones/{zone}/ips/{ip_id}",
    "method": "DELETE",
-   "group": "IPs"
+   "group": "IPs",
+   "noContent": 204
   },
   "vpcgw/v2.DeletePatRule": {
    "path": "/vpc-gw/v2/zones/{zone}/pat-rules/{pat_rule_id}",
    "method": "DELETE",
-   "group": "PAT Rules"
+   "group": "PAT Rules",
+   "noContent": 204
   },
   "vpcgw/v2.GetGateway": {
    "path": "/vpc-gw/v2/zones/{zone}/gateways/{gateway_id}",

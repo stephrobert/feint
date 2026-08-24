@@ -228,11 +228,44 @@ def success_body(op: dict) -> dict:
     throughout, Outscale too, but an API is free to change that and the silence
     would not be visible.
     """
+    return success_response(op)[1]
+
+
+def success_response(op: dict) -> tuple[str, dict]:
+    """The status and the response object of whichever 2xx is the success."""
     responses = op.get("responses") or {}
     for status in sorted(responses):
         if str(status).startswith("2"):
-            return responses[status]
-    return {}
+            return str(status), (responses[status] or {})
+    return "", {}
+
+
+def no_content_status(op: dict) -> int:
+    """The success status of an operation the document states answers no body.
+
+    Three outcomes live behind a missing response schema, and folding two of
+    them together is what put thirty-one Scaleway operations at zero on both the
+    probed and the contract axis for months:
+
+      * the document names a body — `response` carries its schema;
+      * the document declares a 2xx **with no content at all** — Scaleway writes
+        `204: {description: ''}` on 64 of its operations, which is a statement
+        about the wire and not a silence, and this is what returns a status here;
+      * the document declares content this extraction cannot name — a top-level
+        array, a free-form object, a media type that is not JSON — or declares no
+        2xx whatever. Nothing is known, nothing is returned, and the operation
+        stays unchecked. Exoscale's list-events is the live example: its 200
+        carries an array of $ref, so it is silence to us and must never be read
+        as "answers nothing".
+
+    Returns 0 for everything but the middle case.
+    """
+    status, body = success_response(op)
+    if not status.isdigit():
+        return 0
+    if body.get("content"):
+        return 0
+    return int(status)
 
 
 def declared_error_refs(op: dict) -> list[str]:
@@ -351,6 +384,8 @@ def read_spec(
                 entry["request"] = req
             if resp := json_schema_of(success_body(op), schemas, oid + ".Response", args):
                 entry["response"] = resp
+            elif status := no_content_status(op):
+                entry["noContent"] = status
             if query := query_params(item, op):
                 entry["query"] = query
             error_refs.update(declared_error_refs(op))
@@ -543,8 +578,13 @@ def main() -> int:
         f.write("\n")
 
     # Said out loud rather than left to be discovered: an operation with no
-    # response schema is one the emulator can answer anything for.
-    unchecked = sorted(name for name, op in operations.items() if "response" not in op)
+    # response schema is one the emulator can answer anything for. An operation
+    # the document states answers no body at all is not one of them — "carry
+    # nothing" is as checkable as any schema, and noContent is where it is
+    # written down.
+    unchecked = sorted(
+        name for name, op in operations.items() if "response" not in op and "noContent" not in op
+    )
     if unchecked:
         print(
             f"{args.output}: {len(unchecked)} operation(s) declare no response schema "

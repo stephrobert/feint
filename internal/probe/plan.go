@@ -77,10 +77,19 @@ func Plan(doc *contract.Doc, routes []contract.MountedRoute) ([]Step, error) {
 		}
 		step.Kind = kind(name, route.Method)
 		step.Makes = makes(name, step.Kind)
-		if op.Response == "" {
+		if op.Response == "" && op.NoContent == 0 {
 			// Nothing to validate against, so calling it would prove only that
 			// it answered. Said out loud: these are what the extraction reports
 			// as operations with no response schema.
+			//
+			// NoContent is the case this used to swallow (#429). An operation
+			// whose document declares `204: {description: ''}` states what its
+			// answer carries — nothing — and that is as checkable as a schema.
+			// Reading the missing schema as "nothing to check" skipped every
+			// Scaleway DELETE, which is 31 of the 173 operations that pack
+			// serves and every one of its zeros on the probed axis.
+			// TestAnOperationDeclaredWithNoBodyIsStillProbed fails without the
+			// second condition.
 			step.Skip = "the contract declares no response schema"
 		}
 

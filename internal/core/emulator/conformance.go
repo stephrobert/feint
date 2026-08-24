@@ -333,7 +333,39 @@ func (o *observer) record(operation string, synthetic bool) {
 // hands the violations back, because the log needs the verdict on this exchange
 // rather than on the operation.
 func (o *observer) check(doc *contract.Doc, operation string, rec *recorder, synthetic bool) contract.Violations {
-	if rec.body == nil || rec.status < 200 || rec.status >= 300 || rec.body.Len() == 0 {
+	if rec.body == nil || rec.status < 200 || rec.status >= 300 {
+		return nil
+	}
+	_, resolved, resolvable := doc.OperationFor(operation)
+
+	// An answer with no body is not an answer nothing can be held to. The
+	// provider's document can state that this operation carries none —
+	// Scaleway writes `204: {description: ''}` on 64 operations, 31 of them
+	// served here — and that statement is checkable in both directions: an
+	// empty answer keeps it, a body breaks it, and so does a status the
+	// document does not name.
+	//
+	// This early return used to be `|| rec.body.Len() == 0`, and it is where
+	// every operation the document declares bodyless lost the contract axis: a
+	// `scw instance server delete` that answered exactly what the document
+	// describes was recorded as `unchecked`, which the axis defines as "nobody
+	// looked" (#429). Not "every DELETE": four of Scaleway's 56 declare a body
+	// and answer one, which is why the field is read rather than the method.
+	//
+	// ValidateEmptyResponse's second return is what keeps that honest: false
+	// where the document says nothing about a bodyless answer, and then nothing
+	// is marked. TestAnAnswerWithNoBodyIsCheckedAgainstTheDocument and
+	// TestAnUndeclaredEmptyAnswerIsStillUnchecked are the two halves.
+	if resolvable {
+		if vs, checkable := doc.ValidateEmptyResponse(resolved, rec.status, rec.body.Len()); checkable {
+			o.markChecked(operation)
+			if len(vs) > 0 {
+				o.report(operation, vs)
+			}
+			return vs
+		}
+	}
+	if rec.body.Len() == 0 {
 		return nil
 	}
 	// A response the API does not describe as JSON is not compared as JSON, and
@@ -361,7 +393,7 @@ func (o *observer) check(doc *contract.Doc, operation string, rec *recorder, syn
 	// validation that failed still looked. What must never count is the early
 	// return above, where nothing was compared with anything.
 	o.markChecked(operation)
-	_, name, known := doc.OperationFor(operation)
+	name, known := resolved, resolvable
 	if !known {
 		vs := contract.Violations{{
 			Path: operation, Reason: "no such operation in the contract",
@@ -413,7 +445,26 @@ func (o *observer) check(doc *contract.Doc, operation string, rec *recorder, syn
 // was asked. Arrival is already counted elsewhere (record), and arrival is not
 // a verdict (#156).
 func (o *observer) noteProbe(doc *contract.Doc, operation string, query url.Values, reqBody []byte, rec *recorder, checked contract.Violations) {
-	if rec.body == nil || rec.body.Len() == 0 {
+	if rec.body == nil {
+		return
+	}
+	if rec.body.Len() == 0 {
+		// An empty body earns the axis only where the document declares one,
+		// and only through the same verdict the contract axis just recorded:
+		// check() held this answer to `204: {description: ''}` and `checked`
+		// carries what it found (#429). Where the document states nothing
+		// about a bodyless answer, NoContent is zero and nothing is marked —
+		// which is the original behaviour of this early return, kept for the
+		// case it was actually right about.
+		// TestAnEmptyAnswerEarnsTheProbeOnlyWhereTheDocumentDeclaresIt fails
+		// without the NoContent condition.
+		op, _, known := doc.OperationFor(operation)
+		if !known || op.NoContent == 0 || len(checked) > 0 {
+			return
+		}
+		if rec.status >= 200 && rec.status < 300 {
+			o.markProbe(o.probeResponse, operation)
+		}
 		return
 	}
 

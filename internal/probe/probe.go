@@ -276,7 +276,16 @@ func (r *Runner) call(ctx context.Context, client *http.Client, step Step, pool 
 		result.Err = err
 		return result
 	}
-	if status >= 300 || decoded == nil {
+	if status >= 300 {
+		return result
+	}
+	if decoded == nil {
+		// No body came back. When the document declares this operation answers
+		// none, that is exactly what it promised and holding the answer to it
+		// is a validation; when the document says nothing about a bodyless
+		// answer, the second return is false and nothing has been checked
+		// (#429). There is nothing to harvest either way.
+		result.Violations, _ = r.Doc.ValidateEmptyResponse(step.Contract, status, 0)
 		return result
 	}
 	result.Violations = r.Doc.ValidateResponse(step.Contract, decoded)

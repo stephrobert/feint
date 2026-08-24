@@ -118,6 +118,27 @@ type Operation struct {
 	Group    string `json:"group,omitempty"`
 	Request  string `json:"request"`
 	Response string `json:"response"`
+	// NoContent is the success status of an operation whose response the
+	// document declares as carrying no body at all: Scaleway writes
+	// `204: {description: ''}` on 64 of its operations, this project's only
+	// provider that does. Zero everywhere else.
+	//
+	// It is not the same field as an empty Response, and conflating the two is
+	// what put thirty-one served Scaleway operations at zero on both the probed
+	// and the contract axis (#429). An empty Response has three causes and only
+	// one of them is checkable:
+	//
+	//   - the document names a body: Response carries its schema;
+	//   - the document states there is no body: Response is empty, NoContent
+	//     holds the status, and "the answer carried nothing, with that status"
+	//     is a validation like any other;
+	//   - the document declares a body this extraction cannot name — a
+	//     top-level array (Exoscale's list-events), a free-form object, a
+	//     non-JSON media type — or declares no 2xx at all. Both are empty, and
+	//     nothing may be concluded from either.
+	//
+	// TestAnUnnameableResponseIsNotReadAsNoContent pins the third case.
+	NoContent int `json:"noContent,omitempty"`
 	// Query maps each query parameter the document declares to what it may
 	// hold. Scaleway's lists take per_page and their filters here; Outscale
 	// takes nothing (its pagination travels in the request body); Exoscale
@@ -266,6 +287,45 @@ func (d *Doc) ValidateResponse(operation string, value any) Violations {
 		return nil
 	}
 	return d.Validate(op.Response, value)
+}
+
+// ValidateEmptyResponse holds an answer that carried no body to what the
+// document says the operation answers, and reports whether it could hold it to
+// anything at all.
+//
+// The second return is the whole point, and it is the "three outcomes, never
+// two" rule of this repository written into a signature: false means the
+// document states nothing about a bodyless answer here, so the caller has
+// validated nothing and must not record that it did. True means the document
+// declares a no-content success, and the violations are what the answer did
+// against it.
+//
+// Two things are checked, and both are the document's own words: a body where
+// the document declares none, and a status other than the one it names. A
+// client's generated SDK branches on that status — Scaleway's scw/client.go
+// treats 204 as "no body to unmarshal" — so answering 200 where the document
+// says 204 is a divergence a real client can see.
+func (d *Doc) ValidateEmptyResponse(operation string, status, bodyLen int) (Violations, bool) {
+	op, ok := d.Operations[operation]
+	if !ok {
+		return Violations{{Path: operation, Reason: "no such operation in the contract"}}, true
+	}
+	if op.NoContent == 0 {
+		return nil, false
+	}
+	var out Violations
+	if bodyLen > 0 {
+		add(&out, operation, fmt.Sprintf(
+			"the document declares %d with no content, and the answer carried %d byte(s)",
+			op.NoContent, bodyLen))
+	}
+	if status != op.NoContent {
+		add(&out, operation, fmt.Sprintf(
+			"the document declares %d for this success, and the answer was %d",
+			op.NoContent, status))
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Reason < out[j].Reason })
+	return out, true
 }
 
 // Validate checks a decoded value against a named schema.

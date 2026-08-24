@@ -1,0 +1,76 @@
+{
+  "subject": "an answer the provider documents as carrying no body is checked, and a silence is not (#429)",
+  "why": "Thirty-one of the 173 Scaleway operations this emulator serves are DELETEs whose own API description reads `204: {description: ''}`. The planner skipped them and the observer returned before marking anything, so all thirty-one read `unchecked` on the contract axis and `none` on probed — verdicts that mean nobody looked, on operations a real client drives every run. The fix rests entirely on one distinction: \"the document says there is no body\" is a statement and is checkable, \"the document says nothing\" is not. Every mutation below either stops checking the first or starts inventing a verdict for the second.",
+  "package": "./internal/core/emulator/",
+  "mutations": [
+    {
+      "file": "internal/probe/plan.go",
+      "find": "\t\tif op.Response == \"\" && op.NoContent == 0 {",
+      "replace": "\t\tif op.Response == \"\" && op.NoContent >= 0 {",
+      "expect": "the planner skips every operation whose document declares a bodyless success again, which is where all 31 Scaleway zeros on the probed axis came from",
+      "test": "TestAnOperationDeclaredWithNoBodyIsStillProbed",
+      "package": "./internal/probe/",
+      "label": "the probe skips what the document declares empty"
+    },
+    {
+      "file": "internal/probe/plan.go",
+      "find": "\t\tif op.Response == \"\" && op.NoContent == 0 {",
+      "replace": "\t\tif op.Response == \"\" && op.NoContent != 0 {",
+      "expect": "an operation whose document says nothing about its answer is called anyway, so the run proves only that something answered and reports it as a probe",
+      "test": "TestAnOperationWhoseDocumentSaysNothingIsStillSkipped",
+      "package": "./internal/probe/",
+      "label": "the probe calls what nothing can hold to account"
+    },
+    {
+      "file": "internal/core/emulator/conformance.go",
+      "find": "\t\tif vs, checkable := doc.ValidateEmptyResponse(resolved, rec.status, rec.body.Len()); checkable {",
+      "replace": "\t\tif vs, checkable := doc.ValidateEmptyResponse(resolved, rec.status, rec.body.Len()); checkable && false {",
+      "expect": "a `scw instance server delete` answering exactly what Scaleway documents is recorded as unchecked, which the axis defines as nobody having looked",
+      "test": "TestAnAnswerWithNoBodyIsCheckedAgainstTheDocument",
+      "label": "the contract axis stops reading a bodyless answer"
+    },
+    {
+      "file": "internal/core/emulator/conformance.go",
+      "find": "\t\tif !known || op.NoContent == 0 || len(checked) > 0 {\n\t\t\treturn\n\t\t}",
+      "replace": "\t\tif !known || op.NoContent >= 0 || len(checked) > 0 {\n\t\t\treturn\n\t\t}",
+      "expect": "the probed axis stops earning anything from a bodyless answer, so the two axes report the same exchange differently and one of them is silently wrong",
+      "test": "TestAnEmptyAnswerEarnsTheProbeOnlyWhereTheDocumentDeclaresIt",
+      "label": "the probed axis stops reading a bodyless answer"
+    },
+    {
+      "file": "internal/core/emulator/conformance.go",
+      "find": "\t\tif !known || op.NoContent == 0 || len(checked) > 0 {\n\t\t\treturn\n\t\t}",
+      "replace": "\t\tif !known || op.NoContent == 0 || (len(checked) > 0 && false) {\n\t\t\treturn\n\t\t}",
+      "expect": "a probe that answered a body where the document declares none is published as validated, which is the axis promising more than the run measured",
+      "test": "TestAProbedAnswerThatBrokeTheDeclaredEmptinessEarnsNothing",
+      "label": "a violating probe still earns the axis"
+    },
+    {
+      "file": "internal/contract/contract.go",
+      "find": "\tif op.NoContent == 0 {\n\t\treturn nil, false\n\t}",
+      "replace": "\tif op.NoContent == 0 {\n\t\treturn nil, true\n\t}",
+      "expect": "an operation whose document names no bodyless success is reported as validated when it answers nothing — Exoscale's list-events declares a top-level array this extraction cannot name, and its silence would be read as a promise",
+      "test": "TestAnUnnameableResponseIsNotReadAsNoContent",
+      "package": "./internal/contract/",
+      "label": "a silence is read as a declared emptiness"
+    },
+    {
+      "file": "internal/contract/contract.go",
+      "find": "\tif bodyLen > 0 {\n\t\tadd(&out, operation, fmt.Sprintf(",
+      "replace": "\tif bodyLen > 0 && false {\n\t\tadd(&out, operation, fmt.Sprintf(",
+      "expect": "a body where the document declares none passes, so the check only ever agrees and the axis records a validation that could not fail",
+      "test": "TestADeclaredEmptyAnswerIsBrokenByABodyAndByAStatus",
+      "package": "./internal/contract/",
+      "label": "a body where none is declared passes"
+    },
+    {
+      "file": "internal/contract/contract.go",
+      "find": "\tif status != op.NoContent {\n\t\tadd(&out, operation, fmt.Sprintf(",
+      "replace": "\tif status != op.NoContent && false {\n\t\tadd(&out, operation, fmt.Sprintf(",
+      "expect": "a 200 where the document declares 204 passes, and a generated SDK branching on the status to decide whether to unmarshal is the client that meets the difference",
+      "test": "TestADeclaredEmptyAnswerIsBrokenByABodyAndByAStatus",
+      "package": "./internal/contract/",
+      "label": "a status the document does not name passes"
+    }
+  ]
+}
