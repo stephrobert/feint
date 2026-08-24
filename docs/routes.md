@@ -43,8 +43,8 @@ a workflow. None of them opens a socket.
 |---|---|---|---|---|---|---|---|---|
 | Exoscale | 104 | 83 % (86) | 92 % (96) | 91 % (95) | 83 % (86) | 32 % (33) | 75 % (78) | 17 % (18) |
 | Outscale | 93 | 100 % (93) | 100 % (93) | 100 % (93) | 100 % (93) | 100 % (93) | 87 % (81) | 97 % (90) |
-| Scaleway | 173 | 97 % (168) | 82 % (141) | 82 % (142) | 97 % (168) | 57 % (99) | 93 % (161) | 80 % (139) |
-| **All three** | 370 | 94 % (347) | 89 % (330) | 89 % (330) | 94 % (347) | 61 % (225) | 86 % (320) | 67 % (247) |
+| Scaleway | 173 | 97 % (168) | 98 % (170) | 100 % (173) | 97 % (168) | 57 % (99) | 93 % (161) | 80 % (139) |
+| **All three** | 370 | 94 % (347) | 97 % (359) | 98 % (361) | 94 % (347) | 61 % (225) | 86 % (320) | 67 % (247) |
 
 What each axis says, one line each. They are independent and are never added
 into one number: none of them implies another, and an operation can be driven
@@ -150,10 +150,10 @@ disappears from the suite.
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `DELETE` | `/block/v1/zones/{zone}/snapshots/{id}` | `block/v1/API.DeleteSnapshot` | `client` `runtime` `behaviour` |
-| `DELETE` | `/block/v1/zones/{zone}/volumes/{id}` | `block/v1/API.DeleteVolume` | `client` `runtime` `behaviour` |
-| `DELETE` | `/block/v1alpha1/zones/{zone}/snapshots/{id}` | `block/v1alpha1/API.DeleteSnapshot` | `client` `runtime` `behaviour` `negative` |
-| `DELETE` | `/block/v1alpha1/zones/{zone}/volumes/{id}` | `block/v1alpha1/API.DeleteVolume` | `client` `runtime` `behaviour` `negative` |
+| `DELETE` | `/block/v1/zones/{zone}/snapshots/{id}` | `block/v1/API.DeleteSnapshot` | `client` `contract` `runtime` `probe` `behaviour` |
+| `DELETE` | `/block/v1/zones/{zone}/volumes/{id}` | `block/v1/API.DeleteVolume` | `client` `contract` `runtime` `probe` `behaviour` |
+| `DELETE` | `/block/v1alpha1/zones/{zone}/snapshots/{id}` | `block/v1alpha1/API.DeleteSnapshot` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
+| `DELETE` | `/block/v1alpha1/zones/{zone}/volumes/{id}` | `block/v1alpha1/API.DeleteVolume` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/block/v1/zones/{zone}/snapshots/{id}` | `block/v1/API.GetSnapshot` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/block/v1/zones/{zone}/snapshots` | `block/v1/API.ListSnapshots` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `GET` | `/block/v1/zones/{zone}/volume-types` | `block/v1/API.ListVolumeTypes` | `no-client` `contract` `probe` |
@@ -177,7 +177,7 @@ disappears from the suite.
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `DELETE` | `/iam/v1alpha1/ssh-keys/{id}` | `iam/v1alpha1/API.DeleteSSHKey` | `client` `runtime` `behaviour` `negative` |
+| `DELETE` | `/iam/v1alpha1/ssh-keys/{id}` | `iam/v1alpha1/API.DeleteSSHKey` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/iam/v1alpha1/ssh-keys/{id}` | `iam/v1alpha1/API.GetSSHKey` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/iam/v1alpha1/ssh-keys` | `iam/v1alpha1/API.ListSSHKeys` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `PATCH` | `/iam/v1alpha1/ssh-keys/{id}` | `iam/v1alpha1/API.UpdateSSHKey` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
@@ -187,18 +187,18 @@ disappears from the suite.
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `DELETE` | `/instance/v1/zones/{zone}/images/{id}` | `instance/v1/API.DeleteImage` | `client` `runtime` `behaviour` `negative` |
-| `DELETE` | `/instance/v1/zones/{zone}/ips/{id}` | `instance/v1/API.DeleteIP` | `client` `runtime` `behaviour` `negative` |
-| `DELETE` | `/instance/v1/zones/{zone}/placement_groups/{id}` | `instance/v1/API.DeletePlacementGroup` | `client` `runtime` `behaviour` `negative` |
-| `DELETE` | `/instance/v1/zones/{zone}/security_groups/{id}/rules/{ruleID}` | `instance/v1/API.DeleteSecurityGroupRule` | `client` `runtime` `behaviour` `negative` |
-| `DELETE` | `/instance/v1/zones/{zone}/security_groups/{id}` | `instance/v1/API.DeleteSecurityGroup` | `client` `runtime` `behaviour` `negative` |
-| `DELETE` | `/instance/v1/zones/{zone}/servers/{id}/private_nics/{nicID}` | `instance/v1/API.DeletePrivateNIC` | `client` `runtime` `behaviour` `negative` |
-| `DELETE` | `/instance/v1/zones/{zone}/servers/{id}/user_data/{key}` | `instance/v1/API.DeleteServerUserData` | `client` `runtime` `behaviour` `negative` |
-| `DELETE` | `/instance/v1/zones/{zone}/servers/{id}` | `instance/v1/API.DeleteServer` | `client` `runtime` `behaviour` `negative` |
-| `DELETE` | `/instance/v1/zones/{zone}/snapshots/{id}` | `instance/v1/API.DeleteSnapshot` | `client` `runtime` `behaviour` `negative` |
-| `DELETE` | `/instance/v1/zones/{zone}/volumes/{id}` | `instance/v1/API.DeleteVolume` | `client` `runtime` `behaviour` `negative` |
-| `DELETE` | `/instance/v2alpha1/zones/{zone}/placement-groups/{id}` | `instance/v2alpha1/API.DeletePlacementGroup` | `client` `runtime` `behaviour` |
-| `DELETE` | `/instance/v2alpha1/zones/{zone}/private-network-interfaces/{id}` | `instance/v2alpha1/API.DeletePrivateNetworkInterface` | `client` `runtime` `behaviour` |
+| `DELETE` | `/instance/v1/zones/{zone}/images/{id}` | `instance/v1/API.DeleteImage` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
+| `DELETE` | `/instance/v1/zones/{zone}/ips/{id}` | `instance/v1/API.DeleteIP` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
+| `DELETE` | `/instance/v1/zones/{zone}/placement_groups/{id}` | `instance/v1/API.DeletePlacementGroup` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
+| `DELETE` | `/instance/v1/zones/{zone}/security_groups/{id}/rules/{ruleID}` | `instance/v1/API.DeleteSecurityGroupRule` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
+| `DELETE` | `/instance/v1/zones/{zone}/security_groups/{id}` | `instance/v1/API.DeleteSecurityGroup` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
+| `DELETE` | `/instance/v1/zones/{zone}/servers/{id}/private_nics/{nicID}` | `instance/v1/API.DeletePrivateNIC` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
+| `DELETE` | `/instance/v1/zones/{zone}/servers/{id}/user_data/{key}` | `instance/v1/API.DeleteServerUserData` | `client` `contract` `runtime` `behaviour` `negative` |
+| `DELETE` | `/instance/v1/zones/{zone}/servers/{id}` | `instance/v1/API.DeleteServer` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
+| `DELETE` | `/instance/v1/zones/{zone}/snapshots/{id}` | `instance/v1/API.DeleteSnapshot` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
+| `DELETE` | `/instance/v1/zones/{zone}/volumes/{id}` | `instance/v1/API.DeleteVolume` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
+| `DELETE` | `/instance/v2alpha1/zones/{zone}/placement-groups/{id}` | `instance/v2alpha1/API.DeletePlacementGroup` | `client` `contract` `runtime` `probe` `behaviour` |
+| `DELETE` | `/instance/v2alpha1/zones/{zone}/private-network-interfaces/{id}` | `instance/v2alpha1/API.DeletePrivateNetworkInterface` | `client` `contract` `runtime` `probe` `behaviour` |
 | `GET` | `/instance/v1/zones/{zone}/images/{id}` | `instance/v1/API.GetImage` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/instance/v1/zones/{zone}/images` | `instance/v1/API.ListImages` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/instance/v1/zones/{zone}/ips/{id}` | `instance/v1/API.GetIP` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
@@ -231,7 +231,7 @@ disappears from the suite.
 | `PATCH` | `/instance/v1/zones/{zone}/placement_groups/{id}` | `instance/v1/API.UpdatePlacementGroup` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `PATCH` | `/instance/v1/zones/{zone}/security_groups/{id}/rules/{ruleID}` | `instance/v1/API.UpdateSecurityGroupRule` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `PATCH` | `/instance/v1/zones/{zone}/security_groups/{id}` | `instance/v1/API.UpdateSecurityGroup` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
-| `PATCH` | `/instance/v1/zones/{zone}/servers/{id}/user_data/{key}` | `instance/v1/API.SetServerUserData` | `client` `runtime` `behaviour` `negative` |
+| `PATCH` | `/instance/v1/zones/{zone}/servers/{id}/user_data/{key}` | `instance/v1/API.SetServerUserData` | `client` `contract` `runtime` `behaviour` `negative` |
 | `PATCH` | `/instance/v1/zones/{zone}/servers/{id}` | `instance/v1/API.UpdateServer` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `PATCH` | `/instance/v1/zones/{zone}/snapshots/{id}` | `instance/v1/API.UpdateSnapshot` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `PATCH` | `/instance/v1/zones/{zone}/volumes/{id}` | `instance/v1/API.UpdateVolume` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
@@ -259,11 +259,11 @@ disappears from the suite.
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `DELETE` | `/ipam/v1/regions/{region}/ips/{ipID}` | `ipam/v1/API.ReleaseIP` | `client` `runtime` `behaviour` `negative` |
+| `DELETE` | `/ipam/v1/regions/{region}/ips/{ipID}` | `ipam/v1/API.ReleaseIP` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/ipam/v1/regions/{region}/ips/{ipID}` | `ipam/v1/API.GetIP` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/ipam/v1/regions/{region}/ips` | `ipam/v1/API.ListIPs` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `PATCH` | `/ipam/v1/regions/{region}/ips/{ipID}` | `ipam/v1/API.UpdateIP` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
-| `POST` | `/ipam/v1/regions/{region}/ip-sets/release` | `ipam/v1/API.ReleaseIPSet` | `client` `runtime` `behaviour` `negative` |
+| `POST` | `/ipam/v1/regions/{region}/ip-sets/release` | `ipam/v1/API.ReleaseIPSet` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/ipam/v1/regions/{region}/ips/{ipID}/attach` | `ipam/v1/API.AttachIP` | `no-client` `contract` `probe` |
 | `POST` | `/ipam/v1/regions/{region}/ips/{ipID}/detach` | `ipam/v1/API.DetachIP` | `no-client` `contract` `probe` |
 | `POST` | `/ipam/v1/regions/{region}/ips/{ipID}/move` | `ipam/v1/API.MoveIP` | `no-client` `contract` `probe` |
@@ -273,12 +273,12 @@ disappears from the suite.
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `DELETE` | `/lb/v1/zones/{zone}/acls/{aclID}` | `lb/v1/ZonedAPI.DeleteACL` | `client` `runtime` `behaviour` `negative` |
-| `DELETE` | `/lb/v1/zones/{zone}/backends/{backendID}` | `lb/v1/ZonedAPI.DeleteBackend` | `client` `runtime` `behaviour` `negative` |
-| `DELETE` | `/lb/v1/zones/{zone}/frontends/{frontendID}` | `lb/v1/ZonedAPI.DeleteFrontend` | `client` `runtime` `behaviour` |
-| `DELETE` | `/lb/v1/zones/{zone}/ips/{ipID}` | `lb/v1/ZonedAPI.ReleaseIP` | `client` `runtime` `behaviour` `negative` |
-| `DELETE` | `/lb/v1/zones/{zone}/lbs/{lbID}` | `lb/v1/ZonedAPI.DeleteLB` | `client` `runtime` `behaviour` |
-| `DELETE` | `/lb/v1/zones/{zone}/routes/{routeID}` | `lb/v1/ZonedAPI.DeleteRoute` | `client` `runtime` `behaviour` `negative` |
+| `DELETE` | `/lb/v1/zones/{zone}/acls/{aclID}` | `lb/v1/ZonedAPI.DeleteACL` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
+| `DELETE` | `/lb/v1/zones/{zone}/backends/{backendID}` | `lb/v1/ZonedAPI.DeleteBackend` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
+| `DELETE` | `/lb/v1/zones/{zone}/frontends/{frontendID}` | `lb/v1/ZonedAPI.DeleteFrontend` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `DELETE` | `/lb/v1/zones/{zone}/ips/{ipID}` | `lb/v1/ZonedAPI.ReleaseIP` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
+| `DELETE` | `/lb/v1/zones/{zone}/lbs/{lbID}` | `lb/v1/ZonedAPI.DeleteLB` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
+| `DELETE` | `/lb/v1/zones/{zone}/routes/{routeID}` | `lb/v1/ZonedAPI.DeleteRoute` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
 | `GET` | `/lb/v1/zones/{zone}/acls/{aclID}` | `lb/v1/ZonedAPI.GetACL` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
 | `GET` | `/lb/v1/zones/{zone}/backends/{backendID}` | `lb/v1/ZonedAPI.GetBackend` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
 | `GET` | `/lb/v1/zones/{zone}/frontends/{frontendID}/acls` | `lb/v1/ZonedAPI.ListACLs` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
@@ -297,10 +297,10 @@ disappears from the suite.
 | `POST` | `/lb/v1/zones/{zone}/ips` | `lb/v1/ZonedAPI.CreateIP` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/lb/v1/zones/{zone}/lbs/{lbID}/attach-private-network` | `lb/v1/ZonedAPI.AttachPrivateNetwork` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
 | `POST` | `/lb/v1/zones/{zone}/lbs/{lbID}/backends` | `lb/v1/ZonedAPI.CreateBackend` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
-| `POST` | `/lb/v1/zones/{zone}/lbs/{lbID}/detach-private-network` | `lb/v1/ZonedAPI.DetachPrivateNetwork` | `client` `runtime` `behaviour` `negative` |
+| `POST` | `/lb/v1/zones/{zone}/lbs/{lbID}/detach-private-network` | `lb/v1/ZonedAPI.DetachPrivateNetwork` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
 | `POST` | `/lb/v1/zones/{zone}/lbs/{lbID}/frontends` | `lb/v1/ZonedAPI.CreateFrontend` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
 | `POST` | `/lb/v1/zones/{zone}/lbs/{lbID}/private-networks/{pnID}/attach` | `lb/v1/ZonedAPI.AttachPrivateNetwork` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
-| `POST` | `/lb/v1/zones/{zone}/lbs/{lbID}/private-networks/{pnID}/detach` | `lb/v1/ZonedAPI.DetachPrivateNetwork` | `client` `runtime` `behaviour` `negative` |
+| `POST` | `/lb/v1/zones/{zone}/lbs/{lbID}/private-networks/{pnID}/detach` | `lb/v1/ZonedAPI.DetachPrivateNetwork` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
 | `POST` | `/lb/v1/zones/{zone}/lbs` | `lb/v1/ZonedAPI.CreateLB` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
 | `POST` | `/lb/v1/zones/{zone}/routes` | `lb/v1/ZonedAPI.CreateRoute` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
 | `PUT` | `/lb/v1/zones/{zone}/acls/{aclID}` | `lb/v1/ZonedAPI.UpdateACL` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
@@ -321,9 +321,9 @@ disappears from the suite.
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `DELETE` | `/vpc/v2/regions/{region}/private-networks/{pnID}` | `vpc/v2/API.DeletePrivateNetwork` | `client` `runtime` `behaviour` `negative` |
-| `DELETE` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.DeleteRoute` | `client` `runtime` `behaviour` `negative` |
-| `DELETE` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}` | `vpc/v2/API.DeleteVPC` | `client` `runtime` `behaviour` `negative` |
+| `DELETE` | `/vpc/v2/regions/{region}/private-networks/{pnID}` | `vpc/v2/API.DeletePrivateNetwork` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
+| `DELETE` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.DeleteRoute` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
+| `DELETE` | `/vpc/v2/regions/{region}/vpcs/{vpc_id}` | `vpc/v2/API.DeleteVPC` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
 | `GET` | `/vpc/v2/regions/{region}/private-networks/{pnID}` | `vpc/v2/API.GetPrivateNetwork` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/vpc/v2/regions/{region}/private-networks` | `vpc/v2/API.ListPrivateNetworks` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/vpc/v2/regions/{region}/routes/{routeID}` | `vpc/v2/API.GetRoute` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
@@ -347,7 +347,7 @@ disappears from the suite.
 |---|---|---|---|
 | `DELETE` | `/vpc-gw/v2/zones/{zone}/gateway-networks/{gatewayNetworkID}` | `vpcgw/v2/API.DeleteGatewayNetwork` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
 | `DELETE` | `/vpc-gw/v2/zones/{zone}/gateways/{gatewayID}` | `vpcgw/v2/API.DeleteGateway` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
-| `DELETE` | `/vpc-gw/v2/zones/{zone}/ips/{ipID}` | `vpcgw/v2/API.DeleteIP` | `client` `runtime` `behaviour` `negative` |
+| `DELETE` | `/vpc-gw/v2/zones/{zone}/ips/{ipID}` | `vpcgw/v2/API.DeleteIP` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/vpc-gw/v2/zones/{zone}/gateway-networks/{gatewayNetworkID}` | `vpcgw/v2/API.GetGatewayNetwork` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
 | `GET` | `/vpc-gw/v2/zones/{zone}/gateway-networks` | `vpcgw/v2/API.ListGatewayNetworks` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/vpc-gw/v2/zones/{zone}/gateways/{gatewayID}` | `vpcgw/v2/API.GetGateway` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |

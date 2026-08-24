@@ -940,6 +940,14 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Modifié
 
+- **Le registre suit le correctif de la réponse vide** (#429) : `contract` passe
+  de 330 à **361 sur 370** et `probed` de 330 à **359**. Le `contract` de
+  Scaleway atteint **173 sur 173** et son `probed` 170. **Aucune opération n'a
+  rien perdu sur aucun axe**, vérifié opération par opération contre le registre
+  remplacé. Les trente et une opérations qui gagnent `contract` étaient déjà
+  justes : personne n'avait jamais regardé, ce qui est le sens de `unchecked` et
+  la raison pour laquelle ce n'est pas `absent`.
+
 - **Le registre suit le lot de refus sur Scaleway et Exoscale** (#428) :
   `negative` passe de 197 à **247 sur 370**. Celui de Scaleway de 97 à **139 sur
   173**, celui d'Exoscale de 10 à 18. **Aucune opération n'a rien perdu sur aucun

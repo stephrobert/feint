@@ -1112,6 +1112,13 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Changed
 
+- **The record follows the empty-answer fix** (#429): `contract` goes 330 to
+  **361 of 370** and `probed` 330 to **359**. Scaleway's own `contract` reaches
+  **173 of 173** and its `probed` 170. **No operation lost anything on any
+  axis**, checked operation by operation against the replaced record. The thirty
+  one operations that gained `contract` were already correct — nobody had ever
+  looked, which is what `unchecked` means and why it is not `absent`.
+
 - **The record follows the refusal lot on Scaleway and Exoscale** (#428):
   `negative` goes 197 to **247 of 370**. Scaleway's own 97 to **139 of 173**,
   Exoscale's 10 to 18. **No operation lost anything on any axis**, checked
