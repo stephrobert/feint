@@ -251,6 +251,32 @@ run = [
   "tools/conformance/outscale/balancer.sh http://$FEINT_ADDR",
 ]
 
+[tasks."conformance:exoscale-terraform"]
+description = "Apply the Exoscale stack through the patched provider fork. Needs the fork built — the script says how"
+# Outside `conformance` on purpose, on the same terms as conformance:ssh.
+#
+# The published Exoscale provider builds two clients and only one honours
+# EXOSCALE_API_ENDPOINT, so an apply splits between this emulator and a paying
+# account. The emulator refuses it by user agent; the four-line fix lives on the
+# fork pinned in docs/limits.md at 2e78b42.
+#
+# Two reasons this is never a gate, and both are decisions rather than gaps:
+# no task here clones a third-party repository, which would put somebody else's
+# availability in this pipeline; and a client this project patched is not the
+# official client, so it could not count towards conformance anyway. What it is
+# worth is the other half — it drives the Exoscale pack through the client a
+# user actually reaches for, which no other suite does.
+#
+# FEINT_EXOSCALE_ALLOW_TERRAFORM lifts the refusal, named rather than hidden: a
+# guard with no way past it gets worked around by copying the emulator.
+run = [
+  "./feint start --addr $FEINT_ADDR --contracts contracts --timeout 60s",
+  "tools/conformance/exoscale/terraform.sh http://$FEINT_ADDR",
+  "./feint stop --addr $FEINT_ADDR",
+]
+depends = ["build"]
+env = { FEINT_ADDR = "127.0.0.1:4599", FEINT_EXOSCALE_ALLOW_TERRAFORM = "1" }
+
 [tasks."conformance:ssh"]
 description = "Register a key, boot a server, log into it — on every provider. Needs FEINT_VM=incus or incus-vm"
 # Three providers, three logins, one chain each: the login is a per-pack fact

@@ -255,6 +255,24 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **The Exoscale stack has a suite that drives it**
+  (`mise run conformance:exoscale-terraform`, `tools/conformance/exoscale/terraform.sh`).
+  It applies `examples/stacks/exoscale` through the patched provider fork
+  pinned in `docs/limits.md`, asserts an empty second plan and a clean destroy,
+  and refuses **at the doorstep** when the fork is not built — printing the whole
+  remedy, clone through build, so a reader never has to open the documentation to
+  get past that line.
+
+  **It is outside `mise run conformance` on purpose**, on the same terms as
+  `conformance:ssh`: no gate here clones a third-party repository, which would
+  put somebody else's availability in this pipeline, and a client this project
+  patched is not the official client, so it could not count towards conformance
+  anyway. Until now the procedure existed only as prose in `main.tf` and a
+  hand-run noted in `docs/clients.md`.
+
+  Run today, it fails on a named cause rather than on folklore: the fork corrects
+  the v2 client and the stack now uses v3 resources (#448).
+
 - **`feint clean --format json` records what a sweep found, one line per
   object** (#426). #316, #342, #375 and #386 each fixed one symptom of one
   family, and nobody could see the family because every sighting lived in the

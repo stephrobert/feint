@@ -19,6 +19,26 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **La stack Exoscale a une suite qui la pilote**
+  (`mise run conformance:exoscale-terraform`, `tools/conformance/exoscale/terraform.sh`).
+  Elle applique `examples/stacks/exoscale` par le fork corrigé épinglé dans
+  `docs/limits.md`, exige un second plan vide et une destruction propre, et
+  **refuse sur le pas de la porte** quand le fork n'est pas construit, en
+  imprimant le remède entier, du clone à la compilation, pour qu'un lecteur n'ait
+  jamais à ouvrir la documentation pour passer cette ligne.
+
+  **Elle est hors de `mise run conformance` délibérément**, aux mêmes conditions
+  que `conformance:ssh` : aucune porte de ce dépôt ne clone un dépôt tiers, ce
+  qui mettrait la disponibilité de quelqu'un d'autre dans ce pipeline, et un
+  client que ce projet a patché n'est pas le client officiel, donc il ne pourrait
+  pas compter pour la conformance. Jusqu'ici la procédure n'existait qu'en prose
+  dans `main.tf` et sous forme d'une exécution à la main notée dans
+  `docs/clients.md`.
+
+  Lancée aujourd'hui, elle échoue sur une cause nommée plutôt que sur du
+  folklore : le fork corrige le client v2 et la stack utilise désormais des
+  ressources v3 (#448).
+
 - **Tout identifiant qu'une réponse Outscale publie désigne désormais un objet
   qu'une lecture retrouve** (#389, #383, #378). Une seule chaîne plutôt que
   trois rustines : le catalogue d'images est adossé à des snapshots que
