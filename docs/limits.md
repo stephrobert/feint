@@ -1464,6 +1464,45 @@ The practical consequences, none of them silent:
   naming the machine it had just terminated.
 - `feint restart` clears them, like everything else: the store is in memory.
 
+## An Outscale machine owns a root volume, and that volume holds no bytes
+
+Since #378 and #389, `CreateVms` cuts every machine a root BSU volume from the
+snapshot its image names, `ReadVolumes` answers for it, `ReadVms` publishes it
+under `/dev/sda1`, and `DeleteVms` destroys it — `DeleteOnVmDeletion` is `true`
+on it, which is what the recorded account answers on its own machine in every
+read of its life.
+
+The chain behind it exists so that no identifier a response publishes is
+decorative: the image names a snapshot `ReadSnapshots` answers for, the snapshot
+sizes the volume, the volume names the machine. A fictional root `VolumeId` was
+tried once and the Terraform provider resolved it — `volume vol-rooti149 not
+found` ended a whole conformance run.
+
+**What that volume is not is a disk.** It carries a size, a type, a state and a
+provenance; it holds no bytes, exactly like every other volume here. Three
+consequences a user can meet:
+
+- **Growing it changes a number and nothing else.** There is no filesystem to
+  extend, and nothing inside the machine sees the new size.
+- **`CreateImage` from a `VmId` answers an empty `BlockDeviceMappings`.** An
+  image is a copy of a disk's bytes, and there are none to copy, so no snapshot
+  of the machine's device is cut. Cutting an image from a *snapshot* works and
+  is what `tools/conformance/outscale/terraform/storage.tf` drives. A machine
+  created from such an image still gets a root volume, with a size and **no**
+  `SnapshotId`: naming one would be a relation that resolves and is false.
+- **"Nothing left behind" now includes a volume per machine.** A suite that
+  counts what a teardown leaves has one more object per machine to account for,
+  and it goes with its machine rather than surviving it.
+
+The catalogue's own three snapshots are the emulator's, not the client's:
+`DeleteSnapshot` refuses one with a `ResourceConflict` naming the catalogue,
+because deleting it would leave every catalogue image pointing at a snapshot no
+read answers for. Their `VolumeId` names the volume each image was cut from, and
+that volume is gone — which is the state every OMI of a real account is in, and
+one this emulator reaches by ordinary means (`CreateVolume`, `CreateSnapshot`,
+`DeleteVolume`). It is the one identifier of the chain that names nothing, and
+the one no client follows.
+
 ## An Exoscale block volume holds no bytes, and every number it publishes says so
 
 The thirteen block-storage operations (EXO-4) are a control plane. A volume is a
