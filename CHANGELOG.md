@@ -1209,6 +1209,13 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Changed
 
+- **The record follows the divergence and queue lots** (#431, #445), and
+  `mise run conformance:exoscale-terraform` arms its trap before the emulator it
+  starts. As three steps it left one behind on a failing run, until
+  `evidence:update` refused to start beside it — the doorstep #426 added, working
+  on the task that had just been written. A task that starts a process owns its
+  death on every path, not on the happy one.
+
 - **The record follows the empty-answer fix** (#429): `contract` goes 330 to
   **361 of 370** and `probed` 330 to **359**. Scaleway's own `contract` reaches
   **173 of 173** and its `probed` 170. **No operation lost anything on any

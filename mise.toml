@@ -269,11 +269,22 @@ description = "Apply the Exoscale stack through the patched provider fork. Needs
 #
 # FEINT_EXOSCALE_ALLOW_TERRAFORM lifts the refusal, named rather than hidden: a
 # guard with no way past it gets worked around by copying the emulator.
-run = [
-  "./feint start --addr $FEINT_ADDR --contracts contracts --timeout 60s",
-  "tools/conformance/exoscale/terraform.sh http://$FEINT_ADDR",
-  "./feint stop --addr $FEINT_ADDR",
-]
+#
+# One `run` string with a trap, not three steps. Measured the hard way on
+# 2026-08-24: as three steps, the script failed and mise stopped the chain, so
+# `feint stop` never ran and an emulator sat on the port for twenty-seven
+# minutes — until `evidence:update` refused to start beside it, which is the
+# doorstep #426 added doing its job on the person who wrote this task.
+#
+# The aggregate `conformance` task has armed a trap for exactly this reason
+# since it was written. A task that starts a process must own its death on
+# every path, not on the happy one.
+run = """
+set -o errexit
+./feint start --addr $FEINT_ADDR --contracts contracts --timeout 60s
+trap './feint stop --addr $FEINT_ADDR >/dev/null 2>&1 || true' EXIT
+tools/conformance/exoscale/terraform.sh http://$FEINT_ADDR
+"""
 depends = ["build"]
 env = { FEINT_ADDR = "127.0.0.1:4599", FEINT_EXOSCALE_ALLOW_TERRAFORM = "1" }
 

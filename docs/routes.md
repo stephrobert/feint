@@ -43,8 +43,8 @@ a workflow. None of them opens a socket.
 |---|---|---|---|---|---|---|---|---|
 | Exoscale | 104 | 83 % (86) | 92 % (96) | 91 % (95) | 83 % (86) | 32 % (33) | 75 % (78) | 17 % (18) |
 | Outscale | 93 | 100 % (93) | 100 % (93) | 100 % (93) | 100 % (93) | 100 % (93) | 87 % (81) | 97 % (90) |
-| Scaleway | 174 | 97 % (169) | 98 % (171) | 100 % (174) | 97 % (168) | 57 % (99) | 93 % (161) | 80 % (139) |
-| **All three** | 371 | 94 % (348) | 97 % (360) | 98 % (362) | 94 % (347) | 61 % (225) | 86 % (320) | 67 % (247) |
+| Scaleway | 174 | 97 % (169) | 98 % (171) | 100 % (174) | 97 % (169) | 57 % (99) | 93 % (161) | 80 % (139) |
+| **All three** | 371 | 94 % (348) | 97 % (360) | 98 % (362) | 94 % (348) | 61 % (225) | 86 % (320) | 67 % (247) |
 
 What each axis says, one line each. They are independent and are never added
 into one number: none of them implies another, and an operation can be driven
@@ -207,7 +207,7 @@ disappears from the suite.
 | `GET` | `/instance/v1/zones/{zone}/placement_groups/{id}` | `instance/v1/API.GetPlacementGroup` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/instance/v1/zones/{zone}/placement_groups` | `instance/v1/API.ListPlacementGroups` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/instance/v1/zones/{zone}/products/servers` | `instance/v1/API.ListServersTypes` | `client` `contract` `shape` `runtime` `probe` `negative` |
-| `GET` | `/instance/v1/zones/{zone}/security_groups/default/rules` | `instance/v1/API.ListDefaultSecurityGroupRules` | `client` `contract` `probe` |
+| `GET` | `/instance/v1/zones/{zone}/security_groups/default/rules` | `instance/v1/API.ListDefaultSecurityGroupRules` | `client` `contract` `runtime` `probe` |
 | `GET` | `/instance/v1/zones/{zone}/security_groups/{id}/rules/{ruleID}` | `instance/v1/API.GetSecurityGroupRule` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/instance/v1/zones/{zone}/security_groups/{id}/rules` | `instance/v1/API.ListSecurityGroupRules` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/instance/v1/zones/{zone}/security_groups/{id}` | `instance/v1/API.GetSecurityGroup` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
@@ -274,43 +274,43 @@ disappears from the suite.
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `DELETE` | `/lb/v1/zones/{zone}/acls/{aclID}` | `lb/v1/ZonedAPI.DeleteACL` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
+| `DELETE` | `/lb/v1/zones/{zone}/acls/{aclID}` | `lb/v1/ZonedAPI.DeleteACL` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `DELETE` | `/lb/v1/zones/{zone}/backends/{backendID}` | `lb/v1/ZonedAPI.DeleteBackend` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
 | `DELETE` | `/lb/v1/zones/{zone}/frontends/{frontendID}` | `lb/v1/ZonedAPI.DeleteFrontend` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
 | `DELETE` | `/lb/v1/zones/{zone}/ips/{ipID}` | `lb/v1/ZonedAPI.ReleaseIP` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
-| `DELETE` | `/lb/v1/zones/{zone}/lbs/{lbID}` | `lb/v1/ZonedAPI.DeleteLB` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `DELETE` | `/lb/v1/zones/{zone}/routes/{routeID}` | `lb/v1/ZonedAPI.DeleteRoute` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
-| `GET` | `/lb/v1/zones/{zone}/acls/{aclID}` | `lb/v1/ZonedAPI.GetACL` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
-| `GET` | `/lb/v1/zones/{zone}/backends/{backendID}` | `lb/v1/ZonedAPI.GetBackend` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
-| `GET` | `/lb/v1/zones/{zone}/frontends/{frontendID}/acls` | `lb/v1/ZonedAPI.ListACLs` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
-| `GET` | `/lb/v1/zones/{zone}/frontends/{frontendID}` | `lb/v1/ZonedAPI.GetFrontend` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
+| `DELETE` | `/lb/v1/zones/{zone}/lbs/{lbID}` | `lb/v1/ZonedAPI.DeleteLB` | `client` `contract` `runtime` `probe` `behaviour` |
+| `DELETE` | `/lb/v1/zones/{zone}/routes/{routeID}` | `lb/v1/ZonedAPI.DeleteRoute` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
+| `GET` | `/lb/v1/zones/{zone}/acls/{aclID}` | `lb/v1/ZonedAPI.GetACL` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
+| `GET` | `/lb/v1/zones/{zone}/backends/{backendID}` | `lb/v1/ZonedAPI.GetBackend` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
+| `GET` | `/lb/v1/zones/{zone}/frontends/{frontendID}/acls` | `lb/v1/ZonedAPI.ListACLs` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
+| `GET` | `/lb/v1/zones/{zone}/frontends/{frontendID}` | `lb/v1/ZonedAPI.GetFrontend` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/lb/v1/zones/{zone}/ips/{ipID}` | `lb/v1/ZonedAPI.GetIP` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/lb/v1/zones/{zone}/ips` | `lb/v1/ZonedAPI.ListIPs` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
-| `GET` | `/lb/v1/zones/{zone}/lbs/{lbID}/backends` | `lb/v1/ZonedAPI.ListBackends` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
-| `GET` | `/lb/v1/zones/{zone}/lbs/{lbID}/frontends` | `lb/v1/ZonedAPI.ListFrontends` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
-| `GET` | `/lb/v1/zones/{zone}/lbs/{lbID}/private-networks` | `lb/v1/ZonedAPI.ListLBPrivateNetworks` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
-| `GET` | `/lb/v1/zones/{zone}/lbs/{lbID}` | `lb/v1/ZonedAPI.GetLB` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
+| `GET` | `/lb/v1/zones/{zone}/lbs/{lbID}/backends` | `lb/v1/ZonedAPI.ListBackends` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
+| `GET` | `/lb/v1/zones/{zone}/lbs/{lbID}/frontends` | `lb/v1/ZonedAPI.ListFrontends` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
+| `GET` | `/lb/v1/zones/{zone}/lbs/{lbID}/private-networks` | `lb/v1/ZonedAPI.ListLBPrivateNetworks` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
+| `GET` | `/lb/v1/zones/{zone}/lbs/{lbID}` | `lb/v1/ZonedAPI.GetLB` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/lb/v1/zones/{zone}/lbs` | `lb/v1/ZonedAPI.ListLBs` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
-| `GET` | `/lb/v1/zones/{zone}/routes/{routeID}` | `lb/v1/ZonedAPI.GetRoute` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
+| `GET` | `/lb/v1/zones/{zone}/routes/{routeID}` | `lb/v1/ZonedAPI.GetRoute` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `GET` | `/lb/v1/zones/{zone}/routes` | `lb/v1/ZonedAPI.ListRoutes` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `PATCH` | `/lb/v1/zones/{zone}/ips/{ipID}` | `lb/v1/ZonedAPI.UpdateIP` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
-| `POST` | `/lb/v1/zones/{zone}/frontends/{frontendID}/acls` | `lb/v1/ZonedAPI.CreateACL` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
+| `POST` | `/lb/v1/zones/{zone}/frontends/{frontendID}/acls` | `lb/v1/ZonedAPI.CreateACL` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/lb/v1/zones/{zone}/ips` | `lb/v1/ZonedAPI.CreateIP` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
-| `POST` | `/lb/v1/zones/{zone}/lbs/{lbID}/attach-private-network` | `lb/v1/ZonedAPI.AttachPrivateNetwork` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
-| `POST` | `/lb/v1/zones/{zone}/lbs/{lbID}/backends` | `lb/v1/ZonedAPI.CreateBackend` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
-| `POST` | `/lb/v1/zones/{zone}/lbs/{lbID}/detach-private-network` | `lb/v1/ZonedAPI.DetachPrivateNetwork` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
-| `POST` | `/lb/v1/zones/{zone}/lbs/{lbID}/frontends` | `lb/v1/ZonedAPI.CreateFrontend` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
-| `POST` | `/lb/v1/zones/{zone}/lbs/{lbID}/private-networks/{pnID}/attach` | `lb/v1/ZonedAPI.AttachPrivateNetwork` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
-| `POST` | `/lb/v1/zones/{zone}/lbs/{lbID}/private-networks/{pnID}/detach` | `lb/v1/ZonedAPI.DetachPrivateNetwork` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
+| `POST` | `/lb/v1/zones/{zone}/lbs/{lbID}/attach-private-network` | `lb/v1/ZonedAPI.AttachPrivateNetwork` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
+| `POST` | `/lb/v1/zones/{zone}/lbs/{lbID}/backends` | `lb/v1/ZonedAPI.CreateBackend` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
+| `POST` | `/lb/v1/zones/{zone}/lbs/{lbID}/detach-private-network` | `lb/v1/ZonedAPI.DetachPrivateNetwork` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
+| `POST` | `/lb/v1/zones/{zone}/lbs/{lbID}/frontends` | `lb/v1/ZonedAPI.CreateFrontend` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
+| `POST` | `/lb/v1/zones/{zone}/lbs/{lbID}/private-networks/{pnID}/attach` | `lb/v1/ZonedAPI.AttachPrivateNetwork` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
+| `POST` | `/lb/v1/zones/{zone}/lbs/{lbID}/private-networks/{pnID}/detach` | `lb/v1/ZonedAPI.DetachPrivateNetwork` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/lb/v1/zones/{zone}/lbs` | `lb/v1/ZonedAPI.CreateLB` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
-| `POST` | `/lb/v1/zones/{zone}/routes` | `lb/v1/ZonedAPI.CreateRoute` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
-| `PUT` | `/lb/v1/zones/{zone}/acls/{aclID}` | `lb/v1/ZonedAPI.UpdateACL` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
-| `PUT` | `/lb/v1/zones/{zone}/backends/{backendID}/healthcheck` | `lb/v1/ZonedAPI.UpdateHealthCheck` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
-| `PUT` | `/lb/v1/zones/{zone}/backends/{backendID}/servers` | `lb/v1/ZonedAPI.SetBackendServers` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
-| `PUT` | `/lb/v1/zones/{zone}/backends/{backendID}` | `lb/v1/ZonedAPI.UpdateBackend` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
-| `PUT` | `/lb/v1/zones/{zone}/frontends/{frontendID}` | `lb/v1/ZonedAPI.UpdateFrontend` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
-| `PUT` | `/lb/v1/zones/{zone}/lbs/{lbID}` | `lb/v1/ZonedAPI.UpdateLB` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` |
-| `PUT` | `/lb/v1/zones/{zone}/routes/{routeID}` | `lb/v1/ZonedAPI.UpdateRoute` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
+| `POST` | `/lb/v1/zones/{zone}/routes` | `lb/v1/ZonedAPI.CreateRoute` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
+| `PUT` | `/lb/v1/zones/{zone}/acls/{aclID}` | `lb/v1/ZonedAPI.UpdateACL` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
+| `PUT` | `/lb/v1/zones/{zone}/backends/{backendID}/healthcheck` | `lb/v1/ZonedAPI.UpdateHealthCheck` | `client` `contract` `runtime` `probe` `behaviour` |
+| `PUT` | `/lb/v1/zones/{zone}/backends/{backendID}/servers` | `lb/v1/ZonedAPI.SetBackendServers` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
+| `PUT` | `/lb/v1/zones/{zone}/backends/{backendID}` | `lb/v1/ZonedAPI.UpdateBackend` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
+| `PUT` | `/lb/v1/zones/{zone}/frontends/{frontendID}` | `lb/v1/ZonedAPI.UpdateFrontend` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
+| `PUT` | `/lb/v1/zones/{zone}/lbs/{lbID}` | `lb/v1/ZonedAPI.UpdateLB` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `PUT` | `/lb/v1/zones/{zone}/routes/{routeID}` | `lb/v1/ZonedAPI.UpdateRoute` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 
 ### `marketplace`
 

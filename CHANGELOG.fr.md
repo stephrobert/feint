@@ -960,6 +960,14 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Modifié
 
+- **Le registre suit les lots de divergences et de file** (#431, #445), et
+  `mise run conformance:exoscale-terraform` arme son `trap` avant l'émulateur
+  qu'elle démarre. En trois étapes elle en laissait un derrière elle quand le
+  script échouait, jusqu'à ce qu'`evidence:update` refuse de démarrer à côté :
+  le pas de la porte ajouté par #426, appliqué à la tâche qui venait d'être
+  écrite. Une tâche qui démarre un processus possède sa mort sur tous les
+  chemins, pas seulement sur le chemin heureux.
+
 - **Le registre suit le correctif de la réponse vide** (#429) : `contract` passe
   de 330 à **361 sur 370** et `probed` de 330 à **359**. Le `contract` de
   Scaleway atteint **173 sur 173** et son `probed` 170. **Aucune opération n'a
