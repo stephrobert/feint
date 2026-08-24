@@ -393,3 +393,160 @@ func TestSetRulesCannotStealAnotherGroupRule(t *testing.T) {
 		t.Errorf("the victim's rule was rewritten: action is %v, want accept", kept["action"])
 	}
 }
+
+// TestARuleAnswersTheDestinationRangeKeyTheCloudAnswers pins a key their own Go
+// SDK has no field for and their published document does not declare.
+//
+// Only a recording of the wire could find it, and only a recording can hold it:
+// corpus/scaleway/scw-free-shapes.jsonl seq 21-26 answers `dest_ip_range` on
+// the create, the read, the update and both lists, always null, and no client
+// in the recording ever sends one.
+//
+// Null and present, not absent: an omitted key is a shape the cloud never
+// answers. The doors are asserted one by one because the pack renders a rule
+// through one function and five handlers, and a fix that touched the create
+// alone would read as done.
+func TestARuleAnswersTheDestinationRangeKeyTheCloudAnswers(t *testing.T) {
+	ts := newTestServer(t)
+	id := groupID(t, ts, `{"name":"web"}`)
+
+	status, created := do(t, ts, "POST", zoneURL+"/security_groups/"+id+"/rules",
+		`{"action":"accept","direction":"inbound","protocol":"TCP","ip_range":"198.18.1.0/24","dest_port_from":443}`)
+	if status != http.StatusCreated {
+		t.Fatalf("create rule: expected 201, got %d (%v)", status, created)
+	}
+	rule, _ := created["rule"].(map[string]any)
+	ruleID, _ := rule["id"].(string)
+	assertNullDestRange(t, "CreateSecurityGroupRule", rule)
+
+	status, read := do(t, ts, "GET", zoneURL+"/security_groups/"+id+"/rules/"+ruleID, "")
+	if status != http.StatusOK {
+		t.Fatalf("get rule: expected 200, got %d (%v)", status, read)
+	}
+	one, _ := read["rule"].(map[string]any)
+	assertNullDestRange(t, "GetSecurityGroupRule", one)
+
+	status, patched := do(t, ts, "PATCH", zoneURL+"/security_groups/"+id+"/rules/"+ruleID, `{"dest_port_from":8443}`)
+	if status != http.StatusOK {
+		t.Fatalf("update rule: expected 200, got %d (%v)", status, patched)
+	}
+	updated, _ := patched["rule"].(map[string]any)
+	assertNullDestRange(t, "UpdateSecurityGroupRule", updated)
+
+	status, listed := do(t, ts, "GET", zoneURL+"/security_groups/"+id+"/rules", "")
+	if status != http.StatusOK {
+		t.Fatalf("list rules: expected 200, got %d (%v)", status, listed)
+	}
+	rules, _ := listed["rules"].([]any)
+	if len(rules) != 1 {
+		t.Fatalf("the list answers %d rule(s), want the one created: %v", len(rules), listed)
+	}
+	first, _ := rules[0].(map[string]any)
+	assertNullDestRange(t, "ListSecurityGroupRules", first)
+
+	status, set := do(t, ts, "PUT", zoneURL+"/security_groups/"+id+"/rules",
+		`{"rules":[{"action":"accept","direction":"inbound","protocol":"TCP","ip_range":"198.18.2.0/24","dest_port_from":80}]}`)
+	if status != http.StatusOK {
+		t.Fatalf("set rules: expected 200, got %d (%v)", status, set)
+	}
+	after, _ := set["rules"].([]any)
+	if len(after) == 0 {
+		t.Fatalf("SetSecurityGroupRules answered no rule: %v", set)
+	}
+	replaced, _ := after[0].(map[string]any)
+	assertNullDestRange(t, "SetSecurityGroupRules", replaced)
+}
+
+func assertNullDestRange(t *testing.T, operation string, rule map[string]any) {
+	t.Helper()
+	value, present := rule["dest_ip_range"]
+	if !present {
+		t.Errorf("%s omits dest_ip_range; a real fr-par account answers the key on every rule", operation)
+		return
+	}
+	if value != nil {
+		t.Errorf("%s answers dest_ip_range = %v, want null as the recording carries", operation, value)
+	}
+}
+
+// TestTheDefaultRuleSegmentIsARuleSetAndNotAGroup holds the door
+// `scw instance security-group list-default-rules` knocks on.
+//
+// `default` is a literal segment of the SDK's own path — ListDefaultSecurityGroupRules
+// builds "/security_groups/default/rules" with no identifier in it — and it used
+// to match {id} on the neighbouring route, find no group and answer 404. That is
+// how a decline written against one operation stayed invisible to a client
+// asking for another: the coverage record said "declined" while a live route
+// answered wrong.
+//
+// The rules asserted are the ones a real fr-par account answered on 2026-08-24
+// and not a shape of this emulator's choosing, so the count, the ports and the
+// two address families are all pinned. So is `editable: false`, because a client
+// that believed it could edit them would ask this emulator to delete a rule it
+// does not own.
+func TestTheDefaultRuleSegmentIsARuleSetAndNotAGroup(t *testing.T) {
+	ts := newTestServer(t)
+	status, body := do(t, ts, "GET", zoneURL+"/security_groups/default/rules", "")
+	if status != http.StatusOK {
+		t.Fatalf("list default rules: expected 200, got %d (%v)", status, body)
+	}
+	rules, _ := body["rules"].([]any)
+	if len(rules) != 6 {
+		t.Fatalf("the default rule set answers %d rule(s), want the six a real fr-par account answers: %v", len(rules), body)
+	}
+	ports := map[float64]int{}
+	families := map[string]int{}
+	seen := map[string]bool{}
+	for _, raw := range rules {
+		rule, _ := raw.(map[string]any)
+		if rule["direction"] != "outbound" || rule["action"] != "drop" || rule["protocol"] != "TCP" {
+			t.Errorf("a default rule reads %v/%v/%v, want an outbound TCP drop",
+				rule["direction"], rule["action"], rule["protocol"])
+		}
+		if rule["editable"] != false {
+			t.Errorf("a default rule is editable = %v; a client cannot change these", rule["editable"])
+		}
+		assertNullDestRange(t, "ListDefaultSecurityGroupRules", rule)
+		if port, ok := rule["dest_port_from"].(float64); ok {
+			ports[port]++
+		}
+		if r, ok := rule["ip_range"].(string); ok {
+			families[r]++
+		}
+		id, _ := rule["id"].(string)
+		if seen[id] {
+			t.Errorf("two default rules share the identifier %s", id)
+		}
+		seen[id] = true
+	}
+	for _, port := range []float64{25, 465, 587} {
+		if ports[port] != 2 {
+			t.Errorf("port %v appears %d time(s), want once per address family", port, ports[port])
+		}
+	}
+	for _, family := range []string{"0.0.0.0/0", "::/0"} {
+		if families[family] != 3 {
+			t.Errorf("%s appears %d time(s), want the three submission ports", family, families[family])
+		}
+	}
+
+	// The identifiers are stable across reads: a client that stored one and
+	// read again must find the same rule set, and nothing here mints per call.
+	status, again := do(t, ts, "GET", zoneURL+"/security_groups/default/rules", "")
+	if status != http.StatusOK {
+		t.Fatalf("second read: expected 200, got %d (%v)", status, again)
+	}
+	for _, raw := range again["rules"].([]any) {
+		id, _ := raw.(map[string]any)["id"].(string)
+		if !seen[id] {
+			t.Errorf("a second read answers the rule %s the first did not: the identifiers are not stable", id)
+		}
+	}
+
+	// And the segment is not a group: a group by that name does not exist, so
+	// asking for it as one still refuses.
+	if status, missing := do(t, ts, "GET", zoneURL+"/security_groups/default", ""); status != http.StatusNotFound {
+		t.Errorf("GET security_groups/default answered %d (%v), want 404: `default` names a rule set, not a group",
+			status, missing)
+	}
+}

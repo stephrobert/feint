@@ -168,3 +168,48 @@ func TestTheV2alpha1PageTokenWalksTheWholeList(t *testing.T) {
 		t.Errorf("the walk saw %d interface(s) of 3", len(seen))
 	}
 }
+
+// TestAPrivateNICAnswersTheDateItLastChanged holds the second of the two dates
+// a real fr-par account answers on a NIC.
+//
+// A creation date was served and a modification date was not, on all three
+// doors that answer one — the create, the read and the list
+// (corpus/scaleway/scw-billed-shapes.jsonl seq 21-23).
+//
+// What this does NOT assert, and the omission is deliberate: that the date
+// moves. No route mounted here modifies a NIC — the recording's own PATCH on
+// one is `mounted: false` — so creation and modification carry the same instant
+// on every answer a client can get, and a test that required them to differ
+// would be a test no state of this code could fail. The field reads res.Updated
+// so that it is already right when an update lands; privatenics.go says so
+// where the line is.
+func TestAPrivateNICAnswersTheDateItLastChanged(t *testing.T) {
+	ts := newTestServer(t)
+	serverID, _, nic := attachedNIC(t, ts, "app", "172.16.0.0/22")
+	nicID, _ := nic["id"].(string)
+	if _, ok := nic["modification_date"].(string); !ok {
+		t.Errorf("the created NIC answers modification_date = %v (%T), want a string as the recorded cloud answers",
+			nic["modification_date"], nic["modification_date"])
+	}
+
+	status, read := do(t, ts, "GET", zoneURL+"/servers/"+serverID+"/private_nics/"+nicID, "")
+	if status != http.StatusOK {
+		t.Fatalf("get nic: expected 200, got %d (%v)", status, read)
+	}
+	one, _ := read["private_nic"].(map[string]any)
+	if _, ok := one["modification_date"].(string); !ok {
+		t.Errorf("a read NIC answers no modification_date: %v", one)
+	}
+
+	status, listed := do(t, ts, "GET", zoneURL+"/servers/"+serverID+"/private_nics", "")
+	if status != http.StatusOK {
+		t.Fatalf("list nics: expected 200, got %d (%v)", status, listed)
+	}
+	nics, _ := listed["private_nics"].([]any)
+	if len(nics) != 1 {
+		t.Fatalf("the list answers %d NIC(s), want the one attached: %v", len(nics), listed)
+	}
+	if _, ok := nics[0].(map[string]any)["modification_date"].(string); !ok {
+		t.Errorf("a listed NIC answers no modification_date: %v", nics[0])
+	}
+}

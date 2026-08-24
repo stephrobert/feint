@@ -1,8 +1,8 @@
 {
   "provider": "scaleway",
   "total": 486,
-  "implemented": 173,
-  "declined": 313,
+  "implemented": 174,
+  "declined": 312,
   "unknown": 0,
   "orphans": null,
   "products": [
@@ -48,15 +48,15 @@
     {
       "product": "instance",
       "total": 150,
-      "implemented": 67,
-      "declined": 83,
+      "implemented": 68,
+      "declined": 82,
       "unknown": 0,
       "versions": [
         {
           "version": "v1",
           "total": 78,
-          "implemented": 57,
-          "declined": 21,
+          "implemented": 58,
+          "declined": 20,
           "unknown": 0
         },
         {
@@ -181,8 +181,8 @@
     {
       "group": "instance",
       "total": 150,
-      "implemented": 67,
-      "declined": 83,
+      "implemented": 68,
+      "declined": 82,
       "unknown": 0
     },
     {
@@ -1230,9 +1230,8 @@
     {
       "operation": "instance/v1/API.ListDefaultSecurityGroupRules",
       "product": "instance",
-      "reason": "the seeded rule set is a value the SDK does not carry, so an invented list would state which ports a real client believes are open, and docs/limits.md records that these rules do filter packets",
       "version": "v1",
-      "status": "declined"
+      "status": "implemented"
     },
     {
       "operation": "instance/v1/API.ListIPs",

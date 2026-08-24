@@ -354,6 +354,77 @@ func (p *Pack) listSecurityGroupRules(w http.ResponseWriter, r *http.Request) {
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"rules": rules, "total_count": len(all)})
 }
 
+// The rule set Scaleway applies to every security group of a zone, served at
+// the door their own SDK names it by.
+//
+// `ListDefaultSecurityGroupRules` was declined, and the decline said what would
+// retire it: "Trade it for real values the day someone measures them against
+// the real API." They were measured on 2026-08-24, against a real fr-par
+// account, and corpus/scaleway/scw-free-shapes.jsonl seq 20 carries what the
+// cloud answered. Nothing below is invented: six outbound TCP drops on the
+// three submission ports, over both address families, none of them editable.
+//
+// It is the account-wide SMTP block, and the SDK says so in its own words —
+// "Lists the default rules applied to all the security groups"
+// (instance/v1/instance_sdk.go). It is not a group's own rule set, which is why
+// these are served here and NOT folded into listSecurityGroupRules: nothing in
+// this emulator filters an outbound packet, and a rule inside a group's list is
+// a rule a client can try to delete. docs/limits.md carries that distinction.
+//
+// The identifiers are fixed and repeated-digit, the convention catalog.go
+// already uses, and deliberately outside the space the corpus sanitiser mints
+// (a counter under 00000000-0000-4000-8000-…): a synthetic identifier that
+// collides with a minted one turns a replay into a measurement of the
+// instrument, which is #395.
+//
+// TestTheDefaultRuleSegmentIsARuleSetAndNotAGroup fails without this.
+var defaultSecurityGroupRules = []struct {
+	id       string
+	ipRange  string
+	destPort uint32
+}{
+	{"dddddddd-dddd-4ddd-8ddd-dddddddddd01", "0.0.0.0/0", 25},
+	{"dddddddd-dddd-4ddd-8ddd-dddddddddd02", "0.0.0.0/0", 465},
+	{"dddddddd-dddd-4ddd-8ddd-dddddddddd03", "0.0.0.0/0", 587},
+	{"dddddddd-dddd-4ddd-8ddd-dddddddddd04", "::/0", 25},
+	{"dddddddd-dddd-4ddd-8ddd-dddddddddd05", "::/0", 465},
+	{"dddddddd-dddd-4ddd-8ddd-dddddddddd06", "::/0", 587},
+}
+
+// listDefaultSecurityGroupRules answers GET /security_groups/default/rules.
+//
+// `default` is a literal segment of the SDK's own path and never an identifier,
+// which is what made this worth a route of its own: the segment matched {id} on
+// the neighbouring route, found no group, and answered 404 — so a decline
+// written against one operation was invisible to a client asking for another,
+// and the coverage record said "declined" while a live route answered wrong.
+func (p *Pack) listDefaultSecurityGroupRules(w http.ResponseWriter, r *http.Request) {
+	zone, ok := zoneOf(w, r)
+	if !ok {
+		return
+	}
+	rules := make([]map[string]any, 0, len(defaultSecurityGroupRules))
+	for i, rule := range defaultSecurityGroupRules {
+		rules = append(rules, map[string]any{
+			"id":        rule.id,
+			"protocol":  "TCP",
+			"direction": "outbound",
+			"action":    "drop",
+			"ip_range":  rule.ipRange,
+			// Null on every rule the recording carries, on this door and on a
+			// group's own: no client sends one and the cloud answers none.
+			"dest_ip_range":  nil,
+			"dest_port_from": rule.destPort,
+			"dest_port_to":   nil,
+			"position":       uint32(i + 1),
+			// False, and it is the whole point: a client cannot edit these.
+			"editable": false,
+			"zone":     zone,
+		})
+	}
+	emulator.WriteJSON(w, http.StatusOK, map[string]any{"rules": rules, "total_count": len(rules)})
+}
+
 func (p *Pack) createSecurityGroupRule(w http.ResponseWriter, r *http.Request) {
 	group, ok := p.securityGroupOf(w, r)
 	if !ok {
@@ -658,7 +729,22 @@ func (p *Pack) newRule(w http.ResponseWriter, group *resource.Resource, req rule
 		"action":    action,
 		// The SDK decodes ip_range into scw.IPNet, which requires a CIDR:
 		// a bare address makes the client fail on the response it just got.
-		"ip_range":       ipRange,
+		"ip_range": ipRange,
+		// Null, and present. A real fr-par account answers this key on every
+		// rule it hands back and never with a value: no client of the recording
+		// sends one, and the cloud answers null on the create, the read, the
+		// update and both lists (corpus/scaleway/scw-free-shapes.jsonl seq
+		// 21-26). Their own Go SDK has no field for it and their published
+		// document does not declare it either, so nothing that reads a document
+		// could have found this — only the wire.
+		//
+		// Present-with-null rather than absent, because that is what was
+		// measured: an omitted key is a shape the cloud never answers, and a
+		// client walking the JSON sees a rule with no such notion at all.
+		//
+		// TestARuleAnswersTheDestinationRangeKeyTheCloudAnswers fails without
+		// this.
+		"dest_ip_range":  nil,
 		"dest_port_from": portOrNil(req.DestPortFrom),
 		"dest_port_to":   portOrNil(req.DestPortTo),
 		"position":       position,

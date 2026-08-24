@@ -92,6 +92,12 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "GET", Path: zones + "/security_groups/{id}", Operation: "instance/v1/API.GetSecurityGroup", Handler: p.getSecurityGroup},
 		{Method: "PATCH", Path: zones + "/security_groups/{id}", Operation: "instance/v1/API.UpdateSecurityGroup", Handler: p.updateSecurityGroup},
 		{Method: "DELETE", Path: zones + "/security_groups/{id}", Operation: "instance/v1/API.DeleteSecurityGroup", Handler: p.deleteSecurityGroup},
+		// Before the {id} route, and it must stay before it in this slice for a
+		// reader even though net/http prefers the literal segment on its own:
+		// `default` is a path constant of the SDK, not an identifier, and it
+		// matching {id} is exactly what made a declined operation answer 404
+		// through a route whose own operation is served (#432).
+		{Method: "GET", Path: zones + "/security_groups/default/rules", Operation: "instance/v1/API.ListDefaultSecurityGroupRules", Handler: p.listDefaultSecurityGroupRules},
 		{Method: "GET", Path: zones + "/security_groups/{id}/rules", Operation: "instance/v1/API.ListSecurityGroupRules", Handler: p.listSecurityGroupRules},
 		{Method: "POST", Path: zones + "/security_groups/{id}/rules", Operation: "instance/v1/API.CreateSecurityGroupRule", Handler: p.createSecurityGroupRule},
 		{Method: "PUT", Path: zones + "/security_groups/{id}/rules", Operation: "instance/v1/API.SetSecurityGroupRules", Handler: p.setSecurityGroupRules},
@@ -746,13 +752,6 @@ func (p *Pack) Declined() []emulator.Decline {
 
 		emulator.Because("its thirteen counters span resources this pack does not serve, so every total would be short by the unemulated remainder with nothing saying which",
 			"instance/v1/API.GetDashboard"),
-
-		// The rule set Scaleway seeds a new security group with is a value, and
-		// the SDK carries shapes. Serving an invented list would tell a client
-		// which ports are open on a runtime that filters nothing. Trade it for
-		// real values the day someone measures them against the real API.
-		emulator.Because("the seeded rule set is a value the SDK does not carry, so an invented list would state which ports a real client believes are open, and docs/limits.md records that these rules do filter packets",
-			"instance/v1/API.ListDefaultSecurityGroupRules"),
 
 		// Migrating a legacy local volume, or a snapshot of one, to Scaleway
 		// Block Storage. Every volume served here is already of the current

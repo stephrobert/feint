@@ -17,6 +17,27 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **`scw instance security-group list-default-rules` reaches a rule set instead
+  of a 404, a rule answers `dest_ip_range`, and a private NIC answers the date
+  it last changed** (#431, #432, #436). Three shapes a real `fr-par` account
+  answered that no document could have found.
+
+  `default` is a literal segment of the path Scaleway's own SDK builds, not an
+  identifier, and this pack read it as one: the segment matched `{id}`, found no
+  group, and answered 404 — so `instance/v1/API.ListDefaultSecurityGroupRules`
+  read as *declined* in the coverage record while a live route answered the
+  command wrong. It is now served, with the six account-wide outbound SMTP drops
+  the recording measured, none of them editable, and the real CLI drives it in
+  the conformance suite.
+
+  `dest_ip_range` is on the wire on every security-group rule and is declared
+  **neither** by Scaleway's published document **nor** by their own Go SDK. It
+  is served as `null`, which is what the cloud answers, on all five operations
+  that hand back a rule.
+
+  A private NIC answered a creation date and no `modification_date`, on the
+  create, the read and the list alike.
+
 - **A load balancer answers the node it runs on, a backend answers the three
   defaults the cloud fills in, and a public gateway address answers a reverse**
   (#434, #435). Ninety of the divergences a real `fr-par` recording found had

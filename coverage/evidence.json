@@ -1478,6 +1478,15 @@
       "behaviour": true,
       "negative": true
     },
+    "instance/v1/API.ListDefaultSecurityGroupRules": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": false,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
     "instance/v1/API.ListIPs": {
       "driven": true,
       "probed": "response",
