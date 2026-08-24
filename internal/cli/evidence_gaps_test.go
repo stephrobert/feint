@@ -23,23 +23,37 @@ func TestAGapIsClassifiedFromTheRecordRatherThanTheName(t *testing.T) {
 	negative := namedAxis(t, "negative")
 
 	cases := []struct {
-		name string
-		ev   emulator.Evidence
-		axis evidenceAxis
-		want gapKind
+		name   string
+		ev     emulator.Evidence
+		axis   evidenceAxis
+		reason string
+		want   gapKind
 	}{
 		{"a violating verdict outranks everything",
-			emulator.Evidence{Driven: true, Shape: "violating"}, shape, gapViolating},
-		{"undriven, whatever else is true",
-			emulator.Evidence{Driven: false, Shape: "unobserved"}, shape, gapUndriven},
+			emulator.Evidence{Driven: true, Shape: "violating"}, shape, "", gapViolating},
+		{"undriven and nothing says why is a suite to write",
+			emulator.Evidence{Driven: false, Shape: "unobserved"}, shape, "", gapUndriven},
 		{"driven and unobserved is a recording",
-			emulator.Evidence{Driven: true, Shape: "unobserved"}, shape, gapUnrecorded},
+			emulator.Evidence{Driven: true, Shape: "unobserved"}, shape, "", gapUnrecorded},
 		{"driven, not violating, another axis: unexplained rather than guessed",
-			emulator.Evidence{Driven: true}, negative, gapUnproven},
+			emulator.Evidence{Driven: true}, negative, "", gapUnproven},
+		// The two that separate "no suite yet" from "no client to write one
+		// with". Same record, same axis, different answer — so the reason is
+		// what decides, and it is read from the route rather than from the name.
+		{"undriven with a declared reason is not work",
+			emulator.Evidence{Driven: false, Shape: "unobserved"}, shape,
+			"no official client calls it: the CLI has no attach subcommand", gapDeclared},
+		// A reason must never rescue a driven operation from its zero. The
+		// stale half of TestEveryUndrivenOperationSaysWhy exists to reject such
+		// a reason, and this asserts the queue does not honour it meanwhile:
+		// otherwise a stale excuse would empty a real recording queue.
+		{"a reason on a driven operation changes nothing",
+			emulator.Evidence{Driven: true, Shape: "unobserved"}, shape,
+			"no official client calls it: the CLI has no attach subcommand", gapUnrecorded},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := classifyGap(c.ev, c.axis); got != c.want {
+			if got := classifyGap(c.ev, c.axis, c.reason); got != c.want {
 				t.Fatalf("classified as %s, want %s", gapKindNames[got], gapKindNames[c.want])
 			}
 		})
@@ -58,7 +72,7 @@ func TestAGapIsClassifiedFromTheRecordRatherThanTheName(t *testing.T) {
 // served operations" is exactly the kind of sentence that stops being true.
 func TestTheQueueOnlyNamesOperationsTheRecordHolds(t *testing.T) {
 	art, owners, providers := gapFixture(t)
-	report, err := buildGaps("fixture", art, owners, providers, "", "")
+	report, err := buildGaps("fixture", art, owners, nil, providers, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +104,7 @@ func TestTheQueueOnlyNamesOperationsTheRecordHolds(t *testing.T) {
 // the same list to three different people.
 func TestTheQueueIsOrderedByTheWorkItNames(t *testing.T) {
 	art, owners, providers := gapFixture(t)
-	report, err := buildGaps("fixture", art, owners, providers, "", "")
+	report, err := buildGaps("fixture", art, owners, nil, providers, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +136,7 @@ func TestTheQueueIsOrderedByTheWorkItNames(t *testing.T) {
 // a queue gets misread by everybody who did not write it.
 func TestTheJSONCarriesWhatEachKindMeans(t *testing.T) {
 	art, owners, providers := gapFixture(t)
-	report, err := buildGaps("fixture", art, owners, providers, "", "")
+	report, err := buildGaps("fixture", art, owners, nil, providers, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +169,7 @@ func TestTheJSONCarriesWhatEachKindMeans(t *testing.T) {
 // blur for a replay of nothing.
 func TestAnUnknownAxisIsRefused(t *testing.T) {
 	art, owners, providers := gapFixture(t)
-	if _, err := buildGaps("fixture", art, owners, providers, "", "no-such-axis"); err == nil {
+	if _, err := buildGaps("fixture", art, owners, nil, providers, "", "no-such-axis"); err == nil {
 		t.Fatal("an axis nobody declares was accepted, so a typo prints an empty queue and reads as a clean one")
 	}
 }
@@ -207,4 +221,101 @@ func gapFixture(t *testing.T) (*evidenceArtefact, map[string]string, []string) {
 	// same terms as the other fixtures in this package.
 	_ = filepath.Join(os.TempDir(), "gapfixture")
 	return art, owners, []string{"outscale", "scaleway"}
+}
+
+// The queue separates "nobody has written the suite" from "no client exists to
+// write one with", and it does it from what the packs declare.
+//
+// Measured on 2026-08-24, before this split existed: the record left twenty-five
+// operations undriven, and every single one already carried a Route.Undriven
+// reason — `scw ipam ip` has no attach subcommand, `scw vpc` has no subnet
+// subcommand, `scw block volume-type list` is pinned to v1alpha1. The queue
+// nonetheless printed all 141 of their zeros under "a conformance suite: no
+// real client reaches this operation", which asks a reader for a suite that
+// cannot be written. It is the shape of defect #407 removed from the `shape`
+// axis: an entry no amount of work retires.
+//
+// The assertion is a set equality between two independently derived sets, in
+// both directions, and both are required to be non-empty. A subset check in one
+// direction alone is satisfied by a queue that classifies nothing, which is
+// exactly how a control of this kind passes while measuring nothing.
+func TestADeclaredReasonSplitsTheUndrivenQueue(t *testing.T) {
+	art, err := loadEvidenceArtefact(filepath.Join("..", "..", "coverage", "evidence.json"))
+	if err != nil {
+		t.Fatalf("read the evidence artefact: %v", err)
+	}
+	if art == nil || len(art.Operations) == 0 {
+		t.Fatal("the evidence artefact is empty, so this test would pass while measuring nothing")
+	}
+	owners, providers, err := operationOwners()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reasons, err := undrivenReasons()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The set the packs declare: undriven in the record AND carrying a reason.
+	// Derived from the two inputs, never from the report being tested.
+	declaredByPacks := map[string]bool{}
+	undrivenWithoutReason := map[string]bool{}
+	for op := range art.Operations {
+		if _, owned := owners[op]; !owned {
+			continue
+		}
+		if art.Operations[op].Driven {
+			continue
+		}
+		if reasons[op] != "" {
+			declaredByPacks[op] = true
+		} else {
+			undrivenWithoutReason[op] = true
+		}
+	}
+	if len(declaredByPacks) == 0 {
+		t.Fatal("no operation is both undriven and declared, so the split this test " +
+			"describes is untestable on this record and the test would pass on any code")
+	}
+
+	report, err := buildGaps("coverage/evidence.json", art, owners, reasons, providers, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	declaredByQueue := map[string]bool{}
+	undrivenByQueue := map[string]bool{}
+	for _, g := range report.Groups {
+		for _, e := range g.Entries {
+			switch e.Kind {
+			case "declared":
+				declaredByQueue[e.Operation] = true
+				if e.Reason == "" {
+					t.Errorf("%s is queued as declared and prints no reason; "+
+						"a decision a report names but does not state is one nobody re-examines", e.Operation)
+				}
+			case "undriven":
+				undrivenByQueue[e.Operation] = true
+			}
+		}
+	}
+
+	for op := range declaredByPacks {
+		if !declaredByQueue[op] {
+			t.Errorf("%s is undriven and its route says why, and the queue does not call it declared", op)
+		}
+		if undrivenByQueue[op] {
+			t.Errorf("%s carries a reason at its route and the queue still asks for a conformance suite", op)
+		}
+	}
+	for op := range declaredByQueue {
+		if !declaredByPacks[op] {
+			t.Errorf("%s is queued as declared and the packs declare no reason for it: "+
+				"the queue is excusing an operation nobody excused", op)
+		}
+	}
+	for op := range undrivenByQueue {
+		if !undrivenWithoutReason[op] {
+			t.Errorf("%s is queued as undriven and is not an undriven operation without a reason", op)
+		}
+	}
 }

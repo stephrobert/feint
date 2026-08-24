@@ -246,6 +246,13 @@ resource "scaleway_instance_placement_group" "conformance" {
   policy_type = "max_availability"
   policy_mode = "enforced"
   zone        = "fr-par-1"
+  # The phase tag is what drives instance/v2alpha1/API.UpdatePlacementGroup.
+  # Provider 2.81.0 PATCHes this door for name, policy type and tags; the
+  # fixture created the group and destroyed it without ever editing it, so the
+  # route was mounted and unreachable — the route carried the reason in
+  # Route.Undriven, and the reason named this exact fixture. One changed tag is
+  # the cheapest edit the provider will PATCH rather than replace.
+  tags = ["conformance", var.phase]
 }
 
 # The name lookup of the provider's data source reads the v2alpha1 list, the
@@ -326,6 +333,11 @@ resource "scaleway_instance_private_nic" "conformance" {
   private_network_id = scaleway_vpc_private_network.conformance.id
   ipam_ip_ids        = [scaleway_ipam_ip.conformance.id]
   zone               = "fr-par-1"
+  # The phase tag is what drives instance/v2alpha1/API.UpdatePrivateNetworkInterface,
+  # the PATCH door provider 2.81.0 uses for an interface's tags. Same story as the
+  # placement group above: mounted on 2026-08-17 so that the first apply editing a
+  # tag would not meet a 501, then never edited by this fixture.
+  tags = ["conformance", var.phase]
 }
 
 # The exact expression that killed the talos stack (#270): upstream always
@@ -491,4 +503,18 @@ output "gateway_ip_address" {
 
 output "gateway_network_id" {
   value = scaleway_vpc_gateway_network.conformance.id
+}
+
+# The two identifiers the second apply needs in order to prove its PATCH landed.
+# Both families were mounted on 2026-08-17 so that a first apply editing a tag
+# would not meet a 501, and both then sat undriven because this fixture created
+# and destroyed without ever editing them — the reason was written at the route
+# in Route.Undriven and named this file. The suite reads them back from the
+# emulator after the second apply, so a 200 that stored nothing fails here.
+output "placement_group_id" {
+  value = scaleway_instance_placement_group.conformance.id
+}
+
+output "private_nic_id" {
+  value = scaleway_instance_private_nic.conformance.id
 }

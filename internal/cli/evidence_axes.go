@@ -458,3 +458,33 @@ func evidenceAxesView(record, provider, axis, format string, stdout, stderr io.W
 	}
 	return exitOK
 }
+
+// undrivenReasons answers, per operation, what the pack declares at the route
+// about why no official client reaches it — Route.Undriven, empty for every
+// operation a client drives.
+//
+// From the packs in process, for the same reason operationOwners is: the
+// alternative is a list in this file, and a list disagrees with the packs at
+// the first edit and keeps being the thing people read.
+//
+// Two routes may mount one operation (372 routes for 370 operations). A reason
+// on either is the operation's reason, and the longer one wins so that the
+// answer cannot depend on mount order — a silent tie-break by iteration order
+// is how a report becomes irreproducible.
+func undrivenReasons() (map[string]string, error) {
+	srv, _, err := newServer(nil)
+	if err != nil {
+		return nil, err
+	}
+	reasons := make(map[string]string)
+	for _, r := range srv.AllRoutes() {
+		if r.Operation == "" || r.Undriven == "" {
+			continue
+		}
+		if prev, seen := reasons[r.Operation]; seen && len(prev) >= len(r.Undriven) {
+			continue
+		}
+		reasons[r.Operation] = r.Undriven
+	}
+	return reasons, nil
+}

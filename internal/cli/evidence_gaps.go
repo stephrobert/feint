@@ -40,15 +40,49 @@ const (
 	// cloud's answer exists" — one recording session away from earned, which
 	// is why it outranks the two below.
 	gapUnrecorded
-	// gapUndriven: no real client reaches this operation at all. Most axes
-	// cannot be earned without that, so this is the upstream job: a conformance
-	// suite, not a pack change.
+	// gapUndriven: no real client reaches this operation, and no route says
+	// why. Most axes cannot be earned without a client, so this is the upstream
+	// job: a conformance suite, not a pack change.
+	//
+	// It reads zero on a green repository, and that is the design rather than a
+	// dead branch: TestEveryUndrivenOperationSaysWhy already refuses an undriven
+	// operation with no reason, so this kind is the window between mounting a
+	// route and explaining it — an incoming-work signal, not a backlog. The
+	// backlog it used to hold is now `declared` below, where each line carries
+	// the reason that retired it.
 	gapUndriven
 	// gapUnproven: driven, not violating, and still not earned, for a reason
 	// the record does not spell. Named rather than folded into another kind,
 	// because a bucket that absorbs the unexplained is how a queue starts
 	// lying.
+	//
+	// It is the largest bucket, and 172 of its 264 zeros are the `negative`
+	// axis. A tempting reading — measured and rejected on 2026-08-24 — is that
+	// those are recordings like `shape`, and should be reclassified as such.
+	// They are not. `shape` is earned by a recorded real-cloud answer and by
+	// nothing else, so "no recording exists" is its whole story; `negative` is
+	// earned by an operation really answering 4xx to a real client inside a span
+	// where a suite demanded a refusal, which a suite can produce without any
+	// recording at all. Calling those 172 "a recording" would have sent a reader
+	// to a cloud account for work a conformance case can do offline. Left in the
+	// honest bucket rather than moved to a wrong one.
 	gapUnproven
+	// gapDeclared: no client reaches it, and the route says why in
+	// Route.Undriven. This is the one entry of the queue that is not work.
+	//
+	// It exists because the four kinds above could not tell "nobody has written
+	// the suite yet" from "no client path exists to write one with", and the
+	// queue told both to go and write a suite. Measured on 2026-08-24: all
+	// twenty-five operations the record left undriven already carried a reason
+	// at their route — `scw ipam ip` has no attach subcommand, `scw vpc` has no
+	// subnet subcommand — so every one of those 141 zeros was asking for a
+	// suite that cannot be written. That is the same defect #407 removed from
+	// the `shape` axis: a queue entry no amount of work can retire.
+	//
+	// It is last in the order for the same reason it is kept rather than
+	// filtered: a reader picking work must not meet it first, and a decision
+	// that disappears from the report is a decision nobody can review.
+	gapDeclared
 )
 
 // gapKindNames are what the output prints, and the keys --format json uses.
@@ -58,6 +92,7 @@ var gapKindNames = map[gapKind]string{
 	gapUnrecorded: "unrecorded",
 	gapUndriven:   "undriven",
 	gapUnproven:   "unproven",
+	gapDeclared:   "declared",
 }
 
 // gapKindWork is the sentence the text output prints once per group. It names
@@ -68,20 +103,32 @@ var gapKindWork = map[gapKind]string{
 	gapUnrecorded: "a recording: a real client already drives it, and no answer of the real cloud has been kept",
 	gapUndriven:   "a conformance suite: no real client reaches this operation, so most axes cannot be earned",
 	gapUnproven:   "unexplained: driven, not violating, still not earned — the record does not say why",
+	gapDeclared:   "not work: no client path exists to reach it, and the route says so — the reason is printed with each line",
 }
 
-// classifyGap decides which of the four a zero is, from the record alone.
+// classifyGap decides which of the five a zero is, from the record and from
+// what the pack declares at the route — never from the operation's name.
 //
 // The order of the tests is the classification: a violation outranks everything
 // because it is the only defect here, and "undriven" is asked before the
 // catch-all so that the unexplained bucket stays as small as the record allows.
 //
-// TestAGapIsClassifiedFromTheRecordRatherThanTheName fails without this.
-func classifyGap(ev emulator.Evidence, axis evidenceAxis) gapKind {
+// `reason` is Route.Undriven for this operation, empty when the route declares
+// none. It is only ever consulted for an operation the record says no client
+// drove: a reason on a driven operation is a stale excuse, and
+// TestEveryUndrivenOperationSaysWhy is the control that refuses one — this
+// function must not quietly honour what that test exists to reject.
+//
+// TestAGapIsClassifiedFromTheRecordRatherThanTheName and
+// TestADeclaredReasonSplitsTheUndrivenQueue fail without this.
+func classifyGap(ev emulator.Evidence, axis evidenceAxis, reason string) gapKind {
 	if v := axis.verdict(ev); v == "violating" {
 		return gapViolating
 	}
 	if !ev.Driven {
+		if reason != "" {
+			return gapDeclared
+		}
 		return gapUndriven
 	}
 	if axis.Name == "shape" {
@@ -98,6 +145,10 @@ type gapEntry struct {
 	// Verdict carries the record's own word for a non-boolean axis, so a
 	// consumer never has to re-derive it from Kind.
 	Verdict string `json:"verdict,omitempty"`
+	// Reason is Route.Undriven, carried on the "declared" lines only. Published
+	// rather than left for the reader to go and find in a pack file: a decision
+	// a report names but does not state is a decision nobody re-examines.
+	Reason string `json:"reason,omitempty"`
 }
 
 // gapGroup is one (provider, axis) pair's queue.
@@ -123,7 +174,7 @@ type gapReport struct {
 // uses. No second source of truth: this computes nothing a gate does not
 // already compute, it only says what the zeros are for.
 func buildGaps(record string, art *evidenceArtefact, owners map[string]string,
-	providers []string, onlyProvider, onlyAxis string) (*gapReport, error) {
+	reasons map[string]string, providers []string, onlyProvider, onlyAxis string) (*gapReport, error) {
 	axes := evidenceAxisList()
 	if onlyAxis != "" {
 		found := false
@@ -169,13 +220,17 @@ func buildGaps(record string, art *evidenceArtefact, owners map[string]string,
 				if a.earned(ev) {
 					continue
 				}
-				kind := classifyGap(ev, a)
-				group.Entries = append(group.Entries, gapEntry{
+				kind := classifyGap(ev, a, reasons[op])
+				entry := gapEntry{
 					Operation: op,
 					Axis:      a.Name,
 					Kind:      gapKindNames[kind],
 					Verdict:   a.verdict(ev),
-				})
+				}
+				if kind == gapDeclared {
+					entry.Reason = reasons[op]
+				}
+				group.Entries = append(group.Entries, entry)
 			}
 			if len(group.Entries) == 0 {
 				continue
@@ -238,6 +293,9 @@ func writeGapsText(w io.Writer, r *gapReport) error {
 			if e.Verdict != "" {
 				line += "  (" + e.Verdict + ")"
 			}
+			if e.Reason != "" {
+				line += "\n          " + e.Reason
+			}
 			if _, err := fmt.Fprintln(w, line); err != nil {
 				return err
 			}
@@ -269,7 +327,12 @@ func evidenceGapsView(record, provider, axis, format string, stdout, stderr io.W
 		fmt.Fprintf(stderr, "feint: %v\n", err)
 		return exitError
 	}
-	report, err := buildGaps(record, art, owners, providers, provider, axis)
+	reasons, err := undrivenReasons()
+	if err != nil {
+		fmt.Fprintf(stderr, "feint: %v\n", err)
+		return exitError
+	}
+	report, err := buildGaps(record, art, owners, reasons, providers, provider, axis)
 	if err != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", err)
 		return exitError

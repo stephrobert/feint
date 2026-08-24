@@ -188,6 +188,14 @@ volume_uuid="${volume_id##*/}"
 # the snapshot are asked of the emulator directly, so a state file agreeing with
 # itself cannot pass for a resource that exists.
 echo "- the block volume and its snapshot are served by block/v1"
+# Captured before the second apply, because the "updated rather than replaced"
+# assertion below compares across the apply. Reading the id afterwards and
+# comparing it to itself is true whatever the provider did — that is a vacuous
+# assertion, and this file is where it would have hidden.
+pg_id_before="$("$TF" output -raw placement_group_id)"
+nic_id_before="$("$TF" output -raw private_nic_id)"
+[ -n "$pg_id_before" ] || fail "no placement group id in the outputs"
+[ -n "$nic_id_before" ] || fail "no private nic id in the outputs"
 block_volume_id="$("$TF" output -raw block_volume_id)"
 block_volume_uuid="${block_volume_id##*/}"
 block_snapshot_id="$("$TF" output -raw block_snapshot_id)"
@@ -236,6 +244,29 @@ acl="$(curl -s "$ENDPOINT/vpc/v2/regions/fr-par/vpcs/$vpc_uuid/acl-rules?is_ipv6
 printf '%s' "$acl" | jq -e '.rules[0].description == "https, phase two"' >/dev/null \
   || fail "the second SetACL answered 200 and stored the first rule set: $acl"
 ok "updated in place, and read back"
+
+# The two v2alpha1 PATCH doors, which nothing drove until this apply existed.
+# Provider 2.81.0 moved the placement group and the private NIC onto
+# /instance/v2alpha1/..., and both were mounted so that the first apply editing
+# a tag would not meet a 501 — then no fixture ever edited one, so both carried
+# a Route.Undriven reason naming this file. The assertion is here rather than in
+# the coverage record on purpose: a run that stops driving them fails on this
+# line, not on a nightly regeneration three days later.
+pg_uuid="${pg_id_before##*/}"
+body="$(curl -s "$ENDPOINT/instance/v2alpha1/zones/$ZONE/placement-groups/$pg_uuid")"
+printf '%s' "$body" | jq -e '.tags | index("two")' >/dev/null \
+  || fail "the placement group update did not reach the emulator: $body"
+nic_uuid="${nic_id_before##*/}"
+body="$(curl -s "$ENDPOINT/instance/v2alpha1/zones/$ZONE/private-network-interfaces/$nic_uuid")"
+printf '%s' "$body" | jq -e '.tags | index("two")' >/dev/null \
+  || fail "the private nic update did not reach the emulator: $body"
+# Updated, not replaced: a provider that destroyed and recreated would carry the
+# new tag while having driven Create and Delete instead of the PATCH this proves.
+[ "$("$TF" output -raw placement_group_id)" = "$pg_id_before" ] \
+  || fail "the placement group was replaced rather than updated: UpdatePlacementGroup is still unproven"
+[ "$("$TF" output -raw private_nic_id)" = "$nic_id_before" ] \
+  || fail "the private nic was replaced rather than updated: UpdatePrivateNetworkInterface is still unproven"
+ok "the two v2alpha1 PATCH doors were driven and read back"
 
 echo "- the plan after the update is empty too"
 plan_status=0
