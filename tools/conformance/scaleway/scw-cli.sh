@@ -1016,4 +1016,150 @@ scw vpc private-network delete "$gw_pn_id" region=fr-par >/dev/null \
 prove_end "$span"
 ok "the gateway chain round-tripped, its address resolved through IPAM, and the wrong destroy order was refused"
 
+# The three values every refusal below is composed from. They are chosen to be
+# unmintable rather than merely unused: knownZones and knownRegions (servers.go,
+# vpc.go) are closed lists, and no Scaleway place is named xx-yyy.
+UNKNOWN_ID="99999999-9999-4999-8999-999999999999"
+NOWHERE_ZONE="xx-yyy-1"
+NOWHERE_REGION="xx-yyy"
+REGION="${REGION:-fr-par}"
+
+# The refusals a real client can ask for, on the operations nothing ever refused.
+#
+# `negative` is earned by an operation really answering 4xx to a real client
+# inside a span where a suite demanded a refusal (#428). Seventy-six Scaleway
+# operations stood at zero, and the reason was never that the emulator lacked
+# the behaviour: nobody had ever asked it to say no on those calls. The corpus
+# of recorded cloud refusals (refusals.sh, #390) covers the reads and writes a
+# recording session drove at bogus identifiers, and stops there.
+#
+# Nothing below arms a fault. It could not: an injected refusal leaves the
+# observed path before the observer records it, and a span whose only 4xx were
+# injected is refused outright by the emulator. Every refusal here is this
+# emulator's own rule meeting a request the real CLI composed.
+#
+# TWO SHAPES, AND THE ORDER MATTERS. Where an operation owns a refusal of its
+# own — an identifier that names nothing, a resource still in use, a state that
+# forbids the call — that is the one driven, because it exercises the handler's
+# subject. Where it owns none that `scw` can compose, the request is sent at a
+# zone or a region that names no place. That refusal is real and it is this
+# emulator's own (`zoneOf`/`regionOf` answer `invalid_arguments` naming the
+# segment, and `knownZones` says why), but it is worth stating what it proves
+# and what it does not: the route is mounted, its handler runs and refuses a
+# scope it does not serve. It says nothing about how that operation treats a
+# bad payload. Anything stronger is used where it exists.
+#
+# WHAT `scw` CANNOT ASK FOR, MEASURED RATHER THAN ASSUMED. The CLI validates
+# enums against its own SDK (`state=bogus`, `order-by=nope` never leave the
+# machine) and resolves a target before acting, so `server delete <unknown>`,
+# `lb delete <unknown>` and `snapshot create volume-id=<unknown>` are answered
+# by the GET that precedes them and the write is never sent. That ceiling is
+# why refuse_scw fails a case whose refusal never reached the emulator instead
+# of passing it: a case that stops reaching the API measures nothing, and it
+# would look exactly like this suite working.
+
+# refuse_scw drives one command that must be refused BY THE EMULATOR, and reads
+# the emulator's own verdict rather than the client's output.
+#
+# Three outcomes, never two, because `scw` answers a refusal it made itself and
+# a refusal the API made with the same exit code and the same `{"message":...}`
+# envelope — parsing that text is how this block would lie:
+#
+#   - the CLI succeeded            -> the API accepted what must be refused;
+#   - the CLI failed, span closes  -> the emulator answered a 4xx: the case holds;
+#   - the CLI failed, span 409s    -> the request never reached the emulator,
+#                                     so this case proves nothing and says so.
+#
+# TestANegativeSpanNeedsARefusal (internal/core/emulator) is what makes the
+# third outcome a 409 rather than a green close.
+refuse_scw() { # label args...
+  local label="$1"; shift
+  local span out rc=0 close code body
+  span="$(prove_begin negative)"
+  out="$(scw "$@" 2>&1)" || rc=$?
+  close="$(curl -s -w '\n%{http_code}' -X POST "$ENDPOINT/_feint/assert/$span")"
+  code="${close##*$'\n'}"
+  body="${close%$'\n'*}"
+  if [ "$rc" -eq 0 ]; then
+    fail "$label: the CLI was answered success where a refusal was demanded: $out"
+  fi
+  case "$code" in
+    200) ;;
+    409) fail "$label: the CLI refused this on its own and the emulator never saw it, so the case measures nothing: $out" ;;
+    *)   fail "$label: the emulator answered HTTP $code closing the span: $body" ;;
+  esac
+}
+
+echo "- the refusals each operation owns"
+
+# An identifier that names nothing, on the operations whose own subject is that
+# identifier. `scw` sends these: they are path segments and request fields, not
+# enums it can check.
+refuse_scw "placement group get"      instance placement-group get "$UNKNOWN_ID" zone="$ZONE" -o json
+refuse_scw "attach volume"            instance server attach-volume server-id="$UNKNOWN_ID" volume-id="$UNKNOWN_ID" zone="$ZONE" -o json
+refuse_scw "detach volume"            instance server detach-volume server-id="$UNKNOWN_ID" volume-id="$UNKNOWN_ID" zone="$ZONE" -o json
+refuse_scw "image from a snapshot"    instance image create name=refused snapshot-id="$UNKNOWN_ID" arch=x86_64 zone="$ZONE" -o json
+refuse_scw "placement group servers"  instance placement-group update-servers placement-group-id="$UNKNOWN_ID" servers.0="$UNKNOWN_ID" zone="$ZONE" -o json
+refuse_scw "security group rules"     instance security-group set-rules security-group-id="$UNKNOWN_ID" zone="$ZONE" -o json
+refuse_scw "user data"                instance user-data set server-id="$UNKNOWN_ID" key=refused content=refused zone="$ZONE"
+refuse_scw "load balancer backend"    lb backend create lb-id="$UNKNOWN_ID" name=refused forward-protocol=tcp forward-port=80 \
+                                        forward-port-algorithm=roundrobin sticky-sessions=none health-check.port=80 zone="$ZONE" -o json
+refuse_scw "load balancer attach"     lb private-network attach lb-id="$UNKNOWN_ID" private-network-id="$UNKNOWN_ID" zone="$ZONE" -o json
+refuse_scw "load balancer from an ip" lb lb create name=refused type=LB-S ip-ids.0="$UNKNOWN_ID" zone="$ZONE" -o json
+refuse_scw "block volume from a snapshot" block volume create name=refused from-snapshot.snapshot-id="$UNKNOWN_ID" perf-iops=5000 zone="$ZONE" -o json
+refuse_scw "block snapshot of a volume"   block snapshot create name=refused volume-id="$UNKNOWN_ID" zone="$ZONE" -o json
+refuse_scw "acl of a vpc"             vpc rule set vpc-id="$UNKNOWN_ID" is-ipv6=false default-policy=drop region="$REGION" -o json
+ok "an identifier that names nothing is refused where it is the subject"
+
+# A state that forbids the call. DeleteServer is the one write of this pack that
+# `scw` reaches at all with a real target: the CLI resolves the server first, so
+# the only way to the DELETE is a server that exists and refuses to be deleted.
+echo "- a running server does not delete"
+doomed="$(scw instance server create name=conformance-refused type=DEV1-S zone="$ZONE" -o json)" \
+  || fail "create rejected: $doomed"
+doomed_id="$(printf '%s' "$doomed" | jq -r '.id // empty')"
+[ -n "$doomed_id" ] || fail "no id in the create response: $doomed"
+refuse_scw "delete a running server"  instance server delete "$doomed_id" zone="$ZONE"
+scw instance server stop "$doomed_id" zone="$ZONE" >/dev/null || fail "cleanup: poweroff rejected"
+scw instance server delete "$doomed_id" zone="$ZONE" >/dev/null || fail "cleanup: delete rejected once stopped"
+ok "the running server was kept, and deleted once stopped"
+
+# A zone and a region that name no place, for the operations that own no other
+# refusal a client can compose. See the note above on what this proves.
+echo "- a zone and a region that name no place"
+refuse_scw "instance ip list"          instance ip list zone="$NOWHERE_ZONE" -o json
+refuse_scw "instance image list"       instance image list zone="$NOWHERE_ZONE" -o json
+refuse_scw "instance volume list"      instance volume list zone="$NOWHERE_ZONE" -o json
+refuse_scw "instance snapshot list"    instance snapshot list zone="$NOWHERE_ZONE" -o json
+refuse_scw "security group list"       instance security-group list zone="$NOWHERE_ZONE" -o json
+refuse_scw "placement group list"      instance placement-group list zone="$NOWHERE_ZONE" -o json
+refuse_scw "instance server list"      instance server list zone="$NOWHERE_ZONE" -o json
+refuse_scw "instance ip create"        instance ip create zone="$NOWHERE_ZONE" -o json
+refuse_scw "security group create"     instance security-group create name=refused zone="$NOWHERE_ZONE" -o json
+refuse_scw "placement group create"    instance placement-group create name=refused zone="$NOWHERE_ZONE" -o json
+refuse_scw "instance volume create"    instance volume create name=refused size=10GB volume-type=l_ssd zone="$NOWHERE_ZONE" -o json
+# The create the CLI walks in four calls: the type catalogue, the default image,
+# the address, then the server. It is refused on the first three, which is where
+# `GetImage` and `ListServersTypes` earn theirs — `GetImage` owns no refusal of
+# its own, an identifier it never minted being served on purpose (docs/limits.md,
+# and the divergence that decision costs is corpus/accepted.json's #392).
+refuse_scw "instance server create"    instance server create name=refused type=DEV1-S zone="$NOWHERE_ZONE" -o json
+refuse_scw "block volume list"         block volume list zone="$NOWHERE_ZONE" -o json
+refuse_scw "block snapshot list"       block snapshot list zone="$NOWHERE_ZONE" -o json
+refuse_scw "block volume type list"    block volume-type list zone="$NOWHERE_ZONE" -o json
+refuse_scw "load balancer list"        lb lb list zone="$NOWHERE_ZONE" -o json
+refuse_scw "load balancer ip list"     lb ip list zone="$NOWHERE_ZONE" -o json
+refuse_scw "load balancer ip create"   lb ip create zone="$NOWHERE_ZONE" -o json
+refuse_scw "gateway list"              vpc-gw gateway list zone="$NOWHERE_ZONE" -o json
+refuse_scw "gateway network list"      vpc-gw gateway-network list zone="$NOWHERE_ZONE" -o json
+refuse_scw "gateway ip list"           vpc-gw ip list zone="$NOWHERE_ZONE" -o json
+refuse_scw "gateway ip create"         vpc-gw ip create zone="$NOWHERE_ZONE" -o json
+refuse_scw "vpc list"                  vpc vpc list region="$NOWHERE_REGION" -o json
+refuse_scw "private network list"      vpc private-network list region="$NOWHERE_REGION" -o json
+refuse_scw "vpc create"                vpc vpc create name=refused region="$NOWHERE_REGION" -o json
+refuse_scw "private network dhcp"      vpc private-network enable-dhcp private-network-id="$UNKNOWN_ID" region="$NOWHERE_REGION" -o json
+refuse_scw "ipam ip list"              ipam ip list region="$NOWHERE_REGION" -o json
+refuse_scw "ipam ip set release"       ipam ip-set release region="$NOWHERE_REGION" -o json
+ok "every one of them refused by name"
+
 echo "conformance: scw CLI passed"
