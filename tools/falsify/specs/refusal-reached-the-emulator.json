@@ -1,0 +1,27 @@
+{
+  "package": "./tools/conformance/",
+  "note": "refuse_client is the control behind the negative cases of #428. `scw` validates enums against its own SDK and `exo` resolves a NAME|ID by listing before it acts, so a case aimed at something that does not exist is refused by the CLI and never reaches the emulator — with the same non-zero exit code and the same JSON envelope the API's own refusal produces. Each mutation below removes one of the three outcomes and must make the test that owns it fail.",
+  "mutations": [
+    {
+      "label": "a refusal the client made itself closes the case green, so an operation quietly stops earning the axis and nothing goes red",
+      "file": "tools/conformance/prove.sh",
+      "find": "  case \"$code\" in\n    200) ;;",
+      "replace": "  case \"$code\" in\n    200|409) ;;",
+      "test": "TestARefusalTheClientMadeItselfFailsTheCase"
+    },
+    {
+      "label": "a call the API accepted closes the case green, which is the defect the case is written to catch",
+      "file": "tools/conformance/prove.sh",
+      "find": "  if [ \"$rc\" -eq 0 ]; then\n    echo \"FAIL: $label: the client was answered success where a refusal was demanded: $out\" >&2\n    exit 1\n  fi",
+      "replace": "  if [ \"$rc\" -eq 0 ] && false; then\n    echo \"FAIL: $label: the client was answered success where a refusal was demanded: $out\" >&2\n    exit 1\n  fi",
+      "test": "TestACallTheAPIAcceptedFailsTheCase"
+    },
+    {
+      "label": "the span is never closed, so the case reports a verdict the emulator never gave",
+      "file": "tools/conformance/prove.sh",
+      "find": "  close=\"$(curl -s -w '\\n%{http_code}' -X POST \"$ENDPOINT/_feint/assert/$span\")\"",
+      "replace": "  close=\"$(printf '%s\\n200' '{}')\" # close=\"$(curl -s -w '\\n%{http_code}' -X POST \"$ENDPOINT/_feint/assert/$span\")\"",
+      "test": "TestTheCaseOpensAndClosesASpan"
+    }
+  ]
+}

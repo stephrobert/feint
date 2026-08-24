@@ -1058,36 +1058,12 @@ REGION="${REGION:-fr-par}"
 # of passing it: a case that stops reaching the API measures nothing, and it
 # would look exactly like this suite working.
 
-# refuse_scw drives one command that must be refused BY THE EMULATOR, and reads
-# the emulator's own verdict rather than the client's output.
-#
-# Three outcomes, never two, because `scw` answers a refusal it made itself and
-# a refusal the API made with the same exit code and the same `{"message":...}`
-# envelope — parsing that text is how this block would lie:
-#
-#   - the CLI succeeded            -> the API accepted what must be refused;
-#   - the CLI failed, span closes  -> the emulator answered a 4xx: the case holds;
-#   - the CLI failed, span 409s    -> the request never reached the emulator,
-#                                     so this case proves nothing and says so.
-#
-# TestANegativeSpanNeedsARefusal (internal/core/emulator) is what makes the
-# third outcome a 409 rather than a green close.
+# refuse_scw names the client; everything else is refuse_client's, in
+# tools/conformance/prove.sh, because the rule is the same for all three clouds
+# and a control recopied into each suite is a control one suite forgets.
 refuse_scw() { # label args...
   local label="$1"; shift
-  local span out rc=0 close code body
-  span="$(prove_begin negative)"
-  out="$(scw "$@" 2>&1)" || rc=$?
-  close="$(curl -s -w '\n%{http_code}' -X POST "$ENDPOINT/_feint/assert/$span")"
-  code="${close##*$'\n'}"
-  body="${close%$'\n'*}"
-  if [ "$rc" -eq 0 ]; then
-    fail "$label: the CLI was answered success where a refusal was demanded: $out"
-  fi
-  case "$code" in
-    200) ;;
-    409) fail "$label: the CLI refused this on its own and the emulator never saw it, so the case measures nothing: $out" ;;
-    *)   fail "$label: the emulator answered HTTP $code closing the span: $body" ;;
-  esac
+  refuse_client "$label" scw "$@"
 }
 
 echo "- the refusals each operation owns"

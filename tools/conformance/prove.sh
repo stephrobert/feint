@@ -64,3 +64,56 @@ prove_end() {
     echo "        so the behaviour axis is short by that much for this block (#398)" >&2
   fi
 }
+
+# refuse_client drives one command that must be refused BY THE EMULATOR, and
+# reads the emulator's own verdict rather than the client's output (#428).
+#
+# It is here rather than in each suite for the reason the shared layer exists at
+# all: three clients, one rule. `scw`, `exo` and `oapi-cli` all answer a refusal
+# they made THEMSELVES and a refusal the API made with the same non-zero exit
+# code and a similar JSON envelope, so a suite parsing that text cannot tell the
+# two apart — and the difference is the whole measurement. `scw` validates enums
+# against its own SDK and `exo` resolves a NAME|ID by listing first, so a case
+# aimed at something that does not exist never reaches the emulator at all.
+#
+# Three outcomes, never two:
+#
+#   - the client succeeded          -> the API accepted what must be refused;
+#   - the client failed, span closes -> the emulator answered a 4xx: it holds;
+#   - the client failed, span 409s   -> nothing reached the emulator, so this
+#                                       case proves nothing and says so by name.
+#
+# The third is the one that matters, and it is a guard rather than a comment:
+# a case that quietly stops reaching the API reads exactly like this suite
+# working, and it would keep passing for as long as nobody read the axis.
+# TestARefusalTheClientMadeItselfFailsTheCase fails without it, and
+# TestARefusalTheEmulatorMadePassesTheCase is the other half, without which a
+# helper that refused everything would satisfy the first.
+#
+# The caller passes its own client word — `scw`, `exoc`, `osc` — because that is
+# the only thing that varies.
+refuse_client() { # label client args...
+  local label="$1"; shift
+  local span out rc=0 close code body
+  span="$(prove_begin negative)"
+  out="$("$@" 2>&1)" || rc=$?
+  close="$(curl -s -w '\n%{http_code}' -X POST "$ENDPOINT/_feint/assert/$span")"
+  code="${close##*$'\n'}"
+  body="${close%$'\n'*}"
+  if [ "$rc" -eq 0 ]; then
+    echo "FAIL: $label: the client was answered success where a refusal was demanded: $out" >&2
+    exit 1
+  fi
+  case "$code" in
+    200) ;;
+    409)
+      echo "FAIL: $label: the client refused this on its own and the emulator never saw it," >&2
+      echo "      so the case measures nothing: $out" >&2
+      exit 1
+      ;;
+    *)
+      echo "FAIL: $label: the emulator answered HTTP $code closing the span: $body" >&2
+      exit 1
+      ;;
+  esac
+}

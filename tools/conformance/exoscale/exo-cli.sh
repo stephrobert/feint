@@ -53,42 +53,15 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "  ok: $*"; }
 exoc() { exo "$@"; }
 
-# refuse_exo drives one command that must be refused BY THE EMULATOR, and reads
-# the emulator's own verdict rather than the client's output (#428).
-#
-# Three outcomes, never two. `exo` resolves a NAME|ID argument by listing first,
-# so a command aimed at something that does not exist fails on the CLI's own
-# lookup and never reaches the API: of 65 such commands measured on 2026-08-24,
-# three got that far. A case that stops reaching the emulator would read exactly
-# like this suite working, so it fails by name instead:
-#
-#   - the CLI succeeded            -> the API accepted what must be refused;
-#   - the CLI failed, span closes  -> the emulator answered a 4xx: the case holds;
-#   - the CLI failed, span 409s    -> nothing reached the emulator, so the case
-#                                     proves nothing and says so.
-#
-# TestANegativeSpanNeedsARefusal (internal/core/emulator) is what makes the
-# third outcome a 409 rather than a green close.
-#
-# Nothing here arms a fault, and nothing could: an injected refusal leaves the
-# observed path before the observer records it, and a span whose only 4xx were
-# injected is refused outright.
+# refuse_exo names the client; everything else is refuse_client's, in
+# tools/conformance/prove.sh. `exo` resolves a NAME|ID argument by LISTING
+# first, so a command aimed at something that does not exist fails on the CLI's
+# own lookup and never reaches the API: of 65 such commands measured on
+# 2026-08-24, one got through. That ceiling is why the shared helper fails a
+# case whose refusal never reached the emulator instead of passing it.
 refuse_exo() { # label args...
   local label="$1"; shift
-  local span out rc=0 close code body
-  span="$(prove_begin negative)"
-  out="$(exoc "$@" 2>&1)" || rc=$?
-  close="$(curl -s -w '\n%{http_code}' -X POST "$ENDPOINT/_feint/assert/$span")"
-  code="${close##*$'\n'}"
-  body="${close%$'\n'*}"
-  if [ "$rc" -eq 0 ]; then
-    fail "$label: the CLI was answered success where a refusal was demanded: $out"
-  fi
-  case "$code" in
-    200) ;;
-    409) fail "$label: the CLI refused this on its own and the emulator never saw it, so the case measures nothing: $out" ;;
-    *)   fail "$label: the emulator answered HTTP $code closing the span: $body" ;;
-  esac
+  refuse_client "$label" exoc "$@"
 }
 
 echo "conformance: exo CLI against $ENDPOINT"
