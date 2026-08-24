@@ -104,7 +104,7 @@ func (p *Pack) createVolume(w http.ResponseWriter, r *http.Request) {
 
 type readVolumesRequest struct {
 	Filters        filterSet `json:"Filters"`
-	ResultsPerPage int       `json:"ResultsPerPage"`
+	ResultsPerPage *int      `json:"ResultsPerPage"`
 	DryRun         *bool     `json:"DryRun"`
 }
 
@@ -125,6 +125,9 @@ func (p *Pack) readVolumes(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
+	if p.refusePageSize(w, req.ResultsPerPage) {
+		return
+	}
 	if p.refuseUnsupported(w, req.Filters, volumeFilters...) {
 		return
 	}
@@ -137,7 +140,7 @@ func (p *Pack) readVolumes(w http.ResponseWriter, r *http.Request) {
 		out = append(out, p.volumeView(res))
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Volumes":         page(out, req.ResultsPerPage),
+		"Volumes":         page(out, pageSize(req.ResultsPerPage)),
 		"ResponseContext": p.context(),
 	})
 }
@@ -394,11 +397,14 @@ func (p *Pack) readVmsState(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Filters        filterSet `json:"Filters"`
 		AllVms         *bool     `json:"AllVms"`
-		ResultsPerPage int       `json:"ResultsPerPage"`
+		ResultsPerPage *int      `json:"ResultsPerPage"`
 		DryRun         *bool     `json:"DryRun"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
+		return
+	}
+	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
 	if p.refuseUnsupported(w, req.Filters, "VmIds", "VmStates", "SubregionNames") {
@@ -433,7 +439,7 @@ func (p *Pack) readVmsState(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"VmStates":        page(out, req.ResultsPerPage),
+		"VmStates":        page(out, pageSize(req.ResultsPerPage)),
 		"ResponseContext": p.context(),
 	})
 }

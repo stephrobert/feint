@@ -109,11 +109,14 @@ var natServiceFilters = []string{"NatServiceIds", "NetIds", "SubnetIds", "States
 func (p *Pack) readNatServices(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Filters        filterSet `json:"Filters"`
-		ResultsPerPage int       `json:"ResultsPerPage"`
+		ResultsPerPage *int      `json:"ResultsPerPage"`
 		DryRun         *bool     `json:"DryRun"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
+		return
+	}
+	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
 	if p.refuseUnsupported(w, req.Filters, natServiceFilters...) {
@@ -131,7 +134,7 @@ func (p *Pack) readNatServices(w http.ResponseWriter, r *http.Request) {
 		out = append(out, natServiceView(res))
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"NatServices":     page(out, req.ResultsPerPage),
+		"NatServices":     page(out, pageSize(req.ResultsPerPage)),
 		"ResponseContext": p.context(),
 	})
 }

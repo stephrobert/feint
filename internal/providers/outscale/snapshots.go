@@ -89,11 +89,14 @@ var snapshotFilters = []string{
 func (p *Pack) readSnapshots(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Filters        filterSet `json:"Filters"`
-		ResultsPerPage int       `json:"ResultsPerPage"`
+		ResultsPerPage *int      `json:"ResultsPerPage"`
 		DryRun         *bool     `json:"DryRun"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
+		return
+	}
+	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
 	if p.refuseUnsupported(w, req.Filters, snapshotFilters...) {
@@ -115,7 +118,7 @@ func (p *Pack) readSnapshots(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Snapshots":       page(out, req.ResultsPerPage),
+		"Snapshots":       page(out, pageSize(req.ResultsPerPage)),
 		"ResponseContext": p.context(),
 	})
 }

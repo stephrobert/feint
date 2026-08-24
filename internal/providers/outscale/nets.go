@@ -71,7 +71,7 @@ type createSubnetRequest struct {
 type readNetsRequest struct {
 	Filters        filterSet `json:"Filters"`
 	DryRun         *bool     `json:"DryRun"`
-	ResultsPerPage int       `json:"ResultsPerPage"`
+	ResultsPerPage *int      `json:"ResultsPerPage"`
 }
 
 // netFilters and subnetFilters are what these resources can answer from what is
@@ -94,7 +94,7 @@ var (
 type readSubnetsRequest struct {
 	Filters        filterSet `json:"Filters"`
 	DryRun         *bool     `json:"DryRun"`
-	ResultsPerPage int       `json:"ResultsPerPage"`
+	ResultsPerPage *int      `json:"ResultsPerPage"`
 }
 
 type deleteNetRequest struct {
@@ -167,6 +167,9 @@ func (p *Pack) readNets(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
+	if p.refusePageSize(w, req.ResultsPerPage) {
+		return
+	}
 	if p.refuseUnsupported(w, req.Filters, netFilters...) {
 		return
 	}
@@ -184,7 +187,7 @@ func (p *Pack) readNets(w http.ResponseWriter, r *http.Request) {
 	}
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Nets":            page(nets, req.ResultsPerPage),
+		"Nets":            page(nets, pageSize(req.ResultsPerPage)),
 		"ResponseContext": p.context(),
 	})
 }
@@ -381,6 +384,9 @@ func (p *Pack) readSubnets(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
+	if p.refusePageSize(w, req.ResultsPerPage) {
+		return
+	}
 	if p.refuseUnsupported(w, req.Filters, subnetFilters...) {
 		return
 	}
@@ -400,7 +406,7 @@ func (p *Pack) readSubnets(w http.ResponseWriter, r *http.Request) {
 	}
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Subnets":         page(subnets, req.ResultsPerPage),
+		"Subnets":         page(subnets, pageSize(req.ResultsPerPage)),
 		"ResponseContext": p.context(),
 	})
 }

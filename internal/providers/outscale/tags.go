@@ -202,10 +202,13 @@ func (p *Pack) deleteTags(w http.ResponseWriter, r *http.Request) {
 func (p *Pack) readTags(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Filters        filterSet `json:"Filters"`
-		ResultsPerPage int       `json:"ResultsPerPage"`
+		ResultsPerPage *int      `json:"ResultsPerPage"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
+		return
+	}
+	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
 	if p.refuseUnsupported(w, req.Filters, "ResourceIds", "Keys", "Values", "ResourceTypes") {
@@ -243,7 +246,7 @@ func (p *Pack) readTags(w http.ResponseWriter, r *http.Request) {
 	// holding paged answers to the size they asked (#156); the probe run of
 	// `mise run conformance` fails without it.
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Tags":            page(out, req.ResultsPerPage),
+		"Tags":            page(out, pageSize(req.ResultsPerPage)),
 		"ResponseContext": p.context(),
 	})
 }

@@ -57,11 +57,14 @@ var internetServiceFilters = []string{"InternetServiceIds", "LinkNetIds"}
 func (p *Pack) readInternetServices(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Filters        filterSet `json:"Filters"`
-		ResultsPerPage int       `json:"ResultsPerPage"`
+		ResultsPerPage *int      `json:"ResultsPerPage"`
 		DryRun         *bool     `json:"DryRun"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
+		return
+	}
+	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
 	if p.refuseUnsupported(w, req.Filters, internetServiceFilters...) {
@@ -77,7 +80,7 @@ func (p *Pack) readInternetServices(w http.ResponseWriter, r *http.Request) {
 		out = append(out, internetServiceView(res))
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"InternetServices": page(out, req.ResultsPerPage),
+		"InternetServices": page(out, pageSize(req.ResultsPerPage)),
 		"ResponseContext":  p.context(),
 	})
 }

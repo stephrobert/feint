@@ -72,7 +72,7 @@ func (p *Pack) mainRouteTable(netID, ipRange string) *resource.Resource {
 
 type readRouteTablesRequest struct {
 	Filters        filterSet `json:"Filters"`
-	ResultsPerPage int       `json:"ResultsPerPage"`
+	ResultsPerPage *int      `json:"ResultsPerPage"`
 	DryRun         *bool     `json:"DryRun"`
 }
 
@@ -92,6 +92,9 @@ func (p *Pack) readRouteTables(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
+	if p.refusePageSize(w, req.ResultsPerPage) {
+		return
+	}
 	if p.refuseUnsupported(w, req.Filters, routeTableFilters...) {
 		return
 	}
@@ -104,7 +107,7 @@ func (p *Pack) readRouteTables(w http.ResponseWriter, r *http.Request) {
 		out = append(out, routeTableReadView(res))
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"RouteTables":     page(out, req.ResultsPerPage),
+		"RouteTables":     page(out, pageSize(req.ResultsPerPage)),
 		"ResponseContext": p.context(),
 	})
 }

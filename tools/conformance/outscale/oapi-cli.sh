@@ -897,57 +897,67 @@ ok "nothing left behind"
 # The refusals a client can ask for, on the reads nothing else ever refused.
 #
 # `negative` is earned by an operation really answering 4xx to a real client
-# inside a span where a suite demanded a refusal, and until now the only thing
-# in this repository that earned it for Outscale was refusals.sh, which reissues
-# what the real cloud refused (#390). That left the whole read surface at zero:
-# a recording session is driven at bogus *identifiers*, and a bogus identifier
-# in a Read is an empty list, not a refusal (#428).
+# inside a span where a suite demanded a refusal. For Outscale the only thing
+# that had ever earned it was refusals.sh, reissuing what the real cloud refused
+# (#390), and that left the whole read surface at zero: a recording session is
+# driven at bogus *identifiers*, and a bogus identifier in a Read is an empty
+# list, not a refusal (#428).
 #
-# What refuses a read here is the filter guard of filters.go: a filter this pack
-# does not apply is answered 400 naming the field, never ignored. Each line
-# below sends ONE filter that Outscale's own API description declares on that
-# call and this pack does not serve, so the request is valid to the client,
-# valid to the API, and refused by the emulator on its own terms. That is the
-# whole point of the axis: nobody armed this, and `--Filters.<x>[]` is checked
-# against oapi-cli's embedded schema before it goes out, so a name this client
-# accepts is a name the API declares.
-#
-# It is a table rather than eighteen blocks because the assertion is one
-# assertion — every entry is "the emulator refuses what it does not emulate" —
-# and eighteen copies of it is eighteen places for one of them to rot.
-echo "- every read refuses the filter it does not emulate"
+# Nothing below arms a fault. It could not: an injected refusal leaves the
+# observed path before the observer records it, and a span whose only 4xx were
+# injected is refused outright. Every refusal here is the emulator's own rule
+# meeting a request a real client composed.
 
-# refuse_read drives one call that must be refused, and distinguishes three
-# outcomes rather than two: refused in the Outscale envelope, accepted, or
-# unreadable. The middle one is the defect this guards, and the third is the
-# harness breaking — reported as itself, never folded into "not refused".
-refuse_read() { # operation args...
-  local op="$1" out rc; shift
-  out="$(osc "$op" "$@" 2>&1)" && rc=0 || rc=$?
+# refuse_call drives one call that must be refused, and fails the suite when the
+# emulator accepts it.
+#
+# stdout and stderr are captured SEPARATELY, and that is the fix for a harness
+# that lied here: oapi-cli retries a 409 three times and prints "WARN: attempt 0
+# failed" to stderr, so a reader folding the two together parses warnings as the
+# body and reports a correct refusal as a missing one. The first version of this
+# block did exactly that.
+#
+# Three outcomes, never two: refused in the Outscale envelope with the code
+# asked for, accepted, or unreadable. The middle one is the defect this guards;
+# the third is the harness breaking, reported as itself.
+refuse_call() { # expected-code operation args...
+  local want="$1" op="$2" out rc=0; shift 2
+  out="$(osc "$op" "$@" 2>"$WORK/refusal.err")" || rc=$?
   if [ "$rc" -eq 0 ]; then
-    fail "$op accepted a filter it does not emulate, and answering 200 to a filter nobody applies is what filters.go exists to stop: $out"
+    fail "$op accepted what it must refuse: $out"
   fi
-  printf '%s' "$out" | jq -e '.Errors[0].Code == "4001" and .Errors[0].Type == "InvalidParameterValue"' >/dev/null 2>&1 \
-    || fail "$op did not refuse in the Outscale error envelope: $out"
+  printf '%s' "$out" | jq -e --arg c "$want" '.Errors[0].Code == $c' >/dev/null 2>&1 \
+    || fail "$op did not refuse with code $want: $out"$'\n'"client stderr: $(cat "$WORK/refusal.err")"
 }
 
+# Each line sends ONE filter that Outscale's own API description declares on
+# that call and this pack does not serve, so the request is valid to the client,
+# valid to the API, and refused by the emulator on its own terms — the filter
+# guard of filters.go, which answers 400 naming the field rather than returning
+# the whole inventory. `--Filters.<x>[]` is checked against oapi-cli's embedded
+# schema before it goes out, so a name this client accepts is a name the API
+# declares.
+#
+# It is a table rather than sixteen blocks because the assertion is one
+# assertion, and sixteen copies of it is sixteen places for one of them to rot.
+echo "- every read refuses the filter it does not emulate"
 neg="$(prove_begin negative)"
-refuse_read ReadVms               '--Filters.Architectures[]' x86_64
-refuse_read ReadNets              '--Filters.TagKeys[]' owner
-refuse_read ReadSubnets           '--Filters.TagKeys[]' owner
-refuse_read ReadKeypairs          '--Filters.KeypairIds[]' key-feintnone
-refuse_read ReadSecurityGroups    '--Filters.InboundRuleAccountIds[]' 000000000001
-refuse_read ReadRouteTables       '--Filters.LinkRouteTableLinkRouteTableIds[]' rtbassoc-feintnone
-refuse_read ReadNics              '--Filters.Descriptions[]' none
-refuse_read ReadVolumes           '--Filters.CreationDates[]' 2026-01-01
-refuse_read ReadSnapshots         '--Filters.AccountAliases[]' none
-refuse_read ReadPublicIps         '--Filters.NicAccountIds[]' 000000000001
-refuse_read ReadNatServices       '--Filters.ClientTokens[]' none
-refuse_read ReadInternetServices  '--Filters.LinkStates[]' available
-refuse_read ReadDhcpOptions       '--Filters.DomainNameServers[]' 192.0.2.53
-refuse_read ReadNetPeerings       '--Filters.ExpirationDates[]' 2026-01-01
-refuse_read ReadImages            '--Filters.AccountAliases[]' none
-refuse_read ReadVmsState          '--Filters.MaintenanceEventCodes[]' none
+refuse_call 4001 ReadVms               '--Filters.Architectures[]' x86_64
+refuse_call 4001 ReadNets              '--Filters.TagKeys[]' owner
+refuse_call 4001 ReadSubnets           '--Filters.TagKeys[]' owner
+refuse_call 4001 ReadKeypairs          '--Filters.KeypairIds[]' key-feintnone
+refuse_call 4001 ReadSecurityGroups    '--Filters.InboundRuleAccountIds[]' 000000000001
+refuse_call 4001 ReadRouteTables       '--Filters.LinkRouteTableLinkRouteTableIds[]' rtbassoc-feintnone
+refuse_call 4001 ReadNics              '--Filters.Descriptions[]' none
+refuse_call 4001 ReadVolumes           '--Filters.CreationDates[]' 2026-01-01
+refuse_call 4001 ReadSnapshots         '--Filters.AccountAliases[]' none
+refuse_call 4001 ReadPublicIps         '--Filters.NicAccountIds[]' 000000000001
+refuse_call 4001 ReadNatServices       '--Filters.ClientTokens[]' none
+refuse_call 4001 ReadInternetServices  '--Filters.LinkStates[]' available
+refuse_call 4001 ReadDhcpOptions       '--Filters.DomainNameServers[]' 192.0.2.53
+refuse_call 4001 ReadNetPeerings       '--Filters.ExpirationDates[]' 2026-01-01
+refuse_call 4001 ReadImages            '--Filters.AccountAliases[]' none
+refuse_call 4001 ReadVmsState          '--Filters.MaintenanceEventCodes[]' none
 prove_end "$neg"
 ok "sixteen reads named the filter they do not apply, instead of answering the whole inventory"
 
@@ -961,14 +971,88 @@ ok "sixteen reads named the filter they do not apply, instead of answering the w
 # marks the name that was called. Driving one would say nothing about the other.
 echo "- attaching a backend to a balancer that does not exist is refused"
 neg="$(prove_begin negative)"
-for attach in LinkLoadBalancerBackendMachines UnlinkLoadBalancerBackendMachines; do
-  out="$(osc "$attach" --LoadBalancerName feint-no-such-balancer '--BackendVmIds[]' i-feintnone 2>&1)" && rc=0 || rc=$?
-  [ "${rc:-0}" -ne 0 ] || fail "$attach accepted a balancer that does not exist: $out"
-  printf '%s' "$out" | jq -e '.Errors[0].Code == "5063"' >/dev/null 2>&1 \
-    || fail "$attach did not answer the not-found code a client branches on: $out"
-done
+refuse_call 5063 LinkLoadBalancerBackendMachines \
+  --LoadBalancerName feint-no-such-balancer '--BackendVmIds[]' i-feintnone
+refuse_call 5063 UnlinkLoadBalancerBackendMachines \
+  --LoadBalancerName feint-no-such-balancer '--BackendVmIds[]' i-feintnone
 prove_end "$neg"
 ok "both spellings answered 5063, which osc.IsNotFound reports true on"
+
+# The five reads whose only refusable argument is the page size.
+#
+# Four of these serve every filter their API declares, and the fifth
+# (ReadPublicIpRanges) declares no filters at all, so the filter guard above has
+# nothing to bite on. What they do declare is ResultsPerPage, and Outscale's own
+# API description bounds it in the same words on all twenty-one schemas that
+# carry it: "between `1` and `1000`, both included". A value outside that is a
+# request the real API refuses, and until paging.go it was a request this
+# emulator answered with the whole inventory.
+#
+# 1001 rather than 0 because only one of the two proves the bound is read from
+# the value: 0 is also the Go zero value, so a handler refusing 0 could be
+# refusing "absent" and nobody would know. The unit tests hold both ends
+# (TestAnAbsentPageSizeIsNotAZeroPageSize).
+echo "- a page size outside the published bound is refused"
+neg="$(prove_begin negative)"
+for paged in ReadTags ReadSubregions ReadNetAccessPointServices ReadVmTypes ReadPublicIpRanges; do
+  refuse_call 4001 "$paged" --ResultsPerPage 1001
+done
+prove_end "$neg"
+ok "five reads bounded their page size instead of ignoring it"
+
+# The type catalogue applies the filter a client sends it, and names the ones it
+# cannot. FiltersVmType declares nine and this handler read none of them, so a
+# client resolving its type by name was handed the whole table with a 200 — the
+# defect filters.go removed from every other read of this pack, still standing
+# on the one call every client makes before it creates anything.
+echo "- the type catalogue filters, and refuses what it cannot filter on"
+selected="$(osc ReadVmTypes '--Filters.VmTypeNames[]' "$default_type" | jq -r '.VmTypes | length')" \
+  || fail "ReadVmTypes refused the filter it serves"
+[ "$selected" = "1" ] || fail "VmTypeNames selected $selected rows; the filter is not applied"
+neg="$(prove_begin negative)"
+refuse_call 4001 ReadVmTypes '--Filters.MemorySizes[]' 8
+prove_end "$neg"
+ok "one type selected by name, and the arithmetic filters refused by name"
+
+# The address block is finite, and running it out is the one refusal
+# CreatePublicIp owns. Its request declares nothing but DryRun — there is no
+# argument to malform — so the only thing that can make this call fail is the
+# state of the emulator's own /24, which is exactly what makes it evidence: no
+# fixture, no fault, no account.
+#
+# The inventory is read before and after and compared BY IDENTIFIER, never by
+# count: this suite shares its emulator with the ones that run after it, and an
+# address left behind is an address the Terraform fixture cannot have. The loop
+# is bounded well above the block so a defect in the allocator ends the test
+# rather than the run.
+echo "- the public block runs out, and says so"
+before_ips="$(osc ReadPublicIps | jq -r '.PublicIps[].PublicIpId' | sort)"
+mine=""
+exhausted=""
+for _ in $(seq 1 300); do
+  rc=0
+  out="$(osc CreatePublicIp 2>/dev/null)" || rc=$?
+  if [ "$rc" -ne 0 ]; then exhausted="yes"; break; fi
+  id="$(printf '%s' "$out" | jq -r '.PublicIp.PublicIpId // empty')"
+  [ -n "$id" ] || fail "CreatePublicIp answered no PublicIpId: $out"
+  mine="$mine $id"
+done
+[ -n "$exhausted" ] || fail "300 addresses came out of a /24; the block is not bounded at all"
+# The span opens only now: the fill above is setup, and a span bracketing three
+# hundred successful creates would be claiming a refusal it had not asked for
+# yet. oapi-cli retries a 409 three times before giving up, so this one call is
+# four requests on the wire and several seconds long.
+neg="$(prove_begin negative)"
+refuse_call 9029 CreatePublicIp
+prove_end "$neg"
+
+for id in $mine; do
+  osc DeletePublicIp --PublicIpId "$id" >/dev/null || fail "DeletePublicIp rejected $id, and the address is now stranded"
+done
+after_ips="$(osc ReadPublicIps | jq -r '.PublicIps[].PublicIpId' | sort)"
+[ "$before_ips" = "$after_ips" ] \
+  || fail "the address inventory did not return to what it was, by identifier"$'\n'"before: $before_ips"$'\n'"after: $after_ips"
+ok "the block refused past its last address, and every address taken was given back"
 
 # Started with --contracts, the emulator has been validating every response
 # above against Outscale's own OpenAPI document. Reading the verdict here is

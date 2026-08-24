@@ -373,17 +373,45 @@ const accountID = "000000000001"
 // list of the pack that ignored its ResultsPerPage — found the day the probe
 // started holding paged answers to the size they asked, which is the check
 // that fails without this (TestEveryRouteAnswersItsContract, #156).
+// vmTypeFilters are what the catalogue of types can answer. FiltersVmType
+// declares nine (outscale.yaml, osc-api 1.42.0) and this pack read none of
+// them: a client sending --Filters.VmTypeNames got the whole table back with a
+// 200, which is the defect filters.go exists to stop, on the one call every
+// client makes before it creates anything.
+//
+// VmTypeNames is served because it is the one a client sends — it resolves the
+// type it was given before posting a create. The other eight filter on
+// hardware arithmetic (Eths, Gpus, MemorySizes) and are refused by name rather
+// than ignored, so a client asking for a machine shape this catalogue cannot
+// select on is told, instead of being handed everything.
+//
+// TestAVmTypeFilterIsAppliedRatherThanIgnored fails without this.
+var vmTypeFilters = []string{"VmTypeNames"}
+
 func (p *Pack) readVmTypes(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		ResultsPerPage int   `json:"ResultsPerPage"`
-		DryRun         *bool `json:"DryRun"`
+		Filters        filterSet `json:"Filters"`
+		ResultsPerPage *int      `json:"ResultsPerPage"`
+		DryRun         *bool     `json:"DryRun"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
 		return
 	}
+	if p.refusePageSize(w, req.ResultsPerPage) {
+		return
+	}
+	if p.refuseUnsupported(w, req.Filters, vmTypeFilters...) {
+		return
+	}
+	out := make([]map[string]any, 0, len(vmTypes))
+	for _, vmType := range vmTypes {
+		if matchesStrings(req.Filters, "VmTypeNames", stringOf(vmType["VmTypeName"])) {
+			out = append(out, vmType)
+		}
+	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"VmTypes":         page(vmTypes, req.ResultsPerPage),
+		"VmTypes":         page(out, pageSize(req.ResultsPerPage)),
 		"ResponseContext": p.context(),
 	})
 }
@@ -399,11 +427,14 @@ var imageFilters = []string{"ImageIds", "ImageNames", "AccountIds", "States", "A
 func (p *Pack) readImages(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Filters        filterSet `json:"Filters"`
-		ResultsPerPage int       `json:"ResultsPerPage"`
+		ResultsPerPage *int      `json:"ResultsPerPage"`
 		DryRun         *bool     `json:"DryRun"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
+		return
+	}
+	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
 	if p.refuseUnsupported(w, req.Filters, imageFilters...) {
@@ -422,7 +453,7 @@ func (p *Pack) readImages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Images":          page(out, req.ResultsPerPage),
+		"Images":          page(out, pageSize(req.ResultsPerPage)),
 		"ResponseContext": p.context(),
 	})
 }
@@ -459,11 +490,14 @@ func (p *Pack) readRegions(w http.ResponseWriter, r *http.Request) {
 func (p *Pack) readSubregions(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Filters        filterSet `json:"Filters"`
-		ResultsPerPage int       `json:"ResultsPerPage"`
+		ResultsPerPage *int      `json:"ResultsPerPage"`
 		DryRun         *bool     `json:"DryRun"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
+		return
+	}
+	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
 	if p.refuseUnsupported(w, req.Filters, "SubregionNames", "RegionNames", "States") {
@@ -479,7 +513,7 @@ func (p *Pack) readSubregions(w http.ResponseWriter, r *http.Request) {
 		out = append(out, subregion)
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Subregions":      page(out, req.ResultsPerPage),
+		"Subregions":      page(out, pageSize(req.ResultsPerPage)),
 		"ResponseContext": p.context(),
 	})
 }
@@ -510,11 +544,14 @@ func netAccessPointServices(region string) []map[string]any {
 func (p *Pack) readNetAccessPointServices(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Filters        filterSet `json:"Filters"`
-		ResultsPerPage int       `json:"ResultsPerPage"`
+		ResultsPerPage *int      `json:"ResultsPerPage"`
 		DryRun         *bool     `json:"DryRun"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
+		return
+	}
+	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
 	if p.refuseUnsupported(w, req.Filters, "ServiceIds", "ServiceNames") {
@@ -530,7 +567,7 @@ func (p *Pack) readNetAccessPointServices(w http.ResponseWriter, r *http.Request
 		out = append(out, service)
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Services":        page(out, req.ResultsPerPage),
+		"Services":        page(out, pageSize(req.ResultsPerPage)),
 		"ResponseContext": p.context(),
 	})
 }
@@ -541,11 +578,14 @@ func (p *Pack) readNetAccessPointServices(w http.ResponseWriter, r *http.Request
 // strings, not objects — measured, and easy to get wrong from the field name.
 func (p *Pack) readPublicIPRanges(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		ResultsPerPage int   `json:"ResultsPerPage"`
+		ResultsPerPage *int  `json:"ResultsPerPage"`
 		DryRun         *bool `json:"DryRun"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
+		return
+	}
+	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{

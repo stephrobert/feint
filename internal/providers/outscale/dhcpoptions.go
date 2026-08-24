@@ -56,7 +56,7 @@ func (p *Pack) defaultDhcpOptions() *resource.Resource {
 
 type readDhcpOptionsRequest struct {
 	Filters        filterSet `json:"Filters"`
-	ResultsPerPage int       `json:"ResultsPerPage"`
+	ResultsPerPage *int      `json:"ResultsPerPage"`
 	DryRun         *bool     `json:"DryRun"`
 }
 
@@ -66,6 +66,9 @@ func (p *Pack) readDhcpOptions(w http.ResponseWriter, r *http.Request) {
 	var req readDhcpOptionsRequest
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
+		return
+	}
+	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
 	if p.refuseUnsupported(w, req.Filters, dhcpOptionsFilters...) {
@@ -86,7 +89,7 @@ func (p *Pack) readDhcpOptions(w http.ResponseWriter, r *http.Request) {
 		out = append(out, dhcpOptionsView(res))
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"DhcpOptionsSets": page(out, req.ResultsPerPage),
+		"DhcpOptionsSets": page(out, pageSize(req.ResultsPerPage)),
 		"ResponseContext": p.context(),
 	})
 }

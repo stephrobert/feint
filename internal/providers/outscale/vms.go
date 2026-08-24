@@ -43,7 +43,7 @@ type readVmsRequest struct {
 	// The page size every Terraform read sends. Declared and unread, it was a
 	// field the client believed was honoured: a client asking for ten rows and
 	// getting a thousand pages nothing.
-	ResultsPerPage int `json:"ResultsPerPage"`
+	ResultsPerPage *int `json:"ResultsPerPage"`
 }
 
 // vmFilters are the ones a Vm can answer from what this pack stores. Everything
@@ -152,6 +152,9 @@ func (p *Pack) readVms(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
+	if p.refusePageSize(w, req.ResultsPerPage) {
+		return
+	}
 
 	if p.refuseUnsupported(w, req.Filters, vmFilters...) {
 		return
@@ -183,25 +186,9 @@ func (p *Pack) readVms(w http.ResponseWriter, r *http.Request) {
 	}
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"Vms":             page(vms, req.ResultsPerPage),
+		"Vms":             page(vms, pageSize(req.ResultsPerPage)),
 		"ResponseContext": p.context(),
 	})
-}
-
-// page truncates a list to the size the client asked for.
-//
-// No NextPageToken is issued: this emulator holds a handful of resources, so
-// there is never a second page to fetch, and a token pointing at nothing is
-// worse than none. What matters is that a client asking for N rows is not
-// handed more — the field was declared and unread, which is the shape that told
-// a client its page size was honoured when it was not.
-//
-// TestResultsPerPageIsHonoured fails without this.
-func page[T any](rows []T, size int) []T {
-	if size <= 0 || len(rows) <= size {
-		return rows
-	}
-	return rows[:size]
 }
 
 // vmMatches applies every filter this pack serves. A Vm has to pass all of

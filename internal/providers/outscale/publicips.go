@@ -194,11 +194,14 @@ var publicIPFilters = []string{"PublicIpIds", "PublicIps", "LinkPublicIpIds", "V
 func (p *Pack) readPublicIPs(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Filters        filterSet `json:"Filters"`
-		ResultsPerPage int       `json:"ResultsPerPage"`
+		ResultsPerPage *int      `json:"ResultsPerPage"`
 		DryRun         *bool     `json:"DryRun"`
 	}
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		p.badRequest(w, err.Error())
+		return
+	}
+	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
 	if p.refuseUnsupported(w, req.Filters, publicIPFilters...) {
@@ -217,7 +220,7 @@ func (p *Pack) readPublicIPs(w http.ResponseWriter, r *http.Request) {
 		out = append(out, publicIPView(res))
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"PublicIps":       page(out, req.ResultsPerPage),
+		"PublicIps":       page(out, pageSize(req.ResultsPerPage)),
 		"ResponseContext": p.context(),
 	})
 }

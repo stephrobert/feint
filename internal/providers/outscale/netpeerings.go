@@ -104,7 +104,7 @@ type netPeeringIDRequest struct {
 
 type readNetPeeringsRequest struct {
 	Filters        filterSet `json:"Filters"`
-	ResultsPerPage int       `json:"ResultsPerPage"`
+	ResultsPerPage *int      `json:"ResultsPerPage"`
 	DryRun         *bool     `json:"DryRun"`
 }
 
@@ -339,6 +339,9 @@ func (p *Pack) readNetPeerings(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
+	if p.refusePageSize(w, req.ResultsPerPage) {
+		return
+	}
 	if p.refuseUnsupported(w, req.Filters, netPeeringFilters...) {
 		return
 	}
@@ -359,7 +362,7 @@ func (p *Pack) readNetPeerings(w http.ResponseWriter, r *http.Request) {
 		out = append(out, netPeeringView(res))
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"NetPeerings":     page(out, req.ResultsPerPage),
+		"NetPeerings":     page(out, pageSize(req.ResultsPerPage)),
 		"ResponseContext": p.context(),
 	})
 }
