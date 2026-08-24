@@ -1,0 +1,42 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "the queue stops separating an axis nothing can earn from one nobody has proven, and thirteen impossible entries come back as work",
+      "file": "internal/cli/evidence_gaps.go",
+      "find": "\tif unearnable != \"\" {\n\t\treturn gapDeclared\n\t}",
+      "replace": "\tif unearnable != \"\" && false {\n\t\treturn gapDeclared\n\t}",
+      "test": "TestAGapIsClassifiedFromTheRecordRatherThanTheName"
+    },
+    {
+      "label": "an axis the record says was earned is declared out of reach, and the stale excuse survives",
+      "file": "internal/providers/outscale/pack.go",
+      "find": "\t\tp.route(\"CreateNet\", p.createNet),",
+      "replace": "\t\tunearnable(p.route(\"CreateNet\", p.createNet),\n\t\t\tkeptSubjectBehaviour(\"a Net\", \"a sentence that is not true and that the record already contradicts\")),",
+      "test": "TestAnUnearnableAxisIsNotAlreadyEarned"
+    },
+    {
+      "label": "a handler that reads the store claims it touches none, and nothing drives it to find out",
+      "file": "internal/providers/outscale/pack.go",
+      "find": "\t\tunearnable(p.route(\"ReadNetPeerings\", p.readNetPeerings),\n\t\t\tkeptSubjectBehaviour(\"a Net peering\", \"a deleted peering stays readable in the deleted state, which the SDK's own StateNames filter enumerates\")),",
+      "replace": "\t\tunearnable(p.route(\"ReadNetPeerings\", p.readNetPeerings),\n\t\t\tstatelessBehaviour(\"peerings, which it in fact reads out of the store\"),\n\t\t\tkeptSubjectBehaviour(\"a Net peering\", \"a deleted peering stays readable in the deleted state, which the SDK's own StateNames filter enumerates\")),",
+      "test": "TestAnUnearnableNoStoreTouchIsMeasured"
+    },
+    {
+      "label": "an operation whose request carries filters claims no client can compose a refusal for it",
+      "file": "internal/providers/outscale/pack.go",
+      "find": "\t\tp.route(\"ReadNets\", p.readNets),",
+      "replace": "\t\tunearnable(p.route(\"ReadNets\", p.readNets),\n\t\t\tnothingToRefuse(\"ReadNetsRequest declares filters this pack does not all serve, so this claim is false\")),",
+      "test": "TestAnUnearnableNegativeHasNothingToRefuse"
+    },
+    {
+      "package": "./internal/providers/outscale/",
+      "label": "a terminated machine is removed from the store after all, and seven declarations resting on it become fiction",
+      "file": "internal/providers/outscale/vms.go",
+      "find": "\t\t\tres.State = stateTerminated\n\t\t\tres.Attrs[\"State\"] = stateTerminated",
+      "replace": "\t\t\tres.State = stateTerminated\n\t\t\tres.Attrs[\"State\"] = stateTerminated\n\t\t\tp.env.Store.Delete(Name, kindVM, res.ID)",
+      "test": "TestATerminatedVmAndADeletedPeeringAreKeptRatherThanRemoved"
+    }
+  ],
+  "note": "Route.Unearnable removes work from a queue by declaring an axis out of reach, which makes it the most dangerous kind of entry in this repository: it reads like a decision and the sentence itself is not checkable. Every mutation here moves a pack declaration or the classifier, never the test that reads them \u2014 the lesson undriven-says-why.json paid for, where neutralising the branches inside the test file left everything green because a test whose detection is switched off passes by construction. The five cover the two independent halves: the classifier and the staleness guard make the mechanism expire on its own, and the three cause checks make each reason a measurement. The last one runs in the pack, where the delete can actually be driven, and is the one that matters most: it is what stops 'a terminated Vm is kept' from being a comment."
+}

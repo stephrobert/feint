@@ -23,37 +23,54 @@ func TestAGapIsClassifiedFromTheRecordRatherThanTheName(t *testing.T) {
 	negative := namedAxis(t, "negative")
 
 	cases := []struct {
-		name   string
-		ev     emulator.Evidence
-		axis   evidenceAxis
-		reason string
-		want   gapKind
+		name string
+		ev   emulator.Evidence
+		axis evidenceAxis
+		// reason is Route.Undriven, unearnable is Route.Unearnable for this
+		// axis. They are separate columns because they answer different
+		// questions and the classifier must not confuse them.
+		reason     string
+		unearnable string
+		want       gapKind
 	}{
 		{"a violating verdict outranks everything",
-			emulator.Evidence{Driven: true, Shape: "violating"}, shape, "", gapViolating},
+			emulator.Evidence{Driven: true, Shape: "violating"}, shape, "", "", gapViolating},
 		{"undriven and nothing says why is a suite to write",
-			emulator.Evidence{Driven: false, Shape: "unobserved"}, shape, "", gapUndriven},
+			emulator.Evidence{Driven: false, Shape: "unobserved"}, shape, "", "", gapUndriven},
 		{"driven and unobserved is a recording",
-			emulator.Evidence{Driven: true, Shape: "unobserved"}, shape, "", gapUnrecorded},
+			emulator.Evidence{Driven: true, Shape: "unobserved"}, shape, "", "", gapUnrecorded},
 		{"driven, not violating, another axis: unexplained rather than guessed",
-			emulator.Evidence{Driven: true}, negative, "", gapUnproven},
+			emulator.Evidence{Driven: true}, negative, "", "", gapUnproven},
 		// The two that separate "no suite yet" from "no client to write one
 		// with". Same record, same axis, different answer — so the reason is
 		// what decides, and it is read from the route rather than from the name.
 		{"undriven with a declared reason is not work",
 			emulator.Evidence{Driven: false, Shape: "unobserved"}, shape,
-			"no official client calls it: the CLI has no attach subcommand", gapDeclared},
+			"no official client calls it: the CLI has no attach subcommand", "", gapDeclared},
 		// A reason must never rescue a driven operation from its zero. The
 		// stale half of TestEveryUndrivenOperationSaysWhy exists to reject such
 		// a reason, and this asserts the queue does not honour it meanwhile:
 		// otherwise a stale excuse would empty a real recording queue.
 		{"a reason on a driven operation changes nothing",
 			emulator.Evidence{Driven: true, Shape: "unobserved"}, shape,
-			"no official client calls it: the CLI has no attach subcommand", gapUnrecorded},
+			"no official client calls it: the CLI has no attach subcommand", "", gapUnrecorded},
+		// The axis declaration, which answers a different question from the one
+		// above: the operation IS driven, and the axis is still out of reach.
+		// Without the third branch of classifyGap this is "unproven", which
+		// sends a reader to write a case that cannot exist.
+		{"driven, and the route says the axis is out of reach: not work",
+			emulator.Evidence{Driven: true}, negative, "",
+			"no supported client can compose a request it must refuse", gapDeclared},
+		// And it must not answer for a missing suite. An operation nothing
+		// drives is Undriven's business whatever its axes declare, or a real
+		// gap in the suites hides behind a true statement about something else.
+		{"undriven with an axis declaration and no client reason is still a suite to write",
+			emulator.Evidence{Driven: false}, negative, "",
+			"no supported client can compose a request it must refuse", gapUndriven},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := classifyGap(c.ev, c.axis, c.reason); got != c.want {
+			if got := classifyGap(c.ev, c.axis, c.reason, c.unearnable); got != c.want {
 				t.Fatalf("classified as %s, want %s", gapKindNames[got], gapKindNames[c.want])
 			}
 		})
@@ -72,7 +89,7 @@ func TestAGapIsClassifiedFromTheRecordRatherThanTheName(t *testing.T) {
 // served operations" is exactly the kind of sentence that stops being true.
 func TestTheQueueOnlyNamesOperationsTheRecordHolds(t *testing.T) {
 	art, owners, providers := gapFixture(t)
-	report, err := buildGaps("fixture", art, owners, nil, providers, "", "")
+	report, err := buildGaps("fixture", art, owners, nil, nil, providers, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +121,7 @@ func TestTheQueueOnlyNamesOperationsTheRecordHolds(t *testing.T) {
 // the same list to three different people.
 func TestTheQueueIsOrderedByTheWorkItNames(t *testing.T) {
 	art, owners, providers := gapFixture(t)
-	report, err := buildGaps("fixture", art, owners, nil, providers, "", "")
+	report, err := buildGaps("fixture", art, owners, nil, nil, providers, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +153,7 @@ func TestTheQueueIsOrderedByTheWorkItNames(t *testing.T) {
 // a queue gets misread by everybody who did not write it.
 func TestTheJSONCarriesWhatEachKindMeans(t *testing.T) {
 	art, owners, providers := gapFixture(t)
-	report, err := buildGaps("fixture", art, owners, nil, providers, "", "")
+	report, err := buildGaps("fixture", art, owners, nil, nil, providers, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +186,7 @@ func TestTheJSONCarriesWhatEachKindMeans(t *testing.T) {
 // blur for a replay of nothing.
 func TestAnUnknownAxisIsRefused(t *testing.T) {
 	art, owners, providers := gapFixture(t)
-	if _, err := buildGaps("fixture", art, owners, nil, providers, "", "no-such-axis"); err == nil {
+	if _, err := buildGaps("fixture", art, owners, nil, nil, providers, "", "no-such-axis"); err == nil {
 		t.Fatal("an axis nobody declares was accepted, so a typo prints an empty queue and reads as a clean one")
 	}
 }
@@ -278,7 +295,7 @@ func TestADeclaredReasonSplitsTheUndrivenQueue(t *testing.T) {
 			"describes is untestable on this record and the test would pass on any code")
 	}
 
-	report, err := buildGaps("coverage/evidence.json", art, owners, reasons, providers, "", "")
+	report, err := buildGaps("coverage/evidence.json", art, owners, reasons, nil, providers, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

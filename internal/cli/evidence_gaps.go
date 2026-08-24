@@ -67,8 +67,18 @@ const (
 	// to a cloud account for work a conformance case can do offline. Left in the
 	// honest bucket rather than moved to a wrong one.
 	gapUnproven
-	// gapDeclared: no client reaches it, and the route says why in
-	// Route.Undriven. This is the one entry of the queue that is not work.
+	// gapDeclared: the route says why this zero cannot be closed, either
+	// because no client reaches the operation (Route.Undriven) or because the
+	// axis itself is out of reach there (Route.Unearnable). This is the one
+	// entry of the queue that is not work.
+	//
+	// The second source was added on 2026-08-24, when thirteen Outscale
+	// operations at zero on `behaviour` turned out to be a ceiling rather than
+	// a backlog: the axis marks an operation whose store touches fall on a
+	// resource created and destroyed inside the span, and those thirteen either
+	// touch no store or touch only kinds this emulator keeps on purpose. Twelve
+	// of the thirteen resisted an attempt to earn them before they were
+	// declared, which is the order this kind of entry has to be written in.
 	//
 	// It exists because the four kinds above could not tell "nobody has written
 	// the suite yet" from "no client path exists to write one with", and the
@@ -103,7 +113,7 @@ var gapKindWork = map[gapKind]string{
 	gapUnrecorded: "a recording: a real client already drives it, and no answer of the real cloud has been kept",
 	gapUndriven:   "a conformance suite: no real client reaches this operation, so most axes cannot be earned",
 	gapUnproven:   "unexplained: driven, not violating, still not earned — the record does not say why",
-	gapDeclared:   "not work: no client path exists to reach it, and the route says so — the reason is printed with each line",
+	gapDeclared:   "not work: no path exists to close this zero, and the route says which — the reason is printed with each line",
 }
 
 // classifyGap decides which of the five a zero is, from the record and from
@@ -121,15 +131,27 @@ var gapKindWork = map[gapKind]string{
 //
 // TestAGapIsClassifiedFromTheRecordRatherThanTheName and
 // TestADeclaredReasonSplitsTheUndrivenQueue fail without this.
-func classifyGap(ev emulator.Evidence, axis evidenceAxis, reason string) gapKind {
+func classifyGap(ev emulator.Evidence, axis evidenceAxis, undriven, unearnable string) gapKind {
 	if v := axis.verdict(ev); v == "violating" {
 		return gapViolating
 	}
 	if !ev.Driven {
-		if reason != "" {
+		if undriven != "" {
 			return gapDeclared
 		}
 		return gapUndriven
+	}
+	// Driven, and the route says this axis can never be earned here. Asked
+	// before the catch-all for the same reason "undriven" is: the unexplained
+	// bucket must stay as small as the declarations allow, and a zero no work
+	// can close is not work.
+	//
+	// It is asked AFTER the driven test on purpose: an operation nothing drives
+	// is Undriven's business, and letting an axis declaration answer for it
+	// would hide a missing suite behind a true statement about a different
+	// thing.
+	if unearnable != "" {
+		return gapDeclared
 	}
 	if axis.Name == "shape" {
 		return gapUnrecorded
@@ -174,7 +196,8 @@ type gapReport struct {
 // uses. No second source of truth: this computes nothing a gate does not
 // already compute, it only says what the zeros are for.
 func buildGaps(record string, art *evidenceArtefact, owners map[string]string,
-	reasons map[string]string, providers []string, onlyProvider, onlyAxis string) (*gapReport, error) {
+	reasons map[string]string, unearnable map[string]map[string]string,
+	providers []string, onlyProvider, onlyAxis string) (*gapReport, error) {
 	axes := evidenceAxisList()
 	if onlyAxis != "" {
 		found := false
@@ -220,7 +243,8 @@ func buildGaps(record string, art *evidenceArtefact, owners map[string]string,
 				if a.earned(ev) {
 					continue
 				}
-				kind := classifyGap(ev, a, reasons[op])
+				unearned := unearnable[op][a.Name]
+				kind := classifyGap(ev, a, reasons[op], unearned)
 				entry := gapEntry{
 					Operation: op,
 					Axis:      a.Name,
@@ -229,6 +253,9 @@ func buildGaps(record string, art *evidenceArtefact, owners map[string]string,
 				}
 				if kind == gapDeclared {
 					entry.Reason = reasons[op]
+					if unearned != "" && ev.Driven {
+						entry.Reason = unearned
+					}
 				}
 				group.Entries = append(group.Entries, entry)
 			}
@@ -327,12 +354,17 @@ func evidenceGapsView(record, provider, axis, format string, stdout, stderr io.W
 		fmt.Fprintf(stderr, "feint: %v\n", err)
 		return exitError
 	}
+	unearnable, err := unearnableReasons()
+	if err != nil {
+		fmt.Fprintf(stderr, "feint: %v\n", err)
+		return exitError
+	}
 	reasons, err := undrivenReasons()
 	if err != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", err)
 		return exitError
 	}
-	report, err := buildGaps(record, art, owners, reasons, providers, provider, axis)
+	report, err := buildGaps(record, art, owners, reasons, unearnable, providers, provider, axis)
 	if err != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", err)
 		return exitError

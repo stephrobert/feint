@@ -471,6 +471,43 @@ func evidenceAxesView(record, provider, axis, format string, stdout, stderr io.W
 // on either is the operation's reason, and the longer one wins so that the
 // answer cannot depend on mount order — a silent tie-break by iteration order
 // is how a report becomes irreproducible.
+// unearnableReasons answers, per operation and per axis, what the pack declares
+// at the route about an axis that can never be earned there — Route.Unearnable,
+// empty for every operation whose axes are all still in play.
+//
+// Separate from undrivenReasons because it answers a different question, and
+// keying it by axis is what keeps the exemption's subject matched to its key: a
+// declaration is written against one axis, and carrying it on the others would
+// excuse zeros nobody examined.
+//
+// From the packs in process, for the same reason the two neighbours are.
+func unearnableReasons() (map[string]map[string]string, error) {
+	srv, _, err := newServer(nil)
+	if err != nil {
+		return nil, err
+	}
+	reasons := make(map[string]map[string]string)
+	for _, r := range srv.AllRoutes() {
+		if r.Operation == "" {
+			continue
+		}
+		for _, u := range r.Unearnable {
+			byAxis := reasons[r.Operation]
+			if byAxis == nil {
+				byAxis = map[string]string{}
+				reasons[r.Operation] = byAxis
+			}
+			// Two routes may mount one operation; the longer reason wins, so
+			// the answer cannot depend on mount order.
+			if prev, seen := byAxis[u.Axis]; seen && len(prev) >= len(u.Reason) {
+				continue
+			}
+			byAxis[u.Axis] = u.Reason
+		}
+	}
+	return reasons, nil
+}
+
 func undrivenReasons() (map[string]string, error) {
 	srv, _, err := newServer(nil)
 	if err != nil {

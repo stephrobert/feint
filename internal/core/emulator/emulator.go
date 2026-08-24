@@ -104,6 +104,32 @@ type Route struct {
 	// again when a reason survives the client that came to drive it — a stale
 	// excuse reads exactly like a considered one.
 	Undriven string
+	// Unearnable says, per evidence axis, that this operation can never earn it
+	// here — not that nobody has got to it yet. It is the counterpart of Undriven
+	// one step further in: Undriven answers "no client reaches this", Unearnable
+	// answers "clients reach it, and the axis still cannot be earned, for a
+	// reason that is a property of this emulator rather than a gap in the suites".
+	//
+	// It exists because the queue could not tell those apart and told both to go
+	// and write a conformance case. Measured on 2026-08-24: thirteen Outscale
+	// operations sat at zero on `behaviour` and not one of them was reachable.
+	// The axis marks an operation whose store touches fall on a resource created
+	// and then destroyed inside the span; five of the thirteen touch no store at
+	// all, and the other eight touch only kinds this emulator keeps on purpose —
+	// a terminated Vm and a deleted Net peering stay readable here because they
+	// stay readable upstream. No amount of suite writing retires those zeros, and
+	// a queue entry no work can close is the defect #407 removed from the shape
+	// axis and wave 4 removed from `driven`.
+	//
+	// Cause is what makes this a declaration a control can check rather than a
+	// sentence a reader must believe, and each cause names the control that
+	// measures it.
+	//
+	// TestAnUnearnableAxisIsNotAlreadyEarned (internal/cli) fails when the record
+	// says the axis was earned after all — a reason that outlived its cause reads exactly like
+	// a considered one, which is the failure Undriven carries the same guard
+	// against, and which has bitten twice.
+	Unearnable []Unearnable
 	// Legacy marks a second mounting of an operation at the path an earlier
 	// SDK generation used, and says which client still calls it. The real
 	// APIs keep serving their old spellings after a rename — measured:
@@ -118,6 +144,58 @@ type Route struct {
 	// definition (contract.CheckRoutes).
 	Legacy string
 }
+
+// Unearnable is one evidence axis a route declares out of reach, with the cause
+// a control measures.
+type Unearnable struct {
+	// Axis is ProvesBehaviour or ProvesNegative: the two axes a suite claims, and
+	// so the only two an emulator property can put out of reach.
+	Axis string
+	// Cause is one of the Cause* constants, and picks the control that checks the
+	// claim.
+	Cause string
+	// Reason reads on its own, next to an operation name, in the present tense —
+	// the same bar Undriven and Decline.Reason are held to, because these lines
+	// are printed side by side in the same report.
+	Reason string
+}
+
+// The measured causes an axis can be out of reach for.
+const (
+	// CauseNoStoreTouch: the handler touches no store at all, so the behaviour
+	// axis has nothing to attribute to it. Checked by
+	// TestAnUnearnableNoStoreTouchIsMeasured (internal/cli), which drives the
+	// route against a
+	// fresh emulator under store.Observe and requires BOTH that the call was
+	// answered and that the store saw nothing: "it touched nothing" has to be
+	// measured on a call that really happened, or the claim is equally true of a
+	// call that never ran.
+	CauseNoStoreTouch = "no-store-touch"
+	// CauseNoDestruction: the operation's subject is a kind this emulator never
+	// removes from the store, because the real cloud keeps it readable after its
+	// own delete, so the store never sees the destruction half of a lifecycle
+	// for it. Checked in the pack that makes the claim, where the delete can
+	// actually be driven — for Outscale,
+	// TestATerminatedVmAndADeletedPeeringAreKeptRatherThanRemoved
+	// (internal/providers/outscale).
+	CauseNoDestruction = "no-destruction"
+	// CauseNoRefusableRequest: the operation's request declares nothing a
+	// supported client can fill with a value this emulator must refuse — in
+	// practice a body of DryRun alone, where every value is valid and a true one
+	// is answered 200 by design. Checked by
+	// TestAnUnearnableNegativeHasNothingToRefuse (internal/cli), which reads the
+	// request schema
+	// out of the provider's own contract document rather than a list kept here.
+	//
+	// The schema check alone is necessary and not sufficient: CreatePublicIp has
+	// the same one-field request and IS refusable, because the emulator holds
+	// state that can fail it — a finite address block. What excludes that case is
+	// the other half, TestAnUnearnableAxisIsNotAlreadyEarned (internal/cli): an
+	// operation the
+	// record says earned the axis cannot declare it out of reach. The two
+	// controls are only tight together, which is the shape Undriven already has.
+	CauseNoRefusableRequest = "no-refusable-request"
+)
 
 // Pack is one provider implementation.
 type Pack interface {

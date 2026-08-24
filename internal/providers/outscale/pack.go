@@ -175,6 +175,60 @@ func (p *Pack) dryRunnable(handler http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// What this pack can never earn on the two axes a suite claims, and why.
+//
+// Every line below was measured before it was written, by opening a real
+// behaviour span against a fresh emulator, driving the operation through a full
+// cycle, and reading back what the span marked (2026-08-24). Two of the
+// thirteen candidates came back earnable and are NOT declared here: DeleteTags
+// is marked when the resource it untags is created and destroyed inside the
+// span, and CreatePublicIp is refused when the address block runs out. Both are
+// driven by oapi-cli.sh instead, which is the point of measuring first.
+
+// statelessBehaviour declares a catalogue read out of reach on `behaviour`.
+//
+// The axis marks an operation whose store touches fall on a resource created
+// and destroyed inside the span. These handlers answer from a table in the
+// binary and touch no store at all, so there is nothing to attribute — measured,
+// not assumed: TestAnUnearnableNoStoreTouchIsMeasured (internal/cli) drives
+// each one and
+// requires the call to be answered AND the store to see nothing.
+func statelessBehaviour(what string) emulator.Unearnable {
+	return emulator.Unearnable{
+		Axis:  emulator.ProvesBehaviour,
+		Cause: emulator.CauseNoStoreTouch,
+		Reason: "no lifecycle can be attributed to it: it answers " + what +
+			" from a fixed table and touches no store, so nothing it reads is ever created and destroyed",
+	}
+}
+
+// keptSubjectBehaviour declares an operation out of reach on `behaviour`
+// because its subject outlives its own delete here, as it does upstream.
+func keptSubjectBehaviour(subject, upstream string) emulator.Unearnable {
+	return emulator.Unearnable{
+		Axis:  emulator.ProvesBehaviour,
+		Cause: emulator.CauseNoDestruction,
+		Reason: "its subject is " + subject + ", which this emulator marks rather than removes, because " + upstream +
+			" — so the store never sees the destruction half of a lifecycle for it",
+	}
+}
+
+// nothingToRefuse declares an operation out of reach on `negative`.
+func nothingToRefuse(what string) emulator.Unearnable {
+	return emulator.Unearnable{
+		Axis:  emulator.ProvesNegative,
+		Cause: emulator.CauseNoRefusableRequest,
+		Reason: "no supported client can compose a request it must refuse: " + what +
+			", and this emulator holds no state that can fail the call either",
+	}
+}
+
+// unearnable attaches axis declarations to a route.
+func unearnable(r emulator.Route, u ...emulator.Unearnable) emulator.Route {
+	r.Unearnable = u
+	return r
+}
+
 // Routes implements emulator.Pack.
 func (p *Pack) Routes() []emulator.Route {
 	return []emulator.Route{
@@ -182,7 +236,8 @@ func (p *Pack) Routes() []emulator.Route {
 		p.route("ReadVms", p.readVms),
 		p.route("CreateVms", p.createVms),
 		p.route("UpdateVm", p.updateVm),
-		p.route("ReadAdminPassword", p.readAdminPassword),
+		unearnable(p.route("ReadAdminPassword", p.readAdminPassword),
+			keptSubjectBehaviour("a Vm", "a terminated machine stays readable on the real cloud and a client polls it there")),
 
 		// Tags, which the Terraform provider calls on almost every resource.
 		p.route("CreateTags", p.createTags),
@@ -197,19 +252,25 @@ func (p *Pack) Routes() []emulator.Route {
 		p.route("DeleteVolume", p.deleteVolume),
 		p.route("LinkVolume", p.linkVolume),
 		p.route("UnlinkVolume", p.unlinkVolume),
-		p.route("ReadVmsState", p.readVmsState),
+		unearnable(p.route("ReadVmsState", p.readVmsState),
+			keptSubjectBehaviour("a Vm", "a terminated machine stays readable on the real cloud and a client polls it there")),
 		p.route("DeleteVms", p.deleteVms),
 		p.route("StartVms", p.startVms),
-		p.route("StopVms", p.stopVms),
+		unearnable(p.route("StopVms", p.stopVms),
+			keptSubjectBehaviour("a Vm", "a terminated machine stays readable on the real cloud and a client polls it there")),
 		p.route("RebootVms", p.rebootVms),
 
 		// The inventory every client reads before it creates anything. The
 		// Scaleway pack learned this the hard way: decline the catalogue and the
 		// official CLI cannot create a server at all.
-		p.route("ReadVmTypes", p.readVmTypes),
+		unearnable(p.route("ReadVmTypes", p.readVmTypes),
+			statelessBehaviour("the type catalogue")),
 		p.route("ReadImages", p.readImages),
-		p.route("ReadRegions", p.readRegions),
-		p.route("ReadSubregions", p.readSubregions),
+		unearnable(p.route("ReadRegions", p.readRegions),
+			statelessBehaviour("the region and the endpoint a client calls next"),
+			nothingToRefuse("ReadRegionsRequest declares DryRun and nothing else")),
+		unearnable(p.route("ReadSubregions", p.readSubregions),
+			statelessBehaviour("the region's zones")),
 
 		// Nets and Subnets: the addressing plane. A block is parsed, its mask
 		// bounded, its containment and its overlap checked, and the address count
@@ -263,7 +324,8 @@ func (p *Pack) Routes() []emulator.Route {
 		// The gateway a Net attaches, and the egress a subnet buys with an
 		// address: the resource algebra Terraform's destroy order depends on.
 		// Control plane only — internetservices.go says what does not flow.
-		p.route("CreateInternetService", p.createInternetService),
+		unearnable(p.route("CreateInternetService", p.createInternetService),
+			nothingToRefuse("CreateInternetServiceRequest declares DryRun and nothing else")),
 		p.route("ReadInternetServices", p.readInternetServices),
 		p.route("LinkInternetService", p.linkInternetService),
 		p.route("UnlinkInternetService", p.unlinkInternetService),
@@ -282,10 +344,14 @@ func (p *Pack) Routes() []emulator.Route {
 		// the SDK's NetPeeringStateName enum; netpeerings.go names what
 		// mono-tenancy makes indistinguishable.
 		p.route("CreateNetPeering", p.createNetPeering),
-		p.route("AcceptNetPeering", p.acceptNetPeering),
-		p.route("RejectNetPeering", p.rejectNetPeering),
-		p.route("DeleteNetPeering", p.deleteNetPeering),
-		p.route("ReadNetPeerings", p.readNetPeerings),
+		unearnable(p.route("AcceptNetPeering", p.acceptNetPeering),
+			keptSubjectBehaviour("a Net peering", "a deleted peering stays readable in the deleted state, which the SDK's own StateNames filter enumerates")),
+		unearnable(p.route("RejectNetPeering", p.rejectNetPeering),
+			keptSubjectBehaviour("a Net peering", "a deleted peering stays readable in the deleted state, which the SDK's own StateNames filter enumerates")),
+		unearnable(p.route("DeleteNetPeering", p.deleteNetPeering),
+			keptSubjectBehaviour("a Net peering", "a deleted peering stays readable in the deleted state, which the SDK's own StateNames filter enumerates")),
+		unearnable(p.route("ReadNetPeerings", p.readNetPeerings),
+			keptSubjectBehaviour("a Net peering", "a deleted peering stays readable in the deleted state, which the SDK's own StateNames filter enumerates")),
 
 		// Snapshots as control-plane records (OSC-4, #13); snapshots.go carries
 		// the no-bytes caveat.
@@ -312,8 +378,10 @@ func (p *Pack) Routes() []emulator.Route {
 		p.route("UnlinkLoadBalancerBackendMachines", p.unlinkLoadBalancerBackendMachines),
 		p.route("DeleteLoadBalancer", p.deleteLoadBalancer),
 
-		p.route("ReadNetAccessPointServices", p.readNetAccessPointServices),
-		p.route("ReadPublicIpRanges", p.readPublicIPRanges),
+		unearnable(p.route("ReadNetAccessPointServices", p.readNetAccessPointServices),
+			statelessBehaviour("the services a Net access point can target")),
+		unearnable(p.route("ReadPublicIpRanges", p.readPublicIPRanges),
+			statelessBehaviour("the public blocks the cloud routes")),
 	}
 }
 

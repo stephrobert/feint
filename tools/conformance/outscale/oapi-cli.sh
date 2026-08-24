@@ -1054,6 +1054,40 @@ after_ips="$(osc ReadPublicIps | jq -r '.PublicIps[].PublicIpId' | sort)"
   || fail "the address inventory did not return to what it was, by identifier"$'\n'"before: $before_ips"$'\n'"after: $after_ips"
 ok "the block refused past its last address, and every address taken was given back"
 
+# A tag put on and taken off a resource that then dies, which is what DeleteTags
+# needed to earn `behaviour`.
+#
+# The axis marks an operation whose store touches fall on a resource created and
+# destroyed inside the span. Tags are stored ON the resource they name rather
+# than in a table of their own (tags.go), so DeleteTags touches whatever it
+# untags — and the suite had only ever untagged a Vm, which this emulator marks
+# terminated and keeps readable rather than removing. A Net is removed, so the
+# same call becomes attributable.
+#
+# Measured before it was written: with the Net dying inside the span the store
+# reports CreateNet, CreateTags, DeleteTags and DeleteNet; with a Vm it reports
+# neither tag call. That is why this block exists rather than a Route.Unearnable
+# declaration beside its neighbours — twelve of the thirteen candidates resisted
+# this attempt, and this one did not.
+echo "- a tag outlives nothing: the resource it named is gone"
+span="$(prove_begin behaviour)"
+tag_net="$(osc CreateNet --IpRange 10.195.0.0/16)" || fail "CreateNet rejected: $tag_net"
+tag_net_id="$(printf '%s' "$tag_net" | jq -r '.Net.NetId // empty')"
+[ -n "$tag_net_id" ] || fail "no NetId for the tagged Net: $tag_net"
+osc CreateTags --ResourceIds "[\"$tag_net_id\"]" --Tags '[{"Key":"conformance-net","Value":"one"}]' >/dev/null \
+  || fail "CreateTags rejected on a Net"
+osc ReadTags '--Filters.ResourceIds[]' "$tag_net_id" \
+  | jq -e 'any(.Tags[]; .Key == "conformance-net" and .ResourceType == "vpc")' >/dev/null \
+  || fail "the Net tag is not readable, or does not carry the SDK's own ResourceType"
+osc DeleteTags --ResourceIds "[\"$tag_net_id\"]" --Tags '[{"Key":"conformance-net","Value":"one"}]' >/dev/null \
+  || fail "DeleteTags rejected on a Net"
+osc ReadTags '--Filters.ResourceIds[]' "$tag_net_id" \
+  | jq -e 'any(.Tags[]; .Key == "conformance-net") | not' >/dev/null \
+  || fail "the Net tag survived DeleteTags"
+osc DeleteNet --NetId "$tag_net_id" >/dev/null || fail "DeleteNet rejected once its tag was gone"
+prove_end "$span"
+ok "the tag went, and so did the Net that carried it"
+
 # Started with --contracts, the emulator has been validating every response
 # above against Outscale's own OpenAPI document. Reading the verdict here is
 # what makes the check part of the run rather than a report nobody opens.
