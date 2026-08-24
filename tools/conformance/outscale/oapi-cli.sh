@@ -231,6 +231,33 @@ nat_id="$(printf '%s' "$nat" | jq -r '.NatService.NatServiceId // empty')"
 # than updating it, so only a direct call reaches it, and a route whose target
 # moves is what a client does when a subnet stops being public.
 main_rtb="$(printf '%s' "$rtbs" | jq -r '.RouteTables[0].RouteTableId')"
+# CreateRoute is called on a table linked to a Subnet, not on the main one, and
+# that is the whole point of the two calls above it.
+#
+# A LinkRouteTables entry carries SubnetId only when the link names a subnet:
+# the main table's link says Main:true and omits the key, measured on a real
+# account. So CreateRoute against the main table answers a mapping that can
+# never carry the field, and the field gate reported
+# `RouteTable.LinkRouteTables[].SubnetId` as one the real cloud returns and no
+# answer of the run carried — on main, after the shape fold of #407 handed the
+# gate real-cloud data for this operation. The pack was not omitting anything;
+# the suite was only ever asking about the poorest object.
+#
+# Asserted here rather than left to the gate, so a future edit that moves the
+# call back to the main table fails on the assertion instead of on a nightly.
+linked_rtb="$(osc CreateRouteTable --NetId "$net_id")" \
+  || fail "CreateRouteTable rejected: $linked_rtb"
+linked_rtb_id="$(printf '%s' "$linked_rtb" | jq -r '.RouteTable.RouteTableId // empty')"
+[ -n "$linked_rtb_id" ] || fail "no RouteTableId in the create response: $linked_rtb"
+osc LinkRouteTable --RouteTableId "$linked_rtb_id" --SubnetId "$sub_id" >/dev/null \
+  || fail "LinkRouteTable rejected"
+subnet_route="$(osc CreateRoute --RouteTableId "$linked_rtb_id" --DestinationIpRange 0.0.0.0/0 \
+                  --GatewayId "$gw_id")" || fail "CreateRoute on a linked table rejected: $subnet_route"
+printf '%s' "$subnet_route" | jq -e --arg s "$sub_id" \
+  'any(.RouteTable.LinkRouteTables[]; .SubnetId == $s)' >/dev/null \
+  || fail "the linked table's answer does not name the subnet it is linked to: $subnet_route"
+# And the main table still answers a link with no SubnetId key, which is the
+# other half of the conditional emission.
 osc CreateRoute --RouteTableId "$main_rtb" --DestinationIpRange 0.0.0.0/0 \
     --GatewayId "$gw_id" >/dev/null || fail "CreateRoute rejected"
 moved="$(osc UpdateRoute --RouteTableId "$main_rtb" --DestinationIpRange 0.0.0.0/0 \
@@ -260,6 +287,18 @@ osc UnlinkInternetService --InternetServiceId "$gw_id" --NetId "$net_id" >/dev/n
 osc DeleteInternetService --InternetServiceId "$gw_id" >/dev/null || fail "DeleteInternetService rejected"
 ok "held refuses, released goes, in the order destroy needs"
 
+# The linked route table goes before its Subnet, and its link before the table:
+# a Net holding a table it did not create refuses to be deleted, which is the
+# dependency order this very span exists to prove. Read the link back from the
+# table rather than remembering an id from the create — the same reason every
+# destruction here is proved by a read.
+linked_link_id="$(osc ReadRouteTables '--Filters.RouteTableIds[]' "$linked_rtb_id" \
+  | jq -r '.RouteTables[0].LinkRouteTables[0].LinkRouteTableId // empty')"
+[ -n "$linked_link_id" ] || fail "the linked table names no link to unlink"
+osc UnlinkRouteTable --LinkRouteTableId "$linked_link_id" >/dev/null \
+  || fail "UnlinkRouteTable rejected"
+osc DeleteRouteTable --RouteTableId "$linked_rtb_id" >/dev/null \
+  || fail "DeleteRouteTable rejected"
 osc DeleteSubnet --SubnetId "$sub_id" >/dev/null || fail "DeleteSubnet rejected"
 osc DeleteNet --NetId "$net_id" >/dev/null || fail "DeleteNet rejected once empty"
 nets="$(osc ReadNets)" || fail "ReadNets rejected: $nets"
