@@ -1719,6 +1719,37 @@ change ni l'un ni l'autre a sa place dans `git log`.
   l'intérieur de l'enregistrement, et un inventaire de clôture identique octet
   pour octet à celui d'ouverture sur les sept familles de ressources.
 
+### Corrigé
+
+- **Outscale borne `ResultsPerPage` là où sa propre API la borne, et une taille
+  de page hors de 1 à 1000 est désormais refusée** (#428). Vingt et un schémas de
+  requête Read* de la description publiée par Outscale portent la même phrase —
+  « between `1` and `1000`, both included » — et ce pack acceptait n'importe
+  quelle valeur, lisant tout ce qui était inférieur à un comme « pas de limite ».
+  `ResultsPerPage: 0`, exactement la valeur que la vraie API rejette, se voyait
+  donc répondre l'inventaire entier. Un client qui envoie une taille hors bornes
+  reçoit maintenant un 400 qui nomme la borne, comme en amont.
+  `ReadLoadBalancers` n'est volontairement pas bornée : son schéma ne déclare
+  aucun `ResultsPerPage`.
+
+- **`ReadVmTypes` applique le filtre que le client lui envoie** (#428).
+  `FiltersVmType` en déclare neuf et ce gestionnaire n'en lisait aucun : un
+  client qui résolvait son type de machine par son nom recevait le catalogue
+  entier avec un 200, ce qui est indiscernable d'un succès pour un client qui
+  prend ensuite la première ligne. `VmTypeNames` est servi ; les huit qui
+  filtrent sur l'arithmétique matérielle sont refusés par leur nom plutôt
+  qu'ignorés, comme le fait déjà toute autre lecture de ce pack.
+
+- **La `FileLocation` d'une image est déclinée plutôt qu'inventée** (#437). C'est
+  l'URL de stockage objet où vivent les octets d'une OMI en amont ; cet émulateur
+  ne copie aucun octet et ne sert aucun stockage objet, donc il n'existe aucune
+  adresse qu'un client pourrait aller chercher. Sa voisine `BlockDeviceMappings`
+  reste volontairement non déclinée : la même opération la sert quand le client
+  nomme un instantané, et une déclinaison au niveau de l'opération, vraie d'un
+  genre d'objet et fausse pour l'autre, est exactement la forme que #389 a coûté
+  une release à comprendre.
+
+
 ## [0.10.0] - 2026-08-20
 
 ### Ajouté

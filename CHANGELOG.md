@@ -17,6 +17,32 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **Outscale bounds `ResultsPerPage` where its own API bounds it, and a page
+  size outside 1 to 1000 is now refused** (#428). Twenty-one Read* request
+  schemas of Outscale's published description carry the same sentence — "between
+  `1` and `1000`, both included" — and this pack took any value, reading
+  everything below one as "no limit". So `ResultsPerPage: 0`, the exact value the
+  real API rejects, was answered with the whole inventory. A client that sends an
+  out-of-range page size now gets a 400 naming the bound, as it would upstream.
+  `ReadLoadBalancers` is deliberately not bounded: its schema declares no
+  `ResultsPerPage` at all.
+
+- **`ReadVmTypes` applies the filter a client sends it** (#428). `FiltersVmType`
+  declares nine filters and this handler read none of them, so a client
+  resolving its machine type by name was handed the whole catalogue with a 200 —
+  indistinguishable from success for a client that then takes the first row.
+  `VmTypeNames` is served; the eight that filter on hardware arithmetic are
+  refused by name rather than ignored, which is what every other read of this
+  pack already did.
+
+- **An image's `FileLocation` is declined rather than invented** (#437). It is
+  the object-storage URL an OMI's bytes live at upstream; this emulator copies no
+  bytes and serves no object storage, so there is no location a client could
+  fetch. Its neighbour `BlockDeviceMappings` is deliberately left undeclined: the
+  same operation serves it when the client names a snapshot, and an
+  operation-level decline true of one kind of object and false for the other is
+  the shape #389 cost a release to understand.
+
 - **Outscale is proven on every operation it serves: `shape` reaches 93 of 93**
   (#427). The last four were the Net peering family, and they had been declared
   unreachable twice — by #354 and again by this batch — for a reason that was
