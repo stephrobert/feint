@@ -154,7 +154,7 @@ const (
 // lowers the figure. An addition to one existing verb; nothing was removed, no
 // exit code moved, and a pipeline keyed on version 14 keeps working.
 //
-// Version 16 adds `clean --format json` (#426): the sweep already knew what it
+// Version 16 adds `clean --format json` and `clean --check --doorstep` (#426): the sweep already knew what it
 // found and said it in prose that died with the run, so #316, #342, #375 and
 // #386 each fixed one symptom of one family with nobody able to see the family.
 // One JSON line per object — what it is, how this run knows it is ours, when it
@@ -165,6 +165,12 @@ const (
 // after the sweep instead of trusting the sweep. An addition to one existing
 // verb; nothing was removed, no exit code moved, and a pipeline keyed on
 // version 15 keeps working.
+//
+// --doorstep is separate from --check rather than folded into it because the
+// two questions have different safe moments: what this user cannot clean can
+// be asked at any time, while what an earlier run left can only be asked
+// before one starts — mid-run, the machines and networks it names belong to
+// the emulator that is running.
 //
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
@@ -499,7 +505,7 @@ Usage:
   feint catalog    [--format json]
                     Print the emulated inventory a client reads before creating.
 
-  feint clean      [--vm incus|incus-vm|incus-ovn] [--check] [--format text|json]
+  feint clean      [--vm incus|incus-vm|incus-ovn] [--check] [--doorstep] [--format text|json]
                     Remove every machine, network and rule set the emulator
                     created. Labelled resources only; nothing else is touched.
                     --check removes nothing: it names what a run left behind

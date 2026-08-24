@@ -378,3 +378,36 @@ func stubBinary(t *testing.T, exit int) string {
 	}
 	return stub
 }
+
+// TestOnlyTheDoorstepAsksWhatAnEarlierRunLeft holds the boundary #426 was
+// measured on, and it is a boundary in the shell rather than in Go.
+//
+// guard_leftovers is sourced by three network suites and runs twelve steps into
+// a conformance run, against a live emulator; guard.sh's own `leftovers` entry
+// point runs before `feint start`. The question "did an earlier run leave
+// machines and networks here" is only meaningful at the second moment: mid-run
+// those objects belong to the emulator that is running.
+//
+// Measured on 2026-08-24 with the flag passed at both: leg 2 of
+// `mise run evidence:update` failed naming `fnt-default` and an Outscale VM the
+// same run had booted minutes earlier. The stub binary echoes its arguments, so
+// this reads the flag rather than the outcome.
+func TestOnlyTheDoorstepAsksWhatAnEarlierRunLeft(t *testing.T) {
+	// Mid-run: the suites' form, which has an endpoint because an emulator is up.
+	_, midRun := runLeftoverGuard(t, "incus", 0)
+	if strings.Contains(midRun, "--doorstep") {
+		t.Errorf("the mid-run check asked what an earlier run left, so a run fails for owning "+
+			"the machines and networks it just created:\n%s", midRun)
+	}
+
+	// The doorstep: the entry point `mise run conformance` calls before it
+	// starts anything. Without this half, the test above would pass on a guard
+	// that never asks the question at all.
+	code, doorstep := bashGuard(t, `. "$1"; guard_leftovers_for "$2" doorstep`, "incus", stubBinary(t, 0))
+	if code != 0 {
+		t.Fatalf("the doorstep refused a host the stub reports clean (exit %d):\n%s", code, doorstep)
+	}
+	if !strings.Contains(doorstep, "--doorstep") {
+		t.Errorf("the doorstep never asked what an earlier run left, which is the whole of #426:\n%s", doorstep)
+	}
+}

@@ -232,14 +232,22 @@ guard_leftovers() {
     exit 1
   fi
   machines="$(printf '%s' "$health" | jq -r '.machines // "none"')"
-  guard_leftovers_for "$machines"
+  # in-flight, deliberately. This form is called by the network suites, twelve
+  # steps into a run, and an emulator is answering at $endpoint — so the
+  # machines and networks on the host are that emulator's own, not an earlier
+  # run's. Asking the doorstep question here fails a run for owning what it just
+  # created; it did, on 2026-08-24 (#426).
+  guard_leftovers_for "$machines" inflight
 }
 
 # guard_leftovers_for is the same refusal for a caller that has no emulator to
 # ask yet: `mise run conformance` runs it before it starts anything, from the
 # mode it is about to pass to `feint start`.
 guard_leftovers_for() {
-  local machines="${1:-off}" binary
+  local machines="${1:-off}" scope="${2:-inflight}" binary doorstep=""
+  # Only the caller that runs before `feint start` may ask what an earlier run
+  # left standing: see guard_leftovers above for what happens otherwise.
+  [ "$scope" = "doorstep" ] && doorstep="--doorstep"
 
   # With no machine runtime nothing will take an address block, so the question
   # does not apply. Said out loud rather than returned in silence, per the rule
@@ -266,7 +274,7 @@ EOF
     exit 1
   fi
 
-  if ! "$binary" clean --check --vm "$machines" >&2; then
+  if ! "$binary" clean --check $doorstep --vm "$machines" >&2; then
     cat >&2 <<EOF
 
 FAIL: this host still holds what an earlier run left. What was found is named
@@ -299,7 +307,7 @@ EOF
 # leg refuses at second zero instead of after every client suite has run.
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
   case "${1:-}" in
-    leftovers) guard_leftovers_for "${2:-off}" ;;
+    leftovers) guard_leftovers_for "${2:-off}" doorstep ;;
     *)
       echo "usage: tools/conformance/guard.sh leftovers <machine runtime>" >&2
       echo "  (the other guards take an endpoint and are sourced, not run)" >&2

@@ -42,11 +42,17 @@ what this project is judged on: **a response shape a client can observe**, and
     block is the same lie as a network created while nothing exists, and the
     create path already refused its half.
 
-  A limit that moved: `feint clean --check` now refuses a host still holding a
-  previous run's machines or networks, naming each and the one command that
-  clears it. It only ever asked about orphaned DHCP services, and answered "no
-  DHCP service of this emulator's outlives its network" — exit 0 — on a host
-  holding three of this emulator's bridges.
+  A limit that moved: `feint clean --check --doorstep` refuses a host still
+  holding a previous run's machines or networks, naming each and the one command
+  that clears it. `--check` alone only ever asked about orphaned DHCP services,
+  and answered "no DHCP service of this emulator's outlives its network" — exit
+  0 — on a host holding three of this emulator's bridges.
+
+  The question rides its own flag because the two have different safe moments.
+  `guard_leftovers` is called before a run starts *and* twelve steps into one;
+  a DHCP orphan is debris whenever it is found, but mid-run the machines and
+  networks on the host belong to the emulator that is running. Asked at both,
+  it failed a run for owning what it had just created.
 
 ### Added
 

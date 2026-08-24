@@ -64,6 +64,30 @@
       "replace": "\t\t_ = fmt.Errorf(\"could not look at what the %s runtime holds, so this host cannot be called clean: %w\",\n\t\t\tdriver.Name(), err)\n\t\treturn nil",
       "test": "TestTheDoorstepSaysItCouldNotLookRatherThanCallingTheHostClean",
       "package": "./internal/cli/"
+    },
+    {
+      "label": "the prose sentences leak into the JSON stream, so the ledger stops being pipeable and nobody queries it",
+      "file": "internal/cli/clean_ledger.go",
+      "find": "func (l *ledger) prose(format string, args ...any) {\n\tif l.asJSON {\n\t\treturn\n\t}",
+      "replace": "func (l *ledger) prose(format string, args ...any) {\n\tif l.asJSON && false {\n\t\treturn\n\t}",
+      "test": "TestTheLedgerIsParseableEndToEnd",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "the doorstep question is asked at every moment, so a run is refused for owning the machines and networks it just created",
+      "file": "internal/cli/clean.go",
+      "find": "\tif doorstep {\n\t\tif err := refuseRuntimeLeftovers(stdout, led, vm); err != nil {",
+      "replace": "\tif doorstep || true {\n\t\tif err := refuseRuntimeLeftovers(stdout, led, vm); err != nil {",
+      "test": "TestTheLeftoverCheckMidRunIgnoresTheRunsOwnObjects",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "the mid-run guard passes the doorstep scope, which is the shell half of the same mistake",
+      "file": "tools/conformance/guard.sh",
+      "find": "  guard_leftovers_for \"$machines\" inflight",
+      "replace": "  guard_leftovers_for \"$machines\" doorstep # inflight",
+      "test": "TestOnlyTheDoorstepAsksWhatAnEarlierRunLeft",
+      "package": "./tools/conformance/"
     }
   ],
   "note": "The subject is #426. `mise run evidence:update` failed intermittently on any host with Incus, leg 2 refused in tools/conformance/stacks.sh, and the issue deliberately named no cause: the obvious 'the provider retried' reading was unsupported, and a leftover network was ruled out on the argument that it would explain a fixed block rather than a different one each run.\n\nMeasured on 2026-08-24, three runs of stacks.sh under --vm incus against a host inventoried before and after each. Round 1 exited 0 and left three of this emulator's bridges, three of its rule sets and three dnsmasq behind; rounds 2 and 3 then failed on 'Address already in use' for exactly those blocks. So the failure is not intermittent at all — it is deterministic, one run behind itself, and a *passing* run is what arms it.\n\nThe faulty destruction, isolated by creating one object, destroying it and re-reading the host: DELETE on a private NIC answered 204 and `incus config device show` still listed the device, because machine.Driver had Attach and no counterpart and releaseNIC only ever touched the store. DELETE on the private network then answered 204 and `incus network list` still listed the bridge, because RemoveNetwork's 'The network is currently in use' was logged and swallowed. Both shapes at once: a destruction never sent, and a destruction whose failure was reported as success.\n\nThe block differed each run because which of the three parallel private-network deletes lands before its machine is gone is Terraform's scheduling. The blocks themselves are fixed in examples/stacks/scaleway/main.tf and are never chosen by the emulator, so the issue's premise that a residue implies a fixed block was the wrong half of the question: the residue is fixed, which of three it is is not.\n\nMutations 3, 4 and 5 are the machine-driver half and matter most: this layer deletes objects on the operator's host, safeName accepts `production-database` and a restored snapshot controls both names. Mutation 5 is the one worth reading twice — || weakened to && reads exactly like a guard and accepts incusbr0, which is the host's default bridge an audit already managed to delete once through this class of gap. Its test asserts that no command *names* the bridge, not merely that an error came back: a guard that refuses after sending the command has guarded nothing.\n\nMutations 7 and 8 are about the instrument rather than the emulator. 7 removes the second read of the host and leaves the sweep trusting its own counts, which is precisely how the original defect stayed invisible through #316, #342, #375 and #386. 8 turns three outcomes back into two, the failure mode that once reported a live account with four Nets and two running machines as empty."

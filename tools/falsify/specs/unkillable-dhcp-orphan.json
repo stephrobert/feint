@@ -34,15 +34,15 @@
     {
       "label": "the sweep goes back to offering only a command with a pid to retype, which is the manual step that did not happen three runs in a row",
       "file": "internal/cli/clean.go",
-      "find": "\t\t\tfmt.Fprintf(stdout, \"  → sudo feint clean --vm %s   (or: sudo kill %d)\\n\", vm, leftover.PID)",
-      "replace": "\t\t\tfmt.Fprintf(stdout, \"  → sudo kill %d (%s)\\n\", leftover.PID, vm[:0])",
+      "find": "\t\t\tled.prose(\"  → sudo feint clean --vm %s   (or: sudo kill %d)\\n\", vm, leftover.PID)",
+      "replace": "\t\t\tled.prose(\"  → sudo kill %d (%s)\\n\", leftover.PID, vm[:0])",
       "test": "TestCleanReportsTheCommandWhenTheLeftoverBelongsToAnotherUser"
     },
     {
       "label": "the shell refusal never fires, so the leg starts on a host whose block is held and dies in the sweep twelve steps later",
       "file": "tools/conformance/guard.sh",
-      "find": "  if ! \"$binary\" clean --check --vm \"$machines\" >&2; then",
-      "replace": "  if ! \"$binary\" clean --check --vm \"$machines\" >&2 && false; then",
+      "find": "  if ! \"$binary\" clean --check $doorstep --vm \"$machines\" >&2; then",
+      "replace": "  if ! \"$binary\" clean --check $doorstep --vm \"$machines\" >&2 && false; then",
       "test": "TestTheLeftoverGuardRefusesAHostItCannotClean",
       "package": "./tools/conformance/"
     },

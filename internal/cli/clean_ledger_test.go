@@ -62,6 +62,11 @@ func withDriver(t *testing.T, d machine.Driver) {
 	previous := resolveDriver
 	resolveDriver = func(string, io.Writer) (machine.Driver, error) { return d, nil }
 	t.Cleanup(func() { resolveDriver = previous })
+	// And the real host read back on top of whatever quietDHCP silenced: this
+	// runtime is a fake holding known objects, so reading it is the point.
+	previousSurvey := surveyRuntime
+	surveyRuntime = surveyLeftovers
+	t.Cleanup(func() { surveyRuntime = previousSurvey })
 }
 
 // quietDHCP silences the real /proc scan: these tests are about runtime
@@ -90,7 +95,7 @@ func TestTheDoorstepRefusesAHostHoldingAPreviousRunsNetwork(t *testing.T) {
 	withDriver(t, held)
 
 	var out bytes.Buffer
-	err := reportStuckLeftovers(&out, newLedger(&out, false, time.Now()), "incus")
+	err := reportStuckLeftovers(&out, newLedger(&out, false, time.Now()), "incus", true)
 	if err == nil {
 		t.Fatal("the doorstep accepted a host still holding a network of an earlier run: " +
 			"the run starts, takes minutes, and dies on \"Address already in use\" for that block (#426)")
@@ -108,7 +113,7 @@ func TestTheDoorstepRefusesAHostHoldingAPreviousRunsNetwork(t *testing.T) {
 	// The accepting half, on the same path.
 	withDriver(t, &sweptDriver{})
 	var clean bytes.Buffer
-	if err := reportStuckLeftovers(&clean, newLedger(&clean, false, time.Now()), "incus"); err != nil {
+	if err := reportStuckLeftovers(&clean, newLedger(&clean, false, time.Now()), "incus", true); err != nil {
 		t.Fatalf("the doorstep refused a runtime holding nothing: %v (%q)", err, clean.String())
 	}
 }
@@ -124,7 +129,7 @@ func TestTheDoorstepSaysItCouldNotLookRatherThanCallingTheHostClean(t *testing.T
 
 	var out bytes.Buffer
 	led := newLedger(&out, true, time.Now())
-	if err := reportStuckLeftovers(&out, led, "incus"); err == nil {
+	if err := reportStuckLeftovers(&out, led, "incus", true); err == nil {
 		t.Fatal("a runtime that could not be surveyed was reported as a clean host")
 	}
 	if why := whyOfLines(t, out.String()); !why[whyUnreadable] {
@@ -255,4 +260,106 @@ func whyOfLines(t *testing.T, out string) map[string]bool {
 		seen[rec.Why] = true
 	}
 	return seen
+}
+
+// TestTheLedgerIsParseableEndToEnd holds the constraint that makes the ledger a
+// ledger rather than a log: every line of `--format json` must be JSON.
+//
+// It matters because this command has always printed prose — "removed 3
+// network(s)", "nothing was left behind on the runtime", the DHCP sentences —
+// and tools/conformance/scaleway/network.sh reads those, so they cannot simply
+// go. One of them in the stream turns `jq -s` into an error, and a ledger a
+// maintainer cannot pipe is a ledger nobody queries, which is the one way this
+// file becomes an artefact to keep up to date and nothing else.
+//
+// The witness is the text half: the same run in text mode must still carry the
+// sentence network.sh greps for. A JSON mode that silenced everything would
+// pass the first assertion by emitting nothing at all.
+func TestTheLedgerIsParseableEndToEnd(t *testing.T) {
+	quietDHCP(t)
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", "")
+
+	withDriver(t, &sweptDriver{keeps: true, left: machine.Leftovers{
+		Machines: []string{"feint-scw-a"},
+		Networks: []string{"fnt-a"},
+	}})
+
+	var out bytes.Buffer
+	if err := clean([]string{"--vm", "incus", "--format", "json"}, &out); err != nil {
+		t.Fatalf("clean: %v", err)
+	}
+	lines := 0
+	for _, line := range strings.Split(strings.TrimSpace(out.String()), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var any map[string]any
+		if err := json.Unmarshal([]byte(line), &any); err != nil {
+			t.Fatalf("a line of --format json is not JSON, so the stream cannot be piped: %q", line)
+		}
+		lines++
+	}
+	if lines == 0 {
+		t.Fatal("--format json emitted nothing on a runtime holding two objects, so this test proves nothing")
+	}
+
+	// The text half, unchanged: network.sh decides the runtime is clean on this
+	// exact sentence.
+	withDriver(t, &sweptDriver{})
+	var text bytes.Buffer
+	if err := clean([]string{"--vm", "incus"}, &text); err != nil {
+		t.Fatalf("clean in text mode: %v", err)
+	}
+	if !strings.Contains(text.String(), "nothing was left behind on the runtime") {
+		t.Fatalf("text mode lost the sentence tools/conformance/scaleway/network.sh reads: %q", text.String())
+	}
+}
+
+// TestTheLeftoverCheckMidRunIgnoresTheRunsOwnObjects is the witness the first
+// version of this work did not have, and its absence cost a red run.
+//
+// `guard_leftovers` is called twice in a conformance run: once before
+// `feint start`, and again twelve steps in by each network suite, against a
+// live emulator. The doorstep question — is a *previous* run still holding this
+// host — has no meaning at the second moment: the machines and networks it
+// would name belong to the emulator that is running.
+//
+// Measured on 2026-08-24: with the question asked at both moments, leg 2 of
+// `mise run evidence:update` failed naming `fnt-default` and an Outscale VM the
+// same run had booted minutes before. A doorstep that fires on a host nothing
+// was going to fail on is the one that gets disarmed, which is the lesson
+// guard.sh already carries about `--no-verify`.
+//
+// The accepting half here is the assertion; the refusing half lives in
+// TestTheDoorstepRefusesAHostHoldingAPreviousRunsNetwork, on the same runtime.
+func TestTheLeftoverCheckMidRunIgnoresTheRunsOwnObjects(t *testing.T) {
+	quietDHCP(t)
+
+	// Exactly what leg 2 was holding when it failed.
+	live := &sweptDriver{left: machine.Leftovers{
+		Machines:  []string{"feint-osc-i-59ba85de"},
+		Networks:  []string{"fnt-default", "fnt-feba907ed4e"},
+		Firewalls: []string{"scw-31a308684ad"},
+	}}
+	withDriver(t, live)
+
+	var out bytes.Buffer
+	if err := reportStuckLeftovers(&out, newLedger(&out, false, time.Now()), "incus", false); err != nil {
+		t.Fatalf("the mid-run check refused a run for owning the machines and networks it had just created: %v\n%s",
+			err, out.String())
+	}
+	// And it must not even name them: a suite log that lists the run's own
+	// objects under "left behind by a run" sends the next reader to the wrong
+	// place, which is the diagnosis cost this whole issue is about.
+	if strings.Contains(out.String(), "fnt-default") {
+		t.Errorf("the mid-run check named the running emulator's own network as a leftover: %q", out.String())
+	}
+
+	// The same runtime at the doorstep must refuse, or this test is passing
+	// because nothing looks at all.
+	var door bytes.Buffer
+	if err := reportStuckLeftovers(&door, newLedger(&door, false, time.Now()), "incus", true); err == nil {
+		t.Fatal("the doorstep accepted the same runtime, so the mid-run pass above proves nothing")
+	}
 }

@@ -122,6 +122,18 @@ func newLedger(out io.Writer, asJSON bool, now time.Time) *ledger {
 	return &ledger{out: out, run: newRunID(now), asJSON: asJSON}
 }
 
+// prose writes the human sentences this command has always printed, and only in
+// text mode. JSON mode must stay parseable as JSON Lines end to end: a single
+// prose line in the stream turns `jq -s` into an error, and a ledger a maintainer
+// cannot pipe is a ledger nobody queries.
+// TestTheLedgerIsParseableEndToEnd fails without this.
+func (l *ledger) prose(format string, args ...any) {
+	if l.asJSON {
+		return
+	}
+	fmt.Fprintf(l.out, format, args...)
+}
+
 // record writes one line. Text mode prints the same sentence a human already
 // read in this command's output; JSON mode prints the aggregatable form.
 func (l *ledger) record(rec leftoverRecord) {
@@ -140,6 +152,12 @@ func (l *ledger) record(rec leftoverRecord) {
 	}
 	fmt.Fprintf(l.out, "%s\n", line)
 }
+
+// surveyRuntime is the seam the tests replace. It is on the host read rather
+// than on the driver because "does this runtime name resolve" and "what does
+// this runtime hold" are two questions, and reap_test.go asserts on the first
+// while every doorstep test needs the second silenced (#426).
+var surveyRuntime = surveyLeftovers
 
 // surveyLeftovers reads what the runtime holds, and distinguishes the three
 // outcomes rather than two. A driver that cannot survey is not an empty host:
@@ -213,12 +231,12 @@ func refuseRuntimeLeftovers(out io.Writer, led *ledger, vm string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	left, surveyable, err := surveyLeftovers(ctx, driver)
+	left, surveyable, err := surveyRuntime(ctx, driver)
 	if !surveyable {
 		// --vm off, and every driver that cannot be asked. Said out loud rather
 		// than returned in silence: a precondition that passes quietly on the
 		// very case it exists for reads as green when it never ran.
-		fmt.Fprintf(out, "runtime leftovers: the %s runtime cannot be surveyed, so nothing was asked\n", vm)
+		led.prose("runtime leftovers: the %s runtime cannot be surveyed, so nothing was asked\n", vm)
 		return nil
 	}
 	if err != nil {
@@ -228,7 +246,7 @@ func refuseRuntimeLeftovers(out io.Writer, led *ledger, vm string) error {
 			driver.Name(), err)
 	}
 	if len(left.Machines) == 0 && len(left.Networks) == 0 {
-		fmt.Fprintln(out, "no machine or network of an earlier run is left on this runtime")
+		led.prose("no machine or network of an earlier run is left on this runtime\n")
 		return nil
 	}
 
