@@ -636,6 +636,25 @@ log says which of the two it was. If the emulator ever captures disk contents
 (the runtime could: `incus publish` exists), that refusal is the line to
 replace.
 
+**What that decision costs, measured 2026-08-24.** The fifteen third-party stacks
+of `examples/stacks/surveyed.md` were replayed under `--vm incus-ovn` for the
+first time, and **four machines started across all fifteen**. Not because the
+runtime failed — it started every machine it was asked for — but because
+thirteen of the fifteen name an image the emulated catalogues do not hold:
+`ami-a3ca408c`, `ami-538af795`, `ami-47899c77`, a talos image registered through
+volume → snapshot → `CreateImage`, an RHCOS template registered by name. The two
+that boot are the two that name a *catalogue* identifier rather than a
+production one: kiwinet's `debian_bookworm` label, and
+terraform-exoscale-vault's `template_id` read from the served template list.
+
+So the rule of thumb, for anyone deciding whether `--vm` will do anything for
+them: **a configuration that hardcodes a real image id keeps applying and starts
+nothing.** That is the deliberate half of the decision above working exactly as
+written — under `--vm off` the same configuration reports `running` and the
+difference never shows. It is recorded here rather than filed as a defect,
+because it is the documented behaviour meeting a population nobody had measured
+it against.
+
 Two details follow from the same decision. The Scaleway marketplace answers one
 fixed UUID **per label**, so Terraform — which resolves a label into a UUID and
 sends the UUID back — still names the distribution it chose; a single shared

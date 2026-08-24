@@ -55,6 +55,18 @@ FEINT_EXOSCALE_ALLOW_TERRAFORM=1 ./feint serve --addr 127.0.0.1:4610 --contracts
 ./feint proxy --addr 127.0.0.1:4611 --upstream http://127.0.0.1:4610 --record /tmp/rec.jsonl
 ```
 
+**Name the runtime, always.** The command above carries no `--vm`, which means
+`off`: the measurements of 2026-08-17 and of 2026-08-18 ran with **no machine
+runtime at all**, and every server in them was a record. #262's delivery comment
+says `--vm off` in as many words, but this register did not, and the silence was
+later read as evidence that no runtime had been asked for — an empty cell is
+information about the report, not about what was ordered. The 2026-08-24 section
+at the end of this file is the first pass on a real one, `--vm incus-ovn`.
+
+**So the runtime is a required datum of any replay, exactly like the commit and
+the recorded edits: a replay that does not name its `--vm` is not reproducible,
+and its silence will one day be re-read as a fact.**
+
 Per provider, everything rides the environment — no stack needs an endpoint
 edit **except** where the table below says so:
 
@@ -739,3 +751,285 @@ dead registry namespace, and one provider whose S3 calls ignore the
 redirect entirely. **Six of fifteen stacks needed no edit at all; five
 needed exactly one recorded edit whose cause was the provider ecosystem,
 not this emulator.**
+
+## Replayed under `--vm incus-ovn` on `main@104a6d4` (2026-08-24)
+
+**This is the first pass of this register on a machine runtime.** Every figure
+above was measured with `--vm off`, where a server is a record and nothing boots.
+Every figure here was measured with `--vm incus-ovn`, where a server is an Incus
+instance on an OVN network, with a real address and a real firewall. That single
+change moves the subject of the measurement, so these are not a before-and-after
+of the emulator's quality — they are two different questions, and the older
+answers stand unedited above as the photograph of before.
+
+**What it can therefore conclude**: whether the control plane still answers the
+same way when its answers have consequences, and what the runtime does with what
+the packs hand it. **What it cannot**: anything about products the emulator does
+not serve. A machine runtime does not make a route appear, and no wall below moved
+because of it.
+
+### The pass in one paragraph
+
+Fifteen entries, all replayed. **Nine are unchanged from their reference, three of
+them now backed by something real**: kiwinet applies its 5 with a container that
+carries the address the API published and holds the stack's own cloud-init;
+terraform-exoscale-vault applies its 7 with **three running machines** and is
+still the only entirely green stack of the fifteen; ocp_outscale applies its 30
+with a real bastion. openshift4, platform, flatcar-k3s, devbox, kubic and the two
+recorded-inapplicable entries answer exactly as recorded. **One improved, and it
+is the one this register demanded**: `terraform-talos` had its two walls removed
+on separate branches, and the register refused to record the inference — measured
+together on `main` at last, it applies **30 of 33** with `0 to change` and
+destroys clean, the only wall left being `vpc-gw/v1`, declined by name. **Five
+regressed, and every one of them for the same single cause**: the emulated image
+catalogues hold a handful of identifiers, every stranger's stack hardcodes a real
+one, and under a machine runtime an unbootable image is no longer harmless — the
+emulator honestly answers `stopped` where `--vm off` answered `running`. That is
+`docs/limits.md`'s decision working exactly as written, and its class-level price
+had never been measured. **Across the fifteen, five machines actually started**,
+and that number is the finding: kiwinet's one, ocp_outscale's one and
+terraform-exoscale-vault's three — the only three entries whose image or template
+identifier comes from the served catalogue rather than from a production cloud.
+
+Four defects came out of it, none of them reachable without a runtime, and all
+four are the same shape — the API describes something the host does not have:
+[#454] (a security group with an IPv6 ICMP rule loses its whole firewall),
+[#455] (an orphaned OVN network becomes permanently unremovable and
+`clean --check` does not see it), [#456] (a Net with several subnets fails to
+peer, and its destroy fails), [#457] (a load balancer whose backends are on
+another subnet is accepted and never built). Two more findings were **not** filed
+because measurement disproved them: the refusal to boot a registered image is
+documented and deliberate, and the `Missing VIP target(s)` error self-heals when
+the backends arrive — proven by a witness that registered one and watched the
+balancer appear.
+
+[#454]: https://github.com/stephrobert/feint/issues/454
+[#455]: https://github.com/stephrobert/feint/issues/455
+[#456]: https://github.com/stephrobert/feint/issues/456
+[#457]: https://github.com/stephrobert/feint/issues/457
+
+### How the runtime pass differs from the harness above
+
+Same commits, same recorded edits, same seeded prerequisites. Three additions:
+the emulator runs `--vm incus-ovn --cleanup`; an `incus monitor --type=lifecycle`
+starts **before** it, so no launch can precede the recorder; and the health probe
+compares `instance.pid` and the declared runtime with what it started — a probe
+that only asked "does the port answer" passed against a stale `--vm off` emulator
+and voided two entries before it was fixed.
+
+Every entry whose verdict differs from its reference was re-run **alone under
+`--vm off`, everything else identical**, so that code and runtime could be told
+apart. Where that was not possible, the entry says so.
+
+### Per-entry
+
+**Outscale 1 — outscale/osc-k8s-rke-cluster** (`7427b98`): **regressed, runtime.**
+52 applied against the reference's 53, re-plan `16 to add / 1 to destroy`, 52
+destroyed, **0 machines**. `outscale_vm.bastion` is tainted: `ami-a3ca408c`, the
+OMI the vendor's own archived example hardcodes, is in no emulated catalogue, so
+the boot is refused by name and the provider reports `expected state running but
+found stopped`. The RKE/ansible tail that every earlier replay recorded as
+"times out against the fictional bastion" **never ran at all** here, because the
+bastion it depends on never existed — the one thing this campaign hoped a real
+runtime might unblock, and the image wall is upstream of it. *Separation: not
+completed, and the reason is named — the `--vm off` re-run does not terminate,
+because the stack's own `ansible.cfg` sets `retries=999` with a 60-second
+timeout against an unroutable address. Attribution rests on the mechanism, which
+is identical to the four stacks below whose separation did complete.*
+
+**Outscale 2 — chimere-eu/ztiac** (`093330c`), `advanced-network`: **regressed,
+runtime, and this is the pass's worst result.** 80 applied against 95, re-plan
+`15 to add`, and **the destroy fails**, leaving 2 resources in state and two OVN
+networks plus two ACLs on the host that nothing can remove. The cause is [#456]:
+a Net with several subnets fails to peer (`More than one matching network peer
+was found`), the subnets' backing networks cannot then be deleted, and
+`DeleteNet` refuses with its own correct 409 (`the Net vpc-… still holds 2
+subnet(s)`). The register's only fully converging stranger stack, and the #249
+shape it was famous for, is what breaks first on a machine runtime.
+
+`two-tier-architecture`: **regressed, runtime.** 54 applied — the reference
+figure exactly — and 54 destroyed, but the second plan is `0 to add, 5 to change`
+where it was `No changes.`: all five changes are `state = "stopped" -> "running"`
+on the five Vms, whose `ami-a3ca408c` the catalogue does not hold. Both of its
+load balancers also failed to reach the host, and that is [#457]: their backends
+are on the private subnet while they listen on the public one, which OVN refuses
+and the API never mentions.
+
+**Outscale 3 — davmartini/ocp_outscale** (`1c7fd7b`): **conforme, and machine-backed
+— and it is the campaign's natural experiment.** 30 applied, `No changes.`,
+30 destroyed, identical to the reference, **with 1 machine started**:
+`outscale_vm.vm-pub-aza` came up as a real container in 21 seconds.
+
+It boots for one reason, and the reason has to be declared because it is a
+harness choice rather than a recorded one: the register names "nine TF_VARs
+(keys, region, vm type, image id, keypair name, three DNS IPs)" **without naming
+the image id**, so this replay supplied `ami-00000001`, an OMI the emulated
+catalogue holds. Same pack, same runtime, same evening as the four Outscale
+entries that started nothing on `ami-a3ca408c` / `ami-538af795` / `ami-47899c77`.
+The only variable that differs is whether the identifier is in the catalogue, and
+it decides the whole outcome. Same recorded edit (0.5.3's `endpoints` block) and
+the same TLS intercept on 4612, whose locally-minted CA the run trusts through
+`SSL_CERT_FILE`.
+
+**Outscale 4 — pli01/terraform-outscale-k3s** (`e68aa43`): **regressed,
+runtime — separated.** Under `--vm incus-ovn`: 35 applied, re-plan `8 to add /
+1 to destroy`, 34 destroyed, 0 machines, `ami-47899c77` refused by name. Under
+`--vm off`, everything else identical: **41 applied, `No changes.`** — the
+reference exactly. The difference is the runtime alone.
+
+**Outscale 5 — michaelcourcy/kasten-on-outscale** (`f1fcc87`): **regressed,
+runtime — separated.** Under `--vm incus-ovn`: 29 applied, re-plan `6 to add /
+5 to destroy`, 29 destroyed, 0 machines; all five Vms tainted on `ami-538af795`.
+Under `--vm off`: **30 applied, `No changes.`, 30 destroyed** — the reference
+exactly, and #268's convergence still holds. The runtime alone.
+
+**Exoscale 1 — appuio/terraform-openshift4-exoscale** (`46016ea`): **conforme.**
+43 applied, `0 to change`, 43 destroyed — the reference to the resource. The only
+failure is the unserved DNS branch, and it now refuses with #284's explicit
+sentence rather than a zone-lookup error: "this deployment serves zone ch-dk-2,
+and the client resolved zone ch-gva-2 from GET /v2/zone … Restart with
+FEINT_EXOSCALE_ZONE=ch-gva-2". The re-plan is `42 to add, 0 to change`, and all
+42 are that branch and what sits behind it — the lb module, whose
+`data.exoscale_domain.cluster` cannot resolve, and `module.infra`'s four compute
+instances. 0 machines: everything that would boot is downstream of the DNS
+branch, so none was ever attempted. Both registered templates resolve, and
+`visibility=private` still answers exactly the two of them (#271 holds).
+
+**Exoscale 2 — PhilippeChepy/platform** (`84791e3`), `terraform-base` against a
+`de-fra-1` emulator: **conforme.** 20 created, re-plan `5 to add / 0 to change`,
+20 destroyed — the 2026-08-21 reference to the resource. Its only failures are
+the two SOS buckets at the real `sos-de-muc-1.exo.io` on fake credentials, which
+is the documented external gap; the emulator logged nothing. 0 machines: the
+instance pools name templates the served catalogue does not hold.
+
+**Exoscale 3 — PhilippeChepy/terraform-exoscale-vault** (`62d27ee`):
+**conforme, and machine-backed.** 7 applied, `No changes.`, 7 destroyed — and
+**3 machines really started**, the Vault cluster's instance pool at its default
+size of three. Still the only third-party stack of the fifteen that is entirely
+green end to end, and now green with something running. It boots because its
+`template_id` is taken from the served catalogue rather than hardcoded, which is
+the whole difference between this entry and the eight that started nothing.
+
+**Exoscale 4 — camptocamp/terraform-exoscale-sks** (`2f61075`): **conforme, and
+the reason was triggered rather than restated.** With its providers installed and
+its four variables supplied, so that nothing else could be the cause:
+`terraform validate` and `terraform plan` both exit 1 on
+`Error: Invalid resource type … "exoscale_affinity"` at `main.tf` line 7. One
+exchange reached the recorder — the harness's own health probe — so nothing of
+this stack ever addressed the emulator, exactly as recorded. SKS remains unserved
+and the plan never got near it.
+
+**Exoscale 5 — datamindedbe/eu-data-platform** (`119712a`): **conforme, and the
+reason was triggered rather than restated.** Pointed at
+`infra/exoscale-platform/app`, which is where the backend actually lives:
+`terraform init` exits 1 with `Error: Variables not allowed` on both
+`bucket = var.bucket_name` and
+`endpoint = "https://sos-${local.zone}.exo.io"`. Nothing reached any endpoint.
+
+One detail measured while triggering it, which confirms the register's
+parenthetical rather than contradicting it: **OpenTofu 1.11.4 accepts the
+syntax** — it gets past the parse and stops at `backend.s3 depends on
+var.bucket_name which is not available`, i.e. a missing input, not a forbidden
+interpolation. So "OpenTofu ≥ 1.8 syntax, plain Terraform refuses at init" is
+right, and the tofu half now has a measurement behind it too.
+
+**Scaleway 1 — sergelogvinov/terraform-talos** (`1edaa02`, `scaleway/`):
+**improved — and this is the line the register demanded.** #285 (placement
+groups) and #282 (LB and gateway) fell on separate branches, each naming as its
+remaining wall exactly what the other had removed, and the register refused to
+record the inference: "the next replay on a `main` carrying both is what will
+say, and it is what this line exists to demand." Measured, on `main@104a6d4`,
+with `type_lb = "LB-S"` and `controlplane = {count=2, type="DEV1-L"}`:
+
+- under `--vm off`, **30 of 33 applied**, re-plan `3 to add, 0 to change`, 30
+  destroyed clean. The three are `scaleway_vpc_public_gateway_ip`,
+  `scaleway_vpc_public_gateway` and `scaleway_vpc_gateway_network` — the
+  `vpc-gw/v1` wall the register itself records as declined **by name**, because
+  the portal withdrew the v1 document and the stack pins `~> 2.43.0`, which
+  speaks v1. Every other wall is gone: placement groups, LB, IPv6 subnet,
+  address order, the catalogue.
+- under `--vm incus-ovn`, **25 applied**, re-plan `7 to add / 2 to destroy`, 25
+  destroyed. The delta is the two controlplane servers, tainted: their image is a
+  *registered* image, built by the register's own prerequisite recipe
+  (volume → snapshot → `CreateImage`), and `docs/limits.md` refuses to boot one
+  deliberately — "this emulator keeps records, not disk contents, so there are no
+  bytes to boot".
+
+So: the improvement is the **code**, present in both modes; the shortfall is the
+**runtime**, present only under `ovn`.
+
+**Scaleway 2 — ioandev/scaleway-flatcar-k3s** (`85cb05d`): **conforme.** 9
+applied, `0 to change`, 9 destroyed — the reference exactly. `CreateBucket` still
+leaves for the real `s3.fr-par.scw.cloud` whatever `SCW_API_URL` says, and
+Cloudflare still fails on token-shaped fakes; both are external and neither
+touched the emulator.
+
+**Scaleway 3 — HealsCodes/ephemeral-devbox** (`cb43927`): **conforme.** 3 applied
+from the re-seeded block snapshot, and the destroy still trips on the stack's own
+snapshot rotation meeting feint's correct `resource is still in use` refusal,
+leaving 2 — which is what the reference records, down to the shape of the
+failure. Tailscale still walls the server on fake credentials, so no machine was
+ever asked for.
+
+**Scaleway 4 — CentraleSupelec/kubic** (`c326f47`): **conforme.** Run rather than
+recorded, with the same two harness inputs (the S3 backend overridden to local,
+21 dummy helm/argocd variables). 0 applied: the apply reaches the emulator and
+dies on its first resource, `scaleway_k8s_cluster` → `/k8s/v1/regions/fr-par/clusters`,
+a named 501. Kapsule is the next wall by name, exactly as recorded.
+
+**Scaleway 5 — Rookain-Kiwi/kiwinet-infra-cloud** (`78c97c9`): **conforme, and
+machine-backed.** 5 applied, `No changes.`, 5 destroyed — identical to the
+`feat/279` reference — with **1 machine really started**. Read back between apply
+and destroy, which is what only this pass could do: `feint-scw-a041c7de-…`
+RUNNING with `203.0.113.2` on `eth0`, the API publishing `public_ip=203.0.113.2`
+— **the same address the machine carries**, not a plausible-looking number — and
+the container holding the stack's own `cloud-init.yml`, French comment box
+included, with `cloud-init status` answering inside it. It boots because
+`debian_bookworm` is a catalogue label rather than a hardcoded id.
+
+### The figures, with their denominators
+
+| | |
+|---|---|
+| entries replayed | **15 of 15** (the sixteenth, OpenAether/#327, is out of scope by the register's own decision) |
+| entries abandoned | **0** — one *separation* run was abandoned, O1's, named in its entry |
+| conforme | 9 |
+| improved | 1 (talos) |
+| regressed | 5 (rke-cluster, ztiac ×2 counted as one entry, k3s, kasten — and ztiac's two templates both) |
+| harness broken, nothing measured | 0 at the end; 4 attempts along the way, all re-run (§ below) |
+| **machines really started** | **5** — kiwinet 1, ocp_outscale 1, vault 3 |
+| resources created, summed over the fifteen `--vm incus-ovn` runs | **382** (`Creation complete` lines) |
+| resources destroyed | **387** — larger on purpose, see below |
+| recorded exchanges over those fifteen runs | **2 402** |
+
+`destroyed` exceeds `created` by five because a server that was created and then
+failed to reach `running` is **tainted**: it is in state and gets destroyed, but
+it never printed a `Creation complete` line. The gap is therefore the count of
+machines the runtime refused to boot, arrived at from the opposite direction —
+which is why both numbers are given instead of one.
+
+Every regression was separated by a `--vm off` re-run except O1's, and **every
+separation that ran reproduced its reference exactly**: ztiac 95 and 54,
+k3s 41, kasten 30, talos 30. So the five regressions are the runtime, and the
+code did not move under any of them.
+
+### What went wrong in the harness, since it reads like findings otherwise
+
+Four attempts measured this replay's harness rather than the emulator, and all
+four were re-run. They are listed because each one produced a plausible number:
+an invented SSH key the Scaleway SDK rightly refused (kiwinet 4 of 5); a TLS
+proxy started without `--record`, caught by the run's own guard; `ssh_key` passed
+as a name where openshift4 wants key material; and E5's `init` run at the repo
+root, where there is no backend block, so it passed and proved nothing.
+
+The fifth is the one worth repeating outside this repository. A run was killed
+harshly, its trap never fired, and its `--vm off` emulator kept port 4610. The
+next two runs' health checks — `curl -sf /_feint/health` — **passed against that
+stale emulator**, which was holding another stack's resources in the wrong
+runtime mode, while feint's own log said `refusing to serve on 127.0.0.1:4610: it
+is already served by another emulator (pid 121004)`. Two entries were measured
+against the wrong runtime and discarded. The probe now compares `instance.pid`
+and the declared runtime with what it started, and refuses a non-empty emulator;
+a witness proves it refuses a squatter. **A health probe that cannot say whose
+emulator answered is not a health probe**, and this one had been green all
+evening.
