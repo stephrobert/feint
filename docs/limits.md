@@ -1587,6 +1587,20 @@ an IP literal*. The fork is therefore honoured end to end for
 rewritten back to `*.exoscale.com`. Closing that half is a change in `egoscale`,
 not in the provider.
 
+**The v3 resources are not out of reach, and a measurement said otherwise for
+a day.** `tools/conformance/exoscale/terraform.sh` first read the whole stack as
+blocked at `block_storage` on `list zones: ListZones: Not Found: no route matches
+this path, but it is served under /v2/`, and #448 recorded the cause as "the fork
+corrects the v2 client, and the stack now uses v3". That was wrong. The script
+was exporting `EXOSCALE_API_ENDPOINT` as a bare host, and the v3 client resolves
+its zone endpoint against exactly what it is given — the path belongs in the
+value, which is why `feint env exoscale` prints one and why
+`examples/stacks/surveyed.md` records one. With the path restored, the same
+stack applies **sixteen** resources through the same pinned commit, block storage
+and private networking included, plans empty and destroys clean (2026-08-24).
+The error is worth keeping written down: the message named the fix in as many
+words, and it was read as a statement about the fork.
+
 **It does not count towards conformance, and must not.** The north star of this
 project is that *the official client cannot tell the difference*; a client this
 project patched is no longer the official client. What the fork proves is real

@@ -25,8 +25,9 @@
 #
 # What it is worth in spite of that: it exercises the Exoscale pack through the
 # client a user would actually reach for. Applied by hand on 2026-08-18 —
-# 13 resources, empty second plan, clean destroy — and this script is that
-# procedure, so the next reader does not have to reconstruct it.
+# 13 resources — and re-measured by this script on 2026-08-24 at 16 resources,
+# block storage and private networking included, so this is the procedure and
+# the next reader does not have to reconstruct it.
 set -euo pipefail
 
 ENDPOINT="${1:?usage: terraform.sh <emulator-url>}"
@@ -103,7 +104,19 @@ set -a
 set +a
 
 export TF_CLI_CONFIG_FILE="$WORK/dev.tfrc"
-export EXOSCALE_API_ENDPOINT="$ENDPOINT"
+# The path belongs in the value. `feint env exoscale` prints
+# EXOSCALE_API_ENDPOINT='http://127.0.0.1:4599/v2', examples/stacks/surveyed.md
+# records the same form for the surveyed Exoscale stack, and this script was
+# passing the bare host instead.
+#
+# The run that fails without this line is this script: with a bare host it stops
+# on the first block_storage resource with `list zones: ListZones: Not Found: no
+# route matches this path, but it is served under /v2/`, because the v3 client
+# resolves its zone endpoint against whatever it was given. With the path it
+# applies sixteen resources, plans empty, and destroys clean. That reading —
+# recorded in #448 as "the fork corrects v2 and the stack now needs v3" — was
+# wrong about the cause: the fork drives v3 resources here perfectly well.
+export EXOSCALE_API_ENDPOINT="${ENDPOINT%/}/v2"
 
 echo "- the Exoscale stack applies through the patched provider"
 terraform -chdir="$WORK" apply -auto-approve -input=false >"$WORK/apply.log" 2>&1 \
