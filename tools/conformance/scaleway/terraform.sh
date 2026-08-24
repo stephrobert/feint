@@ -249,7 +249,14 @@ ok "updated in place, and read back"
 # Provider 2.81.0 moved the placement group and the private NIC onto
 # /instance/v2alpha1/..., and both were mounted so that the first apply editing
 # a tag would not meet a 501 — then no fixture ever edited one, so both carried
-# a Route.Undriven reason naming this file. The assertion is here rather than in
+# a Route.Undriven reason naming this file. Those two reasons are still in
+# internal/providers/scaleway/pack.go and are stale from this commit on:
+# coverage/evidence.json has not been regenerated since, because
+# `mise run evidence:update` fails intermittently on a host with Incus and
+# mise.toml carries that measurement. The next regeneration turns them red
+# through TestEveryUndrivenOperationSaysWhy's stale half, which is the designed
+# way to find them; delete them then.
+# The assertion is here rather than in
 # the coverage record on purpose: a run that stops driving them fails on this
 # line, not on a nightly regeneration three days later.
 pg_uuid="${pg_id_before##*/}"
