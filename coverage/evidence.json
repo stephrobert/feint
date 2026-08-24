@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "785544edee4f7a99",
     "shapes": "218e191863d7cf4b",
-    "suites": "65c7a2789386062e"
+    "suites": "db3decd1ba164b62"
   },
   "operations": {
     "block/v1/API.CreateSnapshot": {
@@ -1776,21 +1776,21 @@
       "negative": false
     },
     "instance/v2alpha1/API.UpdatePlacementGroup": {
-      "driven": false,
+      "driven": true,
       "probed": "response",
       "contract": "clean",
-      "dataplane": false,
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "instance/v2alpha1/API.UpdatePrivateNetworkInterface": {
-      "driven": false,
+      "driven": true,
       "probed": "refusal",
-      "contract": "unchecked",
-      "dataplane": false,
+      "contract": "clean",
+      "dataplane": true,
       "shape": "unobserved",
-      "behaviour": false,
+      "behaviour": true,
       "negative": false
     },
     "ipam/v1/API.AttachIP": {

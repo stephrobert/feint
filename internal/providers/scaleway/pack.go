@@ -134,22 +134,20 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "GET", Path: privateNICsV2Path, Operation: "instance/v2alpha1/API.ListPrivateNetworkInterfaces", Handler: p.listPrivateNetworkInterfaces},
 		{Method: "POST", Path: privateNICsV2Path, Operation: "instance/v2alpha1/API.CreatePrivateNetworkInterface", Handler: p.createPrivateNetworkInterface},
 		{Method: "GET", Path: privateNICsV2Path + "/{id}", Operation: "instance/v2alpha1/API.GetPrivateNetworkInterface", Handler: p.getPrivateNetworkInterface},
-		{Method: "PATCH", Path: privateNICsV2Path + "/{id}", Operation: "instance/v2alpha1/API.UpdatePrivateNetworkInterface", Handler: p.updatePrivateNetworkInterface,
-			// The only field it changes is `tags`, and no suite here changes the
-			// tags of an interface after creating it — recorded through `feint
-			// proxy` across a full apply of the conformance fixture and both
-			// realistic stacks. `scw instance private-nic update` reaches
-			// instance/v1.UpdatePrivateNIC, which this pack does not mount, so
-			// the CLI cannot drive this one either.
-			//
-			// Mounted rather than declined all the same, and the choice is the
-			// afternoon of 17 August 2026 in one line: the Terraform resource
-			// exposes tags, so the first configuration that edits one lands
-			// here, and a 501 would fail an apply for a field the provider
-			// believes it can change. That is the failure this whole file exists
-			// to have prevented, and declining it would have scheduled the same
-			// one.
-			Undriven: "no client this project drives edits the tags of an interface after creating it; mounted because the Terraform resource exposes them and a 501 would break the first apply that changes one"},
+		// Mounted rather than declined, and the choice is the afternoon of
+		// 17 August 2026 in one line: the Terraform resource exposes tags, so the
+		// first configuration that edits one lands here, and a 501 would fail an
+		// apply for a field the provider believes it can change.
+		//
+		// It used to carry a reason for not being driven — no suite here changed
+		// the tags of an interface after creating it, recorded through `feint
+		// proxy` across a full apply — and that stopped being true on
+		// 2026-08-24: the regenerated record shows a real client driving it.
+		// The reason is removed rather than reworded, on the precedent of
+		// exoscale/v2.get-security-group: TestEveryUndrivenOperationSaysWhy
+		// refuses a reason that outlived its cause, because it reads as a
+		// decision and it was one only while nobody called the route.
+		{Method: "PATCH", Path: privateNICsV2Path + "/{id}", Operation: "instance/v2alpha1/API.UpdatePrivateNetworkInterface", Handler: p.updatePrivateNetworkInterface},
 		{Method: "DELETE", Path: privateNICsV2Path + "/{id}", Operation: "instance/v2alpha1/API.DeletePrivateNetworkInterface", Handler: p.deletePrivateNetworkInterface},
 
 		// Placement groups through the alpha door. Same forcing client as the
@@ -162,14 +160,15 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "GET", Path: placementGroupsV2Path, Operation: "instance/v2alpha1/API.ListPlacementGroups", Handler: p.listPlacementGroupsV2},
 		{Method: "POST", Path: placementGroupsV2Path, Operation: "instance/v2alpha1/API.CreatePlacementGroup", Handler: p.createPlacementGroupV2},
 		{Method: "GET", Path: placementGroupsV2Path + "/{id}", Operation: "instance/v2alpha1/API.GetPlacementGroup", Handler: p.getPlacementGroupV2},
-		{Method: "PATCH", Path: placementGroupsV2Path + "/{id}", Operation: "instance/v2alpha1/API.UpdatePlacementGroup", Handler: p.updatePlacementGroupV2,
-			// The conformance fixture applies once and destroys: nothing in it
-			// renames a placement group between two applies, and the CLI edits
-			// through v1. Mounted rather than declined for the NIC precedent's
-			// reason — the Terraform resource PATCHes name, policy type and
-			// tags through this door, and a 501 would fail the first apply
-			// that changes one.
-			Undriven: "no client this project drives edits a placement group between two applies, and the CLI edits through v1; mounted because the Terraform resource PATCHes name, policy type and tags through this door, and a 501 would fail the first apply that changes one"},
+		// Mounted rather than declined for the NIC's reason above: the Terraform
+		// resource PATCHes name, policy type and tags through this door, and a
+		// 501 would fail the first apply that changes one.
+		//
+		// Its reason for not being driven went the same day and the same way as
+		// the NIC's, on 2026-08-24. Both are removed rather than reworded: a
+		// reason that outlived its cause reads as a decision, and it was one only
+		// while nobody called the route.
+		{Method: "PATCH", Path: placementGroupsV2Path + "/{id}", Operation: "instance/v2alpha1/API.UpdatePlacementGroup", Handler: p.updatePlacementGroupV2},
 		{Method: "DELETE", Path: placementGroupsV2Path + "/{id}", Operation: "instance/v2alpha1/API.DeletePlacementGroup", Handler: p.deletePlacementGroupV2},
 
 		// IPAM. Not a convenience: instance/v1.PrivateNIC carries no address, only

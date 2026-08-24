@@ -43,8 +43,8 @@ a workflow. None of them opens a socket.
 |---|---|---|---|---|---|---|---|---|
 | Exoscale | 104 | 83 % (86) | 92 % (96) | 91 % (95) | 83 % (86) | 30 % (31) | 75 % (78) | 10 % (10) |
 | Outscale | 93 | 100 % (93) | 100 % (93) | 100 % (93) | 100 % (93) | 71 % (66) | 86 % (80) | 71 % (66) |
-| Scaleway | 173 | 96 % (166) | 82 % (141) | 82 % (141) | 96 % (166) | 21 % (37) | 92 % (159) | 56 % (97) |
-| **All three** | 370 | 93 % (345) | 89 % (330) | 89 % (329) | 93 % (345) | 36 % (134) | 86 % (317) | 47 % (173) |
+| Scaleway | 173 | 97 % (168) | 82 % (141) | 82 % (142) | 97 % (168) | 21 % (37) | 93 % (161) | 56 % (97) |
+| **All three** | 370 | 94 % (347) | 89 % (330) | 89 % (330) | 94 % (347) | 36 % (134) | 86 % (319) | 47 % (173) |
 
 What each axis says, one line each. They are independent and are never added
 into one number: none of them implies another, and an operation can be driven
@@ -235,8 +235,8 @@ disappears from the suite.
 | `PATCH` | `/instance/v1/zones/{zone}/servers/{id}` | `instance/v1/API.UpdateServer` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `PATCH` | `/instance/v1/zones/{zone}/snapshots/{id}` | `instance/v1/API.UpdateSnapshot` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
 | `PATCH` | `/instance/v1/zones/{zone}/volumes/{id}` | `instance/v1/API.UpdateVolume` | `client` `contract` `runtime` `probe` `behaviour` `negative` |
-| `PATCH` | `/instance/v2alpha1/zones/{zone}/placement-groups/{id}` | `instance/v2alpha1/API.UpdatePlacementGroup` | `no-client` `contract` `probe` |
-| `PATCH` | `/instance/v2alpha1/zones/{zone}/private-network-interfaces/{id}` | `instance/v2alpha1/API.UpdatePrivateNetworkInterface` | `no-client` `probe-refusal` |
+| `PATCH` | `/instance/v2alpha1/zones/{zone}/placement-groups/{id}` | `instance/v2alpha1/API.UpdatePlacementGroup` | `client` `contract` `runtime` `probe` `behaviour` |
+| `PATCH` | `/instance/v2alpha1/zones/{zone}/private-network-interfaces/{id}` | `instance/v2alpha1/API.UpdatePrivateNetworkInterface` | `client` `contract` `runtime` `probe-refusal` `behaviour` |
 | `POST` | `/instance/v1/zones/{zone}/images` | `instance/v1/API.CreateImage` | `client` `contract` `runtime` `probe` `behaviour` |
 | `POST` | `/instance/v1/zones/{zone}/ips` | `instance/v1/API.CreateIP` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `POST` | `/instance/v1/zones/{zone}/placement_groups` | `instance/v1/API.CreatePlacementGroup` | `client` `contract` `runtime` `probe` `behaviour` |
@@ -361,7 +361,7 @@ disappears from the suite.
 | `POST` | `/vpc-gw/v2/zones/{zone}/gateways` | `vpcgw/v2/API.CreateGateway` | `client` `contract` `runtime` `probe-refusal` `behaviour` `negative` |
 | `POST` | `/vpc-gw/v2/zones/{zone}/ips` | `vpcgw/v2/API.CreateIP` | `client` `contract` `runtime` `probe` `behaviour` |
 
-### Served, and driven by no client (7)
+### Served, and driven by no client (5)
 
 Mounted operations no official client reaches, each with the reason. They
 are not refusals: they answer, and the probe validates them against the
@@ -372,8 +372,6 @@ this list the day a client drives its operation, and a test refuses a
 reason that outlived its cause.
 
 - `block` — 1 operation — no official client reads it in v1: `scw block volume-type list` is pinned to block/v1alpha1, and the Terraform provider sends the iops the configuration declares instead of reading the catalogue
-- `instance` — 1 operation — no client this project drives edits a placement group between two applies, and the CLI edits through v1; mounted because the Terraform resource PATCHes name, policy type and tags through this door, and a 501 would fail the first apply that changes one
-- `instance` — 1 operation — no client this project drives edits the tags of an interface after creating it; mounted because the Terraform resource exposes them and a 501 would break the first apply that changes one
 - `ipam` — 1 operation — no official client calls it: `scw ipam ip` has no attach subcommand, and the Terraform provider attaches an address by passing ipam_ip_ids to CreatePrivateNIC
 - `ipam` — 1 operation — no official client calls it: moving a booked address between resources is an SDK call with no CLI subcommand and no Terraform attribute that would produce it
 - `ipam` — 1 operation — no official client calls it: the CLI has no detach subcommand, and the provider detaches by deleting the NIC that carries the address
