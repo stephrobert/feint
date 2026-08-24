@@ -246,6 +246,20 @@
       "at": "2026-08-24",
       "client": "exo 1.95.1 (egoscale v3.1.36)",
       "cloud": "Exoscale ch-gva-2"
+    },
+    {
+      "file": "outscale/oapi-cli-machine-shapes.jsonl",
+      "at": "2026-08-24",
+      "client": "oapi-cli 0.13.0",
+      "cloud": "Outscale cloudgouv-eu-west-1",
+      "region": "cloudgouv-eu-west-1"
+    },
+    {
+      "file": "outscale/oapi-cli-lb-shapes.jsonl",
+      "at": "2026-08-24",
+      "client": "oapi-cli 0.13.0",
+      "cloud": "Outscale cloudgouv-eu-west-1",
+      "region": "cloudgouv-eu-west-1"
     }
   ],
   "accepted": [
@@ -2280,6 +2294,222 @@
       "path": "",
       "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
       "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "outscale/oapi-cli-lb-shapes.jsonl",
+      "operation": "osc/Client.ReadLoadBalancers",
+      "kind": "absent",
+      "path": "LoadBalancers[]",
+      "reason": "A field a real cloudgouv-eu-west-1 account answers and this emulator omits, recorded 2026-08-24 (#427). An image a client cuts from a machine carries its own device mapping and a FileLocation; a volume resize answers the TaskId that will finish it; a health check carries its Path. #437 carries the measured list and the reason each is a distinct decision.",
+      "issue": "https://github.com/stephrobert/feint/issues/437"
+    },
+    {
+      "file": "outscale/oapi-cli-lb-shapes.jsonl",
+      "operation": "osc/Client.ReadLoadBalancers",
+      "kind": "absent",
+      "path": "LoadBalancers[].HealthCheck.Path",
+      "reason": "A field a real cloudgouv-eu-west-1 account answers and this emulator omits, recorded 2026-08-24 (#427). An image a client cuts from a machine carries its own device mapping and a FileLocation; a volume resize answers the TaskId that will finish it; a health check carries its Path. #437 carries the measured list and the reason each is a distinct decision.",
+      "issue": "https://github.com/stephrobert/feint/issues/437"
+    },
+    {
+      "file": "outscale/oapi-cli-lb-shapes.jsonl",
+      "operation": "osc/Client.ReadVms",
+      "kind": "absent",
+      "path": "Vms[].BlockDeviceMappings[]",
+      "reason": "A machine's BlockDeviceMappings is where a client reads the root volume it must not delete. #378 served the key; this recording shows the ARRAY still answers empty where the cloud answers an element, because the emulated machine owns no root volume. Recorded 2026-08-24 (#427).",
+      "issue": "https://github.com/stephrobert/feint/issues/378"
+    },
+    {
+      "file": "outscale/oapi-cli-lb-shapes.jsonl",
+      "operation": "osc/Client.DeleteSecurityGroup",
+      "kind": "status",
+      "path": "",
+      "reason": "A delete is instantaneous here and asynchronous upstream, so the two disagree on every read of a teardown. MEASURED AGAIN on 2026-08-24 and at much greater length than #354 could (#427): this recording's teardown retries until a read proves the object gone, so it carries 26 DeleteLoadBalancer attempts and 24 DeleteNet ones, each answered by the cloud with a 400 or a 409 while the object settled and by this emulator with a 200 at the first ask. The 'absent' findings on the same operations are the same cause seen from the body: an Errors array where the cloud refused, or an empty list where the cloud still held the object. Nothing here is a field the pack fails to serve.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
+    },
+    {
+      "file": "outscale/oapi-cli-lb-shapes.jsonl",
+      "operation": "osc/Client.DeleteSecurityGroup",
+      "kind": "absent",
+      "path": "Errors",
+      "reason": "A delete is instantaneous here and asynchronous upstream, so the two disagree on every read of a teardown. MEASURED AGAIN on 2026-08-24 and at much greater length than #354 could (#427): this recording's teardown retries until a read proves the object gone, so it carries 26 DeleteLoadBalancer attempts and 24 DeleteNet ones, each answered by the cloud with a 400 or a 409 while the object settled and by this emulator with a 200 at the first ask. The 'absent' findings on the same operations are the same cause seen from the body: an Errors array where the cloud refused, or an empty list where the cloud still held the object. Nothing here is a field the pack fails to serve.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
+    },
+    {
+      "file": "outscale/oapi-cli-lb-shapes.jsonl",
+      "operation": "osc/Client.ReadSecurityGroups",
+      "kind": "absent",
+      "path": "SecurityGroups[]",
+      "reason": "A field a real cloudgouv-eu-west-1 account answers and this emulator omits, recorded 2026-08-24 (#427). An image a client cuts from a machine carries its own device mapping and a FileLocation; a volume resize answers the TaskId that will finish it; a health check carries its Path. #437 carries the measured list and the reason each is a distinct decision.",
+      "issue": "https://github.com/stephrobert/feint/issues/437"
+    },
+    {
+      "file": "outscale/oapi-cli-lb-shapes.jsonl",
+      "operation": "osc/Client.DeleteSubnet",
+      "kind": "status",
+      "path": "",
+      "reason": "A delete is instantaneous here and asynchronous upstream, so the two disagree on every read of a teardown. MEASURED AGAIN on 2026-08-24 and at much greater length than #354 could (#427): this recording's teardown retries until a read proves the object gone, so it carries 26 DeleteLoadBalancer attempts and 24 DeleteNet ones, each answered by the cloud with a 400 or a 409 while the object settled and by this emulator with a 200 at the first ask. The 'absent' findings on the same operations are the same cause seen from the body: an Errors array where the cloud refused, or an empty list where the cloud still held the object. Nothing here is a field the pack fails to serve.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
+    },
+    {
+      "file": "outscale/oapi-cli-lb-shapes.jsonl",
+      "operation": "osc/Client.DeleteSubnet",
+      "kind": "absent",
+      "path": "Errors",
+      "reason": "A delete is instantaneous here and asynchronous upstream, so the two disagree on every read of a teardown. MEASURED AGAIN on 2026-08-24 and at much greater length than #354 could (#427): this recording's teardown retries until a read proves the object gone, so it carries 26 DeleteLoadBalancer attempts and 24 DeleteNet ones, each answered by the cloud with a 400 or a 409 while the object settled and by this emulator with a 200 at the first ask. The 'absent' findings on the same operations are the same cause seen from the body: an Errors array where the cloud refused, or an empty list where the cloud still held the object. Nothing here is a field the pack fails to serve.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
+    },
+    {
+      "file": "outscale/oapi-cli-lb-shapes.jsonl",
+      "operation": "osc/Client.ReadSubnets",
+      "kind": "absent",
+      "path": "Subnets[]",
+      "reason": "A field a real cloudgouv-eu-west-1 account answers and this emulator omits, recorded 2026-08-24 (#427). An image a client cuts from a machine carries its own device mapping and a FileLocation; a volume resize answers the TaskId that will finish it; a health check carries its Path. #437 carries the measured list and the reason each is a distinct decision.",
+      "issue": "https://github.com/stephrobert/feint/issues/437"
+    },
+    {
+      "file": "outscale/oapi-cli-lb-shapes.jsonl",
+      "operation": "osc/Client.DeleteNet",
+      "kind": "status",
+      "path": "",
+      "reason": "A delete is instantaneous here and asynchronous upstream, so the two disagree on every read of a teardown. MEASURED AGAIN on 2026-08-24 and at much greater length than #354 could (#427): this recording's teardown retries until a read proves the object gone, so it carries 26 DeleteLoadBalancer attempts and 24 DeleteNet ones, each answered by the cloud with a 400 or a 409 while the object settled and by this emulator with a 200 at the first ask. The 'absent' findings on the same operations are the same cause seen from the body: an Errors array where the cloud refused, or an empty list where the cloud still held the object. Nothing here is a field the pack fails to serve.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
+    },
+    {
+      "file": "outscale/oapi-cli-lb-shapes.jsonl",
+      "operation": "osc/Client.DeleteNet",
+      "kind": "absent",
+      "path": "Errors",
+      "reason": "A delete is instantaneous here and asynchronous upstream, so the two disagree on every read of a teardown. MEASURED AGAIN on 2026-08-24 and at much greater length than #354 could (#427): this recording's teardown retries until a read proves the object gone, so it carries 26 DeleteLoadBalancer attempts and 24 DeleteNet ones, each answered by the cloud with a 400 or a 409 while the object settled and by this emulator with a 200 at the first ask. The 'absent' findings on the same operations are the same cause seen from the body: an Errors array where the cloud refused, or an empty list where the cloud still held the object. Nothing here is a field the pack fails to serve.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
+    },
+    {
+      "file": "outscale/oapi-cli-lb-shapes.jsonl",
+      "operation": "osc/Client.ReadNets",
+      "kind": "absent",
+      "path": "Nets[]",
+      "reason": "A field a real cloudgouv-eu-west-1 account answers and this emulator omits, recorded 2026-08-24 (#427). An image a client cuts from a machine carries its own device mapping and a FileLocation; a volume resize answers the TaskId that will finish it; a health check carries its Path. #437 carries the measured list and the reason each is a distinct decision.",
+      "issue": "https://github.com/stephrobert/feint/issues/437"
+    },
+    {
+      "file": "outscale/oapi-cli-lb-shapes.jsonl",
+      "operation": "osc/Client.UpdateLoadBalancer",
+      "kind": "status",
+      "path": "",
+      "reason": "A delete is instantaneous here and asynchronous upstream, so the two disagree on every read of a teardown. MEASURED AGAIN on 2026-08-24 and at much greater length than #354 could (#427): this recording's teardown retries until a read proves the object gone, so it carries 26 DeleteLoadBalancer attempts and 24 DeleteNet ones, each answered by the cloud with a 400 or a 409 while the object settled and by this emulator with a 200 at the first ask. The 'absent' findings on the same operations are the same cause seen from the body: an Errors array where the cloud refused, or an empty list where the cloud still held the object. Nothing here is a field the pack fails to serve.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
+    },
+    {
+      "file": "outscale/oapi-cli-lb-shapes.jsonl",
+      "operation": "osc/Client.UpdateLoadBalancer",
+      "kind": "absent",
+      "path": "LoadBalancer",
+      "reason": "A delete is instantaneous here and asynchronous upstream, so the two disagree on every read of a teardown. MEASURED AGAIN on 2026-08-24 and at much greater length than #354 could (#427): this recording's teardown retries until a read proves the object gone, so it carries 26 DeleteLoadBalancer attempts and 24 DeleteNet ones, each answered by the cloud with a 400 or a 409 while the object settled and by this emulator with a 200 at the first ask. The 'absent' findings on the same operations are the same cause seen from the body: an Errors array where the cloud refused, or an empty list where the cloud still held the object. Nothing here is a field the pack fails to serve.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
+    },
+    {
+      "file": "outscale/oapi-cli-lb-shapes.jsonl",
+      "operation": "osc/Client.DeleteLoadBalancer",
+      "kind": "absent",
+      "path": "LoadBalancer",
+      "reason": "A delete is instantaneous here and asynchronous upstream, so the two disagree on every read of a teardown. MEASURED AGAIN on 2026-08-24 and at much greater length than #354 could (#427): this recording's teardown retries until a read proves the object gone, so it carries 26 DeleteLoadBalancer attempts and 24 DeleteNet ones, each answered by the cloud with a 400 or a 409 while the object settled and by this emulator with a 200 at the first ask. The 'absent' findings on the same operations are the same cause seen from the body: an Errors array where the cloud refused, or an empty list where the cloud still held the object. Nothing here is a field the pack fails to serve.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
+    },
+    {
+      "file": "outscale/oapi-cli-lb-shapes.jsonl",
+      "operation": "osc/Client.DeleteLoadBalancer",
+      "kind": "absent",
+      "path": "LoadBalancer.HealthCheck.Path",
+      "reason": "A delete is instantaneous here and asynchronous upstream, so the two disagree on every read of a teardown. MEASURED AGAIN on 2026-08-24 and at much greater length than #354 could (#427): this recording's teardown retries until a read proves the object gone, so it carries 26 DeleteLoadBalancer attempts and 24 DeleteNet ones, each answered by the cloud with a 400 or a 409 while the object settled and by this emulator with a 200 at the first ask. The 'absent' findings on the same operations are the same cause seen from the body: an Errors array where the cloud refused, or an empty list where the cloud still held the object. Nothing here is a field the pack fails to serve.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
+    },
+    {
+      "file": "outscale/oapi-cli-lb-shapes.jsonl",
+      "operation": "osc/Client.DeleteLoadBalancer",
+      "kind": "status",
+      "path": "",
+      "reason": "A delete is instantaneous here and asynchronous upstream, so the two disagree on every read of a teardown. MEASURED AGAIN on 2026-08-24 and at much greater length than #354 could (#427): this recording's teardown retries until a read proves the object gone, so it carries 26 DeleteLoadBalancer attempts and 24 DeleteNet ones, each answered by the cloud with a 400 or a 409 while the object settled and by this emulator with a 200 at the first ask. The 'absent' findings on the same operations are the same cause seen from the body: an Errors array where the cloud refused, or an empty list where the cloud still held the object. Nothing here is a field the pack fails to serve.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
+    },
+    {
+      "file": "outscale/oapi-cli-machine-shapes.jsonl",
+      "operation": "osc/Client.UpdateNet",
+      "kind": "status",
+      "path": "",
+      "reason": "A delete is instantaneous here and asynchronous upstream, so the two disagree on every read of a teardown. MEASURED AGAIN on 2026-08-24 and at much greater length than #354 could (#427): this recording's teardown retries until a read proves the object gone, so it carries 26 DeleteLoadBalancer attempts and 24 DeleteNet ones, each answered by the cloud with a 400 or a 409 while the object settled and by this emulator with a 200 at the first ask. The 'absent' findings on the same operations are the same cause seen from the body: an Errors array where the cloud refused, or an empty list where the cloud still held the object. Nothing here is a field the pack fails to serve.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
+    },
+    {
+      "file": "outscale/oapi-cli-machine-shapes.jsonl",
+      "operation": "osc/Client.UpdateNet",
+      "kind": "absent",
+      "path": "Net",
+      "reason": "A delete is instantaneous here and asynchronous upstream, so the two disagree on every read of a teardown. MEASURED AGAIN on 2026-08-24 and at much greater length than #354 could (#427): this recording's teardown retries until a read proves the object gone, so it carries 26 DeleteLoadBalancer attempts and 24 DeleteNet ones, each answered by the cloud with a 400 or a 409 while the object settled and by this emulator with a 200 at the first ask. The 'absent' findings on the same operations are the same cause seen from the body: an Errors array where the cloud refused, or an empty list where the cloud still held the object. Nothing here is a field the pack fails to serve.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
+    },
+    {
+      "file": "outscale/oapi-cli-machine-shapes.jsonl",
+      "operation": "osc/Client.CreateImage",
+      "kind": "absent",
+      "path": "Image.BlockDeviceMappings[]",
+      "reason": "A field a real cloudgouv-eu-west-1 account answers and this emulator omits, recorded 2026-08-24 (#427). An image a client cuts from a machine carries its own device mapping and a FileLocation; a volume resize answers the TaskId that will finish it; a health check carries its Path. #437 carries the measured list and the reason each is a distinct decision.",
+      "issue": "https://github.com/stephrobert/feint/issues/437"
+    },
+    {
+      "file": "outscale/oapi-cli-machine-shapes.jsonl",
+      "operation": "osc/Client.CreateImage",
+      "kind": "absent",
+      "path": "Image.FileLocation",
+      "reason": "A field a real cloudgouv-eu-west-1 account answers and this emulator omits, recorded 2026-08-24 (#427). An image a client cuts from a machine carries its own device mapping and a FileLocation; a volume resize answers the TaskId that will finish it; a health check carries its Path. #437 carries the measured list and the reason each is a distinct decision.",
+      "issue": "https://github.com/stephrobert/feint/issues/437"
+    },
+    {
+      "file": "outscale/oapi-cli-machine-shapes.jsonl",
+      "operation": "osc/Client.UpdateImage",
+      "kind": "absent",
+      "path": "Image.BlockDeviceMappings[]",
+      "reason": "A field a real cloudgouv-eu-west-1 account answers and this emulator omits, recorded 2026-08-24 (#427). An image a client cuts from a machine carries its own device mapping and a FileLocation; a volume resize answers the TaskId that will finish it; a health check carries its Path. #437 carries the measured list and the reason each is a distinct decision.",
+      "issue": "https://github.com/stephrobert/feint/issues/437"
+    },
+    {
+      "file": "outscale/oapi-cli-machine-shapes.jsonl",
+      "operation": "osc/Client.UpdateImage",
+      "kind": "absent",
+      "path": "Image.FileLocation",
+      "reason": "A field a real cloudgouv-eu-west-1 account answers and this emulator omits, recorded 2026-08-24 (#427). An image a client cuts from a machine carries its own device mapping and a FileLocation; a volume resize answers the TaskId that will finish it; a health check carries its Path. #437 carries the measured list and the reason each is a distinct decision.",
+      "issue": "https://github.com/stephrobert/feint/issues/437"
+    },
+    {
+      "file": "outscale/oapi-cli-machine-shapes.jsonl",
+      "operation": "osc/Client.LinkPrivateIps",
+      "kind": "status",
+      "path": "",
+      "reason": "A delete is instantaneous here and asynchronous upstream, so the two disagree on every read of a teardown. MEASURED AGAIN on 2026-08-24 and at much greater length than #354 could (#427): this recording's teardown retries until a read proves the object gone, so it carries 26 DeleteLoadBalancer attempts and 24 DeleteNet ones, each answered by the cloud with a 400 or a 409 while the object settled and by this emulator with a 200 at the first ask. The 'absent' findings on the same operations are the same cause seen from the body: an Errors array where the cloud refused, or an empty list where the cloud still held the object. Nothing here is a field the pack fails to serve.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
+    },
+    {
+      "file": "outscale/oapi-cli-machine-shapes.jsonl",
+      "operation": "osc/Client.UnlinkPrivateIps",
+      "kind": "status",
+      "path": "",
+      "reason": "A delete is instantaneous here and asynchronous upstream, so the two disagree on every read of a teardown. MEASURED AGAIN on 2026-08-24 and at much greater length than #354 could (#427): this recording's teardown retries until a read proves the object gone, so it carries 26 DeleteLoadBalancer attempts and 24 DeleteNet ones, each answered by the cloud with a 400 or a 409 while the object settled and by this emulator with a 200 at the first ask. The 'absent' findings on the same operations are the same cause seen from the body: an Errors array where the cloud refused, or an empty list where the cloud still held the object. Nothing here is a field the pack fails to serve.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
+    },
+    {
+      "file": "outscale/oapi-cli-machine-shapes.jsonl",
+      "operation": "osc/Client.ReadVolumes",
+      "kind": "absent",
+      "path": "Volumes[]",
+      "reason": "A field a real cloudgouv-eu-west-1 account answers and this emulator omits, recorded 2026-08-24 (#427). An image a client cuts from a machine carries its own device mapping and a FileLocation; a volume resize answers the TaskId that will finish it; a health check carries its Path. #437 carries the measured list and the reason each is a distinct decision.",
+      "issue": "https://github.com/stephrobert/feint/issues/437"
+    },
+    {
+      "file": "outscale/oapi-cli-machine-shapes.jsonl",
+      "operation": "osc/Client.DeleteDhcpOptions",
+      "kind": "status",
+      "path": "",
+      "reason": "A delete is instantaneous here and asynchronous upstream, so the two disagree on every read of a teardown. MEASURED AGAIN on 2026-08-24 and at much greater length than #354 could (#427): this recording's teardown retries until a read proves the object gone, so it carries 26 DeleteLoadBalancer attempts and 24 DeleteNet ones, each answered by the cloud with a 400 or a 409 while the object settled and by this emulator with a 200 at the first ask. The 'absent' findings on the same operations are the same cause seen from the body: an Errors array where the cloud refused, or an empty list where the cloud still held the object. Nothing here is a field the pack fails to serve.",
+      "issue": "https://github.com/stephrobert/feint/issues/380"
     }
   ]
 }

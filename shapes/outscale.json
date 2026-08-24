@@ -1,6 +1,23 @@
 {
   "provider": "outscale",
   "operations": {
+    "POST /api/v1/DeregisterVmsInLoadBalancer": {
+      "method": "POST",
+      "path": "/api/v1/DeregisterVmsInLoadBalancer",
+      "fields": [
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
     "POST /api/v1/ReadFlexibleGpuCatalog": {
       "method": "POST",
       "path": "/api/v1/ReadFlexibleGpuCatalog",
@@ -86,16 +103,144 @@
     "osc/Client.CreateDhcpOptions": {
       "method": "POST",
       "path": "/api/v1/CreateDhcpOptions",
-      "fields": [],
+      "fields": [
+        {
+          "path": "DhcpOptionsSet",
+          "type": "object"
+        },
+        {
+          "path": "DhcpOptionsSet.Default",
+          "type": "bool"
+        },
+        {
+          "path": "DhcpOptionsSet.DhcpOptionsSetId",
+          "type": "string"
+        },
+        {
+          "path": "DhcpOptionsSet.DomainNameServers",
+          "type": "array"
+        },
+        {
+          "path": "DhcpOptionsSet.DomainNameServers[]",
+          "type": "string"
+        },
+        {
+          "path": "DhcpOptionsSet.Tags",
+          "type": "array"
+        },
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
     "osc/Client.CreateImage": {
       "method": "POST",
       "path": "/api/v1/CreateImage",
-      "fields": [],
+      "fields": [
+        {
+          "path": "Image",
+          "type": "object"
+        },
+        {
+          "path": "Image.BlockDeviceMappings",
+          "type": "array"
+        },
+        {
+          "path": "Image.BlockDeviceMappings[]",
+          "type": "object"
+        },
+        {
+          "path": "Image.BlockDeviceMappings[].Bsu",
+          "type": "object"
+        },
+        {
+          "path": "Image.BlockDeviceMappings[].Bsu.DeleteOnVmDeletion",
+          "type": "bool"
+        },
+        {
+          "path": "Image.BlockDeviceMappings[].Bsu.SnapshotId",
+          "type": "string"
+        },
+        {
+          "path": "Image.BlockDeviceMappings[].Bsu.VolumeSize",
+          "type": "number"
+        },
+        {
+          "path": "Image.BootModes",
+          "type": "array"
+        },
+        {
+          "path": "Image.BootModes[]",
+          "type": "string"
+        },
+        {
+          "path": "Image.CreationDate",
+          "type": "string"
+        },
+        {
+          "path": "Image.ImageId",
+          "type": "string"
+        },
+        {
+          "path": "Image.PermissionsToLaunch",
+          "type": "object"
+        },
+        {
+          "path": "Image.PermissionsToLaunch.AccountIds",
+          "type": "array"
+        },
+        {
+          "path": "Image.PermissionsToLaunch.GlobalPermission",
+          "type": "bool"
+        },
+        {
+          "path": "Image.ProductCodes",
+          "type": "array"
+        },
+        {
+          "path": "Image.ProductCodes[]",
+          "type": "string"
+        },
+        {
+          "path": "Image.SecureBoot",
+          "type": "bool"
+        },
+        {
+          "path": "Image.State",
+          "type": "string"
+        },
+        {
+          "path": "Image.StateComment",
+          "type": "object"
+        },
+        {
+          "path": "Image.Tags",
+          "type": "array"
+        },
+        {
+          "path": "Image.TpmMandatory",
+          "type": "bool"
+        },
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
@@ -283,8 +428,138 @@
     "osc/Client.CreateLoadBalancerListeners": {
       "method": "POST",
       "path": "/api/v1/CreateLoadBalancerListeners",
-      "fields": [],
+      "fields": [
+        {
+          "path": "LoadBalancer",
+          "type": "object"
+        },
+        {
+          "path": "LoadBalancer.AccessLog",
+          "type": "object"
+        },
+        {
+          "path": "LoadBalancer.AccessLog.IsEnabled",
+          "type": "bool"
+        },
+        {
+          "path": "LoadBalancer.AccessLog.PublicationInterval",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.BackendIps",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancer.BackendVmIds",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancer.HealthCheck",
+          "type": "object"
+        },
+        {
+          "path": "LoadBalancer.HealthCheck.CheckInterval",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.HealthCheck.HealthyThreshold",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.HealthCheck.Port",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.HealthCheck.Protocol",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.HealthCheck.Timeout",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.HealthCheck.UnhealthyThreshold",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.Listeners",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancer.Listeners[]",
+          "type": "object"
+        },
+        {
+          "path": "LoadBalancer.Listeners[].BackendPort",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.Listeners[].BackendProtocol",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.Listeners[].LoadBalancerPort",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.Listeners[].LoadBalancerProtocol",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.LoadBalancerType",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.NetId",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.PrivateIp",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.SecurityGroups",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancer.SecurityGroups[]",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.SourceSecurityGroup",
+          "type": "object"
+        },
+        {
+          "path": "LoadBalancer.Subnets",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancer.Subnets[]",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.SubregionNames",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancer.SubregionNames[]",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.Tags",
+          "type": "array"
+        },
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
@@ -1232,16 +1507,36 @@
     "osc/Client.DeleteDhcpOptions": {
       "method": "POST",
       "path": "/api/v1/DeleteDhcpOptions",
-      "fields": [],
+      "fields": [
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
     "osc/Client.DeleteImage": {
       "method": "POST",
       "path": "/api/v1/DeleteImage",
-      "fields": [],
+      "fields": [
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
@@ -1426,8 +1721,138 @@
     "osc/Client.DeleteLoadBalancerListeners": {
       "method": "POST",
       "path": "/api/v1/DeleteLoadBalancerListeners",
-      "fields": [],
+      "fields": [
+        {
+          "path": "LoadBalancer",
+          "type": "object"
+        },
+        {
+          "path": "LoadBalancer.AccessLog",
+          "type": "object"
+        },
+        {
+          "path": "LoadBalancer.AccessLog.IsEnabled",
+          "type": "bool"
+        },
+        {
+          "path": "LoadBalancer.AccessLog.PublicationInterval",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.BackendIps",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancer.BackendVmIds",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancer.HealthCheck",
+          "type": "object"
+        },
+        {
+          "path": "LoadBalancer.HealthCheck.CheckInterval",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.HealthCheck.HealthyThreshold",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.HealthCheck.Port",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.HealthCheck.Protocol",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.HealthCheck.Timeout",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.HealthCheck.UnhealthyThreshold",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.Listeners",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancer.Listeners[]",
+          "type": "object"
+        },
+        {
+          "path": "LoadBalancer.Listeners[].BackendPort",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.Listeners[].BackendProtocol",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.Listeners[].LoadBalancerPort",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.Listeners[].LoadBalancerProtocol",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.LoadBalancerType",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.NetId",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.PrivateIp",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.SecurityGroups",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancer.SecurityGroups[]",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.SourceSecurityGroup",
+          "type": "object"
+        },
+        {
+          "path": "LoadBalancer.Subnets",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancer.Subnets[]",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.SubregionNames",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancer.SubregionNames[]",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.Tags",
+          "type": "array"
+        },
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
@@ -1464,7 +1889,8 @@
       ],
       "statuses": [
         200,
-        400
+        400,
+        409
       ]
     },
     "osc/Client.DeleteNetPeering": {
@@ -1625,8 +2051,66 @@
     "osc/Client.DeleteSecurityGroupRule": {
       "method": "POST",
       "path": "/api/v1/DeleteSecurityGroupRule",
-      "fields": [],
+      "fields": [
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        },
+        {
+          "path": "SecurityGroup",
+          "type": "object"
+        },
+        {
+          "path": "SecurityGroup.InboundRules",
+          "type": "array"
+        },
+        {
+          "path": "SecurityGroup.NetId",
+          "type": "string"
+        },
+        {
+          "path": "SecurityGroup.OutboundRules",
+          "type": "array"
+        },
+        {
+          "path": "SecurityGroup.OutboundRules[]",
+          "type": "object"
+        },
+        {
+          "path": "SecurityGroup.OutboundRules[].FromPortRange",
+          "type": "number"
+        },
+        {
+          "path": "SecurityGroup.OutboundRules[].IpRanges",
+          "type": "array"
+        },
+        {
+          "path": "SecurityGroup.OutboundRules[].IpRanges[]",
+          "type": "string"
+        },
+        {
+          "path": "SecurityGroup.OutboundRules[].SecurityGroupRuleId",
+          "type": "string"
+        },
+        {
+          "path": "SecurityGroup.OutboundRules[].ToPortRange",
+          "type": "number"
+        },
+        {
+          "path": "SecurityGroup.SecurityGroupId",
+          "type": "string"
+        },
+        {
+          "path": "SecurityGroup.Tags",
+          "type": "array"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
@@ -1663,7 +2147,8 @@
       ],
       "statuses": [
         200,
-        400
+        400,
+        409
       ]
     },
     "osc/Client.DeleteTags": {
@@ -1703,6 +2188,10 @@
         {
           "path": "Vms[]",
           "type": "object"
+        },
+        {
+          "path": "Vms[].PreviousState",
+          "type": "string"
         },
         {
           "path": "Vms[].VmId",
@@ -1750,6 +2239,23 @@
         400
       ]
     },
+    "osc/Client.LinkLoadBalancerBackendMachines": {
+      "method": "POST",
+      "path": "/api/v1/LinkLoadBalancerBackendMachines",
+      "fields": [
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
     "osc/Client.LinkNic": {
       "method": "POST",
       "path": "/api/v1/LinkNic",
@@ -1775,8 +2281,18 @@
     "osc/Client.LinkPrivateIps": {
       "method": "POST",
       "path": "/api/v1/LinkPrivateIps",
-      "fields": [],
+      "fields": [
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
@@ -1926,8 +2442,22 @@
     "osc/Client.ReadAdminPassword": {
       "method": "POST",
       "path": "/api/v1/ReadAdminPassword",
-      "fields": [],
+      "fields": [
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        },
+        {
+          "path": "VmId",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
@@ -4084,6 +4614,10 @@
           "type": "array"
         },
         {
+          "path": "Volumes[].TaskId",
+          "type": "string"
+        },
+        {
           "path": "Volumes[].VolumeId",
           "type": "string"
         },
@@ -4099,16 +4633,36 @@
     "osc/Client.RebootVms": {
       "method": "POST",
       "path": "/api/v1/RebootVms",
-      "fields": [],
+      "fields": [
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
     "osc/Client.RegisterVmsInLoadBalancer": {
       "method": "POST",
       "path": "/api/v1/RegisterVmsInLoadBalancer",
-      "fields": [],
+      "fields": [
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
@@ -4123,16 +4677,64 @@
     "osc/Client.StartVms": {
       "method": "POST",
       "path": "/api/v1/StartVms",
-      "fields": [],
+      "fields": [
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        },
+        {
+          "path": "Vms",
+          "type": "array"
+        },
+        {
+          "path": "Vms[]",
+          "type": "object"
+        },
+        {
+          "path": "Vms[].CurrentState",
+          "type": "string"
+        },
+        {
+          "path": "Vms[].VmId",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
     "osc/Client.StopVms": {
       "method": "POST",
       "path": "/api/v1/StopVms",
-      "fields": [],
+      "fields": [
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        },
+        {
+          "path": "Vms",
+          "type": "array"
+        },
+        {
+          "path": "Vms[]",
+          "type": "object"
+        },
+        {
+          "path": "Vms[].VmId",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
@@ -4152,6 +4754,23 @@
       "statuses": [
         200,
         400
+      ]
+    },
+    "osc/Client.UnlinkLoadBalancerBackendMachines": {
+      "method": "POST",
+      "path": "/api/v1/UnlinkLoadBalancerBackendMachines",
+      "fields": [
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
       ]
     },
     "osc/Client.UnlinkNic": {
@@ -4175,8 +4794,18 @@
     "osc/Client.UnlinkPrivateIps": {
       "method": "POST",
       "path": "/api/v1/UnlinkPrivateIps",
-      "fields": [],
+      "fields": [
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
@@ -4237,48 +4866,440 @@
     "osc/Client.UpdateImage": {
       "method": "POST",
       "path": "/api/v1/UpdateImage",
-      "fields": [],
+      "fields": [
+        {
+          "path": "Image",
+          "type": "object"
+        },
+        {
+          "path": "Image.BlockDeviceMappings",
+          "type": "array"
+        },
+        {
+          "path": "Image.BlockDeviceMappings[]",
+          "type": "object"
+        },
+        {
+          "path": "Image.BlockDeviceMappings[].Bsu",
+          "type": "object"
+        },
+        {
+          "path": "Image.BlockDeviceMappings[].Bsu.DeleteOnVmDeletion",
+          "type": "bool"
+        },
+        {
+          "path": "Image.BlockDeviceMappings[].Bsu.SnapshotId",
+          "type": "string"
+        },
+        {
+          "path": "Image.BlockDeviceMappings[].Bsu.VolumeSize",
+          "type": "number"
+        },
+        {
+          "path": "Image.BootModes",
+          "type": "array"
+        },
+        {
+          "path": "Image.BootModes[]",
+          "type": "string"
+        },
+        {
+          "path": "Image.CreationDate",
+          "type": "string"
+        },
+        {
+          "path": "Image.ImageId",
+          "type": "string"
+        },
+        {
+          "path": "Image.PermissionsToLaunch",
+          "type": "object"
+        },
+        {
+          "path": "Image.PermissionsToLaunch.AccountIds",
+          "type": "array"
+        },
+        {
+          "path": "Image.PermissionsToLaunch.GlobalPermission",
+          "type": "bool"
+        },
+        {
+          "path": "Image.ProductCodes",
+          "type": "array"
+        },
+        {
+          "path": "Image.ProductCodes[]",
+          "type": "string"
+        },
+        {
+          "path": "Image.SecureBoot",
+          "type": "bool"
+        },
+        {
+          "path": "Image.State",
+          "type": "string"
+        },
+        {
+          "path": "Image.StateComment",
+          "type": "object"
+        },
+        {
+          "path": "Image.Tags",
+          "type": "array"
+        },
+        {
+          "path": "Image.TpmMandatory",
+          "type": "bool"
+        },
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
     "osc/Client.UpdateLoadBalancer": {
       "method": "POST",
       "path": "/api/v1/UpdateLoadBalancer",
-      "fields": [],
+      "fields": [
+        {
+          "path": "LoadBalancer",
+          "type": "object"
+        },
+        {
+          "path": "LoadBalancer.AccessLog",
+          "type": "object"
+        },
+        {
+          "path": "LoadBalancer.AccessLog.IsEnabled",
+          "type": "bool"
+        },
+        {
+          "path": "LoadBalancer.AccessLog.PublicationInterval",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.BackendIps",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancer.BackendVmIds",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancer.HealthCheck",
+          "type": "object"
+        },
+        {
+          "path": "LoadBalancer.HealthCheck.CheckInterval",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.HealthCheck.HealthyThreshold",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.HealthCheck.Port",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.HealthCheck.Protocol",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.HealthCheck.Timeout",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.HealthCheck.UnhealthyThreshold",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.Listeners",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancer.Listeners[]",
+          "type": "object"
+        },
+        {
+          "path": "LoadBalancer.Listeners[].BackendPort",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.Listeners[].BackendProtocol",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.Listeners[].LoadBalancerPort",
+          "type": "number"
+        },
+        {
+          "path": "LoadBalancer.Listeners[].LoadBalancerProtocol",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.LoadBalancerType",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.NetId",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.PrivateIp",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.SecurityGroups",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancer.SecurityGroups[]",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.SourceSecurityGroup",
+          "type": "object"
+        },
+        {
+          "path": "LoadBalancer.Subnets",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancer.Subnets[]",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.SubregionNames",
+          "type": "array"
+        },
+        {
+          "path": "LoadBalancer.SubregionNames[]",
+          "type": "string"
+        },
+        {
+          "path": "LoadBalancer.Tags",
+          "type": "array"
+        },
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
     "osc/Client.UpdateNet": {
       "method": "POST",
       "path": "/api/v1/UpdateNet",
-      "fields": [],
+      "fields": [
+        {
+          "path": "Net",
+          "type": "object"
+        },
+        {
+          "path": "Net.DhcpOptionsSetId",
+          "type": "string"
+        },
+        {
+          "path": "Net.IpRange",
+          "type": "string"
+        },
+        {
+          "path": "Net.NetId",
+          "type": "string"
+        },
+        {
+          "path": "Net.State",
+          "type": "string"
+        },
+        {
+          "path": "Net.Tags",
+          "type": "array"
+        },
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
     "osc/Client.UpdateNic": {
       "method": "POST",
       "path": "/api/v1/UpdateNic",
-      "fields": [],
+      "fields": [
+        {
+          "path": "Nic",
+          "type": "object"
+        },
+        {
+          "path": "Nic.IsSourceDestChecked",
+          "type": "bool"
+        },
+        {
+          "path": "Nic.NetId",
+          "type": "string"
+        },
+        {
+          "path": "Nic.NicId",
+          "type": "string"
+        },
+        {
+          "path": "Nic.PrivateIps",
+          "type": "array"
+        },
+        {
+          "path": "Nic.PrivateIps[]",
+          "type": "object"
+        },
+        {
+          "path": "Nic.PrivateIps[].IsPrimary",
+          "type": "bool"
+        },
+        {
+          "path": "Nic.PrivateIps[].PrivateIp",
+          "type": "string"
+        },
+        {
+          "path": "Nic.SecurityGroups",
+          "type": "array"
+        },
+        {
+          "path": "Nic.SecurityGroups[]",
+          "type": "object"
+        },
+        {
+          "path": "Nic.SecurityGroups[].SecurityGroupId",
+          "type": "string"
+        },
+        {
+          "path": "Nic.State",
+          "type": "string"
+        },
+        {
+          "path": "Nic.SubnetId",
+          "type": "string"
+        },
+        {
+          "path": "Nic.SubregionName",
+          "type": "string"
+        },
+        {
+          "path": "Nic.Tags",
+          "type": "array"
+        },
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
     "osc/Client.UpdateRoute": {
       "method": "POST",
       "path": "/api/v1/UpdateRoute",
-      "fields": [],
+      "fields": [
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        },
+        {
+          "path": "RouteTable",
+          "type": "object"
+        },
+        {
+          "path": "RouteTable.LinkRouteTables",
+          "type": "array"
+        },
+        {
+          "path": "RouteTable.NetId",
+          "type": "string"
+        },
+        {
+          "path": "RouteTable.RoutePropagatingVirtualGateways",
+          "type": "array"
+        },
+        {
+          "path": "RouteTable.RouteTableId",
+          "type": "string"
+        },
+        {
+          "path": "RouteTable.Routes",
+          "type": "array"
+        },
+        {
+          "path": "RouteTable.Routes[]",
+          "type": "object"
+        },
+        {
+          "path": "RouteTable.Routes[].DestinationIpRange",
+          "type": "string"
+        },
+        {
+          "path": "RouteTable.Routes[].GatewayId",
+          "type": "string"
+        },
+        {
+          "path": "RouteTable.Tags",
+          "type": "array"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
     "osc/Client.UpdateRouteTableLink": {
       "method": "POST",
       "path": "/api/v1/UpdateRouteTableLink",
-      "fields": [],
+      "fields": [
+        {
+          "path": "LinkRouteTableId",
+          "type": "string"
+        },
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
@@ -4577,8 +5598,50 @@
     "osc/Client.UpdateVolume": {
       "method": "POST",
       "path": "/api/v1/UpdateVolume",
-      "fields": [],
+      "fields": [
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        },
+        {
+          "path": "Volume",
+          "type": "object"
+        },
+        {
+          "path": "Volume.CreationDate",
+          "type": "string"
+        },
+        {
+          "path": "Volume.LinkedVolumes",
+          "type": "array"
+        },
+        {
+          "path": "Volume.Size",
+          "type": "number"
+        },
+        {
+          "path": "Volume.SubregionName",
+          "type": "string"
+        },
+        {
+          "path": "Volume.Tags",
+          "type": "array"
+        },
+        {
+          "path": "Volume.TaskId",
+          "type": "string"
+        },
+        {
+          "path": "Volume.VolumeId",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     }

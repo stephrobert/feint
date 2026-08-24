@@ -17,6 +17,16 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **A volume's `TaskId` is declined rather than invented, and the measurement is
+  why** (#427, #437). A real Outscale account answers `TaskId` on a volume, and
+  the naive reading of that is "the pack omits a field". It is not: of the eight
+  volume records the recording holds, **seven carry no `TaskId` at all**, and the
+  one that does is the volume with a resize in flight. It is a property of a
+  volume that *has* a task, and this emulator has none — a resize completes
+  inside the call. The `Iops` lesson of #389, a second time: a shape catalogue is
+  the union of every field ever observed, and reading a union as a per-record
+  requirement is how a defaulted value gets served to everybody.
+
 - **A load balancer frontend answers `certificate`, and it is null** (#427). The
   real cloud carries the deprecated singular beside `certificate_ids` on every
   frontend and on the frontend an ACL embeds; this emulator omitted the key.

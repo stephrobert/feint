@@ -51,5 +51,41 @@ func (p *Pack) DeclinedFields() []emulator.FieldDecline {
 			Path:      "Images[].BlockDeviceMappings[].Bsu.Iops",
 			Reason:    "Iops is a property of a provisioned-IOPS volume type, which this emulator does not model: 396 of the 399 device mappings the recorded account answered carry no Iops key, and the 3 that do are the 3 on that volume type",
 		},
+		// TaskId, and it is the Iops lesson a second time — which is why the
+		// measurement is written out rather than the conclusion.
+		//
+		// The naive reading of the shapes catalogue is "the cloud answers a
+		// TaskId on a volume, so this pack omits one". It does not. Of the 8
+		// volume records the 2026-08-24 recording holds for ReadVolumes,
+		// SEVEN carry no TaskId at all, and the one that does is the volume
+		// with a resize in flight. CreateVolume answers it on neither of its
+		// two. A catalogue is the UNION of every field ever observed, and
+		// reading a union as a per-record requirement is exactly what put a
+		// defaulted Iops on every image (#389).
+		//
+		// So TaskId is a property of a volume that HAS a task, and this
+		// emulator has none: a resize here is instantaneous and completes
+		// inside the call, so there is no task to name and no identifier a
+		// client could poll. The decline is therefore true of every object
+		// both operations can answer, which is the test a decline written
+		// against an operation has to pass — ReadVolumes answers many volumes
+		// and UpdateVolume answers one, and none of either can carry it.
+		//
+		// The honest fix is not a synthetic identifier: it is modelling the
+		// asynchronous resize, which is #437 and a product decision rather
+		// than a patch. #380 records the same asynchrony one resource out.
+		//
+		// TestNoVolumeThisPackServesCarriesATask fails without the property
+		// this decline depends on.
+		{
+			Operation: "osc/Client.ReadVolumes",
+			Path:      "Volumes[].TaskId",
+			Reason:    "TaskId names an in-flight volume task, and this emulator has none: a resize completes inside the call, so no volume it answers has a task to name. Measured — 7 of the 8 volume records the real account answered carry no TaskId either, and the one that does is the volume being resized",
+		},
+		{
+			Operation: "osc/Client.UpdateVolume",
+			Path:      "Volume.TaskId",
+			Reason:    "TaskId names the asynchronous task that will finish the resize upstream; here the resize is instantaneous and completes inside the call, so there is no task to name and nothing a client could poll",
+		},
 	}
 }

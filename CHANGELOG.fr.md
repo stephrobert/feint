@@ -1096,6 +1096,17 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Le `TaskId` d'un volume est décliné plutôt qu'inventé, et c'est la mesure qui
+  le dit** (#427, #437). Un vrai compte Outscale rend `TaskId` sur un volume, et
+  la lecture naïve en conclut « le pack omet un champ ». Non : sur les huit
+  enregistrements de volume que porte la recording, **sept ne portent aucun
+  `TaskId`**, et celui qui en porte un est le volume en cours de
+  redimensionnement. C'est une propriété d'un volume qui *a* une tâche, et cet
+  émulateur n'en a aucune : un redimensionnement s'y achève dans l'appel. La
+  leçon `Iops` de #389 une seconde fois : un catalogue de formes est l'union de
+  tous les champs jamais observés, et lire une union comme une exigence par
+  enregistrement, c'est ainsi qu'une valeur par défaut finit servie à tous.
+
 - **Un frontend de répartiteur rend `certificate`, et il vaut null** (#427). Le
   vrai cloud porte le singulier déprécié à côté de `certificate_ids` sur chaque
   frontend et sur le frontend qu'une ACL embarque ; cet émulateur omettait la

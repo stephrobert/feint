@@ -366,3 +366,66 @@ func refusesUnknownResource(body map[string]any) bool {
 	}
 	return false
 }
+
+// No volume this pack answers carries a TaskId, on either operation that
+// declines it.
+//
+// The property the decline depends on, and the reason it is a test rather than
+// a sentence: a decline is written against an OPERATION, and ReadVolumes
+// answers many volumes where UpdateVolume answers one. If any volume the pack
+// serves ever grew a TaskId, the decline would be true of the object somebody
+// measured and fiction for the next -- which is precisely how #389 cost a
+// release, and why the Iops decline beside this one carries its own count.
+//
+// The recording that produced these declines is the counter-evidence too: 7 of
+// the 8 volume records a real account answered carry NO TaskId, so the field is
+// a property of a volume with a task in flight and not of every volume. This
+// emulator has no tasks at all.
+func TestNoVolumeThisPackServesCarriesATask(t *testing.T) {
+	declined := map[string]bool{}
+	for _, d := range outscale.New(nil).DeclinedFields() {
+		switch d.Operation {
+		case "osc/Client.ReadVolumes", "osc/Client.UpdateVolume":
+			declined[d.Operation] = true
+		}
+	}
+	if len(declined) != 2 {
+		t.Fatalf("expected both volume operations to decline something, got %v", declined)
+	}
+
+	ts := updatesServer(t)
+
+	_, created := post(t, ts, "CreateVolume", `{"SubregionName":"eu-west-2a","Size":10}`)
+	volume, _ := created["Volume"].(map[string]any)
+	volID, _ := volume["VolumeId"].(string)
+	if volID == "" {
+		t.Fatalf("no VolumeId in %v", created)
+	}
+	if _, carries := volume["TaskId"]; carries {
+		t.Errorf("CreateVolume answered a TaskId (%v); this emulator has no tasks", volume["TaskId"])
+	}
+
+	// The update is the operation whose upstream answer names a task.
+	_, updated := post(t, ts, "UpdateVolume", `{"VolumeId":"`+volID+`","Size":12}`)
+	after, _ := updated["Volume"].(map[string]any)
+	if after == nil {
+		t.Fatalf("UpdateVolume answered no Volume: %v", updated)
+	}
+	if _, carries := after["TaskId"]; carries {
+		t.Errorf("UpdateVolume answered a TaskId (%v), so its decline is fiction", after["TaskId"])
+	}
+
+	// And the read, which answers every volume rather than one.
+	_, listed := post(t, ts, "ReadVolumes", `{}`)
+	volumes, _ := listed["Volumes"].([]any)
+	if len(volumes) == 0 {
+		t.Fatalf("ReadVolumes answered none: %v", listed)
+	}
+	for _, raw := range volumes {
+		v, _ := raw.(map[string]any)
+		if _, carries := v["TaskId"]; carries {
+			t.Errorf("a volume in ReadVolumes carries a TaskId (%v), so the decline is true of "+
+				"some volumes and fiction for others", v["TaskId"])
+		}
+	}
+}
