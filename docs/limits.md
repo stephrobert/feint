@@ -874,6 +874,63 @@ evidence. The rule set that isolated the network is dropped by the delete
 itself, since the pass that used to drop it is now the one that refuses to run
 against a network that is gone.
 
+### The other producer of that family: a destruction nobody sent (#426)
+
+The section above reads `The network is currently in use` as one symptom among
+the load of a parallel destroy. It is not. It was the whole of a second
+producer, and it stayed invisible for four issues because the shape that hides
+it is a delete that **answers success**.
+
+The driver had `Attach` and no counterpart. So deleting a Scaleway private NIC
+only forgot it in the store, and the device stayed on the container: the API
+answered `204` while `incus config device show` still listed the interface.
+`DeletePrivateNetwork` then called `RemoveNetwork`, Incus refused with `The
+network is currently in use` — correctly, a machine was still on it — the pack
+logged that at error level and answered `204` anyway. The bridge, its rule set
+and its `dnsmasq` outlived the run holding the block.
+
+Measured on 2026-08-24 by inventorying the host around three consecutive runs of
+`tools/conformance/stacks.sh` under `--vm incus`:
+
+| run | exit | what it left |
+|---|---|---|
+| 1 | **0** | three bridges, three rule sets, three `dnsmasq` |
+| 2 | 1 | nothing — it never got that far |
+| 3 | 1 | nothing |
+
+Runs 2 and 3 died on `Address already in use` for the blocks run 1 left. So the
+failure is not intermittent: it is deterministic with one run of delay, and a
+**passing** run is what arms the next one. Which of the three bridges survived
+is Terraform's destroy scheduling, which is why the block named moves between
+runs — the blocks themselves are fixed in `examples/stacks/scaleway/main.tf` and
+are never chosen by the emulator.
+
+Three things changed, and the third is the one that generalises:
+
+- `machine.Driver.Detach`, required rather than optional, asking both ownership
+  questions and removing only a device the instance itself carries. Both packs
+  that attach now detach; the Exoscale handler had documented the gap as
+  unclosable ("the driver deliberately has no hot-unplug"), which is how one
+  defect lives in two packs.
+- `DeletePrivateNetwork` refuses with `precondition_failed` instead of logging.
+  A network reported gone while its bridge holds the block is the same lie as a
+  network created while nothing exists, and the create path already refused its
+  half.
+- **The sweep reads the host after itself.** `feint clean` surveys, prunes, then
+  surveys again, and anything present in both was asked to go, said nothing, and
+  stayed. That is the only way this class is visible at all: no return value the
+  remover produces can report it. `--format json` records one line per object
+  with why it stayed, so the question is now "which mechanism produces the
+  waste" answered by `jq` rather than by reading four issues.
+
+`feint clean --check --doorstep` refuses a run whose host still holds a previous
+run's machines or networks. The flag is separate from `--check` because the two
+questions have different safe moments: `guard_leftovers` is asked before a run
+starts *and* twelve steps into one, and mid-run those objects belong to the
+emulator that is running. Asked at both, it failed a leg for owning what it had
+just created — measured, and now held by
+`TestOnlyTheDoorstepAsksWhatAnEarlierRunLeft`.
+
 ## Authentication is accepted, never verified
 
 No signature is checked, on any provider. Credentials must merely be well-formed,
