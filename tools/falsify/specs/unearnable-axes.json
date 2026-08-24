@@ -4,8 +4,8 @@
     {
       "label": "the queue stops separating an axis nothing can earn from one nobody has proven, and thirteen impossible entries come back as work",
       "file": "internal/cli/evidence_gaps.go",
-      "find": "\tif unearnable != \"\" {\n\t\treturn gapDeclared\n\t}",
-      "replace": "\tif unearnable != \"\" && false {\n\t\treturn gapDeclared\n\t}",
+      "find": "\tif unearnable != \"\" {\n\t\treturn gapDeclared, unearnable\n\t}",
+      "replace": "\tif unearnable != \"\" && false {\n\t\treturn gapDeclared, unearnable\n\t}",
       "test": "TestAGapIsClassifiedFromTheRecordRatherThanTheName"
     },
     {
@@ -38,5 +38,5 @@
       "test": "TestATerminatedVmAndADeletedPeeringAreKeptRatherThanRemoved"
     }
   ],
-  "note": "Route.Unearnable removes work from a queue by declaring an axis out of reach, which makes it the most dangerous kind of entry in this repository: it reads like a decision and the sentence itself is not checkable. Every mutation here moves a pack declaration or the classifier, never the test that reads them \u2014 the lesson undriven-says-why.json paid for, where neutralising the branches inside the test file left everything green because a test whose detection is switched off passes by construction. The five cover the two independent halves: the classifier and the staleness guard make the mechanism expire on its own, and the three cause checks make each reason a measurement. The last one runs in the pack, where the delete can actually be driven, and is the one that matters most: it is what stops 'a terminated Vm is kept' from being a comment."
+  "note": "Route.Unearnable removes work from a queue by declaring an axis out of reach, which makes it the most dangerous kind of entry in this repository: it reads like a decision and the sentence itself is not checkable. Every mutation here moves a pack declaration or the classifier, never the test that reads them \u2014 the lesson undriven-says-why.json paid for, where neutralising the branches inside the test file left everything green because a test whose detection is switched off passes by construction. The five cover the two independent halves: the classifier and the staleness guard make the mechanism expire on its own, and the three cause checks make each reason a measurement. The last one runs in the pack, where the delete can actually be driven, and is the one that matters most: it is what stops 'a terminated Vm is kept' from being a comment. Retargeted on 2026-08-24 for #445: classifyGap now returns the reason it classified on, so the fragment gained a second return value."
 }

@@ -1178,6 +1178,44 @@ change ni l'un ni l'autre a sa place dans `git log`.
   les trois opérations d'écriture étaient déjà déclinées — un filtre qu'aucun
   client ne peut modifier et que rien n'applique n'est pas un filtre.
 
+- **Un zéro que la sonde peut fermer n'est plus classé comme une décision sur
+  laquelle personne ne peut agir** (#445). `feint coverage --evidence <registre>
+  --gaps` classait un zéro en `declared` (« pas du travail : aucun chemin
+  n'existe pour fermer ce zéro ») dès que le registre disait qu'aucun client
+  n'avait piloté l'opération, sur les sept axes à la fois, en affichant à côté de
+  chacun la raison `Route.Undriven` de la route.
+
+  Cette raison est une phrase sur les clients : « `exo limits` lit la liste
+  entière des quotas, donc la lecture par nom n'a aucun chemin client ». Elle
+  explique un zéro sur `driven`, `dataplane`, `behaviour` et `negative`, qu'aucun
+  échange synthétique ne peut déplacer. Elle n'explique rien sur `probed`, que la
+  sonde gagne sans le moindre client ; rien sur `contract`, que gagne toute
+  réponse validée, y compris celle de la sonde ; et rien sur `shape`, résolu hors
+  ligne depuis le catalogue d'enregistrements, qu'aucun trafic ne déplace dans un
+  sens ni dans l'autre.
+
+  Chaque axe déclare désormais ce qui le gagne, et deux témoins indépendants
+  tiennent cette déclaration : l'un pilote un échange marqué et un échange nu
+  contre un émulateur vivant puis relit les axes, l'autre refuse une déclaration
+  que le registre commité contredit. Le registre porte **16 opérations qu'aucun
+  client n'a pilotées et qui ont gagné `probed`, 14 qui ont gagné `contract` et
+  une qui a gagné `shape`** : la preuve, par l'artefact lui-même, que « aucun
+  client ne l'atteint » n'est pas ce qui tient ces trois axes à zéro.
+
+  Mesuré sur `coverage/evidence.json` tel qu'il est commité, sans qu'un seul axe
+  bouge et sans qu'une opération entre dans la file ou en sorte : **38 lignes sur
+  22 opérations cessent de dire que personne ne peut agir**, et 64 autres cessent
+  de dire « le registre n'explique pas ». Une sixième nature, `unvalidated`,
+  nomme ce que ces zéros sont : une réponse tenue à la description d'API du
+  fournisseur, qui ne demande ni compte cloud ni binaire client. #429 est la
+  mesure derrière : 31 opérations Scaleway ont gagné `contract` et 29 ont gagné
+  `probed` grâce à un seul correctif de l'extraction du contrat, sans toucher un
+  client ni une ligne de pack, et si elles avaient porté une raison `Undriven`,
+  cette file aurait déclaré les soixante « pas du travail ».
+
+  `classifyGap` rend désormais la raison sur laquelle il a classé, de sorte
+  qu'une ligne `declared` ne peut plus afficher une phrase que le classificateur
+  n'a pas employée.
 
 - **Outscale est prouvé sur chaque opération qu'il sert : `shape` atteint 93 sur
   93** (#427). Les quatre dernières étaient la famille de l'appairage de Nets,

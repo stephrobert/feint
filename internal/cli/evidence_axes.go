@@ -55,6 +55,10 @@ import (
 type evidenceAxis struct {
 	// Name is the key the record uses and the value --axis takes.
 	Name string
+	// earner says what can put a mark on this axis, and it is what decides
+	// whether a Route.Undriven reason — a sentence about clients — is allowed to
+	// explain a zero here. See axisEarner.
+	earner axisEarner
 	// Meaning is the single line docs/routes.md prints for this axis. The long
 	// form is evidenceLegend, in docs_routes.go; this is the row of the summary
 	// table, and a reader who skips the legend must still not misread a score.
@@ -69,6 +73,60 @@ type evidenceAxis struct {
 	verdict func(emulator.Evidence) string
 }
 
+// axisEarner names what can put a mark on an axis. It exists because a reason
+// only explains a zero on an axis its own subject can reach, and this file had
+// no way to say which axis that was: `--gaps` filed every zero of an undriven
+// operation as "declared, no path exists" and printed the route's Undriven
+// reason beside it, on all seven axes at once (#445).
+//
+// That reason is a sentence about clients — "`exo limits` reads the whole quota
+// list, so the per-name read has no client path". It is a complete explanation
+// for an axis only a client can earn, and it explains nothing at all about an
+// axis a client never touches.
+//
+// The split is not a reading of the axes' names. The observer keeps a synthetic
+// exchange apart from a client one at the source (emulator.ProbeHeader), and
+// each axis reads one side or the other:
+//
+//   - driven counts non-synthetic calls, dataplane is driven with a runtime on,
+//     and behaviour and negative are attributed inside assertion spans that skip
+//     every synthetic flight (assert.go). No probe run moves any of the four.
+//   - probed is the synthetic side and nothing else: a client cannot earn it.
+//   - contract is earned by any answer validated against the provider's own
+//     description, and the probe produces such answers with no client present.
+//   - shape is not earned by a run at all. It is resolved offline from the
+//     shapes catalogue, so no traffic of any kind moves it.
+//
+// Two witnesses hold the declaration to that, and neither reads this comment:
+// TestOnlyAClientEarnsAClientBorneAxis drives one synthetic and one real
+// exchange against a live emulator and reads the axes back, and
+// TestNoClientBorneAxisIsEarnedWithoutAClient refuses a declaration the
+// committed record contradicts — the record holds 16 operations no client drove
+// that earned `probed`, 14 that earned `contract` and one that earned `shape`.
+type axisEarner int
+
+const (
+	// earnedByAClient: only a real client driving this emulator marks it, so
+	// "no official client reaches this operation" is a complete explanation for
+	// a zero, and Route.Undriven is allowed to retire one.
+	earnedByAClient axisEarner = iota
+	// earnedByValidation: an answer held to the provider's own API description
+	// marks it, and the contract-driven probe produces those without any client.
+	// A zero here has its cause on the probe's side — its plan, its seeding, or
+	// the extraction that built the document — and #429 is the measurement: 31
+	// Scaleway operations went from `unchecked` to `clean`, and 29 from no probe
+	// verdict to one, with not a line of client or pack code moved. Had they
+	// carried an Undriven reason, this queue would have called all sixty of them
+	// "not work".
+	earnedByValidation
+	// earnedByARecording: a recorded real-cloud answer marks it, and nothing a
+	// run does moves it either way. The recorder reads the cloud directly rather
+	// than through an official client (tools/shapes/record.sh), which is why a
+	// sentence about what `exo` or `scw` cannot compose says nothing about it.
+	earnedByARecording
+)
+
+// evidenceAxisList is the seven axes in the order emulator.Evidence declares
 // evidenceAxisList is the seven axes in the order emulator.Evidence declares
 // them. The order is fixed for diff stability and is not a ranking — the record
 // publishes independent axes and never adds them into a score, which is the
@@ -78,12 +136,14 @@ func evidenceAxisList() []evidenceAxis {
 	return []evidenceAxis{
 		{
 			Name:    "driven",
+			earner:  earnedByAClient,
 			Meaning: "a real client reached it in the recorded run; it proves what the suite asserted, nothing more",
 			earned:  func(e emulator.Evidence) bool { return e.Driven },
 			verdict: noVerdict,
 		},
 		{
 			Name:    "probed",
+			earner:  earnedByValidation,
 			Meaning: "the contract-driven probe validated an answer here against the operation's own schema, a success (`response`) or a refusal (`refusal`)",
 			// Named positively, and that is the point. Written as `!= ProbeNone`
 			// it counted a record carrying no verdict at all — an empty string,
@@ -98,30 +158,35 @@ func evidenceAxisList() []evidenceAxis {
 		},
 		{
 			Name:    "contract",
+			earner:  earnedByValidation,
 			Meaning: "at least one answer was validated against the provider's own API description and none violated it (`unchecked`: none was ever validated, which is not the same as no violation)",
 			earned:  func(e emulator.Evidence) bool { return e.Contract == emulator.ContractClean },
 			verdict: func(e emulator.Evidence) string { return e.Contract },
 		},
 		{
 			Name:    "dataplane",
+			earner:  earnedByAClient,
 			Meaning: "it was driven in a run whose machines were real, so the control plane ran with its side effects on",
 			earned:  func(e emulator.Evidence) bool { return e.Dataplane },
 			verdict: noVerdict,
 		},
 		{
 			Name:    "shape",
+			earner:  earnedByARecording,
 			Meaning: "a recorded real-cloud answer covers it, from `shapes/` — which `mise run shapes:fold` also fills from the committed corpora; it says the answer has been held against a real one, not that the offline gate re-issues the call",
 			earned:  func(e emulator.Evidence) bool { return e.Shape == emulator.ShapeObserved },
 			verdict: func(e emulator.Evidence) string { return e.Shape },
 		},
 		{
 			Name:    "behaviour",
+			earner:  earnedByAClient,
 			Meaning: "it took part in a create-to-destroy sequence the emulator's own store observed, inside a span a suite declared",
 			earned:  func(e emulator.Evidence) bool { return e.Behaviour },
 			verdict: noVerdict,
 		},
 		{
 			Name:    "negative",
+			earner:  earnedByAClient,
 			Meaning: "it really answered 4xx to a real client inside a span where a suite demanded a refusal; **an injected fault never earns it**, so arming faults cannot move this number",
 			earned:  func(e emulator.Evidence) bool { return e.Negative },
 			verdict: noVerdict,

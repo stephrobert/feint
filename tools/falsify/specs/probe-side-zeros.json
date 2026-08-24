@@ -1,0 +1,56 @@
+{
+  "package": "./internal/cli/",
+  "subject": "which axis a reason is allowed to explain, in the work queue (#445)",
+  "why": "`--gaps` filed a zero as `declared` \u2014 \"not work: no path exists to close this zero\" \u2014 as soon as the record said no client drove the operation, on all seven axes at once, and printed the route's Route.Undriven reason beside it. That reason is a sentence about clients. The contract-driven probe needs no client, so on `probed` and `contract` it explained nothing, and on `shape` \u2014 resolved offline from the recordings catalogue \u2014 it explained nothing either. Measured on the committed record: 38 queue lines across 22 operations said nobody could act, and #429 had just shown from the other side that 31 Scaleway operations earn `contract` and 29 earn `probed` from a single fix to the contract extraction, with no client and no pack code touched. Each mutation below puts one of those 38 lines back, or takes away a witness that keeps them out.",
+  "mutations": [
+    {
+      "file": "internal/cli/evidence_gaps.go",
+      "find": "\tif axis.earner == earnedByAClient && !ev.Driven {",
+      "replace": "\tif (axis.earner == earnedByAClient || true) && !ev.Driven {",
+      "expect": "the axis stops being asked, so a zero on `probed` is retired again by a sentence about what the `exo` CLI cannot compose \u2014 and the queue tells a reader that work #429 has already done twice is work nobody can do",
+      "test": "TestAClientShapedReasonNeverExplainsAProbeSideZero",
+      "label": "a client reason explains a probe-side zero again"
+    },
+    {
+      "file": "internal/cli/evidence_axes.go",
+      "find": "\t\t\tName:    \"probed\",\n\t\t\tearner:  earnedByValidation,",
+      "replace": "\t\t\tName:    \"probed\",\n\t\t\tearner:  earnedByAClient + earnedByValidation - earnedByValidation,",
+      "expect": "the axis only the probe can earn is declared earnable by a client alone, which the committed record contradicts sixteen times over",
+      "test": "TestNoClientBorneAxisIsEarnedWithoutAClient",
+      "label": "the probe's own axis is declared client-borne"
+    },
+    {
+      "file": "internal/cli/evidence_axes.go",
+      "find": "\t\t\tName:    \"shape\",\n\t\t\tearner:  earnedByARecording,",
+      "replace": "\t\t\tName:    \"shape\",\n\t\t\tearner:  earnedByAClient + earnedByARecording - earnedByARecording,",
+      "expect": "a missing recording of the real cloud is declared to be a client's business, and exoscale/v2.get-operation \u2014 observed, and driven by nobody \u2014 says it is not",
+      "test": "TestNoClientBorneAxisIsEarnedWithoutAClient",
+      "label": "a missing recording is declared client-borne"
+    },
+    {
+      "file": "internal/cli/evidence_gaps.go",
+      "find": "\tswitch axis.earner {\n\tcase earnedByValidation:\n\t\treturn gapUnvalidated, \"\"\n\tcase earnedByARecording:\n\t\treturn gapUnrecorded, \"\"\n\t}",
+      "replace": "\tswitch axis.earner {\n\tcase earnedByValidation, earnedByARecording:\n\t\tif false {\n\t\t\treturn gapUnvalidated, \"\"\n\t\t}\n\t\treturn gapUnrecorded, \"\"\n\t}",
+      "expect": "a zero the probe can close is filed as a recording, so a reader is sent to a real cloud account for work that needs nothing outside this repository",
+      "test": "TestAGapIsClassifiedFromTheRecordRatherThanTheName",
+      "label": "a probe-side zero is filed as a recording session"
+    },
+    {
+      "file": "internal/cli/evidence_gaps.go",
+      "find": "\t\t\t\t\tReason: why,",
+      "replace": "\t\t\t\t\tReason: reasons[op] + why[:0],",
+      "expect": "the printed reason is fetched again instead of coming from the branch that used it, so a line the classifier did not retire on a client reason prints one anyway \u2014 the exact decoupling the defect lived in",
+      "test": "TestAClientShapedReasonNeverExplainsAProbeSideZero",
+      "label": "the printed reason stops coming from the branch that used it"
+    },
+    {
+      "file": "internal/core/emulator/conformance.go",
+      "find": "\t\tsynthetic := req.Header.Get(ProbeHeader) != \"\"",
+      "replace": "\t\tsynthetic := req.Header.Get(ProbeHeader) != \"\" && false",
+      "expect": "the observer stops telling a probe's request from a client's, so the boundary the whole split rests on is gone and the witness that measures it must say so",
+      "test": "TestOnlyAClientEarnsAClientBorneAxis",
+      "label": "the observer stops telling a probe from a client"
+    }
+  ],
+  "note": "The sixth mutation runs against internal/core/emulator, not because the declaration lives there but because the fact it declares does: the observer is what keeps a synthetic exchange apart from a client's, and every axis reads one side or the other. A declaration whose subject nobody drives is a comment, which is why TestOnlyAClientEarnsAClientBorneAxis issues one marked request and one plain one against a live emulator rather than reading the axis table back to itself. The second and third mutations are the other witness \u2014 the committed record \u2014 and they are kept separate on purpose: the mechanical one cannot see a mis-declaration of an axis the two exchanges happen not to move, and the record one cannot see a boundary that has stopped existing. The sixth mutation edits a file of internal/core/emulator and deliberately does NOT carry a `package` of its own: the test that reads it lives in internal/cli, and the first draft pointed the run at the emulator package, where `-run` matched nothing and the mutation came back green with no test having run at all. The harness refused the spec rather than certifying it, which is the behaviour to rely on \u2014 a mutation whose test never executes reads exactly like a guard that does not bite."
+}

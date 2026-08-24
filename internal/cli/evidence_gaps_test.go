@@ -12,15 +12,16 @@ import (
 
 // A gap's kind comes from the record, never from the operation's name.
 //
-// The whole value of this queue is that four zeros name four different jobs. If
-// a kind could be inferred from a name, a renamed operation would change the
+// The whole value of this queue is that a zero names one of six different jobs.
+// If a kind could be inferred from a name, a renamed operation would change the
 // work it names, and the queue would be a convention rather than a measurement.
 //
-// Each case below is a state the record can really hold, and the four are the
-// four branches of classifyGap in order.
+// Each case below is a state the record can really hold, and they are the
+// branches of classifyGap in order.
 func TestAGapIsClassifiedFromTheRecordRatherThanTheName(t *testing.T) {
 	shape := namedAxis(t, "shape")
 	negative := namedAxis(t, "negative")
+	probed := namedAxis(t, "probed")
 
 	cases := []struct {
 		name string
@@ -36,28 +37,41 @@ func TestAGapIsClassifiedFromTheRecordRatherThanTheName(t *testing.T) {
 		{"a violating verdict outranks everything",
 			emulator.Evidence{Driven: true, Shape: "violating"}, shape, "", "", gapViolating},
 		{"undriven and nothing says why is a suite to write",
-			emulator.Evidence{Driven: false, Shape: "unobserved"}, shape, "", "", gapUndriven},
-		{"driven and unobserved is a recording",
+			emulator.Evidence{Driven: false}, negative, "", "", gapUndriven},
+		{"unobserved is a recording, whoever drove it",
 			emulator.Evidence{Driven: true, Shape: "unobserved"}, shape, "", "", gapUnrecorded},
+		{"no probe verdict is the probe's side",
+			emulator.Evidence{Driven: true, Probed: "none"}, probed, "", "", gapUnvalidated},
 		{"driven, not violating, another axis: unexplained rather than guessed",
 			emulator.Evidence{Driven: true}, negative, "", "", gapUnproven},
 		// The two that separate "no suite yet" from "no client to write one
 		// with". Same record, same axis, different answer — so the reason is
 		// what decides, and it is read from the route rather than from the name.
 		{"undriven with a declared reason is not work",
-			emulator.Evidence{Driven: false, Shape: "unobserved"}, shape,
+			emulator.Evidence{Driven: false}, negative,
 			"no official client calls it: the CLI has no attach subcommand", "", gapDeclared},
 		// A reason must never rescue a driven operation from its zero. The
 		// stale half of TestEveryUndrivenOperationSaysWhy exists to reject such
 		// a reason, and this asserts the queue does not honour it meanwhile:
 		// otherwise a stale excuse would empty a real recording queue.
 		{"a reason on a driven operation changes nothing",
-			emulator.Evidence{Driven: true, Shape: "unobserved"}, shape,
+			emulator.Evidence{Driven: true}, negative,
+			"no official client calls it: the CLI has no attach subcommand", "", gapUnproven},
+		// The half #445 added, and the one this file could not state before it.
+		// Same record and same reason as the case two rows up, on an axis the
+		// probe earns with no client at all: the sentence is about `exo`, the
+		// zero is not, and filing it "declared" told a reader nobody could act
+		// on work #429 has since shown to be both doable and already done.
+		{"a client reason does not explain a zero the probe earns",
+			emulator.Evidence{Driven: false, Probed: "none"}, probed,
+			"no official client calls it: the CLI has no attach subcommand", "", gapUnvalidated},
+		{"a client reason does not explain a missing recording either",
+			emulator.Evidence{Driven: false, Shape: "unobserved"}, shape,
 			"no official client calls it: the CLI has no attach subcommand", "", gapUnrecorded},
 		// The axis declaration, which answers a different question from the one
 		// above: the operation IS driven, and the axis is still out of reach.
-		// Without the third branch of classifyGap this is "unproven", which
-		// sends a reader to write a case that cannot exist.
+		// Without that branch of classifyGap this is "unproven", which sends a
+		// reader to write a case that cannot exist.
 		{"driven, and the route says the axis is out of reach: not work",
 			emulator.Evidence{Driven: true}, negative, "",
 			"no supported client can compose a request it must refuse", gapDeclared},
@@ -70,8 +84,18 @@ func TestAGapIsClassifiedFromTheRecordRatherThanTheName(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := classifyGap(c.ev, c.axis, c.reason, c.unearnable); got != c.want {
+			got, why := classifyGap(c.ev, c.axis, c.reason, c.unearnable)
+			if got != c.want {
 				t.Fatalf("classified as %s, want %s", gapKindNames[got], gapKindNames[c.want])
+			}
+			// The reason travels with the branch, or a `declared` line prints a
+			// sentence that decided nothing — which is the shape of the defect
+			// this queue was corrected for.
+			if got == gapDeclared && why == "" {
+				t.Fatal("classified as declared and returned no reason to print")
+			}
+			if got != gapDeclared && why != "" {
+				t.Fatalf("classified as %s and returned the reason %q", gapKindNames[got], why)
 			}
 		})
 	}

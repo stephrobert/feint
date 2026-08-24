@@ -4,19 +4,19 @@
   "mutations": [
     {
       "file": "internal/cli/evidence_gaps.go",
-      "find": "\tif v := axis.verdict(ev); v == \"violating\" {\n\t\treturn gapViolating\n\t}",
-      "replace": "\tif v := axis.verdict(ev); v == \"violating\" && false {\n\t\treturn gapViolating\n\t}",
+      "find": "\tif v := axis.verdict(ev); v == \"violating\" {\n\t\treturn gapViolating, \"\"\n\t}",
+      "replace": "\tif v := axis.verdict(ev); v == \"violating\" && false {\n\t\treturn gapViolating, \"\"\n\t}",
       "expect": "a defect stops outranking the rest, so an operation the record says broke its own contract is queued among the ones nobody ever drove",
       "test": "TestAGapIsClassifiedFromTheRecordRatherThanTheName",
       "label": "a defect no longer outranks the rest"
     },
     {
       "file": "internal/cli/evidence_gaps.go",
-      "find": "\tif !ev.Driven {\n\t\tif undriven != \"\" {\n\t\t\treturn gapDeclared\n\t\t}\n\t\treturn gapUndriven\n\t}",
-      "replace": "\tif !ev.Driven && false {\n\t\tif undriven != \"\" {\n\t\t\treturn gapDeclared\n\t\t}\n\t\treturn gapUndriven\n\t}",
-      "expect": "an operation no client reaches is filed as a recording session, so somebody records a cloud answer for a route nothing calls",
+      "find": "\tif axis.earner == earnedByAClient && !ev.Driven {\n\t\tif undriven != \"\" {\n\t\t\treturn gapDeclared, undriven\n\t\t}\n\t\treturn gapUndriven, \"\"\n\t}",
+      "replace": "\tif axis.earner == earnedByAClient && !ev.Driven && false {\n\t\tif undriven != \"\" {\n\t\t\treturn gapDeclared, undriven\n\t\t}\n\t\treturn gapUndriven, \"\"\n\t}",
+      "expect": "an operation no client reaches stops asking for the conformance suite that would close it, and lands in the bucket the record cannot explain",
       "test": "TestAGapIsClassifiedFromTheRecordRatherThanTheName",
-      "label": "an undriven operation is filed as a recording"
+      "label": "an operation no client reaches is filed as unexplained"
     },
     {
       "file": "internal/cli/evidence_gaps.go",
@@ -52,24 +52,24 @@
     },
     {
       "file": "internal/cli/evidence_gaps.go",
-      "find": "\t\tif undriven != \"\" {\n\t\t\treturn gapDeclared\n\t\t}\n\t\treturn gapUndriven",
-      "replace": "\t\tif undriven != \"\" && false {\n\t\t\treturn gapDeclared\n\t\t}\n\t\treturn gapUndriven",
+      "find": "\t\tif undriven != \"\" {\n\t\t\treturn gapDeclared, undriven\n\t\t}\n\t\treturn gapUndriven, \"\"",
+      "replace": "\t\tif undriven != \"\" && false {\n\t\t\treturn gapDeclared, undriven\n\t\t}\n\t\treturn gapUndriven, \"\"",
       "expect": "the reason a pack wrote at the route stops retiring its zero, so all 141 of them go back to asking for a conformance suite that no client exists to write",
       "test": "TestADeclaredReasonSplitsTheUndrivenQueue",
       "label": "a declared reason stops retiring its zero"
     },
     {
       "file": "internal/cli/evidence_gaps.go",
-      "find": "\tif !ev.Driven {\n\t\tif undriven != \"\" {\n\t\t\treturn gapDeclared\n\t\t}\n\t\treturn gapUndriven\n\t}\n\t// Driven, and the route says",
-      "replace": "\tif !ev.Driven || true {\n\t\tif undriven != \"\" {\n\t\t\treturn gapDeclared\n\t\t}\n\t\treturn gapUndriven\n\t}\n\t// Driven, and the route says",
+      "find": "\tif axis.earner == earnedByAClient && !ev.Driven {\n\t\tif undriven != \"\" {\n\t\t\treturn gapDeclared, undriven\n\t\t}\n\t\treturn gapUndriven, \"\"\n\t}\n\t// The route says",
+      "replace": "\tif axis.earner == earnedByAClient && (!ev.Driven || true) {\n\t\tif undriven != \"\" {\n\t\t\treturn gapDeclared, undriven\n\t\t}\n\t\treturn gapUndriven, \"\"\n\t}\n\t// The route says",
       "expect": "a reason is honoured on an operation a client does drive, so a stale excuse \u2014 the exact thing TestEveryUndrivenOperationSaysWhy exists to reject \u2014 empties a real recording queue",
       "test": "TestAGapIsClassifiedFromTheRecordRatherThanTheName",
       "label": "a stale reason excuses an operation a client drives"
     },
     {
       "file": "internal/cli/evidence_gaps.go",
-      "find": "\t\t\t\tif kind == gapDeclared {\n\t\t\t\t\tentry.Reason = reasons[op]",
-      "replace": "\t\t\t\tif kind == gapDeclared && false {\n\t\t\t\t\tentry.Reason = reasons[op]",
+      "find": "\t\t\t\t\tReason: why,",
+      "replace": "\t\t\t\t\tReason: why[:0],",
       "expect": "the queue calls an operation declared and never says on what grounds, so a decision it names is one no reader can re-examine without opening three pack files",
       "test": "TestADeclaredReasonSplitsTheUndrivenQueue",
       "label": "a declared line stops carrying its reason"
@@ -83,5 +83,5 @@
       "label": "the reasons are never read from the packs"
     }
   ],
-  "note": " Retargeted on 2026-08-24: classifyGap gained a third branch for Route.Unearnable and its first reason parameter was renamed `undriven`, so four fragments here stopped matching. falsify:lint is what caught it, which is the whole reason that gate refuses a spec whose fragment has moved rather than reporting it green."
+  "note": " Retargeted on 2026-08-24: classifyGap gained a third branch for Route.Unearnable and its first reason parameter was renamed `undriven`, so four fragments here stopped matching. falsify:lint is what caught it, which is the whole reason that gate refuses a spec whose fragment has moved rather than reporting it green. Retargeted a second time on 2026-08-24 for #445: classifyGap returns the reason it classified on, its first branch now asks which axis it is looking at, and the caller no longer re-derives the reason. Five fragments moved; falsify:lint is what named them."
 }

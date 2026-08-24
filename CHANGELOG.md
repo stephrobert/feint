@@ -61,6 +61,41 @@ what this project is judged on: **a response shape a client can observe**, and
   operations were already declined — a filter no client can edit and nothing
   enforces is not a filter.
 
+- **A zero the contract-driven probe can close is no longer filed as a decision
+  nobody can act on** (#445). `feint coverage --evidence <record> --gaps` filed a
+  zero as `declared` — "not work: no path exists to close this zero" — as soon as
+  the record said no client drove the operation, on all seven axes at once, and
+  printed the route's `Route.Undriven` reason beside every one of them.
+
+  That reason is a sentence about clients: "`exo limits` reads the whole quota
+  list, so the per-name read has no client path". It explains a zero on `driven`,
+  `dataplane`, `behaviour` and `negative`, which no synthetic exchange can move.
+  It explains nothing on `probed`, which the probe earns with no client
+  whatsoever; nothing on `contract`, which any validated answer earns, the
+  probe's included; and nothing on `shape`, which is resolved offline from the
+  recordings catalogue and which no traffic moves either way.
+
+  Each axis now declares what earns it, and two independent witnesses hold the
+  declaration to it: one drives a marked and an unmarked exchange against a live
+  emulator and reads the axes back, the other refuses a declaration the committed
+  record contradicts. The record holds **16 operations no client drove that
+  earned `probed`, 14 that earned `contract` and one that earned `shape`** —
+  proof, from the artefact itself, that "no client reaches it" is not what keeps
+  those three at zero.
+
+  Measured on `coverage/evidence.json` as committed, with no axis moved and not
+  one operation added to or removed from the queue: **38 lines across 22
+  operations stop saying nobody can act**, and 64 more stop saying "the record
+  does not say why". A sixth kind, `unvalidated`, names what those zeros are —
+  an answer held to the provider's own API description, which needs neither a
+  cloud account nor a client binary. #429 is the measurement behind it: 31
+  Scaleway operations earned `contract` and 29 earned `probed` from a single fix
+  to the contract extraction, no client and no pack code touched, and had they
+  carried an `Undriven` reason this queue would have called all sixty "not work".
+
+  `classifyGap` now returns the reason it classified on, so a `declared` line
+  cannot print a sentence the classifier did not use.
+
 - **An operation whose API description says it answers no body is now checked
   against exactly that, and thirty-one Scaleway operations stop reading
   "nobody looked"** (#429). Scaleway writes `204: {description: ''}` on 64 of

@@ -35,14 +35,37 @@ const (
 	// axis rather than never reaching it. It is served, it is reached, and it
 	// is wrong: nothing else in this queue is a defect.
 	gapViolating gapKind = iota
-	// gapUnrecorded: the operation is driven by a real client, and the axis is
-	// still missing. For `shape` that is exactly "no recording of the real
-	// cloud's answer exists" — one recording session away from earned, which
-	// is why it outranks the two below.
+	// gapUnvalidated: no answer of this operation was ever held to the
+	// provider's own API description — the record says `probed: none` or
+	// `contract: unchecked`. The contract-driven probe is what earns those two
+	// axes and it needs no client at all, so the cause is on the probe's side:
+	// its plan, its seeding pool, or the extraction that built the document.
+	//
+	// It says that and no more. Which of the three it is, the record does not
+	// carry, and this queue does not guess — the whole defect it was split out
+	// of (#445) was a line claiming a cause the record could not verify.
+	//
+	// It outranks the recording below because it is the one entry of this queue
+	// that needs neither a cloud account nor a client binary: everything it
+	// asks for is in this repository. #429 is the measurement — a single fix to
+	// the extraction, which had recorded "the document declares an empty answer"
+	// and "no schema" the same way, retired 31 Scaleway zeros on `contract` and
+	// 29 on `probed` at once, and every one of the thirty-one operations turned
+	// out to have been correct all along.
+	gapUnvalidated
+	// gapUnrecorded: no recorded real-cloud answer covers this operation. It is
+	// the whole story of a `shape` zero, and one recording session from earned.
+	//
+	// It says nothing about clients, and that is deliberate since #445: the
+	// recorder reads the cloud directly rather than through an official client
+	// (tools/shapes/record.sh), so a sentence about what `exo` or `scw` cannot
+	// compose does not explain a missing recording. The committed record agrees
+	// — exoscale/v2.get-operation carries an observed shape and no client has
+	// ever driven it.
 	gapUnrecorded
-	// gapUndriven: no real client reaches this operation, and no route says
-	// why. Most axes cannot be earned without a client, so this is the upstream
-	// job: a conformance suite, not a pack change.
+	// gapUndriven: no real client reaches this operation, no route says why, and
+	// the axis is one only a client can earn (axisEarner). So this is the
+	// upstream job: a conformance suite, not a pack change.
 	//
 	// It reads zero on a green repository, and that is the design rather than a
 	// dead branch: TestEveryUndrivenOperationSaysWhy already refuses an undriven
@@ -56,8 +79,9 @@ const (
 	// because a bucket that absorbs the unexplained is how a queue starts
 	// lying.
 	//
-	// It is the largest bucket, and 172 of its 264 zeros are the `negative`
-	// axis. A tempting reading — measured and rejected on 2026-08-24 — is that
+	// It is the largest bucket, and 98 of its 113 zeros are the `negative` axis
+	// (measured 2026-08-24, after #445 moved the probe's and the recorder's
+	// zeros to the kinds that name them). A tempting reading — measured and rejected on 2026-08-24 — is that
 	// those are recordings like `shape`, and should be reclassified as such.
 	// They are not. `shape` is earned by a recorded real-cloud answer and by
 	// nothing else, so "no recording exists" is its whole story; `negative` is
@@ -80,7 +104,7 @@ const (
 	// of the thirteen resisted an attempt to earn them before they were
 	// declared, which is the order this kind of entry has to be written in.
 	//
-	// It exists because the four kinds above could not tell "nobody has written
+	// It exists because the kinds above could not tell "nobody has written
 	// the suite yet" from "no client path exists to write one with", and the
 	// queue told both to go and write a suite. Measured on 2026-08-24: all
 	// twenty-five operations the record left undriven already carried a reason
@@ -98,65 +122,89 @@ const (
 // gapKindNames are what the output prints, and the keys --format json uses.
 // Short, lowercase, stable: they are a vocabulary consumers will match on.
 var gapKindNames = map[gapKind]string{
-	gapViolating:  "violating",
-	gapUnrecorded: "unrecorded",
-	gapUndriven:   "undriven",
-	gapUnproven:   "unproven",
-	gapDeclared:   "declared",
+	gapViolating:   "violating",
+	gapUnvalidated: "unvalidated",
+	gapUnrecorded:  "unrecorded",
+	gapUndriven:    "undriven",
+	gapUnproven:    "unproven",
+	gapDeclared:    "declared",
 }
 
 // gapKindWork is the sentence the text output prints once per group. It names
 // the job, not the state, because the reader of this queue is deciding what to
 // pick up.
 var gapKindWork = map[gapKind]string{
-	gapViolating:  "a defect: the operation is served and reached, and the record says it broke this axis",
-	gapUnrecorded: "a recording: a real client already drives it, and no answer of the real cloud has been kept",
-	gapUndriven:   "a conformance suite: no real client reaches this operation, so most axes cannot be earned",
+	gapViolating: "a defect: the operation is served and reached, and the record says it broke this axis",
+	gapUnvalidated: "the probe: this axis is earned by an answer held to the provider's own API description, " +
+		"which the contract-driven probe produces with no client at all, and the record says none was ever held here",
+	gapUnrecorded: "a recording: no answer of the real cloud has been kept for this operation",
+	gapUndriven:   "a conformance suite: no real client reaches this operation, and only a client can earn this axis",
 	gapUnproven:   "unexplained: driven, not violating, still not earned — the record does not say why",
 	gapDeclared:   "not work: no path exists to close this zero, and the route says which — the reason is printed with each line",
 }
 
-// classifyGap decides which of the five a zero is, from the record and from
-// what the pack declares at the route — never from the operation's name.
+// classifyGap decides which of the six a zero is, from the record and from what
+// the pack declares at the route — never from the operation's name.
+//
+// It returns the reason it classified on, so that a `declared` line cannot
+// print a sentence the classifier did not use. That is not tidiness: the defect
+// this function carried until #445 was exactly a printed reason and a branch
+// that had nothing to do with each other, and a second copy of the branch
+// conditions in the caller is how the two drifted apart in the first place.
 //
 // The order of the tests is the classification: a violation outranks everything
-// because it is the only defect here, and "undriven" is asked before the
+// because it is the only defect here, and the declarations are asked before the
 // catch-all so that the unexplained bucket stays as small as the record allows.
 //
-// `reason` is Route.Undriven for this operation, empty when the route declares
-// none. It is only ever consulted for an operation the record says no client
-// drove: a reason on a driven operation is a stale excuse, and
-// TestEveryUndrivenOperationSaysWhy is the control that refuses one — this
-// function must not quietly honour what that test exists to reject.
+// `undriven` is Route.Undriven for this operation, empty when the route
+// declares none. Two conditions gate it, and each answers a different question:
 //
-// TestAGapIsClassifiedFromTheRecordRatherThanTheName and
-// TestADeclaredReasonSplitsTheUndrivenQueue fail without this.
-func classifyGap(ev emulator.Evidence, axis evidenceAxis, undriven, unearnable string) gapKind {
+//   - the record must say no client drove the operation. A reason on a driven
+//     operation is a stale excuse, and TestEveryUndrivenOperationSaysWhy is the
+//     control that refuses one — this function must not quietly honour what
+//     that test exists to reject.
+//   - the axis must be one a client alone can earn (axisEarner). "No official
+//     client reaches this operation" is a fact about client traffic, and it
+//     explains a zero only where client traffic is what earns the axis. Applied
+//     to `probed` — which the probe earns with no client whatsoever — it filed
+//     doable work as "not work" and printed a sentence about `exo` beside it
+//     (#445). The committed record shows the same reason sitting on operations
+//     that earned `probed` anyway.
+//
+// TestAGapIsClassifiedFromTheRecordRatherThanTheName,
+// TestADeclaredReasonSplitsTheUndrivenQueue and
+// TestAClientShapedReasonNeverExplainsAProbeSideZero fail without this.
+func classifyGap(ev emulator.Evidence, axis evidenceAxis, undriven, unearnable string) (gapKind, string) {
 	if v := axis.verdict(ev); v == "violating" {
-		return gapViolating
+		return gapViolating, ""
 	}
-	if !ev.Driven {
+	if axis.earner == earnedByAClient && !ev.Driven {
 		if undriven != "" {
-			return gapDeclared
+			return gapDeclared, undriven
 		}
-		return gapUndriven
+		return gapUndriven, ""
 	}
-	// Driven, and the route says this axis can never be earned here. Asked
-	// before the catch-all for the same reason "undriven" is: the unexplained
+	// The route says this axis can never be earned here. Asked before the
+	// catch-alls for the same reason the client reason is: the unexplained
 	// bucket must stay as small as the declarations allow, and a zero no work
 	// can close is not work.
 	//
-	// It is asked AFTER the driven test on purpose: an operation nothing drives
-	// is Undriven's business, and letting an axis declaration answer for it
-	// would hide a missing suite behind a true statement about a different
-	// thing.
+	// It is asked AFTER the branch above on purpose: an operation nothing drives
+	// is Undriven's business on the axes a client earns, and letting an axis
+	// declaration answer for it would hide a missing suite behind a true
+	// statement about a different thing. Unlike Route.Undriven it is keyed by
+	// axis, so its subject already matches what it excuses, and it is honoured
+	// on every axis a route names.
 	if unearnable != "" {
-		return gapDeclared
+		return gapDeclared, unearnable
 	}
-	if axis.Name == "shape" {
-		return gapUnrecorded
+	switch axis.earner {
+	case earnedByValidation:
+		return gapUnvalidated, ""
+	case earnedByARecording:
+		return gapUnrecorded, ""
 	}
-	return gapUnproven
+	return gapUnproven, ""
 }
 
 // gapEntry is one operation of the queue, with the work it names.
@@ -167,9 +215,11 @@ type gapEntry struct {
 	// Verdict carries the record's own word for a non-boolean axis, so a
 	// consumer never has to re-derive it from Kind.
 	Verdict string `json:"verdict,omitempty"`
-	// Reason is Route.Undriven, carried on the "declared" lines only. Published
-	// rather than left for the reader to go and find in a pack file: a decision
-	// a report names but does not state is a decision nobody re-examines.
+	// Reason is the declaration the classifier retired this zero on —
+	// Route.Undriven or the Route.Unearnable entry for this axis — carried on
+	// the "declared" lines only. Published rather than left for the reader to go
+	// and find in a pack file: a decision a report names but does not state is a
+	// decision nobody re-examines.
 	Reason string `json:"reason,omitempty"`
 }
 
@@ -243,21 +293,18 @@ func buildGaps(record string, art *evidenceArtefact, owners map[string]string,
 				if a.earned(ev) {
 					continue
 				}
-				unearned := unearnable[op][a.Name]
-				kind := classifyGap(ev, a, reasons[op], unearned)
-				entry := gapEntry{
+				kind, why := classifyGap(ev, a, reasons[op], unearnable[op][a.Name])
+				group.Entries = append(group.Entries, gapEntry{
 					Operation: op,
 					Axis:      a.Name,
 					Kind:      gapKindNames[kind],
 					Verdict:   a.verdict(ev),
-				}
-				if kind == gapDeclared {
-					entry.Reason = reasons[op]
-					if unearned != "" && ev.Driven {
-						entry.Reason = unearned
-					}
-				}
-				group.Entries = append(group.Entries, entry)
+					// The reason the classifier used, never one this loop went
+					// and fetched again: the two readings drifting apart is the
+					// defect #445 measured, and a single return value is what
+					// makes them one reading.
+					Reason: why,
+				})
 			}
 			if len(group.Entries) == 0 {
 				continue
@@ -279,9 +326,10 @@ func buildGaps(record string, art *evidenceArtefact, owners map[string]string,
 	return report, nil
 }
 
-// kindRank orders the four. Violations first because they are the only defect;
-// then the recording, which is one session from earned; then the suite, which
-// is upstream of most axes; then what nothing explains.
+// kindRank orders the six. Violations first because they are the only defect;
+// then the probe, which asks for nothing outside this repository; then the
+// recording, which needs a real account; then the suite, which needs a client;
+// then what nothing explains, and last what nothing can close.
 func kindRank(name string) int {
 	for k, n := range gapKindNames {
 		if n == name {
