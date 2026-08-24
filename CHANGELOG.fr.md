@@ -940,6 +940,13 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Modifié
 
+- **Le registre suit le lot de refus Outscale** (#440) : `negative` passe de 173
+  à **197 sur 370**, et celui d'Outscale de 66 à **90 sur 93**. `behaviour` de
+  319 à 320. **Aucune opération n'a rien perdu sur aucun axe**, vérifié
+  opération par opération contre le registre remplacé plutôt qu'en comparant des
+  totaux. Douze des zéros Outscale restants sont déclarés hors d'atteinte à la
+  route, avec une raison que la garde remesure.
+
 - **Le registre est régénéré sur les nouveaux enregistrements, et `shape` vaut
   225 sur 370** (#427). Outscale atteint **93 sur 93**, son cinquième axe complet ;
   Scaleway passe de 37 à 99, Exoscale de 31 à 33. Le tableau par fournisseur

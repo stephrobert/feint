@@ -42,9 +42,9 @@ a workflow. None of them opens a socket.
 | Cloud | Served | `driven` | `probed` | `contract` | `dataplane` | `shape` | `behaviour` | `negative` |
 |---|---|---|---|---|---|---|---|---|
 | Exoscale | 104 | 83 % (86) | 92 % (96) | 91 % (95) | 83 % (86) | 32 % (33) | 75 % (78) | 10 % (10) |
-| Outscale | 93 | 100 % (93) | 100 % (93) | 100 % (93) | 100 % (93) | 100 % (93) | 86 % (80) | 71 % (66) |
+| Outscale | 93 | 100 % (93) | 100 % (93) | 100 % (93) | 100 % (93) | 100 % (93) | 87 % (81) | 97 % (90) |
 | Scaleway | 173 | 97 % (168) | 82 % (141) | 82 % (142) | 97 % (168) | 57 % (99) | 93 % (161) | 56 % (97) |
-| **All three** | 370 | 94 % (347) | 89 % (330) | 89 % (330) | 94 % (347) | 61 % (225) | 86 % (319) | 47 % (173) |
+| **All three** | 370 | 94 % (347) | 89 % (330) | 89 % (330) | 94 % (347) | 61 % (225) | 86 % (320) | 53 % (197) |
 
 What each axis says, one line each. They are independent and are never added
 into one number: none of them implies another, and an operation can be driven
@@ -63,7 +63,7 @@ by a real client and never contract-checked, or probed and never driven.
 **An injected fault earns none of them.** The emulator can be made to refuse on
 purpose (`PUT /_feint/faults`), and an answer produced that way moves no counter
 here: the operation stays un-driven and un-proven, and a `negative` span cannot
-be closed on it. So the 10 % and the 71 % at the two ends of that column are
+be closed on it. So the 10 % and the 97 % at the two ends of that column are
 refusals real clients really got, and no amount of arming faults can raise them.
 
 A percentage here is of the operations this emulator *serves*, never of the
@@ -432,7 +432,7 @@ are in `coverage/`, one artefact per provider.
 |---|---|---|---|
 | `POST` | `/api/v1/CreateDhcpOptions` | `osc/Client.CreateDhcpOptions` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/DeleteDhcpOptions` | `osc/Client.DeleteDhcpOptions` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
-| `POST` | `/api/v1/ReadDhcpOptions` | `osc/Client.ReadDhcpOptions` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/ReadDhcpOptions` | `osc/Client.ReadDhcpOptions` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 
 ### `Image`
 
@@ -440,7 +440,7 @@ are in `coverage/`, one artefact per provider.
 |---|---|---|---|
 | `POST` | `/api/v1/CreateImage` | `osc/Client.CreateImage` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/DeleteImage` | `osc/Client.DeleteImage` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
-| `POST` | `/api/v1/ReadImages` | `osc/Client.ReadImages` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/ReadImages` | `osc/Client.ReadImages` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/UpdateImage` | `osc/Client.UpdateImage` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 
 ### `InternetService`
@@ -450,7 +450,7 @@ are in `coverage/`, one artefact per provider.
 | `POST` | `/api/v1/CreateInternetService` | `osc/Client.CreateInternetService` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/DeleteInternetService` | `osc/Client.DeleteInternetService` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/LinkInternetService` | `osc/Client.LinkInternetService` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
-| `POST` | `/api/v1/ReadInternetServices` | `osc/Client.ReadInternetServices` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/ReadInternetServices` | `osc/Client.ReadInternetServices` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/UnlinkInternetService` | `osc/Client.UnlinkInternetService` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 
 ### `Keypair`
@@ -459,7 +459,7 @@ are in `coverage/`, one artefact per provider.
 |---|---|---|---|
 | `POST` | `/api/v1/CreateKeypair` | `osc/Client.CreateKeypair` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/DeleteKeypair` | `osc/Client.DeleteKeypair` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
-| `POST` | `/api/v1/ReadKeypairs` | `osc/Client.ReadKeypairs` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/ReadKeypairs` | `osc/Client.ReadKeypairs` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 
 ### `Listener`
 
@@ -474,10 +474,10 @@ are in `coverage/`, one artefact per provider.
 |---|---|---|---|
 | `POST` | `/api/v1/CreateLoadBalancer` | `osc/Client.CreateLoadBalancer` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
 | `POST` | `/api/v1/DeleteLoadBalancer` | `osc/Client.DeleteLoadBalancer` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
-| `POST` | `/api/v1/LinkLoadBalancerBackendMachines` | `osc/Client.LinkLoadBalancerBackendMachines` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/api/v1/LinkLoadBalancerBackendMachines` | `osc/Client.LinkLoadBalancerBackendMachines` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
 | `POST` | `/api/v1/ReadLoadBalancers` | `osc/Client.ReadLoadBalancers` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
 | `POST` | `/api/v1/RegisterVmsInLoadBalancer` | `osc/Client.RegisterVmsInLoadBalancer` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
-| `POST` | `/api/v1/UnlinkLoadBalancerBackendMachines` | `osc/Client.UnlinkLoadBalancerBackendMachines` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` |
+| `POST` | `/api/v1/UnlinkLoadBalancerBackendMachines` | `osc/Client.UnlinkLoadBalancerBackendMachines` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
 | `POST` | `/api/v1/UpdateLoadBalancer` | `osc/Client.UpdateLoadBalancer` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
 
 ### `NatService`
@@ -486,7 +486,7 @@ are in `coverage/`, one artefact per provider.
 |---|---|---|---|
 | `POST` | `/api/v1/CreateNatService` | `osc/Client.CreateNatService` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/DeleteNatService` | `osc/Client.DeleteNatService` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
-| `POST` | `/api/v1/ReadNatServices` | `osc/Client.ReadNatServices` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/ReadNatServices` | `osc/Client.ReadNatServices` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 
 ### `Net`
 
@@ -494,14 +494,14 @@ are in `coverage/`, one artefact per provider.
 |---|---|---|---|
 | `POST` | `/api/v1/CreateNet` | `osc/Client.CreateNet` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/DeleteNet` | `osc/Client.DeleteNet` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
-| `POST` | `/api/v1/ReadNets` | `osc/Client.ReadNets` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/ReadNets` | `osc/Client.ReadNets` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/UpdateNet` | `osc/Client.UpdateNet` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 
 ### `NetAccessPoint`
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `POST` | `/api/v1/ReadNetAccessPointServices` | `osc/Client.ReadNetAccessPointServices` | `client` `contract` `shape` `runtime` `probe` |
+| `POST` | `/api/v1/ReadNetAccessPointServices` | `osc/Client.ReadNetAccessPointServices` | `client` `contract` `shape` `runtime` `probe` `negative` |
 
 ### `NetPeering`
 
@@ -510,7 +510,7 @@ are in `coverage/`, one artefact per provider.
 | `POST` | `/api/v1/AcceptNetPeering` | `osc/Client.AcceptNetPeering` | `client` `contract` `shape` `runtime` `probe-refusal` `negative` |
 | `POST` | `/api/v1/CreateNetPeering` | `osc/Client.CreateNetPeering` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
 | `POST` | `/api/v1/DeleteNetPeering` | `osc/Client.DeleteNetPeering` | `client` `contract` `shape` `runtime` `probe-refusal` `negative` |
-| `POST` | `/api/v1/ReadNetPeerings` | `osc/Client.ReadNetPeerings` | `client` `contract` `shape` `runtime` `probe` |
+| `POST` | `/api/v1/ReadNetPeerings` | `osc/Client.ReadNetPeerings` | `client` `contract` `shape` `runtime` `probe` `negative` |
 | `POST` | `/api/v1/RejectNetPeering` | `osc/Client.RejectNetPeering` | `client` `contract` `shape` `runtime` `probe-refusal` `negative` |
 
 ### `Nic`
@@ -521,7 +521,7 @@ are in `coverage/`, one artefact per provider.
 | `POST` | `/api/v1/DeleteNic` | `osc/Client.DeleteNic` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/LinkNic` | `osc/Client.LinkNic` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/LinkPrivateIps` | `osc/Client.LinkPrivateIps` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
-| `POST` | `/api/v1/ReadNics` | `osc/Client.ReadNics` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/ReadNics` | `osc/Client.ReadNics` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/UnlinkNic` | `osc/Client.UnlinkNic` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/UnlinkPrivateIps` | `osc/Client.UnlinkPrivateIps` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
 | `POST` | `/api/v1/UpdateNic` | `osc/Client.UpdateNic` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
@@ -530,11 +530,11 @@ are in `coverage/`, one artefact per provider.
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `POST` | `/api/v1/CreatePublicIp` | `osc/Client.CreatePublicIp` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/CreatePublicIp` | `osc/Client.CreatePublicIp` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/DeletePublicIp` | `osc/Client.DeletePublicIp` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/LinkPublicIp` | `osc/Client.LinkPublicIp` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
-| `POST` | `/api/v1/ReadPublicIpRanges` | `osc/Client.ReadPublicIpRanges` | `client` `contract` `shape` `runtime` `probe` |
-| `POST` | `/api/v1/ReadPublicIps` | `osc/Client.ReadPublicIps` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/ReadPublicIpRanges` | `osc/Client.ReadPublicIpRanges` | `client` `contract` `shape` `runtime` `probe` `negative` |
+| `POST` | `/api/v1/ReadPublicIps` | `osc/Client.ReadPublicIps` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/UnlinkPublicIp` | `osc/Client.UnlinkPublicIp` | `client` `contract` `shape` `runtime` `probe-refusal` `behaviour` `negative` |
 
 ### `Region`
@@ -558,7 +558,7 @@ are in `coverage/`, one artefact per provider.
 | `POST` | `/api/v1/CreateRouteTable` | `osc/Client.CreateRouteTable` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/DeleteRouteTable` | `osc/Client.DeleteRouteTable` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/LinkRouteTable` | `osc/Client.LinkRouteTable` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
-| `POST` | `/api/v1/ReadRouteTables` | `osc/Client.ReadRouteTables` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/ReadRouteTables` | `osc/Client.ReadRouteTables` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/UnlinkRouteTable` | `osc/Client.UnlinkRouteTable` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/UpdateRouteTableLink` | `osc/Client.UpdateRouteTableLink` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 
@@ -568,7 +568,7 @@ are in `coverage/`, one artefact per provider.
 |---|---|---|---|
 | `POST` | `/api/v1/CreateSecurityGroup` | `osc/Client.CreateSecurityGroup` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/DeleteSecurityGroup` | `osc/Client.DeleteSecurityGroup` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
-| `POST` | `/api/v1/ReadSecurityGroups` | `osc/Client.ReadSecurityGroups` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/ReadSecurityGroups` | `osc/Client.ReadSecurityGroups` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 
 ### `SecurityGroupRule`
 
@@ -583,7 +583,7 @@ are in `coverage/`, one artefact per provider.
 |---|---|---|---|
 | `POST` | `/api/v1/CreateSnapshot` | `osc/Client.CreateSnapshot` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/DeleteSnapshot` | `osc/Client.DeleteSnapshot` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
-| `POST` | `/api/v1/ReadSnapshots` | `osc/Client.ReadSnapshots` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/ReadSnapshots` | `osc/Client.ReadSnapshots` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 
 ### `Subnet`
 
@@ -591,22 +591,22 @@ are in `coverage/`, one artefact per provider.
 |---|---|---|---|
 | `POST` | `/api/v1/CreateSubnet` | `osc/Client.CreateSubnet` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/DeleteSubnet` | `osc/Client.DeleteSubnet` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
-| `POST` | `/api/v1/ReadSubnets` | `osc/Client.ReadSubnets` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/ReadSubnets` | `osc/Client.ReadSubnets` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/UpdateSubnet` | `osc/Client.UpdateSubnet` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 
 ### `Subregion`
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
-| `POST` | `/api/v1/ReadSubregions` | `osc/Client.ReadSubregions` | `client` `contract` `shape` `runtime` `probe` |
+| `POST` | `/api/v1/ReadSubregions` | `osc/Client.ReadSubregions` | `client` `contract` `shape` `runtime` `probe` `negative` |
 
 ### `Tag`
 
 | Method | Path | Upstream operation | Proven by |
 |---|---|---|---|
 | `POST` | `/api/v1/CreateTags` | `osc/Client.CreateTags` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
-| `POST` | `/api/v1/DeleteTags` | `osc/Client.DeleteTags` | `client` `contract` `shape` `runtime` `probe` `negative` |
-| `POST` | `/api/v1/ReadTags` | `osc/Client.ReadTags` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/DeleteTags` | `osc/Client.DeleteTags` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
+| `POST` | `/api/v1/ReadTags` | `osc/Client.ReadTags` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 
 ### `Vm`
 
@@ -615,9 +615,9 @@ are in `coverage/`, one artefact per provider.
 | `POST` | `/api/v1/CreateVms` | `osc/Client.CreateVms` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/DeleteVms` | `osc/Client.DeleteVms` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/ReadAdminPassword` | `osc/Client.ReadAdminPassword` | `client` `contract` `shape` `runtime` `probe` `negative` |
-| `POST` | `/api/v1/ReadVmTypes` | `osc/Client.ReadVmTypes` | `client` `contract` `shape` `runtime` `probe` |
-| `POST` | `/api/v1/ReadVmsState` | `osc/Client.ReadVmsState` | `client` `contract` `shape` `runtime` `probe` |
-| `POST` | `/api/v1/ReadVms` | `osc/Client.ReadVms` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/ReadVmTypes` | `osc/Client.ReadVmTypes` | `client` `contract` `shape` `runtime` `probe` `negative` |
+| `POST` | `/api/v1/ReadVmsState` | `osc/Client.ReadVmsState` | `client` `contract` `shape` `runtime` `probe` `negative` |
+| `POST` | `/api/v1/ReadVms` | `osc/Client.ReadVms` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/RebootVms` | `osc/Client.RebootVms` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/StartVms` | `osc/Client.StartVms` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/StopVms` | `osc/Client.StopVms` | `client` `contract` `shape` `runtime` `probe` `negative` |
@@ -630,7 +630,7 @@ are in `coverage/`, one artefact per provider.
 | `POST` | `/api/v1/CreateVolume` | `osc/Client.CreateVolume` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/DeleteVolume` | `osc/Client.DeleteVolume` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/LinkVolume` | `osc/Client.LinkVolume` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
-| `POST` | `/api/v1/ReadVolumes` | `osc/Client.ReadVolumes` | `client` `contract` `shape` `runtime` `probe` `behaviour` |
+| `POST` | `/api/v1/ReadVolumes` | `osc/Client.ReadVolumes` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/UnlinkVolume` | `osc/Client.UnlinkVolume` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 | `POST` | `/api/v1/UpdateVolume` | `osc/Client.UpdateVolume` | `client` `contract` `shape` `runtime` `probe` `behaviour` `negative` |
 

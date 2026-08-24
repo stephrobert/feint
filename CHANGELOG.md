@@ -1074,6 +1074,13 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Changed
 
+- **The record follows the Outscale refusal lot** (#440): `negative` goes 173 to
+  **197 of 370**, and Outscale's own 66 to **90 of 93**. `behaviour` 319 to 320.
+  **No operation lost anything on any axis**, checked operation by operation
+  against the replaced record rather than by comparing totals. Twelve of the
+  remaining Outscale zeros are declared out of reach at the route, with a reason
+  the guard re-measures.
+
 - **The record is regenerated on the new recordings, and `shape` reads 225 of
   370** (#427). Outscale reaches **93 of 93**, its fifth complete axis; Scaleway
   goes 37 to 99, Exoscale 31 to 33. The per-provider table lives in
