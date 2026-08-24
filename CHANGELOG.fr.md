@@ -1096,6 +1096,24 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Dix des points de l'axe `shape` étaient gagnés par un corps vide, et six
+  d'entre eux précèdent ce lot** (#427). Un `204` ne porte aucun corps : le
+  parcours des champs décodait `nil` et écrivait une entrée au chemin vide, de
+  type `null`. Cette entrée ne nomme aucun champ et n'énonce le type de rien,
+  mais elle rend `len(Fields)` non nul — et deux consommateurs se branchent
+  exactement là-dessus : l'axe `shape` compte l'opération comme *observée*, et
+  `feint shapes --check` la traite comme ayant une forme à comparer.
+
+  Mesuré sur le `shapes/scaleway.json` commité : six opérations la portaient,
+  toutes des `DELETE`. L'axe publiait donc 134 là où 128 avaient été observées.
+  Le compte bougeait dans le sens qui ressemble à un progrès, et c'est ce qui
+  l'a rendu invisible.
+
+  Un catalogue ne retient plus aucun champ à la racine, à l'entrée comme à la
+  sortie — la seconde moitié parce qu'un fichier commité avant la règle ne doit
+  pas continuer d'être cru. `tools/falsify/specs/root-path-is-not-a-field.json`
+  remet un champ fantôme de chaque côté, et les deux mutations mordent.
+
 - **Deux créations Scaleway rendent le statut que le vrai cloud rend, et non
   celui que le pack supposait** (#427). `vpc/v2/API.CreateRoute` et
   `ipam/v1/API.BookIP` rendaient `201` parce que toutes les autres créations du

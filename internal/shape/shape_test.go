@@ -254,3 +254,69 @@ func keys(c *Catalogue) []string {
 	}
 	return out
 }
+
+// An absent body is not a field, and the whole point is that it used to count
+// as one.
+//
+// A 204 carries no body, so the walk decodes nil and writes one entry at the
+// empty path with type "null". That entry says nothing a reader could use --
+// no field name, no type of anything -- but it makes len(Fields) non-zero, and
+// two consumers branch on exactly that: the shape axis counts the operation
+// "observed", and the shapes gate treats it as having a shape to compare.
+//
+// MEASURED on 2026-08-24 against the committed shapes/scaleway.json: six
+// operations carried it, every one a DELETE, so six of the 134 points the axis
+// published were earned by an empty body. A count that moves upward is the
+// hardest kind of wrong to notice, which is why this is a test and not a
+// comment.
+//
+// The status is still recorded, exactly as it is for an error body: "called and
+// answered nothing" stays a different fact from "never called".
+func TestAnAbsentBodyIsNotAField(t *testing.T) {
+	c := New("scaleway")
+	del := trace.Exchange{
+		Method: "DELETE", Path: "/vpc/v2/regions/fr-par/vpcs/x",
+		Operation: "vpc/v2/API.DeleteVPC",
+		Status:    204, Res: &trace.Message{Body: nil},
+	}
+	c.Merge([]trace.Exchange{del})
+
+	op, known := c.Operations["vpc/v2/API.DeleteVPC"]
+	if !known {
+		t.Fatal("a 204 was not recorded at all, so a reader cannot tell it was called")
+	}
+	if len(op.Statuses) != 1 || op.Statuses[0] != 204 {
+		t.Errorf("statuses %v, want [204]: the status is what a 204 does carry", op.Statuses)
+	}
+	if len(op.Fields) != 0 {
+		t.Errorf("an absent body produced %v; a body that is not there is not a field, "+
+			"and one phantom entry is enough to make the shape axis count this operation observed",
+			op.Fields)
+	}
+}
+
+// A catalogue committed before that rule stops being believed the moment it is
+// read, not the next time something happens to fold into it.
+//
+// Load is the door both consumers come through, and the six pre-existing
+// entries would otherwise go on earning the axis until some unrelated recording
+// touched the same operation.
+func TestALoadedCatalogueDropsARootPathField(t *testing.T) {
+	const stale = `{"provider":"scaleway","operations":{` +
+		`"vpc/v2/API.DeleteVPC":{"method":"DELETE","path":"/vpc/v2/regions/fr-par/vpcs/{id}",` +
+		`"fields":[{"path":"","type":"null"}],"statuses":[204]},` +
+		`"vpc/v2/API.GetVPC":{"method":"GET","path":"/vpc/v2/regions/fr-par/vpcs/{id}",` +
+		`"fields":[{"path":"","type":"null"},{"path":"id","type":"string"}],"statuses":[200]}}}`
+
+	c, err := Load(strings.NewReader(stale))
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if got := c.Operations["vpc/v2/API.DeleteVPC"].Fields; len(got) != 0 {
+		t.Errorf("DeleteVPC kept %v, and a field at the root is not a field", got)
+	}
+	kept := c.Operations["vpc/v2/API.GetVPC"].Fields
+	if len(kept) != 1 || kept[0].Path != "id" {
+		t.Errorf("GetVPC kept %v, want only id: dropping the root must not drop its neighbours", kept)
+	}
+}

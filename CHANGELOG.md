@@ -17,6 +17,24 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **Ten of the shape axis's own points were earned by an empty body, and six of
+  them predate this batch** (#427). A `204` carries no body, so the field walk
+  decoded `nil` and wrote one entry at the empty path with type `null`. That
+  entry names no field and states no type of anything, but it makes
+  `len(Fields)` non-zero — and two consumers branch on exactly that: the shape
+  axis counts the operation *observed*, and `feint shapes --check` treats it as
+  having a shape to compare.
+
+  Measured on the committed `shapes/scaleway.json`: six operations carried it,
+  every one of them a `DELETE`. The axis therefore published 134 where 128 had
+  been observed. The count moved in the direction that reads like progress,
+  which is what kept it invisible.
+
+  A catalogue now holds no field at the root, on the way in and on the way out —
+  the second half because a file committed before the rule must not go on being
+  believed. `tools/falsify/specs/root-path-is-not-a-field.json` puts a phantom
+  field back on each side, and both mutations bite.
+
 - **Two Scaleway creates answer the status the real cloud answers, not the one
   this pack assumed** (#427). `vpc/v2/API.CreateRoute` and `ipam/v1/API.BookIP`
   answered `201` because every other create in the pack does; both answer `200`

@@ -71,6 +71,44 @@ func New(provider string) *Catalogue {
 	return &Catalogue{Provider: provider, Operations: map[string]*Operation{}}
 }
 
+// isRootPath reports whether a walked path names the body itself rather than a
+// field of it, which happens when the body is not an object or an array.
+//
+// A 204 carries no body at all, so the walk decodes nil and writes one entry at
+// the empty path with type "null". That entry is not a field: nothing about it
+// lets a reader say "the cloud returns X". It is nevertheless enough to make
+// len(Fields) non-zero, and TWO consumers branch on exactly that — the shape
+// axis (internal/cli, shapeCoveredOperations) counts the operation "observed",
+// and the shapes gate (internal/cli/shapes_check.go) treats it as having a
+// shape to compare.
+//
+// MEASURED on 2026-08-24, on the committed catalogue and before this run added
+// to it: six Scaleway operations already carried the phantom field — every one
+// of them a DELETE — so six of the 134 points the shape axis published were
+// earned by an empty body. The recording of #427 would have added four more.
+// The count moved in the direction that reads like progress, which is what made
+// it invisible.
+//
+// So the rule is written where the invariant lives: a catalogue never holds a
+// field at the root, on the way in (absorb) and on the way out (Load), because
+// a file committed before the rule must not go on being believed.
+//
+// TestAnAbsentBodyIsNotAField and TestALoadedCatalogueDropsARootPathField fail
+// without it.
+func isRootPath(path string) bool { return path == "" }
+
+// dropRootPaths returns the fields of an operation that name an actual field.
+func dropRootPaths(fields []transcript.Field) []transcript.Field {
+	out := fields[:0]
+	for _, f := range fields {
+		if isRootPath(f.Path) {
+			continue
+		}
+		out = append(out, f)
+	}
+	return out
+}
+
 // Merge folds a recording into the catalogue and reports what it changed.
 //
 // Every exchange with a response contributes, including one that answered
@@ -153,10 +191,16 @@ func (o *Operation) absorb(x *trace.Exchange, key string, ch *Changes) {
 
 	seen := map[string]string{}
 	for _, f := range o.Fields {
+		if isRootPath(f.Path) {
+			continue
+		}
 		seen[f.Path] = f.Type
 	}
 	fresh := map[string]string{}
 	for _, f := range transcript.FieldsOfObserved(x.Res.Body, IsRedacted) {
+		if isRootPath(f.Path) {
+			continue
+		}
 		fresh[f.Path] = f.Type
 	}
 
@@ -354,6 +398,11 @@ func Load(r io.Reader) (*Catalogue, error) {
 	}
 	if c.Operations == nil {
 		c.Operations = map[string]*Operation{}
+	}
+	// See isRootPath: a catalogue written before that rule can carry a field at
+	// the root, and both consumers read len(Fields) as "a shape was observed".
+	for _, op := range c.Operations {
+		op.Fields = dropRootPaths(op.Fields)
 	}
 	return &c, nil
 }

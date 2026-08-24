@@ -9937,12 +9937,7 @@
     "block/v1alpha1/API.DeleteVolume": {
       "method": "DELETE",
       "path": "/block/v1alpha1/zones/fr-par-1/volumes/{id}",
-      "fields": [
-        {
-          "path": "",
-          "type": "null"
-        }
-      ],
+      "fields": [],
       "statuses": [
         204,
         404
@@ -10107,12 +10102,7 @@
     "iam/v1alpha1/API.DeleteSSHKey": {
       "method": "DELETE",
       "path": "/iam/v1alpha1/ssh-keys/{id}",
-      "fields": [
-        {
-          "path": "",
-          "type": "null"
-        }
-      ],
+      "fields": [],
       "statuses": [
         204,
         404
@@ -10792,12 +10782,7 @@
     "instance/v1/API.DeleteIP": {
       "method": "DELETE",
       "path": "/instance/v1/zones/fr-par-1/ips/{id}",
-      "fields": [
-        {
-          "path": "",
-          "type": "null"
-        }
-      ],
+      "fields": [],
       "statuses": [
         204,
         404
@@ -10814,12 +10799,7 @@
     "instance/v1/API.DeletePlacementGroup": {
       "method": "DELETE",
       "path": "/instance/v1/zones/fr-par-1/placement_groups/{id}",
-      "fields": [
-        {
-          "path": "",
-          "type": "null"
-        }
-      ],
+      "fields": [],
       "statuses": [
         204,
         404
@@ -10836,12 +10816,7 @@
     "instance/v1/API.DeleteSecurityGroup": {
       "method": "DELETE",
       "path": "/instance/v1/zones/fr-par-1/security_groups/{id}",
-      "fields": [
-        {
-          "path": "",
-          "type": "null"
-        }
-      ],
+      "fields": [],
       "statuses": [
         204,
         404
@@ -10858,12 +10833,7 @@
     "instance/v1/API.DeleteServer": {
       "method": "DELETE",
       "path": "/instance/v1/zones/fr-par-1/servers/{id}",
-      "fields": [
-        {
-          "path": "",
-          "type": "null"
-        }
-      ],
+      "fields": [],
       "statuses": [
         204
       ]
@@ -33129,12 +33099,7 @@
     "ipam/v1/API.ReleaseIP": {
       "method": "DELETE",
       "path": "/ipam/v1/regions/fr-par/ips/{id}",
-      "fields": [
-        {
-          "path": "",
-          "type": "null"
-        }
-      ],
+      "fields": [],
       "statuses": [
         204,
         404
@@ -33686,12 +33651,7 @@
     "vpc/v2/API.DeletePrivateNetwork": {
       "method": "DELETE",
       "path": "/vpc/v2/regions/fr-par/private-networks/{id}",
-      "fields": [
-        {
-          "path": "",
-          "type": "null"
-        }
-      ],
+      "fields": [],
       "statuses": [
         204,
         404
@@ -33700,12 +33660,7 @@
     "vpc/v2/API.DeleteRoute": {
       "method": "DELETE",
       "path": "/vpc/v2/regions/fr-par/routes/{id}",
-      "fields": [
-        {
-          "path": "",
-          "type": "null"
-        }
-      ],
+      "fields": [],
       "statuses": [
         204,
         404
@@ -33714,12 +33669,7 @@
     "vpc/v2/API.DeleteVPC": {
       "method": "DELETE",
       "path": "/vpc/v2/regions/fr-par/vpcs/{id}",
-      "fields": [
-        {
-          "path": "",
-          "type": "null"
-        }
-      ],
+      "fields": [],
       "statuses": [
         204,
         404

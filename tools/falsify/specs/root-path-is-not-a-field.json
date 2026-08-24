@@ -1,0 +1,22 @@
+{
+  "subject": "a body that is not there is not a field of the answer (internal/shape, #427)",
+  "why": "The shape axis and the shapes gate both branch on len(Operation.Fields), and a 204 used to make it non-zero: the walk decodes an absent body as nil and writes one entry at the empty path with type \"null\". MEASURED on 2026-08-24 against the committed shapes/scaleway.json — six operations carried that phantom entry, every one of them a DELETE, so six of the 134 points the axis published were earned by an empty body, and the recording of #427 would have added four more. The number moved upward, which is the direction nobody audits. Both mutations below put a phantom field back, one on the way in and one on the way out, because a file committed before the rule must not go on being believed either.",
+  "mutations": [
+    {
+      "file": "internal/shape/shape.go",
+      "find": "\tfresh := map[string]string{}\n\tfor _, f := range transcript.FieldsOfObserved(x.Res.Body, IsRedacted) {\n\t\tif isRootPath(f.Path) {\n\t\t\tcontinue\n\t\t}\n\t\tfresh[f.Path] = f.Type\n\t}",
+      "replace": "\tfresh := map[string]string{}\n\tfor _, f := range transcript.FieldsOfObserved(x.Res.Body, IsRedacted) {\n\t\tif isRootPath(f.Path) && false {\n\t\t\tcontinue\n\t\t}\n\t\tfresh[f.Path] = f.Type\n\t}",
+      "expect": "a 204 records one field at the empty path again, so every delete this repository ever records counts as an operation whose shape the real cloud proved",
+      "test": "TestAnAbsentBodyIsNotAField",
+      "label": "an absent body becomes a field again"
+    },
+    {
+      "file": "internal/shape/shape.go",
+      "find": "\tfor _, op := range c.Operations {\n\t\top.Fields = dropRootPaths(op.Fields)\n\t}",
+      "replace": "\tfor _, op := range c.Operations {\n\t\t_ = dropRootPaths\n\t\t_ = op\n\t}",
+      "expect": "a catalogue committed before the rule keeps its phantom fields on load, so the six pre-existing entries go on earning the axis until some unrelated recording happens to touch the same operation",
+      "test": "TestALoadedCatalogueDropsARootPathField",
+      "label": "a stale catalogue is believed as written"
+    }
+  ]
+}
