@@ -160,7 +160,9 @@ func TestARouteRoundTripsThroughItsLifecycle(t *testing.T) {
 
 	status, created := do(t, ts, "POST", vpcRegion+"/routes",
 		fmt.Sprintf(`{"vpc_id":%q,"description":"to the lab","destination":"192.168.42.0/24","nexthop_private_network_id":%q}`, vpcID, pnID))
-	if status != http.StatusCreated {
+	// 200, like every vpc/v2 create: measured on the wire against a real fr-par
+	// account on 2026-08-24, see vpcCreateStatus.
+	if status != http.StatusOK {
 		t.Fatalf("create route: status %d (%v)", status, created)
 	}
 	routeID, _ := created["id"].(string)

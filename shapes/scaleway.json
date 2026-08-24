@@ -10172,8 +10172,38 @@
     "iam/v1alpha1/API.UpdateSSHKey": {
       "method": "PATCH",
       "path": "/iam/v1alpha1/ssh-keys/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "disabled",
+          "type": "bool"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "organization_id",
+          "type": "string"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "public_key",
+          "type": "string"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -10242,8 +10272,46 @@
     "instance/v1/API.CreatePlacementGroup": {
       "method": "POST",
       "path": "/instance/v1/zones/fr-par-1/placement_groups",
-      "fields": [],
+      "fields": [
+        {
+          "path": "placement_group",
+          "type": "object"
+        },
+        {
+          "path": "placement_group.id",
+          "type": "string"
+        },
+        {
+          "path": "placement_group.organization",
+          "type": "string"
+        },
+        {
+          "path": "placement_group.policy_mode",
+          "type": "string"
+        },
+        {
+          "path": "placement_group.policy_respected",
+          "type": "bool"
+        },
+        {
+          "path": "placement_group.policy_type",
+          "type": "string"
+        },
+        {
+          "path": "placement_group.project",
+          "type": "string"
+        },
+        {
+          "path": "placement_group.tags",
+          "type": "array"
+        },
+        {
+          "path": "placement_group.zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        201,
         403
       ]
     },
@@ -10258,16 +10326,132 @@
     "instance/v1/API.CreateSecurityGroup": {
       "method": "POST",
       "path": "/instance/v1/zones/fr-par-1/security_groups",
-      "fields": [],
+      "fields": [
+        {
+          "path": "security_group",
+          "type": "object"
+        },
+        {
+          "path": "security_group.creation_date",
+          "type": "string"
+        },
+        {
+          "path": "security_group.enable_default_security",
+          "type": "bool"
+        },
+        {
+          "path": "security_group.id",
+          "type": "string"
+        },
+        {
+          "path": "security_group.inbound_default_policy",
+          "type": "string"
+        },
+        {
+          "path": "security_group.modification_date",
+          "type": "string"
+        },
+        {
+          "path": "security_group.organization",
+          "type": "string"
+        },
+        {
+          "path": "security_group.organization_default",
+          "type": "bool"
+        },
+        {
+          "path": "security_group.outbound_default_policy",
+          "type": "string"
+        },
+        {
+          "path": "security_group.project",
+          "type": "string"
+        },
+        {
+          "path": "security_group.project_default",
+          "type": "bool"
+        },
+        {
+          "path": "security_group.servers",
+          "type": "array"
+        },
+        {
+          "path": "security_group.state",
+          "type": "string"
+        },
+        {
+          "path": "security_group.stateful",
+          "type": "bool"
+        },
+        {
+          "path": "security_group.tags",
+          "type": "array"
+        },
+        {
+          "path": "security_group.zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        201,
         403
       ]
     },
     "instance/v1/API.CreateSecurityGroupRule": {
       "method": "POST",
       "path": "/instance/v1/zones/fr-par-1/security_groups/{id}/rules",
-      "fields": [],
+      "fields": [
+        {
+          "path": "rule",
+          "type": "object"
+        },
+        {
+          "path": "rule.action",
+          "type": "string"
+        },
+        {
+          "path": "rule.dest_ip_range",
+          "type": "null"
+        },
+        {
+          "path": "rule.dest_port_from",
+          "type": "number"
+        },
+        {
+          "path": "rule.dest_port_to",
+          "type": "null"
+        },
+        {
+          "path": "rule.direction",
+          "type": "string"
+        },
+        {
+          "path": "rule.editable",
+          "type": "bool"
+        },
+        {
+          "path": "rule.id",
+          "type": "string"
+        },
+        {
+          "path": "rule.ip_range",
+          "type": "string"
+        },
+        {
+          "path": "rule.position",
+          "type": "number"
+        },
+        {
+          "path": "rule.protocol",
+          "type": "string"
+        },
+        {
+          "path": "rule.zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        201,
         404
       ]
     },
@@ -10630,8 +10814,14 @@
     "instance/v1/API.DeletePlacementGroup": {
       "method": "DELETE",
       "path": "/instance/v1/zones/fr-par-1/placement_groups/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "",
+          "type": "null"
+        }
+      ],
       "statuses": [
+        204,
         404
       ]
     },
@@ -10646,8 +10836,14 @@
     "instance/v1/API.DeleteSecurityGroup": {
       "method": "DELETE",
       "path": "/instance/v1/zones/fr-par-1/security_groups/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "",
+          "type": "null"
+        }
+      ],
       "statuses": [
+        204,
         404
       ]
     },
@@ -10792,16 +10988,60 @@
     "instance/v1/API.GetPlacementGroup": {
       "method": "GET",
       "path": "/instance/v1/zones/fr-par-1/placement_groups/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "placement_group",
+          "type": "object"
+        },
+        {
+          "path": "placement_group.id",
+          "type": "string"
+        },
+        {
+          "path": "placement_group.organization",
+          "type": "string"
+        },
+        {
+          "path": "placement_group.policy_mode",
+          "type": "string"
+        },
+        {
+          "path": "placement_group.policy_respected",
+          "type": "bool"
+        },
+        {
+          "path": "placement_group.policy_type",
+          "type": "string"
+        },
+        {
+          "path": "placement_group.project",
+          "type": "string"
+        },
+        {
+          "path": "placement_group.tags",
+          "type": "array"
+        },
+        {
+          "path": "placement_group.zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
     "instance/v1/API.GetPlacementGroupServers": {
       "method": "GET",
       "path": "/instance/v1/zones/fr-par-1/placement_groups/{id}/servers",
-      "fields": [],
+      "fields": [
+        {
+          "path": "servers",
+          "type": "array"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -10816,16 +11056,132 @@
     "instance/v1/API.GetSecurityGroup": {
       "method": "GET",
       "path": "/instance/v1/zones/fr-par-1/security_groups/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "security_group",
+          "type": "object"
+        },
+        {
+          "path": "security_group.creation_date",
+          "type": "string"
+        },
+        {
+          "path": "security_group.enable_default_security",
+          "type": "bool"
+        },
+        {
+          "path": "security_group.id",
+          "type": "string"
+        },
+        {
+          "path": "security_group.inbound_default_policy",
+          "type": "string"
+        },
+        {
+          "path": "security_group.modification_date",
+          "type": "string"
+        },
+        {
+          "path": "security_group.organization",
+          "type": "string"
+        },
+        {
+          "path": "security_group.organization_default",
+          "type": "bool"
+        },
+        {
+          "path": "security_group.outbound_default_policy",
+          "type": "string"
+        },
+        {
+          "path": "security_group.project",
+          "type": "string"
+        },
+        {
+          "path": "security_group.project_default",
+          "type": "bool"
+        },
+        {
+          "path": "security_group.servers",
+          "type": "array"
+        },
+        {
+          "path": "security_group.state",
+          "type": "string"
+        },
+        {
+          "path": "security_group.stateful",
+          "type": "bool"
+        },
+        {
+          "path": "security_group.tags",
+          "type": "array"
+        },
+        {
+          "path": "security_group.zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
     "instance/v1/API.GetSecurityGroupRule": {
       "method": "GET",
       "path": "/instance/v1/zones/fr-par-1/security_groups/{id}/rules/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "rule",
+          "type": "object"
+        },
+        {
+          "path": "rule.action",
+          "type": "string"
+        },
+        {
+          "path": "rule.dest_ip_range",
+          "type": "null"
+        },
+        {
+          "path": "rule.dest_port_from",
+          "type": "number"
+        },
+        {
+          "path": "rule.dest_port_to",
+          "type": "null"
+        },
+        {
+          "path": "rule.direction",
+          "type": "string"
+        },
+        {
+          "path": "rule.editable",
+          "type": "bool"
+        },
+        {
+          "path": "rule.id",
+          "type": "string"
+        },
+        {
+          "path": "rule.ip_range",
+          "type": "string"
+        },
+        {
+          "path": "rule.position",
+          "type": "number"
+        },
+        {
+          "path": "rule.protocol",
+          "type": "string"
+        },
+        {
+          "path": "rule.zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -11211,6 +11567,42 @@
         {
           "path": "placement_groups",
           "type": "array"
+        },
+        {
+          "path": "placement_groups[]",
+          "type": "object"
+        },
+        {
+          "path": "placement_groups[].id",
+          "type": "string"
+        },
+        {
+          "path": "placement_groups[].organization",
+          "type": "string"
+        },
+        {
+          "path": "placement_groups[].policy_mode",
+          "type": "string"
+        },
+        {
+          "path": "placement_groups[].policy_respected",
+          "type": "bool"
+        },
+        {
+          "path": "placement_groups[].policy_type",
+          "type": "string"
+        },
+        {
+          "path": "placement_groups[].project",
+          "type": "string"
+        },
+        {
+          "path": "placement_groups[].tags",
+          "type": "array"
+        },
+        {
+          "path": "placement_groups[].zone",
+          "type": "string"
         }
       ],
       "statuses": [
@@ -11228,8 +11620,62 @@
     "instance/v1/API.ListSecurityGroupRules": {
       "method": "GET",
       "path": "/instance/v1/zones/fr-par-1/security_groups/{id}/rules",
-      "fields": [],
+      "fields": [
+        {
+          "path": "rules",
+          "type": "array"
+        },
+        {
+          "path": "rules[]",
+          "type": "object"
+        },
+        {
+          "path": "rules[].action",
+          "type": "string"
+        },
+        {
+          "path": "rules[].dest_ip_range",
+          "type": "null"
+        },
+        {
+          "path": "rules[].dest_port_from",
+          "type": "number"
+        },
+        {
+          "path": "rules[].dest_port_to",
+          "type": "null"
+        },
+        {
+          "path": "rules[].direction",
+          "type": "string"
+        },
+        {
+          "path": "rules[].editable",
+          "type": "bool"
+        },
+        {
+          "path": "rules[].id",
+          "type": "string"
+        },
+        {
+          "path": "rules[].ip_range",
+          "type": "string"
+        },
+        {
+          "path": "rules[].position",
+          "type": "number"
+        },
+        {
+          "path": "rules[].protocol",
+          "type": "string"
+        },
+        {
+          "path": "rules[].zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -31842,6 +32288,112 @@
         404
       ]
     },
+    "instance/v1/API.SetPlacementGroup": {
+      "method": "PUT",
+      "path": "/instance/v1/zones/fr-par-1/placement_groups/{id}",
+      "fields": [
+        {
+          "path": "placement_group",
+          "type": "object"
+        },
+        {
+          "path": "placement_group.id",
+          "type": "string"
+        },
+        {
+          "path": "placement_group.organization",
+          "type": "string"
+        },
+        {
+          "path": "placement_group.policy_mode",
+          "type": "string"
+        },
+        {
+          "path": "placement_group.policy_respected",
+          "type": "bool"
+        },
+        {
+          "path": "placement_group.policy_type",
+          "type": "string"
+        },
+        {
+          "path": "placement_group.project",
+          "type": "string"
+        },
+        {
+          "path": "placement_group.tags",
+          "type": "array"
+        },
+        {
+          "path": "placement_group.zone",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "instance/v1/API.SetSecurityGroupRules": {
+      "method": "PUT",
+      "path": "/instance/v1/zones/fr-par-1/security_groups/{id}/rules",
+      "fields": [
+        {
+          "path": "rules",
+          "type": "array"
+        },
+        {
+          "path": "rules[]",
+          "type": "object"
+        },
+        {
+          "path": "rules[].action",
+          "type": "string"
+        },
+        {
+          "path": "rules[].dest_ip_range",
+          "type": "null"
+        },
+        {
+          "path": "rules[].dest_port_from",
+          "type": "number"
+        },
+        {
+          "path": "rules[].dest_port_to",
+          "type": "null"
+        },
+        {
+          "path": "rules[].direction",
+          "type": "string"
+        },
+        {
+          "path": "rules[].editable",
+          "type": "bool"
+        },
+        {
+          "path": "rules[].id",
+          "type": "string"
+        },
+        {
+          "path": "rules[].ip_range",
+          "type": "string"
+        },
+        {
+          "path": "rules[].position",
+          "type": "number"
+        },
+        {
+          "path": "rules[].protocol",
+          "type": "string"
+        },
+        {
+          "path": "rules[].zone",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
     "instance/v1/API.UpdateIP": {
       "method": "PATCH",
       "path": "/instance/v1/zones/fr-par-1/ips/{id}",
@@ -31861,24 +32413,178 @@
     "instance/v1/API.UpdatePlacementGroup": {
       "method": "PATCH",
       "path": "/instance/v1/zones/fr-par-1/placement_groups/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "placement_group",
+          "type": "object"
+        },
+        {
+          "path": "placement_group.id",
+          "type": "string"
+        },
+        {
+          "path": "placement_group.organization",
+          "type": "string"
+        },
+        {
+          "path": "placement_group.policy_mode",
+          "type": "string"
+        },
+        {
+          "path": "placement_group.policy_respected",
+          "type": "bool"
+        },
+        {
+          "path": "placement_group.policy_type",
+          "type": "string"
+        },
+        {
+          "path": "placement_group.project",
+          "type": "string"
+        },
+        {
+          "path": "placement_group.tags",
+          "type": "array"
+        },
+        {
+          "path": "placement_group.zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
     "instance/v1/API.UpdateSecurityGroup": {
       "method": "PATCH",
       "path": "/instance/v1/zones/fr-par-1/security_groups/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "security_group",
+          "type": "object"
+        },
+        {
+          "path": "security_group.creation_date",
+          "type": "string"
+        },
+        {
+          "path": "security_group.enable_default_security",
+          "type": "bool"
+        },
+        {
+          "path": "security_group.id",
+          "type": "string"
+        },
+        {
+          "path": "security_group.inbound_default_policy",
+          "type": "string"
+        },
+        {
+          "path": "security_group.modification_date",
+          "type": "string"
+        },
+        {
+          "path": "security_group.organization",
+          "type": "string"
+        },
+        {
+          "path": "security_group.organization_default",
+          "type": "bool"
+        },
+        {
+          "path": "security_group.outbound_default_policy",
+          "type": "string"
+        },
+        {
+          "path": "security_group.project",
+          "type": "string"
+        },
+        {
+          "path": "security_group.project_default",
+          "type": "bool"
+        },
+        {
+          "path": "security_group.servers",
+          "type": "array"
+        },
+        {
+          "path": "security_group.state",
+          "type": "string"
+        },
+        {
+          "path": "security_group.stateful",
+          "type": "bool"
+        },
+        {
+          "path": "security_group.tags",
+          "type": "array"
+        },
+        {
+          "path": "security_group.zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
     "instance/v1/API.UpdateSecurityGroupRule": {
       "method": "PATCH",
       "path": "/instance/v1/zones/fr-par-1/security_groups/{id}/rules/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "rule",
+          "type": "object"
+        },
+        {
+          "path": "rule.action",
+          "type": "string"
+        },
+        {
+          "path": "rule.dest_ip_range",
+          "type": "null"
+        },
+        {
+          "path": "rule.dest_port_from",
+          "type": "number"
+        },
+        {
+          "path": "rule.dest_port_to",
+          "type": "null"
+        },
+        {
+          "path": "rule.direction",
+          "type": "string"
+        },
+        {
+          "path": "rule.editable",
+          "type": "bool"
+        },
+        {
+          "path": "rule.id",
+          "type": "string"
+        },
+        {
+          "path": "rule.ip_range",
+          "type": "string"
+        },
+        {
+          "path": "rule.position",
+          "type": "number"
+        },
+        {
+          "path": "rule.protocol",
+          "type": "string"
+        },
+        {
+          "path": "rule.zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -32226,16 +32932,124 @@
     "ipam/v1/API.BookIP": {
       "method": "POST",
       "path": "/ipam/v1/regions/fr-par/ips",
-      "fields": [],
+      "fields": [
+        {
+          "path": "address",
+          "type": "string"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "is_ipv6",
+          "type": "bool"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "region",
+          "type": "string"
+        },
+        {
+          "path": "resource",
+          "type": "null"
+        },
+        {
+          "path": "reverses",
+          "type": "array"
+        },
+        {
+          "path": "source",
+          "type": "object"
+        },
+        {
+          "path": "source.subnet_id",
+          "type": "string"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        },
+        {
+          "path": "zone",
+          "type": "null"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
     "ipam/v1/API.GetIP": {
       "method": "GET",
       "path": "/ipam/v1/regions/fr-par/ips/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "address",
+          "type": "string"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "is_ipv6",
+          "type": "bool"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "region",
+          "type": "string"
+        },
+        {
+          "path": "resource",
+          "type": "null"
+        },
+        {
+          "path": "reverses",
+          "type": "array"
+        },
+        {
+          "path": "source",
+          "type": "object"
+        },
+        {
+          "path": "source.subnet_id",
+          "type": "string"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        },
+        {
+          "path": "zone",
+          "type": "null"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -32246,6 +33060,62 @@
         {
           "path": "ips",
           "type": "array"
+        },
+        {
+          "path": "ips[]",
+          "type": "object"
+        },
+        {
+          "path": "ips[].address",
+          "type": "string"
+        },
+        {
+          "path": "ips[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "ips[].id",
+          "type": "string"
+        },
+        {
+          "path": "ips[].is_ipv6",
+          "type": "bool"
+        },
+        {
+          "path": "ips[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "ips[].region",
+          "type": "string"
+        },
+        {
+          "path": "ips[].resource",
+          "type": "null"
+        },
+        {
+          "path": "ips[].reverses",
+          "type": "array"
+        },
+        {
+          "path": "ips[].source",
+          "type": "object"
+        },
+        {
+          "path": "ips[].source.subnet_id",
+          "type": "string"
+        },
+        {
+          "path": "ips[].tags",
+          "type": "array"
+        },
+        {
+          "path": "ips[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "ips[].zone",
+          "type": "null"
         },
         {
           "path": "total_count",
@@ -32259,16 +33129,76 @@
     "ipam/v1/API.ReleaseIP": {
       "method": "DELETE",
       "path": "/ipam/v1/regions/fr-par/ips/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "",
+          "type": "null"
+        }
+      ],
       "statuses": [
+        204,
         404
       ]
     },
     "ipam/v1/API.UpdateIP": {
       "method": "PATCH",
       "path": "/ipam/v1/regions/fr-par/ips/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "address",
+          "type": "string"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "is_ipv6",
+          "type": "bool"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "region",
+          "type": "string"
+        },
+        {
+          "path": "resource",
+          "type": "null"
+        },
+        {
+          "path": "reverses",
+          "type": "array"
+        },
+        {
+          "path": "source",
+          "type": "object"
+        },
+        {
+          "path": "source.subnet_id",
+          "type": "string"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        },
+        {
+          "path": "zone",
+          "type": "null"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -32636,8 +33566,58 @@
     "vpc/v2/API.CreateRoute": {
       "method": "POST",
       "path": "/vpc/v2/regions/fr-par/routes",
-      "fields": [],
+      "fields": [
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "destination",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "is_read_only",
+          "type": "bool"
+        },
+        {
+          "path": "nexthop_private_network_id",
+          "type": "string"
+        },
+        {
+          "path": "nexthop_resource_id",
+          "type": "null"
+        },
+        {
+          "path": "nexthop_vpc_connector_id",
+          "type": "null"
+        },
+        {
+          "path": "region",
+          "type": "string"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "type",
+          "type": "string"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        },
+        {
+          "path": "vpc_id",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
@@ -32720,8 +33700,14 @@
     "vpc/v2/API.DeleteRoute": {
       "method": "DELETE",
       "path": "/vpc/v2/regions/fr-par/routes/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "",
+          "type": "null"
+        }
+      ],
       "statuses": [
+        204,
         404
       ]
     },
@@ -32739,19 +33725,212 @@
         404
       ]
     },
+    "vpc/v2/API.EnableDHCP": {
+      "method": "POST",
+      "path": "/vpc/v2/regions/fr-par/private-networks/{id}/enable-dhcp",
+      "fields": [
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "default_route_propagation_enabled",
+          "type": "bool"
+        },
+        {
+          "path": "dhcp_enabled",
+          "type": "bool"
+        },
+        {
+          "path": "has_s3_integration",
+          "type": "bool"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "organization_id",
+          "type": "string"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "region",
+          "type": "string"
+        },
+        {
+          "path": "subnets",
+          "type": "array"
+        },
+        {
+          "path": "subnets[]",
+          "type": "object"
+        },
+        {
+          "path": "subnets[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "subnets[].id",
+          "type": "string"
+        },
+        {
+          "path": "subnets[].private_network_id",
+          "type": "string"
+        },
+        {
+          "path": "subnets[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "subnets[].region",
+          "type": "string"
+        },
+        {
+          "path": "subnets[].subnet",
+          "type": "string"
+        },
+        {
+          "path": "subnets[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "subnets[].vpc_id",
+          "type": "string"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        },
+        {
+          "path": "vpc_id",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
     "vpc/v2/API.EnableRouting": {
       "method": "POST",
       "path": "/vpc/v2/regions/fr-par/vpcs/{id}/enable-routing",
-      "fields": [],
+      "fields": [
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "custom_routes_propagation_enabled",
+          "type": "bool"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "is_default",
+          "type": "bool"
+        },
+        {
+          "path": "organization_id",
+          "type": "string"
+        },
+        {
+          "path": "private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "region",
+          "type": "string"
+        },
+        {
+          "path": "routing_enabled",
+          "type": "bool"
+        },
+        {
+          "path": "s3_integration_enabled",
+          "type": "bool"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "transitivity_enabled",
+          "type": "bool"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
     "vpc/v2/API.GetACL": {
       "method": "GET",
       "path": "/vpc/v2/regions/fr-par/vpcs/{id}/acl-rules",
-      "fields": [],
+      "fields": [
+        {
+          "path": "default_policy",
+          "type": "string"
+        },
+        {
+          "path": "rules",
+          "type": "array"
+        },
+        {
+          "path": "rules[]",
+          "type": "object"
+        },
+        {
+          "path": "rules[].action",
+          "type": "string"
+        },
+        {
+          "path": "rules[].destination",
+          "type": "string"
+        },
+        {
+          "path": "rules[].dst_port_high",
+          "type": "number"
+        },
+        {
+          "path": "rules[].dst_port_low",
+          "type": "number"
+        },
+        {
+          "path": "rules[].protocol",
+          "type": "string"
+        },
+        {
+          "path": "rules[].source",
+          "type": "string"
+        },
+        {
+          "path": "rules[].src_port_high",
+          "type": "number"
+        },
+        {
+          "path": "rules[].src_port_low",
+          "type": "number"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -32852,8 +34031,58 @@
     "vpc/v2/API.GetRoute": {
       "method": "GET",
       "path": "/vpc/v2/regions/fr-par/routes/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "destination",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "is_read_only",
+          "type": "bool"
+        },
+        {
+          "path": "nexthop_private_network_id",
+          "type": "string"
+        },
+        {
+          "path": "nexthop_resource_id",
+          "type": "null"
+        },
+        {
+          "path": "nexthop_vpc_connector_id",
+          "type": "null"
+        },
+        {
+          "path": "region",
+          "type": "string"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "type",
+          "type": "string"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        },
+        {
+          "path": "vpc_id",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -33105,6 +34334,59 @@
         200
       ]
     },
+    "vpc/v2/API.SetACL": {
+      "method": "PUT",
+      "path": "/vpc/v2/regions/fr-par/vpcs/{id}/acl-rules",
+      "fields": [
+        {
+          "path": "default_policy",
+          "type": "string"
+        },
+        {
+          "path": "rules",
+          "type": "array"
+        },
+        {
+          "path": "rules[]",
+          "type": "object"
+        },
+        {
+          "path": "rules[].action",
+          "type": "string"
+        },
+        {
+          "path": "rules[].destination",
+          "type": "string"
+        },
+        {
+          "path": "rules[].dst_port_high",
+          "type": "number"
+        },
+        {
+          "path": "rules[].dst_port_low",
+          "type": "number"
+        },
+        {
+          "path": "rules[].protocol",
+          "type": "string"
+        },
+        {
+          "path": "rules[].source",
+          "type": "string"
+        },
+        {
+          "path": "rules[].src_port_high",
+          "type": "number"
+        },
+        {
+          "path": "rules[].src_port_low",
+          "type": "number"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
     "vpc/v2/API.UpdatePrivateNetwork": {
       "method": "PATCH",
       "path": "/vpc/v2/regions/fr-par/private-networks/{id}",
@@ -33202,8 +34484,58 @@
     "vpc/v2/API.UpdateRoute": {
       "method": "PATCH",
       "path": "/vpc/v2/regions/fr-par/routes/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "destination",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "is_read_only",
+          "type": "bool"
+        },
+        {
+          "path": "nexthop_private_network_id",
+          "type": "string"
+        },
+        {
+          "path": "nexthop_resource_id",
+          "type": "null"
+        },
+        {
+          "path": "nexthop_vpc_connector_id",
+          "type": "null"
+        },
+        {
+          "path": "region",
+          "type": "string"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "type",
+          "type": "string"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        },
+        {
+          "path": "vpc_id",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },

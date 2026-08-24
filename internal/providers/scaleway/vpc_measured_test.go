@@ -23,10 +23,14 @@ import (
 // because neither `scw` nor the Terraform provider shows a status: both accept
 // any 2xx, which is exactly why this could sit wrong indefinitely.
 //
-// Only these two operations are asserted. CreateRoute is vpc/v2 as well and was
-// not measured — nothing was created on that account beyond the two free
-// objects — so it keeps the pack's 201 rather than inheriting a claim from its
-// neighbours.
+// Three operations are asserted, and the third is a later measurement.
+// CreateRoute used to sit here as the named exception — "vpc/v2 as well and not
+// measured, so it keeps the pack's 201 rather than inheriting a claim from its
+// neighbours". The condition that comment set has since been met: a route was
+// created on a real fr-par account on 2026-08-24 (a free object, on a free
+// private network), the answer is in corpus/scaleway/scw-free-shapes.jsonl, and
+// it carried 200. The exception is retired by the measurement it asked for, not
+// by the guess it refused.
 func TestTheVpcCreatesAnswerWhatTheRealCloudAnswers(t *testing.T) {
 	ts := newTestServer(t)
 
@@ -34,9 +38,43 @@ func TestTheVpcCreatesAnswerWhatTheRealCloudAnswers(t *testing.T) {
 	if status != http.StatusOK {
 		t.Errorf("CreateVPC answered %d, and the real cloud answered 200 (%v)", status, vpc)
 	}
-	status, pn := do(t, ts, "POST", vpcRegion+"/private-networks", `{"name":"measured-pn"}`)
+	vpcID, _ := vpc["id"].(string)
+	status, pn := do(t, ts, "POST", vpcRegion+"/private-networks", `{"name":"measured-pn","vpc_id":"`+vpcID+`"}`)
 	if status != http.StatusOK {
 		t.Errorf("CreatePrivateNetwork answered %d, and the real cloud answered 200 (%v)", status, pn)
+	}
+	pnID, _ := pn["id"].(string)
+	status, route := do(t, ts, "POST", vpcRegion+"/routes",
+		`{"vpc_id":"`+vpcID+`","destination":"192.168.99.0/24","nexthop_private_network_id":"`+pnID+`"}`)
+	if status != http.StatusOK {
+		t.Errorf("CreateRoute answered %d, and the real cloud answered 200 (%v)", status, route)
+	}
+}
+
+// BookIP answers 200, which is what the wire carried.
+//
+// Same family as the three above and the same reason it could sit wrong: `scw
+// ipam ip create` accepts any 2xx and prints no status, so nothing a client
+// does would ever have reported the pack's 201. Measured on 2026-08-24 against
+// a real fr-par account, into corpus/scaleway/scw-free-shapes.jsonl; a booking
+// on a private network is free, which is why it could be measured at all.
+//
+// ipam/v1 is a different product from vpc/v2, so it gets its own constant and
+// its own assertion rather than borrowing vpcCreateStatus: what is claimed is
+// what was seen, per product.
+func TestBookIPAnswersWhatTheRealCloudAnswers(t *testing.T) {
+	ts := newTestServer(t)
+
+	_, vpc := do(t, ts, "POST", vpcRegion+"/vpcs", `{"name":"booked"}`)
+	vpcID, _ := vpc["id"].(string)
+	_, pn := do(t, ts, "POST", vpcRegion+"/private-networks",
+		`{"name":"booked-pn","vpc_id":"`+vpcID+`","subnets":["192.168.42.0/24"]}`)
+	pnID, _ := pn["id"].(string)
+
+	status, ip := do(t, ts, "POST", "/ipam/v1/regions/fr-par/ips",
+		`{"is_ipv6":false,"source":{"private_network_id":"`+pnID+`"}}`)
+	if status != http.StatusOK {
+		t.Errorf("BookIP answered %d, and the real cloud answered 200 (%v)", status, ip)
 	}
 }
 

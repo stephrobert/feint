@@ -91,6 +91,21 @@ const (
 	attrHolderMAC  = "holder_mac"  // MAC of the holder's interface in the network
 )
 
+// ipamBookStatus is what a successful BookIP answers with.
+//
+// 200, not the 201 a create writes by habit. Measured on the wire on
+// 2026-08-24: `scw ipam ip create` against a real fr-par account answered 200,
+// recorded through `feint proxy` into corpus/scaleway/scw-free-shapes.jsonl,
+// and `feint corpus --check` reported this pack's 201 against it (#427). Read
+// off the transcript rather than off the CLI's exit code, which shows neither.
+//
+// Only ipam/v1's own create was measured, so only it is touched — the same
+// bound vpcCreateStatus states for vpc/v2. A status is part of the answer, and
+// an invented one is an invented format (rule 4).
+//
+// TestBookIPAnswersWhatTheRealCloudAnswers fails without it.
+const ipamBookStatus = http.StatusOK
+
 type ipamSourceRequest struct {
 	PrivateNetworkID *string `json:"private_network_id"`
 	SubnetID         *string `json:"subnet_id"`
@@ -399,7 +414,7 @@ func (p *Pack) bookIP(w http.ResponseWriter, r *http.Request) {
 	}
 	p.env.Store.Put(res)
 
-	emulator.WriteJSON(w, http.StatusCreated, p.ipamIPView(res))
+	emulator.WriteJSON(w, ipamBookStatus, p.ipamIPView(res))
 }
 
 // bookSourceOf resolves the Private Network a BookIP names, through either of

@@ -130,8 +130,10 @@ func TestABookedAddressRidesTheConnectionAndSurvivesIt(t *testing.T) {
 
 	status, booked := do(t, ts, "POST", "/ipam/v1/regions/fr-par/ips",
 		fmt.Sprintf(`{"source":{"private_network_id":%q}}`, pnID))
-	if status != http.StatusCreated {
-		t.Fatalf("book ip: expected 201, got %d (%v)", status, booked)
+	// 200, not the 201 a create writes by habit: measured on the wire against a
+	// real fr-par account on 2026-08-24, see ipamBookStatus.
+	if status != http.StatusOK {
+		t.Fatalf("book ip: expected 200, got %d (%v)", status, booked)
 	}
 	bookedID, _ := booked["id"].(string)
 

@@ -80,6 +80,13 @@ const reservedPerSubnet = 2
 // was measured, so no other product is touched: what is claimed here is what
 // was seen and nothing beyond it.
 //
+// CreateRoute joined them on 2026-08-24, the same way and for the same reason:
+// `corpus/scaleway/scw-free-shapes.jsonl` holds a real fr-par CreateRoute
+// answering 200, and `feint corpus --check` reported this pack's 201 against it
+// (#427). The third vpc/v2 create measured is the third to answer 200, which is
+// the first evidence that the status is a property of the product rather than
+// of the two operations that happened to be recorded first.
+//
 // It changes nothing for a client that tests 2xx, which is what the SDK and the
 // Terraform provider do. It changes the rule this repository works under, which
 // is that a status is part of the answer and an invented one is an invented

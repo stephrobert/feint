@@ -54,7 +54,9 @@ func ipv4SubnetOf(t *testing.T, subnets []any) map[string]any {
 func bookIP(t *testing.T, ts *httptest.Server, body string) map[string]any {
 	t.Helper()
 	status, out := do(t, ts, "POST", ipamRegion+"/ips", body)
-	if status != http.StatusCreated {
+	// 200, not the 201 a create writes by habit: measured on the wire against a
+	// real fr-par account on 2026-08-24, see ipamBookStatus.
+	if status != http.StatusOK {
 		t.Fatalf("book: status %d (%v)", status, out)
 	}
 	return out

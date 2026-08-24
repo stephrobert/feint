@@ -1096,6 +1096,20 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Deux créations Scaleway rendent le statut que le vrai cloud rend, et non
+  celui que le pack supposait** (#427). `vpc/v2/API.CreateRoute` et
+  `ipam/v1/API.BookIP` rendaient `201` parce que toutes les autres créations du
+  pack le font ; les deux rendent `200` sur un vrai compte `fr-par`, mesuré sur
+  le fil le 2026-08-24 et enregistré dans
+  `corpus/scaleway/scw-free-shapes.jsonl`.
+
+  Ni `scw` ni le fournisseur Terraform ne l'auraient jamais signalé : tous deux
+  acceptent n'importe quel `2xx` et n'affichent aucun statut. C'est exactement
+  ainsi qu'une erreur pareille survit indéfiniment. `CreateRoute` était même
+  nommée dans un commentaire de test comme la création vpc/v2 *non mesurée*, qui
+  gardait donc le `201` du pack : l'exception est levée par la mesure qu'elle
+  réclamait.
+
 - **L'axe `behaviour` était une fonction de l'ordonnanceur, et deux exécutions
   identiques s'accordaient sur le total en désaccord sur six opérations**
   (#398). Deux `mise run conformance` du même commit, machines éteintes, ont

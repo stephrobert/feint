@@ -382,7 +382,7 @@ func TestIPAMListHonoursOrderAndResourceFilters(t *testing.T) {
 
 	// ...and one booked for a custom resource, whose holder carries a name.
 	book := fmt.Sprintf(`{"source":{"private_network_id":%q},"resource":{"mac_address":"02:00:00:aa:bb:01","name":"appliance-7"}}`, pnID)
-	if status, out = do(t, ts, "POST", region+"/ips", book); status != http.StatusCreated {
+	if status, out = do(t, ts, "POST", region+"/ips", book); status != http.StatusOK {
 		t.Fatalf("book ip: status %d (%v)", status, out)
 	}
 

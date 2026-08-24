@@ -102,7 +102,7 @@ func (p *Pack) createRoute(w http.ResponseWriter, r *http.Request) {
 	}
 	p.env.Store.Put(res)
 
-	emulator.WriteJSON(w, http.StatusCreated, routeView(res))
+	emulator.WriteJSON(w, vpcCreateStatus, routeView(res))
 }
 
 func (p *Pack) getRoute(w http.ResponseWriter, r *http.Request) {

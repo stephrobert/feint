@@ -17,6 +17,18 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **Two Scaleway creates answer the status the real cloud answers, not the one
+  this pack assumed** (#427). `vpc/v2/API.CreateRoute` and `ipam/v1/API.BookIP`
+  answered `201` because every other create in the pack does; both answer `200`
+  on a real `fr-par` account, measured on the wire on 2026-08-24 and recorded in
+  `corpus/scaleway/scw-free-shapes.jsonl`.
+
+  Neither `scw` nor the Terraform provider would ever have reported it — both
+  accept any `2xx` and print no status — which is exactly how it could sit wrong
+  indefinitely. `CreateRoute` had even been named in a test comment as the
+  vpc/v2 create that was *not* measured and therefore kept the pack's `201`; the
+  exception is retired by the measurement it asked for.
+
 - **A run no longer leaves its networks on the host, and one that finds a
   previous run's is refused on the doorstep** (#426). `mise run evidence:update`
   could only be regenerated on a lucky run: leg 2 failed on any host with Incus,
