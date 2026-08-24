@@ -1096,6 +1096,20 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Outscale est prouvé sur chaque opération qu'il sert : `shape` atteint 93 sur
+  93** (#427). Les quatre dernières étaient la famille de l'appairage de Nets,
+  déclarée hors d'atteinte deux fois — par #354 puis par ce lot — pour une raison
+  qui n'a jamais tenu au code : un appairage demande deux Nets à soi, le quota
+  est de cinq, et quatre étaient pris par l'infrastructure de production du
+  compte. Un second compte, vide, a rendu ces quatre opérations triviales à
+  enregistrer.
+
+  L'enregistrement est replié dans `shapes/outscale.json` ; la transcription
+  elle-même n'est **pas** commitée comme corpus, et #438 dit pourquoi : son rejeu
+  part en cascade depuis un conflit `CreateNet` que personne n'a nommé, et écrire
+  35 exemptions pour une cause non nommée est précisément ce que
+  `corpus/accepted.json` existe pour empêcher.
+
 - **Le `TaskId` d'un volume est décliné plutôt qu'inventé, et c'est la mesure qui
   le dit** (#427, #437). Un vrai compte Outscale rend `TaskId` sur un volume, et
   la lecture naïve en conclut « le pack omet un champ ». Non : sur les huit

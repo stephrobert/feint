@@ -95,8 +95,58 @@
     "osc/Client.AcceptNetPeering": {
       "method": "POST",
       "path": "/api/v1/AcceptNetPeering",
-      "fields": [],
+      "fields": [
+        {
+          "path": "NetPeering",
+          "type": "object"
+        },
+        {
+          "path": "NetPeering.AccepterNet",
+          "type": "object"
+        },
+        {
+          "path": "NetPeering.AccepterNet.IpRange",
+          "type": "string"
+        },
+        {
+          "path": "NetPeering.AccepterNet.NetId",
+          "type": "string"
+        },
+        {
+          "path": "NetPeering.ExpirationDate",
+          "type": "string"
+        },
+        {
+          "path": "NetPeering.NetPeeringId",
+          "type": "string"
+        },
+        {
+          "path": "NetPeering.SourceNet",
+          "type": "object"
+        },
+        {
+          "path": "NetPeering.SourceNet.IpRange",
+          "type": "string"
+        },
+        {
+          "path": "NetPeering.SourceNet.NetId",
+          "type": "string"
+        },
+        {
+          "path": "NetPeering.State",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
@@ -666,8 +716,54 @@
     "osc/Client.CreateNetPeering": {
       "method": "POST",
       "path": "/api/v1/CreateNetPeering",
-      "fields": [],
+      "fields": [
+        {
+          "path": "NetPeering",
+          "type": "object"
+        },
+        {
+          "path": "NetPeering.AccepterNet",
+          "type": "object"
+        },
+        {
+          "path": "NetPeering.AccepterNet.IpRange",
+          "type": "string"
+        },
+        {
+          "path": "NetPeering.AccepterNet.NetId",
+          "type": "string"
+        },
+        {
+          "path": "NetPeering.NetPeeringId",
+          "type": "string"
+        },
+        {
+          "path": "NetPeering.SourceNet",
+          "type": "object"
+        },
+        {
+          "path": "NetPeering.SourceNet.IpRange",
+          "type": "string"
+        },
+        {
+          "path": "NetPeering.SourceNet.NetId",
+          "type": "string"
+        },
+        {
+          "path": "NetPeering.State",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },
@@ -1896,9 +1992,20 @@
     "osc/Client.DeleteNetPeering": {
       "method": "POST",
       "path": "/api/v1/DeleteNetPeering",
-      "fields": [],
+      "fields": [
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        }
+      ],
       "statuses": [
-        400
+        200,
+        400,
+        409
       ]
     },
     "osc/Client.DeleteNic": {
@@ -3104,6 +3211,54 @@
       "fields": [
         {
           "path": "NetPeerings",
+          "type": "array"
+        },
+        {
+          "path": "NetPeerings[]",
+          "type": "object"
+        },
+        {
+          "path": "NetPeerings[].AccepterNet",
+          "type": "object"
+        },
+        {
+          "path": "NetPeerings[].AccepterNet.IpRange",
+          "type": "string"
+        },
+        {
+          "path": "NetPeerings[].AccepterNet.NetId",
+          "type": "string"
+        },
+        {
+          "path": "NetPeerings[].ExpirationDate",
+          "type": "string"
+        },
+        {
+          "path": "NetPeerings[].NetPeeringId",
+          "type": "string"
+        },
+        {
+          "path": "NetPeerings[].SourceNet",
+          "type": "object"
+        },
+        {
+          "path": "NetPeerings[].SourceNet.IpRange",
+          "type": "string"
+        },
+        {
+          "path": "NetPeerings[].SourceNet.NetId",
+          "type": "string"
+        },
+        {
+          "path": "NetPeerings[].State",
+          "type": "object"
+        },
+        {
+          "path": "NetPeerings[].State.Name",
+          "type": "string"
+        },
+        {
+          "path": "NetPeerings[].Tags",
           "type": "array"
         },
         {
@@ -4669,8 +4824,18 @@
     "osc/Client.RejectNetPeering": {
       "method": "POST",
       "path": "/api/v1/RejectNetPeering",
-      "fields": [],
+      "fields": [
+        {
+          "path": "ResponseContext",
+          "type": "object"
+        },
+        {
+          "path": "ResponseContext.RequestId",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         400
       ]
     },

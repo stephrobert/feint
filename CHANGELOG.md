@@ -17,6 +17,18 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **Outscale is proven on every operation it serves: `shape` reaches 93 of 93**
+  (#427). The last four were the Net peering family, and they had been declared
+  unreachable twice — by #354 and again by this batch — for a reason that was
+  never about the code: a peering needs two Nets of one's own, the quota is
+  five, and four were held by the account's production infrastructure. A second,
+  empty account made the same four operations trivial to record.
+
+  The recording is folded into `shapes/outscale.json`; the transcript itself is
+  **not** committed as a corpus, and #438 carries why: its replay cascades from
+  one `CreateNet` conflict nobody has named, and writing 35 exemptions for an
+  unnamed cause is what `corpus/accepted.json` exists to prevent.
+
 - **A volume's `TaskId` is declined rather than invented, and the measurement is
   why** (#427, #437). A real Outscale account answers `TaskId` on a volume, and
   the naive reading of that is "the pack omits a field". It is not: of the eight
