@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stephrobert/feint/internal/core/emulator"
+	"github.com/stephrobert/feint/internal/providers/scaleway"
 )
 
 const gwURL = "/vpc-gw/v2/zones/fr-par-1"
@@ -194,5 +197,111 @@ func TestAnUnknownGatewayTypeIsRefused(t *testing.T) {
 	status, body := do(t, ts, "POST", gwURL+"/gateways", `{"name":"x","type":"VPC-GW-QUANTUM"}`)
 	if status != http.StatusBadRequest {
 		t.Fatalf("an unknown offer answered %d, want 400 (%v)", status, body)
+	}
+}
+
+// TestAGatewayAddressAnswersAReverseOfTheRecordedType holds the type a real
+// fr-par account answers on `reverse`, and holds it on the create as well as on
+// the read.
+//
+// The value is not asserted and cannot be: the recording carries a reverse the
+// sanitiser replaced, so what was measured is that the cloud answers a *string*
+// there and never null. An invented hostname would be the fabricated format
+// this repository refuses; the empty string is what the sibling lb IP has
+// answered all along.
+func TestAGatewayAddressAnswersAReverseOfTheRecordedType(t *testing.T) {
+	ts := newTestServer(t)
+	status, ip := do(t, ts, "POST", gwURL+"/ips", `{}`)
+	if status != http.StatusOK {
+		t.Fatalf("create gateway ip: expected 200, got %d (%v)", status, ip)
+	}
+	id, _ := ip["id"].(string)
+	if _, isString := ip["reverse"].(string); !isString {
+		t.Errorf("a created address answers reverse = %v (%T), want a string as the recorded cloud answers",
+			ip["reverse"], ip["reverse"])
+	}
+
+	status, read := do(t, ts, "GET", gwURL+"/ips/"+id, "")
+	if status != http.StatusOK {
+		t.Fatalf("get gateway ip: expected 200, got %d (%v)", status, read)
+	}
+	if _, isString := read["reverse"].(string); !isString {
+		t.Errorf("a re-read address answers reverse = %v (%T), want a string", read["reverse"], read["reverse"])
+	}
+
+	// A client that sets one gets it back, and one that clears it still gets a
+	// string: the field never becomes null again.
+	status, updated := do(t, ts, "PATCH", gwURL+"/ips/"+id, `{"reverse":"gw.example.invalid"}`)
+	if status != http.StatusOK {
+		t.Fatalf("update gateway ip: expected 200, got %d (%v)", status, updated)
+	}
+	if updated["reverse"] != "gw.example.invalid" {
+		t.Errorf("reverse = %v, want the name the client set", updated["reverse"])
+	}
+	status, cleared := do(t, ts, "PATCH", gwURL+"/ips/"+id, `{"reverse":""}`)
+	if status != http.StatusOK {
+		t.Fatalf("clear reverse: expected 200, got %d (%v)", status, cleared)
+	}
+	if got, isString := cleared["reverse"].(string); !isString || got != "" {
+		t.Errorf("a cleared reverse = %v (%T), want the empty string and not null", cleared["reverse"], cleared["reverse"])
+	}
+
+	// The list answers the same shape: it is the door the recording caught the
+	// null on, because a create was compared against a body the list built.
+	status, page := do(t, ts, "GET", gwURL+"/ips", "")
+	if status != http.StatusOK {
+		t.Fatalf("list gateway ips: expected 200, got %d (%v)", status, page)
+	}
+	ips, _ := page["ips"].([]any)
+	if len(ips) != 1 {
+		t.Fatalf("the list answers %d address(es), want the one created: %v", len(ips), page)
+	}
+	if _, isString := ips[0].(map[string]any)["reverse"].(string); !isString {
+		t.Errorf("a listed address answers a reverse that is not a string: %v", ips[0])
+	}
+}
+
+// TestTheGatewaySoftwareVersionIsDeclinedRatherThanInvented holds the decision
+// at both ends, because either end alone is a comment.
+//
+// A key present with a null value cannot be excused: a field decline answers
+// for a field the response does not carry, so `"version": nil` produced a type
+// divergence no decline could reach, and the emulator was stating "no version"
+// in a shape the cloud never answers. So the key is absent AND the decline says
+// why — assert one without the other and a future edit satisfies the test while
+// undoing the decision.
+func TestTheGatewaySoftwareVersionIsDeclinedRatherThanInvented(t *testing.T) {
+	ts := newTestServer(t)
+	_, gatewayID, _, _ := gatewayChain(t, ts)
+	status, gw := do(t, ts, "GET", gwURL+"/gateways/"+gatewayID, "")
+	if status != http.StatusOK {
+		t.Fatalf("get gateway: expected 200, got %d (%v)", status, gw)
+	}
+	if _, present := gw["version"]; present {
+		t.Errorf("the gateway answers version = %v; nothing runs here, so the key is absent and DeclinedFields says why",
+			gw["version"])
+	}
+	if _, present := gw["bastion_allowed_ips"]; !present {
+		t.Error("bastion_allowed_ips is absent; the array is served empty, only its elements are declined")
+	}
+
+	declines := emulator.FieldDeclinesOf(scaleway.New(emulator.DefaultEnv()))
+	for _, want := range []struct{ operation, path string }{
+		{"vpcgw/v2/API.GetGateway", "version"},
+		{"vpcgw/v2/API.CreateGateway", "version"},
+		{"vpcgw/v2/API.GetGateway", "bastion_allowed_ips[]"},
+		{"vpcgw/v2/API.CreateGateway", "bastion_allowed_ips[]"},
+	} {
+		found := false
+		for _, d := range declines {
+			if d.Matches(want.operation, want.path) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("no field decline covers %s on %s: the replay reads the omission as a divergence",
+				want.path, want.operation)
+		}
 	}
 }

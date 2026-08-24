@@ -219,21 +219,55 @@ func backendAttrs(req *backendRequest, lbID string) map[string]any {
 		"forward_port_algorithm":      orDefault(req.ForwardPortAlgorithm, "roundrobin"),
 		"sticky_sessions":             orDefault(req.StickySessions, "none"),
 		"sticky_sessions_cookie_name": req.StickySessionsCookieName,
-		"send_proxy_v2":               req.SendProxyV2,
+		"send_proxy_v2":               falseIfAbsent(req.SendProxyV2),
 		"timeout_server":              req.TimeoutServer,
 		"timeout_connect":             req.TimeoutConnect,
 		"timeout_tunnel":              req.TimeoutTunnel,
 		"on_marked_down_action":       orDefault(req.OnMarkedDownAction, "on_marked_down_action_none"),
 		"proxy_protocol":              orDefault(req.ProxyProtocol, "proxy_protocol_none"),
 		"failover_host":               req.FailoverHost,
-		"ssl_bridging":                req.SslBridging,
+		"ssl_bridging":                falseIfAbsent(req.SslBridging),
 		"ignore_ssl_server_verify":    req.IgnoreSslServerVerify,
 		"redispatch_attempt_count":    req.RedispatchAttemptCount,
 		"max_retries":                 req.MaxRetries,
 		"max_connections":             req.MaxConnections,
 		"timeout_queue":               rawOrNil(req.TimeoutQueue),
-		"host":                        req.Host,
+		"host":                        emptyIfAbsent(req.Host),
 	}
+}
+
+// falseIfAbsent and emptyIfAbsent give a backend the concrete value the cloud
+// answers where the request carried none, instead of the JSON null a nil
+// pointer serialises to.
+//
+// Measured rather than guessed: corpus/scaleway/scw-billed-shapes.jsonl seq 13
+// is a CreateBackend whose body names neither send_proxy_v2, ssl_bridging nor
+// host, and fr-par answers false, false and "". The three other optional
+// pointers of the same request — failover_host, ignore_ssl_server_verify,
+// timeout_queue — come back null on that same exchange, so they keep their nil
+// and are deliberately not routed through these.
+//
+// The three appear on eleven operations, because a backend is nested inside a
+// frontend and a frontend inside an ACL, so 45 findings of
+// `feint corpus --check` named this one default.
+// TestABackendAnswersTheCloudsConcreteDefaults fails without this.
+// The return type is `any` and not bool or string because the value this
+// answers is the one the field carries, and the defect being prevented is
+// precisely a *pointer* reaching the response: a typed return could not express
+// the wrong answer, which would leave the mutation that proves these unwritable
+// (tools/falsify/specs/recorded-lb-shapes.json).
+func falseIfAbsent(v *bool) any {
+	if v == nil {
+		return false
+	}
+	return *v
+}
+
+func emptyIfAbsent(v *string) any {
+	if v == nil {
+		return ""
+	}
+	return *v
 }
 
 func rawOrNil(raw json.RawMessage) any {

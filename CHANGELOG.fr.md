@@ -1131,6 +1131,31 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Un répartiteur publie le nœud sur lequel il tourne, un backend publie les
+  trois valeurs par défaut que le cloud remplit, et l'adresse d'une passerelle
+  publique publie un reverse** (#434, #435). Quatre-vingt-dix des divergences
+  qu'un enregistrement réel de `fr-par` a trouvées tenaient à cinq causes, et
+  chacune est une forme qu'un client lit.
+
+  Un backend créé sans `send_proxy_v2`, `ssl_bridging` ni `host` répondait
+  `null` sur les trois là où le cloud répond `false`, `false` et `""` ; les
+  trois champs apparaissent sur onze opérations, parce qu'un frontend contient
+  un backend et une ACL contient un frontend. Un répartiteur publiait un tableau
+  `instances` vide là où le cloud en publie un nœud — l'enregistrement a
+  renversé l'argument qui le gardait vide, puisque le nœud du cloud porte
+  lui-même `ip_address: ""` : ce qui était retenu était la forme, pas une
+  adresse. L'adresse d'une passerelle répondait `reverse: null` là où le cloud
+  répond toujours un nom. Et une liste d'adresses `lb` ou `vpc-gw` ne nommant
+  aucun projet était réduite au projet par défaut de ce pack, si bien qu'un
+  client ayant créé une adresse dans son propre projet recevait une page vide.
+
+  Deux champs sont désormais **déclinés avec leur raison** plutôt que servis
+  creux : la `version` d'une passerelle, qui est celle d'un logiciel que cet
+  émulateur ne fait pas tourner, et les éléments de `bastion_allowed_ips`, dont
+  les trois opérations d'écriture étaient déjà déclinées — un filtre qu'aucun
+  client ne peut modifier et que rien n'applique n'est pas un filtre.
+
+
 - **Outscale est prouvé sur chaque opération qu'il sert : `shape` atteint 93 sur
   93** (#427). Les quatre dernières étaient la famille de l'appairage de Nets,
   déclarée hors d'atteinte deux fois — par #354 puis par ce lot — pour une raison

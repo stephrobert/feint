@@ -1,0 +1,70 @@
+{
+  "subject": "the Scaleway shapes a real fr-par account answered on a balancer and a public gateway (#434, #435)",
+  "why": "Six changes, 90 of the 204 findings `feint corpus --check` reported once the acceptance entries naming #434 and #435 were stripped. Each was measured on corpus/scaleway/scw-billed-shapes.jsonl rather than argued from the SDK: a backend whose three optional defaults came back null instead of \"\"/false/false, a balancer that published no node at all, a list scoped to the pack's own project constant instead of the client's, a gateway address whose reverse was null where fr-par always answers a name, and a software version the emulator states as null in a shape the cloud never answers. The mutations below put each one back and require the test that names it to go red.",
+  "mutations": [
+    {
+      "file": "internal/providers/scaleway/loadbalancer_children.go",
+      "find": "func falseIfAbsent(v *bool) any {\n\tif v == nil {\n\t\treturn false\n\t}\n\treturn *v\n}",
+      "replace": "func falseIfAbsent(v *bool) any {\n\tif v == nil && false {\n\t\treturn false\n\t}\n\treturn v\n}",
+      "expect": "a backend the client did not configure answers send_proxy_v2 and ssl_bridging null where fr-par answers false, on eleven operations at once",
+      "test": "TestABackendAnswersTheCloudsConcreteDefaults",
+      "label": "the absent booleans go back to null"
+    },
+    {
+      "file": "internal/providers/scaleway/loadbalancer_children.go",
+      "find": "func emptyIfAbsent(v *string) any {\n\tif v == nil {\n\t\treturn \"\"\n\t}\n\treturn *v\n}",
+      "replace": "func emptyIfAbsent(v *string) any {\n\tif v == nil && false {\n\t\treturn \"\"\n\t}\n\treturn v\n}",
+      "expect": "a backend answers host null where fr-par answers the empty string, so a client decoding it into a string gets a type it never sees on the real cloud",
+      "test": "TestABackendAnswersTheCloudsConcreteDefaults",
+      "label": "host goes back to null"
+    },
+    {
+      "file": "internal/providers/scaleway/loadbalancer.go",
+      "find": "\tid := textOf(res.Attrs[\"instance_id\"])\n\tif id == \"\" {\n\t\treturn []any{}\n\t}",
+      "replace": "\tid := textOf(res.Attrs[\"instance_id\"])\n\tif id == \"\" || true {\n\t\treturn []any{}\n\t}",
+      "expect": "a balancer publishes no node, which is the shape 17 findings named through the eleven operations that nest a balancer",
+      "test": "TestABalancerPublishesTheNodeItRunsOn",
+      "label": "the balancer publishes no node"
+    },
+    {
+      "file": "internal/providers/scaleway/loadbalancer.go",
+      "find": "\treturn []any{map[string]any{\n\t\t\"id\":     id,\n\t\t\"status\": \"ready\",",
+      "replace": "\tid = p.env.NewID()\n\treturn []any{map[string]any{\n\t\t\"id\":     id,\n\t\t\"status\": \"ready\",",
+      "expect": "the node's identifier is minted afresh on every read, which is the permanent Terraform diff a stable identity exists to prevent",
+      "test": "TestABalancerPublishesTheNodeItRunsOn",
+      "label": "the node identifier moves between two reads"
+    },
+    {
+      "file": "internal/providers/scaleway/gateways.go",
+      "find": "\tif project := q.Get(\"project_id\"); project != \"\" {\n\t\treturn resource.Tenant{Provider: Name, Project: project, Zone: zone}\n\t}\n\treturn resource.Tenant{Provider: Name, Zone: zone}\n}",
+      "replace": "\tif project := q.Get(\"project_id\"); project != \"\" {\n\t\treturn resource.Tenant{Provider: Name, Project: project, Zone: zone}\n\t}\n\treturn resource.Tenant{Provider: Name, Project: defaultProject, Zone: zone}\n}",
+      "expect": "a list with no project filter is scoped to the pack's own constant, so a client that created an address under its own project gets an empty page from both lb and vpc-gw",
+      "test": "TestAListWithoutAProjectFilterAnswersWhatTheClientCreated",
+      "label": "a project-less list falls back to the pack's constant"
+    },
+    {
+      "file": "internal/providers/scaleway/gateways.go",
+      "find": "\t\t\"reverse\":    \"\",\n\t\t\"gateway_id\": \"\",",
+      "replace": "\t\t\"reverse\":    nil,\n\t\t\"gateway_id\": \"\",",
+      "expect": "a freshly created gateway address answers reverse null where fr-par always answers a name, on the create, the read and the list at once",
+      "test": "TestAGatewayAddressAnswersAReverseOfTheRecordedType",
+      "label": "a gateway address goes back to a null reverse"
+    },
+    {
+      "file": "internal/providers/scaleway/gateways.go",
+      "find": "\t\tif req.Reverse != nil {\n\t\t\tstored.Attrs[\"reverse\"] = *req.Reverse\n\t\t}",
+      "replace": "\t\tif req.Reverse != nil {\n\t\t\tif *req.Reverse == \"\" {\n\t\t\t\tstored.Attrs[\"reverse\"] = nil\n\t\t\t} else {\n\t\t\t\tstored.Attrs[\"reverse\"] = *req.Reverse\n\t\t\t}\n\t\t}",
+      "expect": "clearing a reverse writes null back into the store, so a client that empties the name gets a type the cloud never answers",
+      "test": "TestAGatewayAddressAnswersAReverseOfTheRecordedType",
+      "label": "clearing a reverse restores the null"
+    },
+    {
+      "file": "internal/providers/scaleway/gateways.go",
+      "find": "\t\t\"can_upgrade_to\":  nil,",
+      "replace": "\t\t\"can_upgrade_to\":  nil,\n\t\t\"version\": nil,",
+      "expect": "the gateway states 'no version' as a null key, which is a type divergence no field decline can reach — the decline reads as covering it and covers nothing",
+      "test": "TestTheGatewaySoftwareVersionIsDeclinedRatherThanInvented",
+      "label": "the version comes back as a null key"
+    }
+  ]
+}
