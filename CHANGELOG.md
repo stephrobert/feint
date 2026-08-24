@@ -36,6 +36,11 @@ what this project is judged on: **a response shape a client can observe**, and
   - `DELETE .../servers/{id}/private_nics/{nicID}` now detaches the interface
     from the machine runtime before it answers. It answered `204` and left the
     device attached.
+  - `PUT /v2/private-network/{id}:detach` (Exoscale) does the same. That
+    handler carried a comment saying the driver "deliberately has no hot-unplug
+    ... the same window the Scaleway NIC has", which is how one defect lives in
+    two packs: the capability now sits in the shared driver, so both close at
+    once.
   - `DELETE .../private-networks/{pnID}` refuses with `precondition_failed`
     when the runtime will not release the network, instead of answering `204`
     and dropping the record. A network reported gone while its bridge holds the

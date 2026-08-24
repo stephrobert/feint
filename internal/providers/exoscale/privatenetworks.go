@@ -788,10 +788,17 @@ func (p *Pack) detachInstanceFromPrivateNetwork(w http.ResponseWriter, r *http.R
 		writeError(w, http.StatusNotFound, "resource not found")
 		return
 	}
-	// The record is detached; the machine keeps its interface until it stops,
-	// because the driver deliberately has no hot-unplug. The next boot builds
-	// its interfaces from the memberships alone, so the detachment is applied
-	// at the next power cycle — the same window the Scaleway NIC has.
+	// And the machine half, which this used to say it could not do: the comment
+	// here read "the driver deliberately has no hot-unplug ... the same window
+	// the Scaleway NIC has", and #426 measured what that window costs. A device
+	// left on a container keeps its network alive, RemoveNetwork then refuses
+	// with "The network is currently in use", and the bridge outlives the run
+	// holding its address block. The driver has Detach now, so this uses it and
+	// the window is closed on both sides at once — which is the point of the
+	// capability living in the shared layer rather than in one pack.
+	//
+	// TestDetachingAnInstanceTakesTheDeviceOffTheRuntime fails without this.
+	p.detachMachineFromPrivateNetwork(r.Context(), req.Instance.ID, id)
 	p.writeOperation(w, p.operationReferring(nounPrivateNetwork, id))
 }
 
@@ -907,6 +914,33 @@ func (p *Pack) attachMachineToPrivateNetwork(ctx context.Context, inst, pn *reso
 	if err := p.env.Machines.Attach(ctx, machineName, att); err != nil {
 		p.logger().Error("could not attach the machine to the private network",
 			"instance", inst.ID, "private-network", pn.ID, "address", ip, "error", err)
+	}
+}
+
+// detachMachineFromPrivateNetwork is the exact undo of
+// attachMachineToPrivateNetwork, and degrades the same way: with no runtime, or
+// a machine that never started, there is nothing to take off and the membership
+// has already gone from the store.
+func (p *Pack) detachMachineFromPrivateNetwork(ctx context.Context, instanceID, networkID string) {
+	if p.env.Machines == nil {
+		return
+	}
+	inst, found := p.env.Store.Get(Name, kindInstance, instanceID)
+	if !found {
+		return
+	}
+	pn, found := p.env.Store.Get(Name, kindPrivateNetwork, networkID)
+	if !found {
+		return
+	}
+	networkName := pn.Runtime[runtimeNetworkKey]
+	machineName := inst.Runtime[p.binding().RuntimeKey]
+	if networkName == "" || machineName == "" {
+		return
+	}
+	if err := p.env.Machines.Detach(ctx, machineName, networkName); err != nil {
+		p.logger().Error("could not detach the machine from the private network",
+			"instance", instanceID, "private-network", networkID, "error", err)
 	}
 }
 
