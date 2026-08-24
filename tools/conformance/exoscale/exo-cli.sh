@@ -53,6 +53,44 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "  ok: $*"; }
 exoc() { exo "$@"; }
 
+# refuse_exo drives one command that must be refused BY THE EMULATOR, and reads
+# the emulator's own verdict rather than the client's output (#428).
+#
+# Three outcomes, never two. `exo` resolves a NAME|ID argument by listing first,
+# so a command aimed at something that does not exist fails on the CLI's own
+# lookup and never reaches the API: of 65 such commands measured on 2026-08-24,
+# three got that far. A case that stops reaching the emulator would read exactly
+# like this suite working, so it fails by name instead:
+#
+#   - the CLI succeeded            -> the API accepted what must be refused;
+#   - the CLI failed, span closes  -> the emulator answered a 4xx: the case holds;
+#   - the CLI failed, span 409s    -> nothing reached the emulator, so the case
+#                                     proves nothing and says so.
+#
+# TestANegativeSpanNeedsARefusal (internal/core/emulator) is what makes the
+# third outcome a 409 rather than a green close.
+#
+# Nothing here arms a fault, and nothing could: an injected refusal leaves the
+# observed path before the observer records it, and a span whose only 4xx were
+# injected is refused outright.
+refuse_exo() { # label args...
+  local label="$1"; shift
+  local span out rc=0 close code body
+  span="$(prove_begin negative)"
+  out="$(exoc "$@" 2>&1)" || rc=$?
+  close="$(curl -s -w '\n%{http_code}' -X POST "$ENDPOINT/_feint/assert/$span")"
+  code="${close##*$'\n'}"
+  body="${close%$'\n'*}"
+  if [ "$rc" -eq 0 ]; then
+    fail "$label: the CLI was answered success where a refusal was demanded: $out"
+  fi
+  case "$code" in
+    200) ;;
+    409) fail "$label: the CLI refused this on its own and the emulator never saw it, so the case measures nothing: $out" ;;
+    *)   fail "$label: the emulator answered HTTP $code closing the span: $body" ;;
+  esac
+}
+
 echo "conformance: exo CLI against $ENDPOINT"
 
 # The zone list is the first call the CLI makes and the address every call after
@@ -144,6 +182,12 @@ state="$(exoc -O json compute instance show "$id" | jq -r '.state')"
 [ "$state" = "running" ] || fail "the instance is $state after start, not running"
 exoc compute instance reboot "$id" --force >/dev/null || fail "instance reboot rejected"
 ok "stopped, started, rebooted, and the state followed"
+# Two calls this emulator refuses on a machine that is up, and that no case had
+# ever asked it for. The instance is running here, which is the whole condition.
+echo "- a reset and a TPM are refused on a running instance"
+refuse_exo "reset a running instance" -Q compute instance reset "$id" --force
+refuse_exo "enable a TPM on a running instance" -Q compute instance enable-tpm "$id" --force
+ok "both refused while it runs"
 
 echo "- scale and resize-disk, on a stopped instance as upstream requires"
 exoc compute instance stop "$id" --force >/dev/null || fail "second stop rejected"
@@ -289,6 +333,13 @@ esac
 shown="$(exoc -O json compute instance show "$id")" || fail "instance show after attach rejected"
 printf '%s' "$shown" | jq -e '(.private_networks // []) | length == 1' >/dev/null \
   || fail "the instance does not publish its private network: $shown"
+# The same attach a second time. An instance holds one lease per network, so the
+# second call is the refusal this operation owns and the only one `exo` can put
+# to it: every identifier it takes is resolved by listing before the request
+# leaves.
+refuse_exo "attach to a network it is already on" \
+  -Q compute instance private-network attach "$id" conformance-pn
+ok "a second attach to the same network is refused"
 
 echo "- update-ip moves the lease, the network publishes the move"
 exoc compute instance private-network update-ip "$id" conformance-pn --ip 10.90.0.99 >/dev/null \
@@ -343,6 +394,22 @@ sg="$(exoc -O json compute security-group show conformance-sg)" || fail "sg show
 printf '%s' "$sg" | jq -e '(.external_sources // []) | length == 0' >/dev/null \
   || fail "the source survived its removal: $sg"
 ok "source added, published, removed"
+# A group an instance still carries does not vanish under it, and the two
+# listings refuse a visibility outside the enum their own API description
+# declares — the reads of this pack own no other refusal, since `exo` resolves
+# every identifier by listing before it asks.
+echo "- a group in use, and two listings asked for a visibility that does not exist"
+exoc -Q compute instance security-group add "$id" conformance-sg >/dev/null \
+  || fail "security-group attach rejected"
+refuse_exo "delete a group an instance carries" \
+  -Q compute security-group delete conformance-sg --force
+exoc -Q compute instance security-group remove "$id" conformance-sg >/dev/null \
+  || fail "security-group detach rejected"
+refuse_exo "list templates by an unknown visibility" \
+  -O json compute instance-template list --visibility nowhere
+refuse_exo "list security groups by an unknown visibility" \
+  -O json compute security-group list --visibility nowhere
+ok "the group held, and both listings refused the visibility by name"
 
 # The reads and edits this pack served and no client had walked (#174), plus the
 # snapshot and template surface #173 added. Each is one `exo` call; the reason
@@ -537,6 +604,11 @@ if exoc -Q compute block-storage delete "$block_id" --force >/dev/null 2>&1; the
 fi
 prove_end "$neg"
 
+# And a detach of a volume nothing holds any more, which is the refusal that
+# operation owns: the detach above already took it off its instance.
+refuse_exo "detach a volume that is not attached" \
+  -Q compute block-storage detach "$block_id" --force
+
 exoc -Q compute block-storage snapshot delete "$block_snap_id" --force >/dev/null \
   || fail "block-storage snapshot delete rejected"
 exoc -Q compute block-storage delete "$block_id" --force >/dev/null \
@@ -593,6 +665,12 @@ victim="$(exoc -O json compute instance-pool show "$pool_id" | jq -r '.instances
 exoc -Q compute instance-pool evict "$pool_id" "$victim" --force >/dev/null \
   || fail "instance-pool evict rejected"
 [ "$(members_of)" = "1" ] || fail "after evicting one member the pool holds $(members_of)"
+# Evicting something the pool does not hold. `$id` is the standalone instance
+# this suite created before the pool existed, so it is a real instance that the
+# CLI resolves and the emulator then refuses — which is the only way to reach
+# this operation's refusal at all.
+refuse_exo "evict an instance the pool does not hold" \
+  -Q compute instance-pool evict "$pool_id" "$id" --force
 
 # The Network Load Balancer (EXO-5, #345), driven while the pool it forwards to
 # still exists — which is the only order a real stack can build it in.
