@@ -9,6 +9,36 @@ import "github.com/stephrobert/feint/internal/core/emulator"
 // catalogue keys, so an entry here never reads as stale over there.
 func (p *Pack) DeclinedFields() []emulator.FieldDecline {
 	return []emulator.FieldDecline{
+		// FileLocation, on the two operations that answer an image a client
+		// made. It is the OMI's own storage URL upstream — an object-storage
+		// path the account can fetch the image bytes from — and this emulator
+		// holds no object storage and copies no bytes, so there is no location
+		// to publish and inventing one would hand a client a URL that answers
+		// nothing.
+		//
+		// True for every path of both operations, which is what #389 says a
+		// decline has to be: createImage REFUSES a FileLocation rather than
+		// storing one ("creating an image from a FileLocation or a
+		// SourceImageId is not emulated"), so no image either operation can
+		// answer carries the field, whichever way it was made.
+		//
+		// Its neighbour in the same measurement is deliberately NOT declined.
+		// BlockDeviceMappings is empty only for an image cut from a VmId, and
+		// carries the snapshot when the client names one — so an operation-level
+		// decline would be true of one kind of object and fiction for the
+		// other, which is exactly the shape #389 cost a release to understand.
+		// That gap is per-object and stays in the corpus, where it is keyed by
+		// the exchange that shows it.
+		{
+			Operation: "osc/Client.CreateImage",
+			Path:      "Image.FileLocation",
+			Reason:    "FileLocation is the object-storage URL the image's bytes live at upstream, and this emulator copies no bytes and serves no object storage, so there is no location a client could fetch",
+		},
+		{
+			Operation: "osc/Client.UpdateImage",
+			Path:      "Image.FileLocation",
+			Reason:    "FileLocation is the object-storage URL the image's bytes live at upstream, and this emulator copies no bytes and serves no object storage, so there is no location a client could fetch",
+		},
 		// A public address links to a machine here (LinkPublicIp --VmId), and
 		// the link is published on the machine's interfaces (linkPublicIPView).
 		// Linking to a bare interface is not modelled, so a standalone Nic's

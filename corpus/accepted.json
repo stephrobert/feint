@@ -2452,15 +2452,7 @@
       "operation": "osc/Client.CreateImage",
       "kind": "absent",
       "path": "Image.BlockDeviceMappings[]",
-      "reason": "A field a real cloudgouv-eu-west-1 account answers and this emulator omits, recorded 2026-08-24 (#427). An image a client cuts from a machine carries its own device mapping and a FileLocation; a volume resize answers the TaskId that will finish it; a health check carries its Path. #437 carries the measured list and the reason each is a distinct decision.",
-      "issue": "https://github.com/stephrobert/feint/issues/437"
-    },
-    {
-      "file": "outscale/oapi-cli-machine-shapes.jsonl",
-      "operation": "osc/Client.CreateImage",
-      "kind": "absent",
-      "path": "Image.FileLocation",
-      "reason": "A field a real cloudgouv-eu-west-1 account answers and this emulator omits, recorded 2026-08-24 (#427). An image a client cuts from a machine carries its own device mapping and a FileLocation; a volume resize answers the TaskId that will finish it; a health check carries its Path. #437 carries the measured list and the reason each is a distinct decision.",
+      "reason": "An image cut from a VmId answers an empty mapping array where the real account answers the device it snapshotted. Measured 2026-08-24 against cloudgouv-eu-west-1 (#427). It is NOT declined in DeclinedFields, and that is the decision: the same operation DOES serve the mappings when the client names a snapshot, so an operation-level decline would be true of one kind of object and fiction for the other \u2014 the shape #389 cost a release to understand. Serving it means cutting a snapshot of a machine's root volume, which this emulator holds no bytes for. Its neighbour Image.FileLocation left this file on 2026-08-24: it is unserved on every path, so it could be declined honestly.",
       "issue": "https://github.com/stephrobert/feint/issues/437"
     },
     {
@@ -2468,15 +2460,7 @@
       "operation": "osc/Client.UpdateImage",
       "kind": "absent",
       "path": "Image.BlockDeviceMappings[]",
-      "reason": "A field a real cloudgouv-eu-west-1 account answers and this emulator omits, recorded 2026-08-24 (#427). An image a client cuts from a machine carries its own device mapping and a FileLocation; a volume resize answers the TaskId that will finish it; a health check carries its Path. #437 carries the measured list and the reason each is a distinct decision.",
-      "issue": "https://github.com/stephrobert/feint/issues/437"
-    },
-    {
-      "file": "outscale/oapi-cli-machine-shapes.jsonl",
-      "operation": "osc/Client.UpdateImage",
-      "kind": "absent",
-      "path": "Image.FileLocation",
-      "reason": "A field a real cloudgouv-eu-west-1 account answers and this emulator omits, recorded 2026-08-24 (#427). An image a client cuts from a machine carries its own device mapping and a FileLocation; a volume resize answers the TaskId that will finish it; a health check carries its Path. #437 carries the measured list and the reason each is a distinct decision.",
+      "reason": "An image cut from a VmId answers an empty mapping array where the real account answers the device it snapshotted. Measured 2026-08-24 against cloudgouv-eu-west-1 (#427). It is NOT declined in DeclinedFields, and that is the decision: the same operation DOES serve the mappings when the client names a snapshot, so an operation-level decline would be true of one kind of object and fiction for the other \u2014 the shape #389 cost a release to understand. Serving it means cutting a snapshot of a machine's root volume, which this emulator holds no bytes for. Its neighbour Image.FileLocation left this file on 2026-08-24: it is unserved on every path, so it could be declined honestly.",
       "issue": "https://github.com/stephrobert/feint/issues/437"
     },
     {
