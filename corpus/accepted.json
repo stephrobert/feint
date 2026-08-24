@@ -1404,8 +1404,8 @@
       "operation": "lb/v1/ZonedAPI.GetLB",
       "kind": "absent",
       "path": "description",
-      "reason": "The cloud answers a description on every security group and this emulator omits it. Check the contract before the pack: this is the family of zones[].id and security-group.visibility, where the provider's own published description did not declare the field either and no document-reading control could have found it. Recorded 2026-08-24 against a real ch-gva-2 account (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/436"
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from lb/v1. A DeleteLB removes the balancer at once here; upstream the read that FOLLOWS the delete still answers 200 with status `to_delete`, and only the read after that answers 404. corpus/scaleway/scw-billed-shapes.jsonl seq 47-50 is the delete, one 200, then two 404s. So one read of the recording meets a 404 here where the cloud answered a whole balancer, and a 404 reports every field of that body as absent -- nineteen findings for one instant. Reproducing it means giving a delete a terminal state that a later read clears, which is a change to the lifecycle of every kind and to what `nothing left behind` means for every conformance suite -- the same argument #380 records for Outscale, one cloud out. It goes the day a delete is asynchronous here. Recorded 2026-08-24 (#427).",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
     },
     {
       "file": "scaleway/scw-billed-shapes.jsonl",
