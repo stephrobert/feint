@@ -8,7 +8,7 @@
   "generated_from": {
     "contracts": "785544edee4f7a99",
     "shapes": "cac046c206cc9fc8",
-    "suites": "73b2633001eab712"
+    "suites": "7284cb9442785799"
   },
   "operations": {
     "block/v1/API.CreateSnapshot": {
@@ -117,7 +117,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "block/v1alpha1/API.CreateVolume": {
       "driven": true,
@@ -126,7 +126,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "block/v1alpha1/API.DeleteSnapshot": {
       "driven": true,
@@ -171,7 +171,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "block/v1alpha1/API.ListVolumeTypes": {
       "driven": true,
@@ -180,7 +180,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": false,
-      "negative": false
+      "negative": true
     },
     "block/v1alpha1/API.ListVolumes": {
       "driven": true,
@@ -189,7 +189,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "block/v1alpha1/API.UpdateSnapshot": {
       "driven": true,
@@ -270,7 +270,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "exoscale/v2.attach-instance-to-security-group": {
       "driven": true,
@@ -477,7 +477,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "exoscale/v2.delete-snapshot": {
       "driven": true,
@@ -513,7 +513,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "exoscale/v2.detach-instance-from-elastic-ip": {
       "driven": true,
@@ -549,7 +549,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "exoscale/v2.evict-instance-pool-members": {
       "driven": true,
@@ -558,7 +558,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "exoscale/v2.get-anti-affinity-group": {
       "driven": true,
@@ -837,7 +837,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "exoscale/v2.list-snapshots": {
       "driven": true,
@@ -864,7 +864,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "exoscale/v2.list-zones": {
       "driven": true,
@@ -945,7 +945,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "exoscale/v2.reset-instance-field": {
       "driven": false,
@@ -1197,7 +1197,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.CreateIP": {
       "driven": true,
@@ -1206,7 +1206,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.CreateImage": {
       "driven": true,
@@ -1215,7 +1215,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.CreatePlacementGroup": {
       "driven": true,
@@ -1224,7 +1224,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.CreatePrivateNIC": {
       "driven": true,
@@ -1242,7 +1242,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.CreateSecurityGroupRule": {
       "driven": true,
@@ -1278,7 +1278,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.DeleteIP": {
       "driven": true,
@@ -1341,7 +1341,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.DeleteServerUserData": {
       "driven": true,
@@ -1377,7 +1377,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.GetIP": {
       "driven": true,
@@ -1395,7 +1395,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.GetPlacementGroup": {
       "driven": true,
@@ -1485,7 +1485,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": false,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.ListImages": {
       "driven": true,
@@ -1494,7 +1494,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.ListPlacementGroups": {
       "driven": true,
@@ -1503,7 +1503,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.ListPrivateNICs": {
       "driven": true,
@@ -1530,7 +1530,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": false,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.ListServerUserData": {
       "driven": true,
@@ -1548,7 +1548,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.ListServersTypes": {
       "driven": true,
@@ -1557,7 +1557,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": false,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.ListSnapshots": {
       "driven": true,
@@ -1566,7 +1566,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.ListVolumes": {
       "driven": true,
@@ -1575,7 +1575,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.ServerAction": {
       "driven": true,
@@ -1611,7 +1611,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.SetServerUserData": {
       "driven": true,
@@ -1620,7 +1620,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.UpdateIP": {
       "driven": true,
@@ -1656,7 +1656,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "instance/v1/API.UpdateSecurityGroup": {
       "driven": true,
@@ -1836,7 +1836,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "ipam/v1/API.MoveIP": {
       "driven": false,
@@ -1863,7 +1863,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "ipam/v1/API.UpdateIP": {
       "driven": true,
@@ -1881,7 +1881,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "lb/v1/ZonedAPI.CreateACL": {
       "driven": true,
@@ -1899,7 +1899,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "lb/v1/ZonedAPI.CreateFrontend": {
       "driven": true,
@@ -1917,7 +1917,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "lb/v1/ZonedAPI.CreateLB": {
       "driven": true,
@@ -1926,7 +1926,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "lb/v1/ZonedAPI.CreateRoute": {
       "driven": true,
@@ -2079,7 +2079,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "lb/v1/ZonedAPI.ListLBPrivateNetworks": {
       "driven": true,
@@ -2097,7 +2097,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "lb/v1/ZonedAPI.ListRoutes": {
       "driven": true,
@@ -3060,7 +3060,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "vpc/v2/API.DeletePrivateNetwork": {
       "driven": true,
@@ -3096,7 +3096,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "vpc/v2/API.EnableRouting": {
       "driven": true,
@@ -3150,7 +3150,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "vpc/v2/API.ListSubnets": {
       "driven": false,
@@ -3168,7 +3168,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "vpc/v2/API.SetACL": {
       "driven": true,
@@ -3177,7 +3177,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "vpc/v2/API.UpdatePrivateNetwork": {
       "driven": true,
@@ -3231,7 +3231,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "vpcgw/v2/API.DeleteGateway": {
       "driven": true,
@@ -3294,7 +3294,7 @@
       "dataplane": true,
       "shape": "unobserved",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "vpcgw/v2/API.ListGateways": {
       "driven": true,
@@ -3303,7 +3303,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "vpcgw/v2/API.ListIPs": {
       "driven": true,
@@ -3312,7 +3312,7 @@
       "dataplane": true,
       "shape": "observed",
       "behaviour": true,
-      "negative": false
+      "negative": true
     },
     "vpcgw/v2/API.UpdateGateway": {
       "driven": true,

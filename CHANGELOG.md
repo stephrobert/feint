@@ -1074,6 +1074,12 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Changed
 
+- **The record follows the refusal lot on Scaleway and Exoscale** (#428):
+  `negative` goes 197 to **247 of 370**. Scaleway's own 97 to **139 of 173**,
+  Exoscale's 10 to 18. **No operation lost anything on any axis**, checked
+  operation by operation against the replaced record rather than by comparing
+  totals.
+
 - **The record follows the Outscale refusal lot** (#440): `negative` goes 173 to
   **197 of 370**, and Outscale's own 66 to **90 of 93**. `behaviour` 319 to 320.
   **No operation lost anything on any axis**, checked operation by operation
