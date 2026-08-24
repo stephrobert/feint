@@ -1048,6 +1048,19 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Changed
 
+- **The record is regenerated on the new recordings, and `shape` reads 225 of
+  370** (#427). Outscale reaches **93 of 93**, its fifth complete axis; Scaleway
+  goes 37 to 99, Exoscale 31 to 33. The per-provider table lives in
+  `docs/routes.md`.
+
+  **Six operations lost the axis, and that is the correction rather than a
+  regression**: all six are `DELETE`s that had earned it through a phantom field
+  written at the empty path by a `204`. They are named — `DeleteVolume`,
+  `DeleteSSHKey`, `DeleteIP`, `DeleteServer`, `DeletePrivateNetwork`,
+  `DeleteVPC` — and checked operation by operation against the replaced record
+  rather than by comparing totals, because a total can hide a loss under a gain.
+  No other axis moved for any operation.
+
 - **The record is regenerated after the suites gained the calls the fold
   surfaced** (#407): `driven` 344 to 345, `dataplane` 344 to 345, `behaviour`
   316 to 317. **No operation lost anything on any axis**, checked operation by

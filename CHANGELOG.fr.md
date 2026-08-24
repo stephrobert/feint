@@ -940,6 +940,20 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Modifié
 
+- **Le registre est régénéré sur les nouveaux enregistrements, et `shape` vaut
+  225 sur 370** (#427). Outscale atteint **93 sur 93**, son cinquième axe complet ;
+  Scaleway passe de 37 à 99, Exoscale de 31 à 33. Le tableau par fournisseur
+  vit dans `docs/routes.md`.
+
+  **Six opérations perdent l'axe, et c'est la correction plutôt qu'une
+  régression** : les six sont des `DELETE` qui l'avaient gagné par un champ
+  fantôme écrit au chemin vide par un `204`. Elles sont nommées —
+  `DeleteVolume`, `DeleteSSHKey`, `DeleteIP`, `DeleteServer`,
+  `DeletePrivateNetwork`, `DeleteVPC` — et vérifiées opération par opération
+  contre le registre remplacé plutôt qu'en comparant des totaux, parce qu'un
+  total peut cacher une perte sous un gain. Aucun autre axe n'a bougé pour
+  aucune opération.
+
 - **Le registre est régénéré après que les suites ont gagné les appels que le
   repli a fait apparaître** (#407) : `driven` de 344 à 345, `dataplane` de 344 à
   345, `behaviour` de 316 à 317. **Aucune opération n'a rien perdu sur aucun
