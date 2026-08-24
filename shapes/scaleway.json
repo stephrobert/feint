@@ -9926,12 +9926,193 @@
         200
       ]
     },
+    "PATCH /instance/v1/zones/fr-par-1/servers/{id}/private_nics/{id}": {
+      "method": "PATCH",
+      "path": "/instance/v1/zones/fr-par-1/servers/{id}/private_nics/{id}",
+      "fields": [
+        {
+          "path": "private_nic",
+          "type": "object"
+        },
+        {
+          "path": "private_nic.creation_date",
+          "type": "string"
+        },
+        {
+          "path": "private_nic.id",
+          "type": "string"
+        },
+        {
+          "path": "private_nic.ipam_ip_ids",
+          "type": "array"
+        },
+        {
+          "path": "private_nic.ipam_ip_ids[]",
+          "type": "string"
+        },
+        {
+          "path": "private_nic.modification_date",
+          "type": "string"
+        },
+        {
+          "path": "private_nic.private_network_id",
+          "type": "string"
+        },
+        {
+          "path": "private_nic.server_id",
+          "type": "string"
+        },
+        {
+          "path": "private_nic.state",
+          "type": "string"
+        },
+        {
+          "path": "private_nic.tags",
+          "type": "array"
+        },
+        {
+          "path": "private_nic.zone",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "block/v1alpha1/API.CreateSnapshot": {
+      "method": "POST",
+      "path": "/block/v1alpha1/zones/fr-par-1/snapshots",
+      "fields": [
+        {
+          "path": "class",
+          "type": "string"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "parent_volume",
+          "type": "object"
+        },
+        {
+          "path": "parent_volume.id",
+          "type": "string"
+        },
+        {
+          "path": "parent_volume.status",
+          "type": "string"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "references",
+          "type": "array"
+        },
+        {
+          "path": "size",
+          "type": "number"
+        },
+        {
+          "path": "status",
+          "type": "string"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        },
+        {
+          "path": "zone",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "block/v1alpha1/API.CreateVolume": {
+      "method": "POST",
+      "path": "/block/v1alpha1/zones/fr-par-1/volumes",
+      "fields": [
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "last_detached_at",
+          "type": "null"
+        },
+        {
+          "path": "parent_snapshot_id",
+          "type": "null"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "references",
+          "type": "array"
+        },
+        {
+          "path": "size",
+          "type": "number"
+        },
+        {
+          "path": "specs",
+          "type": "object"
+        },
+        {
+          "path": "specs.class",
+          "type": "string"
+        },
+        {
+          "path": "specs.perf_iops",
+          "type": "number"
+        },
+        {
+          "path": "status",
+          "type": "string"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        },
+        {
+          "path": "zone",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
     "block/v1alpha1/API.DeleteSnapshot": {
       "method": "DELETE",
       "path": "/block/v1alpha1/zones/fr-par-1/snapshots/{id}",
       "fields": [],
       "statuses": [
-        404
+        204,
+        404,
+        412
       ]
     },
     "block/v1alpha1/API.DeleteVolume": {
@@ -9946,8 +10127,62 @@
     "block/v1alpha1/API.GetSnapshot": {
       "method": "GET",
       "path": "/block/v1alpha1/zones/fr-par-1/snapshots/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "class",
+          "type": "string"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "parent_volume",
+          "type": "object"
+        },
+        {
+          "path": "parent_volume.id",
+          "type": "string"
+        },
+        {
+          "path": "parent_volume.status",
+          "type": "string"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "references",
+          "type": "array"
+        },
+        {
+          "path": "size",
+          "type": "number"
+        },
+        {
+          "path": "status",
+          "type": "string"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        },
+        {
+          "path": "zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -10045,19 +10280,281 @@
         404
       ]
     },
+    "block/v1alpha1/API.ListSnapshots": {
+      "method": "GET",
+      "path": "/block/v1alpha1/zones/fr-par-1/snapshots",
+      "fields": [
+        {
+          "path": "snapshots",
+          "type": "array"
+        },
+        {
+          "path": "snapshots[]",
+          "type": "object"
+        },
+        {
+          "path": "snapshots[].class",
+          "type": "string"
+        },
+        {
+          "path": "snapshots[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "snapshots[].id",
+          "type": "string"
+        },
+        {
+          "path": "snapshots[].parent_volume",
+          "type": "object"
+        },
+        {
+          "path": "snapshots[].parent_volume.id",
+          "type": "string"
+        },
+        {
+          "path": "snapshots[].parent_volume.status",
+          "type": "string"
+        },
+        {
+          "path": "snapshots[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "snapshots[].references",
+          "type": "array"
+        },
+        {
+          "path": "snapshots[].size",
+          "type": "number"
+        },
+        {
+          "path": "snapshots[].status",
+          "type": "string"
+        },
+        {
+          "path": "snapshots[].tags",
+          "type": "array"
+        },
+        {
+          "path": "snapshots[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "snapshots[].zone",
+          "type": "string"
+        },
+        {
+          "path": "total_count",
+          "type": "number"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
+    "block/v1alpha1/API.ListVolumes": {
+      "method": "GET",
+      "path": "/block/v1alpha1/zones/fr-par-1/volumes",
+      "fields": [
+        {
+          "path": "total_count",
+          "type": "number"
+        },
+        {
+          "path": "volumes",
+          "type": "array"
+        },
+        {
+          "path": "volumes[]",
+          "type": "object"
+        },
+        {
+          "path": "volumes[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "volumes[].id",
+          "type": "string"
+        },
+        {
+          "path": "volumes[].last_detached_at",
+          "type": "null"
+        },
+        {
+          "path": "volumes[].parent_snapshot_id",
+          "type": "null"
+        },
+        {
+          "path": "volumes[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "volumes[].references",
+          "type": "array"
+        },
+        {
+          "path": "volumes[].size",
+          "type": "number"
+        },
+        {
+          "path": "volumes[].specs",
+          "type": "object"
+        },
+        {
+          "path": "volumes[].specs.class",
+          "type": "string"
+        },
+        {
+          "path": "volumes[].specs.perf_iops",
+          "type": "number"
+        },
+        {
+          "path": "volumes[].status",
+          "type": "string"
+        },
+        {
+          "path": "volumes[].tags",
+          "type": "array"
+        },
+        {
+          "path": "volumes[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "volumes[].zone",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
     "block/v1alpha1/API.UpdateSnapshot": {
       "method": "PATCH",
       "path": "/block/v1alpha1/zones/fr-par-1/snapshots/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "class",
+          "type": "string"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "parent_volume",
+          "type": "object"
+        },
+        {
+          "path": "parent_volume.id",
+          "type": "string"
+        },
+        {
+          "path": "parent_volume.status",
+          "type": "string"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "references",
+          "type": "array"
+        },
+        {
+          "path": "size",
+          "type": "number"
+        },
+        {
+          "path": "status",
+          "type": "string"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        },
+        {
+          "path": "zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
     "block/v1alpha1/API.UpdateVolume": {
       "method": "PATCH",
       "path": "/block/v1alpha1/zones/fr-par-1/volumes/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "last_detached_at",
+          "type": "null"
+        },
+        {
+          "path": "parent_snapshot_id",
+          "type": "null"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "references",
+          "type": "array"
+        },
+        {
+          "path": "size",
+          "type": "number"
+        },
+        {
+          "path": "specs",
+          "type": "object"
+        },
+        {
+          "path": "specs.class",
+          "type": "string"
+        },
+        {
+          "path": "specs.perf_iops",
+          "type": "number"
+        },
+        {
+          "path": "status",
+          "type": "string"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        },
+        {
+          "path": "zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -10308,8 +10805,54 @@
     "instance/v1/API.CreatePrivateNIC": {
       "method": "POST",
       "path": "/instance/v1/zones/fr-par-1/servers/{id}/private_nics",
-      "fields": [],
+      "fields": [
+        {
+          "path": "private_nic",
+          "type": "object"
+        },
+        {
+          "path": "private_nic.creation_date",
+          "type": "string"
+        },
+        {
+          "path": "private_nic.id",
+          "type": "string"
+        },
+        {
+          "path": "private_nic.ipam_ip_ids",
+          "type": "array"
+        },
+        {
+          "path": "private_nic.ipam_ip_ids[]",
+          "type": "string"
+        },
+        {
+          "path": "private_nic.modification_date",
+          "type": "string"
+        },
+        {
+          "path": "private_nic.private_network_id",
+          "type": "string"
+        },
+        {
+          "path": "private_nic.server_id",
+          "type": "string"
+        },
+        {
+          "path": "private_nic.state",
+          "type": "string"
+        },
+        {
+          "path": "private_nic.tags",
+          "type": "array"
+        },
+        {
+          "path": "private_nic.zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        201,
         404
       ]
     },
@@ -10810,6 +11353,7 @@
       "path": "/instance/v1/zones/fr-par-1/servers/{id}/private_nics/{id}",
       "fields": [],
       "statuses": [
+        204,
         404
       ]
     },
@@ -10842,6 +11386,7 @@
       "method": "DELETE",
       "fields": [],
       "statuses": [
+        204,
         404
       ]
     },
@@ -10864,8 +11409,62 @@
     "instance/v1/API.GetIP": {
       "method": "GET",
       "path": "/instance/v1/zones/fr-par-1/ips/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "ip",
+          "type": "object"
+        },
+        {
+          "path": "ip.address",
+          "type": "string"
+        },
+        {
+          "path": "ip.id",
+          "type": "string"
+        },
+        {
+          "path": "ip.ipam_id",
+          "type": "string"
+        },
+        {
+          "path": "ip.organization",
+          "type": "string"
+        },
+        {
+          "path": "ip.prefix",
+          "type": "null"
+        },
+        {
+          "path": "ip.project",
+          "type": "string"
+        },
+        {
+          "path": "ip.reverse",
+          "type": "null"
+        },
+        {
+          "path": "ip.server",
+          "type": "null"
+        },
+        {
+          "path": "ip.state",
+          "type": "string"
+        },
+        {
+          "path": "ip.tags",
+          "type": "array"
+        },
+        {
+          "path": "ip.type",
+          "type": "string"
+        },
+        {
+          "path": "ip.zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -11018,8 +11617,54 @@
     "instance/v1/API.GetPrivateNIC": {
       "method": "GET",
       "path": "/instance/v1/zones/fr-par-1/servers/{id}/private_nics/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "private_nic",
+          "type": "object"
+        },
+        {
+          "path": "private_nic.creation_date",
+          "type": "string"
+        },
+        {
+          "path": "private_nic.id",
+          "type": "string"
+        },
+        {
+          "path": "private_nic.ipam_ip_ids",
+          "type": "array"
+        },
+        {
+          "path": "private_nic.ipam_ip_ids[]",
+          "type": "string"
+        },
+        {
+          "path": "private_nic.modification_date",
+          "type": "string"
+        },
+        {
+          "path": "private_nic.private_network_id",
+          "type": "string"
+        },
+        {
+          "path": "private_nic.server_id",
+          "type": "string"
+        },
+        {
+          "path": "private_nic.state",
+          "type": "string"
+        },
+        {
+          "path": "private_nic.tags",
+          "type": "array"
+        },
+        {
+          "path": "private_nic.zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -11485,6 +12130,7 @@
       "method": "GET",
       "fields": [],
       "statuses": [
+        200,
         404
       ]
     },
@@ -11582,8 +12228,58 @@
     "instance/v1/API.ListPrivateNICs": {
       "method": "GET",
       "path": "/instance/v1/zones/fr-par-1/servers/{id}/private_nics",
-      "fields": [],
+      "fields": [
+        {
+          "path": "private_nics",
+          "type": "array"
+        },
+        {
+          "path": "private_nics[]",
+          "type": "object"
+        },
+        {
+          "path": "private_nics[].creation_date",
+          "type": "string"
+        },
+        {
+          "path": "private_nics[].id",
+          "type": "string"
+        },
+        {
+          "path": "private_nics[].ipam_ip_ids",
+          "type": "array"
+        },
+        {
+          "path": "private_nics[].ipam_ip_ids[]",
+          "type": "string"
+        },
+        {
+          "path": "private_nics[].modification_date",
+          "type": "string"
+        },
+        {
+          "path": "private_nics[].private_network_id",
+          "type": "string"
+        },
+        {
+          "path": "private_nics[].server_id",
+          "type": "string"
+        },
+        {
+          "path": "private_nics[].state",
+          "type": "string"
+        },
+        {
+          "path": "private_nics[].tags",
+          "type": "array"
+        },
+        {
+          "path": "private_nics[].zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -11729,8 +12425,14 @@
     "instance/v1/API.ListServerUserData": {
       "method": "GET",
       "path": "/instance/v1/zones/fr-par-1/servers/{id}/user_data",
-      "fields": [],
+      "fields": [
+        {
+          "path": "user_data",
+          "type": "array"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -32364,11 +33066,72 @@
         200
       ]
     },
+    "instance/v1/API.SetServerUserData": {
+      "method": "PATCH",
+      "fields": [],
+      "statuses": [
+        204
+      ]
+    },
     "instance/v1/API.UpdateIP": {
       "method": "PATCH",
       "path": "/instance/v1/zones/fr-par-1/ips/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "ip",
+          "type": "object"
+        },
+        {
+          "path": "ip.address",
+          "type": "string"
+        },
+        {
+          "path": "ip.id",
+          "type": "string"
+        },
+        {
+          "path": "ip.ipam_id",
+          "type": "string"
+        },
+        {
+          "path": "ip.organization",
+          "type": "string"
+        },
+        {
+          "path": "ip.prefix",
+          "type": "null"
+        },
+        {
+          "path": "ip.project",
+          "type": "string"
+        },
+        {
+          "path": "ip.reverse",
+          "type": "null"
+        },
+        {
+          "path": "ip.server",
+          "type": "null"
+        },
+        {
+          "path": "ip.state",
+          "type": "string"
+        },
+        {
+          "path": "ip.tags",
+          "type": "array"
+        },
+        {
+          "path": "ip.type",
+          "type": "string"
+        },
+        {
+          "path": "ip.zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -33170,40 +33933,1363 @@
     "lb/v1/ZonedAPI.CreateACL": {
       "method": "POST",
       "path": "/lb/v1/zones/fr-par-1/frontends/{id}/acls",
-      "fields": [],
+      "fields": [
+        {
+          "path": "action",
+          "type": "object"
+        },
+        {
+          "path": "action.redirect",
+          "type": "null"
+        },
+        {
+          "path": "action.type",
+          "type": "string"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "description",
+          "type": "string"
+        },
+        {
+          "path": "frontend",
+          "type": "object"
+        },
+        {
+          "path": "frontend.backend",
+          "type": "object"
+        },
+        {
+          "path": "frontend.backend.created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.failover_host",
+          "type": "null"
+        },
+        {
+          "path": "frontend.backend.forward_port",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.forward_port_algorithm",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.forward_protocol",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.health_check",
+          "type": "object"
+        },
+        {
+          "path": "frontend.backend.health_check.check_delay",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.health_check.check_max_retries",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.health_check.check_send_proxy",
+          "type": "bool"
+        },
+        {
+          "path": "frontend.backend.health_check.check_timeout",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.health_check.http_config",
+          "type": "object"
+        },
+        {
+          "path": "frontend.backend.health_check.http_config.code",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.health_check.http_config.host_header",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.health_check.port",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.host",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.ignore_ssl_server_verify",
+          "type": "null"
+        },
+        {
+          "path": "frontend.backend.lb",
+          "type": "object"
+        },
+        {
+          "path": "frontend.backend.lb.backend_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.lb.created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.lb.id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.instances",
+          "type": "array"
+        },
+        {
+          "path": "frontend.backend.lb.ip",
+          "type": "array"
+        },
+        {
+          "path": "frontend.backend.lb.ip[]",
+          "type": "object"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.lb.project_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.region",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.route_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.lb.ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.status",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.subscriber",
+          "type": "null"
+        },
+        {
+          "path": "frontend.backend.lb.tags",
+          "type": "array"
+        },
+        {
+          "path": "frontend.backend.lb.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.zone",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.max_connections",
+          "type": "null"
+        },
+        {
+          "path": "frontend.backend.max_retries",
+          "type": "null"
+        },
+        {
+          "path": "frontend.backend.on_marked_down_action",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.pool",
+          "type": "array"
+        },
+        {
+          "path": "frontend.backend.pool[]",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.proxy_protocol",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.redispatch_attempt_count",
+          "type": "null"
+        },
+        {
+          "path": "frontend.backend.send_proxy_v2",
+          "type": "bool"
+        },
+        {
+          "path": "frontend.backend.ssl_bridging",
+          "type": "bool"
+        },
+        {
+          "path": "frontend.backend.sticky_sessions",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.timeout_connect",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.timeout_queue",
+          "type": "null"
+        },
+        {
+          "path": "frontend.backend.timeout_server",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.timeout_tunnel",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.certificate",
+          "type": "null"
+        },
+        {
+          "path": "frontend.certificate_ids",
+          "type": "array"
+        },
+        {
+          "path": "frontend.connection_rate_limit",
+          "type": "null"
+        },
+        {
+          "path": "frontend.created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.enable_access_logs",
+          "type": "bool"
+        },
+        {
+          "path": "frontend.enable_http3",
+          "type": "bool"
+        },
+        {
+          "path": "frontend.id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.inbound_port",
+          "type": "number"
+        },
+        {
+          "path": "frontend.lb",
+          "type": "object"
+        },
+        {
+          "path": "frontend.lb.backend_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.lb.created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.lb.id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.instances",
+          "type": "array"
+        },
+        {
+          "path": "frontend.lb.ip",
+          "type": "array"
+        },
+        {
+          "path": "frontend.lb.ip[]",
+          "type": "object"
+        },
+        {
+          "path": "frontend.lb.ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "frontend.lb.ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.lb.project_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.region",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.route_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.lb.ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.status",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.subscriber",
+          "type": "null"
+        },
+        {
+          "path": "frontend.lb.tags",
+          "type": "array"
+        },
+        {
+          "path": "frontend.lb.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.zone",
+          "type": "string"
+        },
+        {
+          "path": "frontend.timeout_client",
+          "type": "number"
+        },
+        {
+          "path": "frontend.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "index",
+          "type": "number"
+        },
+        {
+          "path": "match",
+          "type": "object"
+        },
+        {
+          "path": "match.http_filter",
+          "type": "string"
+        },
+        {
+          "path": "match.http_filter_option",
+          "type": "null"
+        },
+        {
+          "path": "match.http_filter_value",
+          "type": "array"
+        },
+        {
+          "path": "match.invert",
+          "type": "bool"
+        },
+        {
+          "path": "match.ip_subnet",
+          "type": "array"
+        },
+        {
+          "path": "match.ip_subnet[]",
+          "type": "string"
+        },
+        {
+          "path": "match.ips_edge_services",
+          "type": "bool"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
+      ]
+    },
+    "lb/v1/ZonedAPI.CreateBackend": {
+      "method": "POST",
+      "path": "/lb/v1/zones/fr-par-1/lbs/{id}/backends",
+      "fields": [
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "failover_host",
+          "type": "null"
+        },
+        {
+          "path": "forward_port",
+          "type": "number"
+        },
+        {
+          "path": "forward_port_algorithm",
+          "type": "string"
+        },
+        {
+          "path": "forward_protocol",
+          "type": "string"
+        },
+        {
+          "path": "health_check",
+          "type": "object"
+        },
+        {
+          "path": "health_check.check_delay",
+          "type": "number"
+        },
+        {
+          "path": "health_check.check_max_retries",
+          "type": "number"
+        },
+        {
+          "path": "health_check.check_send_proxy",
+          "type": "bool"
+        },
+        {
+          "path": "health_check.check_timeout",
+          "type": "number"
+        },
+        {
+          "path": "health_check.http_config",
+          "type": "object"
+        },
+        {
+          "path": "health_check.http_config.code",
+          "type": "number"
+        },
+        {
+          "path": "health_check.http_config.host_header",
+          "type": "string"
+        },
+        {
+          "path": "health_check.port",
+          "type": "number"
+        },
+        {
+          "path": "host",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "ignore_ssl_server_verify",
+          "type": "null"
+        },
+        {
+          "path": "lb",
+          "type": "object"
+        },
+        {
+          "path": "lb.backend_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.created_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.id",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances",
+          "type": "array"
+        },
+        {
+          "path": "lb.instances[]",
+          "type": "object"
+        },
+        {
+          "path": "lb.instances[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].id",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].region",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].status",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].zone",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip",
+          "type": "array"
+        },
+        {
+          "path": "lb.ip[]",
+          "type": "object"
+        },
+        {
+          "path": "lb.ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "lb.ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "lb.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.project_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.region",
+          "type": "string"
+        },
+        {
+          "path": "lb.route_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "lb.status",
+          "type": "string"
+        },
+        {
+          "path": "lb.subscriber",
+          "type": "null"
+        },
+        {
+          "path": "lb.tags",
+          "type": "array"
+        },
+        {
+          "path": "lb.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.zone",
+          "type": "string"
+        },
+        {
+          "path": "max_connections",
+          "type": "null"
+        },
+        {
+          "path": "max_retries",
+          "type": "null"
+        },
+        {
+          "path": "on_marked_down_action",
+          "type": "string"
+        },
+        {
+          "path": "pool",
+          "type": "array"
+        },
+        {
+          "path": "proxy_protocol",
+          "type": "string"
+        },
+        {
+          "path": "redispatch_attempt_count",
+          "type": "null"
+        },
+        {
+          "path": "send_proxy_v2",
+          "type": "bool"
+        },
+        {
+          "path": "ssl_bridging",
+          "type": "bool"
+        },
+        {
+          "path": "sticky_sessions",
+          "type": "string"
+        },
+        {
+          "path": "timeout_connect",
+          "type": "number"
+        },
+        {
+          "path": "timeout_queue",
+          "type": "null"
+        },
+        {
+          "path": "timeout_server",
+          "type": "number"
+        },
+        {
+          "path": "timeout_tunnel",
+          "type": "number"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
       ]
     },
     "lb/v1/ZonedAPI.CreateFrontend": {
       "method": "POST",
       "path": "/lb/v1/zones/fr-par-1/lbs/{id}/frontends",
-      "fields": [],
+      "fields": [
+        {
+          "path": "backend",
+          "type": "object"
+        },
+        {
+          "path": "backend.created_at",
+          "type": "string"
+        },
+        {
+          "path": "backend.failover_host",
+          "type": "null"
+        },
+        {
+          "path": "backend.forward_port",
+          "type": "number"
+        },
+        {
+          "path": "backend.forward_port_algorithm",
+          "type": "string"
+        },
+        {
+          "path": "backend.forward_protocol",
+          "type": "string"
+        },
+        {
+          "path": "backend.health_check",
+          "type": "object"
+        },
+        {
+          "path": "backend.health_check.check_delay",
+          "type": "number"
+        },
+        {
+          "path": "backend.health_check.check_max_retries",
+          "type": "number"
+        },
+        {
+          "path": "backend.health_check.check_send_proxy",
+          "type": "bool"
+        },
+        {
+          "path": "backend.health_check.check_timeout",
+          "type": "number"
+        },
+        {
+          "path": "backend.health_check.http_config",
+          "type": "object"
+        },
+        {
+          "path": "backend.health_check.http_config.code",
+          "type": "number"
+        },
+        {
+          "path": "backend.health_check.http_config.host_header",
+          "type": "string"
+        },
+        {
+          "path": "backend.health_check.port",
+          "type": "number"
+        },
+        {
+          "path": "backend.host",
+          "type": "string"
+        },
+        {
+          "path": "backend.id",
+          "type": "string"
+        },
+        {
+          "path": "backend.ignore_ssl_server_verify",
+          "type": "null"
+        },
+        {
+          "path": "backend.lb",
+          "type": "object"
+        },
+        {
+          "path": "backend.lb.backend_count",
+          "type": "number"
+        },
+        {
+          "path": "backend.lb.created_at",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "backend.lb.id",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.instances",
+          "type": "array"
+        },
+        {
+          "path": "backend.lb.ip",
+          "type": "array"
+        },
+        {
+          "path": "backend.lb.ip[]",
+          "type": "object"
+        },
+        {
+          "path": "backend.lb.ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "backend.lb.ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "backend.lb.project_id",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.region",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.route_count",
+          "type": "number"
+        },
+        {
+          "path": "backend.lb.ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.status",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.subscriber",
+          "type": "null"
+        },
+        {
+          "path": "backend.lb.tags",
+          "type": "array"
+        },
+        {
+          "path": "backend.lb.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.zone",
+          "type": "string"
+        },
+        {
+          "path": "backend.max_connections",
+          "type": "null"
+        },
+        {
+          "path": "backend.max_retries",
+          "type": "null"
+        },
+        {
+          "path": "backend.on_marked_down_action",
+          "type": "string"
+        },
+        {
+          "path": "backend.pool",
+          "type": "array"
+        },
+        {
+          "path": "backend.pool[]",
+          "type": "string"
+        },
+        {
+          "path": "backend.proxy_protocol",
+          "type": "string"
+        },
+        {
+          "path": "backend.redispatch_attempt_count",
+          "type": "null"
+        },
+        {
+          "path": "backend.send_proxy_v2",
+          "type": "bool"
+        },
+        {
+          "path": "backend.ssl_bridging",
+          "type": "bool"
+        },
+        {
+          "path": "backend.sticky_sessions",
+          "type": "string"
+        },
+        {
+          "path": "backend.timeout_connect",
+          "type": "number"
+        },
+        {
+          "path": "backend.timeout_queue",
+          "type": "null"
+        },
+        {
+          "path": "backend.timeout_server",
+          "type": "number"
+        },
+        {
+          "path": "backend.timeout_tunnel",
+          "type": "number"
+        },
+        {
+          "path": "backend.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "certificate",
+          "type": "null"
+        },
+        {
+          "path": "certificate_ids",
+          "type": "array"
+        },
+        {
+          "path": "connection_rate_limit",
+          "type": "null"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "enable_access_logs",
+          "type": "bool"
+        },
+        {
+          "path": "enable_http3",
+          "type": "bool"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "inbound_port",
+          "type": "number"
+        },
+        {
+          "path": "lb",
+          "type": "object"
+        },
+        {
+          "path": "lb.backend_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.created_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.id",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances",
+          "type": "array"
+        },
+        {
+          "path": "lb.instances[]",
+          "type": "object"
+        },
+        {
+          "path": "lb.instances[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].id",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].region",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].status",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].zone",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip",
+          "type": "array"
+        },
+        {
+          "path": "lb.ip[]",
+          "type": "object"
+        },
+        {
+          "path": "lb.ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "lb.ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "lb.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.project_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.region",
+          "type": "string"
+        },
+        {
+          "path": "lb.route_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "lb.status",
+          "type": "string"
+        },
+        {
+          "path": "lb.subscriber",
+          "type": "null"
+        },
+        {
+          "path": "lb.tags",
+          "type": "array"
+        },
+        {
+          "path": "lb.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.zone",
+          "type": "string"
+        },
+        {
+          "path": "timeout_client",
+          "type": "number"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
     "lb/v1/ZonedAPI.CreateIP": {
       "method": "POST",
       "path": "/lb/v1/zones/fr-par-1/ips",
-      "fields": [],
+      "fields": [
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "ip_address",
+          "type": "string"
+        },
+        {
+          "path": "lb_id",
+          "type": "null"
+        },
+        {
+          "path": "organization_id",
+          "type": "string"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "region",
+          "type": "string"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         403
       ]
     },
     "lb/v1/ZonedAPI.CreateLB": {
       "method": "POST",
       "path": "/lb/v1/zones/fr-par-1/lbs",
-      "fields": [],
+      "fields": [
+        {
+          "path": "backend_count",
+          "type": "number"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "instances",
+          "type": "array"
+        },
+        {
+          "path": "ip",
+          "type": "array"
+        },
+        {
+          "path": "ip[]",
+          "type": "object"
+        },
+        {
+          "path": "ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "organization_id",
+          "type": "string"
+        },
+        {
+          "path": "private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "region",
+          "type": "string"
+        },
+        {
+          "path": "route_count",
+          "type": "number"
+        },
+        {
+          "path": "ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "status",
+          "type": "string"
+        },
+        {
+          "path": "subscriber",
+          "type": "null"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        },
+        {
+          "path": "zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         403
       ]
     },
     "lb/v1/ZonedAPI.CreateRoute": {
       "method": "POST",
       "path": "/lb/v1/zones/fr-par-1/routes",
-      "fields": [],
+      "fields": [
+        {
+          "path": "backend_id",
+          "type": "string"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend_id",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "match",
+          "type": "object"
+        },
+        {
+          "path": "match.match_subdomains",
+          "type": "bool"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         403
       ]
     },
@@ -33212,7 +35298,32 @@
       "path": "/lb/v1/zones/fr-par-1/acls/{id}",
       "fields": [],
       "statuses": [
+        204,
         404
+      ]
+    },
+    "lb/v1/ZonedAPI.DeleteBackend": {
+      "method": "DELETE",
+      "path": "/lb/v1/zones/fr-par-1/backends/{id}",
+      "fields": [],
+      "statuses": [
+        204
+      ]
+    },
+    "lb/v1/ZonedAPI.DeleteFrontend": {
+      "method": "DELETE",
+      "path": "/lb/v1/zones/fr-par-1/frontends/{id}",
+      "fields": [],
+      "statuses": [
+        204
+      ]
+    },
+    "lb/v1/ZonedAPI.DeleteLB": {
+      "method": "DELETE",
+      "path": "/lb/v1/zones/fr-par-1/lbs/{id}",
+      "fields": [],
+      "statuses": [
+        204
       ]
     },
     "lb/v1/ZonedAPI.DeleteRoute": {
@@ -33220,6 +35331,7 @@
       "path": "/lb/v1/zones/fr-par-1/routes/{id}",
       "fields": [],
       "statuses": [
+        204,
         404
       ]
     },
@@ -33234,80 +35346,2681 @@
     "lb/v1/ZonedAPI.GetACL": {
       "method": "GET",
       "path": "/lb/v1/zones/fr-par-1/acls/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "action",
+          "type": "object"
+        },
+        {
+          "path": "action.redirect",
+          "type": "null"
+        },
+        {
+          "path": "action.type",
+          "type": "string"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "description",
+          "type": "string"
+        },
+        {
+          "path": "frontend",
+          "type": "object"
+        },
+        {
+          "path": "frontend.backend",
+          "type": "object"
+        },
+        {
+          "path": "frontend.backend.created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.failover_host",
+          "type": "null"
+        },
+        {
+          "path": "frontend.backend.forward_port",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.forward_port_algorithm",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.forward_protocol",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.health_check",
+          "type": "object"
+        },
+        {
+          "path": "frontend.backend.health_check.check_delay",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.health_check.check_max_retries",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.health_check.check_send_proxy",
+          "type": "bool"
+        },
+        {
+          "path": "frontend.backend.health_check.check_timeout",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.health_check.http_config",
+          "type": "object"
+        },
+        {
+          "path": "frontend.backend.health_check.http_config.code",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.health_check.http_config.host_header",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.health_check.port",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.host",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.ignore_ssl_server_verify",
+          "type": "null"
+        },
+        {
+          "path": "frontend.backend.lb",
+          "type": "object"
+        },
+        {
+          "path": "frontend.backend.lb.backend_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.lb.created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.lb.id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.instances",
+          "type": "array"
+        },
+        {
+          "path": "frontend.backend.lb.ip",
+          "type": "array"
+        },
+        {
+          "path": "frontend.backend.lb.ip[]",
+          "type": "object"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.lb.project_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.region",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.route_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.lb.ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.status",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.subscriber",
+          "type": "null"
+        },
+        {
+          "path": "frontend.backend.lb.tags",
+          "type": "array"
+        },
+        {
+          "path": "frontend.backend.lb.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.zone",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.max_connections",
+          "type": "null"
+        },
+        {
+          "path": "frontend.backend.max_retries",
+          "type": "null"
+        },
+        {
+          "path": "frontend.backend.on_marked_down_action",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.pool",
+          "type": "array"
+        },
+        {
+          "path": "frontend.backend.pool[]",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.proxy_protocol",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.redispatch_attempt_count",
+          "type": "null"
+        },
+        {
+          "path": "frontend.backend.send_proxy_v2",
+          "type": "bool"
+        },
+        {
+          "path": "frontend.backend.ssl_bridging",
+          "type": "bool"
+        },
+        {
+          "path": "frontend.backend.sticky_sessions",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.timeout_connect",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.timeout_queue",
+          "type": "null"
+        },
+        {
+          "path": "frontend.backend.timeout_server",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.timeout_tunnel",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.certificate",
+          "type": "null"
+        },
+        {
+          "path": "frontend.certificate_ids",
+          "type": "array"
+        },
+        {
+          "path": "frontend.connection_rate_limit",
+          "type": "null"
+        },
+        {
+          "path": "frontend.created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.enable_access_logs",
+          "type": "bool"
+        },
+        {
+          "path": "frontend.enable_http3",
+          "type": "bool"
+        },
+        {
+          "path": "frontend.id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.inbound_port",
+          "type": "number"
+        },
+        {
+          "path": "frontend.lb",
+          "type": "object"
+        },
+        {
+          "path": "frontend.lb.backend_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.lb.created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.lb.id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.instances",
+          "type": "array"
+        },
+        {
+          "path": "frontend.lb.ip",
+          "type": "array"
+        },
+        {
+          "path": "frontend.lb.ip[]",
+          "type": "object"
+        },
+        {
+          "path": "frontend.lb.ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "frontend.lb.ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.lb.project_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.region",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.route_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.lb.ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.status",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.subscriber",
+          "type": "null"
+        },
+        {
+          "path": "frontend.lb.tags",
+          "type": "array"
+        },
+        {
+          "path": "frontend.lb.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.zone",
+          "type": "string"
+        },
+        {
+          "path": "frontend.timeout_client",
+          "type": "number"
+        },
+        {
+          "path": "frontend.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "index",
+          "type": "number"
+        },
+        {
+          "path": "match",
+          "type": "object"
+        },
+        {
+          "path": "match.http_filter",
+          "type": "string"
+        },
+        {
+          "path": "match.http_filter_option",
+          "type": "null"
+        },
+        {
+          "path": "match.http_filter_value",
+          "type": "array"
+        },
+        {
+          "path": "match.invert",
+          "type": "bool"
+        },
+        {
+          "path": "match.ip_subnet",
+          "type": "array"
+        },
+        {
+          "path": "match.ip_subnet[]",
+          "type": "string"
+        },
+        {
+          "path": "match.ips_edge_services",
+          "type": "bool"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
     "lb/v1/ZonedAPI.GetBackend": {
       "method": "GET",
       "path": "/lb/v1/zones/fr-par-1/backends/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "failover_host",
+          "type": "null"
+        },
+        {
+          "path": "forward_port",
+          "type": "number"
+        },
+        {
+          "path": "forward_port_algorithm",
+          "type": "string"
+        },
+        {
+          "path": "forward_protocol",
+          "type": "string"
+        },
+        {
+          "path": "health_check",
+          "type": "object"
+        },
+        {
+          "path": "health_check.check_delay",
+          "type": "number"
+        },
+        {
+          "path": "health_check.check_max_retries",
+          "type": "number"
+        },
+        {
+          "path": "health_check.check_send_proxy",
+          "type": "bool"
+        },
+        {
+          "path": "health_check.check_timeout",
+          "type": "number"
+        },
+        {
+          "path": "health_check.http_config",
+          "type": "object"
+        },
+        {
+          "path": "health_check.http_config.code",
+          "type": "number"
+        },
+        {
+          "path": "health_check.http_config.host_header",
+          "type": "string"
+        },
+        {
+          "path": "health_check.port",
+          "type": "number"
+        },
+        {
+          "path": "host",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "ignore_ssl_server_verify",
+          "type": "null"
+        },
+        {
+          "path": "lb",
+          "type": "object"
+        },
+        {
+          "path": "lb.backend_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.created_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.id",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances",
+          "type": "array"
+        },
+        {
+          "path": "lb.instances[]",
+          "type": "object"
+        },
+        {
+          "path": "lb.instances[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].id",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].region",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].status",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].zone",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip",
+          "type": "array"
+        },
+        {
+          "path": "lb.ip[]",
+          "type": "object"
+        },
+        {
+          "path": "lb.ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "lb.ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "lb.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.project_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.region",
+          "type": "string"
+        },
+        {
+          "path": "lb.route_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "lb.status",
+          "type": "string"
+        },
+        {
+          "path": "lb.subscriber",
+          "type": "null"
+        },
+        {
+          "path": "lb.tags",
+          "type": "array"
+        },
+        {
+          "path": "lb.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.zone",
+          "type": "string"
+        },
+        {
+          "path": "max_connections",
+          "type": "null"
+        },
+        {
+          "path": "max_retries",
+          "type": "null"
+        },
+        {
+          "path": "on_marked_down_action",
+          "type": "string"
+        },
+        {
+          "path": "pool",
+          "type": "array"
+        },
+        {
+          "path": "pool[]",
+          "type": "string"
+        },
+        {
+          "path": "proxy_protocol",
+          "type": "string"
+        },
+        {
+          "path": "redispatch_attempt_count",
+          "type": "null"
+        },
+        {
+          "path": "send_proxy_v2",
+          "type": "bool"
+        },
+        {
+          "path": "ssl_bridging",
+          "type": "bool"
+        },
+        {
+          "path": "sticky_sessions",
+          "type": "string"
+        },
+        {
+          "path": "timeout_connect",
+          "type": "number"
+        },
+        {
+          "path": "timeout_queue",
+          "type": "null"
+        },
+        {
+          "path": "timeout_server",
+          "type": "number"
+        },
+        {
+          "path": "timeout_tunnel",
+          "type": "number"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
     "lb/v1/ZonedAPI.GetFrontend": {
       "method": "GET",
       "path": "/lb/v1/zones/fr-par-1/frontends/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "backend",
+          "type": "object"
+        },
+        {
+          "path": "backend.created_at",
+          "type": "string"
+        },
+        {
+          "path": "backend.failover_host",
+          "type": "null"
+        },
+        {
+          "path": "backend.forward_port",
+          "type": "number"
+        },
+        {
+          "path": "backend.forward_port_algorithm",
+          "type": "string"
+        },
+        {
+          "path": "backend.forward_protocol",
+          "type": "string"
+        },
+        {
+          "path": "backend.health_check",
+          "type": "object"
+        },
+        {
+          "path": "backend.health_check.check_delay",
+          "type": "number"
+        },
+        {
+          "path": "backend.health_check.check_max_retries",
+          "type": "number"
+        },
+        {
+          "path": "backend.health_check.check_send_proxy",
+          "type": "bool"
+        },
+        {
+          "path": "backend.health_check.check_timeout",
+          "type": "number"
+        },
+        {
+          "path": "backend.health_check.http_config",
+          "type": "object"
+        },
+        {
+          "path": "backend.health_check.http_config.code",
+          "type": "number"
+        },
+        {
+          "path": "backend.health_check.http_config.host_header",
+          "type": "string"
+        },
+        {
+          "path": "backend.health_check.port",
+          "type": "number"
+        },
+        {
+          "path": "backend.host",
+          "type": "string"
+        },
+        {
+          "path": "backend.id",
+          "type": "string"
+        },
+        {
+          "path": "backend.ignore_ssl_server_verify",
+          "type": "null"
+        },
+        {
+          "path": "backend.lb",
+          "type": "object"
+        },
+        {
+          "path": "backend.lb.backend_count",
+          "type": "number"
+        },
+        {
+          "path": "backend.lb.created_at",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "backend.lb.id",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.instances",
+          "type": "array"
+        },
+        {
+          "path": "backend.lb.ip",
+          "type": "array"
+        },
+        {
+          "path": "backend.lb.ip[]",
+          "type": "object"
+        },
+        {
+          "path": "backend.lb.ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "backend.lb.ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "backend.lb.project_id",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.region",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.route_count",
+          "type": "number"
+        },
+        {
+          "path": "backend.lb.ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.status",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.subscriber",
+          "type": "null"
+        },
+        {
+          "path": "backend.lb.tags",
+          "type": "array"
+        },
+        {
+          "path": "backend.lb.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.zone",
+          "type": "string"
+        },
+        {
+          "path": "backend.max_connections",
+          "type": "null"
+        },
+        {
+          "path": "backend.max_retries",
+          "type": "null"
+        },
+        {
+          "path": "backend.on_marked_down_action",
+          "type": "string"
+        },
+        {
+          "path": "backend.pool",
+          "type": "array"
+        },
+        {
+          "path": "backend.pool[]",
+          "type": "string"
+        },
+        {
+          "path": "backend.proxy_protocol",
+          "type": "string"
+        },
+        {
+          "path": "backend.redispatch_attempt_count",
+          "type": "null"
+        },
+        {
+          "path": "backend.send_proxy_v2",
+          "type": "bool"
+        },
+        {
+          "path": "backend.ssl_bridging",
+          "type": "bool"
+        },
+        {
+          "path": "backend.sticky_sessions",
+          "type": "string"
+        },
+        {
+          "path": "backend.timeout_connect",
+          "type": "number"
+        },
+        {
+          "path": "backend.timeout_queue",
+          "type": "null"
+        },
+        {
+          "path": "backend.timeout_server",
+          "type": "number"
+        },
+        {
+          "path": "backend.timeout_tunnel",
+          "type": "number"
+        },
+        {
+          "path": "backend.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "certificate",
+          "type": "null"
+        },
+        {
+          "path": "certificate_ids",
+          "type": "array"
+        },
+        {
+          "path": "connection_rate_limit",
+          "type": "null"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "enable_access_logs",
+          "type": "bool"
+        },
+        {
+          "path": "enable_http3",
+          "type": "bool"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "inbound_port",
+          "type": "number"
+        },
+        {
+          "path": "lb",
+          "type": "object"
+        },
+        {
+          "path": "lb.backend_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.created_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.id",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances",
+          "type": "array"
+        },
+        {
+          "path": "lb.ip",
+          "type": "array"
+        },
+        {
+          "path": "lb.ip[]",
+          "type": "object"
+        },
+        {
+          "path": "lb.ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "lb.ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "lb.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.project_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.region",
+          "type": "string"
+        },
+        {
+          "path": "lb.route_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "lb.status",
+          "type": "string"
+        },
+        {
+          "path": "lb.subscriber",
+          "type": "null"
+        },
+        {
+          "path": "lb.tags",
+          "type": "array"
+        },
+        {
+          "path": "lb.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.zone",
+          "type": "string"
+        },
+        {
+          "path": "timeout_client",
+          "type": "number"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
     "lb/v1/ZonedAPI.GetIP": {
       "method": "GET",
       "path": "/lb/v1/zones/fr-par-1/ips/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "ip_address",
+          "type": "string"
+        },
+        {
+          "path": "lb_id",
+          "type": "null"
+        },
+        {
+          "path": "organization_id",
+          "type": "string"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "region",
+          "type": "string"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
     "lb/v1/ZonedAPI.GetLB": {
       "method": "GET",
       "path": "/lb/v1/zones/fr-par-1/lbs/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "backend_count",
+          "type": "number"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "instances",
+          "type": "array"
+        },
+        {
+          "path": "instances[]",
+          "type": "object"
+        },
+        {
+          "path": "instances[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "instances[].id",
+          "type": "string"
+        },
+        {
+          "path": "instances[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "instances[].region",
+          "type": "string"
+        },
+        {
+          "path": "instances[].status",
+          "type": "string"
+        },
+        {
+          "path": "instances[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "instances[].zone",
+          "type": "string"
+        },
+        {
+          "path": "ip",
+          "type": "array"
+        },
+        {
+          "path": "ip[]",
+          "type": "object"
+        },
+        {
+          "path": "ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "organization_id",
+          "type": "string"
+        },
+        {
+          "path": "private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "region",
+          "type": "string"
+        },
+        {
+          "path": "route_count",
+          "type": "number"
+        },
+        {
+          "path": "ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "status",
+          "type": "string"
+        },
+        {
+          "path": "subscriber",
+          "type": "null"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        },
+        {
+          "path": "zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
     "lb/v1/ZonedAPI.GetRoute": {
       "method": "GET",
       "path": "/lb/v1/zones/fr-par-1/routes/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "backend_id",
+          "type": "string"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend_id",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "match",
+          "type": "object"
+        },
+        {
+          "path": "match.match_subdomains",
+          "type": "bool"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
     "lb/v1/ZonedAPI.ListACLs": {
       "method": "GET",
       "path": "/lb/v1/zones/fr-par-1/frontends/{id}/acls",
-      "fields": [],
+      "fields": [
+        {
+          "path": "acls",
+          "type": "array"
+        },
+        {
+          "path": "acls[]",
+          "type": "object"
+        },
+        {
+          "path": "acls[].action",
+          "type": "object"
+        },
+        {
+          "path": "acls[].action.redirect",
+          "type": "null"
+        },
+        {
+          "path": "acls[].action.type",
+          "type": "string"
+        },
+        {
+          "path": "acls[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "acls[].description",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend",
+          "type": "object"
+        },
+        {
+          "path": "acls[].frontend.backend",
+          "type": "object"
+        },
+        {
+          "path": "acls[].frontend.backend.created_at",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.failover_host",
+          "type": "null"
+        },
+        {
+          "path": "acls[].frontend.backend.forward_port",
+          "type": "number"
+        },
+        {
+          "path": "acls[].frontend.backend.forward_port_algorithm",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.forward_protocol",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.health_check",
+          "type": "object"
+        },
+        {
+          "path": "acls[].frontend.backend.health_check.check_delay",
+          "type": "number"
+        },
+        {
+          "path": "acls[].frontend.backend.health_check.check_max_retries",
+          "type": "number"
+        },
+        {
+          "path": "acls[].frontend.backend.health_check.check_send_proxy",
+          "type": "bool"
+        },
+        {
+          "path": "acls[].frontend.backend.health_check.check_timeout",
+          "type": "number"
+        },
+        {
+          "path": "acls[].frontend.backend.health_check.http_config",
+          "type": "object"
+        },
+        {
+          "path": "acls[].frontend.backend.health_check.http_config.code",
+          "type": "number"
+        },
+        {
+          "path": "acls[].frontend.backend.health_check.http_config.host_header",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.health_check.port",
+          "type": "number"
+        },
+        {
+          "path": "acls[].frontend.backend.host",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.id",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.ignore_ssl_server_verify",
+          "type": "null"
+        },
+        {
+          "path": "acls[].frontend.backend.lb",
+          "type": "object"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.backend_count",
+          "type": "number"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.created_at",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.id",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.instances",
+          "type": "array"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.ip",
+          "type": "array"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.ip[]",
+          "type": "object"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.project_id",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.region",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.route_count",
+          "type": "number"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.status",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.subscriber",
+          "type": "null"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.tags",
+          "type": "array"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.lb.zone",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.max_connections",
+          "type": "null"
+        },
+        {
+          "path": "acls[].frontend.backend.max_retries",
+          "type": "null"
+        },
+        {
+          "path": "acls[].frontend.backend.on_marked_down_action",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.pool",
+          "type": "array"
+        },
+        {
+          "path": "acls[].frontend.backend.pool[]",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.proxy_protocol",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.redispatch_attempt_count",
+          "type": "null"
+        },
+        {
+          "path": "acls[].frontend.backend.send_proxy_v2",
+          "type": "bool"
+        },
+        {
+          "path": "acls[].frontend.backend.ssl_bridging",
+          "type": "bool"
+        },
+        {
+          "path": "acls[].frontend.backend.sticky_sessions",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.backend.timeout_connect",
+          "type": "number"
+        },
+        {
+          "path": "acls[].frontend.backend.timeout_queue",
+          "type": "null"
+        },
+        {
+          "path": "acls[].frontend.backend.timeout_server",
+          "type": "number"
+        },
+        {
+          "path": "acls[].frontend.backend.timeout_tunnel",
+          "type": "number"
+        },
+        {
+          "path": "acls[].frontend.backend.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.certificate",
+          "type": "null"
+        },
+        {
+          "path": "acls[].frontend.certificate_ids",
+          "type": "array"
+        },
+        {
+          "path": "acls[].frontend.connection_rate_limit",
+          "type": "null"
+        },
+        {
+          "path": "acls[].frontend.created_at",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.enable_access_logs",
+          "type": "bool"
+        },
+        {
+          "path": "acls[].frontend.enable_http3",
+          "type": "bool"
+        },
+        {
+          "path": "acls[].frontend.id",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.inbound_port",
+          "type": "number"
+        },
+        {
+          "path": "acls[].frontend.lb",
+          "type": "object"
+        },
+        {
+          "path": "acls[].frontend.lb.backend_count",
+          "type": "number"
+        },
+        {
+          "path": "acls[].frontend.lb.created_at",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.lb.frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "acls[].frontend.lb.id",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.lb.instances",
+          "type": "array"
+        },
+        {
+          "path": "acls[].frontend.lb.ip",
+          "type": "array"
+        },
+        {
+          "path": "acls[].frontend.lb.ip[]",
+          "type": "object"
+        },
+        {
+          "path": "acls[].frontend.lb.ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.lb.ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.lb.ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.lb.ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.lb.ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.lb.ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.lb.ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "acls[].frontend.lb.ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.lb.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.lb.private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "acls[].frontend.lb.project_id",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.lb.region",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.lb.route_count",
+          "type": "number"
+        },
+        {
+          "path": "acls[].frontend.lb.ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.lb.status",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.lb.subscriber",
+          "type": "null"
+        },
+        {
+          "path": "acls[].frontend.lb.tags",
+          "type": "array"
+        },
+        {
+          "path": "acls[].frontend.lb.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.lb.zone",
+          "type": "string"
+        },
+        {
+          "path": "acls[].frontend.timeout_client",
+          "type": "number"
+        },
+        {
+          "path": "acls[].frontend.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "acls[].id",
+          "type": "string"
+        },
+        {
+          "path": "acls[].index",
+          "type": "number"
+        },
+        {
+          "path": "acls[].match",
+          "type": "object"
+        },
+        {
+          "path": "acls[].match.http_filter",
+          "type": "string"
+        },
+        {
+          "path": "acls[].match.http_filter_option",
+          "type": "null"
+        },
+        {
+          "path": "acls[].match.http_filter_value",
+          "type": "array"
+        },
+        {
+          "path": "acls[].match.invert",
+          "type": "bool"
+        },
+        {
+          "path": "acls[].match.ip_subnet",
+          "type": "array"
+        },
+        {
+          "path": "acls[].match.ip_subnet[]",
+          "type": "string"
+        },
+        {
+          "path": "acls[].match.ips_edge_services",
+          "type": "bool"
+        },
+        {
+          "path": "acls[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "total_count",
+          "type": "number"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
     "lb/v1/ZonedAPI.ListBackends": {
       "method": "GET",
       "path": "/lb/v1/zones/fr-par-1/lbs/{id}/backends",
-      "fields": [],
+      "fields": [
+        {
+          "path": "backends",
+          "type": "array"
+        },
+        {
+          "path": "backends[]",
+          "type": "object"
+        },
+        {
+          "path": "backends[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "backends[].failover_host",
+          "type": "null"
+        },
+        {
+          "path": "backends[].forward_port",
+          "type": "number"
+        },
+        {
+          "path": "backends[].forward_port_algorithm",
+          "type": "string"
+        },
+        {
+          "path": "backends[].forward_protocol",
+          "type": "string"
+        },
+        {
+          "path": "backends[].health_check",
+          "type": "object"
+        },
+        {
+          "path": "backends[].health_check.check_delay",
+          "type": "number"
+        },
+        {
+          "path": "backends[].health_check.check_max_retries",
+          "type": "number"
+        },
+        {
+          "path": "backends[].health_check.check_send_proxy",
+          "type": "bool"
+        },
+        {
+          "path": "backends[].health_check.check_timeout",
+          "type": "number"
+        },
+        {
+          "path": "backends[].health_check.http_config",
+          "type": "object"
+        },
+        {
+          "path": "backends[].health_check.http_config.code",
+          "type": "number"
+        },
+        {
+          "path": "backends[].health_check.http_config.host_header",
+          "type": "string"
+        },
+        {
+          "path": "backends[].health_check.port",
+          "type": "number"
+        },
+        {
+          "path": "backends[].host",
+          "type": "string"
+        },
+        {
+          "path": "backends[].id",
+          "type": "string"
+        },
+        {
+          "path": "backends[].ignore_ssl_server_verify",
+          "type": "null"
+        },
+        {
+          "path": "backends[].lb",
+          "type": "object"
+        },
+        {
+          "path": "backends[].lb.backend_count",
+          "type": "number"
+        },
+        {
+          "path": "backends[].lb.created_at",
+          "type": "string"
+        },
+        {
+          "path": "backends[].lb.frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "backends[].lb.id",
+          "type": "string"
+        },
+        {
+          "path": "backends[].lb.instances",
+          "type": "array"
+        },
+        {
+          "path": "backends[].lb.instances[]",
+          "type": "object"
+        },
+        {
+          "path": "backends[].lb.instances[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "backends[].lb.instances[].id",
+          "type": "string"
+        },
+        {
+          "path": "backends[].lb.instances[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "backends[].lb.instances[].region",
+          "type": "string"
+        },
+        {
+          "path": "backends[].lb.instances[].status",
+          "type": "string"
+        },
+        {
+          "path": "backends[].lb.instances[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "backends[].lb.instances[].zone",
+          "type": "string"
+        },
+        {
+          "path": "backends[].lb.ip",
+          "type": "array"
+        },
+        {
+          "path": "backends[].lb.ip[]",
+          "type": "object"
+        },
+        {
+          "path": "backends[].lb.ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "backends[].lb.ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "backends[].lb.ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "backends[].lb.ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "backends[].lb.ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "backends[].lb.ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "backends[].lb.ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "backends[].lb.ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "backends[].lb.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "backends[].lb.private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "backends[].lb.project_id",
+          "type": "string"
+        },
+        {
+          "path": "backends[].lb.region",
+          "type": "string"
+        },
+        {
+          "path": "backends[].lb.route_count",
+          "type": "number"
+        },
+        {
+          "path": "backends[].lb.ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "backends[].lb.status",
+          "type": "string"
+        },
+        {
+          "path": "backends[].lb.subscriber",
+          "type": "null"
+        },
+        {
+          "path": "backends[].lb.tags",
+          "type": "array"
+        },
+        {
+          "path": "backends[].lb.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "backends[].lb.zone",
+          "type": "string"
+        },
+        {
+          "path": "backends[].max_connections",
+          "type": "null"
+        },
+        {
+          "path": "backends[].max_retries",
+          "type": "null"
+        },
+        {
+          "path": "backends[].on_marked_down_action",
+          "type": "string"
+        },
+        {
+          "path": "backends[].pool",
+          "type": "array"
+        },
+        {
+          "path": "backends[].pool[]",
+          "type": "string"
+        },
+        {
+          "path": "backends[].proxy_protocol",
+          "type": "string"
+        },
+        {
+          "path": "backends[].redispatch_attempt_count",
+          "type": "null"
+        },
+        {
+          "path": "backends[].send_proxy_v2",
+          "type": "bool"
+        },
+        {
+          "path": "backends[].ssl_bridging",
+          "type": "bool"
+        },
+        {
+          "path": "backends[].sticky_sessions",
+          "type": "string"
+        },
+        {
+          "path": "backends[].timeout_connect",
+          "type": "number"
+        },
+        {
+          "path": "backends[].timeout_queue",
+          "type": "null"
+        },
+        {
+          "path": "backends[].timeout_server",
+          "type": "number"
+        },
+        {
+          "path": "backends[].timeout_tunnel",
+          "type": "number"
+        },
+        {
+          "path": "backends[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "total_count",
+          "type": "number"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
     "lb/v1/ZonedAPI.ListFrontends": {
       "method": "GET",
       "path": "/lb/v1/zones/fr-par-1/lbs/{id}/frontends",
-      "fields": [],
+      "fields": [
+        {
+          "path": "frontends",
+          "type": "array"
+        },
+        {
+          "path": "frontends[]",
+          "type": "object"
+        },
+        {
+          "path": "frontends[].backend",
+          "type": "object"
+        },
+        {
+          "path": "frontends[].backend.created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.failover_host",
+          "type": "null"
+        },
+        {
+          "path": "frontends[].backend.forward_port",
+          "type": "number"
+        },
+        {
+          "path": "frontends[].backend.forward_port_algorithm",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.forward_protocol",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.health_check",
+          "type": "object"
+        },
+        {
+          "path": "frontends[].backend.health_check.check_delay",
+          "type": "number"
+        },
+        {
+          "path": "frontends[].backend.health_check.check_max_retries",
+          "type": "number"
+        },
+        {
+          "path": "frontends[].backend.health_check.check_send_proxy",
+          "type": "bool"
+        },
+        {
+          "path": "frontends[].backend.health_check.check_timeout",
+          "type": "number"
+        },
+        {
+          "path": "frontends[].backend.health_check.http_config",
+          "type": "object"
+        },
+        {
+          "path": "frontends[].backend.health_check.http_config.code",
+          "type": "number"
+        },
+        {
+          "path": "frontends[].backend.health_check.http_config.host_header",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.health_check.port",
+          "type": "number"
+        },
+        {
+          "path": "frontends[].backend.host",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.id",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.ignore_ssl_server_verify",
+          "type": "null"
+        },
+        {
+          "path": "frontends[].backend.lb",
+          "type": "object"
+        },
+        {
+          "path": "frontends[].backend.lb.backend_count",
+          "type": "number"
+        },
+        {
+          "path": "frontends[].backend.lb.created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.lb.frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "frontends[].backend.lb.id",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.lb.instances",
+          "type": "array"
+        },
+        {
+          "path": "frontends[].backend.lb.instances[]",
+          "type": "object"
+        },
+        {
+          "path": "frontends[].backend.lb.instances[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.lb.instances[].id",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.lb.instances[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.lb.instances[].region",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.lb.instances[].status",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.lb.instances[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.lb.instances[].zone",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.lb.ip",
+          "type": "array"
+        },
+        {
+          "path": "frontends[].backend.lb.ip[]",
+          "type": "object"
+        },
+        {
+          "path": "frontends[].backend.lb.ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.lb.ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.lb.ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.lb.ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.lb.ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.lb.ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.lb.ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "frontends[].backend.lb.ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.lb.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.lb.private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "frontends[].backend.lb.project_id",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.lb.region",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.lb.route_count",
+          "type": "number"
+        },
+        {
+          "path": "frontends[].backend.lb.ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.lb.status",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.lb.subscriber",
+          "type": "null"
+        },
+        {
+          "path": "frontends[].backend.lb.tags",
+          "type": "array"
+        },
+        {
+          "path": "frontends[].backend.lb.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.lb.zone",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.max_connections",
+          "type": "null"
+        },
+        {
+          "path": "frontends[].backend.max_retries",
+          "type": "null"
+        },
+        {
+          "path": "frontends[].backend.on_marked_down_action",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.pool",
+          "type": "array"
+        },
+        {
+          "path": "frontends[].backend.pool[]",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.proxy_protocol",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.redispatch_attempt_count",
+          "type": "null"
+        },
+        {
+          "path": "frontends[].backend.send_proxy_v2",
+          "type": "bool"
+        },
+        {
+          "path": "frontends[].backend.ssl_bridging",
+          "type": "bool"
+        },
+        {
+          "path": "frontends[].backend.sticky_sessions",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].backend.timeout_connect",
+          "type": "number"
+        },
+        {
+          "path": "frontends[].backend.timeout_queue",
+          "type": "null"
+        },
+        {
+          "path": "frontends[].backend.timeout_server",
+          "type": "number"
+        },
+        {
+          "path": "frontends[].backend.timeout_tunnel",
+          "type": "number"
+        },
+        {
+          "path": "frontends[].backend.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].certificate",
+          "type": "null"
+        },
+        {
+          "path": "frontends[].certificate_ids",
+          "type": "array"
+        },
+        {
+          "path": "frontends[].connection_rate_limit",
+          "type": "null"
+        },
+        {
+          "path": "frontends[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].enable_access_logs",
+          "type": "bool"
+        },
+        {
+          "path": "frontends[].enable_http3",
+          "type": "bool"
+        },
+        {
+          "path": "frontends[].id",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].inbound_port",
+          "type": "number"
+        },
+        {
+          "path": "frontends[].lb",
+          "type": "object"
+        },
+        {
+          "path": "frontends[].lb.backend_count",
+          "type": "number"
+        },
+        {
+          "path": "frontends[].lb.created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].lb.frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "frontends[].lb.id",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].lb.instances",
+          "type": "array"
+        },
+        {
+          "path": "frontends[].lb.instances[]",
+          "type": "object"
+        },
+        {
+          "path": "frontends[].lb.instances[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].lb.instances[].id",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].lb.instances[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].lb.instances[].region",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].lb.instances[].status",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].lb.instances[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].lb.instances[].zone",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].lb.ip",
+          "type": "array"
+        },
+        {
+          "path": "frontends[].lb.ip[]",
+          "type": "object"
+        },
+        {
+          "path": "frontends[].lb.ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].lb.ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].lb.ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].lb.ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].lb.ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].lb.ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].lb.ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "frontends[].lb.ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].lb.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].lb.private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "frontends[].lb.project_id",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].lb.region",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].lb.route_count",
+          "type": "number"
+        },
+        {
+          "path": "frontends[].lb.ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].lb.status",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].lb.subscriber",
+          "type": "null"
+        },
+        {
+          "path": "frontends[].lb.tags",
+          "type": "array"
+        },
+        {
+          "path": "frontends[].lb.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].lb.zone",
+          "type": "string"
+        },
+        {
+          "path": "frontends[].timeout_client",
+          "type": "number"
+        },
+        {
+          "path": "frontends[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "total_count",
+          "type": "number"
+        }
+      ],
       "statuses": [
+        200,
         404
+      ]
+    },
+    "lb/v1/ZonedAPI.ListIPs": {
+      "method": "GET",
+      "path": "/lb/v1/zones/fr-par-1/ips",
+      "fields": [
+        {
+          "path": "ips",
+          "type": "array"
+        },
+        {
+          "path": "ips[]",
+          "type": "object"
+        },
+        {
+          "path": "ips[].id",
+          "type": "string"
+        },
+        {
+          "path": "ips[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "ips[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "ips[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "ips[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "ips[].region",
+          "type": "string"
+        },
+        {
+          "path": "ips[].tags",
+          "type": "array"
+        },
+        {
+          "path": "ips[].zone",
+          "type": "string"
+        },
+        {
+          "path": "total_count",
+          "type": "number"
+        }
+      ],
+      "statuses": [
+        200
       ]
     },
     "lb/v1/ZonedAPI.ListLBPrivateNetworks": {
       "method": "GET",
       "path": "/lb/v1/zones/fr-par-1/lbs/{id}/private-networks",
-      "fields": [],
+      "fields": [
+        {
+          "path": "private_network",
+          "type": "array"
+        },
+        {
+          "path": "total_count",
+          "type": "number"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -33331,8 +38044,50 @@
     "lb/v1/ZonedAPI.ListRoutes": {
       "method": "GET",
       "path": "/lb/v1/zones/fr-par-1/routes",
-      "fields": [],
+      "fields": [
+        {
+          "path": "routes",
+          "type": "array"
+        },
+        {
+          "path": "routes[]",
+          "type": "object"
+        },
+        {
+          "path": "routes[].backend_id",
+          "type": "string"
+        },
+        {
+          "path": "routes[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "routes[].frontend_id",
+          "type": "string"
+        },
+        {
+          "path": "routes[].id",
+          "type": "string"
+        },
+        {
+          "path": "routes[].match",
+          "type": "object"
+        },
+        {
+          "path": "routes[].match.match_subdomains",
+          "type": "bool"
+        },
+        {
+          "path": "routes[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "total_count",
+          "type": "number"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -33347,48 +38102,1705 @@
     "lb/v1/ZonedAPI.SetBackendServers": {
       "method": "PUT",
       "path": "/lb/v1/zones/fr-par-1/backends/{id}/servers",
-      "fields": [],
+      "fields": [
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "failover_host",
+          "type": "null"
+        },
+        {
+          "path": "forward_port",
+          "type": "number"
+        },
+        {
+          "path": "forward_port_algorithm",
+          "type": "string"
+        },
+        {
+          "path": "forward_protocol",
+          "type": "string"
+        },
+        {
+          "path": "health_check",
+          "type": "object"
+        },
+        {
+          "path": "health_check.check_delay",
+          "type": "number"
+        },
+        {
+          "path": "health_check.check_max_retries",
+          "type": "number"
+        },
+        {
+          "path": "health_check.check_send_proxy",
+          "type": "bool"
+        },
+        {
+          "path": "health_check.check_timeout",
+          "type": "number"
+        },
+        {
+          "path": "health_check.http_config",
+          "type": "object"
+        },
+        {
+          "path": "health_check.http_config.code",
+          "type": "number"
+        },
+        {
+          "path": "health_check.http_config.host_header",
+          "type": "string"
+        },
+        {
+          "path": "health_check.port",
+          "type": "number"
+        },
+        {
+          "path": "host",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "ignore_ssl_server_verify",
+          "type": "null"
+        },
+        {
+          "path": "lb",
+          "type": "object"
+        },
+        {
+          "path": "lb.backend_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.created_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.id",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances",
+          "type": "array"
+        },
+        {
+          "path": "lb.instances[]",
+          "type": "object"
+        },
+        {
+          "path": "lb.instances[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].id",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].region",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].status",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].zone",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip",
+          "type": "array"
+        },
+        {
+          "path": "lb.ip[]",
+          "type": "object"
+        },
+        {
+          "path": "lb.ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "lb.ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "lb.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.project_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.region",
+          "type": "string"
+        },
+        {
+          "path": "lb.route_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "lb.status",
+          "type": "string"
+        },
+        {
+          "path": "lb.subscriber",
+          "type": "null"
+        },
+        {
+          "path": "lb.tags",
+          "type": "array"
+        },
+        {
+          "path": "lb.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.zone",
+          "type": "string"
+        },
+        {
+          "path": "max_connections",
+          "type": "null"
+        },
+        {
+          "path": "max_retries",
+          "type": "null"
+        },
+        {
+          "path": "on_marked_down_action",
+          "type": "string"
+        },
+        {
+          "path": "pool",
+          "type": "array"
+        },
+        {
+          "path": "pool[]",
+          "type": "string"
+        },
+        {
+          "path": "proxy_protocol",
+          "type": "string"
+        },
+        {
+          "path": "redispatch_attempt_count",
+          "type": "null"
+        },
+        {
+          "path": "send_proxy_v2",
+          "type": "bool"
+        },
+        {
+          "path": "ssl_bridging",
+          "type": "bool"
+        },
+        {
+          "path": "sticky_sessions",
+          "type": "string"
+        },
+        {
+          "path": "timeout_connect",
+          "type": "number"
+        },
+        {
+          "path": "timeout_queue",
+          "type": "null"
+        },
+        {
+          "path": "timeout_server",
+          "type": "number"
+        },
+        {
+          "path": "timeout_tunnel",
+          "type": "number"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
     "lb/v1/ZonedAPI.UpdateACL": {
       "method": "PUT",
       "path": "/lb/v1/zones/fr-par-1/acls/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "action",
+          "type": "object"
+        },
+        {
+          "path": "action.redirect",
+          "type": "null"
+        },
+        {
+          "path": "action.type",
+          "type": "string"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "description",
+          "type": "string"
+        },
+        {
+          "path": "frontend",
+          "type": "object"
+        },
+        {
+          "path": "frontend.backend",
+          "type": "object"
+        },
+        {
+          "path": "frontend.backend.created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.failover_host",
+          "type": "null"
+        },
+        {
+          "path": "frontend.backend.forward_port",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.forward_port_algorithm",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.forward_protocol",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.health_check",
+          "type": "object"
+        },
+        {
+          "path": "frontend.backend.health_check.check_delay",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.health_check.check_max_retries",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.health_check.check_send_proxy",
+          "type": "bool"
+        },
+        {
+          "path": "frontend.backend.health_check.check_timeout",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.health_check.http_config",
+          "type": "object"
+        },
+        {
+          "path": "frontend.backend.health_check.http_config.code",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.health_check.http_config.host_header",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.health_check.port",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.host",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.ignore_ssl_server_verify",
+          "type": "null"
+        },
+        {
+          "path": "frontend.backend.lb",
+          "type": "object"
+        },
+        {
+          "path": "frontend.backend.lb.backend_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.lb.created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.lb.id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.instances",
+          "type": "array"
+        },
+        {
+          "path": "frontend.backend.lb.ip",
+          "type": "array"
+        },
+        {
+          "path": "frontend.backend.lb.ip[]",
+          "type": "object"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "frontend.backend.lb.ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.lb.project_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.region",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.route_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.lb.ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.status",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.subscriber",
+          "type": "null"
+        },
+        {
+          "path": "frontend.backend.lb.tags",
+          "type": "array"
+        },
+        {
+          "path": "frontend.backend.lb.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.lb.zone",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.max_connections",
+          "type": "null"
+        },
+        {
+          "path": "frontend.backend.max_retries",
+          "type": "null"
+        },
+        {
+          "path": "frontend.backend.on_marked_down_action",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.pool",
+          "type": "array"
+        },
+        {
+          "path": "frontend.backend.pool[]",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.proxy_protocol",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.redispatch_attempt_count",
+          "type": "null"
+        },
+        {
+          "path": "frontend.backend.send_proxy_v2",
+          "type": "bool"
+        },
+        {
+          "path": "frontend.backend.ssl_bridging",
+          "type": "bool"
+        },
+        {
+          "path": "frontend.backend.sticky_sessions",
+          "type": "string"
+        },
+        {
+          "path": "frontend.backend.timeout_connect",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.timeout_queue",
+          "type": "null"
+        },
+        {
+          "path": "frontend.backend.timeout_server",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.timeout_tunnel",
+          "type": "number"
+        },
+        {
+          "path": "frontend.backend.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.certificate",
+          "type": "null"
+        },
+        {
+          "path": "frontend.certificate_ids",
+          "type": "array"
+        },
+        {
+          "path": "frontend.connection_rate_limit",
+          "type": "null"
+        },
+        {
+          "path": "frontend.created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.enable_access_logs",
+          "type": "bool"
+        },
+        {
+          "path": "frontend.enable_http3",
+          "type": "bool"
+        },
+        {
+          "path": "frontend.id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.inbound_port",
+          "type": "number"
+        },
+        {
+          "path": "frontend.lb",
+          "type": "object"
+        },
+        {
+          "path": "frontend.lb.backend_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.lb.created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.lb.id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.instances",
+          "type": "array"
+        },
+        {
+          "path": "frontend.lb.instances[]",
+          "type": "object"
+        },
+        {
+          "path": "frontend.lb.instances[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.instances[].id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.instances[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.instances[].region",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.instances[].status",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.instances[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.instances[].zone",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.ip",
+          "type": "array"
+        },
+        {
+          "path": "frontend.lb.ip[]",
+          "type": "object"
+        },
+        {
+          "path": "frontend.lb.ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "frontend.lb.ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.lb.project_id",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.region",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.route_count",
+          "type": "number"
+        },
+        {
+          "path": "frontend.lb.ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.status",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.subscriber",
+          "type": "null"
+        },
+        {
+          "path": "frontend.lb.tags",
+          "type": "array"
+        },
+        {
+          "path": "frontend.lb.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend.lb.zone",
+          "type": "string"
+        },
+        {
+          "path": "frontend.timeout_client",
+          "type": "number"
+        },
+        {
+          "path": "frontend.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "index",
+          "type": "number"
+        },
+        {
+          "path": "match",
+          "type": "object"
+        },
+        {
+          "path": "match.http_filter",
+          "type": "string"
+        },
+        {
+          "path": "match.http_filter_option",
+          "type": "null"
+        },
+        {
+          "path": "match.http_filter_value",
+          "type": "array"
+        },
+        {
+          "path": "match.invert",
+          "type": "bool"
+        },
+        {
+          "path": "match.ip_subnet",
+          "type": "array"
+        },
+        {
+          "path": "match.ip_subnet[]",
+          "type": "string"
+        },
+        {
+          "path": "match.ips_edge_services",
+          "type": "bool"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
     "lb/v1/ZonedAPI.UpdateBackend": {
       "method": "PUT",
       "path": "/lb/v1/zones/fr-par-1/backends/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "failover_host",
+          "type": "null"
+        },
+        {
+          "path": "forward_port",
+          "type": "number"
+        },
+        {
+          "path": "forward_port_algorithm",
+          "type": "string"
+        },
+        {
+          "path": "forward_protocol",
+          "type": "string"
+        },
+        {
+          "path": "health_check",
+          "type": "object"
+        },
+        {
+          "path": "health_check.check_delay",
+          "type": "number"
+        },
+        {
+          "path": "health_check.check_max_retries",
+          "type": "number"
+        },
+        {
+          "path": "health_check.check_send_proxy",
+          "type": "bool"
+        },
+        {
+          "path": "health_check.check_timeout",
+          "type": "number"
+        },
+        {
+          "path": "health_check.http_config",
+          "type": "object"
+        },
+        {
+          "path": "health_check.http_config.code",
+          "type": "number"
+        },
+        {
+          "path": "health_check.http_config.host_header",
+          "type": "string"
+        },
+        {
+          "path": "health_check.port",
+          "type": "number"
+        },
+        {
+          "path": "host",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "ignore_ssl_server_verify",
+          "type": "null"
+        },
+        {
+          "path": "lb",
+          "type": "object"
+        },
+        {
+          "path": "lb.backend_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.created_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.id",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances",
+          "type": "array"
+        },
+        {
+          "path": "lb.instances[]",
+          "type": "object"
+        },
+        {
+          "path": "lb.instances[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].id",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].region",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].status",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].zone",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip",
+          "type": "array"
+        },
+        {
+          "path": "lb.ip[]",
+          "type": "object"
+        },
+        {
+          "path": "lb.ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "lb.ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "lb.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.project_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.region",
+          "type": "string"
+        },
+        {
+          "path": "lb.route_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "lb.status",
+          "type": "string"
+        },
+        {
+          "path": "lb.subscriber",
+          "type": "null"
+        },
+        {
+          "path": "lb.tags",
+          "type": "array"
+        },
+        {
+          "path": "lb.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.zone",
+          "type": "string"
+        },
+        {
+          "path": "max_connections",
+          "type": "null"
+        },
+        {
+          "path": "max_retries",
+          "type": "null"
+        },
+        {
+          "path": "on_marked_down_action",
+          "type": "string"
+        },
+        {
+          "path": "pool",
+          "type": "array"
+        },
+        {
+          "path": "proxy_protocol",
+          "type": "string"
+        },
+        {
+          "path": "redispatch_attempt_count",
+          "type": "null"
+        },
+        {
+          "path": "send_proxy_v2",
+          "type": "bool"
+        },
+        {
+          "path": "ssl_bridging",
+          "type": "bool"
+        },
+        {
+          "path": "sticky_sessions",
+          "type": "string"
+        },
+        {
+          "path": "timeout_connect",
+          "type": "number"
+        },
+        {
+          "path": "timeout_queue",
+          "type": "null"
+        },
+        {
+          "path": "timeout_server",
+          "type": "number"
+        },
+        {
+          "path": "timeout_tunnel",
+          "type": "number"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
     "lb/v1/ZonedAPI.UpdateFrontend": {
       "method": "PUT",
       "path": "/lb/v1/zones/fr-par-1/frontends/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "backend",
+          "type": "object"
+        },
+        {
+          "path": "backend.created_at",
+          "type": "string"
+        },
+        {
+          "path": "backend.failover_host",
+          "type": "null"
+        },
+        {
+          "path": "backend.forward_port",
+          "type": "number"
+        },
+        {
+          "path": "backend.forward_port_algorithm",
+          "type": "string"
+        },
+        {
+          "path": "backend.forward_protocol",
+          "type": "string"
+        },
+        {
+          "path": "backend.health_check",
+          "type": "object"
+        },
+        {
+          "path": "backend.health_check.check_delay",
+          "type": "number"
+        },
+        {
+          "path": "backend.health_check.check_max_retries",
+          "type": "number"
+        },
+        {
+          "path": "backend.health_check.check_send_proxy",
+          "type": "bool"
+        },
+        {
+          "path": "backend.health_check.check_timeout",
+          "type": "number"
+        },
+        {
+          "path": "backend.health_check.http_config",
+          "type": "object"
+        },
+        {
+          "path": "backend.health_check.http_config.code",
+          "type": "number"
+        },
+        {
+          "path": "backend.health_check.http_config.host_header",
+          "type": "string"
+        },
+        {
+          "path": "backend.health_check.port",
+          "type": "number"
+        },
+        {
+          "path": "backend.host",
+          "type": "string"
+        },
+        {
+          "path": "backend.id",
+          "type": "string"
+        },
+        {
+          "path": "backend.ignore_ssl_server_verify",
+          "type": "null"
+        },
+        {
+          "path": "backend.lb",
+          "type": "object"
+        },
+        {
+          "path": "backend.lb.backend_count",
+          "type": "number"
+        },
+        {
+          "path": "backend.lb.created_at",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "backend.lb.id",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.instances",
+          "type": "array"
+        },
+        {
+          "path": "backend.lb.ip",
+          "type": "array"
+        },
+        {
+          "path": "backend.lb.ip[]",
+          "type": "object"
+        },
+        {
+          "path": "backend.lb.ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "backend.lb.ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "backend.lb.project_id",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.region",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.route_count",
+          "type": "number"
+        },
+        {
+          "path": "backend.lb.ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.status",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.subscriber",
+          "type": "null"
+        },
+        {
+          "path": "backend.lb.tags",
+          "type": "array"
+        },
+        {
+          "path": "backend.lb.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "backend.lb.zone",
+          "type": "string"
+        },
+        {
+          "path": "backend.max_connections",
+          "type": "null"
+        },
+        {
+          "path": "backend.max_retries",
+          "type": "null"
+        },
+        {
+          "path": "backend.on_marked_down_action",
+          "type": "string"
+        },
+        {
+          "path": "backend.pool",
+          "type": "array"
+        },
+        {
+          "path": "backend.pool[]",
+          "type": "string"
+        },
+        {
+          "path": "backend.proxy_protocol",
+          "type": "string"
+        },
+        {
+          "path": "backend.redispatch_attempt_count",
+          "type": "null"
+        },
+        {
+          "path": "backend.send_proxy_v2",
+          "type": "bool"
+        },
+        {
+          "path": "backend.ssl_bridging",
+          "type": "bool"
+        },
+        {
+          "path": "backend.sticky_sessions",
+          "type": "string"
+        },
+        {
+          "path": "backend.timeout_connect",
+          "type": "number"
+        },
+        {
+          "path": "backend.timeout_queue",
+          "type": "null"
+        },
+        {
+          "path": "backend.timeout_server",
+          "type": "number"
+        },
+        {
+          "path": "backend.timeout_tunnel",
+          "type": "number"
+        },
+        {
+          "path": "backend.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "certificate",
+          "type": "null"
+        },
+        {
+          "path": "certificate_ids",
+          "type": "array"
+        },
+        {
+          "path": "connection_rate_limit",
+          "type": "null"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "enable_access_logs",
+          "type": "bool"
+        },
+        {
+          "path": "enable_http3",
+          "type": "bool"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "inbound_port",
+          "type": "number"
+        },
+        {
+          "path": "lb",
+          "type": "object"
+        },
+        {
+          "path": "lb.backend_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.created_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.id",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances",
+          "type": "array"
+        },
+        {
+          "path": "lb.instances[]",
+          "type": "object"
+        },
+        {
+          "path": "lb.instances[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].id",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].region",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].status",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.instances[].zone",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip",
+          "type": "array"
+        },
+        {
+          "path": "lb.ip[]",
+          "type": "object"
+        },
+        {
+          "path": "lb.ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "lb.ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "lb.ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "lb.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.project_id",
+          "type": "string"
+        },
+        {
+          "path": "lb.region",
+          "type": "string"
+        },
+        {
+          "path": "lb.route_count",
+          "type": "number"
+        },
+        {
+          "path": "lb.ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "lb.status",
+          "type": "string"
+        },
+        {
+          "path": "lb.subscriber",
+          "type": "null"
+        },
+        {
+          "path": "lb.tags",
+          "type": "array"
+        },
+        {
+          "path": "lb.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "lb.zone",
+          "type": "string"
+        },
+        {
+          "path": "timeout_client",
+          "type": "number"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
     "lb/v1/ZonedAPI.UpdateIP": {
       "method": "PATCH",
       "path": "/lb/v1/zones/fr-par-1/ips/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "ip_address",
+          "type": "string"
+        },
+        {
+          "path": "lb_id",
+          "type": "null"
+        },
+        {
+          "path": "organization_id",
+          "type": "string"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "region",
+          "type": "string"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
+      ]
+    },
+    "lb/v1/ZonedAPI.UpdateLB": {
+      "method": "PUT",
+      "path": "/lb/v1/zones/fr-par-1/lbs/{id}",
+      "fields": [
+        {
+          "path": "backend_count",
+          "type": "number"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend_count",
+          "type": "number"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "instances",
+          "type": "array"
+        },
+        {
+          "path": "instances[]",
+          "type": "object"
+        },
+        {
+          "path": "instances[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "instances[].id",
+          "type": "string"
+        },
+        {
+          "path": "instances[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "instances[].region",
+          "type": "string"
+        },
+        {
+          "path": "instances[].status",
+          "type": "string"
+        },
+        {
+          "path": "instances[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "instances[].zone",
+          "type": "string"
+        },
+        {
+          "path": "ip",
+          "type": "array"
+        },
+        {
+          "path": "ip[]",
+          "type": "object"
+        },
+        {
+          "path": "ip[].id",
+          "type": "string"
+        },
+        {
+          "path": "ip[].ip_address",
+          "type": "string"
+        },
+        {
+          "path": "ip[].lb_id",
+          "type": "string"
+        },
+        {
+          "path": "ip[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "ip[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "ip[].region",
+          "type": "string"
+        },
+        {
+          "path": "ip[].tags",
+          "type": "array"
+        },
+        {
+          "path": "ip[].zone",
+          "type": "string"
+        },
+        {
+          "path": "organization_id",
+          "type": "string"
+        },
+        {
+          "path": "private_network_count",
+          "type": "number"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "region",
+          "type": "string"
+        },
+        {
+          "path": "route_count",
+          "type": "number"
+        },
+        {
+          "path": "ssl_compatibility_level",
+          "type": "string"
+        },
+        {
+          "path": "status",
+          "type": "string"
+        },
+        {
+          "path": "subscriber",
+          "type": "null"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        },
+        {
+          "path": "zone",
+          "type": "string"
+        }
+      ],
+      "statuses": [
+        200
       ]
     },
     "lb/v1/ZonedAPI.UpdateRoute": {
       "method": "PUT",
       "path": "/lb/v1/zones/fr-par-1/routes/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "backend_id",
+          "type": "string"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "frontend_id",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "match",
+          "type": "object"
+        },
+        {
+          "path": "match.match_subdomains",
+          "type": "bool"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -34554,8 +40966,114 @@
     "vpcgw/v2/API.CreateGateway": {
       "method": "POST",
       "path": "/vpc-gw/v2/zones/fr-par-1/gateways",
-      "fields": [],
+      "fields": [
+        {
+          "path": "bandwidth",
+          "type": "number"
+        },
+        {
+          "path": "bastion_allowed_ips",
+          "type": "array"
+        },
+        {
+          "path": "bastion_allowed_ips[]",
+          "type": "string"
+        },
+        {
+          "path": "bastion_enabled",
+          "type": "bool"
+        },
+        {
+          "path": "bastion_port",
+          "type": "number"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "gateway_networks",
+          "type": "array"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "ipv4",
+          "type": "object"
+        },
+        {
+          "path": "ipv4.address",
+          "type": "string"
+        },
+        {
+          "path": "ipv4.created_at",
+          "type": "string"
+        },
+        {
+          "path": "ipv4.gateway_id",
+          "type": "string"
+        },
+        {
+          "path": "ipv4.id",
+          "type": "string"
+        },
+        {
+          "path": "ipv4.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "ipv4.project_id",
+          "type": "string"
+        },
+        {
+          "path": "ipv4.tags",
+          "type": "array"
+        },
+        {
+          "path": "ipv4.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "ipv4.zone",
+          "type": "string"
+        },
+        {
+          "path": "is_legacy",
+          "type": "bool"
+        },
+        {
+          "path": "organization_id",
+          "type": "string"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "smtp_enabled",
+          "type": "bool"
+        },
+        {
+          "path": "status",
+          "type": "string"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        },
+        {
+          "path": "zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -34564,14 +41082,49 @@
       "path": "/vpc-gw/v2/zones/fr-par-1/gateway-networks",
       "fields": [],
       "statuses": [
-        404
+        404,
+        409
       ]
     },
     "vpcgw/v2/API.CreateIP": {
       "method": "POST",
       "path": "/vpc-gw/v2/zones/fr-par-1/ips",
-      "fields": [],
+      "fields": [
+        {
+          "path": "address",
+          "type": "string"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "organization_id",
+          "type": "string"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        },
+        {
+          "path": "zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -34602,8 +41155,114 @@
     "vpcgw/v2/API.GetGateway": {
       "method": "GET",
       "path": "/vpc-gw/v2/zones/fr-par-1/gateways/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "bandwidth",
+          "type": "number"
+        },
+        {
+          "path": "bastion_allowed_ips",
+          "type": "array"
+        },
+        {
+          "path": "bastion_allowed_ips[]",
+          "type": "string"
+        },
+        {
+          "path": "bastion_enabled",
+          "type": "bool"
+        },
+        {
+          "path": "bastion_port",
+          "type": "number"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "gateway_networks",
+          "type": "array"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "ipv4",
+          "type": "object"
+        },
+        {
+          "path": "ipv4.address",
+          "type": "string"
+        },
+        {
+          "path": "ipv4.created_at",
+          "type": "string"
+        },
+        {
+          "path": "ipv4.gateway_id",
+          "type": "string"
+        },
+        {
+          "path": "ipv4.id",
+          "type": "string"
+        },
+        {
+          "path": "ipv4.organization_id",
+          "type": "string"
+        },
+        {
+          "path": "ipv4.project_id",
+          "type": "string"
+        },
+        {
+          "path": "ipv4.tags",
+          "type": "array"
+        },
+        {
+          "path": "ipv4.updated_at",
+          "type": "string"
+        },
+        {
+          "path": "ipv4.zone",
+          "type": "string"
+        },
+        {
+          "path": "is_legacy",
+          "type": "bool"
+        },
+        {
+          "path": "organization_id",
+          "type": "string"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "smtp_enabled",
+          "type": "bool"
+        },
+        {
+          "path": "status",
+          "type": "string"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        },
+        {
+          "path": "zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -34618,8 +41277,42 @@
     "vpcgw/v2/API.GetIP": {
       "method": "GET",
       "path": "/vpc-gw/v2/zones/fr-par-1/ips/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "address",
+          "type": "string"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "organization_id",
+          "type": "string"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        },
+        {
+          "path": "zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     },
@@ -34640,12 +41333,66 @@
         200
       ]
     },
+    "vpcgw/v2/API.ListIPs": {
+      "method": "GET",
+      "path": "/vpc-gw/v2/zones/fr-par-1/ips",
+      "fields": [
+        {
+          "path": "ips",
+          "type": "array"
+        },
+        {
+          "path": "ips[]",
+          "type": "object"
+        },
+        {
+          "path": "ips[].address",
+          "type": "string"
+        },
+        {
+          "path": "ips[].created_at",
+          "type": "string"
+        },
+        {
+          "path": "ips[].id",
+          "type": "string"
+        },
+        {
+          "path": "ips[].organization_id",
+          "type": "string"
+        },
+        {
+          "path": "ips[].project_id",
+          "type": "string"
+        },
+        {
+          "path": "ips[].tags",
+          "type": "array"
+        },
+        {
+          "path": "ips[].updated_at",
+          "type": "string"
+        },
+        {
+          "path": "ips[].zone",
+          "type": "string"
+        },
+        {
+          "path": "total_count",
+          "type": "number"
+        }
+      ],
+      "statuses": [
+        200
+      ]
+    },
     "vpcgw/v2/API.UpdateGateway": {
       "method": "PATCH",
       "path": "/vpc-gw/v2/zones/fr-par-1/gateways/{id}",
       "fields": [],
       "statuses": [
-        404
+        404,
+        409
       ]
     },
     "vpcgw/v2/API.UpdateGatewayNetwork": {
@@ -34659,8 +41406,42 @@
     "vpcgw/v2/API.UpdateIP": {
       "method": "PATCH",
       "path": "/vpc-gw/v2/zones/fr-par-1/ips/{id}",
-      "fields": [],
+      "fields": [
+        {
+          "path": "address",
+          "type": "string"
+        },
+        {
+          "path": "created_at",
+          "type": "string"
+        },
+        {
+          "path": "id",
+          "type": "string"
+        },
+        {
+          "path": "organization_id",
+          "type": "string"
+        },
+        {
+          "path": "project_id",
+          "type": "string"
+        },
+        {
+          "path": "tags",
+          "type": "array"
+        },
+        {
+          "path": "updated_at",
+          "type": "string"
+        },
+        {
+          "path": "zone",
+          "type": "string"
+        }
+      ],
       "statuses": [
+        200,
         404
       ]
     }

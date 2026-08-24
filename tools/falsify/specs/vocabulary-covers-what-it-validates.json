@@ -1,0 +1,38 @@
+{
+  "subject": "a Scaleway list the pack answers 400 against is vouched for by its vocabulary (#427)",
+  "why": "A sanitised transcript replaces every value a pack does not vouch for, so a closed list the pack validates against and does not publish makes its own recording unreplayable -- the recorded create answers 400 and every read after it addresses an object that was never made. MEASURED on 2026-08-24: gatewayTypes was missing, one CreateGateway was refused on replay, and `feint corpus --check` reported 143 findings from that single cause, 126 of them 'GetGateway omits <field>' for a gateway that did not exist. The vocabulary's own comment stated the opposite in so many words -- 'a commercial type \u2026 this emulator does not validate a request against' -- which is this repository's most expensive defect wearing its usual clothes. #354 had already found the same thing four times in the Outscale pack.",
+  "mutations": [
+    {
+      "file": "internal/providers/scaleway/vocabulary.go",
+      "find": "\tfor offer := range gatewayTypes {\n\t\tout = append(out, offer)\n\t}",
+      "replace": "\tfor offer := range gatewayTypes {\n\t\tif false {\n\t\t\tout = append(out, offer)\n\t\t}\n\t}",
+      "expect": "the gateway offers stop being vouched for, so a sanitiser mints a synthetic offer name and every recorded CreateGateway is refused on replay",
+      "test": "TestTheVocabularyVouchesForEveryListThePackValidatesAgainst",
+      "label": "the gateway offers stop being vouched for"
+    },
+    {
+      "file": "internal/providers/scaleway/vocabulary.go",
+      "find": "\tfor zone := range knownZones {\n\t\tout = append(out, zone)\n\t}",
+      "replace": "\tfor zone := range knownZones {\n\t\tif false {\n\t\t\tout = append(out, zone)\n\t\t}\n\t}",
+      "expect": "the zones stop being vouched for, so the zone in every recorded path becomes a synthetic string and the emulator answers 400 'unknown zone' to the whole corpus",
+      "test": "TestTheVocabularyVouchesForEveryListThePackValidatesAgainst",
+      "label": "the zones stop being vouched for"
+    },
+    {
+      "file": "internal/providers/scaleway/vocabulary.go",
+      "find": "\tfor region := range knownRegions {\n\t\tout = append(out, region)\n\t}",
+      "replace": "\tfor region := range knownRegions {\n\t\tif false {\n\t\t\tout = append(out, region)\n\t\t}\n\t}",
+      "expect": "the regions stop being vouched for, and every regional path of a recording is replayed at a region the pack refuses",
+      "test": "TestTheVocabularyVouchesForEveryListThePackValidatesAgainst",
+      "label": "the regions stop being vouched for"
+    },
+    {
+      "file": "internal/providers/scaleway/gateways.go",
+      "find": "\tif !gatewayTypes[strings.ToUpper(req.Type)] {",
+      "replace": "\tif !gatewayTypes[strings.ToUpper(req.Type)] && false {",
+      "expect": "an unknown gateway offer is accepted, so a plan naming an offer that does not exist passes here and fails in production -- and the join this spec protects could then be satisfied by deleting the validation instead of extending the vocabulary",
+      "test": "TestAnUnknownGatewayTypeIsRefused",
+      "label": "an unknown gateway offer is accepted"
+    }
+  ]
+}

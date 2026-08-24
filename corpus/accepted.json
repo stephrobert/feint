@@ -234,6 +234,18 @@
       "at": "2026-08-24",
       "client": "scw 2.56.3",
       "cloud": "Scaleway fr-par"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "at": "2026-08-24",
+      "client": "scw 2.56.3",
+      "cloud": "Scaleway fr-par"
+    },
+    {
+      "file": "exoscale/exo-free-shapes.jsonl",
+      "at": "2026-08-24",
+      "client": "exo 1.95.1 (egoscale v3.1.36)",
+      "cloud": "Exoscale ch-gva-2"
     }
   ],
   "accepted": [
@@ -1052,6 +1064,1286 @@
       "reason": "The recorded BookIP names a project and the recorded ListIPs names none, so the cloud answered one address and this emulator answers an empty list. MEASURED RATHER THAN ASSUMED, and the first hypothesis was wrong: this is not an artefact of the sanitiser. Asked directly, the emulator's ListIPs?project_id=<the booking project> answers the address correctly, and only the UNFILTERED list is empty -- it scopes to the default project while the create honoured the project the request named. That is exactly the cause #369 already classifies for instance/v1 createServer and listServers, one product out. It is recorded here against ipam/v1 rather than folded into #369's Scaleway entries because the key must name the operation it excuses. Recorded 2026-08-24 against a real fr-par account (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/369",
       "file": "scaleway/scw-free-shapes.jsonl"
+    },
+    {
+      "file": "exoscale/exo-free-shapes.jsonl",
+      "operation": "exoscale/v2.list-security-groups",
+      "kind": "absent",
+      "path": "security-groups[].description",
+      "reason": "The cloud answers a description on every security group and this emulator omits it. Check the contract before the pack: this is the family of zones[].id and security-group.visibility, where the provider's own published description did not declare the field either and no document-reading control could have found it. Recorded 2026-08-24 against a real ch-gva-2 account (#427).",
+      "issue": "https://github.com/stephrobert/feint/issues/436"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "instance/v1/API.GetImage",
+      "kind": "type",
+      "path": "image.from_server",
+      "reason": "image.from_server is an empty string on the wire and null here. Re-measured on a second recording 2026-08-24 (#427), on GetImage as well as on the server's inline image.",
+      "issue": "https://github.com/stephrobert/feint/issues/367"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "instance/v1/API.CreateServer",
+      "kind": "absent",
+      "path": "server.extra_networks",
+      "reason": "Two keys the cloud writes and this emulator omits on a server: bootscript (null) and extra_networks ([]). Untriaged, which is the point of the issue: they are either served or declared in DeclinedFields(), and a corpus exemption is neither. Re-measured on a second recording 2026-08-24 (#427).",
+      "issue": "https://github.com/stephrobert/feint/issues/366"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "instance/v1/API.CreateServer",
+      "kind": "absent",
+      "path": "server.public_ips[].tags[]",
+      "reason": "An attached public IP publishes no gateway and drops its own tags, in public_ip and in every element of public_ips. Re-measured on a second recording 2026-08-24 (#427).",
+      "issue": "https://github.com/stephrobert/feint/issues/368"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "instance/v1/API.CreateServer",
+      "kind": "absent",
+      "path": "server.public_ip.tags[]",
+      "reason": "An attached public IP publishes no gateway and drops its own tags, in public_ip and in every element of public_ips. Re-measured on a second recording 2026-08-24 (#427).",
+      "issue": "https://github.com/stephrobert/feint/issues/368"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "instance/v1/API.CreateServer",
+      "kind": "absent",
+      "path": "server.bootscript",
+      "reason": "Two keys the cloud writes and this emulator omits on a server: bootscript (null) and extra_networks ([]). Untriaged, which is the point of the issue: they are either served or declared in DeclinedFields(), and a corpus exemption is neither. Re-measured on a second recording 2026-08-24 (#427).",
+      "issue": "https://github.com/stephrobert/feint/issues/366"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "instance/v1/API.CreateServer",
+      "kind": "type",
+      "path": "server.public_ip.gateway",
+      "reason": "An attached public IP publishes no gateway and drops its own tags, in public_ip and in every element of public_ips. Re-measured on a second recording 2026-08-24 (#427).",
+      "issue": "https://github.com/stephrobert/feint/issues/368"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "instance/v1/API.CreateServer",
+      "kind": "type",
+      "path": "server.image.from_server",
+      "reason": "image.from_server is an empty string on the wire and null here. Re-measured on a second recording 2026-08-24 (#427), on GetImage as well as on the server's inline image.",
+      "issue": "https://github.com/stephrobert/feint/issues/367"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "instance/v1/API.CreateServer",
+      "kind": "type",
+      "path": "server.public_ips[].gateway",
+      "reason": "An attached public IP publishes no gateway and drops its own tags, in public_ip and in every element of public_ips. Re-measured on a second recording 2026-08-24 (#427).",
+      "issue": "https://github.com/stephrobert/feint/issues/368"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "instance/v1/API.GetServer",
+      "kind": "absent",
+      "path": "server.extra_networks",
+      "reason": "Two keys the cloud writes and this emulator omits on a server: bootscript (null) and extra_networks ([]). Untriaged, which is the point of the issue: they are either served or declared in DeclinedFields(), and a corpus exemption is neither. Re-measured on a second recording 2026-08-24 (#427).",
+      "issue": "https://github.com/stephrobert/feint/issues/366"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "instance/v1/API.GetServer",
+      "kind": "absent",
+      "path": "server.public_ips[].tags[]",
+      "reason": "An attached public IP publishes no gateway and drops its own tags, in public_ip and in every element of public_ips. Re-measured on a second recording 2026-08-24 (#427).",
+      "issue": "https://github.com/stephrobert/feint/issues/368"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "instance/v1/API.GetServer",
+      "kind": "absent",
+      "path": "server.public_ip.tags[]",
+      "reason": "An attached public IP publishes no gateway and drops its own tags, in public_ip and in every element of public_ips. Re-measured on a second recording 2026-08-24 (#427).",
+      "issue": "https://github.com/stephrobert/feint/issues/368"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "instance/v1/API.GetServer",
+      "kind": "absent",
+      "path": "server.bootscript",
+      "reason": "Two keys the cloud writes and this emulator omits on a server: bootscript (null) and extra_networks ([]). Untriaged, which is the point of the issue: they are either served or declared in DeclinedFields(), and a corpus exemption is neither. Re-measured on a second recording 2026-08-24 (#427).",
+      "issue": "https://github.com/stephrobert/feint/issues/366"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "instance/v1/API.GetServer",
+      "kind": "type",
+      "path": "server.public_ip.gateway",
+      "reason": "An attached public IP publishes no gateway and drops its own tags, in public_ip and in every element of public_ips. Re-measured on a second recording 2026-08-24 (#427).",
+      "issue": "https://github.com/stephrobert/feint/issues/368"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "instance/v1/API.GetServer",
+      "kind": "type",
+      "path": "server.image.from_server",
+      "reason": "image.from_server is an empty string on the wire and null here. Re-measured on a second recording 2026-08-24 (#427), on GetImage as well as on the server's inline image.",
+      "issue": "https://github.com/stephrobert/feint/issues/367"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "instance/v1/API.GetServer",
+      "kind": "type",
+      "path": "server.public_ips[].gateway",
+      "reason": "An attached public IP publishes no gateway and drops its own tags, in public_ip and in every element of public_ips. Re-measured on a second recording 2026-08-24 (#427).",
+      "issue": "https://github.com/stephrobert/feint/issues/368"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "instance/v1/API.CreatePrivateNIC",
+      "kind": "absent",
+      "path": "private_nic.modification_date",
+      "reason": "A private NIC answers a creation date and no modification date, on all three doors that serve one. Recorded 2026-08-24 against a real fr-par account (#427).",
+      "issue": "https://github.com/stephrobert/feint/issues/436"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "instance/v1/API.GetPrivateNIC",
+      "kind": "absent",
+      "path": "private_nic.modification_date",
+      "reason": "A private NIC answers a creation date and no modification date, on all three doors that serve one. Recorded 2026-08-24 against a real fr-par account (#427).",
+      "issue": "https://github.com/stephrobert/feint/issues/436"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "instance/v1/API.ListPrivateNICs",
+      "kind": "absent",
+      "path": "private_nics[].modification_date",
+      "reason": "A private NIC answers a creation date and no modification date, on all three doors that serve one. Recorded 2026-08-24 against a real fr-par account (#427).",
+      "issue": "https://github.com/stephrobert/feint/issues/436"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.DeleteSnapshot",
+      "kind": "status",
+      "path": "",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetSnapshot",
+      "kind": "status",
+      "path": "",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetSnapshot",
+      "kind": "absent",
+      "path": "class",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetSnapshot",
+      "kind": "absent",
+      "path": "created_at",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetSnapshot",
+      "kind": "absent",
+      "path": "id",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetSnapshot",
+      "kind": "absent",
+      "path": "name",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetSnapshot",
+      "kind": "absent",
+      "path": "parent_volume",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetSnapshot",
+      "kind": "absent",
+      "path": "project_id",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetSnapshot",
+      "kind": "absent",
+      "path": "references",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetSnapshot",
+      "kind": "absent",
+      "path": "size",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetSnapshot",
+      "kind": "absent",
+      "path": "status",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetSnapshot",
+      "kind": "absent",
+      "path": "tags",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetSnapshot",
+      "kind": "absent",
+      "path": "updated_at",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetSnapshot",
+      "kind": "absent",
+      "path": "zone",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetVolume",
+      "kind": "status",
+      "path": "",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetVolume",
+      "kind": "absent",
+      "path": "created_at",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetVolume",
+      "kind": "absent",
+      "path": "id",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetVolume",
+      "kind": "absent",
+      "path": "last_detached_at",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetVolume",
+      "kind": "absent",
+      "path": "name",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetVolume",
+      "kind": "absent",
+      "path": "parent_snapshot_id",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetVolume",
+      "kind": "absent",
+      "path": "project_id",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetVolume",
+      "kind": "absent",
+      "path": "references",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetVolume",
+      "kind": "absent",
+      "path": "size",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetVolume",
+      "kind": "absent",
+      "path": "specs",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetVolume",
+      "kind": "absent",
+      "path": "status",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetVolume",
+      "kind": "absent",
+      "path": "tags",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetVolume",
+      "kind": "absent",
+      "path": "updated_at",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.GetVolume",
+      "kind": "absent",
+      "path": "zone",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.DeleteVolume",
+      "kind": "status",
+      "path": "",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetLB",
+      "kind": "absent",
+      "path": "backend_count",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetLB",
+      "kind": "absent",
+      "path": "created_at",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetLB",
+      "kind": "absent",
+      "path": "description",
+      "reason": "The cloud answers a description on every security group and this emulator omits it. Check the contract before the pack: this is the family of zones[].id and security-group.visibility, where the provider's own published description did not declare the field either and no document-reading control could have found it. Recorded 2026-08-24 against a real ch-gva-2 account (#427).",
+      "issue": "https://github.com/stephrobert/feint/issues/436"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetLB",
+      "kind": "absent",
+      "path": "frontend_count",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetLB",
+      "kind": "absent",
+      "path": "id",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetLB",
+      "kind": "absent",
+      "path": "instances",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetLB",
+      "kind": "absent",
+      "path": "instances[]",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetLB",
+      "kind": "absent",
+      "path": "ip",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetLB",
+      "kind": "absent",
+      "path": "name",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetLB",
+      "kind": "absent",
+      "path": "organization_id",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetLB",
+      "kind": "absent",
+      "path": "private_network_count",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetLB",
+      "kind": "absent",
+      "path": "project_id",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetLB",
+      "kind": "absent",
+      "path": "region",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetLB",
+      "kind": "absent",
+      "path": "route_count",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetLB",
+      "kind": "absent",
+      "path": "ssl_compatibility_level",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetLB",
+      "kind": "absent",
+      "path": "status",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetLB",
+      "kind": "absent",
+      "path": "subscriber",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetLB",
+      "kind": "absent",
+      "path": "tags",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetLB",
+      "kind": "absent",
+      "path": "updated_at",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetLB",
+      "kind": "absent",
+      "path": "zone",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.UpdateLB",
+      "kind": "absent",
+      "path": "instances[]",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.ListIPs",
+      "kind": "absent",
+      "path": "ips[]",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.CreateBackend",
+      "kind": "type",
+      "path": "host",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.CreateBackend",
+      "kind": "type",
+      "path": "send_proxy_v2",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.CreateBackend",
+      "kind": "type",
+      "path": "ssl_bridging",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.CreateBackend",
+      "kind": "absent",
+      "path": "lb.instances[]",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetBackend",
+      "kind": "type",
+      "path": "host",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetBackend",
+      "kind": "type",
+      "path": "send_proxy_v2",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetBackend",
+      "kind": "type",
+      "path": "ssl_bridging",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetBackend",
+      "kind": "absent",
+      "path": "lb.instances[]",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.UpdateBackend",
+      "kind": "type",
+      "path": "host",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.UpdateBackend",
+      "kind": "type",
+      "path": "send_proxy_v2",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.UpdateBackend",
+      "kind": "type",
+      "path": "ssl_bridging",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.UpdateBackend",
+      "kind": "absent",
+      "path": "lb.instances[]",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.SetBackendServers",
+      "kind": "type",
+      "path": "host",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.SetBackendServers",
+      "kind": "type",
+      "path": "send_proxy_v2",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.SetBackendServers",
+      "kind": "type",
+      "path": "ssl_bridging",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.SetBackendServers",
+      "kind": "absent",
+      "path": "lb.instances[]",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.ListBackends",
+      "kind": "type",
+      "path": "backends[].host",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.ListBackends",
+      "kind": "type",
+      "path": "backends[].send_proxy_v2",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.ListBackends",
+      "kind": "type",
+      "path": "backends[].ssl_bridging",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.ListBackends",
+      "kind": "absent",
+      "path": "backends[].lb.instances[]",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.CreateFrontend",
+      "kind": "type",
+      "path": "backend.host",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.CreateFrontend",
+      "kind": "type",
+      "path": "backend.send_proxy_v2",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.CreateFrontend",
+      "kind": "type",
+      "path": "backend.ssl_bridging",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.CreateFrontend",
+      "kind": "absent",
+      "path": "certificate",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.CreateFrontend",
+      "kind": "absent",
+      "path": "lb.instances[]",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetFrontend",
+      "kind": "type",
+      "path": "backend.host",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetFrontend",
+      "kind": "type",
+      "path": "backend.send_proxy_v2",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetFrontend",
+      "kind": "type",
+      "path": "backend.ssl_bridging",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetFrontend",
+      "kind": "absent",
+      "path": "certificate",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.UpdateFrontend",
+      "kind": "type",
+      "path": "backend.host",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.UpdateFrontend",
+      "kind": "type",
+      "path": "backend.send_proxy_v2",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.UpdateFrontend",
+      "kind": "type",
+      "path": "backend.ssl_bridging",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.UpdateFrontend",
+      "kind": "absent",
+      "path": "certificate",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.UpdateFrontend",
+      "kind": "absent",
+      "path": "lb.instances[]",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.ListFrontends",
+      "kind": "type",
+      "path": "frontends[].backend.host",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.ListFrontends",
+      "kind": "type",
+      "path": "frontends[].backend.send_proxy_v2",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.ListFrontends",
+      "kind": "type",
+      "path": "frontends[].backend.ssl_bridging",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.ListFrontends",
+      "kind": "absent",
+      "path": "frontends[].backend.lb.instances[]",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.ListFrontends",
+      "kind": "absent",
+      "path": "frontends[].certificate",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.ListFrontends",
+      "kind": "absent",
+      "path": "frontends[].lb.instances[]",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.CreateACL",
+      "kind": "type",
+      "path": "frontend.backend.host",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.CreateACL",
+      "kind": "type",
+      "path": "frontend.backend.send_proxy_v2",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.CreateACL",
+      "kind": "type",
+      "path": "frontend.backend.ssl_bridging",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.CreateACL",
+      "kind": "absent",
+      "path": "frontend.certificate",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetACL",
+      "kind": "type",
+      "path": "frontend.backend.host",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetACL",
+      "kind": "type",
+      "path": "frontend.backend.send_proxy_v2",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetACL",
+      "kind": "type",
+      "path": "frontend.backend.ssl_bridging",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetACL",
+      "kind": "absent",
+      "path": "frontend.certificate",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.UpdateACL",
+      "kind": "type",
+      "path": "frontend.backend.host",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.UpdateACL",
+      "kind": "type",
+      "path": "frontend.backend.send_proxy_v2",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.UpdateACL",
+      "kind": "type",
+      "path": "frontend.backend.ssl_bridging",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.UpdateACL",
+      "kind": "absent",
+      "path": "frontend.certificate",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.UpdateACL",
+      "kind": "absent",
+      "path": "frontend.lb.instances[]",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.ListACLs",
+      "kind": "type",
+      "path": "acls[].frontend.backend.host",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.ListACLs",
+      "kind": "type",
+      "path": "acls[].frontend.backend.send_proxy_v2",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.ListACLs",
+      "kind": "type",
+      "path": "acls[].frontend.backend.ssl_bridging",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.ListACLs",
+      "kind": "absent",
+      "path": "acls[].frontend.certificate",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "lb/v1/ZonedAPI.GetLB",
+      "kind": "status",
+      "path": "",
+      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "issue": "https://github.com/stephrobert/feint/issues/434"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.CreateIP",
+      "kind": "type",
+      "path": "reverse",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.GetIP",
+      "kind": "type",
+      "path": "reverse",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.UpdateIP",
+      "kind": "type",
+      "path": "reverse",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.ListIPs",
+      "kind": "absent",
+      "path": "ips[]",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.CreateGateway",
+      "kind": "absent",
+      "path": "bastion_allowed_ips[]",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.CreateGateway",
+      "kind": "type",
+      "path": "ipv4.reverse",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.GetGateway",
+      "kind": "absent",
+      "path": "bastion_allowed_ips[]",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.GetGateway",
+      "kind": "absent",
+      "path": "message",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.GetGateway",
+      "kind": "absent",
+      "path": "resource",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.GetGateway",
+      "kind": "absent",
+      "path": "resource_id",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.GetGateway",
+      "kind": "type",
+      "path": "ipv4.reverse",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.GetGateway",
+      "kind": "type",
+      "path": "version",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.UpdateGateway",
+      "kind": "status",
+      "path": "",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.UpdateGateway",
+      "kind": "absent",
+      "path": "current_state",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.UpdateGateway",
+      "kind": "absent",
+      "path": "message",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.UpdateGateway",
+      "kind": "absent",
+      "path": "resource",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.UpdateGateway",
+      "kind": "absent",
+      "path": "resource_id",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.CreateGatewayNetwork",
+      "kind": "status",
+      "path": "",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.CreateGatewayNetwork",
+      "kind": "absent",
+      "path": "current_state",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.CreateGatewayNetwork",
+      "kind": "absent",
+      "path": "message",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.CreateGatewayNetwork",
+      "kind": "absent",
+      "path": "resource",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.CreateGatewayNetwork",
+      "kind": "absent",
+      "path": "resource_id",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.CreateGatewayNetwork",
+      "kind": "absent",
+      "path": "type",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.GetGateway",
+      "kind": "status",
+      "path": "",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.DeleteIP",
+      "kind": "status",
+      "path": "",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.DeleteIP",
+      "kind": "absent",
+      "path": "message",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.GetIP",
+      "kind": "status",
+      "path": "",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.GetIP",
+      "kind": "absent",
+      "path": "message",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.GetIP",
+      "kind": "absent",
+      "path": "resource",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.GetIP",
+      "kind": "absent",
+      "path": "resource_id",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "vpcgw/v2/API.GetIP",
+      "kind": "absent",
+      "path": "type",
+      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "issue": "https://github.com/stephrobert/feint/issues/435"
+    },
+    {
+      "file": "scaleway/scw-billed-shapes.jsonl",
+      "operation": "block/v1alpha1/API.DeleteSnapshot",
+      "kind": "type",
+      "path": "",
+      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "issue": "https://github.com/stephrobert/feint/issues/433"
     }
   ]
 }

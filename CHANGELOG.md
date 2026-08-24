@@ -17,6 +17,29 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **The gateway offer was validated against a list nothing vouched for, and one
+  recording proved it cost 143 replay findings** (#427). A sanitised transcript
+  replaces every value a pack does not publish as its own, so a closed list the
+  pack answers `400` against and does not vouch for makes its own recording
+  unreplayable: the recorded `CreateGateway` was refused, and every read after
+  it addressed a gateway that had never been created — 126 of the findings were
+  `GetGateway` "omitting" fields of an object that did not exist.
+
+  `PublicVocabulary` now reads `gatewayTypes` beside `knownZones` and
+  `knownRegions`, from the map rather than from a copy. Its comment used to say
+  the opposite in so many words — *"a commercial type … this emulator does not
+  validate a request against"* — and `createGateway` validates one.
+  `TestTheVocabularyVouchesForEveryListThePackValidatesAgainst` is written over
+  the maps, so an offer arriving cannot make it pass while the vocabulary
+  drifts, and four mutations in
+  `tools/falsify/specs/vocabulary-covers-what-it-validates.json` bite.
+
+- **The two `block/v1alpha1` creates answer the status the real cloud answers**
+  (#427). `CreateVolume` and `CreateSnapshot` answered `201`; both answer `200`
+  on a real `fr-par` account, measured on the wire on 2026-08-24. The third
+  product measured this way after `vpc/v2` and `ipam/v1`, and each is claimed
+  only for the product whose answer was seen.
+
 - **Ten of the shape axis's own points were earned by an empty body, and six of
   them predate this batch** (#427). A `204` carries no body, so the field walk
   decoded `nil` and wrote one entry at the empty path with type `null`. That

@@ -1096,6 +1096,30 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **L'offre de passerelle était validée contre une liste dont personne ne se
+  portait garant, et un enregistrement a prouvé que cela coûtait 143 constats de
+  rejeu** (#427). Une transcription assainie remplace toute valeur qu'un pack ne
+  publie pas comme sienne : une liste fermée contre laquelle le pack répond
+  `400` sans s'en porter garant rend donc son propre enregistrement
+  irrejouable. Le `CreateGateway` enregistré a été refusé, et chaque lecture
+  suivante s'adressait à une passerelle jamais créée — 126 des constats étaient
+  `GetGateway` « omettant » les champs d'un objet inexistant.
+
+  `PublicVocabulary` lit désormais `gatewayTypes` à côté de `knownZones` et
+  `knownRegions`, depuis la table et non depuis une copie. Son commentaire
+  affirmait le contraire, mot pour mot : « un type commercial … cet émulateur ne
+  valide pas une requête contre ». `createGateway` en valide un.
+  `TestTheVocabularyVouchesForEveryListThePackValidatesAgainst` est écrit sur les
+  tables, de sorte qu'une offre nouvelle ne peut pas le faire passer pendant que
+  le vocabulaire dérive, et quatre mutations de
+  `tools/falsify/specs/vocabulary-covers-what-it-validates.json` mordent.
+
+- **Les deux créations `block/v1alpha1` rendent le statut que le vrai cloud
+  rend** (#427). `CreateVolume` et `CreateSnapshot` rendaient `201` ; les deux
+  rendent `200` sur un vrai compte `fr-par`, mesuré sur le fil le 2026-08-24.
+  Troisième produit mesuré ainsi après `vpc/v2` et `ipam/v1`, et chacun n'affirme
+  que pour le produit dont la réponse a été vue.
+
 - **Dix des points de l'axe `shape` étaient gagnés par un corps vide, et six
   d'entre eux précèdent ce lot** (#427). Un `204` ne porte aucun corps : le
   parcours des champs décodait `nil` et écrivait une entrée au chemin vide, de

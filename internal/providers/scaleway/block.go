@@ -59,6 +59,23 @@ const (
 	blockDefaultIOPS = 5000
 )
 
+// blockCreateStatus is what a successful block/v1alpha1 create answers with.
+//
+// 200, not the 201 a create writes by habit. Measured on the wire on
+// 2026-08-24: `scw block volume create` and `scw block snapshot create` against
+// a real fr-par account both answered 200, recorded through `feint proxy` into
+// corpus/scaleway/scw-billed-shapes.jsonl, and `feint corpus --check` reported
+// this pack's 201 against both (#427). Read off the transcript rather than off
+// the CLI's exit code, which shows neither.
+//
+// The third product measured this way, after vpc/v2 (vpcCreateStatus) and
+// ipam/v1 (ipamBookStatus). Each is claimed only for the product whose answer
+// was seen: a status is part of the answer, and an invented one is an invented
+// format (rule 4).
+//
+// TestTheBlockCreatesAnswerWhatTheRealCloudAnswers fails without it.
+const blockCreateStatus = http.StatusOK
+
 // ---- Volumes ---------------------------------------------------------------
 
 type createBlockVolumeRequest struct {
@@ -167,7 +184,7 @@ func (p *Pack) createBlockVolume(w http.ResponseWriter, r *http.Request) {
 		"perf_iops":          iopsOf(req.PerfIops),
 	}
 	p.env.Store.Put(res)
-	emulator.WriteJSON(w, http.StatusCreated, p.blockVolumeView(res))
+	emulator.WriteJSON(w, blockCreateStatus, p.blockVolumeView(res))
 }
 
 func iopsOf(asked *uint32) uint32 {
@@ -523,7 +540,7 @@ func (p *Pack) createBlockSnapshot(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 	p.env.Store.Put(res)
-	emulator.WriteJSON(w, http.StatusCreated, p.blockSnapshotView(res))
+	emulator.WriteJSON(w, blockCreateStatus, p.blockSnapshotView(res))
 }
 
 // blockSnapshotView renders block/v1's Snapshot.

@@ -17,8 +17,8 @@ func blockVolumeWith(t *testing.T, ts *httptest.Server, name string, size int) s
 	t.Helper()
 	status, created := do(t, ts, "POST", blockURL+"/volumes",
 		`{"name":"`+name+`","from_empty":{"size":`+itoa(size)+`}}`)
-	if status != http.StatusCreated {
-		t.Fatalf("create block volume: expected 201, got %d (%v)", status, created)
+	if status != http.StatusOK {
+		t.Fatalf("create block volume: expected 200, got %d (%v)", status, created)
 	}
 	id, _ := created["id"].(string)
 	if id == "" {
@@ -137,8 +137,8 @@ func TestABlockVolumeReadsBackAsItWasCreated(t *testing.T) {
 
 	status, created := do(t, ts, "POST", blockURL+"/volumes",
 		`{"name":"data","from_empty":{"size":10000000000},"tags":["keep"]}`)
-	if status != http.StatusCreated {
-		t.Fatalf("create: expected 201, got %d (%v)", status, created)
+	if status != http.StatusOK {
+		t.Fatalf("create: expected 200, got %d (%v)", status, created)
 	}
 	// The envelope is the object itself: block/v1 answers bare where instance/v1
 	// wraps in {"volume": ...}. Two products of one cloud that do not agree.
@@ -292,8 +292,8 @@ func TestABlockSnapshotAVolumeCameFromDoesNotDelete(t *testing.T) {
 
 	status, snap := do(t, ts, "POST", blockURL+"/snapshots",
 		`{"name":"snap","volume_id":"`+volumeID+`"}`)
-	if status != http.StatusCreated {
-		t.Fatalf("create snapshot: expected 201, got %d (%v)", status, snap)
+	if status != http.StatusOK {
+		t.Fatalf("create snapshot: expected 200, got %d (%v)", status, snap)
 	}
 	snapID, _ := snap["id"].(string)
 	parent, _ := snap["parent_volume"].(map[string]any)
@@ -304,8 +304,8 @@ func TestABlockSnapshotAVolumeCameFromDoesNotDelete(t *testing.T) {
 	// A volume restored from it, which is what makes the snapshot undeletable.
 	status, restored := do(t, ts, "POST", blockURL+"/volumes",
 		`{"name":"restored","from_snapshot":{"snapshot_id":"`+snapID+`"}}`)
-	if status != http.StatusCreated {
-		t.Fatalf("restore: expected 201, got %d (%v)", status, restored)
+	if status != http.StatusOK {
+		t.Fatalf("restore: expected 200, got %d (%v)", status, restored)
 	}
 	// The size comes from the snapshot when no resize is asked for.
 	if restored["size"] != snap["size"] {
@@ -369,8 +369,8 @@ func TestABlockVolumeRestoredSmallerThanItsSnapshotIsRefused(t *testing.T) {
 
 	status, snap := do(t, ts, "POST", blockURL+"/snapshots",
 		`{"name":"snap","volume_id":"`+volumeID+`"}`)
-	if status != http.StatusCreated {
-		t.Fatalf("create snapshot: expected 201, got %d (%v)", status, snap)
+	if status != http.StatusOK {
+		t.Fatalf("create snapshot: expected 200, got %d (%v)", status, snap)
 	}
 	snapID, _ := snap["id"].(string)
 
@@ -385,8 +385,8 @@ func TestABlockVolumeRestoredSmallerThanItsSnapshotIsRefused(t *testing.T) {
 	// nothing takes the snapshot's own size.
 	status, grown := do(t, ts, "POST", blockURL+"/volumes",
 		`{"name":"grown","from_snapshot":{"snapshot_id":"`+snapID+`","size":20000000000}}`)
-	if status != http.StatusCreated {
-		t.Fatalf("restore into a larger volume: expected 201, got %d (%v)", status, grown)
+	if status != http.StatusOK {
+		t.Fatalf("restore into a larger volume: expected 200, got %d (%v)", status, grown)
 	}
 	if grown["size"] != float64(20000000000) {
 		t.Errorf("the grown volume is %v, want 20000000000", grown["size"])
@@ -394,8 +394,8 @@ func TestABlockVolumeRestoredSmallerThanItsSnapshotIsRefused(t *testing.T) {
 
 	status, same := do(t, ts, "POST", blockURL+"/volumes",
 		`{"name":"same","from_snapshot":{"snapshot_id":"`+snapID+`"}}`)
-	if status != http.StatusCreated {
-		t.Fatalf("restore with no size: expected 201, got %d (%v)", status, same)
+	if status != http.StatusOK {
+		t.Fatalf("restore with no size: expected 200, got %d (%v)", status, same)
 	}
 	if same["size"] != snap["size"] {
 		t.Errorf("with no size the volume is %v, and its snapshot is %v", same["size"], snap["size"])
@@ -413,14 +413,14 @@ func TestBlockListsHonourThePageSize(t *testing.T) {
 	for _, name := range []string{"first", "second"} {
 		status, created := do(t, ts, "POST", blockURL+"/volumes",
 			`{"name":"`+name+`","from_empty":{"size":10000000000}}`)
-		if status != http.StatusCreated {
-			t.Fatalf("create volume %s: expected 201, got %d (%v)", name, status, created)
+		if status != http.StatusOK {
+			t.Fatalf("create volume %s: expected 200, got %d (%v)", name, status, created)
 		}
 		id, _ := created["id"].(string)
 		status, snapped := do(t, ts, "POST", blockURL+"/snapshots",
 			`{"name":"snap-`+name+`","volume_id":"`+id+`"}`)
-		if status != http.StatusCreated {
-			t.Fatalf("create snapshot of %s: expected 201, got %d (%v)", name, status, snapped)
+		if status != http.StatusOK {
+			t.Fatalf("create snapshot of %s: expected 200, got %d (%v)", name, status, snapped)
 		}
 	}
 

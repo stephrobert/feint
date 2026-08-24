@@ -271,3 +271,29 @@ func TestASSHKeyIsPublishedWithoutItsComment(t *testing.T) {
 			"blob so that renaming a key cannot change it", got, created["fingerprint"])
 	}
 }
+
+// The two block/v1alpha1 creates answer 200, which is what the wire carried.
+//
+// Third product measured the same way, after vpc/v2 and ipam/v1. Same reason it
+// could sit wrong: `scw block volume create` accepts any 2xx and prints no
+// status. Measured on 2026-08-24 against a real fr-par account, into
+// corpus/scaleway/scw-billed-shapes.jsonl -- a 5 GB volume and its snapshot,
+// the smallest the API takes, destroyed in the same run with each destruction
+// proved by a read.
+func TestTheBlockCreatesAnswerWhatTheRealCloudAnswers(t *testing.T) {
+	ts := newTestServer(t)
+	const blockZone = "/block/v1alpha1/zones/fr-par-1"
+
+	status, vol := do(t, ts, "POST", blockZone+"/volumes",
+		`{"name":"measured","perf_iops":5000,"from_empty":{"size":5000000000}}`)
+	if status != http.StatusOK {
+		t.Errorf("CreateVolume answered %d, and the real cloud answered 200 (%v)", status, vol)
+	}
+	volID, _ := vol["id"].(string)
+
+	status, snap := do(t, ts, "POST", blockZone+"/snapshots",
+		`{"name":"measured-snap","volume_id":"`+volID+`"}`)
+	if status != http.StatusOK {
+		t.Errorf("CreateSnapshot answered %d, and the real cloud answered 200 (%v)", status, snap)
+	}
+}
