@@ -1131,6 +1131,29 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **`scw instance security-group list-default-rules` atteint un jeu de règles au
+  lieu d'un 404, une règle publie `dest_ip_range`, et une NIC privée publie sa
+  date de dernière modification** (#431, #432, #436). Trois formes qu'un vrai
+  compte `fr-par` a répondues et qu'aucun document n'aurait pu trouver.
+
+  `default` est un segment littéral du chemin que construit le SDK de Scaleway,
+  pas un identifiant, et ce pack le lisait comme tel : le segment correspondait à
+  `{id}`, ne trouvait aucun groupe et répondait 404 — si bien que
+  `instance/v1/API.ListDefaultSecurityGroupRules` se lisait « décliné » dans le
+  registre de couverture pendant qu'une route vivante répondait faux à la
+  commande. Elle est désormais servie, avec les six blocages SMTP sortants que
+  l'enregistrement a mesurés, aucun modifiable, et le vrai CLI la pilote dans la
+  suite de conformité.
+
+  `dest_ip_range` est sur le fil de chaque règle de groupe de sécurité et n'est
+  déclaré **ni** par la description d'API publiée de Scaleway **ni** par leur
+  propre SDK Go. Il est servi à `null`, ce que répond le cloud, sur les cinq
+  opérations qui rendent une règle.
+
+  Une NIC privée publiait une date de création et aucune `modification_date`,
+  sur la création, la lecture et la liste.
+
+
 - **Un répartiteur publie le nœud sur lequel il tourne, un backend publie les
   trois valeurs par défaut que le cloud remplit, et l'adresse d'une passerelle
   publique publie un reverse** (#434, #435). Quatre-vingt-dix des divergences

@@ -573,6 +573,23 @@ func (p *Pack) privateNICView(res *resource.Resource) map[string]any {
 		"state":         res.State,
 		"zone":          res.Tenant.Zone,
 		"creation_date": res.Created.Format(time.RFC3339),
+		// A creation date was served and a modification date was not, on all
+		// three doors that answer a NIC, and a real fr-par account answers both
+		// (corpus/scaleway/scw-billed-shapes.jsonl seq 21-23: the create, the
+		// read and the list).
+		//
+		// res.Updated rather than res.Created, and NO TEST HOLDS THAT HALF,
+		// deliberately said out loud: this pack mounts no route that modifies a
+		// NIC — the recording's own PATCH on one is `mounted: false`, which is
+		// #74's queue — so the two fields carry the same instant on every
+		// answer a client can obtain, and an assertion that they differ would
+		// be one no state of this code could fail. It is written this way so
+		// that the day an update lands the field is already right; until then
+		// the test holds only what can be observed, which is the key and its
+		// type on all three doors.
+		//
+		// TestAPrivateNICAnswersTheDateItLastChanged fails without this.
+		"modification_date": res.Updated.Format(time.RFC3339),
 	}
 	for k, v := range res.Attrs {
 		out[k] = v

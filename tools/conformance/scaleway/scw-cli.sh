@@ -175,6 +175,21 @@ scw instance security-group delete-rule security-group-id="$sg_id" security-grou
   zone="$ZONE" >/dev/null || fail "delete-rule rejected"
 ok "rule $rule_id"
 
+# `default` is a literal segment of the path the SDK builds, not an identifier,
+# and it used to match {id} on the neighbouring route and answer 404 (#432).
+# Driven by the real CLI because that is the only thing that proves the segment
+# is reachable: a unit test can ask for the path, and only `scw` proves the
+# command a user types arrives there.
+echo "- the default rule set, at the literal path the CLI asks for"
+defaults="$(scw instance security-group list-default-rules zone="$ZONE" -o json)"   || fail "list-default-rules rejected: $defaults"
+# `(.rules // .)` because this subcommand hands the envelope through where
+# list-rules unwraps it, and the assertion must read the rules either way: a
+# jq path that matched the wrapper would grade the number 6, not a rule.
+printf '%s' "$defaults" | jq -e '(.rules // .) | length >= 1' >/dev/null || fail "the default rule set came back empty: $defaults"
+printf '%s' "$defaults" | jq -e '(.rules // .) | all(.[]; .editable == false)' >/dev/null || fail "a default rule reads as editable, and a client cannot change these: $defaults"
+printf '%s' "$defaults" | jq -e '(.rules // .) | all(.[]; .direction == "outbound" and .action == "drop")' >/dev/null || fail "a default rule is not an outbound drop: $defaults"
+ok "default rules"
+
 echo "- a server carries its group, and the group refuses to be deleted under it"
 sg_server="$(scw instance server create name=conformance-sg-server type=DEV1-S zone="$ZONE" \
                security-group-id="$sg_id" -o json)" || fail "create with a security group rejected: $sg_server"

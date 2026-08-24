@@ -716,6 +716,74 @@ still holds a subnet — all reachable, all refused, all tested. A refusal that
 would need an artificial delay to become reachable is not served, and belongs in
 this list instead.
 
+### The Scaleway half of the same list, measured on 2026-08-24
+
+A recording of a real `fr-par` account (#427) put three more entries on it, and
+all three are one decision seen from three products. **Forty-seven of the
+divergences that recording found are this paragraph**, which is why they are
+written here rather than patched one at a time.
+
+- **A block snapshot is `available` the instant it is cut.** Upstream it is
+  born in a transient state, and a `DeleteSnapshot` issued while it settles is
+  refused with `412`. Here the first delete succeeds, so the recorded second
+  delete meets nothing (`404` against the cloud's `204`) and the read between
+  them finds no snapshot.
+- **A load balancer is gone the instant it is deleted.** Upstream the read that
+  follows a `DeleteLB` still answers `200`, with `status: to_delete`, and only
+  the read after that answers `404`. Here the first read already answers `404`.
+- **A public gateway is `running` the instant it is created.** Upstream it is
+  `allocating` for a few seconds, and both a `UpdateGateway` and a
+  `CreateGatewayNetwork` issued in that window are refused with `409` and a body
+  naming the state (`current_state: allocating`). Here both succeed.
+
+The `409` is the interesting one, because it is the shape a client branches on
+and this emulator can never answer it: the state that produces it is not
+reachable here, which is the rule two paragraphs up. Serving the refusal would
+mean inventing the window, and a guard for a state nothing can enter is a
+control that can never fire.
+
+### A recording can be short of a request, and this one is
+
+Not a limit of the emulator, recorded here because it reads exactly like one.
+In `corpus/scaleway/scw-billed-shapes.jsonl` the public gateway goes from
+`200` on its seventh read to `404` on its eighth **with no `DELETE` anywhere in
+the file**, and its address follows: the recorded `DeleteIP` answers `404` and
+the recorded `GetIP` answers `404` too. The destruction did not travel through
+the proxy.
+
+It is stated rather than assumed. The file holds three recording sessions whose
+own sequence numbers run 1..14, 1..43 and 1..65 with no gap, so nothing was
+dropped between the request that read the gateway and the request that could not
+find it; and no `DELETE` on `/vpc-gw/v2/…/gateways/` exists in that file at all.
+
+So the eleven findings on those three exchanges measure the recording and not
+the pack: this emulator was never asked to delete the gateway, and answering
+`404` for an object nobody destroyed would be the lie the whole project exists
+to avoid. They go when the gateway is recorded again with its destruction in
+the transcript.
+
+### A server's root volume lives in `instance/v1` here and in `block` upstream
+
+The largest single divergence the 2026-08-24 recording found, and it is one
+default. `CreateServer` with no `volumes` in the body is answered by `fr-par`
+with `volumes: {"0": {"volume_type": "sbs_volume"}}` — a *block* volume — and
+the recording then reads that volume three times through
+`block/v1alpha1/API.GetVolume` and deletes it there. This emulator gives such a
+server a `b_ssd` volume in `instance/v1`, so all four of those calls answer
+`404`: **forty-three findings, one default.**
+
+`sbs_volume` is honoured when a client asks for it, and
+`tools/conformance/scaleway/terraform/main.tf` asks for it, so the path itself
+is proven end to end by the real provider. What is not done is making it the
+default, and the reason is measured rather than assumed: the whole
+`instance/v1` volume surface reads a server's root disk out of the instance
+store. Flipping the default reds ten tests at once — `CreateSnapshot` and
+`CreateImage` cannot find the volume to snapshot, `attach-volume` and
+`detach-volume` refuse it, and terminate stops carrying it away. That is a
+batch of its own, not a line in a handler, and it is the same shape of decision
+as the asynchronous-delete entry above: a lifecycle that belongs to every kind,
+changed in one place.
+
 ## What survives a dead emulator, in one table
 
 The store is memory: a dead process loses every emulated resource, and that is

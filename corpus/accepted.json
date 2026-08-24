@@ -1008,66 +1008,10 @@
       "issue": "https://github.com/stephrobert/feint/issues/392"
     },
     {
-      "operation": "instance/v1/API.CreateSecurityGroupRule",
-      "kind": "absent",
-      "path": "rule.dest_ip_range",
-      "reason": "The cloud answers `dest_ip_range` on every security-group rule (null on a rule that names no destination) and this emulator omits the key. It is not a one-line fix and that is the finding: `contracts/scaleway.json` does not declare the field either, so the contract gate, the probe, the shapes gate and the pack all agree with one another and all four are wrong the same way -- the family corpus/README.md records for Exoscale's zones[].id and security-group.visibility, and the one no document-reading control could ever find. Serving it means moving a generated artefact, and Scaleway has no equivalent of tools/contract/exoscale-recorded-fields.yaml yet. Recorded 2026-08-24 against a real fr-par account (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/431",
-      "file": "scaleway/scw-free-shapes.jsonl"
-    },
-    {
-      "operation": "instance/v1/API.GetSecurityGroupRule",
-      "kind": "absent",
-      "path": "rule.dest_ip_range",
-      "reason": "The cloud answers `dest_ip_range` on every security-group rule (null on a rule that names no destination) and this emulator omits the key. It is not a one-line fix and that is the finding: `contracts/scaleway.json` does not declare the field either, so the contract gate, the probe, the shapes gate and the pack all agree with one another and all four are wrong the same way -- the family corpus/README.md records for Exoscale's zones[].id and security-group.visibility, and the one no document-reading control could ever find. Serving it means moving a generated artefact, and Scaleway has no equivalent of tools/contract/exoscale-recorded-fields.yaml yet. Recorded 2026-08-24 against a real fr-par account (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/431",
-      "file": "scaleway/scw-free-shapes.jsonl"
-    },
-    {
-      "operation": "instance/v1/API.UpdateSecurityGroupRule",
-      "kind": "absent",
-      "path": "rule.dest_ip_range",
-      "reason": "The cloud answers `dest_ip_range` on every security-group rule (null on a rule that names no destination) and this emulator omits the key. It is not a one-line fix and that is the finding: `contracts/scaleway.json` does not declare the field either, so the contract gate, the probe, the shapes gate and the pack all agree with one another and all four are wrong the same way -- the family corpus/README.md records for Exoscale's zones[].id and security-group.visibility, and the one no document-reading control could ever find. Serving it means moving a generated artefact, and Scaleway has no equivalent of tools/contract/exoscale-recorded-fields.yaml yet. Recorded 2026-08-24 against a real fr-par account (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/431",
-      "file": "scaleway/scw-free-shapes.jsonl"
-    },
-    {
-      "operation": "instance/v1/API.SetSecurityGroupRules",
-      "kind": "absent",
-      "path": "rules[].dest_ip_range",
-      "reason": "The cloud answers `dest_ip_range` on every security-group rule (null on a rule that names no destination) and this emulator omits the key. It is not a one-line fix and that is the finding: `contracts/scaleway.json` does not declare the field either, so the contract gate, the probe, the shapes gate and the pack all agree with one another and all four are wrong the same way -- the family corpus/README.md records for Exoscale's zones[].id and security-group.visibility, and the one no document-reading control could ever find. Serving it means moving a generated artefact, and Scaleway has no equivalent of tools/contract/exoscale-recorded-fields.yaml yet. Recorded 2026-08-24 against a real fr-par account (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/431",
-      "file": "scaleway/scw-free-shapes.jsonl"
-    },
-    {
-      "operation": "instance/v1/API.ListSecurityGroupRules",
-      "kind": "absent",
-      "path": "rules[].dest_ip_range",
-      "reason": "The cloud answers `dest_ip_range` on every security-group rule (null on a rule that names no destination) and this emulator omits the key. It is not a one-line fix and that is the finding: `contracts/scaleway.json` does not declare the field either, so the contract gate, the probe, the shapes gate and the pack all agree with one another and all four are wrong the same way -- the family corpus/README.md records for Exoscale's zones[].id and security-group.visibility, and the one no document-reading control could ever find. Serving it means moving a generated artefact, and Scaleway has no equivalent of tools/contract/exoscale-recorded-fields.yaml yet. Recorded 2026-08-24 against a real fr-par account (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/431",
-      "file": "scaleway/scw-free-shapes.jsonl"
-    },
-    {
-      "operation": "instance/v1/API.ListSecurityGroupRules",
-      "kind": "status",
-      "path": "",
-      "reason": "`scw instance security-group list-default-rules` asks for the literal path /security_groups/default/rules; the cloud answers 200 with the seeded rule set and this emulator answers 404, because the mounted route reads `default` as an id. Two things sit behind it. The route serves two upstream operations under one declared name, so the decline of instance/v1/API.ListDefaultSecurityGroupRules is invisible to a client, which is measurement-integrity rule 5 -- an exemption's subject must match its key. And the decline's own stated condition is now met: it says the seeded rules are a value nobody had measured, and this recording measured them. Recorded 2026-08-24 against a real fr-par account (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/432",
-      "file": "scaleway/scw-free-shapes.jsonl"
-    },
-    {
-      "operation": "instance/v1/API.ListSecurityGroupRules",
-      "kind": "absent",
-      "path": "rules",
-      "reason": "`scw instance security-group list-default-rules` asks for the literal path /security_groups/default/rules; the cloud answers 200 with the seeded rule set and this emulator answers 404, because the mounted route reads `default` as an id. Two things sit behind it. The route serves two upstream operations under one declared name, so the decline of instance/v1/API.ListDefaultSecurityGroupRules is invisible to a client, which is measurement-integrity rule 5 -- an exemption's subject must match its key. And the decline's own stated condition is now met: it says the seeded rules are a value nobody had measured, and this recording measured them. Recorded 2026-08-24 against a real fr-par account (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/432",
-      "file": "scaleway/scw-free-shapes.jsonl"
-    },
-    {
       "operation": "instance/v1/API.ListSecurityGroupRules",
       "kind": "absent",
       "path": "rules[]",
-      "reason": "`scw instance security-group list-default-rules` asks for the literal path /security_groups/default/rules; the cloud answers 200 with the seeded rule set and this emulator answers 404, because the mounted route reads `default` as an id. Two things sit behind it. The route serves two upstream operations under one declared name, so the decline of instance/v1/API.ListDefaultSecurityGroupRules is invisible to a client, which is measurement-integrity rule 5 -- an exemption's subject must match its key. And the decline's own stated condition is now met: it says the seeded rules are a value nobody had measured, and this recording measured them. Recorded 2026-08-24 against a real fr-par account (#427).",
+      "reason": "The cloud folds its six account-wide default rules into every group's list, and this emulator does not. MEASURED, and the SDK settles what they are: instance_sdk.go documents ListDefaultSecurityGroupRules as \"Lists the default rules applied to all the security groups\", and corpus/scaleway/scw-free-shapes.jsonl seq 18 and seq 20 answer the SAME six rule identifiers for a group created seconds earlier and for the `default` segment -- they are one rule set, not a copy per group. This emulator now serves it at the door that names it (#432 closed that half), and deliberately does not fold it into a group: the six are outbound TCP drops on the submission ports, nothing here filters an outbound packet, and firewallSpecOf turns every rule of a group into a runtime ACL rule -- so folding them in would push a filter to Incus that the emulator would then be enforcing for real, and would offer a client six rules to delete that it never created. It goes the day the machine layer enforces the SMTP block, which is what would make the list true. Recorded 2026-08-24 against a real fr-par account (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/432",
       "file": "scaleway/scw-free-shapes.jsonl"
     },
@@ -1084,7 +1028,7 @@
       "operation": "exoscale/v2.list-security-groups",
       "kind": "absent",
       "path": "security-groups[].description",
-      "reason": "The cloud answers a description on every security group and this emulator omits it. Check the contract before the pack: this is the family of zones[].id and security-group.visibility, where the provider's own published description did not declare the field either and no document-reading control could have found it. Recorded 2026-08-24 against a real ch-gva-2 account (#427).",
+      "reason": "THIS IS THE COMPARISON, NOT THE PACK, and the recording proves it in its own body. The replay walks two arrays by position, and the two arrays do not hold the same groups: the recorded list answers THREE security groups -- two the ch-gva-2 account already had, then the one the run created -- and this emulator's answers two, the `default` group it ships and the one the run created. So element 1 is a pre-existing group of a real account on one side and a freshly created group on the other. The cloud's OWN created group, element 2 of the recording, carries no `description` key at all, which is exactly what this emulator answers for a group created without one; element 0, `default`, carries a description on both sides. Nothing here is a field the pack fails to serve, and no contract entry on the model of tools/contract/exoscale-recorded-fields.yaml would be honest, because the field is already declared and already served. It goes when the replay matches list elements by the identifier it has already rebound instead of by position, or when a recording is taken on an account holding no group of its own. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/436"
     },
     {
@@ -1209,34 +1153,10 @@
     },
     {
       "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "instance/v1/API.CreatePrivateNIC",
-      "kind": "absent",
-      "path": "private_nic.modification_date",
-      "reason": "A private NIC answers a creation date and no modification date, on all three doors that serve one. Recorded 2026-08-24 against a real fr-par account (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/436"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "instance/v1/API.GetPrivateNIC",
-      "kind": "absent",
-      "path": "private_nic.modification_date",
-      "reason": "A private NIC answers a creation date and no modification date, on all three doors that serve one. Recorded 2026-08-24 against a real fr-par account (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/436"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "instance/v1/API.ListPrivateNICs",
-      "kind": "absent",
-      "path": "private_nics[].modification_date",
-      "reason": "A private NIC answers a creation date and no modification date, on all three doors that serve one. Recorded 2026-08-24 against a real fr-par account (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/436"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
       "operation": "block/v1alpha1/API.DeleteSnapshot",
       "kind": "status",
       "path": "",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, which docs/limits.md states as a decision, and this is that decision seen from block/v1alpha1. A snapshot is `available` the instant it is cut here; upstream it is born in a transient state and a DeleteSnapshot issued while it settles is refused with 412 and a body. corpus/scaleway/scw-billed-shapes.jsonl seq 9-12 is exactly that sequence: the refused delete, a read that still finds the snapshot, the accepted delete, a read that does not. Here the FIRST delete succeeds, so the read between them finds nothing (404 against 200, which reports all twelve fields of the snapshot absent) and the second delete meets nothing (404 against 204). A refusal whose state is not reachable here cannot be served: a guard for a state nothing can enter is a control that can never fire, which is the rule docs/limits.md already draws for Outscale's InvalidVolumeState. It goes the day a snapshot has a settling state. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1244,7 +1164,7 @@
       "operation": "block/v1alpha1/API.GetSnapshot",
       "kind": "status",
       "path": "",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, which docs/limits.md states as a decision, and this is that decision seen from block/v1alpha1. A snapshot is `available` the instant it is cut here; upstream it is born in a transient state and a DeleteSnapshot issued while it settles is refused with 412 and a body. corpus/scaleway/scw-billed-shapes.jsonl seq 9-12 is exactly that sequence: the refused delete, a read that still finds the snapshot, the accepted delete, a read that does not. Here the FIRST delete succeeds, so the read between them finds nothing (404 against 200, which reports all twelve fields of the snapshot absent) and the second delete meets nothing (404 against 204). A refusal whose state is not reachable here cannot be served: a guard for a state nothing can enter is a control that can never fire, which is the rule docs/limits.md already draws for Outscale's InvalidVolumeState. It goes the day a snapshot has a settling state. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1252,7 +1172,7 @@
       "operation": "block/v1alpha1/API.GetSnapshot",
       "kind": "absent",
       "path": "class",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, which docs/limits.md states as a decision, and this is that decision seen from block/v1alpha1. A snapshot is `available` the instant it is cut here; upstream it is born in a transient state and a DeleteSnapshot issued while it settles is refused with 412 and a body. corpus/scaleway/scw-billed-shapes.jsonl seq 9-12 is exactly that sequence: the refused delete, a read that still finds the snapshot, the accepted delete, a read that does not. Here the FIRST delete succeeds, so the read between them finds nothing (404 against 200, which reports all twelve fields of the snapshot absent) and the second delete meets nothing (404 against 204). A refusal whose state is not reachable here cannot be served: a guard for a state nothing can enter is a control that can never fire, which is the rule docs/limits.md already draws for Outscale's InvalidVolumeState. It goes the day a snapshot has a settling state. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1260,7 +1180,7 @@
       "operation": "block/v1alpha1/API.GetSnapshot",
       "kind": "absent",
       "path": "created_at",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, which docs/limits.md states as a decision, and this is that decision seen from block/v1alpha1. A snapshot is `available` the instant it is cut here; upstream it is born in a transient state and a DeleteSnapshot issued while it settles is refused with 412 and a body. corpus/scaleway/scw-billed-shapes.jsonl seq 9-12 is exactly that sequence: the refused delete, a read that still finds the snapshot, the accepted delete, a read that does not. Here the FIRST delete succeeds, so the read between them finds nothing (404 against 200, which reports all twelve fields of the snapshot absent) and the second delete meets nothing (404 against 204). A refusal whose state is not reachable here cannot be served: a guard for a state nothing can enter is a control that can never fire, which is the rule docs/limits.md already draws for Outscale's InvalidVolumeState. It goes the day a snapshot has a settling state. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1268,7 +1188,7 @@
       "operation": "block/v1alpha1/API.GetSnapshot",
       "kind": "absent",
       "path": "id",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, which docs/limits.md states as a decision, and this is that decision seen from block/v1alpha1. A snapshot is `available` the instant it is cut here; upstream it is born in a transient state and a DeleteSnapshot issued while it settles is refused with 412 and a body. corpus/scaleway/scw-billed-shapes.jsonl seq 9-12 is exactly that sequence: the refused delete, a read that still finds the snapshot, the accepted delete, a read that does not. Here the FIRST delete succeeds, so the read between them finds nothing (404 against 200, which reports all twelve fields of the snapshot absent) and the second delete meets nothing (404 against 204). A refusal whose state is not reachable here cannot be served: a guard for a state nothing can enter is a control that can never fire, which is the rule docs/limits.md already draws for Outscale's InvalidVolumeState. It goes the day a snapshot has a settling state. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1276,7 +1196,7 @@
       "operation": "block/v1alpha1/API.GetSnapshot",
       "kind": "absent",
       "path": "name",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, which docs/limits.md states as a decision, and this is that decision seen from block/v1alpha1. A snapshot is `available` the instant it is cut here; upstream it is born in a transient state and a DeleteSnapshot issued while it settles is refused with 412 and a body. corpus/scaleway/scw-billed-shapes.jsonl seq 9-12 is exactly that sequence: the refused delete, a read that still finds the snapshot, the accepted delete, a read that does not. Here the FIRST delete succeeds, so the read between them finds nothing (404 against 200, which reports all twelve fields of the snapshot absent) and the second delete meets nothing (404 against 204). A refusal whose state is not reachable here cannot be served: a guard for a state nothing can enter is a control that can never fire, which is the rule docs/limits.md already draws for Outscale's InvalidVolumeState. It goes the day a snapshot has a settling state. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1284,7 +1204,7 @@
       "operation": "block/v1alpha1/API.GetSnapshot",
       "kind": "absent",
       "path": "parent_volume",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, which docs/limits.md states as a decision, and this is that decision seen from block/v1alpha1. A snapshot is `available` the instant it is cut here; upstream it is born in a transient state and a DeleteSnapshot issued while it settles is refused with 412 and a body. corpus/scaleway/scw-billed-shapes.jsonl seq 9-12 is exactly that sequence: the refused delete, a read that still finds the snapshot, the accepted delete, a read that does not. Here the FIRST delete succeeds, so the read between them finds nothing (404 against 200, which reports all twelve fields of the snapshot absent) and the second delete meets nothing (404 against 204). A refusal whose state is not reachable here cannot be served: a guard for a state nothing can enter is a control that can never fire, which is the rule docs/limits.md already draws for Outscale's InvalidVolumeState. It goes the day a snapshot has a settling state. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1292,7 +1212,7 @@
       "operation": "block/v1alpha1/API.GetSnapshot",
       "kind": "absent",
       "path": "project_id",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, which docs/limits.md states as a decision, and this is that decision seen from block/v1alpha1. A snapshot is `available` the instant it is cut here; upstream it is born in a transient state and a DeleteSnapshot issued while it settles is refused with 412 and a body. corpus/scaleway/scw-billed-shapes.jsonl seq 9-12 is exactly that sequence: the refused delete, a read that still finds the snapshot, the accepted delete, a read that does not. Here the FIRST delete succeeds, so the read between them finds nothing (404 against 200, which reports all twelve fields of the snapshot absent) and the second delete meets nothing (404 against 204). A refusal whose state is not reachable here cannot be served: a guard for a state nothing can enter is a control that can never fire, which is the rule docs/limits.md already draws for Outscale's InvalidVolumeState. It goes the day a snapshot has a settling state. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1300,7 +1220,7 @@
       "operation": "block/v1alpha1/API.GetSnapshot",
       "kind": "absent",
       "path": "references",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, which docs/limits.md states as a decision, and this is that decision seen from block/v1alpha1. A snapshot is `available` the instant it is cut here; upstream it is born in a transient state and a DeleteSnapshot issued while it settles is refused with 412 and a body. corpus/scaleway/scw-billed-shapes.jsonl seq 9-12 is exactly that sequence: the refused delete, a read that still finds the snapshot, the accepted delete, a read that does not. Here the FIRST delete succeeds, so the read between them finds nothing (404 against 200, which reports all twelve fields of the snapshot absent) and the second delete meets nothing (404 against 204). A refusal whose state is not reachable here cannot be served: a guard for a state nothing can enter is a control that can never fire, which is the rule docs/limits.md already draws for Outscale's InvalidVolumeState. It goes the day a snapshot has a settling state. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1308,7 +1228,7 @@
       "operation": "block/v1alpha1/API.GetSnapshot",
       "kind": "absent",
       "path": "size",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, which docs/limits.md states as a decision, and this is that decision seen from block/v1alpha1. A snapshot is `available` the instant it is cut here; upstream it is born in a transient state and a DeleteSnapshot issued while it settles is refused with 412 and a body. corpus/scaleway/scw-billed-shapes.jsonl seq 9-12 is exactly that sequence: the refused delete, a read that still finds the snapshot, the accepted delete, a read that does not. Here the FIRST delete succeeds, so the read between them finds nothing (404 against 200, which reports all twelve fields of the snapshot absent) and the second delete meets nothing (404 against 204). A refusal whose state is not reachable here cannot be served: a guard for a state nothing can enter is a control that can never fire, which is the rule docs/limits.md already draws for Outscale's InvalidVolumeState. It goes the day a snapshot has a settling state. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1316,7 +1236,7 @@
       "operation": "block/v1alpha1/API.GetSnapshot",
       "kind": "absent",
       "path": "status",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, which docs/limits.md states as a decision, and this is that decision seen from block/v1alpha1. A snapshot is `available` the instant it is cut here; upstream it is born in a transient state and a DeleteSnapshot issued while it settles is refused with 412 and a body. corpus/scaleway/scw-billed-shapes.jsonl seq 9-12 is exactly that sequence: the refused delete, a read that still finds the snapshot, the accepted delete, a read that does not. Here the FIRST delete succeeds, so the read between them finds nothing (404 against 200, which reports all twelve fields of the snapshot absent) and the second delete meets nothing (404 against 204). A refusal whose state is not reachable here cannot be served: a guard for a state nothing can enter is a control that can never fire, which is the rule docs/limits.md already draws for Outscale's InvalidVolumeState. It goes the day a snapshot has a settling state. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1324,7 +1244,7 @@
       "operation": "block/v1alpha1/API.GetSnapshot",
       "kind": "absent",
       "path": "tags",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, which docs/limits.md states as a decision, and this is that decision seen from block/v1alpha1. A snapshot is `available` the instant it is cut here; upstream it is born in a transient state and a DeleteSnapshot issued while it settles is refused with 412 and a body. corpus/scaleway/scw-billed-shapes.jsonl seq 9-12 is exactly that sequence: the refused delete, a read that still finds the snapshot, the accepted delete, a read that does not. Here the FIRST delete succeeds, so the read between them finds nothing (404 against 200, which reports all twelve fields of the snapshot absent) and the second delete meets nothing (404 against 204). A refusal whose state is not reachable here cannot be served: a guard for a state nothing can enter is a control that can never fire, which is the rule docs/limits.md already draws for Outscale's InvalidVolumeState. It goes the day a snapshot has a settling state. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1332,7 +1252,7 @@
       "operation": "block/v1alpha1/API.GetSnapshot",
       "kind": "absent",
       "path": "updated_at",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, which docs/limits.md states as a decision, and this is that decision seen from block/v1alpha1. A snapshot is `available` the instant it is cut here; upstream it is born in a transient state and a DeleteSnapshot issued while it settles is refused with 412 and a body. corpus/scaleway/scw-billed-shapes.jsonl seq 9-12 is exactly that sequence: the refused delete, a read that still finds the snapshot, the accepted delete, a read that does not. Here the FIRST delete succeeds, so the read between them finds nothing (404 against 200, which reports all twelve fields of the snapshot absent) and the second delete meets nothing (404 against 204). A refusal whose state is not reachable here cannot be served: a guard for a state nothing can enter is a control that can never fire, which is the rule docs/limits.md already draws for Outscale's InvalidVolumeState. It goes the day a snapshot has a settling state. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1340,7 +1260,7 @@
       "operation": "block/v1alpha1/API.GetSnapshot",
       "kind": "absent",
       "path": "zone",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, which docs/limits.md states as a decision, and this is that decision seen from block/v1alpha1. A snapshot is `available` the instant it is cut here; upstream it is born in a transient state and a DeleteSnapshot issued while it settles is refused with 412 and a body. corpus/scaleway/scw-billed-shapes.jsonl seq 9-12 is exactly that sequence: the refused delete, a read that still finds the snapshot, the accepted delete, a read that does not. Here the FIRST delete succeeds, so the read between them finds nothing (404 against 200, which reports all twelve fields of the snapshot absent) and the second delete meets nothing (404 against 204). A refusal whose state is not reachable here cannot be served: a guard for a state nothing can enter is a control that can never fire, which is the rule docs/limits.md already draws for Outscale's InvalidVolumeState. It goes the day a snapshot has a settling state. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1348,7 +1268,7 @@
       "operation": "block/v1alpha1/API.GetVolume",
       "kind": "status",
       "path": "",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1356,7 +1276,7 @@
       "operation": "block/v1alpha1/API.GetVolume",
       "kind": "absent",
       "path": "created_at",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1364,7 +1284,7 @@
       "operation": "block/v1alpha1/API.GetVolume",
       "kind": "absent",
       "path": "id",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1372,7 +1292,7 @@
       "operation": "block/v1alpha1/API.GetVolume",
       "kind": "absent",
       "path": "last_detached_at",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1380,7 +1300,7 @@
       "operation": "block/v1alpha1/API.GetVolume",
       "kind": "absent",
       "path": "name",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1388,7 +1308,7 @@
       "operation": "block/v1alpha1/API.GetVolume",
       "kind": "absent",
       "path": "parent_snapshot_id",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1396,7 +1316,7 @@
       "operation": "block/v1alpha1/API.GetVolume",
       "kind": "absent",
       "path": "project_id",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1404,7 +1324,7 @@
       "operation": "block/v1alpha1/API.GetVolume",
       "kind": "absent",
       "path": "references",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1412,7 +1332,7 @@
       "operation": "block/v1alpha1/API.GetVolume",
       "kind": "absent",
       "path": "size",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1420,7 +1340,7 @@
       "operation": "block/v1alpha1/API.GetVolume",
       "kind": "absent",
       "path": "specs",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1428,7 +1348,7 @@
       "operation": "block/v1alpha1/API.GetVolume",
       "kind": "absent",
       "path": "status",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1436,7 +1356,7 @@
       "operation": "block/v1alpha1/API.GetVolume",
       "kind": "absent",
       "path": "tags",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1444,7 +1364,7 @@
       "operation": "block/v1alpha1/API.GetVolume",
       "kind": "absent",
       "path": "updated_at",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1452,7 +1372,7 @@
       "operation": "block/v1alpha1/API.GetVolume",
       "kind": "absent",
       "path": "zone",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1460,7 +1380,7 @@
       "operation": "block/v1alpha1/API.DeleteVolume",
       "kind": "status",
       "path": "",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "A SERVER'S ROOT VOLUME LIVES IN instance/v1 HERE AND IN block UPSTREAM, and every finding on this operation is that one default. corpus/scaleway/scw-billed-shapes.jsonl seq 11 is a CreateServer whose body names no volume, and fr-par answered volumes {\"0\": {volume_type: sbs_volume}} -- a block volume -- then read it three times through block/v1alpha1 (seq 13, 27, 33) and deleted it there (seq 34). This emulator gives such a server a b_ssd volume in instance/v1, so all four calls answer 404, and a 404 reports every field of the expected body as absent. sbs_volume IS honoured when a client asks for it, and tools/conformance/scaleway/terraform/main.tf asks for it, so the path is proven end to end by the real provider; what is not done is the default. MEASURED WHY NOT: flipping it reds ten tests at once, because the whole instance/v1 volume surface reads a server's root disk out of the instance store -- CreateSnapshot and CreateImage cannot find the volume to snapshot, attach-volume and detach-volume refuse it, and terminate stops carrying it away. docs/limits.md carries it. It goes the day the default moves, which is a batch of its own and not a line in a handler. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {
@@ -1468,7 +1388,7 @@
       "operation": "lb/v1/ZonedAPI.GetLB",
       "kind": "absent",
       "path": "backend_count",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from lb/v1. A DeleteLB removes the balancer at once here; upstream the read that FOLLOWS the delete still answers 200 with status `to_delete`, and only the read after that answers 404. corpus/scaleway/scw-billed-shapes.jsonl seq 47-50 is the delete, one 200, then two 404s. So one read of the recording meets a 404 here where the cloud answered a whole balancer, and a 404 reports every field of that body as absent -- nineteen findings for one instant. Reproducing it means giving a delete a terminal state that a later read clears, which is a change to the lifecycle of every kind and to what `nothing left behind` means for every conformance suite -- the same argument #380 records for Outscale, one cloud out. It goes the day a delete is asynchronous here. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/434"
     },
     {
@@ -1476,7 +1396,7 @@
       "operation": "lb/v1/ZonedAPI.GetLB",
       "kind": "absent",
       "path": "created_at",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from lb/v1. A DeleteLB removes the balancer at once here; upstream the read that FOLLOWS the delete still answers 200 with status `to_delete`, and only the read after that answers 404. corpus/scaleway/scw-billed-shapes.jsonl seq 47-50 is the delete, one 200, then two 404s. So one read of the recording meets a 404 here where the cloud answered a whole balancer, and a 404 reports every field of that body as absent -- nineteen findings for one instant. Reproducing it means giving a delete a terminal state that a later read clears, which is a change to the lifecycle of every kind and to what `nothing left behind` means for every conformance suite -- the same argument #380 records for Outscale, one cloud out. It goes the day a delete is asynchronous here. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/434"
     },
     {
@@ -1492,7 +1412,7 @@
       "operation": "lb/v1/ZonedAPI.GetLB",
       "kind": "absent",
       "path": "frontend_count",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from lb/v1. A DeleteLB removes the balancer at once here; upstream the read that FOLLOWS the delete still answers 200 with status `to_delete`, and only the read after that answers 404. corpus/scaleway/scw-billed-shapes.jsonl seq 47-50 is the delete, one 200, then two 404s. So one read of the recording meets a 404 here where the cloud answered a whole balancer, and a 404 reports every field of that body as absent -- nineteen findings for one instant. Reproducing it means giving a delete a terminal state that a later read clears, which is a change to the lifecycle of every kind and to what `nothing left behind` means for every conformance suite -- the same argument #380 records for Outscale, one cloud out. It goes the day a delete is asynchronous here. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/434"
     },
     {
@@ -1500,7 +1420,7 @@
       "operation": "lb/v1/ZonedAPI.GetLB",
       "kind": "absent",
       "path": "id",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from lb/v1. A DeleteLB removes the balancer at once here; upstream the read that FOLLOWS the delete still answers 200 with status `to_delete`, and only the read after that answers 404. corpus/scaleway/scw-billed-shapes.jsonl seq 47-50 is the delete, one 200, then two 404s. So one read of the recording meets a 404 here where the cloud answered a whole balancer, and a 404 reports every field of that body as absent -- nineteen findings for one instant. Reproducing it means giving a delete a terminal state that a later read clears, which is a change to the lifecycle of every kind and to what `nothing left behind` means for every conformance suite -- the same argument #380 records for Outscale, one cloud out. It goes the day a delete is asynchronous here. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/434"
     },
     {
@@ -1508,7 +1428,7 @@
       "operation": "lb/v1/ZonedAPI.GetLB",
       "kind": "absent",
       "path": "instances",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from lb/v1. A DeleteLB removes the balancer at once here; upstream the read that FOLLOWS the delete still answers 200 with status `to_delete`, and only the read after that answers 404. corpus/scaleway/scw-billed-shapes.jsonl seq 47-50 is the delete, one 200, then two 404s. So one read of the recording meets a 404 here where the cloud answered a whole balancer, and a 404 reports every field of that body as absent -- nineteen findings for one instant. Reproducing it means giving a delete a terminal state that a later read clears, which is a change to the lifecycle of every kind and to what `nothing left behind` means for every conformance suite -- the same argument #380 records for Outscale, one cloud out. It goes the day a delete is asynchronous here. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/434"
     },
     {
@@ -1516,7 +1436,7 @@
       "operation": "lb/v1/ZonedAPI.GetLB",
       "kind": "absent",
       "path": "ip",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from lb/v1. A DeleteLB removes the balancer at once here; upstream the read that FOLLOWS the delete still answers 200 with status `to_delete`, and only the read after that answers 404. corpus/scaleway/scw-billed-shapes.jsonl seq 47-50 is the delete, one 200, then two 404s. So one read of the recording meets a 404 here where the cloud answered a whole balancer, and a 404 reports every field of that body as absent -- nineteen findings for one instant. Reproducing it means giving a delete a terminal state that a later read clears, which is a change to the lifecycle of every kind and to what `nothing left behind` means for every conformance suite -- the same argument #380 records for Outscale, one cloud out. It goes the day a delete is asynchronous here. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/434"
     },
     {
@@ -1524,7 +1444,7 @@
       "operation": "lb/v1/ZonedAPI.GetLB",
       "kind": "absent",
       "path": "name",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from lb/v1. A DeleteLB removes the balancer at once here; upstream the read that FOLLOWS the delete still answers 200 with status `to_delete`, and only the read after that answers 404. corpus/scaleway/scw-billed-shapes.jsonl seq 47-50 is the delete, one 200, then two 404s. So one read of the recording meets a 404 here where the cloud answered a whole balancer, and a 404 reports every field of that body as absent -- nineteen findings for one instant. Reproducing it means giving a delete a terminal state that a later read clears, which is a change to the lifecycle of every kind and to what `nothing left behind` means for every conformance suite -- the same argument #380 records for Outscale, one cloud out. It goes the day a delete is asynchronous here. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/434"
     },
     {
@@ -1532,7 +1452,7 @@
       "operation": "lb/v1/ZonedAPI.GetLB",
       "kind": "absent",
       "path": "organization_id",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from lb/v1. A DeleteLB removes the balancer at once here; upstream the read that FOLLOWS the delete still answers 200 with status `to_delete`, and only the read after that answers 404. corpus/scaleway/scw-billed-shapes.jsonl seq 47-50 is the delete, one 200, then two 404s. So one read of the recording meets a 404 here where the cloud answered a whole balancer, and a 404 reports every field of that body as absent -- nineteen findings for one instant. Reproducing it means giving a delete a terminal state that a later read clears, which is a change to the lifecycle of every kind and to what `nothing left behind` means for every conformance suite -- the same argument #380 records for Outscale, one cloud out. It goes the day a delete is asynchronous here. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/434"
     },
     {
@@ -1540,7 +1460,7 @@
       "operation": "lb/v1/ZonedAPI.GetLB",
       "kind": "absent",
       "path": "private_network_count",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from lb/v1. A DeleteLB removes the balancer at once here; upstream the read that FOLLOWS the delete still answers 200 with status `to_delete`, and only the read after that answers 404. corpus/scaleway/scw-billed-shapes.jsonl seq 47-50 is the delete, one 200, then two 404s. So one read of the recording meets a 404 here where the cloud answered a whole balancer, and a 404 reports every field of that body as absent -- nineteen findings for one instant. Reproducing it means giving a delete a terminal state that a later read clears, which is a change to the lifecycle of every kind and to what `nothing left behind` means for every conformance suite -- the same argument #380 records for Outscale, one cloud out. It goes the day a delete is asynchronous here. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/434"
     },
     {
@@ -1548,7 +1468,7 @@
       "operation": "lb/v1/ZonedAPI.GetLB",
       "kind": "absent",
       "path": "project_id",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from lb/v1. A DeleteLB removes the balancer at once here; upstream the read that FOLLOWS the delete still answers 200 with status `to_delete`, and only the read after that answers 404. corpus/scaleway/scw-billed-shapes.jsonl seq 47-50 is the delete, one 200, then two 404s. So one read of the recording meets a 404 here where the cloud answered a whole balancer, and a 404 reports every field of that body as absent -- nineteen findings for one instant. Reproducing it means giving a delete a terminal state that a later read clears, which is a change to the lifecycle of every kind and to what `nothing left behind` means for every conformance suite -- the same argument #380 records for Outscale, one cloud out. It goes the day a delete is asynchronous here. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/434"
     },
     {
@@ -1556,7 +1476,7 @@
       "operation": "lb/v1/ZonedAPI.GetLB",
       "kind": "absent",
       "path": "region",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from lb/v1. A DeleteLB removes the balancer at once here; upstream the read that FOLLOWS the delete still answers 200 with status `to_delete`, and only the read after that answers 404. corpus/scaleway/scw-billed-shapes.jsonl seq 47-50 is the delete, one 200, then two 404s. So one read of the recording meets a 404 here where the cloud answered a whole balancer, and a 404 reports every field of that body as absent -- nineteen findings for one instant. Reproducing it means giving a delete a terminal state that a later read clears, which is a change to the lifecycle of every kind and to what `nothing left behind` means for every conformance suite -- the same argument #380 records for Outscale, one cloud out. It goes the day a delete is asynchronous here. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/434"
     },
     {
@@ -1564,7 +1484,7 @@
       "operation": "lb/v1/ZonedAPI.GetLB",
       "kind": "absent",
       "path": "route_count",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from lb/v1. A DeleteLB removes the balancer at once here; upstream the read that FOLLOWS the delete still answers 200 with status `to_delete`, and only the read after that answers 404. corpus/scaleway/scw-billed-shapes.jsonl seq 47-50 is the delete, one 200, then two 404s. So one read of the recording meets a 404 here where the cloud answered a whole balancer, and a 404 reports every field of that body as absent -- nineteen findings for one instant. Reproducing it means giving a delete a terminal state that a later read clears, which is a change to the lifecycle of every kind and to what `nothing left behind` means for every conformance suite -- the same argument #380 records for Outscale, one cloud out. It goes the day a delete is asynchronous here. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/434"
     },
     {
@@ -1572,7 +1492,7 @@
       "operation": "lb/v1/ZonedAPI.GetLB",
       "kind": "absent",
       "path": "ssl_compatibility_level",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from lb/v1. A DeleteLB removes the balancer at once here; upstream the read that FOLLOWS the delete still answers 200 with status `to_delete`, and only the read after that answers 404. corpus/scaleway/scw-billed-shapes.jsonl seq 47-50 is the delete, one 200, then two 404s. So one read of the recording meets a 404 here where the cloud answered a whole balancer, and a 404 reports every field of that body as absent -- nineteen findings for one instant. Reproducing it means giving a delete a terminal state that a later read clears, which is a change to the lifecycle of every kind and to what `nothing left behind` means for every conformance suite -- the same argument #380 records for Outscale, one cloud out. It goes the day a delete is asynchronous here. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/434"
     },
     {
@@ -1580,7 +1500,7 @@
       "operation": "lb/v1/ZonedAPI.GetLB",
       "kind": "absent",
       "path": "status",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from lb/v1. A DeleteLB removes the balancer at once here; upstream the read that FOLLOWS the delete still answers 200 with status `to_delete`, and only the read after that answers 404. corpus/scaleway/scw-billed-shapes.jsonl seq 47-50 is the delete, one 200, then two 404s. So one read of the recording meets a 404 here where the cloud answered a whole balancer, and a 404 reports every field of that body as absent -- nineteen findings for one instant. Reproducing it means giving a delete a terminal state that a later read clears, which is a change to the lifecycle of every kind and to what `nothing left behind` means for every conformance suite -- the same argument #380 records for Outscale, one cloud out. It goes the day a delete is asynchronous here. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/434"
     },
     {
@@ -1588,7 +1508,7 @@
       "operation": "lb/v1/ZonedAPI.GetLB",
       "kind": "absent",
       "path": "subscriber",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from lb/v1. A DeleteLB removes the balancer at once here; upstream the read that FOLLOWS the delete still answers 200 with status `to_delete`, and only the read after that answers 404. corpus/scaleway/scw-billed-shapes.jsonl seq 47-50 is the delete, one 200, then two 404s. So one read of the recording meets a 404 here where the cloud answered a whole balancer, and a 404 reports every field of that body as absent -- nineteen findings for one instant. Reproducing it means giving a delete a terminal state that a later read clears, which is a change to the lifecycle of every kind and to what `nothing left behind` means for every conformance suite -- the same argument #380 records for Outscale, one cloud out. It goes the day a delete is asynchronous here. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/434"
     },
     {
@@ -1596,7 +1516,7 @@
       "operation": "lb/v1/ZonedAPI.GetLB",
       "kind": "absent",
       "path": "tags",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from lb/v1. A DeleteLB removes the balancer at once here; upstream the read that FOLLOWS the delete still answers 200 with status `to_delete`, and only the read after that answers 404. corpus/scaleway/scw-billed-shapes.jsonl seq 47-50 is the delete, one 200, then two 404s. So one read of the recording meets a 404 here where the cloud answered a whole balancer, and a 404 reports every field of that body as absent -- nineteen findings for one instant. Reproducing it means giving a delete a terminal state that a later read clears, which is a change to the lifecycle of every kind and to what `nothing left behind` means for every conformance suite -- the same argument #380 records for Outscale, one cloud out. It goes the day a delete is asynchronous here. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/434"
     },
     {
@@ -1604,7 +1524,7 @@
       "operation": "lb/v1/ZonedAPI.GetLB",
       "kind": "absent",
       "path": "updated_at",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from lb/v1. A DeleteLB removes the balancer at once here; upstream the read that FOLLOWS the delete still answers 200 with status `to_delete`, and only the read after that answers 404. corpus/scaleway/scw-billed-shapes.jsonl seq 47-50 is the delete, one 200, then two 404s. So one read of the recording meets a 404 here where the cloud answered a whole balancer, and a 404 reports every field of that body as absent -- nineteen findings for one instant. Reproducing it means giving a delete a terminal state that a later read clears, which is a change to the lifecycle of every kind and to what `nothing left behind` means for every conformance suite -- the same argument #380 records for Outscale, one cloud out. It goes the day a delete is asynchronous here. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/434"
     },
     {
@@ -1612,7 +1532,7 @@
       "operation": "lb/v1/ZonedAPI.GetLB",
       "kind": "absent",
       "path": "zone",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from lb/v1. A DeleteLB removes the balancer at once here; upstream the read that FOLLOWS the delete still answers 200 with status `to_delete`, and only the read after that answers 404. corpus/scaleway/scw-billed-shapes.jsonl seq 47-50 is the delete, one 200, then two 404s. So one read of the recording meets a 404 here where the cloud answered a whole balancer, and a 404 reports every field of that body as absent -- nineteen findings for one instant. Reproducing it means giving a delete a terminal state that a later read clears, which is a change to the lifecycle of every kind and to what `nothing left behind` means for every conformance suite -- the same argument #380 records for Outscale, one cloud out. It goes the day a delete is asynchronous here. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/434"
     },
     {
@@ -1620,7 +1540,7 @@
       "operation": "lb/v1/ZonedAPI.GetLB",
       "kind": "status",
       "path": "",
-      "reason": "The lb/v1 emulation is thinner than the cloud's answer, measured on a real LB-S with a backend, a frontend, an ACL and a route, created and destroyed inside one run on 2026-08-24 (#427). #434 carries the whole measured list, so this entry names one field of a cause that has many.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from lb/v1. A DeleteLB removes the balancer at once here; upstream the read that FOLLOWS the delete still answers 200 with status `to_delete`, and only the read after that answers 404. corpus/scaleway/scw-billed-shapes.jsonl seq 47-50 is the delete, one 200, then two 404s. So one read of the recording meets a 404 here where the cloud answered a whole balancer, and a 404 reports every field of that body as absent -- nineteen findings for one instant. Reproducing it means giving a delete a terminal state that a later read clears, which is a change to the lifecycle of every kind and to what `nothing left behind` means for every conformance suite -- the same argument #380 records for Outscale, one cloud out. It goes the day a delete is asynchronous here. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/434"
     },
     {
@@ -1628,7 +1548,7 @@
       "operation": "vpcgw/v2/API.GetGateway",
       "kind": "absent",
       "path": "message",
-      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "reason": "THIS IS THE RECORDING, NOT THE PACK, and the recording proves it in its own sequence numbers. The gateway goes from 200 on its seventh read to 404 on its eighth WITH NO DELETE ANYWHERE IN THE FILE, and its address follows: the recorded DeleteIP answers 404 and the recorded GetIP answers 404 too. The destruction did not travel through the proxy. STATED RATHER THAN ASSUMED: corpus/scaleway/scw-billed-shapes.jsonl holds three recording sessions whose own sequence numbers run 1..14, 1..43 and 1..65 with no gap, so nothing was dropped between the request that read the gateway and the request that could not find it, and no DELETE on /vpc-gw/v2/.../gateways/ exists in that file at all. This emulator was never asked to delete the gateway, so it still answers it -- and its DeleteIP refuses with 400 because the address is still attached to a gateway nobody destroyed. Answering 404 for an object nobody destroyed would be the lie this project exists to avoid. The `absent` findings on these operations are the fields of the cloud's 404 body, which is the same cause seen from the body. It goes when the gateway is recorded again with its destruction in the transcript. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/435"
     },
     {
@@ -1636,7 +1556,7 @@
       "operation": "vpcgw/v2/API.GetGateway",
       "kind": "absent",
       "path": "resource",
-      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "reason": "THIS IS THE RECORDING, NOT THE PACK, and the recording proves it in its own sequence numbers. The gateway goes from 200 on its seventh read to 404 on its eighth WITH NO DELETE ANYWHERE IN THE FILE, and its address follows: the recorded DeleteIP answers 404 and the recorded GetIP answers 404 too. The destruction did not travel through the proxy. STATED RATHER THAN ASSUMED: corpus/scaleway/scw-billed-shapes.jsonl holds three recording sessions whose own sequence numbers run 1..14, 1..43 and 1..65 with no gap, so nothing was dropped between the request that read the gateway and the request that could not find it, and no DELETE on /vpc-gw/v2/.../gateways/ exists in that file at all. This emulator was never asked to delete the gateway, so it still answers it -- and its DeleteIP refuses with 400 because the address is still attached to a gateway nobody destroyed. Answering 404 for an object nobody destroyed would be the lie this project exists to avoid. The `absent` findings on these operations are the fields of the cloud's 404 body, which is the same cause seen from the body. It goes when the gateway is recorded again with its destruction in the transcript. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/435"
     },
     {
@@ -1644,7 +1564,7 @@
       "operation": "vpcgw/v2/API.GetGateway",
       "kind": "absent",
       "path": "resource_id",
-      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "reason": "THIS IS THE RECORDING, NOT THE PACK, and the recording proves it in its own sequence numbers. The gateway goes from 200 on its seventh read to 404 on its eighth WITH NO DELETE ANYWHERE IN THE FILE, and its address follows: the recorded DeleteIP answers 404 and the recorded GetIP answers 404 too. The destruction did not travel through the proxy. STATED RATHER THAN ASSUMED: corpus/scaleway/scw-billed-shapes.jsonl holds three recording sessions whose own sequence numbers run 1..14, 1..43 and 1..65 with no gap, so nothing was dropped between the request that read the gateway and the request that could not find it, and no DELETE on /vpc-gw/v2/.../gateways/ exists in that file at all. This emulator was never asked to delete the gateway, so it still answers it -- and its DeleteIP refuses with 400 because the address is still attached to a gateway nobody destroyed. Answering 404 for an object nobody destroyed would be the lie this project exists to avoid. The `absent` findings on these operations are the fields of the cloud's 404 body, which is the same cause seen from the body. It goes when the gateway is recorded again with its destruction in the transcript. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/435"
     },
     {
@@ -1652,7 +1572,7 @@
       "operation": "vpcgw/v2/API.UpdateGateway",
       "kind": "status",
       "path": "",
-      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from vpcgw/v2. A gateway is `running` the instant it is created here; upstream it is `allocating` for a few seconds, and both an UpdateGateway and a CreateGatewayNetwork issued in that window are refused with 409 and a body naming the state (current_state: allocating, plus message, resource, resource_id and type). corpus/scaleway/scw-billed-shapes.jsonl seq 40 and 41 are those two refusals, and seq 39 and 51-56 show the gateway moving from allocating to running around them. Both succeed here, so the status differs and the error body's own fields read as absent -- the `absent` findings on these two operations are the same cause seen from the body, not fields the pack fails to serve. Serving the refusal would mean inventing the window, and a guard for a state nothing can enter is a control that can never fire. It goes the day a gateway allocates. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/435"
     },
     {
@@ -1660,7 +1580,7 @@
       "operation": "vpcgw/v2/API.UpdateGateway",
       "kind": "absent",
       "path": "current_state",
-      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from vpcgw/v2. A gateway is `running` the instant it is created here; upstream it is `allocating` for a few seconds, and both an UpdateGateway and a CreateGatewayNetwork issued in that window are refused with 409 and a body naming the state (current_state: allocating, plus message, resource, resource_id and type). corpus/scaleway/scw-billed-shapes.jsonl seq 40 and 41 are those two refusals, and seq 39 and 51-56 show the gateway moving from allocating to running around them. Both succeed here, so the status differs and the error body's own fields read as absent -- the `absent` findings on these two operations are the same cause seen from the body, not fields the pack fails to serve. Serving the refusal would mean inventing the window, and a guard for a state nothing can enter is a control that can never fire. It goes the day a gateway allocates. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/435"
     },
     {
@@ -1668,7 +1588,7 @@
       "operation": "vpcgw/v2/API.UpdateGateway",
       "kind": "absent",
       "path": "message",
-      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from vpcgw/v2. A gateway is `running` the instant it is created here; upstream it is `allocating` for a few seconds, and both an UpdateGateway and a CreateGatewayNetwork issued in that window are refused with 409 and a body naming the state (current_state: allocating, plus message, resource, resource_id and type). corpus/scaleway/scw-billed-shapes.jsonl seq 40 and 41 are those two refusals, and seq 39 and 51-56 show the gateway moving from allocating to running around them. Both succeed here, so the status differs and the error body's own fields read as absent -- the `absent` findings on these two operations are the same cause seen from the body, not fields the pack fails to serve. Serving the refusal would mean inventing the window, and a guard for a state nothing can enter is a control that can never fire. It goes the day a gateway allocates. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/435"
     },
     {
@@ -1676,7 +1596,7 @@
       "operation": "vpcgw/v2/API.UpdateGateway",
       "kind": "absent",
       "path": "resource",
-      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from vpcgw/v2. A gateway is `running` the instant it is created here; upstream it is `allocating` for a few seconds, and both an UpdateGateway and a CreateGatewayNetwork issued in that window are refused with 409 and a body naming the state (current_state: allocating, plus message, resource, resource_id and type). corpus/scaleway/scw-billed-shapes.jsonl seq 40 and 41 are those two refusals, and seq 39 and 51-56 show the gateway moving from allocating to running around them. Both succeed here, so the status differs and the error body's own fields read as absent -- the `absent` findings on these two operations are the same cause seen from the body, not fields the pack fails to serve. Serving the refusal would mean inventing the window, and a guard for a state nothing can enter is a control that can never fire. It goes the day a gateway allocates. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/435"
     },
     {
@@ -1684,7 +1604,7 @@
       "operation": "vpcgw/v2/API.UpdateGateway",
       "kind": "absent",
       "path": "resource_id",
-      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from vpcgw/v2. A gateway is `running` the instant it is created here; upstream it is `allocating` for a few seconds, and both an UpdateGateway and a CreateGatewayNetwork issued in that window are refused with 409 and a body naming the state (current_state: allocating, plus message, resource, resource_id and type). corpus/scaleway/scw-billed-shapes.jsonl seq 40 and 41 are those two refusals, and seq 39 and 51-56 show the gateway moving from allocating to running around them. Both succeed here, so the status differs and the error body's own fields read as absent -- the `absent` findings on these two operations are the same cause seen from the body, not fields the pack fails to serve. Serving the refusal would mean inventing the window, and a guard for a state nothing can enter is a control that can never fire. It goes the day a gateway allocates. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/435"
     },
     {
@@ -1692,7 +1612,7 @@
       "operation": "vpcgw/v2/API.CreateGatewayNetwork",
       "kind": "status",
       "path": "",
-      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from vpcgw/v2. A gateway is `running` the instant it is created here; upstream it is `allocating` for a few seconds, and both an UpdateGateway and a CreateGatewayNetwork issued in that window are refused with 409 and a body naming the state (current_state: allocating, plus message, resource, resource_id and type). corpus/scaleway/scw-billed-shapes.jsonl seq 40 and 41 are those two refusals, and seq 39 and 51-56 show the gateway moving from allocating to running around them. Both succeed here, so the status differs and the error body's own fields read as absent -- the `absent` findings on these two operations are the same cause seen from the body, not fields the pack fails to serve. Serving the refusal would mean inventing the window, and a guard for a state nothing can enter is a control that can never fire. It goes the day a gateway allocates. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/435"
     },
     {
@@ -1700,7 +1620,7 @@
       "operation": "vpcgw/v2/API.CreateGatewayNetwork",
       "kind": "absent",
       "path": "current_state",
-      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from vpcgw/v2. A gateway is `running` the instant it is created here; upstream it is `allocating` for a few seconds, and both an UpdateGateway and a CreateGatewayNetwork issued in that window are refused with 409 and a body naming the state (current_state: allocating, plus message, resource, resource_id and type). corpus/scaleway/scw-billed-shapes.jsonl seq 40 and 41 are those two refusals, and seq 39 and 51-56 show the gateway moving from allocating to running around them. Both succeed here, so the status differs and the error body's own fields read as absent -- the `absent` findings on these two operations are the same cause seen from the body, not fields the pack fails to serve. Serving the refusal would mean inventing the window, and a guard for a state nothing can enter is a control that can never fire. It goes the day a gateway allocates. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/435"
     },
     {
@@ -1708,7 +1628,7 @@
       "operation": "vpcgw/v2/API.CreateGatewayNetwork",
       "kind": "absent",
       "path": "message",
-      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from vpcgw/v2. A gateway is `running` the instant it is created here; upstream it is `allocating` for a few seconds, and both an UpdateGateway and a CreateGatewayNetwork issued in that window are refused with 409 and a body naming the state (current_state: allocating, plus message, resource, resource_id and type). corpus/scaleway/scw-billed-shapes.jsonl seq 40 and 41 are those two refusals, and seq 39 and 51-56 show the gateway moving from allocating to running around them. Both succeed here, so the status differs and the error body's own fields read as absent -- the `absent` findings on these two operations are the same cause seen from the body, not fields the pack fails to serve. Serving the refusal would mean inventing the window, and a guard for a state nothing can enter is a control that can never fire. It goes the day a gateway allocates. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/435"
     },
     {
@@ -1716,7 +1636,7 @@
       "operation": "vpcgw/v2/API.CreateGatewayNetwork",
       "kind": "absent",
       "path": "resource",
-      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from vpcgw/v2. A gateway is `running` the instant it is created here; upstream it is `allocating` for a few seconds, and both an UpdateGateway and a CreateGatewayNetwork issued in that window are refused with 409 and a body naming the state (current_state: allocating, plus message, resource, resource_id and type). corpus/scaleway/scw-billed-shapes.jsonl seq 40 and 41 are those two refusals, and seq 39 and 51-56 show the gateway moving from allocating to running around them. Both succeed here, so the status differs and the error body's own fields read as absent -- the `absent` findings on these two operations are the same cause seen from the body, not fields the pack fails to serve. Serving the refusal would mean inventing the window, and a guard for a state nothing can enter is a control that can never fire. It goes the day a gateway allocates. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/435"
     },
     {
@@ -1724,7 +1644,7 @@
       "operation": "vpcgw/v2/API.CreateGatewayNetwork",
       "kind": "absent",
       "path": "resource_id",
-      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from vpcgw/v2. A gateway is `running` the instant it is created here; upstream it is `allocating` for a few seconds, and both an UpdateGateway and a CreateGatewayNetwork issued in that window are refused with 409 and a body naming the state (current_state: allocating, plus message, resource, resource_id and type). corpus/scaleway/scw-billed-shapes.jsonl seq 40 and 41 are those two refusals, and seq 39 and 51-56 show the gateway moving from allocating to running around them. Both succeed here, so the status differs and the error body's own fields read as absent -- the `absent` findings on these two operations are the same cause seen from the body, not fields the pack fails to serve. Serving the refusal would mean inventing the window, and a guard for a state nothing can enter is a control that can never fire. It goes the day a gateway allocates. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/435"
     },
     {
@@ -1732,7 +1652,7 @@
       "operation": "vpcgw/v2/API.CreateGatewayNetwork",
       "kind": "absent",
       "path": "type",
-      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, and this is that decision seen from vpcgw/v2. A gateway is `running` the instant it is created here; upstream it is `allocating` for a few seconds, and both an UpdateGateway and a CreateGatewayNetwork issued in that window are refused with 409 and a body naming the state (current_state: allocating, plus message, resource, resource_id and type). corpus/scaleway/scw-billed-shapes.jsonl seq 40 and 41 are those two refusals, and seq 39 and 51-56 show the gateway moving from allocating to running around them. Both succeed here, so the status differs and the error body's own fields read as absent -- the `absent` findings on these two operations are the same cause seen from the body, not fields the pack fails to serve. Serving the refusal would mean inventing the window, and a guard for a state nothing can enter is a control that can never fire. It goes the day a gateway allocates. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/435"
     },
     {
@@ -1740,7 +1660,7 @@
       "operation": "vpcgw/v2/API.GetGateway",
       "kind": "status",
       "path": "",
-      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "reason": "THIS IS THE RECORDING, NOT THE PACK, and the recording proves it in its own sequence numbers. The gateway goes from 200 on its seventh read to 404 on its eighth WITH NO DELETE ANYWHERE IN THE FILE, and its address follows: the recorded DeleteIP answers 404 and the recorded GetIP answers 404 too. The destruction did not travel through the proxy. STATED RATHER THAN ASSUMED: corpus/scaleway/scw-billed-shapes.jsonl holds three recording sessions whose own sequence numbers run 1..14, 1..43 and 1..65 with no gap, so nothing was dropped between the request that read the gateway and the request that could not find it, and no DELETE on /vpc-gw/v2/.../gateways/ exists in that file at all. This emulator was never asked to delete the gateway, so it still answers it -- and its DeleteIP refuses with 400 because the address is still attached to a gateway nobody destroyed. Answering 404 for an object nobody destroyed would be the lie this project exists to avoid. The `absent` findings on these operations are the fields of the cloud's 404 body, which is the same cause seen from the body. It goes when the gateway is recorded again with its destruction in the transcript. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/435"
     },
     {
@@ -1748,7 +1668,7 @@
       "operation": "vpcgw/v2/API.DeleteIP",
       "kind": "status",
       "path": "",
-      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "reason": "THIS IS THE RECORDING, NOT THE PACK, and the recording proves it in its own sequence numbers. The gateway goes from 200 on its seventh read to 404 on its eighth WITH NO DELETE ANYWHERE IN THE FILE, and its address follows: the recorded DeleteIP answers 404 and the recorded GetIP answers 404 too. The destruction did not travel through the proxy. STATED RATHER THAN ASSUMED: corpus/scaleway/scw-billed-shapes.jsonl holds three recording sessions whose own sequence numbers run 1..14, 1..43 and 1..65 with no gap, so nothing was dropped between the request that read the gateway and the request that could not find it, and no DELETE on /vpc-gw/v2/.../gateways/ exists in that file at all. This emulator was never asked to delete the gateway, so it still answers it -- and its DeleteIP refuses with 400 because the address is still attached to a gateway nobody destroyed. Answering 404 for an object nobody destroyed would be the lie this project exists to avoid. The `absent` findings on these operations are the fields of the cloud's 404 body, which is the same cause seen from the body. It goes when the gateway is recorded again with its destruction in the transcript. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/435"
     },
     {
@@ -1756,7 +1676,7 @@
       "operation": "vpcgw/v2/API.DeleteIP",
       "kind": "absent",
       "path": "message",
-      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "reason": "THIS IS THE RECORDING, NOT THE PACK, and the recording proves it in its own sequence numbers. The gateway goes from 200 on its seventh read to 404 on its eighth WITH NO DELETE ANYWHERE IN THE FILE, and its address follows: the recorded DeleteIP answers 404 and the recorded GetIP answers 404 too. The destruction did not travel through the proxy. STATED RATHER THAN ASSUMED: corpus/scaleway/scw-billed-shapes.jsonl holds three recording sessions whose own sequence numbers run 1..14, 1..43 and 1..65 with no gap, so nothing was dropped between the request that read the gateway and the request that could not find it, and no DELETE on /vpc-gw/v2/.../gateways/ exists in that file at all. This emulator was never asked to delete the gateway, so it still answers it -- and its DeleteIP refuses with 400 because the address is still attached to a gateway nobody destroyed. Answering 404 for an object nobody destroyed would be the lie this project exists to avoid. The `absent` findings on these operations are the fields of the cloud's 404 body, which is the same cause seen from the body. It goes when the gateway is recorded again with its destruction in the transcript. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/435"
     },
     {
@@ -1764,7 +1684,7 @@
       "operation": "vpcgw/v2/API.GetIP",
       "kind": "status",
       "path": "",
-      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "reason": "THIS IS THE RECORDING, NOT THE PACK, and the recording proves it in its own sequence numbers. The gateway goes from 200 on its seventh read to 404 on its eighth WITH NO DELETE ANYWHERE IN THE FILE, and its address follows: the recorded DeleteIP answers 404 and the recorded GetIP answers 404 too. The destruction did not travel through the proxy. STATED RATHER THAN ASSUMED: corpus/scaleway/scw-billed-shapes.jsonl holds three recording sessions whose own sequence numbers run 1..14, 1..43 and 1..65 with no gap, so nothing was dropped between the request that read the gateway and the request that could not find it, and no DELETE on /vpc-gw/v2/.../gateways/ exists in that file at all. This emulator was never asked to delete the gateway, so it still answers it -- and its DeleteIP refuses with 400 because the address is still attached to a gateway nobody destroyed. Answering 404 for an object nobody destroyed would be the lie this project exists to avoid. The `absent` findings on these operations are the fields of the cloud's 404 body, which is the same cause seen from the body. It goes when the gateway is recorded again with its destruction in the transcript. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/435"
     },
     {
@@ -1772,7 +1692,7 @@
       "operation": "vpcgw/v2/API.GetIP",
       "kind": "absent",
       "path": "message",
-      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "reason": "THIS IS THE RECORDING, NOT THE PACK, and the recording proves it in its own sequence numbers. The gateway goes from 200 on its seventh read to 404 on its eighth WITH NO DELETE ANYWHERE IN THE FILE, and its address follows: the recorded DeleteIP answers 404 and the recorded GetIP answers 404 too. The destruction did not travel through the proxy. STATED RATHER THAN ASSUMED: corpus/scaleway/scw-billed-shapes.jsonl holds three recording sessions whose own sequence numbers run 1..14, 1..43 and 1..65 with no gap, so nothing was dropped between the request that read the gateway and the request that could not find it, and no DELETE on /vpc-gw/v2/.../gateways/ exists in that file at all. This emulator was never asked to delete the gateway, so it still answers it -- and its DeleteIP refuses with 400 because the address is still attached to a gateway nobody destroyed. Answering 404 for an object nobody destroyed would be the lie this project exists to avoid. The `absent` findings on these operations are the fields of the cloud's 404 body, which is the same cause seen from the body. It goes when the gateway is recorded again with its destruction in the transcript. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/435"
     },
     {
@@ -1780,7 +1700,7 @@
       "operation": "vpcgw/v2/API.GetIP",
       "kind": "absent",
       "path": "resource",
-      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "reason": "THIS IS THE RECORDING, NOT THE PACK, and the recording proves it in its own sequence numbers. The gateway goes from 200 on its seventh read to 404 on its eighth WITH NO DELETE ANYWHERE IN THE FILE, and its address follows: the recorded DeleteIP answers 404 and the recorded GetIP answers 404 too. The destruction did not travel through the proxy. STATED RATHER THAN ASSUMED: corpus/scaleway/scw-billed-shapes.jsonl holds three recording sessions whose own sequence numbers run 1..14, 1..43 and 1..65 with no gap, so nothing was dropped between the request that read the gateway and the request that could not find it, and no DELETE on /vpc-gw/v2/.../gateways/ exists in that file at all. This emulator was never asked to delete the gateway, so it still answers it -- and its DeleteIP refuses with 400 because the address is still attached to a gateway nobody destroyed. Answering 404 for an object nobody destroyed would be the lie this project exists to avoid. The `absent` findings on these operations are the fields of the cloud's 404 body, which is the same cause seen from the body. It goes when the gateway is recorded again with its destruction in the transcript. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/435"
     },
     {
@@ -1788,7 +1708,7 @@
       "operation": "vpcgw/v2/API.GetIP",
       "kind": "absent",
       "path": "resource_id",
-      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "reason": "THIS IS THE RECORDING, NOT THE PACK, and the recording proves it in its own sequence numbers. The gateway goes from 200 on its seventh read to 404 on its eighth WITH NO DELETE ANYWHERE IN THE FILE, and its address follows: the recorded DeleteIP answers 404 and the recorded GetIP answers 404 too. The destruction did not travel through the proxy. STATED RATHER THAN ASSUMED: corpus/scaleway/scw-billed-shapes.jsonl holds three recording sessions whose own sequence numbers run 1..14, 1..43 and 1..65 with no gap, so nothing was dropped between the request that read the gateway and the request that could not find it, and no DELETE on /vpc-gw/v2/.../gateways/ exists in that file at all. This emulator was never asked to delete the gateway, so it still answers it -- and its DeleteIP refuses with 400 because the address is still attached to a gateway nobody destroyed. Answering 404 for an object nobody destroyed would be the lie this project exists to avoid. The `absent` findings on these operations are the fields of the cloud's 404 body, which is the same cause seen from the body. It goes when the gateway is recorded again with its destruction in the transcript. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/435"
     },
     {
@@ -1796,7 +1716,7 @@
       "operation": "vpcgw/v2/API.GetIP",
       "kind": "absent",
       "path": "type",
-      "reason": "The vpcgw/v2 emulation is thinner than the cloud's answer, measured on a real VPC-GW-S created and destroyed inside one run on 2026-08-24 (#427). #435 carries the whole measured list, so this entry names one field of a cause that has many. This is what REMAINS after the vocabulary fix of the same batch: the pack validated the gateway offer against a closed list it did not vouch for, so the sanitiser minted a synthetic offer name, the replayed CreateGateway was refused, and 143 further findings were that one refusal cascading.",
+      "reason": "THIS IS THE RECORDING, NOT THE PACK, and the recording proves it in its own sequence numbers. The gateway goes from 200 on its seventh read to 404 on its eighth WITH NO DELETE ANYWHERE IN THE FILE, and its address follows: the recorded DeleteIP answers 404 and the recorded GetIP answers 404 too. The destruction did not travel through the proxy. STATED RATHER THAN ASSUMED: corpus/scaleway/scw-billed-shapes.jsonl holds three recording sessions whose own sequence numbers run 1..14, 1..43 and 1..65 with no gap, so nothing was dropped between the request that read the gateway and the request that could not find it, and no DELETE on /vpc-gw/v2/.../gateways/ exists in that file at all. This emulator was never asked to delete the gateway, so it still answers it -- and its DeleteIP refuses with 400 because the address is still attached to a gateway nobody destroyed. Answering 404 for an object nobody destroyed would be the lie this project exists to avoid. The `absent` findings on these operations are the fields of the cloud's 404 body, which is the same cause seen from the body. It goes when the gateway is recorded again with its destruction in the transcript. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/435"
     },
     {
@@ -1804,7 +1724,7 @@
       "operation": "block/v1alpha1/API.DeleteSnapshot",
       "kind": "type",
       "path": "",
-      "reason": "The block/v1alpha1 emulation is thinner than the cloud's answer, measured on a real 5 GB volume and its snapshot created and destroyed inside one run on 2026-08-24 (#427). #433 carries the whole measured list, so this entry names one field of a cause that has many. The 404s among the statuses are the SERVER's root volume, which the cloud gives as an SBS volume and this emulator gives as a local instance/v1 one: that half is #365 and not this issue.",
+      "reason": "THIS EMULATOR'S LIFECYCLE TRANSITIONS ARE IMMEDIATE, which docs/limits.md states as a decision, and this is that decision seen from block/v1alpha1. A snapshot is `available` the instant it is cut here; upstream it is born in a transient state and a DeleteSnapshot issued while it settles is refused with 412 and a body. corpus/scaleway/scw-billed-shapes.jsonl seq 9-12 is exactly that sequence: the refused delete, a read that still finds the snapshot, the accepted delete, a read that does not. Here the FIRST delete succeeds, so the read between them finds nothing (404 against 200, which reports all twelve fields of the snapshot absent) and the second delete meets nothing (404 against 204). A refusal whose state is not reachable here cannot be served: a guard for a state nothing can enter is a control that can never fire, which is the rule docs/limits.md already draws for Outscale's InvalidVolumeState. It goes the day a snapshot has a settling state. Recorded 2026-08-24 (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/433"
     },
     {

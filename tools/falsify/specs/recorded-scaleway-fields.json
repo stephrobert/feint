@@ -1,0 +1,46 @@
+{
+  "subject": "three shapes a real Scaleway account answered that no document declares (#431, #432, #436)",
+  "why": "None of these could be found by reading anything. `dest_ip_range` is on the wire and in neither Scaleway's published document nor their own Go SDK; `default` is a literal path segment their SDK builds and this pack read as an identifier, so a declined operation answered 404 through a live route; `modification_date` is one of two dates a NIC carries and only one was served. The mutations put each back and require the test that names it to go red.",
+  "mutations": [
+    {
+      "file": "internal/providers/scaleway/securitygroups.go",
+      "find": "\t\t\"dest_ip_range\":  nil,\n\t\t\"dest_port_from\": portOrNil(req.DestPortFrom),",
+      "replace": "\t\t\"dest_port_from\": portOrNil(req.DestPortFrom),",
+      "expect": "a rule omits the key entirely, which is a shape the cloud never answers, on the create, the read, the update and both lists at once",
+      "test": "TestARuleAnswersTheDestinationRangeKeyTheCloudAnswers",
+      "label": "a rule stops carrying dest_ip_range"
+    },
+    {
+      "file": "internal/providers/scaleway/pack.go",
+      "find": "\t\t{Method: \"GET\", Path: zones + \"/security_groups/default/rules\", Operation: \"instance/v1/API.ListDefaultSecurityGroupRules\", Handler: p.listDefaultSecurityGroupRules},",
+      "replace": "\t\t{Method: \"GET\", Path: zones + \"/security_groups/default/rules/unreachable\", Operation: \"instance/v1/API.ListDefaultSecurityGroupRules\", Handler: p.listDefaultSecurityGroupRules},",
+      "expect": "`default` falls back to matching {id}, finds no group and answers 404, which is how a declined operation stayed invisible to the client asking for it",
+      "test": "TestTheDefaultRuleSegmentIsARuleSetAndNotAGroup",
+      "label": "the default segment is read as an identifier again"
+    },
+    {
+      "file": "internal/providers/scaleway/securitygroups.go",
+      "find": "\t\t\t\"editable\": false,\n\t\t\t\"zone\":     zone,",
+      "replace": "\t\t\t\"editable\": false || true,\n\t\t\t\"zone\":     zone,",
+      "expect": "the account-wide rules read as editable, so a client believes it can delete a filter it does not own and this emulator cannot remove",
+      "test": "TestTheDefaultRuleSegmentIsARuleSetAndNotAGroup",
+      "label": "the default rules read as editable"
+    },
+    {
+      "file": "internal/providers/scaleway/securitygroups.go",
+      "find": "\t\t\t\"id\":        rule.id,",
+      "replace": "\t\t\t\"id\":        rule.id + p.env.NewID(),",
+      "expect": "the default rules are minted afresh on every read, so a client that stored one finds a different rule set on the next call",
+      "test": "TestTheDefaultRuleSegmentIsARuleSetAndNotAGroup",
+      "label": "the default rule identifiers move between reads"
+    },
+    {
+      "file": "internal/providers/scaleway/privatenics.go",
+      "find": "\t\t\"modification_date\": res.Updated.Format(time.RFC3339),",
+      "replace": "\t\t\"modification_date_gone\": res.Updated.Format(time.RFC3339),",
+      "expect": "a NIC answers a creation date and no modification date, on the create, the read and the list, which is what a real fr-par account contradicts on all three",
+      "test": "TestAPrivateNICAnswersTheDateItLastChanged",
+      "label": "a NIC loses its modification date"
+    }
+  ]
+}
