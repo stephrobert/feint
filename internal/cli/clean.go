@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/stephrobert/feint/internal/core/machine"
 )
@@ -23,11 +24,16 @@ func clean(args []string, stdout io.Writer) error {
 	fs := newFlagSet("clean")
 	vm := fs.String("vm", "incus", "machine runtime to sweep: incus, incus-vm, incus-ovn")
 	check := fs.Bool("check", false, "report what this user cannot remove and remove nothing; exit 1 if anything is stuck")
+	format := fs.String("format", "text", "output format: text, or json for one aggregatable line per object found")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if *format != "text" && *format != "json" {
+		return fmt.Errorf("unknown format %q: text or json", *format)
+	}
+	led := newLedger(stdout, *format == "json", time.Now())
 	if *check {
-		return reportStuckLeftovers(stdout, *vm)
+		return reportStuckLeftovers(stdout, led, *vm)
 	}
 
 	// The state directories go first, and deliberately before the runtime is
@@ -44,7 +50,7 @@ func clean(args []string, stdout io.Writer) error {
 		return err
 	}
 
-	driver, err := machineDriver(*vm, stdout)
+	driver, err := resolveDriver(*vm, stdout)
 	if err != nil {
 		return err
 	}
@@ -66,18 +72,46 @@ func clean(args []string, stdout io.Writer) error {
 			fmt.Fprintln(stdout, "nothing was left behind on the runtime")
 			// Still swept: the leftover is a process, not a runtime object, so
 			// it is findable and endable with no runtime answering at all.
-			return sweepLeftoverDHCP(stdout, *vm)
+			return sweepLeftoverDHCP(stdout, led, *vm)
 		}
 		return fmt.Errorf("the %s runtime cannot be swept", driver.Name())
 	}
 
-	pruned, err := pruner.Prune(context.Background())
+	// Read before, so the sweep can be judged on the host rather than on its own
+	// return value. #426 is why: a destruction that answers success and leaves
+	// the object standing is invisible to every count the remover produces, and
+	// that is the shape this repository has now met twice.
+	ctx := context.Background()
+	before, surveyable, surveyErr := surveyLeftovers(ctx, driver)
+	if surveyErr != nil {
+		// Never an empty list on a failed read. "I could not look" and "there is
+		// nothing" are different facts, and reporting the first as the second is
+		// how an inventory once called a live account empty.
+		led.record(leftoverRecord{Kind: "survey", Name: driver.Name(), Attribution: "none",
+			Stage: stageSweep, Why: whyUnreadable, Action: actionNone})
+	}
+
+	pruned, err := pruner.Prune(ctx)
 	// Reported either way: a partial sweep still removed something, and saying
 	// what went is what tells the operator whether to look further.
 	fmt.Fprintf(stdout, "removed %d machine(s), %d network(s), %d rule set(s)\n",
 		pruned.Machines, pruned.Networks, pruned.Firewalls)
 	if err != nil {
+		led.recordAll(before, stageSweep, whyRefused, actionNone)
 		return err
+	}
+	// And read again. Anything still standing was asked to go, said nothing, and
+	// is still there: the case no return code reveals.
+	// TestTheSweepNamesWhatSurvivedItsOwnSuccessfulDelete fails without this.
+	if surveyable && surveyErr == nil {
+		after, _, afterErr := surveyLeftovers(ctx, driver)
+		switch {
+		case afterErr != nil:
+			led.record(leftoverRecord{Kind: "survey", Name: driver.Name(), Attribution: "none",
+				Stage: stageSweep, Why: whyUnreadable, Action: actionNone})
+		default:
+			led.recordAll(survivors(before, after), stageSweep, whySurvived, actionNone)
+		}
 	}
 	// This line is about the runtime and nothing else, and it stays that way.
 	// tools/conformance/scaleway/network.sh asserts on it to decide whether the
@@ -90,7 +124,7 @@ func clean(args []string, stdout io.Writer) error {
 	// After the prune, deliberately: a leftover whose network object still
 	// exists is reaped by the runtime with that object, and only what survives
 	// the ordinary sweep is a process the runtime no longer knows about.
-	return sweepLeftoverDHCP(stdout, *vm)
+	return sweepLeftoverDHCP(stdout, led, *vm)
 }
 
 // The seams doctor and the tests share. Wired to internal/core/machine, and
@@ -101,6 +135,11 @@ var (
 	findLeftoverDHCP = machine.LeftoverDHCP
 	endLeftoverDHCP  = machine.TerminateLeftover
 	canEndLeftover   = machine.CanEndLeftover
+	// resolveDriver is the same seam one level up, so the doorstep of #426 can
+	// be driven against a runtime holding known objects. Without it the test
+	// would have to create real bridges on the tester's host to assert that a
+	// run refuses to start beside them.
+	resolveDriver = machineDriver
 )
 
 // reportStuckLeftovers is `feint clean --check` (#375): the question the sweep
@@ -148,7 +187,28 @@ var (
 //
 // TestCleanCheckRefusesAHostWhoseLeftoverThisUserCannotEnd and
 // TestCleanCheckPassesWhenTheSweepItselfWouldClearThem fail without it.
-func reportStuckLeftovers(stdout io.Writer, vm string) error {
+func reportStuckLeftovers(stdout io.Writer, led *ledger, vm string) error {
+	// The runtime half first, and #426 is why it exists at all.
+	//
+	// Before this, the doorstep asked one question — is there a DHCP service
+	// this user cannot end — and answered "no" on a host holding three of this
+	// emulator's bridges, three of its rule sets and the three dnsmasq those
+	// bridges own. Those dnsmasq are not orphans: their networks are still
+	// there, so the orphan scan is right to ignore them, and the run started
+	// anyway and died thirty steps later on "Address already in use".
+	//
+	// It also disproves what internal/cli/leftovers.go says about networks, and
+	// the disproof is written there too: a leftover emulated network is *not*
+	// reused by the next run. The name is derived from the new resource's id, so
+	// the next run asks for a different name carrying the same block, and the
+	// runtime refuses it — measured on 2026-08-24, twice in a row, after a run
+	// that had exited 0.
+	//
+	// TestTheDoorstepRefusesAHostHoldingAPreviousRunsNetwork fails without this.
+	if err := refuseRuntimeLeftovers(stdout, led, vm); err != nil {
+		return err
+	}
+
 	leftovers, err := findLeftoverDHCP()
 	if err != nil {
 		return fmt.Errorf("could not look for leftover DHCP services: %w", err)
@@ -165,11 +225,13 @@ func reportStuckLeftovers(stdout io.Writer, vm string) error {
 			// runtime starts its own DHCP services under the incus account —
 			// but a pid the scan no longer attributes answers here too, and
 			// calling that "another user" would be a sentence nobody measured.
+			led.record(dhcpRecord(leftover, stageDoorstep, whySurvived, actionLeftStuck))
 			fmt.Fprintf(stdout, "a DHCP service a run left behind, which this user cannot end: %s\n", leftover)
 			fmt.Fprintf(stdout, "  %v\n", err)
 			stuck = append(stuck, leftover)
 			continue
 		}
+		led.record(dhcpRecord(leftover, stageDoorstep, whySurvived, actionReported))
 		fmt.Fprintf(stdout, "a DHCP service a run left behind, which this user can end: %s\n", leftover)
 	}
 	if len(stuck) == 0 {
@@ -210,7 +272,7 @@ func reportStuckLeftovers(stdout io.Writer, vm string) error {
 // bridge nobody here created is not ours to delete. Saying so beats deleting
 // it and beats silence: the operator gets the exact command and the decision.
 // TestCleanSaysWhatItWillNotTouchWhenTheBridgeSurvived fails without the line.
-func sweepLeftoverDHCP(stdout io.Writer, vm string) error {
+func sweepLeftoverDHCP(stdout io.Writer, led *ledger, vm string) error {
 	leftovers, err := findLeftoverDHCP()
 	if err != nil {
 		// An operator who cannot be told "there is a leftover" must at least
@@ -223,12 +285,14 @@ func sweepLeftoverDHCP(stdout io.Writer, vm string) error {
 		err := endLeftoverDHCP(leftover)
 		switch {
 		case err == nil:
+			led.record(dhcpRecord(leftover, stageSweep, whySurvived, actionRemoved))
 			fmt.Fprintf(stdout, "ended a DHCP service a run left behind: %s\n", leftover)
 			if leftover.InterfaceAlive {
 				fmt.Fprintf(stdout, "  left untouched: the bridge %s survived its network, and nothing proves this emulator created it — `sudo ip link delete %s` if it is yours\n",
 					leftover.Interface, leftover.Interface)
 			}
 		case errors.Is(err, os.ErrPermission):
+			led.record(dhcpRecord(leftover, stageSweep, whySurvived, actionLeftStuck))
 			fmt.Fprintf(stdout, "a DHCP service a run left behind belongs to another user: %s\n", leftover)
 			// Two commands, and the order matters (#375). `sudo kill` is exact
 			// and demands that a pid be read out of a log and retyped, which is
@@ -239,6 +303,7 @@ func sweepLeftoverDHCP(stdout io.Writer, vm string) error {
 			fmt.Fprintf(stdout, "  → sudo feint clean --vm %s   (or: sudo kill %d)\n", vm, leftover.PID)
 			stuck = append(stuck, leftover.String())
 		default:
+			led.record(dhcpRecord(leftover, stageSweep, whySurvived, actionNone))
 			fmt.Fprintf(stdout, "could not end a leftover DHCP service: %s: %v\n", leftover, err)
 			stuck = append(stuck, leftover.String())
 		}

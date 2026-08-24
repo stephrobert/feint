@@ -21,11 +21,26 @@ import (
 // that no longer has an owner, which is the same mistake as trusting a
 // restored snapshot without revalidating it.
 //
-// The notice keys on machines, not on networks or rule sets alone. An empty
-// emulated network is plumbing: the next run reuses it under the same name or
-// refuses the block conflict out loud, and the OVN uplink is deliberately
-// kept across runs. A warning that fired on every healthy restart would be
-// read by nobody, which this repository has already measured on its gates.
+// The notice keys on machines, not on networks or rule sets alone, and that is
+// still right *here*: this fires on every start, and a warning that fires on
+// every healthy restart is read by nobody.
+//
+// But the reason once written here for it was wrong, and #426 disproved it by
+// measurement on 2026-08-24. It said an empty emulated network is plumbing,
+// because "the next run reuses it under the same name or refuses the block
+// conflict out loud". Neither half holds. The name is derived from the *new*
+// resource's id (machine.NetworkName), so the next run never asks for the old
+// name: it asks for a new name carrying the same block, and the runtime refuses
+// that at the DHCP bind, minutes in, with "Address already in use" — a message
+// that names the block and nothing that produced it. Measured three runs in a
+// row of tools/conformance/stacks.sh, the first of which exited 0.
+//
+// So a leftover network is not plumbing, it is the next run's failure. What
+// changed is where the question is asked rather than how loud this is: the
+// doorstep — `feint clean --check`, refuseRuntimeLeftovers — refuses before a
+// run starts, which is the one place the answer is actionable and cannot be
+// mistaken for noise. Do not restore the old sentence here without re-running
+// that measurement.
 
 // reportLeftovers names the labelled machines a previous run left on the
 // runtime. TestStartupNamesTheLeftoversItDidNotAdopt fails without it.

@@ -644,21 +644,28 @@ depends = ["build"]
 # Removing an assertion from a suite and re-running this task must demote the
 # operations it proved — that is the falsification the record lives under.
 #
-# MEASURED 2026-08-24, and it will bite whoever runs this next: leg 2 fails
-# intermittently in tools/conformance/stacks.sh, and only with a machine runtime
-# on. `scaleway_vpc_private_network` is refused with "subnet X overlaps X" — the
-# block it collides with is itself, and it is a DIFFERENT block each run
-# (10.40.1.0/24, then 10.30.1.0/24). Isolated: stacks.sh alone on a clean host
-# failed twice and passed once with FEINT_VM=incus, and passed with machines
-# off. So it is a race in the runtime-backed create path, not this task and not
-# the fixture, and the mechanism is NOT established — the passing run showed 3
-# CreatePrivateNetwork for 3 DeletePrivateNetwork, so the obvious "the provider
-# retried" reading is unsupported.
+# MEASURED 2026-08-24, and then FOUND (#426). Leg 2 used to fail on any host
+# with Incus, and the cause was not a race: it was a destruction that answered
+# success and left its object standing.
 #
-# The consequence is the part that matters: this task is the only way to
-# regenerate a record carrying `machines: incus`, and on any host that has Incus
-# it completes only by chance. Re-running is the workaround; fixing the race is
-# the answer.
+# The chain, read on the host rather than deduced. The machine driver had Attach
+# and no counterpart, so deleting a Scaleway private NIC only forgot it in the
+# store: `incus config device show` still listed the device after the 204. The
+# later DeletePrivateNetwork then got "The network is currently in use" from the
+# runtime, the pack logged that and answered 204 anyway, and the bridge, its
+# rule set and its dnsmasq outlived the run holding the block. So a *passing*
+# run left three networks behind, and the next one died on "Address already in
+# use" for blocks the API had reported gone.
+#
+# Why the block differed each time: which of the three parallel private-network
+# deletes lands before its machine is gone is Terraform's scheduling, so a
+# different one survived each run. The blocks themselves are fixed in
+# examples/stacks/scaleway/main.tf and never chosen by the emulator.
+#
+# What holds it now: machine.Driver.Detach, DeletePrivateNetwork refusing rather
+# than logging, and `feint clean --check` refusing at the doorstep on a host
+# that still holds a previous run's networks. Three consecutive stacks.sh runs
+# then left the host byte-identical to its inventory before them.
 run = """
 set -e
 tmp="$(mktemp -d)"

@@ -269,15 +269,22 @@ EOF
   if ! "$binary" clean --check --vm "$machines" >&2; then
     cat >&2 <<EOF
 
-FAIL: a DHCP service left behind by a run holds an address block on this host,
-and this user cannot end it. Its pid, its block and the reason are named above.
+FAIL: this host still holds what an earlier run left. What was found is named
+above: a network or a machine of a previous run, or a DHCP service this user
+cannot end it being another user's.
 
-Usually it belongs to the runtime's own user rather than to you: Incus starts
-the DHCP service of every managed bridge under the incus account. Nothing in
-this suite may signal it either way: a conformance run that escalated to end a
-daemon it did not start would be a worse defect than the one it works around.
+A network of an earlier run is not harmless plumbing (#426). Its name is derived
+from the resource that made it, so the next run never reuses it: it asks for a
+new name carrying the same block, and the runtime refuses that at the DHCP bind,
+minutes in, with "Address already in use".
 
-Run:  sudo $binary clean --vm $machines
+Nothing in this suite removes any of it. A conformance run that escalated to end
+a daemon it did not start would be a worse defect than the one it works around,
+so the command is printed for you to run with your own hands. Networks and
+machines need no privilege; a DHCP service of the runtime's own user does.
+
+Run:  $binary clean --vm $machines        (networks and machines)
+      sudo $binary clean --vm $machines   (if a DHCP service was named)
 
 That is this same sweep, elevated by you on purpose. It re-asks every ownership
 question at the moment of the signal, so it ends only what this emulator can

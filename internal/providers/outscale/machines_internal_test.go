@@ -34,6 +34,7 @@ func (d *recordingDriver) Inspect(_ context.Context, name string) (machine.Machi
 }
 func (d *recordingDriver) EnsureNetwork(context.Context, machine.NetworkSpec) error { return nil }
 func (d *recordingDriver) Attach(context.Context, string, machine.Attachment) error { return nil }
+func (d *recordingDriver) Detach(context.Context, string, string) error             { return nil }
 func (d *recordingDriver) RemoveNetwork(context.Context, string) error              { return nil }
 
 func runtimePack(driver machine.Driver) *Pack {

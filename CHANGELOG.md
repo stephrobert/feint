@@ -15,6 +15,53 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+### Fixed
+
+- **A run no longer leaves its networks on the host, and one that finds a
+  previous run's is refused on the doorstep** (#426). `mise run evidence:update`
+  could only be regenerated on a lucky run: leg 2 failed on any host with Incus,
+  and the block it named differed every time.
+
+  It was not a race. `machine.Driver` had `Attach` and no counterpart, so
+  deleting a Scaleway private NIC only forgot it in the store — the device
+  stayed on the container. `DeletePrivateNetwork` then got "The network is
+  currently in use" from the runtime, logged it, and answered `204`. A *passing*
+  run therefore left three bridges, three rule sets and three DHCP services
+  holding their blocks, and the next run died on "Address already in use" for
+  blocks the API had reported gone. Which of the three survived is Terraform's
+  destroy scheduling, which is why the named block moved.
+
+  What a client sees change:
+
+  - `DELETE .../servers/{id}/private_nics/{nicID}` now detaches the interface
+    from the machine runtime before it answers. It answered `204` and left the
+    device attached.
+  - `DELETE .../private-networks/{pnID}` refuses with `precondition_failed`
+    when the runtime will not release the network, instead of answering `204`
+    and dropping the record. A network reported gone while its bridge holds the
+    block is the same lie as a network created while nothing exists, and the
+    create path already refused its half.
+
+  A limit that moved: `feint clean --check` now refuses a host still holding a
+  previous run's machines or networks, naming each and the one command that
+  clears it. It only ever asked about orphaned DHCP services, and answered "no
+  DHCP service of this emulator's outlives its network" — exit 0 — on a host
+  holding three of this emulator's bridges.
+
+### Added
+
+- **`feint clean --format json` records what a sweep found, one line per
+  object** (#426). #316, #342, #375 and #386 each fixed one symptom of one
+  family, and nobody could see the family because every sighting lived in the
+  log of a failed run. Each line carries what the object is, how this run knows
+  it is the emulator's, when it was seen, why it is still there and what was
+  done about it, so `jq` answers which mechanism produces the waste.
+
+  The `why` carries the value no return code reveals — a destruction that
+  reported success and left the object standing — found by reading the host
+  *after* the sweep rather than trusting the sweep's own counts. It is the
+  shape that hid the defect above for four issues.
+
 ### Added
 
 - **Every identifier an Outscale answer publishes now names an object a read

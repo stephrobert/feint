@@ -228,3 +228,6 @@ func TestAPoisonedPublicIpIsNeverRouted(t *testing.T) {
 		t.Errorf("the poisoned address rode a boot: %v", rt.bootedAddresses())
 	}
 }
+
+// Detach implements machine.Driver; *routedRuntime needs no behaviour here.
+func (r *routedRuntime) Detach(context.Context, string, string) error { return nil }

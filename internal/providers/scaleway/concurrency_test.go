@@ -28,6 +28,8 @@ type fakeRuntime struct {
 	// specs keeps what each start was asked to boot, so a test can assert on
 	// the image and the login rather than on a state name (#83).
 	specs []machine.Spec
+	// detached keeps every "machine network" pair Detach was called with (#426).
+	detached []string
 
 	starts atomic.Int32
 	// entered is signalled on the way into Start, before it blocks, so a test
@@ -94,6 +96,24 @@ func (f *fakeRuntime) Inspect(_ context.Context, n string) (machine.Machine, boo
 func (f *fakeRuntime) EnsureNetwork(context.Context, machine.NetworkSpec) error { return nil }
 func (f *fakeRuntime) Attach(context.Context, string, machine.Attachment) error { return nil }
 func (f *fakeRuntime) RemoveNetwork(context.Context, string) error              { return nil }
+
+// Detach records the pairs rather than ignoring them, because #426 was a
+// destruction that was never emitted at all: the store forgot the NIC, the API
+// answered 204, and the device stayed on the container. A test that reads a
+// status code cannot tell those apart; one that reads this can.
+func (f *fakeRuntime) Detach(_ context.Context, name, network string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.detached = append(f.detached, name+" "+network)
+	return nil
+}
+
+// detaches reports what the runtime was actually asked to take apart.
+func (f *fakeRuntime) detaches() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.detached...)
+}
 
 // running reports what the runtime actually holds, which is the half of the
 // truth the API cannot be trusted to report on its own.

@@ -1440,3 +1440,9 @@ func TestReadVmsStateAnswersRunningByDefault(t *testing.T) {
 		t.Errorf("AllVms does not include the terminated machine: %v", got)
 	}
 }
+
+// Detach implements machine.Driver; *blockingRuntime needs no behaviour here.
+func (f *blockingRuntime) Detach(context.Context, string, string) error { return nil }
+
+// Detach implements machine.Driver; *countingRuntime needs no behaviour here.
+func (f *countingRuntime) Detach(context.Context, string, string) error { return nil }

@@ -370,3 +370,6 @@ func TestExoscaleAnswersTheCloudsStatusForAKeyItCannotRead(t *testing.T) {
 		t.Fatalf("a name already taken answered %d (%v), want 409", rec.Code, out)
 	}
 }
+
+// Detach implements machine.Driver; *recordingRuntime needs no behaviour here.
+func (r *recordingRuntime) Detach(context.Context, string, string) error { return nil }

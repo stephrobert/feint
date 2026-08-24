@@ -184,3 +184,6 @@ func netOf(t *testing.T, ts *httptest.Server, subnetID string) string {
 	netID, _ := first["NetId"].(string)
 	return netID
 }
+
+// Detach implements machine.Driver; *slowAttach needs no behaviour here.
+func (s *slowAttach) Detach(context.Context, string, string) error { return nil }

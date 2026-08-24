@@ -522,10 +522,32 @@ func (p *Pack) deletePrivateNetwork(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// The runtime half is fatal to the request, exactly as it is on the create
+	// path above, and #426 is why it stopped being a logged warning.
+	//
+	// What the swallow produced, read on the host rather than deduced: DELETE
+	// answered 204, the store forgot the network, and `incus network list` still
+	// showed the bridge — with its dnsmasq holding the block. The next run then
+	// failed on "Address already in use" for a network the API had reported gone
+	// minutes earlier, which is the exact lie this emulator exists to avoid: a
+	// create that succeeds while nothing exists, and a delete that succeeds
+	// while everything does, are the same defect in two directions.
+	//
+	// The refusal reuses writePrecondition, so it is the same shape this handler
+	// already answers for a still-attached NIC: a precondition the client can act
+	// on and retry, rather than an opaque failure. The usual cause is the same
+	// one, a machine still holding a device, which RemoveNetwork's own contract
+	// says it must refuse rather than cut off.
+	//
+	// TestAPrivateNetworkTheRuntimeKeptIsNotReportedDeleted fails without this.
 	if name := res.Runtime[runtimeNetworkKey]; name != "" && p.env.Machines != nil {
 		if err := p.env.Machines.RemoveNetwork(r.Context(), name); err != nil {
 			p.logger().Error("could not remove the backing network",
 				"private_network", res.ID, "network", name, "error", err)
+			writePrecondition(w, "private_network", res.ID,
+				"the machine runtime still holds the network backing this private network, "+
+					"so deleting it here would report gone something that still holds its block: "+err.Error())
+			return
 		}
 	}
 	p.env.Store.Delete(Name, kindPrivateNetwork, res.ID)

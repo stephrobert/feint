@@ -136,6 +136,15 @@ type Driver interface {
 	// cloud attaches an interface to a running server, so this cannot be
 	// limited to what Spec.Attachments carries at start time.
 	Attach(ctx context.Context, name string, att Attachment) error
+	// Detach takes the machine off the network again. It is the counterpart of
+	// Attach, and it is required rather than optional for the reason #426
+	// measured: without it a pack can only forget an interface in its store,
+	// the device stays on the container, and RemoveNetwork then refuses with
+	// "The network is currently in use" for a machine the control plane says
+	// is no longer attached. It must succeed when the device, the machine or
+	// the network is already gone, because a delete path runs twice more often
+	// than anyone expects.
+	Detach(ctx context.Context, name, network string) error
 	// RemoveNetwork destroys it. It must succeed when nothing is there, and it
 	// must fail when machines are still attached rather than cut them off.
 	RemoveNetwork(ctx context.Context, name string) error
@@ -182,6 +191,9 @@ func (Noop) EnsureNetwork(context.Context, NetworkSpec) error { return nil }
 
 // Attach implements Driver.
 func (Noop) Attach(context.Context, string, Attachment) error { return nil }
+
+// Detach implements Driver.
+func (Noop) Detach(context.Context, string, string) error { return nil }
 
 // RemoveNetwork implements Driver.
 func (Noop) RemoveNetwork(context.Context, string) error { return nil }

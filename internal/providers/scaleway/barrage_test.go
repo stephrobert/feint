@@ -530,3 +530,6 @@ func TestASharedNetworkUnderBarrageNeverHandsOutOneAddressTwice(t *testing.T) {
 			strings.Join(found, "\n"))
 	}
 }
+
+// Detach implements machine.Driver; *barrageRuntime needs no behaviour here.
+func (b *barrageRuntime) Detach(context.Context, string, string) error { return nil }

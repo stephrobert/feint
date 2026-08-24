@@ -380,7 +380,7 @@ func (p *Pack) deletePrivateNIC(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	p.releaseNIC(res)
+	p.releaseNIC(r.Context(), res)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -401,7 +401,20 @@ func (p *Pack) deletePrivateNIC(w http.ResponseWriter, r *http.Request) {
 // with none. The real API takes the NIC and its addresses with the server.
 //
 // TestDeletingAServerReleasesItsPrivateNICs fails without this.
-func (p *Pack) releaseNIC(res *resource.Resource) {
+//
+// The runtime detach lives here rather than in each caller, and #426 is the
+// measurement that put it here. There are three doors into this state — DELETE
+// on the NIC, the v2alpha1 spelling of the same, and the delete of the server
+// carrying it — and before this the store was the only thing any of them
+// touched. Read on the host: a 204 on DELETE .../private_nics/{id} left the
+// device on the container, so the later DeletePrivateNetwork got "The network
+// is currently in use" from the runtime and the bridge outlived the run holding
+// its block. TestDeletingAPrivateNICDetachesItFromTheRuntime fails without it.
+func (p *Pack) releaseNIC(ctx context.Context, res *resource.Resource) {
+	// Before the store forgets it: the names of both ends live on the resources
+	// this is about to delete, and a detach that cannot name its machine is a
+	// detach that never happens.
+	p.detachMachineFromNetwork(ctx, res)
 	// An allocated address goes back to the pool by disappearing from the
 	// store: the allocator is rebuilt from what IPAM holds, so nothing to
 	// release here. A booked one is the client's — it was reserved through
@@ -517,6 +530,37 @@ func (p *Pack) attachMachineToNetwork(ctx context.Context, server, pn *resource.
 		return err
 	}
 	return nil
+}
+
+// detachMachineFromNetwork takes the backing machine off the backing network,
+// the exact undo of attachMachineToNetwork.
+//
+// It degrades quietly for the same reason the attach does: with no runtime, or
+// with a machine that never started, there is nothing to detach and the NIC
+// still goes. A refusal is logged rather than returned, because the control
+// plane has already decided the NIC is gone; what must not happen is the
+// silence this replaced, where nothing was even attempted.
+func (p *Pack) detachMachineFromNetwork(ctx context.Context, nic *resource.Resource) {
+	if p.env.Machines == nil {
+		return
+	}
+	server, ok := p.env.Store.Get(Name, kindServer, nic.Runtime[runtimeServerKey])
+	if !ok {
+		return
+	}
+	pn, ok := p.env.Store.Get(Name, kindPrivateNetwork, nic.Runtime[runtimePrivateNetworkKey])
+	if !ok {
+		return
+	}
+	machineName := server.Runtime[runtimeMachineKey]
+	networkName := pn.Runtime[runtimeNetworkKey]
+	if machineName == "" || networkName == "" {
+		return
+	}
+	if err := p.env.Machines.Detach(ctx, machineName, networkName); err != nil {
+		p.logger().Error("could not detach the machine from the private network",
+			"private_nic", nic.ID, "server", server.ID, "private_network", pn.ID, "error", err)
+	}
 }
 
 // privateNICView is the wire shape, and it carries no address on purpose:

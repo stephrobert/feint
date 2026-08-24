@@ -686,7 +686,7 @@ func (p *Pack) releaseServerResources(ctx context.Context, id, zone string) {
 		p.detachStoredVolume(vol)
 	}
 	for _, nic := range p.privateNICsOf(id) {
-		p.releaseNIC(nic)
+		p.releaseNIC(ctx, nic)
 	}
 	p.releaseAddressesOf(ctx, id, zone)
 }

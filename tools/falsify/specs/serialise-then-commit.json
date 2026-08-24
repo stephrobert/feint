@@ -44,8 +44,8 @@
     {
       "label": "a deleted server leaves its private NICs and their addresses behind",
       "file": "internal/providers/scaleway/servers.go",
-      "find": "\tfor _, nic := range p.privateNICsOf(id) {\n\t\tp.releaseNIC(nic)\n\t}",
-      "replace": "\tfor _, nic := range p.privateNICsOf(id) {\n\t\tif false {\n\t\t\tp.releaseNIC(nic)\n\t\t}\n\t}",
+      "find": "\tfor _, nic := range p.privateNICsOf(id) {\n\t\tp.releaseNIC(ctx, nic)\n\t}",
+      "replace": "\tfor _, nic := range p.privateNICsOf(id) {\n\t\tif false {\n\t\t\tp.releaseNIC(ctx, nic)\n\t\t}\n\t}",
       "test": "TestDeletingAServerReleasesItsPrivateNICs"
     },
     {

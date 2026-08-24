@@ -235,7 +235,7 @@ func (p *Pack) deletePrivateNetworkInterface(w http.ResponseWriter, r *http.Requ
 	unlock := p.binding().Serialise(res.Runtime[runtimeServerKey])
 	defer unlock()
 
-	p.releaseNIC(res)
+	p.releaseNIC(r.Context(), res)
 	w.WriteHeader(http.StatusNoContent)
 }
 

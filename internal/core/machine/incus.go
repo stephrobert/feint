@@ -653,6 +653,77 @@ func (d *Incus) Attach(ctx context.Context, name string, att Attachment) error {
 	return d.reconcileSecondary(ctx, name, device, att)
 }
 
+// Detach implements Driver.
+//
+// The measurement it exists for (#426). Before it, the Driver had Attach and no
+// counterpart, so a pack deleting a private NIC could only forget it in the
+// store: the `eth1` stayed on the container, DeletePrivateNetwork then ran
+// RemoveNetwork, Incus answered "The network is currently in use", the pack
+// logged that and still answered 204 — and the bridge, its dnsmasq and the
+// block it holds outlived the run. Read on the host rather than deduced: after
+// a 204 on DELETE .../private_nics/{id}, `incus config device show` still
+// listed the device, and after a 204 on the network, `incus network list` still
+// listed the bridge. That leftover is what fails the next run on "Address
+// already in use", which is what #316 sweeps, #342 names and #375 refuses.
+//
+// Both questions, because this reconfigures an instance and the two names come
+// from a stored resource that PUT /_feint/state restores verbatim:
+//
+//   - well formed: safeName on the machine and on the network;
+//   - ours: ownedNetwork on the network, mustOwnInstance on the machine. Only a
+//     device pointing at one of our own networks is ever removed, and only from
+//     an instance carrying our label. TestDetachRefusesAnInstanceItDoesNotOwn
+//     and TestDetachRefusesANetworkOutsideThePrefix fail without them.
+//
+// Only devices.own, never the expanded set: a NIC inherited from a profile
+// belongs to the profile, and removing it from the instance would reconfigure
+// something this emulator did not create.
+//
+// Absent is not refused. A machine already gone took its devices with it, and a
+// network no device names is the state this asks for, so both answer nil: the
+// NIC-release path runs on the server-delete door too, and the second run must
+// not fail. TestDetachIsQuietWhenThereIsNothingToDetach fails without that.
+func (d *Incus) Detach(ctx context.Context, name, network string) error {
+	if !safeName.MatchString(name) {
+		return fmt.Errorf("invalid machine name %q", name)
+	}
+	if !safeName.MatchString(network) || !ownedNetwork(network) {
+		return fmt.Errorf("refusing to detach from network %q: not one the emulator created", network)
+	}
+
+	// The same lock Attach takes, so an attach and a detach of one machine
+	// cannot interleave and free the device name under each other.
+	release := serialise.Lock("incus.attach." + name)
+	defer release()
+
+	if err := d.mustOwnInstance(ctx, name); err != nil {
+		if isNotFound(err) {
+			return nil
+		}
+		return err
+	}
+
+	devices, err := d.instanceDevices(ctx, name)
+	if err != nil {
+		if isNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("inspect %s before detaching: %w", name, err)
+	}
+	for device, cfg := range devices.own {
+		if cfg["type"] != "nic" || cfg["network"] != network {
+			continue
+		}
+		if _, err := d.run(ctx, "config", "device", "remove", name, device); err != nil {
+			if isNotFound(err) {
+				continue
+			}
+			return fmt.Errorf("detach %s from network %s: %w", name, network, err)
+		}
+	}
+	return nil
+}
+
 // reconcileSecondary makes the interface carry exactly att.Secondary beside its
 // primary address: the ones that arrived are added, the ones that left are
 // removed.

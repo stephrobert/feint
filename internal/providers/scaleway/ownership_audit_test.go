@@ -509,3 +509,6 @@ type refusingRuntime struct {
 func (r *refusingRuntime) Attach(context.Context, string, machine.Attachment) error {
 	return errors.New(`Failed to start device "eth1": PCI: slot 0 function 0 not available`)
 }
+
+// Detach implements machine.Driver; *refusingRuntime needs no behaviour here.
+func (r *refusingRuntime) Detach(context.Context, string, string) error { return nil }

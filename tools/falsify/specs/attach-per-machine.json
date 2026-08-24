@@ -4,8 +4,8 @@
     {
       "label": "interface allocation goes back to one global lock, so every attachment in the session queues behind whichever machine is slowest",
       "file": "internal/core/machine/incus.go",
-      "find": "\trelease := serialise.Lock(\"incus.attach.\" + name)",
-      "replace": "\trelease := serialise.Lock(\"incus.attach.\" + name[:0])",
+      "find": "\trelease := serialise.Lock(\"incus.attach.\" + name)\n\tdefer release()\n\n\t// A virtual machine is ready for a device once its agent answers, and not",
+      "replace": "\trelease := serialise.Lock(\"incus.attach.\" + name[:0])\n\tdefer release()\n\n\t// A virtual machine is ready for a device once its agent answers, and not",
       "test": "TestTwoMachinesAttachWithoutQueueing"
     }
   ],

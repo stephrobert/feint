@@ -38,6 +38,7 @@ func (d *recordingDriver) Inspect(_ context.Context, name string) (Machine, bool
 }
 func (d *recordingDriver) EnsureNetwork(context.Context, NetworkSpec) error { return nil }
 func (d *recordingDriver) Attach(context.Context, string, Attachment) error { return nil }
+func (d *recordingDriver) Detach(context.Context, string, string) error     { return nil }
 func (d *recordingDriver) RemoveNetwork(context.Context, string) error      { return nil }
 
 func bootBinding(driver Driver) Binding {

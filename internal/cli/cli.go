@@ -154,11 +154,23 @@ const (
 // lowers the figure. An addition to one existing verb; nothing was removed, no
 // exit code moved, and a pipeline keyed on version 14 keeps working.
 //
+// Version 16 adds `clean --format json` (#426): the sweep already knew what it
+// found and said it in prose that died with the run, so #316, #342, #375 and
+// #386 each fixed one symptom of one family with nobody able to see the family.
+// One JSON line per object — what it is, how this run knows it is ours, when it
+// was seen, why it is still there and what was done about it — makes "which
+// mechanism produces the most waste" a command rather than a reading of logs.
+// The `why` carries the value no return code reveals, a destruction that
+// reported success and left the object standing, found by reading the host
+// after the sweep instead of trusting the sweep. An addition to one existing
+// verb; nothing was removed, no exit code moved, and a pipeline keyed on
+// version 15 keeps working.
+//
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 15
+const cliSurfaceVersion = 16
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -487,7 +499,7 @@ Usage:
   feint catalog    [--format json]
                     Print the emulated inventory a client reads before creating.
 
-  feint clean      [--vm incus|incus-vm|incus-ovn] [--check]
+  feint clean      [--vm incus|incus-vm|incus-ovn] [--check] [--format text|json]
                     Remove every machine, network and rule set the emulator
                     created. Labelled resources only; nothing else is touched.
                     --check removes nothing: it names what a run left behind
