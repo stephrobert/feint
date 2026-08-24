@@ -823,7 +823,7 @@ are in `coverage/`, one artefact per provider.
 | `GET` | `/v2/quota/{name}` | `exoscale/v2.get-quota` | `no-client` |
 | `GET` | `/v2/quota` | `exoscale/v2.list-quotas` | `client` `contract` `shape` `runtime` `probe` |
 
-### Served, and driven by no client (19)
+### Served, and driven by no client (18)
 
 Mounted operations no official client reaches, each with the reason. They
 are not refusals: they answer, and the probe validates them against the
@@ -843,7 +843,6 @@ reason that outlived its cause.
 - `compute` — 1 operation — `exo compute load-balancer service update --description ""` sends only the healthcheck block it re-sends on every call, so this CLI clears no field by either route and the per-field DELETE is never issued
 - `compute` — 1 operation — `exo compute load-balancer show` resolves a balancer by name, which it does by listing and filtering in the client, so the per-id read has no caller among the published clients
 - `compute` — 1 operation — `exo compute load-balancer update --description ""` sends an empty body rather than the empty value, so this CLI clears no field by either route and the per-field DELETE is never issued
-- `compute` — 1 operation — `exo compute security-group show` resolves a group by name, which it does by listing and filtering in the client, so the per-id read is never called
 - `compute` — 1 operation — copying a template targets another zone, and this emulator serves exactly one, so the CLI has nothing to copy to and no subcommand that would ask
 - `compute` — 1 operation — the CLI's --from-snapshot promotes through export-snapshot and a URL, which this pack declines, so it never issues the promote call the SDK declares
 - `compute` — 1 operation — the list this pack serves is empty, because an emulated account owns no dedicated hardware, so no client ever holds an id to read

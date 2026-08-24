@@ -165,12 +165,18 @@ func (p *Pack) Routes() []emulator.Route {
 		// Security groups and their rules.
 		{Method: "POST", Path: "/v2/security-group", Operation: operation("create-security-group"), Handler: p.createSecurityGroup},
 		{Method: "GET", Path: "/v2/security-group", Operation: operation("list-security-groups"), Handler: p.listSecurityGroups},
-		// `exo compute security-group show` reads the list and filters it in the
-		// client, because a user names a group and the API keys it by id. The
-		// same holds for the elastic IP and the snapshot below: three reads
-		// served, and three the CLI has no reason to make (measured, #174).
-		{Method: "GET", Path: "/v2/security-group/{id}", Operation: operation("get-security-group"), Handler: p.getSecurityGroup,
-			Undriven: "`exo compute security-group show` resolves a group by name, which it does by listing and filtering in the client, so the per-id read is never called"},
+		// The elastic IP and the snapshot below are read by no client: `exo`
+		// names them and resolves the name by listing, so the per-id read is
+		// never made (measured, #174).
+		//
+		// The security group used to say the same, and it stopped being true on
+		// 2026-08-24: the shape fold (#407) handed the field gate real-cloud
+		// data for this operation, and the Exoscale suite gained a rule naming
+		// a group — which drives this read. The reason is removed rather than
+		// reworded, because TestEveryUndrivenOperationSaysWhy refuses a reason
+		// that outlived its cause: it reads as a decision, and it was one only
+		// while nobody called the route.
+		{Method: "GET", Path: "/v2/security-group/{id}", Operation: operation("get-security-group"), Handler: p.getSecurityGroup},
 		{Method: "DELETE", Path: "/v2/security-group/{id}", Operation: operation("delete-security-group"), Handler: p.deleteSecurityGroup},
 		{Method: "POST", Path: "/v2/security-group/{id}/rules", Operation: operation("add-rule-to-security-group"), Handler: p.addRuleToSecurityGroup},
 		{Method: "DELETE", Path: "/v2/security-group/{id}/rules/{rule}", Operation: operation("delete-rule-from-security-group"), Handler: p.deleteRuleFromSecurityGroup},
