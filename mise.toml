@@ -263,6 +263,21 @@ run = [
   "tools/conformance/exoscale/ssh.sh http://$FEINT_ADDR",
 ]
 
+[tasks."conformance:parity"]
+description = "The same request, on the three clouds: assert the machines match, by reading the host. Needs FEINT_VM=incus or incus-ovn"
+# Deliberately NOT in the `conformance` aggregate, and the reason is a
+# measurement rather than a preference: run against main on 2026-08-24 with
+# FEINT_VM=incus, it reports four divergences with one root cause — an Exoscale
+# instance carries 192.0.2.1 on eth0 that its own API publishes nowhere, so the
+# counts read scaleway=1/1 outscale=1/1 exoscale=2/2. Putting a red suite in the
+# aggregate would break the gate every other change is judged by, and the
+# reflex that teaches is the one .pre-commit-config.yaml already refuses.
+#
+# It runs here, on demand, until that address is either published or not
+# allocated. Then it joins the aggregate — and the line above is the test of
+# whether it may.
+run = "tools/conformance/parity.sh http://$FEINT_ADDR"
+
 [tasks."conformance:crash"]
 description = "Kill a serving emulator and prove the crash policy: leftovers labelled, restart warns, clean sweeps to zero. Needs FEINT_VM=incus"
 depends = ["build"]

@@ -1159,6 +1159,42 @@ the runtime carries one address on one machine whatever the pack's API allows â€
 Scaleway moving a flexible IP on request, Outscale refusing without `AllowRelink`,
 Exoscale accepting both holders.
 
+### An Exoscale instance carries an address its API publishes nowhere (measured 2026-08-24)
+
+`tools/conformance/parity.sh` drives one equivalent request through the three
+providers' own surfaces and counts what the **host** carries, read from the
+runtime rather than from the API under test. Run against `main` on 2026-08-24
+with `FEINT_VM=incus`, it reports four divergences with a single root cause.
+
+| row | scaleway | outscale | exoscale |
+|---|---|---|---|
+| a machine on a private network, no public address asked for | 1 iface / 1 addr | 1 / 1 | **2 / 2** |
+| the same, one public address explicitly requested | 1 / 2 | 1 / 2 | **2 / 3** |
+
+The extra address is `192.0.2.1` on `eth0`. The instance's own read answers
+`public_ip: null`, and no other field of the API names it, so it is carried and
+published nowhere. It is present from boot: the first run aborted before any
+Elastic IP existed and already measured `2/2`, which rules out a leftover from
+an earlier attachment.
+
+Two things follow, and the second is the reason this is written here rather than
+fixed in passing:
+
+- **The parity claim itself is sound.** Remove that one address and all four
+  findings go: both rows read the same interface and address counts on the three
+  clouds, and the orphan check reads zero. The equality this suite asserts is not
+  too strong for Exoscale.
+- **What the fix should be is a product decision, not a patch.** Either the
+  machine must not carry the address, or the API must publish it â€”
+  `machines.go` states the intent ("Exoscale's eth0 is the public interface, the
+  address this pack publishes as public-ip is the primary interface's"), and the
+  measurement says the published half is missing. Choosing costs a reading of
+  what a real Exoscale instance answers when no Elastic IP is attached.
+
+Until then `mise run conformance:parity` runs on demand and is deliberately not
+in the `conformance` aggregate: a red suite inside the gate every other change is
+judged by teaches people to skip the gate.
+
 ## Subnet isolation depends on the runtime mode
 
 Upstream, two private networks of two different VPCs do not reach each other.
