@@ -9,11 +9,10 @@
 #
 # The endpoint carries /api/v1 on purpose. octl reads it from osc-sdk-go, whose
 # default endpoint is https://api.<region>.outscale.com/api/v1, so the path is
-# part of the value — the opposite of the archived oapi-cli (#460). The old
-# comment that used to stand here said "bare host", and it was right about the
-# client it named.
-# itself, so passing http://host/api/v1 asks for /api/v1/api/v1/<Call> and gets a
-# 404 that looks exactly like a missing route.
+# part of the value — the opposite of the archived oapi-cli (#460), which
+# appended /api/v1/<Call> itself and had to be given the bare host. Passing octl
+# the bare host makes it post /<Call> at the root, a 404 that looks exactly like
+# a missing route.
 set -euo pipefail
 
 ENDPOINT="${FEINT_DEMO_ENDPOINT:-http://127.0.0.1:4599}"

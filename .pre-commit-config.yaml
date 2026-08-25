@@ -184,7 +184,7 @@ repos:
       # in CI on 2026-08-15.
       #
       # Why these four and not `mise run conformance`: they are deterministic,
-      # offline, and take seconds. Conformance needs `scw`, `oapi-cli`, `exo` and
+      # offline, and take seconds. Conformance needs `scw`, `octl`, `exo` and
       # Terraform installed and takes minutes; as a hook it would fail on a
       # missing binary rather than on the code, and the reflex it would teach is
       # `--no-verify`, which turns off every hook in this file at once. That is

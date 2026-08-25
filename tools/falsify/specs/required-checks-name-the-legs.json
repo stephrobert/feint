@@ -1,0 +1,19 @@
+{
+  "package": "./tools/conformance/",
+  "mutations": [
+    {
+      "label": "a required status check names a leg the matrix does not have, which is how a renamed job stops being required (#460)",
+      "file": ".github/rulesets/main.json",
+      "find": "            \"context\": \"octl\"",
+      "replace": "            \"context\": \"octl-legacy\"",
+      "test": "TestEveryRequiredConformanceCheckIsAMatrixLeg"
+    },
+    {
+      "label": "the matrix leg is renamed and the ruleset is left behind, the exact defect this control was written for (#460)",
+      "file": ".github/workflows/conformance.yml",
+      "find": "        client: [scw-cli, terraform, opentofu, octl, exo-cli, probe, fields]",
+      "replace": "        client: [scw-cli, terraform, opentofu, octl-renamed, exo-cli, probe, fields]",
+      "test": "TestEveryRequiredConformanceCheckIsAMatrixLeg"
+    }
+  ]
+}

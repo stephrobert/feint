@@ -79,7 +79,7 @@
             "context": "exo-cli"
           },
           {
-            "context": "oapi-cli"
+            "context": "octl"
           },
           {
             "context": "opentofu"
