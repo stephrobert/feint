@@ -41,7 +41,16 @@ type FirewallRule struct {
 	Direction string
 	// Action is "allow", "drop" or "reject". Drop is silent, reject answers.
 	Action string
-	// Protocol is "tcp", "udp", "icmp4", or empty for any.
+	// Protocol is "tcp", "udp", an ICMP spelling, or empty for any.
+	//
+	// ICMP does not name an address family here, and a driver must not read one
+	// into it: "icmp" and "icmp4" are both the family-agnostic spelling, because
+	// "icmp4" is the runtime's wire name for the IPv4 protocol rather than a
+	// claim any pack makes — Scaleway's only value is "ICMP". A driver picks the
+	// family from Source and Destination, and the explicit v6 spellings
+	// ("icmp6", "icmpv6", "ipv6-icmp") are the ones that fix it. Reading the
+	// name alone is #454: an ICMP rule sourced from an IPv6 block was written as
+	// the IPv4 protocol and the daemon refused the group's whole rule set.
 	Protocol string
 	// Source is the block traffic comes from, for an ingress rule.
 	Source string

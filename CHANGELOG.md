@@ -103,6 +103,62 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **A security group carrying an ICMP rule with an IPv6 source keeps its
+  firewall, and a rule set the host refuses stops reading as a success** (#454).
+  Replaying the fifteen third-party stacks of `examples/stacks/surveyed.md`
+  under `--vm incus-ovn` found it; `sergelogvinov/terraform-talos` ships
+  `whitelist_admins = ["0.0.0.0/0", "::/0"]`, so a dual-stack admin whitelist is
+  what a stack brings rather than an edge case.
+
+  **Measured on this station, Incus 7.2 with OVN, on the campaign's own reduced
+  witness: two groups identical but for one rule.** Before, group A described
+  one rule and enforced one; group B described two and enforced **one**, its
+  ICMP rule simply absent, with three
+  `Cannot use IPv6 source addresses with "icmp4" protocol` refusals in the
+  emulator's log and `capabilities.firewall: true` published the whole time.
+  Worse than the count: the machine carrying group B held **no rule set at all**
+  on its interface, because the pack returns before attaching when the write
+  fails, so a deny-default group left its machine unfiltered. After, A is 1/1
+  and B is 2/2, the second rule written `protocol: icmp6, source: ::/0`, both
+  machines carrying their rule set, and no failure in the log.
+
+  **The cause is one line and the all-or-nothing write beside it.**
+  `toACLRule` chose the ACL protocol from the rule's own name
+  (`case "icmp", "icmp4"`) and never read the address family, while
+  `EnsureFirewall` writes the whole set in one PUT — deliberately, so a revoked
+  rule disappears. One inexpressible rule therefore cost every rule of its
+  group, and the API went on describing all of them: the function's own comment
+  promised the opposite ("reports false for a rule the runtime cannot express,
+  which the caller drops rather than approximating"), which is this
+  repository's "a comment is not a control" pattern in the layer that acts on
+  the operator's host.
+
+  The family now comes from the rule's addresses: an IPv6 source or destination
+  yields `icmp6`, an IPv4 one `icmp4`, and the `icmp6` / `icmpv6` / `ipv6-icmp`
+  spellings are understood. `icmp` and `icmp4` both stay family-agnostic on
+  purpose — `icmp4` is the runtime's wire name, not a claim any pack makes, and
+  Scaleway's only value is `ICMP` — so a rule that fixes no family at all
+  becomes **two** rules, one per family, because that is what "ICMP from
+  anywhere" means. A rule no protocol expresses (both families in one rule, a
+  name contradicting its addresses, an address that cannot be read) is dropped
+  **alone** and reported at WARN naming the rule set and the rule, which is what
+  "visibly absent" was supposed to mean.
+
+  **And a limit moved, observable on `/_feint/health`:
+  `capabilities.firewall` can now go false during a run.** A rule set the host
+  refuses is the host answering that this process does not enforce what its API
+  describes, so the claim is withdrawn and said in the log. It is one-way, and
+  only a refusal *by the host* counts: a name this driver refuses itself never
+  reached the daemon and arrives from a restorable snapshot, which would
+  otherwise hand a crafted state file a switch on a published claim.
+
+  Falsified nine ways (`tools/falsify/specs/icmp-family.json`), including the
+  name-only mapping restored, the twin expansion removed, the withdrawal
+  disarmed, and the own-guard refusal made to count as the host's; all nine go
+  red. The unit witness drives `EnsureFirewall` through the injectable `runner`
+  against a fake daemon that reproduces Incus's own refusal, so the test
+  measures whether the write is *accepted* rather than how it is spelled.
+
 - **A Net with three subnets or more peers under OVN, and a host already
   carrying the state that stopped it is reconciled** (#456). Replaying the
   fifteen third-party stacks under `--vm incus-ovn` cost the register its
