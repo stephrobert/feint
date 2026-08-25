@@ -26,11 +26,19 @@ func clean(args []string, stdout io.Writer) error {
 	check := fs.Bool("check", false, "report what this user cannot remove and remove nothing; exit 1 if anything is stuck")
 	format := fs.String("format", "text", "output format: text, or json for one aggregatable line per object found")
 	doorstep := fs.Bool("doorstep", false, "also refuse a machine or network of an earlier run; only true before a run starts, because a run in flight owns both")
+	force := fs.Bool("force", false, "also clear what no ordinary command of the runtime reaches: the peering rows a deleted network left behind, named one by one before they go")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *format != "text" && *format != "json" {
 		return fmt.Errorf("unknown format %q: text or json", *format)
+	}
+	// Two flags that mean opposite things, and a caller who typed both wants
+	// something neither does. Refused rather than resolved in one direction:
+	// guessing here would either remove a database row somebody meant to be
+	// shown, or silently not remove one somebody meant to go.
+	if *check && *force {
+		return fmt.Errorf("--check removes nothing and --force removes what nothing else can: ask for one of the two")
 	}
 	led := newLedger(stdout, *format == "json", time.Now())
 	if *check {
@@ -55,6 +63,18 @@ func clean(args []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
+
+	// Before the sweep, deliberately: what --force clears is exactly what makes
+	// the sweep below fail. A peering row whose target network is gone refuses
+	// every operation on the network holding it — the detach, the peer delete
+	// and the delete itself — so sweeping first would report the same five
+	// objects the issue's reproduction reports and change nothing (#455).
+	if *force {
+		if err := clearRuntimeTraps(stdout, led, driver); err != nil {
+			return err
+		}
+	}
+
 	pruner, ok := driver.(machine.Pruner)
 	if !ok {
 		// --vm off has no runtime, so there is nothing to sweep and that is not a
@@ -219,10 +239,45 @@ func reportStuckLeftovers(stdout io.Writer, led *ledger, vm string, doorstep boo
 	//
 	// TestTheDoorstepRefusesAHostHoldingAPreviousRunsNetwork and
 	// TestTheLeftoverCheckMidRunIgnoresTheRunsOwnObjects fail without this.
+	// The runtime is resolved once, here, and handed to both questions below.
+	// It used to be resolved inside the doorstep alone, which is why a check
+	// without --doorstep never touched the runtime at all — and why it answered
+	// 0 in silence on the station of #455.
+	//
+	// A runtime that will not resolve is not a clean host and the caller must
+	// not read it as one, so this fails rather than skipping: the same position
+	// refuseRuntimeLeftovers already took for the doorstep.
+	driver, err := resolveDriver(vm, stdout)
+	if err != nil {
+		led.record(leftoverRecord{Kind: "survey", Name: vm, Attribution: "none",
+			Stage: stageDoorstep, Why: whyUnreadable, Action: actionNone})
+		return fmt.Errorf("could not ask the %s runtime what a previous run left: %w", vm, err)
+	}
+
 	if doorstep {
-		if err := refuseRuntimeLeftovers(stdout, led, vm); err != nil {
+		if err := refuseRuntimeLeftovers(stdout, led, vm, driver); err != nil {
 			return err
 		}
+	}
+
+	// And the states no sweep can leave, asked at every check rather than only
+	// at the doorstep (#455).
+	//
+	// The distinction that makes this safe mid-run is not the flag, it is the
+	// question: every state named here is one no healthy run ever produces. A
+	// rule set attached to a network is *not* one of them — IsolateNetwork
+	// attaches one to every OVN network with a neighbour to keep out, so a check
+	// that refused on it would fail every healthy run, which is precisely how
+	// #426's doorstep learned to fire on hosts nothing was going to fail on.
+	// What is reported is the rule set held by a network that is itself trapped.
+	//
+	// TestCleanCheckReportsADanglingPeerRow, TestCleanCheckReportsAStrippedUplink
+	// and TestCleanCheckReportsARuleSetHeldByATrappedNetwork fail without it;
+	// TestCleanCheckStaysQuietOnARuntimeNothingHoldsBeyondItsSweep is the
+	// accepting half, and it is the one that keeps this usable mid-run.
+	trapped, err := reportRuntimeTraps(stdout, led, driver)
+	if err != nil {
+		return err
 	}
 
 	leftovers, err := findLeftoverDHCP()
@@ -231,7 +286,7 @@ func reportStuckLeftovers(stdout io.Writer, led *ledger, vm string, doorstep boo
 	}
 	if len(leftovers) == 0 {
 		led.prose("no DHCP service of this emulator's outlives its network on this host\n")
-		return nil
+		return trapFailure(trapped, vm)
 	}
 	var stuck []machine.DHCPLeftover
 	for _, leftover := range leftovers {
@@ -252,7 +307,7 @@ func reportStuckLeftovers(stdout io.Writer, led *ledger, vm string, doorstep boo
 	}
 	if len(stuck) == 0 {
 		led.prose("  → feint clean --vm %s ends them\n", vm)
-		return nil
+		return trapFailure(trapped, vm)
 	}
 	for _, leftover := range stuck {
 		if leftover.InterfaceAlive {
@@ -331,4 +386,19 @@ func sweepLeftoverDHCP(stdout io.Writer, led *ledger, vm string) error {
 			len(stuck), strings.Join(stuck, "; "), vm)
 	}
 	return nil
+}
+
+// trapFailure turns the trap count into this command's verdict, and it is
+// separate so the DHCP half keeps its own three verdicts unchanged.
+//
+// Non-zero, always, and that is the whole of #455's third point: `feint clean
+// --check` answered 0 in silence on a station carrying two networks and two rule
+// sets that no command could remove. A check whose "all clear" does not cover
+// the objects the sweep handles reads as proof and is not one.
+func trapFailure(trapped int, vm string) error {
+	if trapped == 0 {
+		return nil
+	}
+	return fmt.Errorf("%d state(s) on this runtime are beyond an ordinary command and were named above; "+
+		"`feint clean --force --vm %s` clears what it can, after naming every row it removes", trapped, vm)
 }

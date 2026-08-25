@@ -17,6 +17,61 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Unreleased]
 
+### Corrigé
+
+- **Un balayage ne piège plus l'hôte qu'il nettoie, et `feint clean --force`
+  libère un hôte déjà piégé** (#455). Quinze stacks tierces rejouées sous
+  `--vm incus-ovn` ont laissé deux réseaux OVN, deux jeux de règles et l'uplink
+  sur une station où **aucune commande `incus` ne pouvait en retirer un seul**,
+  et le fossoyeur était le balayage, pas le run suivant.
+
+  La cause amont est le schéma d'Incus lui-même : des trois références que porte
+  `networks_peers`, seule `target_network_id` n'a pas de cascade. Supprimer la
+  cible d'un peering laisse donc la ligne derrière, tenant un identifiant qui ne
+  résout plus rien. Toute opération sur le réseau survivant échoue alors sur
+  `Failed loading target network: Network not found`, y compris la suppression
+  de peering qui la réparerait. `incus network peer edit` rend 0 et ne persiste
+  rien ; la 7.3 n'y change rien. Reproduit sur cette station, refus par refus,
+  dans `docs/limits.md`.
+
+  Trois comportements de cet émulateur transformaient cela en état permanent, et
+  les trois sont désormais prévenus plutôt que réparés : `Prune` retirait les
+  `ipv4.routes` de `feint-uplink` au passage, parce que l'uplink porte la même
+  étiquette que le reste, et toute voie de gestion des réseaux qui en dépendent
+  échouait ensuite à la validation ; rien ne détachait `security.acls` avant de
+  supprimer un réseau que le jeu de règles retient et qui retient le jeu de
+  règles ; rien ne supprimait la moitié qu'un peering laisse sur sa **cible
+  survivante**, ce qui fabrique l'identifiant mort. L'uplink quitte maintenant
+  le chemin ordinaire et part en dernier, routes intactes ; un jeu de règles est
+  détaché avant la suppression et remis en place si la suppression refuse
+  toujours ; les deux moitiés de chaque peering partent avant le réseau.
+
+  Pour une station qui porte déjà l'état, **`feint clean --force`** retire la
+  ligne par `incus admin sql`, le mécanisme supporté d'Incus et non une édition
+  dans le dos du démon, après l'avoir imprimée entière pour qu'elle soit
+  réinsérable. Elle n'est retirée **que si le réseau auquel elle appartient
+  porte l'étiquette que cet émulateur a lui-même posée** : la ligne pendante
+  d'un tiers est la même table, la même forme et la même cible morte, et un
+  `--force` capable de l'atteindre serait un défaut pire que celui qu'il répare.
+  `TestForceLeavesAThirdPartysDanglingPeerAlone` en est le témoin, et
+  `tools/falsify/specs/trapped-station.json` prouve que les gardes mordent :
+  quinze mutations, toutes rouges. La paire a aussi été jouée une fois contre
+  le vrai runtime, où la ligne plantée sur un pont nommé `fnt-lab` était encore
+  là ensuite.
+
+- **`feint clean --check` rapporte les états qu'aucun balayage ne peut quitter,
+  et sort en 1 dessus** (#455). Il répondait 0 en silence pendant toute la durée
+  du blocage ci-dessus, parce que sans `--doorstep` il n'interrogeait que les
+  services DHCP orphelins. Il nomme désormais une ligne de peering dont la cible
+  ne résout plus, un réseau de l'émulateur dont l'uplink ne porte plus le bloc,
+  et un jeu de règles attaché à un réseau déjà piégé par l'un des deux.
+
+  Ce troisième état n'est délibérément pas la forme nue « un jeu de règles est
+  attaché à un réseau » : `IsolateNetwork` en attache un à chaque réseau OVN
+  ayant un voisin à tenir dehors, donc la forme nue refuserait tout run sain.
+  C'est ainsi que le pas de la porte de #426 s'était mis à se déclencher sur des
+  hôtes où rien n'allait échouer, et c'est ainsi qu'un contrôle finit désarmé.
+
 ### Ajouté
 
 - **La stack Exoscale a une suite qui la pilote**

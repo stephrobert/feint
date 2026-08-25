@@ -200,6 +200,7 @@ func swapProbeSeam(t *testing.T, can func(machine.DHCPLeftover) error) {
 // anything would be a check with a side effect, and the side effect in question
 // is a signal to a process this run did not start.
 func TestCleanCheckRefusesAHostWhoseLeftoverThisUserCannotEnd(t *testing.T) {
+	noRuntime(t)
 	survivor := machine.DHCPLeftover{
 		PID:            612421,
 		Interface:      "fnt-99109f524b2",
@@ -234,6 +235,7 @@ func TestCleanCheckRefusesAHostWhoseLeftoverThisUserCannotEnd(t *testing.T) {
 // A doorstep that fired on a host nothing was going to fail on is a doorstep
 // somebody disarms, which is the failure mode this whole issue is about.
 func TestCleanCheckPassesWhenTheSweepItselfWouldClearThem(t *testing.T) {
+	noRuntime(t)
 	swapLeftoverSeams(t,
 		func() ([]machine.DHCPLeftover, error) { return []machine.DHCPLeftover{aLeftover}, nil },
 		func(machine.DHCPLeftover) error { t.Fatal("a check signalled a process"); return nil })
@@ -256,6 +258,7 @@ func TestCleanCheckPassesWhenTheSweepItselfWouldClearThem(t *testing.T) {
 // fine" and "never looked" must not read the same, and the caller of this one
 // is a shell guard whose only alternative to reading it is assuming.
 func TestCleanCheckSaysSoOnAHostWithNothingLeftBehind(t *testing.T) {
+	noRuntime(t)
 	swapLeftoverSeams(t,
 		func() ([]machine.DHCPLeftover, error) { return nil, nil },
 		func(machine.DHCPLeftover) error { t.Fatal("a check signalled a process"); return nil })

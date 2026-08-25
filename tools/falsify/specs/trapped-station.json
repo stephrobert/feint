@@ -1,0 +1,113 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the repair stops asking whose network a peering row belongs to, and a third party's row is as reachable as ours",
+      "file": "internal/core/machine/incus_traps.go",
+      "find": "\tvar cleared []Trap\n\tvar failures []string\n\tfor _, row := range rows {\n\t\tif !row.Dangling || !row.Ours {",
+      "replace": "\tvar cleared []Trap\n\tvar failures []string\n\tfor _, row := range rows {\n\t\tif !row.Dangling || (!row.Ours && false) {",
+      "test": "TestForceLeavesAThirdPartysDanglingPeerAlone"
+    },
+    {
+      "label": "the survey stops asking it too, so a check names rows nobody here made and an operator is told to force them away",
+      "file": "internal/core/machine/incus_traps.go",
+      "find": "\ttrapped := map[string]bool{}\n\tfor _, row := range rows {\n\t\tif !row.Dangling || !row.Ours {",
+      "replace": "\ttrapped := map[string]bool{}\n\tfor _, row := range rows {\n\t\tif !row.Dangling || (!row.Ours && false) {",
+      "test": "TestTrapsNameADanglingPeerRowOfOurOwn"
+    },
+    {
+      "label": "the uplink goes back into the ordinary network path, which is the line that made the residue of #455 permanent",
+      "file": "internal/core/machine/incus_prune.go",
+      "find": "\tfor _, name := range networks {\n\t\tif name == uplink {\n\t\t\tuplinkPresent = true\n\t\t\tcontinue\n\t\t}",
+      "replace": "\tfor _, name := range networks {\n\t\tif name == uplink && false {\n\t\t\tuplinkPresent = true\n\t\t\tcontinue\n\t\t}",
+      "test": "TestPruneNeverStripsTheUplinkRoutesWhileItsNetworksStand"
+    },
+    {
+      "label": "the sweep stops removing the half a peering leaves on its surviving target, which is what manufactures the row nothing can repair",
+      "file": "internal/core/machine/incus_prune.go",
+      "find": "\t\tif d.ownsPeerTarget(ctx, peer.Target) {",
+      "replace": "\t\tif d.ownsPeerTarget(ctx, peer.Target) && false {",
+      "test": "TestPruneDropsTheSurvivingHalfOfEveryPeering"
+    },
+    {
+      "label": "the same withdrawal seen from the teardown a client drives, where a delete that succeeds is what leaves the neighbour holding a dead id",
+      "file": "internal/core/machine/incus_prune.go",
+      "find": "\t\tif d.ownsPeerTarget(ctx, peer.Target) {",
+      "replace": "\t\tif d.ownsPeerTarget(ctx, peer.Target) && false {",
+      "test": "TestRemoveNetworkDeletesTheSurvivingHalfOfItsPeerings"
+    },
+    {
+      "label": "the peering half is deleted on any target the runtime names, well formed being taken for authorised again",
+      "file": "internal/core/machine/incus_prune.go",
+      "find": "\t\tif d.ownsPeerTarget(ctx, peer.Target) {",
+      "replace": "\t\tif d.ownsPeerTarget(ctx, peer.Target) || true {",
+      "test": "TestPruneRefusesToTouchAPeeringHalfOnAForeignNetwork"
+    },
+    {
+      "label": "the far end of a peering is judged by its name alone, so a stranger's network called fnt-lab is reconfigured by a check that looked thorough because it had three clauses",
+      "file": "internal/core/machine/incus_prune.go",
+      "find": "\treturn d.mustOwn(ctx, target) == nil\n}",
+      "replace": "\treturn d.mustOwn(ctx, target) == nil || true\n}",
+      "test": "TestPruneRefusesAPeeringHalfOnAStrangersNetworkNamedLikeOurs"
+    },
+    {
+      "label": "nothing detaches the rule set before the delete, so the rule set and its network hold each other with no exit",
+      "file": "internal/core/machine/incus_prune.go",
+      "find": "\tattached := strings.TrimSpace(string(out))\n\tif attached == \"\" {\n\t\treturn nothing\n\t}",
+      "replace": "\tattached := strings.TrimSpace(string(out))\n\tif attached == \"\" || attached != \"\" {\n\t\treturn nothing\n\t}",
+      "test": "TestPruneDetachesTheRuleSetHoldingANetwork"
+    },
+    {
+      "label": "the sweep detaches a rule set and leaves it off when the delete then fails, which is a firewall disarmed on a network still standing",
+      "file": "internal/core/machine/incus_prune.go",
+      "find": "\t\t\tif _, err := d.run(ctx, \"network\", \"delete\", name); err != nil && !isNotFound(err) {\n\t\t\t\treattach(ctx)",
+      "replace": "\t\t\tif _, err := d.run(ctx, \"network\", \"delete\", name); err != nil && !isNotFound(err) {\n\t\t\t\tif false {\n\t\t\t\t\treattach(ctx)\n\t\t\t\t}",
+      "test": "TestPruneNeverStripsTheUplinkRoutesWhileItsNetworksStand"
+    },
+    {
+      "label": "the same on the teardown path, where the network that survives is the one a client still has machines on",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\t\t\treturn d.afterNetworkDelete(ctx, name, block)\n\t\t\t}\n\t\t\treattach(ctx)",
+      "replace": "\t\t\t\treturn d.afterNetworkDelete(ctx, name, block)\n\t\t\t}\n\t\t\tif false {\n\t\t\t\treattach(ctx)\n\t\t\t}",
+      "test": "TestRemoveNetworkDetachesTheRuleSetThatHoldsIt"
+    },
+    {
+      "label": "the sweep no longer puts back a block the uplink lost, so a station a previous sweep stripped stays beyond every command",
+      "file": "internal/core/machine/incus_prune.go",
+      "find": "\tif uplinkPresent {\n\t\tif err := d.restoreDelegations(ctx); err != nil {",
+      "replace": "\tif uplinkPresent && false {\n\t\tif err := d.restoreDelegations(ctx); err != nil {",
+      "test": "TestPruneRestoresABlockTheUplinkLost"
+    },
+    {
+      "label": "every attached rule set becomes a trap, which is the formulation that would refuse every healthy run and get this check disarmed",
+      "file": "internal/core/machine/incus_traps.go",
+      "find": "\t\tif !trapped[item.Name] || item.Config[\"user.\"+LabelKey] == \"\" {",
+      "replace": "\t\tif (!trapped[item.Name] && false) || item.Config[\"user.\"+LabelKey] == \"\" {",
+      "test": "TestTrapsAreSilentOnAHealthyOVNRun"
+    },
+    {
+      "label": "the copy of the row a repair prints stops asking how long the answer is, and the one command that gets a station out of trouble panics on a database that answered differently",
+      "file": "internal/core/machine/incus_traps.go",
+      "find": "func sqlAny(row []any, at int) any {\n\tif at >= len(row) {",
+      "replace": "func sqlAny(row []any, at int) any {\n\tif at >= len(row) && false {",
+      "test": "TestAShortDatabaseAnswerIsInertRatherThanFatal"
+    },
+    {
+      "label": "the check finds the trap and still exits 0, which is the state the whole issue was reported from",
+      "file": "internal/cli/clean.go",
+      "find": "func trapFailure(trapped int, vm string) error {\n\tif trapped == 0 {\n\t\treturn nil\n\t}",
+      "replace": "func trapFailure(trapped int, vm string) error {\n\tif trapped == 0 || trapped > 0 {\n\t\treturn nil\n\t}",
+      "test": "TestCleanCheckReportsADanglingPeerRow",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "the check stops asking the runtime what holds it, the exact shape it was in when it answered 0 on a station nothing could clean",
+      "file": "internal/cli/clean.go",
+      "find": "\ttrapped, err := reportRuntimeTraps(stdout, led, driver)\n\tif err != nil {\n\t\treturn err\n\t}",
+      "replace": "\ttrapped, err := reportRuntimeTraps(stdout, led, driver)\n\ttrapped = 0\n\tif err != nil {\n\t\treturn err\n\t}",
+      "test": "TestCleanCheckReportsAStrippedUplink",
+      "package": "./internal/cli/"
+    }
+  ],
+  "note": "The subject is #455. Fifteen third-party stacks replayed under --vm incus-ovn left two OVN networks, two rule sets and the uplink on the maintainer's station, and no incus command could remove any of them; the repair took two hours by hand and one statement against the runtime's own database. Three mechanisms lock together and each has its mutation here: the sweep stripped the uplink's routes because feint-uplink carries the same label as everything else (3), nothing detached security.acls before a delete Incus refuses in both directions (8), and nothing removed the half a peering leaves on its surviving target (4, 5) — that last one binds a network *id*, so recreating the target under the same name does not satisfy it and the source network is unmanageable for ever.\n\nMutations 1 and 2 are the ones to read twice. `clean --force` reaches past every command Incus offers, into networks_peers, and a dangling row of an operator's own looks exactly like ours: same table, same shape, same dead target. The only thing that separates them is the label this emulator wrote on the network the row belongs to, which is mustOwn applied to a database. Without that filter the feature is rm -rf with a friendly name, and mutation 1 is what says so out loud.\n\nMutations 6, 7, 9, 10 and 12 are the false-positive half, and they matter as much as the rest. 6 and 7 are `well-formed is not authorised` on a name that arrives from the runtime and becomes an argument aimed at another network: 6 is the syntax and the prefix, which refuse incusbr0 — the name an audit obtained `incus network delete incusbr0` from the last time — and 7 is the label, which is the only clause a stranger cannot satisfy by choosing a name, since `fnt-` is a prefix anybody may type. 9 and 10 hold the restore: a detach whose delete then fails must be undone, or the sweep has disarmed the isolation of a network that is still standing. 12 is the anti-noise property: `a rule set is attached to a network` is the normal state of every isolated OVN network, since IsolateNetwork ends by attaching one, so reporting the bare form would refuse every healthy run — which is exactly how #426's doorstep learned to fire on hosts nothing was going to fail on.\n\nMutation 13 is the smallest and the least glamorous: the copy of the database row a repair prints indexed a decoded JSON array past its end. The answer comes from another process, so its length is not this code's to assume, and a panic in the one command an operator runs to get a station out of trouble is the worst place for one."
+}

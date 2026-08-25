@@ -17,6 +17,58 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **A sweep no longer traps the host it is cleaning, and `feint clean --force`
+  frees a host already trapped** (#455). Fifteen third-party stacks replayed
+  under `--vm incus-ovn` left two OVN networks, two rule sets and the uplink on
+  a station where **no `incus` command could remove any of them**, and the
+  eraser was the sweep rather than the next run.
+
+  The upstream cause is Incus' own schema: of the three references
+  `networks_peers` carries, only `target_network_id` has no cascade, so deleting
+  a peering's *target* leaves the row behind holding an id that resolves to
+  nothing. Every operation on the surviving network then fails on
+  `Failed loading target network: Network not found` — the peer delete that
+  would repair it included. `incus network peer edit` returns 0 and persists
+  nothing; 7.3 changes none of it. Reproduced on this station, refusal by
+  refusal, in `docs/limits.md`.
+
+  Three things this emulator did turned that into permanence, and all three are
+  now prevented rather than repaired: `Prune` stripped `feint-uplink`'s
+  `ipv4.routes` on its way past, because the uplink carries the same label as
+  everything else, and every management path of the networks drawing from it
+  then failed validation; nothing detached `security.acls` before deleting a
+  network the rule set holds and that holds the rule set; and nothing removed
+  the half a peering leaves on its **surviving target**, which is what
+  manufactures the dead id. The uplink now leaves the ordinary path and goes
+  last with its routes intact, a rule set is detached before the delete and put
+  back if the delete still refuses, and both halves of every peering go before
+  the network does.
+
+  For a station already carrying the state, **`feint clean --force`** removes
+  such a row through `incus admin sql` — Incus' own supported mechanism, not an
+  edit behind the daemon's back — after printing it whole so it can be put back.
+  It removes a row **only when the network it belongs to carries the label this
+  emulator wrote**: an operator's dangling row is the same table, the same shape
+  and the same dead target, and a `--force` able to reach it would be a worse
+  defect than the one it repairs.
+  `TestForceLeavesAThirdPartysDanglingPeerAlone` is the witness, and
+  `tools/falsify/specs/trapped-station.json` proves the guards bite — fifteen
+  mutations, all red — and the pair was driven once against the real runtime,
+  where the row planted on a bridge named `fnt-lab` was still there afterwards.
+
+- **`feint clean --check` reports the states no sweep can leave, and exits 1 on
+  them** (#455). It answered 0 in silence for the whole duration of the block
+  above, because without `--doorstep` it only ever asked about orphaned DHCP
+  services. It now names a peering row whose target no longer resolves, a
+  network of the emulator's whose block the uplink no longer carries, and a rule
+  set attached to a network already trapped by either.
+
+  That third one is deliberately not the bare "a rule set is attached to a
+  network": `IsolateNetwork` attaches one to every OVN network with a neighbour
+  to keep out, so the bare form would refuse every healthy run — which is how
+  #426's doorstep once fired on hosts nothing was going to fail on, and how a
+  check gets disarmed.
+
 - **`scw instance security-group list-default-rules` reaches a rule set instead
   of a 404, a rule answers `dest_ip_range`, and a private NIC answers the date
   it last changed** (#431, #432, #436). Three shapes a real `fr-par` account

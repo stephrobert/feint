@@ -69,6 +69,19 @@ func withDriver(t *testing.T, d machine.Driver) {
 	t.Cleanup(func() { surveyRuntime = previousSurvey })
 }
 
+// noRuntime points the check at a runtime that answers no question at all.
+//
+// It exists because `feint clean --check` now resolves the runtime on every
+// call, not only at the doorstep (#455): a test that left the real resolver in
+// place would read the tester's own host, pass on a clean station and fail on a
+// dirty one, which is the "never assert an absolute on shared state" rule the
+// measurement-integrity skill states. Naming the runtime is how a test about
+// DHCP services says it is not about runtime objects.
+func noRuntime(t *testing.T) {
+	t.Helper()
+	withDriver(t, machine.Noop{})
+}
+
 // quietDHCP silences the real /proc scan: these tests are about runtime
 // objects, and a leftover on the tester's own station would fail them for the
 // station's reasons.

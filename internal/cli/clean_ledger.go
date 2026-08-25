@@ -62,6 +62,12 @@ type leftoverRecord struct {
 	Why string `json:"why"`
 	// Action is what this run did about it.
 	Action string `json:"action"`
+	// Row is the runtime's own record of an object, verbatim, and it appears
+	// only where a repair reaches past the runtime's commands to remove one
+	// (#455). Printing it is what makes the removal reversible by the operator
+	// rather than by trust, so it belongs on the line that records the removal
+	// and nowhere else.
+	Row string `json:"row,omitempty"`
 }
 
 // The vocabulary, closed on purpose: a free-text field cannot be grouped, and a
@@ -219,15 +225,10 @@ func (l *ledger) recordAll(left machine.Leftovers, stage, why, action string) {
 // so refusing on one by itself would fire on a host nothing was going to fail
 // on — which is how a doorstep gets disarmed, and is the lesson mutation 7 of
 // unkillable-dhcp-orphan.json holds.
-func refuseRuntimeLeftovers(out io.Writer, led *ledger, vm string) error {
-	driver, err := resolveDriver(vm, out)
-	if err != nil {
-		// A runtime that will not resolve is not a clean host, and the caller
-		// must not read this as one.
-		led.record(leftoverRecord{Kind: "survey", Name: vm, Attribution: "none",
-			Stage: stageDoorstep, Why: whyUnreadable, Action: actionNone})
-		return fmt.Errorf("could not ask the %s runtime what a previous run left: %w", vm, err)
-	}
+// The driver is resolved by the caller and passed in, since the check now asks
+// this runtime two questions rather than one and resolving it twice would let
+// them disagree about which host they are talking about.
+func refuseRuntimeLeftovers(out io.Writer, led *ledger, vm string, driver machine.Driver) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 

@@ -198,32 +198,36 @@ func (d *Incus) adoptUplink(ctx context.Context, config map[string]string) error
 
 // liveDelegations lists the blocks that must stay delegated to the uplink: the
 // block of every labelled OVN network still attached to it.
+//
+// It shares its reading with ovnNetworksOnUplink (incus_traps.go), which needs
+// the same list with the names kept. Two readings of "which of our networks
+// draw from this uplink" would drift apart, and the sweep now depends on the
+// two agreeing: it restores what the adopt would have kept.
 func (d *Incus) liveDelegations(ctx context.Context) ([]string, error) {
-	out, err := d.run(ctx, "query", "/1.0/networks?recursion=1")
+	views, err := d.networkViews(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("list networks to adopt uplink %s: %w", d.uplinkName(), err)
+		return nil, fmt.Errorf("adopt uplink %s: %w", d.uplinkName(), err)
 	}
-	var items []struct {
-		Name   string            `json:"name"`
-		Type   string            `json:"type"`
-		Config map[string]string `json:"config"`
+	networks := d.ovnNetworksOnUplink(views)
+	kept := make([]string, 0, len(networks))
+	for _, network := range networks {
+		kept = append(kept, network.Block)
 	}
-	if err := json.Unmarshal(out, &items); err != nil {
-		return nil, fmt.Errorf("decode networks to adopt uplink %s: %w", d.uplinkName(), err)
-	}
-	var kept []string
-	for _, item := range items {
-		if item.Type != "ovn" || item.Config["user."+LabelKey] == "" ||
-			item.Config["network"] != d.uplinkName() {
-			continue
-		}
-		prefix, err := netip.ParsePrefix(item.Config["ipv4.address"])
-		if err != nil {
-			continue
-		}
-		kept = append(kept, prefix.Masked().String())
+	if len(kept) == 0 {
+		return nil, nil
 	}
 	return kept, nil
+}
+
+// maskedBlock renders an address with its prefix length as the block it sits
+// in, which is the form the uplink's ipv4.routes carries: 10.2.4.1/24 is the
+// gateway of 10.2.4.0/24, and it is the block that must be delegated.
+func maskedBlock(address string) (string, error) {
+	prefix, err := netip.ParsePrefix(address)
+	if err != nil {
+		return "", err
+	}
+	return prefix.Masked().String(), nil
 }
 
 // holderIsAlive reports that the pid recorded on the uplink still belongs to a

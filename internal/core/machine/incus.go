@@ -1235,9 +1235,14 @@ func leftoverHolds(leftover DHCPLeftover, block netip.Prefix) bool {
 //
 // A peering counts as "in use" too, and that one is not the client's business:
 // the emulator created it, so it goes first, and only then is a remaining
-// refusal a real dependency. The retry is deliberate — dropping the peers of a
-// network whose machines block the delete anyway would still be undone by the
-// next reconciliation, so nothing is lost by trying.
+// refusal a real dependency. Dropping the peers of a network whose machines
+// block the delete anyway would still be undone by the next reconciliation, so
+// nothing is lost by doing it up front — and doing it up front is what stops
+// this path from manufacturing the trap of #455 on the operator's station.
+//
+// A rule set counts as "in use" too, in both directions at once, and that cycle
+// has exactly one exit: detach, delete, and put the attachment back if the
+// delete still refuses.
 func (d *Incus) RemoveNetwork(ctx context.Context, name string) error {
 	// Ours, or nothing happens. This path had no check at all, not even safeName,
 	// and a restored state names the network it deletes.
@@ -1266,19 +1271,41 @@ func (d *Incus) RemoveNetwork(ctx context.Context, name string) error {
 			block = prefix.Masked().String()
 		}
 	}
+	// Both halves of every peering, and *before* the delete rather than on the
+	// refusal it may or may not produce. The half on the surviving target is the
+	// one that matters: the runtime's schema cascades a peer row's reference to
+	// its source network and not the one to its target, so a delete that
+	// succeeds while a neighbour still holds a half pointing here leaves that
+	// neighbour holding an id which resolves to nothing — and from then on the
+	// neighbour refuses every management path, the peer delete that would repair
+	// it included (#455). Doing it only on the "in use" retry would bet the
+	// station on peerings always making a network undeletable.
+	//
+	// Nothing is lost when the delete then fails on a machine still running: the
+	// reconciliation PeerNetworks performs restores the halves of a network that
+	// stays, which is the same reason the retry below was already allowed to
+	// drop them.
+	// TestRemoveNetworkDeletesTheSurvivingHalfOfItsPeerings fails without it.
+	if d.OVN {
+		d.dropPeerings(ctx, name)
+	}
 	if _, err := d.run(ctx, "network", "delete", name); err != nil {
 		if isNotFound(err) {
 			return d.afterNetworkDelete(ctx, name, block)
 		}
-		if d.OVN && strings.Contains(strings.ToLower(err.Error()), "in use") {
-			if peers, peersErr := d.networkPeers(ctx, name); peersErr == nil && len(peers) > 0 {
-				for _, peer := range peers {
-					_, _ = d.run(ctx, "network", "peer", "delete", name, peer.Name)
-				}
-				if _, err := d.run(ctx, "network", "delete", name); err == nil || isNotFound(err) {
-					return d.afterNetworkDelete(ctx, name, block)
-				}
+		if strings.Contains(strings.ToLower(err.Error()), "in use") {
+			// The rule set attached to the network holds it, and the network
+			// holds the rule set: "The network is currently in use" one way,
+			// "Cannot delete an ACL that is in use" the other, and detaching is
+			// the only order Incus accepts. Put back if the delete still fails,
+			// so a network that survives is never left with its isolation
+			// silently off.
+			// TestRemoveNetworkDetachesTheRuleSetThatHoldsIt fails without it.
+			reattach := d.detachRuleSets(ctx, name)
+			if _, retry := d.run(ctx, "network", "delete", name); retry == nil || isNotFound(retry) {
+				return d.afterNetworkDelete(ctx, name, block)
 			}
+			reattach(ctx)
 		}
 		return fmt.Errorf("delete network %s: %w", name, err)
 	}

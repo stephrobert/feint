@@ -1018,6 +1018,112 @@ emulator that is running. Asked at both, it failed a leg for owning what it had
 just created — measured, and now held by
 `TestOnlyTheDoorstepAsksWhatAnEarlierRunLeft`.
 
+### The third producer, and the only one that reaches Incus' database (#455)
+
+The two above leave objects a sweep can still remove. This one leaves objects
+**nothing can remove**, and the sweep was what made them permanent.
+
+The upstream cause is three lines of Incus' own schema. `networks_peers` carries
+three references, and only one of the three lacks a cascade:
+
+```sql
+network_id INTEGER NOT NULL,
+  FOREIGN KEY (network_id) REFERENCES "networks" (id) ON DELETE CASCADE
+target_network_integration_id INTEGER ... REFERENCES networks_integrations (id) ON DELETE CASCADE
+target_network_id INTEGER NULL,        -- no foreign key, no cascade
+```
+
+The schema above is read from `sqlite_master` on the station, Incus 7.2, not
+quoted from anywhere: `network_id` cascades, `target_network_integration_id`
+cascades, and `target_network_id` carries no foreign key at all.
+
+Delete the **source** network and the peering row goes with it. Delete the
+**target** and the row survives, holding an id that resolves to nothing, with
+`target_network_project` and `target_network_name` both NULL. From that moment
+the source network cannot be removed by anything, and the command that would
+remove the row fails on the same missing target. Reproduced on 2026-08-25 by
+planting one row against a network this emulator had just created, so that the
+premise of this section is measured rather than inherited:
+
+```
+$ incus network peer delete fnt-387f1e8daa2 fnt-gonetarget
+Error: Failed deleting peer: Failed loading target network: Network not found
+$ incus network delete fnt-387f1e8daa2
+Error: The network is currently in use
+```
+
+`incus network peer show` still lists the peering, with no target field left to
+read, and `incus network peer edit` does not repair it: it returns 0 and
+persists nothing, the target fields being immutable after creation. Incus 7.3
+carries nothing that touches peer rows. **The asymmetric cascade appears to be
+unreported upstream.**
+
+Two further refusals belong to the same trap and are quoted from the
+maintainer's station in #455 rather than from the reproduction above, because
+they need a rule set to be attached and the two-subnet Net used here attaches
+none: `incus network unset <net> security.acls` answers `Failed applying router
+security policy: Failed loading target network: Network not found`, and
+`incus network acl delete iso-<net>` answers `Cannot delete an ACL that is in
+use`. That is the full cycle — the network cannot go because the rule set holds
+it, the rule set cannot go because the network holds it, and the detach that
+breaks the cycle is refused by the dangling row.
+
+**Three things this emulator was doing made it permanent, and all three are
+prevention rather than repair:**
+
+1. `Prune` treated `feint-uplink` as an ordinary network — it carries the same
+   `user.feint.provider` label as everything else — and unset its `ipv4.routes`
+   before a delete that then failed on the orphans still attached. From that
+   instant every management path of those orphans failed validation with
+   `Uplink network doesn't contain 10.2.4.0/24 in its routes`, which is the
+   detach they needed in order to go. The uplink now leaves the ordinary path,
+   is deleted last, and its routes are never unset.
+2. Neither `Prune` nor `RemoveNetwork` detached `security.acls` before deleting
+   a network, and the two hold each other: the rule set is "in use" by the
+   network, the network is "in use" by the rule set. Both now detach first —
+   and put the attachment back when the delete still refuses, because a network
+   that survives with its rule set silently off is a firewall disarmed rather
+   than a subnet swept.
+3. Neither removed the half a peering leaves on its **surviving target**. Both
+   now do, before the delete rather than after a refusal, since a delete that
+   succeeds is exactly what leaves the neighbour holding a dead id.
+
+**The repair, for a station already carrying the state, is `feint clean
+--force`.** It removes such a row through `incus admin sql`, which is Incus'
+own supported mechanism for it rather than an edit of a file behind the
+daemon's back, and it removes a row **only when the network that row belongs to
+carries the label this emulator wrote**. That scope is the point and not a
+detail: a dangling row of an operator's own is the same table, the same shape
+and the same dead target, and a `--force` able to reach it would be a worse
+defect than the one it repairs. The witness is
+`TestForceLeavesAThirdPartysDanglingPeerAlone`, and
+`tools/falsify/specs/trapped-station.json` proves it bites — fifteen mutations,
+all red.
+
+It was also driven once against the real runtime, on 2026-08-25: two dangling
+rows planted, one on a network the emulator had labelled and one on a bridge
+created for the purpose and deliberately named `fnt-lab`, so it carried the very
+prefix a name check would accept. `clean --check` exited 1 naming only the first,
+`clean --force` removed only the first and printed it whole, and the row on
+`fnt-lab` was still there afterwards. The same reasoning governs the sweep one
+level up: the half of a peering living on the far end is removed only when that
+network carries the label too, since `fnt-` is a prefix anybody may type.
+
+`feint clean --check` reports three states, and each is one no healthy run ever
+produces: a peering row whose target no longer resolves, a network of the
+emulator's whose block the uplink no longer carries, and a rule set attached to
+a network already trapped by either. That last one is deliberately **not** the
+bare form: `IsolateNetwork` ends by attaching a rule set to every OVN network
+with a neighbour to keep out, so reporting "a rule set is attached" would refuse
+every healthy run — the same way #426's doorstep once fired on hosts nothing was
+going to fail on, which is how a check gets disarmed.
+
+What remains a limit: **a dangling row whose source network is not this
+emulator's is left alone and named nowhere**, deliberately. If an operator's own
+tooling produces one, the repair is theirs to run, and `incus admin sql global
+"DELETE FROM networks_peers WHERE id=<id>"` is the statement — after reading the
+row, because nothing here will read it for them.
+
 ## Authentication is accepted, never verified
 
 No signature is checked, on any provider. Credentials must merely be well-formed,

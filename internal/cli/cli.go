@@ -172,11 +172,27 @@ const (
 // before one starts — mid-run, the machines and networks it names belong to
 // the emulator that is running.
 //
+// Version 17 adds `clean --force` (#455): the one repair that reaches past the
+// runtime's own commands, because a peering row whose target network was
+// deleted survives — the runtime's schema cascades two of that table's three
+// references and not the third — and from then on every operation on the
+// network holding it fails loading a target that resolves to nothing. The
+// network, the rule set attached to it and the uplink they draw from become
+// permanent by every means a user has. `--force` removes such a row through
+// `incus admin sql`, which is Incus' own supported mechanism for it, and only
+// when the network the row belongs to carries the label this emulator wrote:
+// a repair able to reach a third party's row would be a worse defect than the
+// one it repairs. It names every row whole before removing it. In the same
+// change `clean --check` gained the report of those states, so its exit code
+// covers the objects the sweep handles rather than DHCP orphans alone.
+// An addition to one existing verb; nothing was removed, no exit code moved,
+// and a pipeline keyed on version 16 keeps working.
+//
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 16
+const cliSurfaceVersion = 17
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -505,13 +521,21 @@ Usage:
   feint catalog    [--format json]
                     Print the emulated inventory a client reads before creating.
 
-  feint clean      [--vm incus|incus-vm|incus-ovn] [--check] [--doorstep] [--format text|json]
+  feint clean      [--vm incus|incus-vm|incus-ovn] [--check] [--doorstep] [--force]
+                   [--format text|json]
                     Remove every machine, network and rule set the emulator
                     created. Labelled resources only; nothing else is touched.
                     --check removes nothing: it names what a run left behind
                     holding an address block, and which of it this user may not
                     end, exiting 1 in that case so a suite can refuse on the
-                    doorstep instead of dying on the block minutes in.
+                    doorstep instead of dying on the block minutes in. It also
+                    names the states no ordinary command of the runtime can
+                    leave, and exits 1 on those.
+                    --force clears those states, which today means the peering
+                    rows a deleted network left behind. It reaches the runtime's
+                    own database through "incus admin sql", touches only rows
+                    belonging to a network this emulator labelled, and prints
+                    every row whole before it removes it.
 
   feint version    [--check]
                     Print the version. --check asks GitHub whether a newer

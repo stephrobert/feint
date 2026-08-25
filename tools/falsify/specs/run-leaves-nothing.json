@@ -44,8 +44,8 @@
     {
       "label": "the doorstep finds the previous run's networks and lets the run start anyway, which is the state that fails thirty steps later on a message naming only the block",
       "file": "internal/cli/clean.go",
-      "find": "\tif err := refuseRuntimeLeftovers(stdout, led, vm); err != nil {",
-      "replace": "\tif err := refuseRuntimeLeftovers(stdout, led, vm); err != nil && false {",
+      "find": "\tif err := refuseRuntimeLeftovers(stdout, led, vm, driver); err != nil {",
+      "replace": "\tif err := refuseRuntimeLeftovers(stdout, led, vm, driver); err != nil && false {",
       "test": "TestTheDoorstepRefusesAHostHoldingAPreviousRunsNetwork",
       "package": "./internal/cli/"
     },
@@ -76,8 +76,8 @@
     {
       "label": "the doorstep question is asked at every moment, so a run is refused for owning the machines and networks it just created",
       "file": "internal/cli/clean.go",
-      "find": "\tif doorstep {\n\t\tif err := refuseRuntimeLeftovers(stdout, led, vm); err != nil {",
-      "replace": "\tif doorstep || true {\n\t\tif err := refuseRuntimeLeftovers(stdout, led, vm); err != nil {",
+      "find": "\tif doorstep {\n\t\tif err := refuseRuntimeLeftovers(stdout, led, vm, driver); err != nil {",
+      "replace": "\tif doorstep || true {\n\t\tif err := refuseRuntimeLeftovers(stdout, led, vm, driver); err != nil {",
       "test": "TestTheLeftoverCheckMidRunIgnoresTheRunsOwnObjects",
       "package": "./internal/cli/"
     },
