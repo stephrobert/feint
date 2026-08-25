@@ -1007,17 +1007,25 @@ included, with `cloud-init status` answering inside it. It boots because
 | conforme | **10** |
 | improved | **1** (talos) |
 | regressed | **4** (rke-cluster, ztiac, k3s, kasten) — ztiac is one entry whose *two* templates both regressed |
-| harness broken, nothing measured | 0 at the end; 4 attempts along the way, all re-run (§ below) |
+| harness broken, nothing measured | **0 at the end**; **7 attempts** along the way, every one re-run (§ below) |
 | **machines really started** | **5** — kiwinet 1, ocp_outscale 1, vault 3 |
 | resources created, summed over the fifteen `--vm incus-ovn` runs | **381** (`Creation complete` lines) |
 | resources destroyed | **386** — larger on purpose, see below |
 | recorded exchanges over those fifteen runs | **2 396** |
 
-`destroyed` exceeds `created` by five because a server that was created and then
-failed to reach `running` is **tainted**: it is in state and gets destroyed, but
-it never printed a `Creation complete` line. The gap is therefore the count of
-machines the runtime refused to boot, arrived at from the opposite direction —
-which is why both numbers are given instead of one.
+`destroyed` exceeds `created` by five, and the gap is a **net of two opposite
+effects** rather than one number:
+
+- **destroyed more than created**, entry by entry: a server that was created and
+  then failed to reach `running` is *tainted* — it is in state and gets
+  destroyed, but it never printed a `Creation complete` line. rke-cluster +1,
+  k3s +1, kasten +5, talos +2.
+- **created more than destroyed**, where a destroy did not finish: ztiac −2
+  (#456) and devbox −2 (its own snapshot rotation, as recorded).
+
+1 − 2 + 1 + 5 + 2 − 2 = 5. Both numbers are given precisely because neither alone
+says what happened, and the tidier sentence — "the gap is the machines refused" —
+would have been wrong.
 
 Every regression was separated by a `--vm off` re-run except O1's, and **every
 separation that ran reproduced its reference exactly**: ztiac 95 and 54,
@@ -1026,12 +1034,16 @@ code did not move under any of them.
 
 ### What went wrong in the harness, since it reads like findings otherwise
 
-Four attempts measured this replay's harness rather than the emulator, and all
-four were re-run. They are listed because each one produced a plausible number:
-an invented SSH key the Scaleway SDK rightly refused (kiwinet 4 of 5); a TLS
-proxy started without `--record`, caught by the run's own guard; `ssh_key` passed
-as a name where openshift4 wants key material; and E5's `init` run at the repo
-root, where there is no backend block, so it passed and proved nothing.
+Seven attempts measured this replay's harness rather than the emulator, and every
+one was re-run. They are listed because each produced a plausible number: an
+invented SSH key the Scaleway SDK rightly refused (kiwinet 4 of 5); a pin patcher
+that treated "already pinned" as "matched nothing" and silently emptied two
+separation runs; a TLS proxy started without `--record`, caught by the run's own
+guard; a resource counter that counted data sources, inflating talos by exactly
+its three; `ssh_key` passed as a name where openshift4 wants key material; E5's
+`init` run at the repo root, where there is no backend block, so it passed and
+proved nothing, and E4 planned without providers or variables so it died on the
+wrong error; and the two below.
 
 Two more are worth repeating outside this repository, because both are about a
 control that was green while being wrong.
