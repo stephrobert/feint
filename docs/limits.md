@@ -2400,9 +2400,23 @@ The rest is structural rather than unbuilt, and the difference matters because
 everything around it was buildable and got built. The emulator has no data
 plane beyond that host: a NAT service is a managed appliance in a facility
 this machine is not in. A public address allocated here comes from
-`198.51.100.0/24` — TEST-NET-2, reserved by RFC 5737 and routed nowhere on
+`198.51.100.0/28` — TEST-NET-2, reserved by RFC 5737 and routed nowhere on
 purpose, so beyond this host an address goes visibly nowhere rather than
 quietly somewhere.
+
+**Fourteen addresses, and that is a measurement rather than a limit of the
+model.** The block was a `/24` until 2026-08-25. What the emulated pool has to
+hold is that allocation refuses past the last address with a typed `9029` and
+that a released address returns to it — neither claim depends on how many
+addresses there are. Exhausting a `/24` cost the Outscale conformance suite 254
+`DeletePublicIp` calls, and at roughly 700 ms of client process startup each
+that was the larger half of an eleven-minute workflow. Measured across every
+suite, fixture and example stack in this repository, the peak of addresses held
+at once is two. `ReadPublicIpRanges` publishes the block the allocator serves,
+derived from the same constant rather than written twice, and
+`TestTheAllocatorStopsWhereTheCatalogueSaysItDoes` fails if either side is
+edited alone. A project that needs more can widen the prefix in
+`publicips.go`; nothing else has to move with it.
 
 What *is* real is the resource algebra, and it is what a plan actually depends
 on: an address a NAT service holds refuses to be released, a gateway refuses to

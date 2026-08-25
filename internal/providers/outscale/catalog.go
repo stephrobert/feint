@@ -589,7 +589,7 @@ func (p *Pack) readPublicIPRanges(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
-		"PublicIps":       []any{publicIPBase + "0/24"},
+		"PublicIps":       []any{publicIPBlock},
 		"ResponseContext": p.context(),
 	})
 }

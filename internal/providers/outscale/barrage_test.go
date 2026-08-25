@@ -58,6 +58,10 @@ func TestAnOutscaleBarrageLeavesTheStoreCoherent(t *testing.T) {
 
 	var wg sync.WaitGroup
 	problems := make(chan string, outscaleBarrageWorkers*8)
+	// Every address the pool hands out, to prove after the fact that it never
+	// handed the same one twice — the property this barrage's comment claimed
+	// and nothing checked.
+	handed := make(chan string, outscaleBarrageWorkers*2)
 
 	for w := range outscaleBarrageWorkers {
 		wg.Add(1)
@@ -82,13 +86,26 @@ func TestAnOutscaleBarrageLeavesTheStoreCoherent(t *testing.T) {
 
 			// Two addresses and two machines per worker: enough interleaving for
 			// a shared pool to hand one out twice if nothing serialises it.
+			//
+			// The address used to be discarded here (`_ = ip`) while this
+			// comment claimed to catch a double hand-out, which is a comment
+			// and not a control. Every address is now recorded and checked for
+			// duplicates after the barrage.
+			//
+			// Exhaustion is an expected answer, not a problem to report: the
+			// emulated block is a /28 since 2026-08-25, and eight workers
+			// asking for two addresses each want sixteen of the fourteen there
+			// are. What must never happen is the same address twice.
 			for i := range 2 {
 				status, ip := postRaw(ts, "CreatePublicIp", `{}`)
+				if status == http.StatusConflict {
+					continue
+				}
 				if status != http.StatusOK {
 					problems <- fmt.Sprintf("%s: CreatePublicIp answered %d", tag, status)
 					continue
 				}
-				_ = ip
+				handed <- nestedID(ip, "PublicIp", "PublicIp")
 
 				status, vm := postRaw(ts, "CreateVms",
 					fmt.Sprintf(`{"ImageId":"ami-00000001","SubnetId":%q}`, subnetID))
@@ -109,6 +126,27 @@ func TestAnOutscaleBarrageLeavesTheStoreCoherent(t *testing.T) {
 	}
 	wg.Wait()
 	close(problems)
+	close(handed)
+
+	// The barrage's own claim, now measured. A pool that hands one address to
+	// two callers is the defect a concurrent create is here to surface, and it
+	// would otherwise pass silently.
+	seen := map[string]int{}
+	total := 0
+	for addr := range handed {
+		seen[addr]++
+		total++
+	}
+	for addr, times := range seen {
+		if times > 1 {
+			t.Errorf("the pool handed %s to %d callers at once", addr, times)
+		}
+	}
+	// And the run must have allocated something: a barrage where every
+	// CreatePublicIp was refused would satisfy the loop above vacuously.
+	if total == 0 {
+		t.Fatalf("no address was allocated at all, so nothing above was measured")
+	}
 
 	var refused []string
 	for p := range problems {

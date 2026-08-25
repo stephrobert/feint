@@ -19,6 +19,31 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Modifié
 
+- **Le bloc public Outscale émulé est un `/28`, plus un `/24`, et la suite de
+  conformance a cessé de passer quatre minutes à libérer des adresses.** Ce que
+  ce bloc doit tenir — l'allocation refuse au-delà de la dernière adresse avec
+  un `9029` typé, une adresse libérée revient au pool — ne dépend pas de leur
+  nombre, et le pic réellement détenu simultanément par l'ensemble des suites,
+  fixtures et stacks d'exemple de ce dépôt est de **deux**. Épuiser un `/24`
+  coûtait 254 appels `DeletePublicIp` à ~700 ms de démarrage de client chacun.
+  Mesuré sur cette station : jambe `octl` **368 s → 142 s**, jambe `fields`
+  **435 s → 209 s**, les deux toujours vertes avec le gate d'omission armé.
+
+  La borne de l'allocateur se déduit désormais du préfixe au lieu d'être écrite
+  une seconde fois, `ReadPublicIpRanges` publie cette même constante, et
+  `TestTheAllocatorStopsWhereTheCatalogueSaysItDoes` parcourt la plage publiée
+  jusqu'au bout puis exige que le refus tombe sur l'adresse suivante — éditer
+  un seul des deux côtés le fait donc échouer. Falsifié trois fois : publier
+  une autre plage, désolidariser la borne du préfixe, laisser le pool
+  distribuer deux fois la même adresse ; les trois rougissent.
+
+  Trouvé en chemin : `TestAnOutscaleBarrageLeavesTheStoreCoherent` prétendait en
+  commentaire attraper un pool distribuant une adresse à deux appelants, et
+  jetait l'adresse qu'on venait de lui donner (`_ = ip`). Il enregistre
+  maintenant chaque adresse et vérifie les doublons, et traite l'épuisement pour
+  ce qu'il est : la réponse attendue.
+
+
 - **La suite Outscale pilote `octl`, et le client qu'elle pilotait est archivé**
   (#460). `outscale/oapi-cli` et `outscale/osc-cli` sont tous deux
   `archived: true` sur l'API GitHub, en lecture seule, avec « Deprecated

@@ -50,8 +50,33 @@ const kindPublicIP = "publicip"
 // sequentially from .1: deterministic, so a test can pin the first address.
 const publicIPBase = "198.51.100."
 
-// publicIPBlock is the same block as a prefix, for the guard below.
-const publicIPBlock = "198.51.100.0/24"
+// publicIPBlock is the same block as a prefix, for the guard below and for the
+// bound of the allocator's sweep.
+//
+// It is a /28 — fourteen addresses — and not the /24 it was until 2026-08-25.
+// The assertion this block exists to hold is that allocation refuses past the
+// last address with a typed 9029, and that a released address returns to the
+// pool; neither depends on how many addresses there are. Exhausting a /24 cost
+// the Outscale conformance suite 254 `DeletePublicIp` calls, and at ~730 ms of
+// client startup each that was 64% of the suite and the larger half of an
+// eleven-minute workflow. The measured peak of addresses held at once, across
+// every suite and fixture in this repository, is two.
+const publicIPBlock = "198.51.100.0/28"
+
+// publicIPHosts is how many addresses publicIPBlock holds, derived from the
+// prefix rather than written a second time. A bound that does not follow the
+// prefix is exactly how an allocator and the catalogue it publishes come to
+// disagree — which is why TestTheAllocatorStopsWhereTheCatalogueSaysItDoes
+// walks the published range to its end and asserts the refusal lands on the
+// address after it, and fails if either side is edited alone.
+var publicIPHosts = func() int {
+	prefix, err := netip.ParsePrefix(publicIPBlock)
+	if err != nil {
+		panic("publicIPBlock is not a prefix: " + err.Error())
+	}
+	// Minus the network and broadcast addresses, which nobody is handed.
+	return 1<<(32-prefix.Bits()) - 2
+}()
 
 // emulatedPublicIP reports whether an address is one this pack can have handed
 // out: inside publicIPBlock. It is the authorisation half on the way to the
@@ -159,7 +184,7 @@ func (p *Pack) createPublicIP(w http.ResponseWriter, r *http.Request) {
 		taken[stringOf(res.Attrs["PublicIp"])] = true
 	}
 	address := ""
-	for host := 1; host < 255; host++ {
+	for host := 1; host <= publicIPHosts; host++ {
 		candidate := fmt.Sprintf("%s%d", publicIPBase, host)
 		if !taken[candidate] {
 			address = candidate
@@ -168,7 +193,7 @@ func (p *Pack) createPublicIP(w http.ResponseWriter, r *http.Request) {
 	}
 	if address == "" {
 		unlock()
-		p.conflict(w, "the emulated public block "+publicIPBase+"0/24 is exhausted; release an address first")
+		p.conflict(w, "the emulated public block "+publicIPBlock+" is exhausted; release an address first")
 		return
 	}
 	now := p.env.Now()

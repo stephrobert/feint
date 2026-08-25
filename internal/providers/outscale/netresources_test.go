@@ -2,6 +2,7 @@ package outscale_test
 
 import (
 	"net/http"
+	"net/netip"
 	"testing"
 )
 
@@ -34,10 +35,27 @@ func TestAPublicIpIsAllocatedListedAndReleased(t *testing.T) {
 		t.Fatalf("second allocation = %v, want 198.51.100.2", ip2["PublicIp"])
 	}
 
-	// The catalogue and the allocator answer from the same block.
+	// The catalogue and the allocator answer from the same block. Asserted by
+	// containment rather than against a literal: the block's size is a tuning
+	// decision (it shrank from /24 to /28 on 2026-08-25 to stop the conformance
+	// suite spending four minutes releasing addresses), and a literal here made
+	// that one-line change fail a test that has nothing to say about size.
+	// What must hold is that the published range contains what was handed out —
+	// TestTheAllocatorStopsWhereTheCatalogueSaysItDoes holds the far end.
 	ranges := call(t, ts, doc, "ReadPublicIpRanges", `{}`)
-	if list, _ := ranges["PublicIps"].([]any); len(list) != 1 || list[0] != "198.51.100.0/24" {
-		t.Fatalf("ReadPublicIpRanges does not publish the allocator's block: %v", ranges["PublicIps"])
+	list, _ := ranges["PublicIps"].([]any)
+	if len(list) != 1 {
+		t.Fatalf("ReadPublicIpRanges publishes %d ranges, want exactly one: %v", len(list), ranges["PublicIps"])
+	}
+	text, _ := list[0].(string)
+	prefix, err := netip.ParsePrefix(text)
+	if err != nil {
+		t.Fatalf("the published range %q is not a prefix: %v", text, err)
+	}
+	for _, handed := range []string{"198.51.100.1", "198.51.100.2"} {
+		if addr, _ := netip.ParseAddr(handed); !prefix.Contains(addr) {
+			t.Fatalf("the allocator handed out %s, outside the published %v", handed, prefix)
+		}
 	}
 
 	// Deleting by address value, which the API accepts alongside the id.
@@ -217,4 +235,77 @@ func TestTheNetCataloguesAreFixedAndFilterable(t *testing.T) {
 	if one["ServiceId"] != "pl-00000001" {
 		t.Fatalf("the api service is not the fixed one: %v", one)
 	}
+}
+
+// TestTheAllocatorStopsWhereTheCatalogueSaysItDoes walks the published range to
+// its last address and asserts the refusal lands on the one after it.
+//
+// It exists because the allocator's bound and the range ReadPublicIpRanges
+// publishes are two statements about one block, and this repository has already
+// paid for two statements edited apart. Whichever side moves alone, the other
+// starts lying — handing out an address the catalogue does not list, or
+// refusing one it does — and nothing else here would fail. So the test reads
+// the range from the catalogue rather than from a literal, and derives the
+// count the same way the allocator does.
+func TestTheAllocatorStopsWhereTheCatalogueSaysItDoes(t *testing.T) {
+	ts := newServer(t)
+	doc := contractDoc(t)
+
+	published := call(t, ts, doc, "ReadPublicIpRanges", `{}`)
+	ranges, _ := published["PublicIps"].([]any)
+	if len(ranges) != 1 {
+		t.Fatalf("the catalogue publishes %d ranges, want exactly one: %v", len(ranges), published)
+	}
+	text, _ := ranges[0].(string)
+	prefix, err := netip.ParsePrefix(text)
+	if err != nil {
+		t.Fatalf("the published range %q is not a prefix: %v", text, err)
+	}
+	// Minus the network and broadcast addresses, as the allocator does.
+	want := 1<<(32-prefix.Bits()) - 2
+
+	got := 0
+	for {
+		status, body := post(t, ts, "CreatePublicIp", `{}`)
+		if status != http.StatusOK {
+			// The refusal has to be the typed exhaustion, not any failure: a
+			// 500 would end this loop too and would prove nothing.
+			if status != http.StatusConflict {
+				t.Fatalf("allocation %d answered %d, want 409: %v", got+1, status, body)
+			}
+			if code := errorCodeOf(body); code != "9029" {
+				t.Fatalf("the refusal is coded %q, want the exhaustion code 9029: %v", code, body)
+			}
+			break
+		}
+		got++
+		if got > want+1 {
+			t.Fatalf("the allocator handed out %d addresses, past the %d the catalogue publishes", got, want)
+		}
+		ip, _ := body["PublicIp"].(map[string]any)
+		text, _ := ip["PublicIp"].(string)
+		addr, err := netip.ParseAddr(text)
+		if err != nil {
+			t.Fatalf("allocation %d handed out %q, which is not an address", got, text)
+		}
+		if !prefix.Contains(addr) {
+			t.Fatalf("allocation %d handed out %v, outside the published %v", got, addr, prefix)
+		}
+	}
+	if got != want {
+		t.Fatalf("the allocator stopped after %d addresses, the catalogue publishes %d", got, want)
+	}
+}
+
+// errorCodeOf reads the Code of the first error, the way errorTypeOf reads its
+// Type. Both exist because an untyped assertion on a refusal passes for any
+// failure at all.
+func errorCodeOf(body map[string]any) string {
+	errs, _ := body["Errors"].([]any)
+	if len(errs) == 0 {
+		return ""
+	}
+	first, _ := errs[0].(map[string]any)
+	code, _ := first["Code"].(string)
+	return code
 }

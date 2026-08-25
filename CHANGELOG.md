@@ -17,6 +17,30 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Changed
 
+- **The emulated Outscale public block is a `/28`, not a `/24`, and the
+  conformance suite stopped spending four minutes releasing addresses.** The
+  property the block holds — allocation refuses past the last address with a
+  typed `9029`, a released address returns to the pool — does not depend on how
+  many addresses there are, and the measured peak held at once across every
+  suite, fixture and example stack here is two. Exhausting a `/24` cost 254
+  `DeletePublicIp` calls at roughly 700 ms of client startup each. Measured on
+  this station: the `octl` leg **368 s → 142 s**, the `fields` leg **435 s →
+  209 s**, both still green with the omission gate armed.
+
+  The allocator's bound is now derived from the prefix instead of written a
+  second time, `ReadPublicIpRanges` publishes that same constant, and
+  `TestTheAllocatorStopsWhereTheCatalogueSaysItDoes` walks the published range
+  to its end and asserts the refusal lands on the address after it — so editing
+  either side alone fails. Falsified three ways: publishing a different range,
+  unpinning the bound from the prefix, and letting the pool hand one address
+  twice; all three go red.
+
+  Found on the way: `TestAnOutscaleBarrageLeavesTheStoreCoherent` claimed in a
+  comment to catch a pool handing one address to two callers, and discarded the
+  address it had just been given (`_ = ip`). It now records every address and
+  checks for duplicates, and treats exhaustion as the expected answer it is.
+
+
 - **The Outscale suite drives `octl`, and the client it drove for a year is
   archived** (#460). `outscale/oapi-cli` and `outscale/osc-cli` are both
   `archived: true` on the GitHub API, read-only, with "Deprecated Outscale CLI"
