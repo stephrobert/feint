@@ -1078,3 +1078,211 @@ The ghost also leaves a fact that belongs to the register rather than to the
 harness: for those four hours the station carried **two OVN networks and no
 emulator and no machine**. Those networks are #455's, and their surviving an
 emulator's death by hours is the same defect seen from a third angle.
+
+## Replayed under `--vm incus-ovn` on `main@72d861d` (2026-08-25), in two passes
+
+**Runtime: `--vm incus-ovn`**, named here because the register requires it of
+any replay. Same harness as the 2026-08-24 section above — one emulator per
+stack, an `incus monitor --type=lifecycle` started *before* it, a health probe
+that compares `instance.pid` and the declared runtime, a `timeout` on every
+`apply`, `plan` and `destroy`, and `feint clean --vm incus` with a host read-back
+between entries. Same fifteen repositories at the same commits (verified 15 of
+15), same recorded edits, same seeded prerequisites.
+
+Every figure below was measured against a binary built from `72d861d`. `main`
+moved once while the campaign ran, to `a80b4c0`, which touches only
+`examples/stacks/{scaleway,outscale,exoscale}/main.tf` — no Go, no contract, no
+coverage artefact — so it cannot have moved anything measured here; the commit
+named is the one the emulator was built from, which is the datum a replay needs.
+
+Eight fixes landed between the two sections, five of them aimed at what the
+first runtime pass had revealed: [#455] (the sweep no longer traps the host it
+cleans), [#456] (a Net of several subnets peers), [#454] (an ICMP rule reads its
+address family, so a refused rule set stops reading as a success), [#457] (a
+balancer whose backends are elsewhere is refused by name, and its ports are
+omitted when it has no target), [#465] (image recipes derive by family, and an
+opaque identifier is the operator's to declare), plus [#460], [#464], [#466] and
+[#469].
+
+### Why two passes, and why they are never mixed
+
+[#465] shipped a door the previous campaign did not have: an opaque image
+identifier **can be declared** —
+`FEINT_BOOT_IMAGES='<id>=<family>:<version>[@login]'` — and `feint images
+resolve <id>` asks the providers' public listings what to declare. Four of the
+fifteen stacks are blocked by exactly that, so the campaign was run twice:
+
+- **Pass 1, comparable**: no declaration at all. It is the pass that compares to
+  2026-08-24 at identical conditions, and it is the only one that says what the
+  eight fixes changed.
+- **Pass 2, declared**: `FEINT_BOOT_IMAGES` filled in for the four. It says what
+  the mechanism buys, and nothing about the fixes. **A machine that boots
+  because of a declaration is not a machine a fix unblocked**, which is why the
+  figures below never appear in one table.
+
+### Pass 1, the comparable one — the figures with their denominators
+
+| | |
+|---|---|
+| entries replayed | **15 of 15** |
+| conforme | **10** |
+| improved | **1** (talos, in the same sense as 2026-08-24) |
+| regressed | **4** (rke-cluster, ztiac, k3s, kasten) |
+| harness broken, nothing measured | **0 at the end**; one attempt, named below |
+| **machines really started** | **5** — kiwinet 1, ocp_outscale 1, vault 3 |
+| resources created | **379** (`Creation complete` lines) |
+| resources destroyed | **385** |
+| recorded exchanges | **2 388** |
+
+The distribution is the one of 2026-08-24, machine count included. **At equal
+conditions the eight fixes unblocked no machine, and none of them was about
+that.** What they changed is visible entry by entry rather than in the totals,
+and it is ztiac that carries it.
+
+`destroyed` exceeds `created` by six, netting two opposite effects, as in the
+previous pass: tainted resources that are in state and get destroyed without ever
+printing a creation line (rke +1, k3s +1, kasten +5, talos +2), against destroys
+that did not finish (ztiac −1, devbox −2).
+
+| entry | applied | second plan | destroyed | left | machines | exchanges | verdict |
+|---|---|---|---|---|---|---|---|
+| O1 osc-k8s-rke-cluster | 52 | 16 add / 1 destroy | 52 | 0 | 0 | 195 | regressed (image), unchanged |
+| O2 ztiac `advanced-network` | **77** | 18 add | 76 | **1** | 0 | 762 (both templates) | regressed, **new cause** |
+| O2 ztiac `two-tier` | 54 | 0 add / 5 change | 54 | 0 | 0 | | regressed (image), unchanged |
+| O3 ocp_outscale | 30 | `No changes.` | 30 | 0 | **1** | 217 | conforme, machine-backed |
+| O4 terraform-outscale-k3s | 35 | 8 add / 1 destroy | 34 | 0 | 0 | 221 | regressed (image), unchanged |
+| O5 kasten-on-outscale | 29 | 6 add / 5 destroy | 29 | 0 | 0 | 217 | regressed (image), unchanged |
+| E1 openshift4-exoscale | 43 | 42 add / 0 change | 43 | 0 | 0 | 226 | conforme |
+| E2 platform | 20 | 5 add / 0 change | 20 | 0 | 0 | 97 | conforme |
+| E3 terraform-exoscale-vault | 7 | `No changes.` | 7 | 0 | **3** | 48 | conforme, machine-backed |
+| E4 terraform-exoscale-sks | n/a | — | — | — | 0 | 1 | conforme, triggered |
+| E5 eu-data-platform | n/a | — | — | — | 0 | 1 | conforme, triggered |
+| S1 terraform-talos | 25 | 7 add / 2 destroy | 25 | 0 | 0 | 262 | improved, unchanged |
+| S2 scaleway-flatcar-k3s | 9 | 0 to change | 9 | 0 | 0 | 54 | conforme |
+| S3 ephemeral-devbox | 3 | 0 to change | 1 | 2 | 0 | 29 | conforme |
+| S4 kubic | 0 | 15 add | 0 | 0 | 0 | 2 | conforme |
+| S5 kiwinet-infra-cloud | 5 | `No changes.` | 5 | 0 | **1** | 57 | conforme, machine-backed |
+
+**What the fixes held, measured on the stack that revealed them.** ztiac
+`advanced-network` used to leave two OVN networks and two ACLs the host could
+not remove; the station comes back to zero now ([#455]). Its peering applies and
+its fourteen routes through it come back clean, and nothing peering-shaped
+remains in the residual plan ([#456]). ztiac `two-tier` applies **54 of 54** —
+its reference — where the two load balancers used to fail the apply; they are
+refused by name in the log now, and the API goes on describing them ([#457]).
+
+**What replaced it on ztiac `advanced-network` is a different defect, and a
+worse-behaved one** ([#473]): OVN subnet creation is serialised on one lock,
++5.6 s per subnet, so the tenth of fifteen crosses the emulator's 60-second
+write deadline. The connection is cut on a create that then succeeds, the
+client's retry meets its own subnet as a 409 `IpRange 10.2.1.0/24 overlaps the
+subnet on 10.2.1.0/24`, and the destroy fails on a Net holding six subnets
+Terraform never knew it had. 77 of 95, one resource left in state. The curve is
+in every run of the campaign — the first network always costs ~11 s and each one
+after adds ~5.6 s — and ztiac is simply the only surveyed stack with enough
+subnets to reach the cliff.
+
+**The harness attempt that measured nothing.** The first O3 run was killed in
+the middle of its `destroy` by my own tool's timeout: the run had been launched
+with `nohup` from the same shell that then waited on it, so both shared a
+process group. Terraform logged `Stopping operation…` and `Plugin did not
+respond`; nothing about the emulator was measurable from it. Re-run from a clean
+station in its own session (`setsid`), which is the O3 line above. It is listed
+because a killed destroy leaves a plausible-looking log, and the fourth category
+exists so that it is never counted as a regression.
+
+### Pass 2, declared — what [#465]'s door buys
+
+`FEINT_BOOT_IMAGES` filled in for the four entries whose only wall is an opaque
+identifier. Everything else identical.
+
+| entry | declaration | applied | second plan | destroyed | machines |
+|---|---|---|---|---|---|
+| O5 kasten | `ami-538af795=ubuntu:22.04` | **30** | `No changes.` | 30 | **5** |
+| O4 k3s | `ami-47899c77=debian:12` | **41** | `No changes.` | 41 | **3** |
+| O2 `two-tier` | `ami-a3ca408c=ubuntu:22.04` | **54** | `No changes.` | 54 | **5** |
+| O1 rke-cluster | `ami-a3ca408c=ubuntu:22.04` | **53** | 14 add / 0 change | 53 | **1** |
+
+**Four of four reach their `--vm off` reference under a real runtime**, second
+plans included: 30, 41, 54 and 53 are the register's own figures for these
+stacks with no machine runtime at all. **Fourteen machines started where pass 1
+started none**, and the four regressions of pass 1 are, in this pass, four
+convergences. 178 created, 178 destroyed, 1 049 exchanges.
+
+The declared versions are **not** what the identifiers name, and that has to be
+said plainly. `feint images resolve` reports `ami-538af795` as Ubuntu 18.04 and
+`ami-47899c77` as Debian 9, and both are versions the `images:` server has
+withdrawn, so neither can be built. What is above is a substitution the operator
+signs — the nearest buildable version — exactly the gesture [#465] made
+declarable. Measured on the unsubstituted form, kasten declared as printed
+(`ami-538af795=ubuntu:18.04`): **29 applied, 0 machines**, the declaration
+honoured, the build attempted, and the boot refused with `The requested image
+couldn't be found` — the same figures as no declaration at all. That gap is
+[#476].
+
+**O1 is the only one that does not converge, and the reason is the finding.**
+Its apply hit the harness's 900-second cap (`TF_APPLY_TIMED_OUT=900s`,
+`TF_APPLY_EXIT=124`) inside `shell_script.bastion-playbook` — the RKE/ansible
+tail that **no replay in this register has ever run**, because until this pass
+the bastion it depends on had never existed. It ran for 12 min 30 s against a
+live container whose ssh port answers from the station, and did not finish. The
+53 resources and the `14 to add / 0 to change` re-plan are the reference
+figures; only the tail is new, and it is the stack's own local provisioner, not
+this emulator.
+
+### The defects this pass filed
+
+Five, each with its reproduction, none reachable without a machine runtime:
+
+- [#473] fifteen OVN subnets queue on one lock, the tenth create is cut at 60 s,
+  its retry meets its own subnet as a conflict, and ztiac loses a third of itself;
+- [#475] two packs of three never hand a security group to the host — an
+  Outscale Vm and three Exoscale machines run with **no ACL** while the API
+  describes one, and a witness proves the port the group forbids answers;
+- [#476] `feint images resolve` prints a `FEINT_BOOT_IMAGES` line that cannot
+  boot, for two of the three identifiers the surveyed stacks hardcode;
+- [#477] an Exoscale operation feint declines is refused with a bare 404 the
+  official client reads as an ordinary empty answer — three of them inside the
+  register's only fully green stack;
+- [#474] fourteen `ERROR` lines over fifteen replays are all one documented
+  refusal, while the sibling refusal 200 ms later is a `WARN`.
+
+One finding was **not** filed because measurement disproved it: `DeleteSnapshot`
+answers `400` with `type: precondition_failed`, which looked like the wrong
+status until `scw/errors.go`'s `unmarshalStandardError` showed the SDK
+dispatches on the body's `type` and never on the status, and this repository's
+own tests already pin 400 against the real cloud.
+
+### The station, in delta
+
+Zero. No `feint-` instance, no `fnt-`/`iso-fnt-` network, no pack ACL, and the
+uplink swept — before the campaign as after it. Twenty Incus images before, twenty
+after, the same ten `feint/*` aliases (`almalinux/9`, `alpine/3.21`,
+`alpine/3.22`, `debian/12`, `debian/13`, `fedora/44`, `rockylinux/10`,
+`ubuntu/22.04`, `ubuntu/24.04`, `ubuntu/26.04`), read as JSON because the column
+form truncates an alias list to its first entry and `(7 more)`. **No image was
+built along the way**: the declared versions were chosen among those the station
+already held, and the one build the campaign did trigger — `ubuntu/18.04`,
+deliberately — failed at the image server and left nothing behind.
+
+One process on the station is **not** this campaign's and is recorded so that
+the next reader does not attribute it here: `incus monitor --type=lifecycle`,
+pid 121003, started 2026-08-25 at 00:18:53 and still running twenty hours later.
+That is the lifecycle recorder of the 2026-08-24 pass, from the run whose trap
+never fired — the same episode that section describes. Every monitor this
+campaign started exited with its run.
+
+[#454]: https://github.com/stephrobert/feint/issues/454
+[#455]: https://github.com/stephrobert/feint/issues/455
+[#456]: https://github.com/stephrobert/feint/issues/456
+[#457]: https://github.com/stephrobert/feint/issues/457
+[#460]: https://github.com/stephrobert/feint/issues/460
+[#464]: https://github.com/stephrobert/feint/issues/464
+[#465]: https://github.com/stephrobert/feint/issues/465
+[#466]: https://github.com/stephrobert/feint/issues/466
+[#469]: https://github.com/stephrobert/feint/issues/469
+[#473]: https://github.com/stephrobert/feint/issues/473
+[#474]: https://github.com/stephrobert/feint/issues/474
+[#475]: https://github.com/stephrobert/feint/issues/475
+[#476]: https://github.com/stephrobert/feint/issues/476
+[#477]: https://github.com/stephrobert/feint/issues/477
