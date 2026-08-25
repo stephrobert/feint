@@ -1045,10 +1045,12 @@ func freeInterface(devices map[string]map[string]string) string {
 // network — and keeps its own mutex; a caller that needs both takes this one
 // first, which is the order EnsureNetwork and RemoveNetwork both use.
 //
-// PeerNetworks deliberately does not take it. It names two networks, and a lock
-// on each would let two peerings of the same pair deadlock on opposite halves;
-// it also calls IsolateNetwork, which takes this lock itself, and serialise.Lock
-// is not reentrant.
+// PeerNetworks does not take this one: it calls IsolateNetwork, which takes it
+// itself, and serialise.Lock is not reentrant. It has its own domain instead
+// (peerLock, incus_ovn.go), one lock per network of the pair, and the deadlock
+// this paragraph used to warn about — two peerings of one pair each holding the
+// other's half — is closed there by taking the set in sorted order rather than
+// by going without.
 //
 // TestAnIsolationDetachDoesNotOrphanTheNetworkBeingDeleted fails without it.
 func (d *Incus) networkLock(name string) func() {

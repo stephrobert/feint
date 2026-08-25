@@ -79,6 +79,59 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **A Net with three subnets or more peers under OVN, and a host already
+  carrying the state that stopped it is reconciled** (#456). Replaying the
+  fifteen third-party stacks under `--vm incus-ovn` cost the register its
+  flagship result: `chimere-eu/ztiac` applied 80 of its 95 resources, wanted 15
+  back on the second plan, and its `destroy` failed. Twelve lines of
+  `Failed creating peer: More than one matching network peer was found` in one
+  apply, naming six subnets, and the emulator carried on at ERROR — so the API
+  kept describing a Net whose subnets route to each other while the runtime held
+  no peering between them at all.
+
+  **The cause is upstream, and it is not two declarations of the same pair.**
+  Incus completes a peering by looking for a *pending* half aiming at the network
+  the create lands on, and that lookup filters on the target network alone: there
+  is no clause on which network holds the row (v7.2.0, `driver_ovn.go`,
+  `PeerCreate`). Two pending halves aiming at one network therefore make **every**
+  create on it fail, whichever pairs they belong to. Measured on the station with
+  three real OVN networks and nothing concurrent: `peer create A B B` → pending,
+  `peer create C B B` → pending, `peer create B A A` → the error above. `(A,B)`
+  and `(C,B)` are different pairs, which is why a lock keyed by the pair would
+  not have closed this, and why a Net needs three subnets to trip it while the
+  two-subnet fixtures never did. The driver now excludes both **ends** of a pair,
+  one lock per network taken in sorted order: two subnets of one Net can no
+  longer declare halves aiming at the same network at once, and two pairs sharing
+  no network still run in parallel, which a global lock would have cost.
+
+  **A second upstream rule was measured on the way, and is fixed with it.**
+  Deleting one peer blanks the target of every row aiming at the network the
+  delete runs on, whatever pair it belongs to: on a three-network mesh,
+  `peer delete B C` left **A** holding
+  `{"name":"B","target_network":null,"status":"Errored"}`, and redeclaring that
+  half answers `A peer for that name already exists` — which this driver
+  tolerated as success, so a peering was reported applied and did not exist. A
+  pair whose halves the runtime does not both call `Created` is now rebuilt from
+  both ends, and every delete on that path asks the label `EnsureNetwork` wrote
+  before touching a network, never the `fnt-` prefix anybody may type.
+
+  **And "More than one matching network peer was found" is reconciled rather than
+  reported**: the pending halves aiming at that network are cleared, only on
+  networks carrying this emulator's label, and the create is re-issued once —
+  because a host left in that state by a crashed run is repaired by nothing a
+  user can type.
+
+  Measured end to end against Incus 7.2 with OVN, on 2026-08-25: a Net whose
+  three subnets are created concurrently gives three OVN networks, six peer rows,
+  six `Created`, and no failure in the log; a host then broken by hand into
+  exactly the state above and given a fourth subnet came back **12 rows of 12
+  `Created`**, then 20 of 20 and 30 of 30 as two more subnets arrived; the six
+  subnets and the Net then deleted with no 409, leaving no network and an empty
+  `networks_peers`. `tools/falsify/specs/peering-pairs.json` proves the guards
+  bite — four mutations, four red tests — and `docs/limits.md` carries both
+  runtime rules with the commands that produced them, including the one case
+  that is still not guaranteed in a single pass.
+
 - **A sweep no longer traps the host it is cleaning, and `feint clean --force`
   frees a host already trapped** (#455). Fifteen third-party stacks replayed
   under `--vm incus-ovn` left two OVN networks, two rule sets and the uplink on

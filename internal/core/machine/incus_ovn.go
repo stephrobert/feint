@@ -8,8 +8,11 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/stephrobert/feint/internal/core/serialise"
 )
 
 // OVN is the mode where emulated subnets are separate by construction.
@@ -275,13 +278,67 @@ func uplinkRanges(prefix netip.Prefix) (dhcp, ovn string, err error) {
 // NativeIsolation implements Peerer.
 func (d *Incus) NativeIsolation() bool { return d.OVN }
 
+// peerLock excludes every other peering this driver declares on the networks it
+// names, until the returned function is called. One lock per network, taken in
+// sorted order — which is what makes a set of them deadlock-free — so a pair
+// excludes exactly the work that could disturb it and two disjoint pairs still
+// run at once.
+//
+// A lock keyed by the *pair* is not enough, and the reason is in the runtime
+// rather than in this driver. Incus completes a peering by looking for a pending
+// half aiming at the network the create lands on, and that lookup filters on the
+// target network alone — there is no clause on which network holds the row
+// (v7.2.0, internal/server/network/driver_ovn.go, PeerCreate: GetNetworkPeers
+// with TargetNetworkProject and TargetNetworkName, then "More than one matching
+// network peer was found" when it matches twice). So two pending halves aiming
+// at one network are fatal to every create on it, whichever pairs they belong
+// to. Measured on Incus 7.2, three real OVN networks, nothing concurrent:
+//
+//	incus network peer create A B B  -> pending                        rc=0
+//	incus network peer create C B B  -> pending                        rc=0
+//	incus network peer create B A A  -> Error: Failed creating peer:
+//	                                    More than one matching network
+//	                                    peer was found                 rc=1
+//
+// (A,B) and (C,B) are two different pairs, so a per-pair key would have let
+// precisely that through; a lock on each end lets neither in while the other
+// works. That is the shape of #456: a Net of N subnets declares N(N-1) halves
+// as its subnets appear, and only a Net with three or more can have two of them
+// aiming at one network at once — which is why the two-subnet fixtures never
+// tripped it and a stranger's three-subnet Net did.
+//
+// Never one global lock: a Net's subnets are created in parallel on purpose,
+// and serialise.go's rule is that the exclusion is named, not widened.
+//
+// Its domain is deliberately not networkLock's: PeerNetworks ends in
+// IsolateNetwork, which takes that one, and serialise.Lock is not reentrant.
+// TestConcurrentPairsOfOneNetDoNotCollideOnAPendingHalf fails without this.
+func (d *Incus) peerLock(names ...string) func() {
+	ordered := make([]string, 0, len(names))
+	for _, name := range names {
+		if name == "" || slices.Contains(ordered, name) {
+			continue
+		}
+		ordered = append(ordered, name)
+	}
+	slices.Sort(ordered)
+	releases := make([]func(), 0, len(ordered))
+	for _, name := range ordered {
+		releases = append(releases, serialise.Lock("incus.peering."+name))
+	}
+	return func() {
+		for i := len(releases) - 1; i >= 0; i-- {
+			releases[i]()
+		}
+	}
+}
+
 // PeerNetworks implements Peerer.
 //
 // Reconciled, not appended: peers the caller no longer names are removed, so
 // a VPC that stops routing between its subnets actually separates them again.
-// A peering only carries traffic once both networks declare it, so both
-// halves are created here; the second call for the same pair finds its work
-// done and does nothing.
+// A peering only carries traffic once both networks declare it, so both halves
+// are declared here, as one operation under the pair's locks.
 func (d *Incus) PeerNetworks(ctx context.Context, network string, peers []string) error {
 	if !d.OVN {
 		// Bridges on one host are routed together already; there is nothing to
@@ -317,15 +374,12 @@ func (d *Incus) PeerNetworks(ctx context.Context, network string, peers []string
 		if row.Target != "" && desired[row.Target] {
 			continue
 		}
-		if _, err := d.run(ctx, "network", "peer", "delete", network, row.Name); err != nil && !isNotFound(err) {
-			return fmt.Errorf("remove stale peering %s of %s: %w", row.Name, network, err)
+		if err := d.removePeerRow(ctx, network, row); err != nil {
+			return err
 		}
 	}
 	for _, peer := range peers {
-		if err := d.ensurePeerHalf(ctx, network, peer); err != nil {
-			return err
-		}
-		if err := d.ensurePeerHalf(ctx, peer, network); err != nil {
+		if err := d.ensurePeering(ctx, network, peer); err != nil {
 			return err
 		}
 	}
@@ -337,9 +391,226 @@ func (d *Incus) PeerNetworks(ctx context.Context, network string, peers []string
 	return d.isolateOVN(ctx, network, peers)
 }
 
+// peerCreated is the runtime's own word for a peering both ends have declared;
+// it is the only status under which one carries traffic. Pending and Errored
+// are the two ways a row can be there and mean nothing, and telling them apart
+// from Created is what stops this driver reporting a peering it did not make.
+const peerCreated = "Created"
+
+// ensurePeering makes two networks peer each other, the pair being the unit
+// rather than each half on its own.
+//
+// A half is only worth keeping when the runtime calls it Created. A half whose
+// other end has gone is left behind as a row with no target at all, and the
+// runtime then answers "A peer for that name already exists" to every attempt
+// to declare that half again — which the code before #456 tolerated as success,
+// so the peering was reported applied and did not exist. Measured on Incus 7.2,
+// on a three-network mesh, with nothing concurrent:
+//
+//	incus network peer delete B C                                      rc=0
+//	incus query /1.0/networks/A/peers  -> {"name":"B","target_network":null,
+//	                                       "status":"Errored"}
+//	incus network peer create A B B    -> Error: Failed creating peer:
+//	                                       A peer for that name already exists
+//
+// Note which pair broke: the delete named B and C, and it is A's half that was
+// wrecked. PeerDelete clears the target of *every* row aiming at the network it
+// runs on, so removing one subnet from a Net damages the halves of its
+// neighbours too. That is why a pair that is not established at both ends is
+// rebuilt rather than patched: the row that looks wrong and the row that looks
+// right are the same peering.
+//
+// The ordinary path costs two reads and nothing else: a pair being declared for
+// the first time has no rows to take down, so an apply performs no delete and
+// leaves no wreck behind.
+// TestAWreckedHalfIsRebuiltRatherThanReportedApplied fails without this.
+func (d *Incus) ensurePeering(ctx context.Context, network, peer string) error {
+	release := d.peerLock(network, peer)
+	defer release()
+
+	near, err := d.networkPeers(ctx, network)
+	if err != nil {
+		return err
+	}
+	far, err := d.networkPeers(ctx, peer)
+	if err != nil {
+		return err
+	}
+	if peeringEstablished(near, peer) && peeringEstablished(far, network) {
+		return nil
+	}
+	if err := d.dropPeerHalf(ctx, network, near, peer); err != nil {
+		return err
+	}
+	if err := d.dropPeerHalf(ctx, peer, far, network); err != nil {
+		return err
+	}
+	if err := d.declarePeerHalf(ctx, network, peer); err != nil {
+		return err
+	}
+	return d.declarePeerHalf(ctx, peer, network)
+}
+
+// peeringEstablished reports that this end of the pair carries traffic: a row
+// aiming at the other network which the runtime itself calls Created.
+//
+// A pending half is not established — it grants nothing, which the network
+// conformance suite asserts against the real runtime — and neither is a wreck.
+// An empty status is read as established, because a runtime that does not say
+// must not have this driver tear a working mesh down on every pass; that is the
+// same rule as an undeclared capability counting as absent, pointed the way that
+// refuses to act.
+func peeringEstablished(rows []peerRow, other string) bool {
+	for _, row := range rows {
+		if row.Target == other && (row.Status == peerCreated || row.Status == "") {
+			return true
+		}
+	}
+	return false
+}
+
+// dropPeerHalf takes this end's half of one pair down, whatever state it is in:
+// the row aiming at the other network, and the row holding that network's name
+// with no target left, which are the same half seen before and after the runtime
+// blanked it.
+//
+// The ownership question is asked here and not at each caller, because this is
+// the only place a peering is deleted on the way to declaring one. It is asked
+// against the label EnsureNetwork wrote, never the name: `fnt-` is a prefix
+// anybody may type, and an operator's own OVN network called `fnt-lab`, peered
+// with one of ours by hand, would otherwise have this reach into theirs. That is
+// the guard #455 had to add to the sweep, and it belongs on every path that
+// deletes a peering.
+// TestPeeringRefusesToRebuildOnAStrangersNetworkNamedLikeOurs fails without it.
+func (d *Incus) dropPeerHalf(ctx context.Context, network string, rows []peerRow, other string) error {
+	doomed := make([]peerRow, 0, 2)
+	for _, row := range rows {
+		if row.Name == other || row.Target == other {
+			doomed = append(doomed, row)
+		}
+	}
+	if len(doomed) == 0 {
+		return nil
+	}
+	if !d.ownsPeerTarget(ctx, network) {
+		return fmt.Errorf("refusing to rebuild the peering between %s and %s: %s is not a network the emulator created",
+			network, other, network)
+	}
+	for _, row := range doomed {
+		if _, err := d.run(ctx, "network", "peer", "delete", network, row.Name); err != nil && !isNotFound(err) {
+			return fmt.Errorf("take down the %s half of the peering with %s: %w", network, other, err)
+		}
+	}
+	return nil
+}
+
+// removePeerRow deletes one row of a network's own peer list, under the locks of
+// both ends so it cannot cross a declaration of the same pair.
+func (d *Incus) removePeerRow(ctx context.Context, network string, row peerRow) error {
+	release := d.peerLock(network, row.Target, row.Name)
+	defer release()
+	if _, err := d.run(ctx, "network", "peer", "delete", network, row.Name); err != nil && !isNotFound(err) {
+		return fmt.Errorf("remove stale peering %s of %s: %w", row.Name, network, err)
+	}
+	return nil
+}
+
+// declarePeerHalf declares one direction of a peering, under the target's name
+// so the pair is recognisable from either side.
+//
+// Two answers are not failures. "Already exists" is another declaration of the
+// same half arriving first — the pair's locks exclude every other goroutine
+// here, so it is a second process, and its work is this call's work. "More than
+// one matching network peer was found" is the runtime refusing to guess between
+// several pending halves aiming at this network (see peerLock for the source and
+// the measurement): the locks stop this process from making that state, but a
+// crashed run, or a run of a version without them, leaves it on the host, and
+// nothing a user can type repairs it. So it is reconciled and the create is
+// re-issued once.
+// TestASecondPendingHalfIsReconciledRatherThanReported fails without the branch.
+func (d *Incus) declarePeerHalf(ctx context.Context, from, to string) error {
+	_, err := d.run(ctx, "network", "peer", "create", from, to, to)
+	if err == nil {
+		return nil
+	}
+	said := strings.ToLower(err.Error())
+	if strings.Contains(said, "already exists") {
+		return nil
+	}
+	if !strings.Contains(said, "more than one matching network peer") {
+		return fmt.Errorf("peer %s with %s: %w", from, to, err)
+	}
+	dropped, rivalErr := d.clearRivalPendingHalves(ctx, from, to)
+	if rivalErr != nil {
+		return fmt.Errorf("peer %s with %s: %w (the pending halves aiming at %s could not be read: %w)",
+			from, to, err, from, rivalErr)
+	}
+	if dropped == 0 {
+		return fmt.Errorf("peer %s with %s: %w (several pending halves aim at %s and none of them is the emulator's to remove)",
+			from, to, err, from)
+	}
+	if _, err := d.run(ctx, "network", "peer", "create", from, to, to); err != nil &&
+		!strings.Contains(strings.ToLower(err.Error()), "already exists") {
+		return fmt.Errorf("peer %s with %s, after clearing %d pending half(s) aiming at %s: %w",
+			from, to, dropped, from, err)
+	}
+	return nil
+}
+
+// clearRivalPendingHalves removes the pending halves aiming at one network that
+// come from anywhere except the peer being declared, and answers how many went.
+//
+// Only the emulator's own OVN networks are read, and each one is asked for the
+// label before anything is deleted on it: a pending half on a network somebody
+// else created is somebody else's, and leaving the create to fail is the honest
+// outcome. A half taken down here carried no traffic — pending grants nothing —
+// and the reconciliation that owns it is level-based, so it is declared again on
+// the next pass.
+func (d *Incus) clearRivalPendingHalves(ctx context.Context, aimedAt, keep string) (int, error) {
+	subnets, err := d.ourOVNSubnets(ctx)
+	if err != nil {
+		return 0, err
+	}
+	names := make([]string, 0, len(subnets))
+	for name := range subnets {
+		if name == aimedAt || name == keep {
+			continue
+		}
+		names = append(names, name)
+	}
+	// Sorted, so two runs of the same repair emit the same commands.
+	slices.Sort(names)
+
+	dropped := 0
+	for _, name := range names {
+		rows, err := d.networkPeers(ctx, name)
+		if err != nil {
+			// A network that went while this was being read holds no half.
+			continue
+		}
+		for _, row := range rows {
+			if row.Target != aimedAt || row.Status == peerCreated {
+				continue
+			}
+			if !d.ownsPeerTarget(ctx, name) {
+				break
+			}
+			if _, err := d.run(ctx, "network", "peer", "delete", name, row.Name); err != nil && !isNotFound(err) {
+				return dropped, fmt.Errorf("clear the pending half %s of %s: %w", row.Name, name, err)
+			}
+			dropped++
+		}
+	}
+	return dropped, nil
+}
+
 type peerRow struct {
-	Name   string
+	Name string
+	// Target is the network on the far end. The runtime blanks it when that
+	// network's peer list is edited, which is what a wreck looks like.
 	Target string
+	// Status is the runtime's own verdict: Created, Pending, or Errored.
+	Status string
 }
 
 func (d *Incus) networkPeers(ctx context.Context, network string) ([]peerRow, error) {
@@ -350,35 +621,16 @@ func (d *Incus) networkPeers(ctx context.Context, network string) ([]peerRow, er
 	var raw []struct {
 		Name          string `json:"name"`
 		TargetNetwork string `json:"target_network"`
+		Status        string `json:"status"`
 	}
 	if err := json.Unmarshal(out, &raw); err != nil {
 		return nil, fmt.Errorf("decode peers of %s: %w", network, err)
 	}
 	rows := make([]peerRow, 0, len(raw))
 	for _, r := range raw {
-		rows = append(rows, peerRow{Name: r.Name, Target: r.TargetNetwork})
+		rows = append(rows, peerRow{Name: r.Name, Target: r.TargetNetwork, Status: r.Status})
 	}
 	return rows, nil
-}
-
-// ensurePeerHalf declares one direction of a peering, under the target's name
-// so the pair is recognisable from either side. Racing another declaration of
-// the same half is the success case arriving first.
-func (d *Incus) ensurePeerHalf(ctx context.Context, from, to string) error {
-	rows, err := d.networkPeers(ctx, from)
-	if err != nil {
-		return err
-	}
-	for _, row := range rows {
-		if row.Target == to {
-			return nil
-		}
-	}
-	if _, err := d.run(ctx, "network", "peer", "create", from, to, to); err != nil &&
-		!strings.Contains(strings.ToLower(err.Error()), "already exists") {
-		return fmt.Errorf("peer %s with %s: %w", from, to, err)
-	}
-	return nil
 }
 
 // ---- Public addresses -------------------------------------------------------

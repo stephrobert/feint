@@ -1124,6 +1124,73 @@ tooling produces one, the repair is theirs to run, and `incus admin sql global
 "DELETE FROM networks_peers WHERE id=<id>"` is the statement — after reading the
 row, because nothing here will read it for them.
 
+### Two more of Incus' peering rules, and why a Net of three subnets found them (#456)
+
+The section above is about a row nothing can remove. This one is about the two
+rules that produce such rows in the first place, and both were read from the
+Incus source at v7.2.0 and then measured on the station, sequentially, with
+nothing concurrent.
+
+**A create is completed by any pending half aiming at the network, and by
+exactly one.** `PeerCreate` in `internal/server/network/driver_ovn.go` looks for
+the half to consummate with `GetNetworkPeers(TargetNetworkProject,
+TargetNetworkName)` — the target network, and no clause on which network holds
+the row — and answers `More than one matching network peer was found` when the
+filter matches twice. So two pending halves aiming at one network make *every*
+create on it fail, whichever pairs they belong to:
+
+```
+$ incus network peer create fnt-lab1 fnt-lab2 fnt-lab2
+Network peer fnt-lab2 pending (please complete mutual peering on peer network)
+$ incus network peer create fnt-lab3 fnt-lab2 fnt-lab2
+Network peer fnt-lab2 pending (please complete mutual peering on peer network)
+$ incus network peer create fnt-lab2 fnt-lab1 fnt-lab1
+Error: Failed creating peer: More than one matching network peer was found
+```
+
+`(lab1, lab2)` and `(lab3, lab2)` are two different pairs, which is the whole
+shape of #456: a Net of N subnets declares N(N-1) halves as its subnets appear,
+and only a Net with three or more can have two of them aiming at one network at
+once. That is why a stranger's three-subnet Net tripped it and the two-subnet
+conformance fixtures never did — and why the emulator excludes both *ends* of a
+pair rather than the pair, one lock per network taken in sorted order
+(`peerLock`, `internal/core/machine/incus_ovn.go`).
+
+**A peer delete blanks every row aiming at the network it runs on.** `PeerDelete`
+clears `target_network_id` for every row whose target is that network, in the
+same transaction, whatever pair the row belongs to. On a three-network mesh:
+
+```
+$ incus network peer delete fnt-lab2 fnt-lab3
+Network peer fnt-lab3 deleted
+$ incus query /1.0/networks/fnt-lab1/peers?recursion=1
+  {"name":"fnt-lab2","target_network":null,"status":"Errored"}
+$ incus network peer create fnt-lab1 fnt-lab2 fnt-lab2
+Error: Failed creating peer: A peer for that name already exists
+```
+
+The delete named lab2 and lab3, and it is **lab1**'s half that came back
+`Errored`. Redeclaring that half is then refused for the name, which this driver
+used to tolerate as the peering already being there — so a peering was reported
+applied and did not exist. A pair whose two halves the runtime does not both
+call `Created` is now rebuilt from both ends instead, and every delete on that
+path asks the label `EnsureNetwork` wrote before touching a network, never the
+`fnt-` prefix.
+
+**What remains a limit.** Because a delete invalidates every inbound half of a
+network, repairing one pair of a mesh can damage its neighbours', so a mesh
+*already* wrecked on the host is not guaranteed to come back complete in a single
+reconciliation. Measured both ways on 2026-08-25, same shape both times: one run
+of a three-subnet Net broken by hand and then given a fourth subnet came back
+with twelve rows of which four were `Created`; the next, with the passes carried
+on, came back **12 of 12, then 20 of 20, then 30 of 30** as subnets five and six
+arrived, with no `More than one matching network peer was found` and no
+`could not peer` in the log at all. A Net whose subnets are merely *created* is
+the case that matters and it is exact: three subnets give three networks, six
+rows, six `Created`. Nothing here is a reason to hand-repair a host — the next
+subnet event reconciles, and `feint clean --force` is what frees a station that
+carries the older, unremovable form.
+
 ## Authentication is accepted, never verified
 
 No signature is checked, on any provider. Credentials must merely be well-formed,

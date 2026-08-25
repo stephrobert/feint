@@ -1,0 +1,33 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the peering of a pair stops excluding the networks it names, so two pairs of one Net leave two pending halves aiming at the same network and the runtime refuses every create on it (#456)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tslices.Sort(ordered)\n\treleases := make([]func(), 0, len(ordered))",
+      "replace": "\tslices.Sort(ordered)\n\tordered = ordered[:0]\n\treleases := make([]func(), 0, len(ordered))",
+      "test": "TestConcurrentPairsOfOneNetDoNotCollideOnAPendingHalf"
+    },
+    {
+      "label": "the rebuild ignores the half holding the target's name with no target left, so the create answers \"a peer for that name already exists\" and the peering is reported applied without existing (#456)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\t\tif row.Name == other || row.Target == other {",
+      "replace": "\t\tif row.Target == other {",
+      "test": "TestAWreckedHalfIsRebuiltRatherThanReportedApplied"
+    },
+    {
+      "label": "a second pending half aiming at the network is reported instead of reconciled, which leaves a host nothing a user can type repairs (#456)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tif !strings.Contains(said, \"more than one matching network peer\") {",
+      "replace": "\tif !strings.Contains(said, \"more than one matching network peer of a wording no runtime uses\") {",
+      "test": "TestASecondPendingHalfIsReconciledRatherThanReported"
+    },
+    {
+      "label": "the rebuild deletes peerings on the far network without asking whether the emulator created it, so an operator's own fnt-* network is reconfigured (#456, the guard #455 added to the sweep)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tif !d.ownsPeerTarget(ctx, network) {\n\t\treturn fmt.Errorf(\"refusing to rebuild the peering between %s and %s: %s is not a network the emulator created\",",
+      "replace": "\tif false && !d.ownsPeerTarget(ctx, network) {\n\t\treturn fmt.Errorf(\"refusing to rebuild the peering between %s and %s: %s is not a network the emulator created\",",
+      "test": "TestPeeringRefusesToRebuildOnAStrangersNetworkNamedLikeOurs"
+    }
+  ]
+}

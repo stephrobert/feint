@@ -84,6 +84,64 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Un Net à trois subnets ou plus s'appaire sous OVN, et un hôte qui porte déjà
+  l'état qui l'en empêchait est réconcilié** (#456). Le rejeu des quinze stacks
+  tierces sous `--vm incus-ovn` a coûté au registre son résultat vedette :
+  `chimere-eu/ztiac` appliquait 80 de ses 95 ressources, en réclamait 15 au
+  second plan, et son `destroy` échouait. Douze lignes de
+  `Failed creating peer: More than one matching network peer was found` dans un
+  seul apply, nommant six subnets, et l'émulateur continuait en ERROR : l'API
+  décrivait donc un Net dont les subnets se routent entre eux alors que le
+  runtime ne portait aucun peering entre eux.
+
+  **La cause est en amont, et ce ne sont pas deux déclarations de la même
+  paire.** Incus consomme un peering en cherchant une moitié *pendante* qui vise
+  le réseau sur lequel la création atterrit, et cette recherche ne filtre que sur
+  le réseau cible : aucune clause ne dit quel réseau porte la ligne (v7.2.0,
+  `driver_ovn.go`, `PeerCreate`). Deux moitiés pendantes visant un même réseau
+  font donc échouer **toute** création sur lui, quelles que soient les paires
+  auxquelles elles appartiennent. Mesuré sur la station avec trois vrais réseaux
+  OVN et rien de concurrent : `peer create A B B` rend pendant,
+  `peer create C B B` rend pendant, `peer create B A A` rend l'erreur ci-dessus.
+  `(A,B)` et `(C,B)` sont deux paires différentes, ce qui explique qu'un verrou à
+  clé de paire n'aurait rien fermé, et qu'il faille trois subnets à un Net pour
+  déclencher le défaut là où les fixtures à deux subnets ne l'ont jamais fait. Le
+  pilote exclut désormais les deux **bouts** d'une paire, un verrou par réseau
+  pris dans l'ordre trié : deux subnets d'un même Net ne peuvent plus déclarer en
+  même temps deux moitiés visant le même réseau, et deux paires sans réseau
+  commun continuent de s'exécuter en parallèle, ce qu'un verrou global aurait
+  coûté.
+
+  **Une seconde règle du runtime a été mesurée au passage, et elle est corrigée
+  avec.** Supprimer un peer efface la cible de toutes les lignes qui visent le
+  réseau sur lequel la suppression s'exécute, quelle que soit leur paire : sur
+  une maille de trois réseaux, `peer delete B C` a laissé **A** tenant
+  `{"name":"B","target_network":null,"status":"Errored"}`, et redéclarer cette
+  moitié rend `A peer for that name already exists`, que ce pilote tolérait comme
+  un succès. Le peering était donc rapporté appliqué et n'existait pas. Une paire
+  dont le runtime n'appelle pas les deux moitiés `Created` est maintenant
+  reconstruite des deux côtés, et toute suppression sur ce chemin demande
+  l'étiquette écrite par `EnsureNetwork` avant de toucher un réseau, jamais le
+  préfixe `fnt-` que n'importe qui peut taper.
+
+  **Et « More than one matching network peer was found » est réconcilié plutôt
+  que rapporté** : les moitiés pendantes qui visent ce réseau sont retirées, sur
+  les seuls réseaux portant l'étiquette de cet émulateur, puis la création est
+  réémise une fois, parce qu'un hôte laissé dans cet état par un run interrompu
+  n'est réparé par rien de ce qu'un utilisateur peut taper.
+
+  Mesuré de bout en bout contre Incus 7.2 avec OVN, le 2026-08-25 : un Net dont
+  les trois subnets sont créés en parallèle donne trois réseaux OVN, six lignes
+  de peering, six `Created`, et aucun échec dans le journal ; un hôte cassé à la
+  main dans exactement l'état ci-dessus puis doté d'un quatrième subnet est
+  revenu à **12 lignes sur 12 en `Created`**, puis 20 sur 20 et 30 sur 30 à
+  mesure que deux subnets s'ajoutaient ; les six subnets et le Net se sont
+  ensuite supprimés sans aucun 409, ne laissant aucun réseau et une table
+  `networks_peers` vide. `tools/falsify/specs/peering-pairs.json` prouve que les
+  gardes mordent (quatre mutations, quatre tests rouges), et `docs/limits.md`
+  porte les deux règles du runtime avec les commandes qui les ont produites, y
+  compris le cas qui n'est toujours pas garanti en une seule passe.
+
 - **Un balayage ne piège plus l'hôte qu'il nettoie, et `feint clean --force`
   libère un hôte déjà piégé** (#455). Quinze stacks tierces rejouées sous
   `--vm incus-ovn` ont laissé deux réseaux OVN, deux jeux de règles et l'uplink
