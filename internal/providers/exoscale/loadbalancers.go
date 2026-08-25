@@ -75,6 +75,10 @@ import (
 //	  Failed creating load balancer: Uplink network doesn't contain
 //	  "192.0.2.1/32" in its routes
 //
+// Those three lines are what was printed that day and are left as printed; the
+// refusal's wording has since gained the sentinel #457 added
+// (machine.ErrBalancerNotDistributed), and the verdict is unchanged.
+//
 // So the interface is not the obstacle — an in-block address is accepted and
 // created — and neither is a provider-shaped gap in it: the runtime refuses
 // this pack's address on its own, before any guard of ours is consulted. What

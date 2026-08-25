@@ -2,6 +2,7 @@ package outscale
 
 import (
 	"context"
+	"errors"
 
 	"github.com/stephrobert/feint/internal/core/machine"
 	"github.com/stephrobert/feint/internal/core/resource"
@@ -94,6 +95,28 @@ func (p *Pack) syncBalancer(ctx context.Context, name string) {
 		return
 	}
 	if err := b.EnsureBalancer(ctx, spec); err != nil {
+		// A limit is not an incident, and levelling the two the same is how a
+		// log teaches people to skip its errors (#457).
+		//
+		// The shape this runtime does not distribute — a balancer in front of
+		// machines on another subnet, which is the ordinary two-tier
+		// architecture — is refused by name at the driver, on every register,
+		// for as long as the stack lives. Reported at ERROR it would be a
+		// permanent error on a working configuration; reported at WARN, with
+		// what the API still describes, it is what it is: this emulator records
+		// that balancer and does not distribute for it. docs/limits.md carries
+		// the measurement, and `capabilities.balancing` says which shape it
+		// covers.
+		//
+		// Anything else is the runtime failing at something it had accepted,
+		// which stays an error.
+		// TestAnUndistributableShapeIsNotLoggedAsAnError fails without this.
+		if errors.Is(err, machine.ErrBalancerNotDistributed) {
+			p.logger().Warn("this runtime does not distribute a load balancer of this shape; "+
+				"the API goes on describing it and its backends",
+				"load_balancer", res.ID, "listen", spec.Listen, "error", err)
+			return
+		}
 		p.logger().Error("could not hand the load balancer to the runtime",
 			"load_balancer", res.ID, "listen", spec.Listen, "error", err)
 	}

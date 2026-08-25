@@ -2585,6 +2585,41 @@ What a `200` from `CreateLoadBalancer` means here, stated rather than implied:
   So `EnsureBalancer` **refuses** a listen address outside the network's own
   block rather than configuring one. A balancer that passes a test and fails
   three minutes later is worse than a balancer that was never claimed.
+- **Backends on another subnet are not distributed, under any `--vm` mode**
+  (#457, measured on Incus 7.2 with OVN on 2026-08-25). This is the ordinary
+  two-tier architecture — a load balancer on the public subnet, the application
+  machines on the private one — and it is served as configuration only: the
+  `200` stands, `ReadLoadBalancers` describes the balancer and its
+  `BackendVmIds`, and nothing forwards for it.
+
+  The four measurements, because the shape is common enough that "it should be
+  possible" deserves an answer rather than an opinion. On two OVN networks of
+  the emulator's own making, `10.181.0.0/24` and `10.181.4.0/24`:
+
+  1. a balancer on the first with a backend in the second is refused outright,
+     `Target address is not within the network subnet for backend "b1-80"`;
+  2. peering the two networks — both halves `CREATED` — does not relax it: the
+     same refusal, word for word;
+  3. putting the balancer on the *backends'* network instead, which is the
+     placement that would serve the shape, is refused on the other end,
+     `Load balancer listen address "10.181.0.5/32" overlaps with another network
+     or NIC`;
+  4. and there is no key to declare the address with: an OVN network answers
+     `Invalid option for network "fnt-mxb" option "ipv4.routes"`, since only a
+     NIC carries `ipv4.routes.external` and a VIP has no NIC.
+
+  The one placement the runtime accepts is a listen address belonging to no
+  emulated block at all, delegated through the uplink — which is exactly the
+  address class of the paragraph above, the one that goes dark in minutes, and
+  not the address the API published either.
+
+  So the driver refuses the shape by name, before writing anything, and the pack
+  reports it at WARN rather than ERROR: it is a limit that holds for the life of
+  the stack, not an incident, and an error that is permanent on a working
+  configuration teaches people to skip errors. `capabilities.balancing` covers
+  the balancer whose backends are on its own network and says nothing about this
+  one; what withdraws the claim entirely is the host refusing a write the driver
+  had accepted.
 - **No backend health exists, and none is invented.** `ReadVmsHealth` stays
   declined, and it stays declined *after* the dataplane landed: `incus network
   load-balancer info` answers "No load-balancer health information available",
@@ -2746,6 +2781,10 @@ this emulator's own making (10.63.7.0/24):
 - and the daemon itself refuses the public address before any guard of ours is
   consulted: *Failed creating load balancer: Uplink network doesn't contain
   `"192.0.2.1/32"` in its routes*.
+
+Those three lines are quoted as they were printed that day. The refusal has
+since gained the sentinel #457 added (`machine.ErrBalancerNotDistributed`), so
+its wording differs; the verdict does not.
 
 So `capabilities.balancing` is irrelevant to this family: the pack never asks
 the runtime at all, because the only call it could make is one whose refusal is

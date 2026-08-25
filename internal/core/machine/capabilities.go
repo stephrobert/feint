@@ -50,17 +50,34 @@ type Capabilities struct {
 	// kernel modules or the boot path measures something.
 	OwnKernel bool `json:"own_kernel"`
 	// Balancing: a load balancer distributes real connections across its
-	// backends, for clients inside the network it sits in.
+	// backends, for clients inside the network it sits in — and across backends
+	// of that same network.
 	//
-	// The bound is in the name of the thing measured and it is not a hedge
-	// (#315, internal/core/machine/balancer.go). An address of the network's
-	// own block — which is what an *internal* load balancer's address is —
-	// balanced 6/6 connections across two machines at t0, t+60s and t+180s. An
-	// address outside it, delegated through the uplink, answered for two
-	// minutes and went dark for ever, because the runtime announces such an
-	// address once at creation and never again. So this claim covers the
-	// internal form and says nothing about the internet-facing one, whose
-	// public address stays a TEST-NET address routed nowhere on purpose.
+	// Both bounds name the thing measured and neither is a hedge
+	// (#315, #457, internal/core/machine/balancer.go).
+	//
+	// The address. One of the network's own block — which is what an *internal*
+	// load balancer's address is — balanced 6/6 connections across two machines
+	// at t0, t+60s and t+180s. An address outside it, delegated through the
+	// uplink, answered for two minutes and went dark for ever, because the
+	// runtime announces such an address once at creation and never again. So
+	// this claim covers the internal form and says nothing about the
+	// internet-facing one, whose public address stays a TEST-NET address routed
+	// nowhere on purpose.
+	//
+	// The backends. Same block, and the second half was measured on 2026-08-25
+	// rather than assumed: the runtime refuses a backend outside the balancer's
+	// own subnet, peering the two networks does not relax it, and the placement
+	// that would serve the ordinary two-tier shape — a public balancer in front
+	// of private machines — is refused on its listen address instead. So this
+	// claim says nothing about a balancer whose machines are on another subnet:
+	// EnsureBalancer refuses that shape by name and docs/limits.md carries the
+	// measurements.
+	//
+	// A true here is therefore a claim about a shape, not about every balancer
+	// the API will accept. What withdraws it entirely is the host refusing a
+	// write this driver had accepted — balancerRefused, the twin of the rule
+	// #454 wrote for the firewall.
 	Balancing bool `json:"balancing"`
 	// PrivateFromHost: an address inside an emulated subnet answers from the
 	// host that runs the emulator, not only from the other machines.
@@ -151,6 +168,14 @@ func (d *Incus) Capabilities() Capabilities {
 	if d.firewallDenied.Load() {
 		caps.Firewall = false
 		caps.FirewallPublicOnly = false
+	}
+	// And the same rule for the balancer (#457). A load balancer the daemon
+	// rejected after this driver had accepted it is the host saying this process
+	// does not distribute what its API describes; balancing=true afterwards is
+	// the same lying 200, one plane over.
+	// TestABalancerWriteTheHostRefusesWithdrawsTheCapability fails without this.
+	if d.balancerDenied.Load() {
+		caps.Balancing = false
 	}
 	return caps
 }

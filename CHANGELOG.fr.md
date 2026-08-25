@@ -109,6 +109,70 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Un répartiteur de charge devant des machines d'un autre sous-réseau cesse de
+  revendiquer un plan de données qu'il n'a pas, et l'ordre Terraform ordinaire
+  cesse d'échouer** (#457). Le rejeu des quinze stacks tierces de
+  `examples/stacks/surveyed.md` sous `--vm incus-ovn` l'a trouvé, sur le
+  `two-tier-architecture` de `chimere-eu/ztiac` : un balanceur public devant des
+  machines privées est la forme ordinaire, et **les deux** balanceurs de cette
+  stack tombaient dessus. L'`apply` réussissait sur 54 ressources alors que
+  l'hôte ne portait aucun balanceur, et seul le journal de l'émulateur le
+  savait — la même famille que #454.
+
+  **La cause était un garde posé sur une extrémité seulement.** `EnsureBalancer`
+  contrôlait l'adresse d'*écoute* contre le bloc du réseau (le garde de #315) et
+  se contentait de `netip.ParseAddr` sur chaque *cible*, si bien qu'un backend
+  sur un autre sous-réseau passait tous les refus et mourait dans le runtime, au
+  milieu de l'écriture, laissant le balanceur debout sur les backends qu'il
+  avait déjà.
+
+  **La question de savoir si OVN pouvait servir cette forme a été mesurée avant
+  d'être tranchée**, sur Incus 7.2 avec OVN le 2026-08-25, sur deux réseaux
+  créés par l'émulateur. Un backend hors du réseau du balanceur est refusé,
+  `Target address is not within the network subnet` ; appairer les deux réseaux
+  — les deux moitiés `CREATED` — ne relâche rien, le refus est le même mot pour
+  mot ; poser le balanceur sur le réseau des *cibles*, ce qui est le placement
+  qui servirait la forme, est refusé à l'autre bout, `Load balancer listen
+  address "10.181.0.5/32" overlaps with another network or NIC` ; et il n'existe
+  aucune clé pour déclarer l'adresse, un réseau OVN répondant `Invalid option
+  for network ... option "ipv4.routes"`, parce que seule une NIC porte
+  `ipv4.routes.external` et qu'une VIP n'a pas de NIC. Le seul placement que le
+  runtime accepte réclame une adresse d'écoute n'appartenant à aucun bloc émulé
+  — exactement la classe d'adresses que #315 a mesurée devenant muette en trois
+  minutes, et ce n'est pas non plus l'adresse que l'API a publiée.
+
+  **C'est donc la limite qui bouge, pas le plan de données.** Le pilote refuse la
+  forme par son nom, entière, avant toute écriture ; le pack la rapporte en WARN
+  en nommant ce que l'API continue de décrire, parce qu'une limite qui tient
+  toute la vie d'une stack rapportée en ERREUR est la façon dont un journal
+  apprend à ignorer ses erreurs ; et `capabilities.balancing` énonce désormais
+  ses deux bornes — l'adresse du balanceur *et* ses backends sur son propre
+  réseau. `docs/limits.md` porte les quatre mesures. Le `200` reste, comme celui
+  du vrai cloud.
+
+  **Et l'ordre Terraform ordinaire cesse d'échouer.** Un balanceur créé avant ses
+  machines était écrit avec un port ne nommant aucun backend, ce que le runtime
+  refuse (`Missing VIP target(s)`), avant de se réparer au register suivant. Le
+  même corps **sans port** est accepté — mesuré, avec la vidange : un `PUT` ne
+  portant ni backend ni port arrête la distribution, donc un balanceur qui perd
+  sa dernière machine cesse réellement de recevoir. L'erreur est supprimée
+  plutôt que journalisée plus discrètement.
+
+  **Une limite bouge aussi sur `/_feint/health`** : `capabilities.balancing` peut
+  désormais passer à faux en cours d'exécution, selon la règle que #454 a écrite
+  pour le pare-feu — à sens unique, et seul un refus *de l'hôte* compte, jamais
+  un refus que ce pilote a prononcé lui-même.
+
+  Éprouvé contre le vrai runtime, en lisant `incus network load-balancer
+  list`/`show` et non la réponse de l'API : le balanceur apparaît sur l'hôte dès
+  la création avec 0 port, le register inter-sous-réseaux le laisse intact avec
+  un WARN et zéro ERREUR sur toute l'exécution, et — le contrôle positif qui
+  donne un sens à ce vide — un balanceur du même sous-réseau porte bien son
+  backend et son port. Falsifié quatre fois de plus
+  (`tools/falsify/specs/balancer-dataplane.json`, quatorze mutations au total) :
+  garde de cible désarmé, ports rétablis sur un balanceur sans backend, retrait
+  de capacité désarmé, et limite ramenée au niveau ERREUR.
+
 - **Un groupe de sécurité portant une règle ICMP dont la source est en IPv6
   garde son pare-feu, et un jeu de règles que l'hôte refuse cesse de se lire
   comme un succès** (#454). Le rejeu des quinze stacks tierces de

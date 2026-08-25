@@ -103,6 +103,66 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **A load balancer in front of machines on another subnet stops claiming a
+  dataplane it does not have, and an ordinary Terraform order stops failing**
+  (#457). Replaying the fifteen third-party stacks of
+  `examples/stacks/surveyed.md` under `--vm incus-ovn` found it, on
+  `chimere-eu/ztiac`'s `two-tier-architecture`: a public balancer in front of
+  private machines is the ordinary shape, and **both** of that stack's balancers
+  hit it. The `apply` succeeded over 54 resources while the host held no
+  balancer at all, and only the emulator's log knew — the same family as #454.
+
+  **The cause was a guard applied to one end only.** `EnsureBalancer` checked
+  the *listen* address against the network's block (the #315 guard) and merely
+  `netip.ParseAddr`-ed each *target*, so a backend on another subnet passed
+  every refusal and died inside the runtime, mid-write, leaving the balancer
+  standing on the backends it already had.
+
+  **Whether OVN could be made to serve the shape was measured before it was
+  answered**, on Incus 7.2 with OVN on 2026-08-25, on two networks of the
+  emulator's own making. A backend outside the balancer's network is refused,
+  `Target address is not within the network subnet`; peering the two networks —
+  both halves `CREATED` — does not relax it, word for word the same refusal;
+  putting the balancer on the *backends'* network instead, which is the
+  placement that would serve the shape, is refused on the other end,
+  `Load balancer listen address "10.181.0.5/32" overlaps with another network or
+  NIC`; and there is no key to declare the address with, an OVN network
+  answering `Invalid option for network ... option "ipv4.routes"` because only a
+  NIC carries `ipv4.routes.external` and a VIP has no NIC. The one placement the
+  runtime accepts needs a listen address in no emulated block at all — exactly
+  the address class #315 measured going dark in three minutes, and not the
+  address the API published either.
+
+  **So the limit moved rather than the dataplane.** The driver refuses the shape
+  by name, whole, before anything is written; the pack reports it at WARN
+  naming what the API still describes, because a limit that holds for the life
+  of a stack reported at ERROR is how a log teaches people to skip its errors;
+  and `capabilities.balancing` now states both of its bounds — the balancer's
+  own address *and* its backends on its own network. `docs/limits.md` carries
+  the four measurements. The `200` stands, as the real cloud's does.
+
+  **And the ordinary Terraform order stops failing at all.** A balancer created
+  before its machines was written with a port naming no backend, which the
+  runtime refuses (`Missing VIP target(s)`), before repairing itself at the next
+  register. The same body with **no port** is accepted — measured, along with
+  the drain: a `PUT` carrying neither backend nor port stops the distribution,
+  so a balancer that loses its last machine really does stop receiving. So the
+  error is removed instead of being logged more quietly.
+
+  **A limit moved on `/_feint/health` too:** `capabilities.balancing` can now go
+  false during a run, on the rule #454 wrote for the firewall — one-way, and
+  only a refusal *by the host* counts, never one this driver made on its own.
+
+  Witnessed against the real runtime, reading `incus network load-balancer
+  list`/`show` rather than the API's answer: the balancer appears on the host at
+  create with 0 ports, the cross-subnet register leaves it untouched with one
+  WARN and zero ERROR in the whole run, and — the positive control that makes
+  the emptiness mean something — a same-subnet balancer does carry its backend
+  and port. Falsified four more ways
+  (`tools/falsify/specs/balancer-dataplane.json`, fourteen mutations in all):
+  the target guard disarmed, the ports restored on a balancer with no backend,
+  the capability withdrawal disarmed, and the limit levelled back to ERROR.
+
 - **A security group carrying an ICMP rule with an IPv6 source keeps its
   firewall, and a rule set the host refuses stops reading as a success** (#454).
   Replaying the fifteen third-party stacks of `examples/stacks/surveyed.md`

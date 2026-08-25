@@ -73,6 +73,35 @@
       "replace": "\tif false {\n\t\tp.removeBalancer(r.Context(), res)\n\t}",
       "test": "TestUnlinkingAndDeletingReachTheRuntime",
       "package": "./internal/providers/outscale/"
+    },
+    {
+      "label": "a backend on another subnet passes the guard and dies inside the runtime, mid-write (#457)",
+      "file": "internal/core/machine/incus_balancer.go",
+      "find": "\t\tif !block.Contains(address) {",
+      "replace": "\t\tif !block.Contains(address) && false {",
+      "test": "TestABalancerWithATargetOutsideTheNetworkIsRefused"
+    },
+    {
+      "label": "a balancer with no backend is written with a port naming nothing, which the runtime refuses with \"Missing VIP target(s)\"",
+      "file": "internal/core/machine/incus_balancer.go",
+      "find": "\tif len(spec.Targets) > 0 {",
+      "replace": "\tif len(spec.Targets) > 0 || true {",
+      "test": "TestABalancerWithNoBackendIsWrittenWithoutPorts"
+    },
+    {
+      "label": "a load balancer the host refused leaves capabilities.balancing true, so a suite keys on a claim the host denied",
+      "file": "internal/core/machine/capabilities.go",
+      "find": "\tif d.balancerDenied.Load() {",
+      "replace": "\tif d.balancerDenied.Load() && false {",
+      "test": "TestABalancerWriteTheHostRefusesWithdrawsTheCapability"
+    },
+    {
+      "label": "a shape this runtime never distributes is reported at ERROR on every register, which teaches people to skip errors",
+      "file": "internal/providers/outscale/loadbalancer_dataplane.go",
+      "find": "\t\tif errors.Is(err, machine.ErrBalancerNotDistributed) {",
+      "replace": "\t\tif errors.Is(err, machine.ErrBalancerNotDistributed) && false {",
+      "test": "TestAnUndistributableShapeIsNotLoggedAsAnError",
+      "package": "./internal/providers/outscale/"
     }
   ]
 }

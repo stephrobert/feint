@@ -111,6 +111,13 @@ type Incus struct {
 	// the retraction is one-way.
 	firewallDenied atomic.Bool
 
+	// balancerDenied is the same fact one plane over (#457): the host refused a
+	// load balancer this driver had accepted, so Capabilities answers
+	// balancing=false from then on. Written from EnsureBalancer's two writes,
+	// read by every `/_feint/health`; see balancerRefused for why the
+	// retraction is one-way and why only the host's refusal sets it.
+	balancerDenied atomic.Bool
+
 	// Interface allocation is serialised per machine, by serialise.Lock in
 	// Attach — there is no field here on purpose.
 	//

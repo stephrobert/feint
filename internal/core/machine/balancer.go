@@ -1,6 +1,9 @@
 package machine
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 // A load balancer that distributes packets, within the one bound that was
 // measured (#315).
@@ -36,6 +39,43 @@ import "context"
 // Hence Capabilities.Balancing, declared by the OVN mode alone, and hence
 // EnsureBalancer refusing a listen address outside the network's own block
 // rather than configuring one that would go dark in minutes.
+//
+// The backends live under the same bound, and that half was measured on
+// 2026-08-25 for #457, because nothing had asked the runtime the question. On
+// Incus 7.2 with OVN, on two networks of this emulator's own making:
+//
+//   - a backend outside the balancer's network is refused outright, "Target
+//     address is not within the network subnet for backend \"b1-80\"";
+//   - peering the two networks — both halves CREATED — does not relax it: the
+//     same refusal, word for word;
+//   - putting the balancer on the *backends'* network instead, which is the
+//     placement that would serve the ordinary two-tier shape, is refused on the
+//     other end: "Load balancer listen address \"10.181.0.5/32\" overlaps with
+//     another network or NIC";
+//   - and there is no external-route key on an OVN network to declare the
+//     address with — "Invalid option for network ... option \"ipv4.routes\"" —
+//     only NICs carry ipv4.routes.external, and a VIP has no NIC.
+//
+// The one placement the runtime does accept is a listen address belonging to no
+// emulated block at all, delegated through the uplink. That is exactly the
+// address class of the paragraph above, the one that goes dark in minutes, and
+// it is not the address the API published either.
+//
+// So a load balancer in front of machines on another subnet is not served here,
+// it is refused by name, and docs/limits.md carries the measurement. Refusing is
+// what makes the refusal reach somebody: the runtime's own refusal arrives in
+// the middle of the write, leaving the balancer standing with the backends it
+// already had.
+
+// ErrBalancerNotDistributed marks a balancer whose shape this runtime does not
+// distribute — a stated limit, not a failure.
+//
+// It exists so a caller can tell the two apart without matching prose. A pack
+// hands a balancer to the runtime after every change to it, and a shape the
+// runtime will never take is not an incident to be reported at ERROR on every
+// register: it is a limit, said once, next to what the API still describes. A
+// runtime that broke is the other thing, and it stays an error.
+var ErrBalancerNotDistributed = errors.New("this runtime does not distribute a balancer of this shape")
 
 // BalancerListener is one port a balancer answers on, and the port it hands the
 // connection to on each backend.
@@ -69,10 +109,13 @@ type BalancerSpec struct {
 	Listen string
 	// Listeners are the ports, at least one.
 	Listeners []BalancerListener
-	// Targets are the addresses of the machines behind it. An empty list is
-	// valid and means exactly what it says: a balancer with no backend, which
-	// is what a stack has between creating one and registering its first
-	// machine.
+	// Targets are the addresses of the machines behind it. They must belong to
+	// Network's own block too, for the reason the package comment measures: the
+	// runtime refuses a backend outside it, peered or not.
+	//
+	// An empty list is valid and means exactly what it says: a balancer with no
+	// backend, which is what a stack has between creating one and registering
+	// its first machine.
 	Targets []string
 }
 

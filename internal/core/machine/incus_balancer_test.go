@@ -1,8 +1,11 @@
 package machine
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"strings"
 	"testing"
 )
@@ -330,4 +333,185 @@ func payloadOf(t *testing.T, f *fakeRuntime, substr string) string {
 	}
 	t.Fatalf("no call matching %q carried a payload: %v", substr, f.commands())
 	return ""
+}
+
+// A backend outside the balancer's own network is refused, whole.
+//
+// #457, and it is the ordinary two-tier architecture rather than an exotic
+// shape: a load balancer on the public subnet, the machines on the private one.
+// Before this guard the listen address was checked and each target was only
+// parsed, so the specification passed every refusal here and died inside the
+// runtime — in the middle of an update, which leaves the balancer standing on
+// the backends it already had while the API describes the new set.
+//
+// The measurements that make refusing the honest answer rather than laziness
+// are in balancer.go: the runtime refuses such a backend, peering the two
+// networks does not relax it, and the placement that would serve the shape is
+// refused on its listen address instead.
+//
+// The commands are asserted, not only the error: a refusal that has already
+// written the object is not a refusal.
+func TestABalancerWithATargetOutsideTheNetworkIsRefused(t *testing.T) {
+	f := &fakeRuntime{answers: map[string]string{
+		"network get fnt-a ipv4.address": "10.61.1.1/24\n",
+		"network get fnt-a user.":        "outscale\n",
+	}, hook: answerExactly(map[string]string{emptyCollection: "[]"})}
+	d := ovnDriver(f)
+
+	err := d.EnsureBalancer(context.Background(), BalancerSpec{
+		Name:      "lbu-public",
+		Network:   "fnt-a",
+		Listen:    "10.61.1.5",
+		Listeners: []BalancerListener{{Protocol: "tcp", Listen: 80, Backend: 8080}},
+		// One backend the network holds and one it does not: the guard has to
+		// look at every target, not at the first.
+		Targets: []string{"10.61.1.10", "10.61.5.10"},
+	})
+	if err == nil {
+		t.Fatalf("a backend on another subnet was accepted; commands: %v", f.commands())
+	}
+	if !errors.Is(err, ErrBalancerNotDistributed) {
+		t.Errorf("a shape this runtime never distributes must be tellable from a runtime failure, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "10.61.5.10") {
+		t.Errorf("the refusal must name the backend it could not take, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "10.61.1.0/24") {
+		t.Errorf("the refusal must name the block the backend had to be in, got %v", err)
+	}
+	if wrote := f.matching("load-balancers"); len(wrote) != 0 {
+		t.Errorf("the refusal still wrote to the runtime: %v", wrote)
+	}
+	// The accepting half of the same guard, and it is the half that keeps the
+	// product: nothing here withdrew the claim, because nothing reached the
+	// host to refuse it.
+	if !d.Capabilities().Balancing {
+		t.Error("this driver's own refusal withdrew a published claim; only the host's refusal may")
+	}
+	if err := d.EnsureBalancer(context.Background(), BalancerSpec{
+		Name:      "lbu-internal",
+		Network:   "fnt-a",
+		Listen:    "10.61.1.5",
+		Listeners: []BalancerListener{{Protocol: "tcp", Listen: 80, Backend: 8080}},
+		Targets:   []string{"10.61.1.10", "10.61.1.11"},
+	}); err != nil {
+		t.Fatalf("backends of the network's own block must still be served: %v", err)
+	}
+}
+
+// A balancer with no backend yet is written without a port.
+//
+// The ordinary Terraform order — the balancer created, its machines registered
+// afterwards — and it was failing on every stack that builds one. A port that
+// names no backend is refused by the runtime, "Failed applying OVN load
+// balancer: Missing VIP target(s)" (Incus 7.2, measured 2026-08-25); the same
+// body with no port at all is accepted, and the register that follows PUTs the
+// ports in. So the error is removed rather than logged more quietly.
+//
+// Both halves are asserted: no port while there is nothing to send to it, and
+// the ports back the moment there is.
+func TestABalancerWithNoBackendIsWrittenWithoutPorts(t *testing.T) {
+	f := &fakeRuntime{answers: map[string]string{
+		"network get fnt-a ipv4.address": "10.61.1.1/24\n",
+		"network get fnt-a user.":        "outscale\n",
+	}, hook: answerExactly(map[string]string{emptyCollection: "[]"})}
+	d := ovnDriver(f)
+
+	if err := d.EnsureBalancer(context.Background(), BalancerSpec{
+		Name: "lbu-x", Network: "fnt-a", Listen: "10.61.1.240",
+		Listeners: []BalancerListener{{Protocol: "tcp", Listen: 80, Backend: 8080}},
+	}); err != nil {
+		t.Fatalf("a balancer with no backend must still reach the runtime: %v", err)
+	}
+	var created lbBody
+	if err := json.Unmarshal([]byte(payloadOf(t, f, "-X POST")), &created); err != nil {
+		t.Fatalf("decode the payload: %v", err)
+	}
+	if len(created.Ports) != 0 {
+		t.Errorf("a port naming no backend is refused by the runtime (\"Missing VIP target(s)\"), got %+v", created.Ports)
+	}
+	if len(created.Backends) != 0 {
+		t.Errorf("a balancer with no target carries no backend, got %+v", created.Backends)
+	}
+
+	// And the register that follows brings the listener back, on a balancer the
+	// collection now holds.
+	second := &fakeRuntime{answers: map[string]string{
+		"network get fnt-a ipv4.address": "10.61.1.1/24\n",
+		"network get fnt-a user.":        "outscale\n",
+	}, hook: answerExactly(map[string]string{
+		emptyCollection: `["/1.0/networks/fnt-a/load-balancers/10.61.1.240"]`,
+	})}
+	d = ovnDriver(second)
+	if err := d.EnsureBalancer(context.Background(), BalancerSpec{
+		Name: "lbu-x", Network: "fnt-a", Listen: "10.61.1.240",
+		Listeners: []BalancerListener{{Protocol: "tcp", Listen: 80, Backend: 8080}},
+		Targets:   []string{"10.61.1.10"},
+	}); err != nil {
+		t.Fatalf("ensure: %v", err)
+	}
+	var registered lbBody
+	if err := json.Unmarshal([]byte(payloadOf(t, second, "-X PUT")), &registered); err != nil {
+		t.Fatalf("decode the payload: %v", err)
+	}
+	if len(registered.Ports) != 1 || len(registered.Ports[0].TargetBackend) != 1 {
+		t.Fatalf("the first backend must bring the listener with it, got %+v", registered.Ports)
+	}
+}
+
+// A write the host refuses withdraws the claim that this process balances.
+//
+// firewallRefused's twin (#454, #181), and the same argument one plane over:
+// `/_feint/health` telling a suite `capabilities.balancing: true` while the
+// daemon holds no balancer is the lying 200 this project exists to refuse, and
+// this repository tells every consumer to key on the capability rather than on
+// a mode name.
+//
+// The accepting half is asserted first, and it matters: a driver that published
+// balancing=false from the start would pass the withdrawal assertion and claim
+// nothing at all. And the last half is the #454 rule itself — a shape this
+// driver refused on its own never reached the daemon, and it arrives from a
+// restorable snapshot, so it must not be a switch on a published claim.
+func TestABalancerWriteTheHostRefusesWithdrawsTheCapability(t *testing.T) {
+	f := &fakeRuntime{answers: map[string]string{
+		"network get fnt-a ipv4.address": "10.61.1.1/24\n",
+		"network get fnt-a user.":        "outscale\n",
+	}, fail: map[string]error{
+		"-X POST": errors.New("incus query: Error: Failed creating load balancer: something new"),
+	}, hook: answerExactly(map[string]string{emptyCollection: "[]"})}
+	var log bytes.Buffer
+	d := ovnDriver(f)
+	d.Log = slog.New(slog.NewTextHandler(&log, nil))
+
+	if !d.Capabilities().Balancing {
+		t.Fatal("an OVN-backed driver must claim balancing before anything refuses it")
+	}
+	if err := d.EnsureBalancer(context.Background(), BalancerSpec{
+		Name: "lbu-x", Network: "fnt-a", Listen: "10.61.1.240",
+		Listeners: []BalancerListener{{Protocol: "tcp", Listen: 80}},
+		Targets:   []string{"10.61.1.10"},
+	}); err == nil {
+		t.Fatal("the refusal must reach the caller")
+	}
+	if d.Capabilities().Balancing {
+		t.Error("the host refused a load balancer and the process still claims to distribute connections")
+	}
+	if !strings.Contains(log.String(), "capabilities.balancing") {
+		t.Errorf("the withdrawal must be said, not only published, got %q", log.String())
+	}
+
+	clean := ovnDriver(&fakeRuntime{answers: map[string]string{
+		"network get fnt-a ipv4.address": "10.61.1.1/24\n",
+		"network get fnt-a user.":        "outscale\n",
+	}, hook: answerExactly(map[string]string{emptyCollection: "[]"})})
+	if err := clean.EnsureBalancer(context.Background(), BalancerSpec{
+		Name: "lbu-x", Network: "fnt-a", Listen: "10.61.1.240",
+		Listeners: []BalancerListener{{Protocol: "tcp", Listen: 80}},
+		Targets:   []string{"10.62.9.10"},
+	}); err == nil {
+		t.Fatal("a backend outside the network must still be refused")
+	}
+	if !clean.Capabilities().Balancing {
+		t.Error("a refusal by this driver's own guard must not withdraw the host's capability")
+	}
 }

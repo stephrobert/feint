@@ -1,13 +1,20 @@
 package outscale_test
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 
+	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/machine"
+	"github.com/stephrobert/feint/internal/providers/outscale"
 )
 
 // The pack half of the load-balancer dataplane (#315).
@@ -248,4 +255,81 @@ func TestEmptyingTheListenersRemovesTheBalancerFromTheRuntime(t *testing.T) {
 
 func containsAddress(line, address string) bool {
 	return len(line) >= len(address) && line[len(line)-len(address):] == address
+}
+
+// refusingBalancer is a runtime that declares balancing and refuses one shape,
+// the way the Incus driver refuses a balancer in front of machines on another
+// subnet (#457).
+type refusingBalancer struct {
+	*recordingBalancer
+	err error
+}
+
+func (r *refusingBalancer) EnsureBalancer(ctx context.Context, spec machine.BalancerSpec) error {
+	_ = r.recordingBalancer.EnsureBalancer(ctx, spec)
+	return r.err
+}
+
+// newLoggedRuntimeServer is newRuntimeServer with somewhere to read the log,
+// because the level a line carries is the subject here.
+func newLoggedRuntimeServer(t *testing.T, drv machine.Driver, log *bytes.Buffer) *httptest.Server {
+	t.Helper()
+	env := emulator.DefaultEnv()
+	env.Machines = drv
+	env.Log = slog.New(slog.NewTextHandler(log, nil))
+	srv, err := emulator.NewServer(env, outscale.New(env))
+	if err != nil {
+		t.Fatalf("build emulator: %v", err)
+	}
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+	return ts
+}
+
+// A shape this runtime does not distribute is a limit, not an incident.
+//
+// The two-tier architecture — a load balancer in front of machines on another
+// subnet — is refused by the driver on every register, for as long as the stack
+// lives, and #457 measured why it cannot be served here. Reported at ERROR that
+// is a permanent error on a working configuration, and a log whose errors are
+// permanent is a log whose errors get skipped, which costs the next real one.
+//
+// So the level is the assertion, and both halves of it: no ERROR for the limit,
+// and an ERROR still there for a runtime that broke.
+func TestAnUndistributableShapeIsNotLoggedAsAnError(t *testing.T) {
+	var log bytes.Buffer
+	runtime := &refusingBalancer{
+		recordingBalancer: newRecordingBalancer(true),
+		err: fmt.Errorf("%w: balancer lbu-data on fnt-a has the backend 10.188.9.4, which is "+
+			"outside that network's own block 10.188.3.0/24", machine.ErrBalancerNotDistributed),
+	}
+	close(runtime.release)
+	ts := newLoggedRuntimeServer(t, runtime, &log)
+
+	aBalancedStack(t, ts)
+	if len(runtime.specs()) == 0 {
+		t.Fatal("the balancer never reached the runtime, so this test measures nothing")
+	}
+	if strings.Contains(log.String(), "level=ERROR") {
+		t.Errorf("a shape this runtime never distributes was reported as an error: %q", log.String())
+	}
+	if !strings.Contains(log.String(), "level=WARN") {
+		t.Errorf("the limit must still be said, and it was not: %q", log.String())
+	}
+	if !strings.Contains(log.String(), "goes on describing it") {
+		t.Errorf("the line must say what the API keeps describing, got %q", log.String())
+	}
+
+	// The other half: a runtime that failed at something it had accepted is not
+	// a limit, and a WARN there would hide a real outage.
+	var broken bytes.Buffer
+	failing := &refusingBalancer{
+		recordingBalancer: newRecordingBalancer(true),
+		err:               errors.New("incus query: Error: Failed creating load balancer: something new"),
+	}
+	close(failing.release)
+	aBalancedStack(t, newLoggedRuntimeServer(t, failing, &broken))
+	if !strings.Contains(broken.String(), "level=ERROR") {
+		t.Errorf("a runtime failure must stay an error: %q", broken.String())
+	}
 }
