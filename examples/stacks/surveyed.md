@@ -824,18 +824,29 @@ apart. Where that was not possible, the entry says so.
 ### Per-entry
 
 **Outscale 1 — outscale/osc-k8s-rke-cluster** (`7427b98`): **regressed, runtime.**
-52 applied against the reference's 53, re-plan `16 to add / 1 to destroy`, 52
-destroyed, **0 machines**. `outscale_vm.bastion` is tainted: `ami-a3ca408c`, the
-OMI the vendor's own archived example hardcodes, is in no emulated catalogue, so
-the boot is refused by name and the provider reports `expected state running but
-found stopped`. The RKE/ansible tail that every earlier replay recorded as
-"times out against the fictional bastion" **never ran at all** here, because the
-bastion it depends on never existed — the one thing this campaign hoped a real
-runtime might unblock, and the image wall is upstream of it. *Separation: not
-completed, and the reason is named — the `--vm off` re-run does not terminate,
-because the stack's own `ansible.cfg` sets `retries=999` with a 60-second
-timeout against an unroutable address. Attribution rests on the mechanism, which
-is identical to the four stacks below whose separation did complete.*
+Measured **twice** under `--vm incus-ovn`, the second time deliberately, from a
+clean station and with a hard per-command cap: **52 then 51 applied** against the
+reference's 53, re-plan `16 to add / 1 to destroy` then `17 to add / 1 to
+destroy`, 52 then 51 destroyed, **0 machines both times**. The one-resource
+spread between two runs of the same stack is ordering: the apply aborts on the
+tainted bastion, and which of its independent siblings had finished by then
+varies. Both runs agree on everything that matters.
+
+`outscale_vm.bastion` is tainted because `ami-a3ca408c`, the OMI the vendor's own
+archived example hardcodes, is in no emulated catalogue: the boot is refused by
+name and the provider reports `expected state running but found stopped`. The
+RKE/ansible tail that every earlier replay recorded as "times out against the
+fictional bastion" **never ran at all** here, because the bastion it depends on
+never existed — the one thing this campaign hoped a real runtime might unblock,
+and the image wall sits upstream of it.
+
+*Separation: abandoned, and the reason is named.* The `--vm off` re-run does not
+terminate: the stack's own `ansible.cfg` sets `retries=999` with a 60-second
+timeout against an unroutable address. The first attempt to stop it is worth
+recording, because it produced a four-hour ghost — see the harness note at the
+end of this section. Attribution therefore rests on the mechanism, identical to
+the four entries below whose separation did complete, and is stated as an
+inference rather than a measurement.
 
 **Outscale 2 — chimere-eu/ztiac** (`093330c`), `advanced-network`: **regressed,
 runtime, and this is the pass's worst result.** 80 applied against 95, re-plan
@@ -998,9 +1009,9 @@ included, with `cloud-init status` answering inside it. It boots because
 | regressed | 5 (rke-cluster, ztiac ×2 counted as one entry, k3s, kasten — and ztiac's two templates both) |
 | harness broken, nothing measured | 0 at the end; 4 attempts along the way, all re-run (§ below) |
 | **machines really started** | **5** — kiwinet 1, ocp_outscale 1, vault 3 |
-| resources created, summed over the fifteen `--vm incus-ovn` runs | **382** (`Creation complete` lines) |
-| resources destroyed | **387** — larger on purpose, see below |
-| recorded exchanges over those fifteen runs | **2 402** |
+| resources created, summed over the fifteen `--vm incus-ovn` runs | **381** (`Creation complete` lines) |
+| resources destroyed | **386** — larger on purpose, see below |
+| recorded exchanges over those fifteen runs | **2 396** |
 
 `destroyed` exceeds `created` by five because a server that was created and then
 failed to reach `running` is **tainted**: it is in state and gets destroyed, but
@@ -1022,14 +1033,35 @@ proxy started without `--record`, caught by the run's own guard; `ssh_key` passe
 as a name where openshift4 wants key material; and E5's `init` run at the repo
 root, where there is no backend block, so it passed and proved nothing.
 
-The fifth is the one worth repeating outside this repository. A run was killed
+Two more are worth repeating outside this repository, because both are about a
+control that was green while being wrong.
+
+**A health probe that could not say whose emulator answered.** A run was killed
 harshly, its trap never fired, and its `--vm off` emulator kept port 4610. The
 next two runs' health checks — `curl -sf /_feint/health` — **passed against that
 stale emulator**, which was holding another stack's resources in the wrong
 runtime mode, while feint's own log said `refusing to serve on 127.0.0.1:4610: it
 is already served by another emulator (pid 121004)`. Two entries were measured
 against the wrong runtime and discarded. The probe now compares `instance.pid`
-and the declared runtime with what it started, and refuses a non-empty emulator;
-a witness proves it refuses a squatter. **A health probe that cannot say whose
-emulator answered is not a health probe**, and this one had been green all
-evening.
+and the declared runtime against what it started and refuses a non-empty
+emulator, and a witness proves it refuses a squatter.
+
+**A sweep that killed itself, and a cap that died with its parent.** The command
+meant to stop the non-terminating O1 separation was
+`pkill -f campaign-outscale.sh; …; pkill -f "run-O1.sh"; …; pkill -f "terraform
+apply"`. `pkill -f` matches the **whole command line**, and the shell running
+that very command contains those strings, so the sweep killed itself before
+reaching its last clause. The emulator died; `terraform` did not. Its ansible
+tail then ran **3 h 57** against an address nothing carried any more, on a host
+with no emulator and no machine at all, and it was the maintainer who noticed at
+04:15 and sent it TERM — not any control of mine. The `timeout 3600` that should
+have bounded it was on the wrapper I had killed: **a cap that lives in the parent
+is not a cap.** Both are fixed: every `apply`, `plan` and `destroy` now carries
+its own `timeout`, and the sweeper's patterns are anchored (`^…`) so they cannot
+match the shell that runs them. O1 was then re-measured under `--vm incus-ovn`
+from a clean station, which is the second of the two runs in its entry above.
+
+The ghost also leaves a fact that belongs to the register rather than to the
+harness: for those four hours the station carried **two OVN networks and no
+emulator and no machine**. Those networks are #455's, and their surviving an
+emulator's death by hours is the same defect seen from a third angle.
