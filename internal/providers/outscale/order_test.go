@@ -44,7 +44,9 @@ func TestAMachinesSecurityGroupsAnswerInIdentifierOrder(t *testing.T) {
 	netID, subnetID := netAndSubnet(t, ts, "10.60.0.0/16", "10.60.1.0/24")
 
 	// Two groups, created in one order and named in the opposite one, so that
-	// neither creation order nor name order can be mistaken for the rule.
+	// neither creation order nor name order can be mistaken for the rule. The
+	// third possible explanation — the order the request named them in — is
+	// pinned below, where it is set to the opposite of the expected answer.
 	web := call(t, ts, doc, "CreateSecurityGroup",
 		`{"NetId":"`+netID+`","SecurityGroupName":"zzz-web","Description":"web"}`)
 	webID, _ := web["SecurityGroup"].(map[string]any)["SecurityGroupId"].(string)
@@ -52,21 +54,40 @@ func TestAMachinesSecurityGroupsAnswerInIdentifierOrder(t *testing.T) {
 		`{"NetId":"`+netID+`","SecurityGroupName":"aaa-db","Description":"db"}`)
 	dbID, _ := db["SecurityGroup"].(map[string]any)["SecurityGroupId"].(string)
 
+	// The REQUEST names them in descending id order, deliberately, and that is
+	// what makes this test bite every time instead of half the time.
+	//
+	// An Outscale id here is a prefix and eight hexadecimal characters of a
+	// freshly generated UUID (newID in pack.go), so which of two groups sorts
+	// first is a coin toss. Naming them in creation order therefore left the
+	// request already ascending on about half of all runs, and on those runs
+	// the answer is ascending whether anything sorts it or not.
+	//
+	// Measured on 2026-08-25 while replaying every falsification: with
+	// `sort.Strings(sorted)` neutralised in securitygroups.go — the mutation
+	// tools/falsify/specs/outscale-answers-what-the-cloud-answers.json applies —
+	// this test came back GREEN 8 times out of 20. A guard whose falsification
+	// is a coin toss is a guard nobody can trust the day it matters, and it read
+	// exactly like the guard working on the other twelve.
+	//
+	// Sending the descending order removes the chance: the ascending answer can
+	// then come from nowhere but the sort.
+	want := []string{webID, dbID}
+	sort.Strings(want)
+	asked := []string{want[1], want[0]}
+
 	created := call(t, ts, doc, "CreateVms",
 		`{"ImageId":"ami-00000001","SubnetId":"`+subnetID+`","BootOnCreation":false,`+
-			`"SecurityGroupIds":["`+webID+`","`+dbID+`"]}`)
+			`"SecurityGroupIds":["`+asked[0]+`","`+asked[1]+`"]}`)
 	vms, _ := created["Vms"].([]any)
 	if len(vms) != 1 {
 		t.Fatalf("no machine was created: %v", created)
 	}
 	vmID, _ := vms[0].(map[string]any)["VmId"].(string)
 
-	want := []string{webID, dbID}
-	sort.Strings(want)
-
 	read := call(t, ts, doc, "ReadVms", `{"Filters":{"VmIds":["`+vmID+`"]}}`)
 	updated := call(t, ts, doc, "UpdateVm",
-		`{"VmId":"`+vmID+`","SecurityGroupIds":["`+webID+`","`+dbID+`"]}`)
+		`{"VmId":"`+vmID+`","SecurityGroupIds":["`+asked[0]+`","`+asked[1]+`"]}`)
 
 	for _, where := range []struct {
 		what string
