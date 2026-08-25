@@ -23,6 +23,8 @@ internal/contract/          API descriptions, and the check that answers match t
 internal/corpus/            turns a recording of a real cloud into an artefact this repository
                             may commit: values synthetic, statuses and order kept
 internal/drift/             the upstream surface scan, coverage, baselines
+internal/environment/       feint.yaml: what one environment is, and the schema that
+                            refuses by name what it does not carry
 internal/probe/             drives every mounted route from its API description
 internal/replay/            reissues a recorded exchange here and grades the answer
 internal/proxy/             records what a real client and a real cloud say to each other

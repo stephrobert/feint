@@ -248,6 +248,26 @@ mise tasks                     # tout le reste
 
 ## S'en servir
 
+### Ou déclarez l'environnement entier, une fois, dans le dépôt
+
+Les drapeaux qui décident de ce que l'émulateur d'un collègue sait faire — quel
+runtime, quel provider, quels contrats, quel état de départ — vivent sinon dans
+un historique de shell. `feint.yaml` le dit une fois, et `feint up` le lit :
+
+```bash
+cd examples/stacks/scaleway    # un feint.yaml est posé à côté de main.tf
+feint up                       # contrôle l'hôte, démarre, exporte, applique, attend, imprime
+feint down                     # détruit, puis arrête en disant ce qu'il jette
+```
+
+`up` refuse **avant de démarrer quoi que ce soit** quand l'hôte ne peut pas
+livrer le runtime déclaré, et il ne dégrade jamais en silence ; le schéma est
+fermé, donc une clé mal tapée échoue au chargement, avec la liste de celles que
+ce bloc accepte. [docs/environment.md](docs/environment.md) décrit le chemin de
+`git clone` à un `terraform apply` qui passe, et la référence de champs générée.
+
+### Ou pilotez-le à la main
+
 Démarrez l'émulateur une fois. Tout ce qui suit parle au même processus.
 
 ```bash
@@ -468,6 +488,8 @@ c'est arrivé à dix d'entre eux avant qu'un test compare les deux listes.
 | commande | ce qu'elle fait |
 | --- | --- |
 | `feint serve` | les trois clouds émulés sur un port, au premier plan |
+| `feint up` | lit `feint.yaml` et monte l'environnement entier : il contrôle l'hôte, démarre l'émulateur, exporte l'environnement client, lance le moteur, attend les conditions déclarées |
+| `feint down` | détruit ce que la déclaration a bâti, puis arrête l'émulateur en disant ce qu'il jette |
 | `feint start` | le même, détaché : il enregistre l'instance, attend qu'elle réponde, dit où est le journal |
 | `feint stop` | SIGTERM, puis SIGKILL s'il le faut, en disant lequel — jamais un pid qui a cessé d'être feint |
 | `feint restart` | arrête, puis redémarre avec les drapeaux enregistrés |

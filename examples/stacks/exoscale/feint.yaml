@@ -1,0 +1,38 @@
+# The environment this stack needs, declared once. See docs/environment.md.
+#
+# Two things about this one, and neither is optional:
+#
+#   1. FEINT_EXOSCALE_ALLOW_TERRAFORM is read inside the emulator's process, so
+#      exporting it after the start does nothing at all. It sits under
+#      emulator.env, where `feint up` sets it before the emulator is spawned.
+#      What it lifts, and why the guard exists, is in docs/limits.md.
+#   2. The provider has to be the patched fork, resolved through dev_overrides.
+#      TF_CLI_CONFIG_FILE stays in your shell: it names a file on your machine,
+#      so a declaration carrying it would only work on the machine that wrote it.
+#
+# There is no `endpoint` variable here, and that is not an omission: the Exoscale
+# provider has no such attribute. It reads EXOSCALE_API_ENDPOINT — with the /v2
+# path inside the value — which comes from the pack's own environment, the same
+# one `feint env exoscale` prints.
+version: 1
+
+cloud:
+  provider: exoscale
+
+emulator:
+  addr: 127.0.0.1:4599
+  env:
+    FEINT_EXOSCALE_ALLOW_TERRAFORM: "1"
+
+runtime:
+  mode: off
+
+iac:
+  engine: terraform
+  directory: .
+
+ready:
+  - http:/v2/instance
+  - resource:compute-instance:1
+  - resource:private-network:2
+  - resource:instance-pool:1

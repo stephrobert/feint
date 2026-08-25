@@ -311,6 +311,26 @@ mise tasks                     # everything else
 
 ## Use it
 
+### Or declare the whole environment once, in the repository
+
+The flags that decide what a colleague's emulator can do — which runtime, which
+provider, which contracts, which state to start from — otherwise live in shell
+history. `feint.yaml` says it once, and `feint up` reads it:
+
+```bash
+cd examples/stacks/scaleway    # a feint.yaml sits beside main.tf
+feint up                       # check the host, start, export, apply, wait, print
+feint down                     # destroy, then stop, saying what it discards
+```
+
+`up` refuses **before it starts anything** when the host cannot deliver the
+runtime the file names — it never downgrades in silence — and the schema is
+closed, so a mistyped key fails at load with the list of the keys that block
+takes. [docs/environment.md](docs/environment.md) is the path from `git clone`
+to a `terraform apply` that passes, and the generated field reference.
+
+### Or drive it by hand
+
 Start the emulator once. Everything below talks to the same process.
 
 ```bash
@@ -871,6 +891,8 @@ rather than assumed.
 
 | Command | What it does |
 |---|---|
+| `feint up` | read `feint.yaml` and bring the whole environment up: check the host, start the emulator, export the client environment, run the engine, wait for the ready conditions |
+| `feint down` | destroy what the declaration built, then stop the emulator, saying what it discards |
 | `feint start` | run it in the background: it records the instance, waits until it answers, and says where the log is |
 | `feint stop` | SIGTERM, then SIGKILL if it has to, and say which — never a pid that stopped being feint |
 | `feint restart` | stop, then start again with the flags that were recorded |

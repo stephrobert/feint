@@ -1,0 +1,210 @@
+# `feint.yaml`: one environment, declared once
+
+`feint serve --vm incus-ovn --contracts contracts` is a command somebody types,
+remembers, and types differently next week. The flags that decide what a
+colleague's emulator can do — which runtime, which provider, which contracts,
+which state to start from — live in shell history and in a README paragraph, and
+a repository that needs a particular one has no way to say so.
+
+`feint.yaml` is that way. `feint up` reads it and brings the environment up;
+`feint down` takes it back down. A declaration nothing reads is a comment, which
+is why the two arrived together.
+
+## From `git clone` to a `terraform apply` that passes
+
+This is the whole path, and it is the one the three stacks under
+[`examples/stacks/`](../examples/stacks/) are checked against.
+
+```bash
+git clone https://github.com/stephrobert/feint && cd feint
+mise run build                       # or: go install github.com/stephrobert/feint/cmd/feint@latest
+
+cd examples/stacks/scaleway          # a feint.yaml sits beside main.tf
+../../../feint up
+```
+
+That single command does six things, in order, and says each one out loud:
+
+1. **checks what the host can deliver, and refuses before anything starts.** A
+   declaration naming `incus-ovn` on a host with no OVN wiring is refused here,
+   naming the missing half — not four minutes later, half-applied;
+2. **starts the emulator** with the address, the state and the contracts the
+   file names. It is an ordinary `feint start`, so `feint status`, `feint logs`
+   and `feint stop` all know about it;
+3. **exports the client environment** from the pack itself — the same variables
+   `feint env <provider>` prints, endpoint form included;
+4. **runs the engine** in the directory the file names, in place, with its
+   output passed straight through;
+5. **waits for each `ready:` condition**, each with a deadline and each named
+   while it waits;
+6. **prints the endpoints** and what proved them.
+
+Then, when you are done:
+
+```bash
+../../../feint down
+```
+
+which destroys what the declaration built and stops the emulator, saying what it
+discards.
+
+### The Exoscale stack needs two more things, and they are not optional
+
+The published Exoscale Terraform provider cannot be pointed at a local emulator:
+it builds two clients and only one of them honours `EXOSCALE_API_ENDPOINT`, so
+an apply **splits** between the emulator and a paying account. Feint refuses
+that client by its user agent rather than serving half of it. The whole
+measurement, the pinned fork and the `dev_overrides` recipe are in
+[limits.md](limits.md#the-exoscale-terraform-provider-is-refused-and-why).
+
+So, for that stack only:
+
+```bash
+export TF_CLI_CONFIG_FILE=/path/to/dev.tfrc     # the dev_overrides from limits.md
+cd examples/stacks/exoscale && feint up
+```
+
+`FEINT_EXOSCALE_ALLOW_TERRAFORM=1` is **not** something to export by hand: it is
+read inside the emulator's own process, so exporting it after the start does
+nothing at all, and that is one of the traps this file exists to remove. It sits
+in the stack's `feint.yaml`, under `emulator.env`, where `feint up` sets it
+before the emulator is spawned.
+
+`TF_CLI_CONFIG_FILE` stays in the shell, and deliberately: it names a file
+outside this repository, on your machine, so a declaration that carried it would
+be a declaration that only works on the machine it was written on.
+
+## What the file is, and what it is not
+
+| what | says | where it lives |
+|---|---|---|
+| `feint.yaml` | how to bring the environment up | this project |
+| Terraform / OpenTofu | what the infrastructure is | your repository |
+| a snapshot | what the state currently is | an artefact |
+
+The day this file grows a block describing a subnet, this project has started
+rewriting Terraform badly. The day it grows a `packages:` list, it has started
+rewriting Devbox badly. Both refusals are structural rather than advisory: the
+schema is a closed table, and **a key it does not name is refused by name at
+load** — with the list of the keys that block does take.
+
+Two consequences worth stating before the reference:
+
+- **Nothing is accepted and then ignored.** A key this schema knows and no verb
+  reads yet is said out loud at load. A file that accepts everything and applies
+  half of it is the exact lie this project exists to avoid.
+- **Nothing here describes what a provider can do.** The catalogue, the image
+  table and the login of a machine live in the packs. A second place describing
+  them would be a second place to keep in agreement.
+
+## The shortest one that works
+
+```yaml
+version: 1
+
+cloud:
+  provider: scaleway
+
+iac:
+  engine: terraform
+  directory: .
+  vars:
+    endpoint: ${feint.endpoint}
+```
+
+Everything else has a default, and `runtime.mode` defaults to `off` because
+starting machines is a side effect this project asks for rather than assumes.
+
+## The four traps this replaces
+
+Every one of these was paid for by hand, on 2026-08-24, applying these same
+three stacks. Each was a parameter somebody had to reconstitute by reading a
+script.
+
+1. **`examples/stacks/outscale` carries a local module**, so copying `*.tf` on
+   their own does not run. The engine runs in the declared directory, in place.
+2. **Scaleway and Outscale declare an `endpoint` variable** whose default is
+   `127.0.0.1:4599`. Pointed at a port nothing listens on, Terraform blocks to
+   its own ceiling, the plugin dies, and the message blames the provider.
+   `iac.vars` carries it, with `${feint.endpoint}` — the one substitution this
+   file has, so the address is written once.
+3. **Exoscale declares no such variable**: its endpoint travels in
+   `EXOSCALE_API_ENDPOINT`, and the `/v2` path belongs to the value. That comes
+   from the pack's own `Env`, never from a field here, so no reader has to learn
+   which provider wants its path inside the value and which does not. The
+   mechanism is `TF_VAR_`, not `-var`, and the difference is measured: an
+   undeclared `TF_VAR_` is ignored, where `-var endpoint=…` fails outright on a
+   stack that declares no such variable.
+4. **`FEINT_EXOSCALE_ALLOW_TERRAFORM` is read server-side**, so exporting it
+   after the emulator started leaves the guard armed. `emulator.env` sets it
+   before the spawn.
+
+## Asking for less on purpose
+
+```bash
+feint up                      # what the file asks for
+feint up --runtime off        # deliberately less, and it says so
+```
+
+`up` never downgrades on its own. A declaration naming a runtime the host cannot
+deliver is refused, because a developer who believes their subnets are separate
+and finds out otherwise in production is the exact failure this project exists
+to prevent. Asking for less is a flag, and the run prints the override.
+
+## The field reference
+
+Generated from the schema itself, on the `feint docs --check` rail: a field
+added to `internal/environment` and a page that never learned about it fails the
+gate. The sentence a field carries lives on the field.
+
+<!-- environment:start -->
+<!-- Generated by `mise run docs:coverage`. Do not edit by hand. -->
+
+| field | takes | default | read by | what it says |
+|---|---|---|---|---|
+| `version` | a number | — | `feint up`, `feint down` | The schema version. Only 1 is read; another is refused naming both. |
+| `cloud.provider` | a provider name | — | `feint up`, `feint down` | The pack whose client environment `up` exports before running the engine — the same variables `feint env <provider>` prints, including the endpoint form that provider's clients want. Refused when the binary mounts no such pack. |
+| `emulator.addr` | a listen address | `127.0.0.1:4599` | `feint up`, `feint down` | Where the emulator listens: `serve --addr`. |
+| `emulator.state` | a path | — | `feint up` | The JSON file the store is loaded from and persisted to: `serve --state`. Relative to the declaration's own directory. |
+| `emulator.contracts` | a directory | — | `feint up` | The API descriptions every response is checked against: `serve --contracts`. Relative to the declaration's own directory. |
+| `emulator.log_level` | error, warn, info or debug | `info` | `feint up` | `serve --log-level`, which is what `feint logs` then shows. |
+| `emulator.cleanup` | true or false | `false` | `feint up` | Remove the machines and networks the run created before exiting: `serve --cleanup`. |
+| `emulator.env` | a block of FEINT_* variables | — | `feint up` | The environment the emulator's own process starts with. This is where the per-provider declarations that travelled in a chat paragraph belong — FEINT_EXOSCALE_ALLOW_TERRAFORM, which is read server-side and so cannot be exported after the start, and FEINT_BOOT_IMAGES. FEINT_* only: a declaration that could set any variable of a process it spawns would be a different kind of file. |
+| `runtime.mode` | off, incus, incus-vm, incus-ovn, auto | `off` | `feint up` | What backs a powered-on server: the `--vm` values and nothing else. Absent means `off`, because starting machines is a side effect this project asks for rather than assumes. `up` checks the host can deliver the named mode before it starts anything, and refuses rather than downgrading. |
+| `runtime.images` | a list of family/version | — | `feint up` | The machine images this environment needs present. `up` checks them and refuses naming what is missing and the `feint images` command that builds it; it never builds them itself, because a build takes minutes. Ignored when `runtime.mode` is `off`, where nothing boots. |
+| `snapshot.load` | a snapshot name | — | `feint up` | A snapshot loaded once the emulator answers, so this environment starts from a known state rather than from nothing: `feint snapshot load <name>`. The name, never a path — snapshots live where `feint snapshot list` says they live. |
+| `iac.engine` | terraform or opentofu | — | `feint up`, `feint down` | The engine `up` runs and `down` destroys with. Absent means this environment declares no infrastructure, and `up` brings the control plane up and stops there. |
+| `iac.directory` | a directory | `.` | `feint up`, `feint down` | Where the engine runs, relative to the declaration's own directory. The engine runs there in place — a copy of `*.tf` would leave a local module behind, which is one of the four things this file exists to make impossible. |
+| `iac.vars` | a block of variables | — | `feint up`, `feint down` | Engine variables, exported as `TF_VAR_<name>`. The value `${feint.endpoint}` is replaced by the emulator's endpoint, and it is the only substitution this file has: a stack that takes its endpoint through a variable then carries the address once, here. |
+| `ready` | a list of conditions | — | `feint up` | What `up` waits for before it says the environment is up, each with a deadline and each said out loud while it waits. Three forms: `http:<path>` (the emulator answers below 400), `tcp:<host>:<port>` (a connection is accepted), and `resource:<kind>[:<count>]` (the emulator's own inventory holds at least that many). Every one is asserted against the emulator, never against the engine's state file. |
+
+### What this file deliberately does not carry
+
+| field | why not |
+|---|---|
+| `emulator.coverage` | `--coverage` is a flag of `feint serve` alone, which `feint start` refuses and `feint up` composes; run `feint coverage` against the running emulator instead |
+| `emulator.expose_to_network` | putting an emulator that accepts every credential on the network is a decision the person at the keyboard makes, never one a file they cloned makes for them; type `feint serve --expose-to-network` and read SECURITY.md first |
+| `emulator.shapes` | `--shapes` is a flag of `feint serve` alone, which `feint start` refuses and `feint up` composes; run `feint shapes --check` against the running emulator instead |
+| `proxy` | a recorder needs a real cloud endpoint and real credentials, which is the one thing this file must never carry; run `feint proxy --upstream … --record …` beside the emulator |
+
+### The ready conditions
+
+- `http:<path>`
+- `tcp:<host>:<port>`
+- `resource:<kind>[:<count>]`
+
+A condition that is not one of those forms is refused at load, with the list.
+<!-- environment:end -->
+
+## What is not here yet
+
+- **A transmissible bundle** ([#191]): `feint env export` / `import`, so an
+  environment attaches to a bug report as one file. The declaration is the half
+  that was missing; the bundle wraps it around a snapshot.
+- **Assertions that skip out loud** ([#192]): a suite that cannot prove
+  isolation because the host has no OVN should say which assertions it therefore
+  skipped, keyed on the capability the runtime declares rather than on a mode
+  name. `--runtime` is the half of it that exists today.
+
+[#191]: https://github.com/stephrobert/feint/issues/191
+[#192]: https://github.com/stephrobert/feint/issues/192

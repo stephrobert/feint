@@ -1,0 +1,31 @@
+# The environment this stack needs, declared once. See docs/environment.md.
+#
+# This stack carries a local module under modules/net, which is why `feint up`
+# runs the engine in this directory in place: copying *.tf alone leaves the
+# module behind, and that was one of four harness errors measured by hand before
+# this file existed.
+version: 1
+
+cloud:
+  provider: outscale
+
+emulator:
+  addr: 127.0.0.1:4599
+
+runtime:
+  mode: off
+
+iac:
+  engine: terraform
+  directory: .
+  vars:
+    endpoint: ${feint.endpoint}
+
+# The Outscale API answers POST on /api/v1/<Action>, so the emulator's own
+# health is what an http condition can read here; the resource counts do the
+# rest, and they are read from the store rather than from the engine.
+ready:
+  - http:/_feint/health
+  - resource:vm:2
+  - resource:net:2
+  - resource:loadbalancer:1

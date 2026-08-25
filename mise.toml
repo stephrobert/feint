@@ -235,6 +235,14 @@ run = [
 description = "Apply the example stacks — realistic platform configurations, not fixtures"
 run = "tools/conformance/stacks.sh http://$FEINT_ADDR"
 
+[tasks."conformance:environment"]
+description = "Prove `feint up` and `feint down` on a fixture declaration, with the real binary"
+depends = ["build"]
+# On a port of its own, because this suite starts and stops an emulator of its
+# own: pointed at the shared address, its cleanup would stop the process every
+# other suite is measuring. Same reasoning as faults.sh and zones.sh.
+run = "tools/conformance/environment/up.sh 127.0.0.1:4598"
+
 [tasks."conformance:terraform:outscale"]
 description = "Run the real Outscale Terraform provider against the running emulator"
 run = "tools/conformance/outscale/terraform.sh http://$FEINT_ADDR"
@@ -521,6 +529,11 @@ tools/conformance/faults.sh
 # --refusals-only` reads the whole file before it sends anything rather than
 # taking that on trust.
 tools/conformance/refusals.sh "http://$FEINT_ADDR"
+# `feint up` and `feint down` on a fixture declaration (#190). On an emulator
+# and a port of its own, for the reason faults.sh has one: this suite's whole
+# subject is starting and stopping an emulator, and it would otherwise stop the
+# one every other line here is measuring.
+tools/conformance/environment/up.sh 127.0.0.1:4598
 # Every route driven from its provider's API description. Skipped when a machine
 # runtime is on: a synthetic walk of every Create* would start a container each.
 if [ "${FEINT_VM:-off}" = "off" ]; then ./feint probe --endpoint "http://$FEINT_ADDR" --contracts contracts; fi

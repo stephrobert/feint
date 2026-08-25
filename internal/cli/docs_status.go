@@ -61,6 +61,10 @@ var clientOf = map[string]string{
 	"network": "",
 	"ssh":     "",
 	"crash":   "",
+	// `feint up` and `feint down` on a fixture declaration (#190). No client at
+	// all: what it drives is this binary's own lifecycle, so crediting a
+	// provider with it would credit a client nobody ran.
+	"up": "",
 }
 
 // providerRow is what the table prints for one provider, beyond the clients.

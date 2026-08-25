@@ -188,11 +188,22 @@ const (
 // An addition to one existing verb; nothing was removed, no exit code moved,
 // and a pipeline keyed on version 16 keeps working.
 //
+// Version 18 adds `feint up` and `feint down` (#189, #190): the environment
+// declaration had no verb reading it, and a declaration nothing reads is a
+// comment. `up` composes the lifecycle rather than replacing it — it renders
+// feint.yaml into the flags `start` already takes, so `status`, `logs` and
+// `stop` know the instance it brought up — and its own flags are the four a
+// declaration cannot carry: which file, a deliberate runtime override, the
+// deadline the ready conditions share, and whether to run the engine at all.
+// `down` is `stop` with the engine's destroy in front of it, because destroying
+// needs the API that is about to stop. Two verbs added; nothing was removed, no
+// exit code moved, and a pipeline keyed on version 17 keeps working.
+//
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 17
+const cliSurfaceVersion = 18
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -231,6 +242,10 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return evidence(args[2:], stdout, stderr)
 	case "docs":
 		return docs(args[2:], stdout, stderr)
+	case "up":
+		return up(args[2:], stdout, stderr)
+	case "down":
+		return down(args[2:], stdout, stderr)
 	case "start":
 		return start(args[2:], stdout, stderr)
 	case "stop":
@@ -292,6 +307,24 @@ Usage:
                     loopback, and it disarms the anti-rebinding guard: this
                     emulator accepts every credential and, under --vm, starts
                     containers with your privileges. Read SECURITY.md first.
+
+  feint up         [--file feint.yaml] [--runtime off|incus|incus-vm|incus-ovn|auto]
+                    [--timeout 2m] [--no-iac]
+                    Read the environment declaration and bring it up: check the
+                    host can deliver the runtime it names and refuse before
+                    anything starts, start the emulator with the state and the
+                    contracts it names, export the pack's own client
+                    environment, run the engine in the directory it names, wait
+                    for each ready condition out loud, then print the
+                    endpoints. --runtime asks for less than the file does, on
+                    purpose and out loud; it never downgrades on its own.
+                    --no-iac brings the control plane up and stops there.
+                    docs/environment.md is the field reference.
+
+  feint down       [--file feint.yaml] [--keep-emulator]
+                    Destroy what the declaration built, then stop the emulator,
+                    saying what it discards. The engine runs first: destroying
+                    needs the API that is about to stop.
 
   feint start      [--addr :4599] [--state <file>] [--vm off|incus|incus-vm|incus-ovn|auto]
                     [--cleanup] [--contracts <dir>] [--log-level info|debug]

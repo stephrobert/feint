@@ -426,6 +426,17 @@ jobs:
         if: matrix.client == 'fields'
         run: FEINT_BIN=/tmp/feint tools/conformance/refusals.sh http://127.0.0.1:4599
 
+      # `feint up` and `feint down` on the fixture declaration (#190), with
+      # --vm off, which is the whole of this matrix. It runs on `probe` because
+      # that leg needs no client binary and this suite needs none either: what
+      # it drives is the binary's own lifecycle. Its emulator is its own, on its
+      # own port, for the reason the fault suite's is.
+      - name: Bring a declared environment up and down
+        if: matrix.client == 'probe'
+        run: |
+          go build -o /tmp/feint ./cmd/feint
+          FEINT_BIN=/tmp/feint tools/conformance/environment/up.sh 127.0.0.1:4598
+
       # No client at all: every route driven from its provider's own API
       # description, which is the half of conformance that needs nothing
       # installed. It proves the protocol and never touches the score.

@@ -1,0 +1,71 @@
+{
+  "package": "./internal/environment/",
+  "mutations": [
+    {
+      "label": "the schema accepts a key it does not name, and a mistyped file is discovered at the first surprising behaviour instead of at load",
+      "file": "internal/environment/environment.go",
+      "find": "\t\t\treturn fmt.Errorf(\"line %d: unknown field `%s`; %s\", child.line, path, siblings(prefix))",
+      "replace": "\t\t\tif false {\n\t\t\t\treturn fmt.Errorf(\"line %d: unknown field `%s`; %s\", child.line, path, siblings(prefix))\n\t\t\t}\n\t\t\tcontinue",
+      "test": "TestAMistypedFieldIsRefusedByName"
+    },
+    {
+      "label": "what this file deliberately does not carry is accepted, so a reader who writes expose_to_network gets no answer about where it belongs",
+      "file": "internal/environment/environment.go",
+      "find": "\t\tif reason, refused := notCarried[path]; refused {",
+      "replace": "\t\tif reason, refused := notCarried[path]; refused && false {",
+      "test": "TestWhatIsNotCarriedIsRefusedWithItsReason"
+    },
+    {
+      "label": "emulator.env sets any variable of the process it spawns, not this project's own knobs",
+      "file": "internal/environment/environment.go",
+      "find": "\tif !strings.HasPrefix(name, \"FEINT_\") {",
+      "replace": "\tif !strings.HasPrefix(name, \"FEINT_\") && false {",
+      "test": "TestAnEnvironmentVariableOutsideTheProjectsOwnIsRefused"
+    },
+    {
+      "label": "a runtime mode the binary does not know is accepted, and surfaces when the emulator starts rather than when the file is read",
+      "file": "internal/environment/environment.go",
+      "find": "\tif !contains(allowed, n.scalar) {",
+      "replace": "\tif !contains(allowed, n.scalar) && false {",
+      "test": "TestAnUnknownRuntimeModeIsRefusedWithTheList"
+    },
+    {
+      "label": "a ready condition nobody serves is accepted, so up waits out its deadline on a form nothing evaluates",
+      "file": "internal/environment/ready.go",
+      "find": "\tdefault:\n\t\treturn Condition{}, fmt.Errorf(\"%q: %q is not a ready condition; the forms are %s\",\n\t\t\traw, kind, strings.Join(ConditionKinds, \", \"))",
+      "replace": "\tdefault:\n\t\tif false {\n\t\t\treturn Condition{}, fmt.Errorf(\"%q: %q is not a ready condition; the forms are %s\",\n\t\t\t\traw, kind, strings.Join(ConditionKinds, \", \"))\n\t\t}\n\t\treturn Condition{Kind: ConditionKind(kind), Raw: raw}, nil",
+      "test": "TestAReadyConditionNobodyServesIsRefusedWithTheForms"
+    },
+    {
+      "label": "a key written twice is accepted, and one of the two values wins in silence",
+      "file": "internal/environment/yaml.go",
+      "find": "\t\tif _, dup := out.mapping[key]; dup {",
+      "replace": "\t\tif _, dup := out.mapping[key]; dup && false {",
+      "test": "TestADuplicateKeyIsRefused"
+    },
+    {
+      "label": "a declaration from the future is read as if this binary knew its schema",
+      "file": "internal/environment/environment.go",
+      "find": "\tif out.Version != Version {",
+      "replace": "\tif out.Version != Version && false {",
+      "test": "TestAVersionThisBinaryDoesNotReadIsRefusedNamingBoth"
+    },
+    {
+      "label": "an unreadable inventory is read as a count of zero, so a broken emulator is indistinguishable from one nobody has used",
+      "file": "internal/cli/up.go",
+      "find": "\tif err := decoder.Decode(&body); err != nil {",
+      "replace": "\tif err := decoder.Decode(&body); err != nil && false {",
+      "test": "TestAnUnreadableInventoryIsAnErrorAndNeverAZero",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "up starts the emulator before asking the questions it could answer beforehand: which provider, which runtime, which engine",
+      "file": "internal/cli/up.go",
+      "find": "\tif err := preflight(decl, *skipIaC, stdout); err != nil {",
+      "replace": "\tif err := preflight(decl, *skipIaC, stdout); err != nil && false {",
+      "test": "TestUpRefusesBeforeStartingAnything",
+      "package": "./internal/cli/"
+    }
+  ],
+  "note": "The declaration (#189) and the verbs that read it (#190). Every mutation removes a refusal rather than a computation, which is the shape this schema is made of: a file that accepts anything is the whole defect. Each one neutralises a condition rather than deleting a term, so no name is orphaned and a red verdict cannot be a compile failure wearing a guard's clothes. The last two live in internal/cli, because the two halves of the same rule sit either side of that boundary: the schema refuses what it cannot account for, and `up` refuses what the host cannot deliver."
+}

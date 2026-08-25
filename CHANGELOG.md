@@ -15,6 +15,52 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+### Added
+
+- **`feint.yaml`, and the two verbs that read it: `feint up` and `feint down`
+  (#189, #190).** The flags that decide what a colleague's emulator can do —
+  which runtime, which provider, which contracts, which state to start from —
+  lived in shell history and in a README paragraph, and a repository that needed
+  a particular one had no way to say so. One declaration at the repository root
+  now says it, and `feint up` reads it: it checks the host can deliver the
+  runtime the file names and **refuses before anything starts** rather than
+  downgrading, starts the emulator with the state and contracts it names,
+  exports the pack's own client environment, runs the engine in the directory it
+  names with its output passed straight through, waits for each `ready:`
+  condition out loud and with a deadline, then prints the endpoints. `feint down`
+  destroys and then stops, saying what it discards.
+
+  The schema is closed: **a key it does not name is refused by name at load**,
+  with the list of the keys that block does take, so a mistyped file fails at
+  load rather than at the first surprising behaviour. What this file
+  deliberately does not carry is refused with its reason rather than as an
+  unknown key — `emulator.coverage`, `emulator.shapes`,
+  `emulator.expose_to_network` and `proxy` each say where the thing a reader
+  wanted actually lives. And a key the schema knows that no verb reads yet is
+  said out loud at load, because a file that accepts everything and applies half
+  of it is the lie this project exists to avoid.
+
+  `up` composes the lifecycle rather than replacing it: it renders the
+  declaration into the flags `feint start` already takes, so `status`, `logs`
+  and `stop` know the instance it brought up. The CLI surface moves to version
+  18 for the two verbs; nothing was removed and no exit code moved.
+
+  Four traps this removes, each paid for by hand on 2026-08-24 applying the
+  three example stacks: a local module that a copy of `*.tf` leaves behind (the
+  engine runs in the declared directory, in place); an `endpoint` variable whose
+  default points at a port nothing listens on (`iac.vars`, with
+  `${feint.endpoint}` as the one substitution); an endpoint whose `/v2` path
+  belongs inside the value for one provider and not the others (it comes from
+  the pack's own `Env`, never from a field); and `FEINT_EXOSCALE_ALLOW_TERRAFORM`,
+  which is read server-side so exporting it after the start does nothing
+  (`emulator.env`, set before the spawn).
+
+  Each example stack ships its declaration, and `tools/conformance/environment/`
+  drives both verbs on a fixture repository with `--vm off`.
+  [docs/environment.md](docs/environment.md) is the path from `git clone` to a
+  `terraform apply` that passes, and its field reference is generated from the
+  schema on the `feint docs --check` rail.
+
 ### Changed
 
 - **The emulated Outscale public block is a `/28`, not a `/24`, and the

@@ -283,6 +283,16 @@ func docs(args []string, stdout, stderr io.Writer) int {
 		return exitError
 	}
 
+	// The feint.yaml reference, rendered from the schema itself: a field added
+	// to internal/environment and a page that never learned about it is the
+	// drift this rail exists to catch, and the reason the sentence lives on the
+	// field rather than on the page.
+	environmentChanged, environmentErr := spliceEnvironment(filepath.Dir(*target))
+	if environmentErr != nil {
+		fmt.Fprintf(stderr, "feint: %v\n", environmentErr)
+		return exitError
+	}
+
 	installChanged, installErr := splicePrereq(*installDoc, goModPath)
 	if installErr != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", installErr)
@@ -377,6 +387,10 @@ func docs(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "feint: the route banner in the translated README is out of date; run `feint docs`\n")
 			return exitDrift
 		}
+		if environmentChanged {
+			fmt.Fprintf(stderr, "feint: the feint.yaml reference in %s is behind the schema; run `feint docs`\n", environmentDoc)
+			return exitDrift
+		}
 		if installChanged || commandsChanged || containerChanged {
 			fmt.Fprintf(stderr, "feint: %s is out of date; run `mise run docs:coverage`\n", *installDoc)
 			return exitDrift
@@ -452,6 +466,13 @@ func docs(args []string, stdout, stderr io.Writer) int {
 			return exitError
 		}
 		fmt.Fprintln(stdout, "the route banner in the translated README updated")
+	}
+	if environmentChanged {
+		if err := writeSplicedEnvironment(filepath.Dir(*target)); err != nil {
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
+		fmt.Fprintf(stdout, "the feint.yaml reference in %s updated\n", environmentDoc)
 	}
 	if installChanged {
 		if err := writeSplicedPrereq(*installDoc, goModPath); err != nil {
