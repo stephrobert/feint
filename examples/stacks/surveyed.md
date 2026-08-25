@@ -770,7 +770,7 @@ because of it.
 
 ### The pass in one paragraph
 
-Fifteen entries, all replayed. **Nine are unchanged from their reference, three of
+Fifteen entries, all replayed. **Ten are unchanged from their reference, three of
 them now backed by something real**: kiwinet applies its 5 with a container that
 carries the address the API published and holds the stack's own cloud-init;
 terraform-exoscale-vault applies its 7 with **three running machines** and is
@@ -780,7 +780,7 @@ recorded-inapplicable entries answer exactly as recorded. **One improved, and it
 is the one this register demanded**: `terraform-talos` had its two walls removed
 on separate branches, and the register refused to record the inference — measured
 together on `main` at last, it applies **30 of 33** with `0 to change` and
-destroys clean, the only wall left being `vpc-gw/v1`, declined by name. **Five
+destroys clean, the only wall left being `vpc-gw/v1`, declined by name. **Four
 regressed, and every one of them for the same single cause**: the emulated image
 catalogues hold a handful of identifiers, every stranger's stack hardcodes a real
 one, and under a machine runtime an unbootable image is no longer harmless — the
@@ -1004,9 +1004,9 @@ included, with `cloud-init status` answering inside it. It boots because
 |---|---|
 | entries replayed | **15 of 15** (the sixteenth, OpenAether/#327, is out of scope by the register's own decision) |
 | entries abandoned | **0** — one *separation* run was abandoned, O1's, named in its entry |
-| conforme | 9 |
-| improved | 1 (talos) |
-| regressed | 5 (rke-cluster, ztiac ×2 counted as one entry, k3s, kasten — and ztiac's two templates both) |
+| conforme | **10** |
+| improved | **1** (talos) |
+| regressed | **4** (rke-cluster, ztiac, k3s, kasten) — ztiac is one entry whose *two* templates both regressed |
 | harness broken, nothing measured | 0 at the end; 4 attempts along the way, all re-run (§ below) |
 | **machines really started** | **5** — kiwinet 1, ocp_outscale 1, vault 3 |
 | resources created, summed over the fifteen `--vm incus-ovn` runs | **381** (`Creation complete` lines) |
@@ -1021,7 +1021,7 @@ which is why both numbers are given instead of one.
 
 Every regression was separated by a `--vm off` re-run except O1's, and **every
 separation that ran reproduced its reference exactly**: ztiac 95 and 54,
-k3s 41, kasten 30, talos 30. So the five regressions are the runtime, and the
+k3s 41, kasten 30, talos 30. So the four regressions are the runtime, and the
 code did not move under any of them.
 
 ### What went wrong in the harness, since it reads like findings otherwise
