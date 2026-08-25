@@ -82,7 +82,7 @@ func TestAnImageTheHostHoldsIsReportedPresent(t *testing.T) {
 	d := NewIncus()
 	d.runner = func(_ context.Context, args ...string) ([]byte, error) {
 		if strings.HasPrefix(strings.Join(args, " "), "image list") {
-			return []byte(held.Alias() + ",abc123def456\n"), nil
+			return []byte(`[{"fingerprint":"abc123def456","aliases":[{"name":"` + held.Alias() + `"}]}]`), nil
 		}
 		return nil, nil
 	}
@@ -120,7 +120,8 @@ func TestAnOperatorsOwnImagesAreNotReported(t *testing.T) {
 	d := NewIncus()
 	d.runner = func(_ context.Context, args ...string) ([]byte, error) {
 		if strings.HasPrefix(strings.Join(args, " "), "image list") {
-			return []byte("production-base,deadbeef00\n" + ImagePrefix + "/ubuntu/24.04,cafebabe11\n"), nil
+			return []byte(`[{"fingerprint":"deadbeef00","aliases":[{"name":"production-base"}]},` +
+				`{"fingerprint":"cafebabe11","aliases":[{"name":"` + ImagePrefix + `/ubuntu/24.04"}]}]`), nil
 		}
 		return nil, nil
 	}
@@ -170,9 +171,14 @@ func TestTheBuiltImageIsPreferredWhenTheHostHoldsIt(t *testing.T) {
 		d.runner = func(_ context.Context, args ...string) ([]byte, error) {
 			if strings.HasPrefix(strings.Join(args, " "), "image list") {
 				var out strings.Builder
-				for _, alias := range aliases {
-					out.WriteString(alias + ",fingerprint\n")
+				out.WriteString("[")
+				for i, alias := range aliases {
+					if i > 0 {
+						out.WriteString(",")
+					}
+					out.WriteString(`{"fingerprint":"fingerprint","aliases":[{"name":"` + alias + `"}]}`)
 				}
+				out.WriteString("]")
 				return []byte(out.String()), nil
 			}
 			return nil, nil
@@ -198,5 +204,186 @@ func TestTheBuiltImageIsPreferredWhenTheHostHoldsIt(t *testing.T) {
 	// An explicit Incus reference is the caller naming an image; it is honoured.
 	if got := withImages(ours).resolveImage(context.Background(), "images:debian/13"); got != "images:debian/13" {
 		t.Errorf("an explicit reference was rewritten to %s", got)
+	}
+}
+
+func TestSpecForDerivesEveryVersionOfAKnownFamily(t *testing.T) {
+	cases := []struct {
+		ref     string
+		name    string
+		source  string
+		manager string
+		service string
+	}{
+		// The measured hole of #465: the catalogue promises debian_trixie.
+		{"debian:13", "debian/13", "images:debian/13/cloud", "apt", "ssh"},
+		// A family the fixed table never carried; triplet rehearsed 2026-08-25.
+		{"fedora:44", "fedora/44", "images:fedora/44/cloud", "dnf", "sshd"},
+		// The version half must travel verbatim, capitals included.
+		{"centos:9-Stream", "centos/9-Stream", "images:centos/9-Stream/cloud", "dnf", "sshd"},
+		{"alpine:3.22", "alpine/3.22", "images:alpine/3.22/cloud", "apk", "sshd"},
+		{"ubuntu:26.04", "ubuntu/26.04", "images:ubuntu/26.04/cloud", "apt", "ssh"},
+		{"rockylinux:9", "rockylinux/9", "images:rockylinux/9/cloud", "dnf", "sshd"},
+	}
+	for _, c := range cases {
+		spec, ok := SpecFor(c.ref)
+		if !ok {
+			t.Errorf("SpecFor(%q) derived nothing for a family the table holds", c.ref)
+			continue
+		}
+		if spec.Name != c.name || spec.Source != c.source || spec.Manager != c.manager || spec.Service != c.service {
+			t.Errorf("SpecFor(%q) = %+v, want name=%s source=%s manager=%s service=%s",
+				c.ref, spec, c.name, c.source, c.manager, c.service)
+		}
+		if spec.Package == "" {
+			t.Errorf("SpecFor(%q) carries no ssh package, so the build would produce the very image it replaces", c.ref)
+		}
+	}
+}
+
+func TestSpecForRefusesWhatNoRecipeCovers(t *testing.T) {
+	refused := []string{
+		"plan9:4",                // no recipe for the family: the guard of #465
+		"talos:1.7",              // no ssh package to install; outside the form
+		"",                       //
+		"debian",                 // no version at all
+		"debian:",                // empty version
+		":13",                    // empty family
+		"images:debian/13/cloud", // an explicit runtime ref is the caller's own image
+		"debian:-13",             // a version that would reach argv looking like a flag
+		"debian:13 evil",         // charset: whitespace never travels into a command
+		"debian:13;true",         //
+		"Debian:13",              // families are table keys, exactly
+	}
+	for _, ref := range refused {
+		if spec, ok := SpecFor(ref); ok {
+			t.Errorf("SpecFor(%q) = %+v, want a refusal", ref, spec)
+		}
+	}
+}
+
+func TestRequiredImagesDeriveFromTheFamilyTable(t *testing.T) {
+	specs := RequiredImages()
+	if len(specs) != 6 {
+		t.Fatalf("%d warm-up rows, want 6: a ref outside the family table was silently dropped", len(specs))
+	}
+	seen := map[string]bool{}
+	for _, spec := range specs {
+		seen[spec.Name] = true
+		ref := strings.Replace(spec.Name, "/", ":", 1)
+		derived, ok := SpecFor(ref)
+		if !ok || derived != spec {
+			t.Errorf("warm-up row %s does not derive from the family table (got %+v, ok=%v): two spellings of one recipe", spec.Name, derived, ok)
+		}
+	}
+	// The user-visible half of #465: the Scaleway catalogue serves
+	// debian_trixie mapped on debian:13, so the warm-up set must hold it.
+	if !seen["debian/13"] {
+		t.Error("debian/13 is not in the warm-up set while the catalogue promises debian_trixie")
+	}
+}
+
+func TestParseDeclaredImagesRefusesWhatItCannotBuild(t *testing.T) {
+	t.Run("a valid declaration parses, login included", func(t *testing.T) {
+		got, err := ParseDeclaredImages(" ami-a3ca408c=ubuntu:22.04, tmpl-1=fedora:44@fedora ,")
+		if err != nil {
+			t.Fatalf("refused a valid declaration: %v", err)
+		}
+		want := map[string]Image{
+			"ami-a3ca408c": {Ref: "ubuntu:22.04"},
+			"tmpl-1":       {Ref: "fedora:44", User: "fedora"},
+		}
+		if len(got) != len(want) || got["ami-a3ca408c"] != want["ami-a3ca408c"] || got["tmpl-1"] != want["tmpl-1"] {
+			t.Fatalf("parsed %+v, want %+v", got, want)
+		}
+	})
+
+	t.Run("nothing declared is nil, not empty", func(t *testing.T) {
+		if got, err := ParseDeclaredImages("  "); err != nil || got != nil {
+			t.Fatalf("got %v, %v for an empty declaration", got, err)
+		}
+	})
+
+	t.Run("a bad entry refuses the whole set and says how to fix it", func(t *testing.T) {
+		cases := map[string]string{
+			"ami-x=plan9:4":                   "ubuntu", // the fix names the families a recipe exists for
+			"garbage":                         "family", // the fix quotes the syntax
+			"ami-x=debian:13,ami-x=debian:12": "twice",  // a duplicate is a typo, not a choice
+			"=debian:12":                      "family", //
+			"ami-x=debian:-13":                "family", // the ref guard holds here too
+		}
+		for entry, needle := range cases {
+			got, err := ParseDeclaredImages(entry)
+			if err == nil {
+				t.Errorf("ParseDeclaredImages(%q) = %v, want a refusal", entry, got)
+				continue
+			}
+			if !strings.Contains(err.Error(), needle) {
+				t.Errorf("ParseDeclaredImages(%q) error %q does not carry %q, so the reader cannot act on it", entry, err, needle)
+			}
+		}
+	})
+}
+
+func TestDerivedImagesAreNamedBesideTheWarmupSet(t *testing.T) {
+	driver := &buildingDriver{held: map[string]string{
+		"feint/ubuntu/24.04": "warmup-row",   // named by the set: not derived
+		"feint/fedora/44":    "derived-here", // a boot derived it (#465)
+		"feint/plan9/4":      "lost-family",  // under the prefix, no recipe: still named
+		"operator/own":       "not-ours",     // outside the prefix: none of our business
+	}}
+
+	derived, err := DerivedImages(context.Background(), driver)
+	if err != nil {
+		t.Fatalf("DerivedImages: %v", err)
+	}
+	if len(derived) != 2 || derived[0].Spec.Name != "fedora/44" || derived[1].Spec.Name != "plan9/4" {
+		t.Fatalf("derived %+v, want exactly fedora/44 and plan9/4: a warm-up row is not derived, an operator's image is not ours, and a prefix image with no recipe must not vanish", derived)
+	}
+	if derived[0].Spec.Source == "" || derived[0].Spec.Manager != "dnf" {
+		t.Errorf("fedora/44 lost its derived recipe: %+v", derived[0].Spec)
+	}
+	if !derived[1].Present() {
+		t.Error("a held image reports absent")
+	}
+
+	// A driver that cannot be asked holds nothing to report — never an error,
+	// the same rule CapabilitiesOf applies.
+	if got, err := DerivedImages(context.Background(), &recordingDriver{}); err != nil || got != nil {
+		t.Fatalf("got %v, %v from a driver with no lister", got, err)
+	}
+}
+
+// The instrument before the subject: `incus image list -c l` truncates a second
+// alias into "feint/debian/12 (1 more)", csv included, and the csv parser
+// turned that into a name nothing publishes while the real aliases vanished —
+// `feint images --check` called a present image missing. Caught on 2026-08-25
+// by planting a second alias on a held image; the fix is asking for JSON,
+// which carries every alias whole.
+func TestLocalImagesSurviveASecondAlias(t *testing.T) {
+	var asked []string
+	d := NewIncus()
+	d.runner = func(_ context.Context, args ...string) ([]byte, error) {
+		asked = append(asked, strings.Join(args, " "))
+		return []byte(`[{"fingerprint":"7bf813f9e3ea","aliases":[` +
+			`{"name":"` + ImagePrefix + `/debian/12"},{"name":"` + ImagePrefix + `/fedora/44"}]}]`), nil
+	}
+
+	held, err := d.LocalImages(context.Background())
+	if err != nil {
+		t.Fatalf("LocalImages: %v", err)
+	}
+	for _, alias := range []string{ImagePrefix + "/debian/12", ImagePrefix + "/fedora/44"} {
+		if held[alias] != "7bf813f9e3ea" {
+			t.Errorf("alias %s vanished from the listing: %v", alias, held)
+		}
+	}
+	for alias := range held {
+		if strings.Contains(alias, " ") {
+			t.Errorf("held a truncation artefact as an alias: %q", alias)
+		}
+	}
+	if len(asked) == 0 || !strings.Contains(asked[0], "--format json") {
+		t.Fatalf("the listing did not ask for JSON, so a second alias will truncate: %v", asked)
 	}
 }

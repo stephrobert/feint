@@ -33,7 +33,11 @@ func (p *Pack) binding() machine.Binding {
 		RunningState: "running",
 		// Declared in their instance-state enum.
 		FailedState: "error",
-		Log:         p.env.Log,
+		// The operator's identifier declarations (FEINT_BOOT_IMAGES), consulted
+		// by the binding only when no template resolved. The optional @login of
+		// an entry matters most here, where the login belongs to the template.
+		Declared: p.env.BootImages,
+		Log:      p.env.Log,
 	}
 }
 

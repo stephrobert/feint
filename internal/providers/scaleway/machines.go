@@ -49,7 +49,10 @@ func (p *Pack) binding() machine.Binding {
 		RunningState: "running",
 		// Scaleway declares no error state for a server either.
 		FailedState: "stopped",
-		Log:         p.env.Log,
+		// The operator's identifier declarations (FEINT_BOOT_IMAGES), consulted
+		// by the binding only when the catalogue resolved nothing.
+		Declared: p.env.BootImages,
+		Log:      p.env.Log,
 	}
 }
 

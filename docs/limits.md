@@ -655,6 +655,100 @@ difference never shows. It is recorded here rather than filed as a defect,
 because it is the documented behaviour meeting a population nobody had measured
 it against.
 
+### The recipe derives by family, and the identifier is the operator's to declare (#465)
+
+Two moves close most of that gap without weakening the refusal, and neither
+guesses anything.
+
+**The image recipe derives from the family, so any version builds on the fly.**
+The build table used to enumerate five family/version rows, and the Scaleway
+catalogue promised one it did not hold: `debian_trixie` maps on `debian:13`,
+no `debian/13` was ever built, and a client using the label the emulator itself
+publishes got a machine without ssh. The irregular part of the recipe is per
+**family**, never per version — the source is always
+`images:<family>/<version>/cloud`, and only the ssh package name, the service
+name and the package manager change — so `machine.SpecFor` now derives the
+recipe from the ref: ubuntu, debian (apt), alpine (apk), almalinux, rockylinux,
+centos and fedora (dnf). A known family at a version the station lacks is built
+at first boot, announced when it starts and when it ends, through the same seam
+`feint images` drives — one recipe, one per-image lock, and a builder container
+named for its image *and* its process, because a Go lock cannot span two
+processes and the pair that actually collided was a `feint serve` and a `feint
+images` in another terminal. `feint images` still exists for what it is
+genuinely for: warming a station ahead of a run, so no `terraform apply` pays a
+build. A family with no recipe (`plan9:4`, talos) still degrades exactly as
+above, and a version the upstream image server has withdrawn — `images:` no
+longer publishes ubuntu 18.04, debian 9 or debian 10, all named by surveyed
+stacks — fails the boot with the ref and the source in the log instead of a raw
+driver error.
+
+**An opaque identifier is the operator's to declare, and the refusal says how.**
+No table can name the OS behind `ami-a3ca408c`, and guessing one was refused in
+#392: a stack that asked for an AlmaLinux and got an Ubuntu boots, then fails at
+its first `dnf`. What replaces the guess is a declaration the operator signs:
+
+```bash
+FEINT_BOOT_IMAGES='ami-a3ca408c=ubuntu:22.04,ami-538af795=ubuntu:22.04' \
+  feint serve --vm incus-ovn
+```
+
+Each entry maps one identifier onto `family:version`, with an optional `@login`
+for the cloud where the login belongs to the template. The declaration is
+consulted only when the pack's own catalogue resolved nothing, so no entry can
+shadow a catalogue label; a malformed entry or an unknown family refuses to
+start, naming the entry and the families a recipe exists for, because a typo
+that surfaced hours later as a refused boot would be blamed on the stack. The
+boot refusal itself names the identifier it got, the reason, and both gestures:
+the declaration above, and the lookup below.
+
+**`feint images resolve <id>...` asks the providers' public listings what an
+identifier is** — network, but no account, and never on the boot path: a create
+that waits on a third party's availability is the failure mode that cost the
+Exoscale Terraform provider a fork. Measured on 2026-08-25, without
+credentials: Outscale's [Official OMIs
+Reference](https://docs.outscale.com/en/userguide/Official-OMIs-Reference.html)
+page is **historical** — it named all three withdrawn identifiers the surveyed
+stacks hardcode (`ami-a3ca408c` = Ubuntu-22.04-2023.12.04-0, `ami-538af795` =
+Ubuntu-18.04-2021.02.04-0, `ami-47899c77` = Debian-9-2019.11.29-0) while the
+live API answers zero images for them to a valid account, and 401 without one.
+Scaleway's marketplace (`api.scaleway.com/marketplace/v2/…`) and Exoscale's
+template listing (`api-<zone>.exoscale.com/v2/template`) answer JSON with
+identifier, name and — for Exoscale — family, version and default user. The
+command prints what each listing calls the identifier and the exact
+`FEINT_BOOT_IMAGES` line to paste; an identifier in no listing exits 2 and says
+what remains (the stack's own docs, or whoever created the image), and a
+listing that cannot be asked exits 1 and is never reported as an absence. What
+it deliberately does not do is feed the emulator directly: the lookup fetches,
+the operator declares, the emulator works offline afterwards — the same shape
+as `upstream:sync` feeding the drift scan, and for the same reason a list baked
+into the binary was refused: it ages into one more lie.
+
+**A derived image is a cache, and it is visible and individually removable.**
+Derivation splits two questions the enumerated table kept fused: what the
+warm-up set requires (`feint images --check` grades that, exit 2 on a miss)
+and what this emulator has put on the station — which now includes images no
+list names. Both commands therefore print derived images as their own rows,
+because an image an inventory cannot name is a silent residue on somebody
+else's machine. `feint clean` deliberately removes no image, warm-up or
+derived alike: clean removes what a killed run left half-alive, and an image
+is the cache that spares the next run its minutes of build — the conformance
+suite runs clean, and sweeping images there would rebuild the set on every
+pass. Removal is explicit and targeted instead: `feint images remove
+fedora/44` says the alias and fingerprint it is about to delete, refuses a
+name the emulator never published, and can only ever spell aliases under the
+`feint/` prefix — an operator's own images cannot even be named through it.
+
+**A first boot that builds can outlive the answer to the call that caused it.**
+Measured on 2026-08-25: `CreateVms` on a declared `fedora:44` built the image in
+52 seconds and the machine reached `running` with its address published — while
+the HTTP answer to that one call died on the server's 60-second write timeout
+(curl: empty reply). The state converges and is honest; the response of the
+call that paid the build is what may be lost, and a client that retries a
+create it believes failed will make a second machine. The exposure predates
+derivation — any boot longer than a minute had it — but a cold build makes it
+ordinary, which is why the warm-up set exists and why `debian/13` is in it:
+`feint images` ahead of a run keeps every production path under the timeout.
+
 Two details follow from the same decision. The Scaleway marketplace answers one
 fixed UUID **per label**, so Terraform — which resolves a label into a UUID and
 sends the UUID back — still names the distribution it chose; a single shared

@@ -32,7 +32,10 @@ func (p *Pack) binding() machine.Binding {
 		RunningState: stateRunning,
 		// Outscale declares no error state for a Vm; stopped is the true one.
 		FailedState: stateStopped,
-		Log:         p.env.Log,
+		// The operator's identifier declarations (FEINT_BOOT_IMAGES), consulted
+		// by the binding only when the catalogue above resolved nothing.
+		Declared: p.env.BootImages,
+		Log:      p.env.Log,
 	}
 }
 

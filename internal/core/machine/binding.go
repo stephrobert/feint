@@ -78,6 +78,18 @@ type Binding struct {
 	// state for a machine at all, so a start that failed is "stopped" there —
 	// which is true, and inventing a word their clients would not parse is worse.
 	FailedState string
+	// Declared maps an opaque image identifier onto the operating system the
+	// operator says it is — FEINT_BOOT_IMAGES, parsed once at startup by
+	// ParseDeclaredImages. Consulted only when the pack's own catalogue resolved
+	// nothing, so a catalogue entry always wins over a declaration.
+	//
+	// It is the door through the boot refusal below, and it is a declaration
+	// rather than a guess: #392's generic substitution was refused because a
+	// stack that asked for an AlmaLinux and got an Ubuntu boots and then fails
+	// at the first dnf. Here the operator names the OS, signs the mapping, and
+	// the log records that the declaration — not the emulator — chose the image.
+	// The keys are opaque strings; this stays as provider-neutral as the rest.
+	Declared map[string]Image
 	// Log is where a runtime failure is reported. A machine that will not start
 	// must never break the control plane, which makes this the only place an
 	// operator can learn why nothing is running.
@@ -189,15 +201,51 @@ func (b Binding) Start(ctx context.Context, boot Boot) Started {
 	// control plane must stay usable without a runtime — hardcoded production
 	// identifiers included, as docs/limits.md promises.
 	//
-	// TestAnUnknownImageFailsTheBootInsteadOfSubstituting fails without this.
+	// The operator's declaration is the one way past it (#465): consulted here,
+	// in the shared layer, so the three packs get the same door and a fourth
+	// could not forget it — and only after the pack's own catalogue resolved
+	// nothing, so no declaration can shadow a catalogue entry.
+	//
+	// TestAnUnknownImageFailsTheBootInsteadOfSubstituting and
+	// TestADeclaredIdentifierBootsTheImageTheOperatorNamed fail without this.
 	if _, metadataOnly := b.Driver.(Noop); boot.Image == "" && !metadataOnly {
-		reason := boot.Reason
-		if reason == "" {
-			reason = "the identifier is in no catalogue"
+		declared, ok := b.Declared[boot.Requested]
+		if !ok || boot.Requested == "" {
+			b.refuseUnknownImage(boot)
+			return Started{}
 		}
-		b.logger().Error("refusing to boot: the image identifier resolves to nothing this emulator can run",
-			"provider", b.Provider, "resource", boot.ID, "image", boot.Requested, "reason", reason)
-		return Started{}
+		b.logger().Info("booting the image the operator declared for this identifier",
+			"provider", b.Provider, "resource", boot.ID, "image", boot.Requested,
+			"declared", declared.Ref, "via", "FEINT_BOOT_IMAGES")
+		boot.Image = declared.Ref
+		// The login rides the image here as everywhere else: on the cloud where
+		// the login belongs to the template rather than to the provider, a
+		// declaration that dropped it would boot a machine nobody can enter.
+		if boot.User == "" {
+			boot.User = declared.User
+		}
+	}
+
+	// Build what the ref derives when the station lacks it (#465): the recipe
+	// is per family, the version travels through, and the first boot pays the
+	// build once, announced. A build that fails refuses the boot instead of
+	// falling back — for a derived ref the upstream image is the very source
+	// the build could not fetch, so the fallback would re-fail with a raw
+	// driver error where this refusal names the ref and the source. The state
+	// the caller publishes is FailedState: the machine did not start, and
+	// saying so is the one thing this project cannot compromise on.
+	//
+	// TestAFailedImageBuildRefusesTheBootAndNamesTheSource fails without this.
+	if boot.Image != "" {
+		if _, err := EnsureImage(ctx, b.Driver, boot.Image, b.logger()); err != nil {
+			spec, _ := SpecFor(boot.Image)
+			b.logger().Error("refusing to boot: the image this reference derives could not be built",
+				"provider", b.Provider, "resource", boot.ID, "image", boot.Image,
+				"requested", boot.Requested, "source", spec.Source, "error", err,
+				"fix", "`feint images --only "+spec.Name+"` reproduces the build by hand; "+
+					"a version the upstream image server no longer publishes cannot be built — name one it does")
+			return Started{}
+		}
 	}
 	user := b.User
 	if boot.User != "" {
@@ -252,6 +300,32 @@ func (b Binding) Start(ctx context.Context, boot Boot) Started {
 		return Started{}
 	}
 	return Started{Machine: name, Address: m.IP}
+}
+
+// refuseUnknownImage is the actionable half of the boot refusal: it names the
+// identifier the client sent, why nothing here can run it, and the two gestures
+// that lead through — asking the providers' public listings what the identifier
+// is (`feint images resolve`, no account needed), then declaring the answer
+// (FEINT_BOOT_IMAGES). A refusal without a way through gets worked around by
+// copying the emulator, which teaches nobody anything; a guess would teach
+// worse, a machine that boots and then fails at its first package install —
+// the reason #392's generic substitution was refused.
+//
+// TestTheBootRefusalNamesTheGesturesThatUnblock fails without the gestures.
+func (b Binding) refuseUnknownImage(boot Boot) {
+	reason := boot.Reason
+	if reason == "" {
+		reason = "the identifier is in no catalogue"
+	}
+	id := boot.Requested
+	if id == "" {
+		id = "<empty>"
+	}
+	b.logger().Error("refusing to boot: nothing says which operating system this image identifier names",
+		"provider", b.Provider, "resource", boot.ID, "image", id, "reason", reason,
+		"consequence", "the machine stays "+b.FailedState+"; guessing an OS would boot a machine that fails at its first package install",
+		"ask", "`feint images resolve "+id+"` looks it up in the providers' public listings, no account needed",
+		"fix", "declare what it is, then restart: FEINT_BOOT_IMAGES='"+id+"=<family>:<version>' with a family among "+strings.Join(Families(), ", "))
 }
 
 // ours refuses a backing-machine name the emulator could not have produced.

@@ -34,6 +34,13 @@ type Env struct {
 	// Defaults to the metadata-only driver, so nothing ever starts unless the
 	// operator asked for it.
 	Machines machine.Driver
+	// BootImages maps an opaque image identifier onto the operating system the
+	// operator declared it to be (FEINT_BOOT_IMAGES, parsed by
+	// machine.ParseDeclaredImages). Each pack hands it to its Binding, which
+	// consults it only when the pack's own catalogue resolved nothing. The keys
+	// are opaque strings the operator chose; nothing here knows any provider's
+	// vocabulary, which is what keeps this field in the neutral core.
+	BootImages map[string]machine.Image
 	// Log is where packs report what they could not do. A machine runtime that
 	// fails must never break the control plane, which makes the log the only
 	// place the operator can learn why nothing started.
