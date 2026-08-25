@@ -1,10 +1,13 @@
 # A three-tier platform on Scaleway, with a separate management VPC.
 #
 # Written the way a real project is written rather than the way a test fixture
-# is: two VPCs that do not share a network, a bastion that is the only public
-# door, web and application tiers with their own security groups, data disks,
-# a golden image cut from a snapshot, block-storage volumes with their own
-# snapshots, and addresses booked from IPAM before anything carries them.
+# is: two VPCs that do not share a network, a network ACL on the workload one,
+# a bastion that is the only public door, web and application tiers with their
+# own security groups, a load balancer in front of the web tier, a public
+# gateway carrying the app tier's way out, a placement group spreading the
+# workers, data disks, a golden image cut from a snapshot, block-storage
+# volumes with their own snapshots, an IAM SSH key, and addresses booked from
+# IPAM before anything carries them.
 #
 # It exists to be run against Feint with no cloud account. Everything here is
 # ordinary Terraform: if it applies, re-plans empty and destroys, the emulator
@@ -62,6 +65,19 @@ provider "scaleway" {
 }
 
 # ---------------------------------------------------------------------------
+# The SSH key the project holds. IAM is its own product with its own API
+# (iam/v1alpha1), and the key family is the one part of it the emulator serves:
+# a registered key reaches the cloud-init of every machine the project starts,
+# which is what `mise run conformance:ssh` logs into. The scw CLI drives this
+# family in conformance; this resource is its Terraform reader.
+# ---------------------------------------------------------------------------
+
+resource "scaleway_iam_ssh_key" "platform" {
+  name       = "platform"
+  public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIr6pEFlAFO3YU0DNW/r8SkpjdbptN9ockkO2BtIolSD platform@example"
+}
+
+# ---------------------------------------------------------------------------
 # Two VPCs. The workload one and the management one, which is the shape most
 # platforms end up with and the one that makes isolation a real question.
 # ---------------------------------------------------------------------------
@@ -107,6 +123,65 @@ resource "scaleway_vpc_route" "to_management" {
   description                = "management range"
   destination                = "10.40.0.0/16"
   nexthop_private_network_id = scaleway_vpc_private_network.app.id
+}
+
+# The workload VPC's network ACL. Two operations behind one path — SetACL is a
+# PUT, GetACL the read-back — so the only place a defect can show is a second
+# plan that is not empty: a rule the emulator reorders, retypes or drops
+# surfaces as a permanent diff and nowhere else. The conformance fixture makes
+# the same argument; this instance holds it in the stack a reader copies.
+resource "scaleway_vpc_acl" "workload" {
+  vpc_id         = scaleway_vpc.workload.id
+  is_ipv6        = false
+  default_policy = "accept"
+
+  rules {
+    protocol      = "TCP"
+    source        = "0.0.0.0/0"
+    src_port_low  = 0
+    src_port_high = 0
+    destination   = "10.30.2.0/24"
+    dst_port_low  = 8080
+    dst_port_high = 8080
+    action        = "drop"
+    description   = "the app tier is reached through the web tier, never directly"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# The way out for machines that carry no address of their own: a public
+# gateway on the app network, masquerading, with the default route pushed
+# through an IPAM-booked address. terraform-talos and Scaleway's own VPC
+# module walk exactly this chain, and the app tier below is the tier that
+# needs it. The emulator records the gateway and refuses the wrong destroy
+# order; it NATs nothing and its address is TEST-NET-1 on purpose —
+# docs/limits.md states both halves.
+# ---------------------------------------------------------------------------
+
+resource "scaleway_vpc_public_gateway_ip" "egress" {}
+
+resource "scaleway_ipam_ip" "gateway" {
+  source {
+    private_network_id = scaleway_vpc_private_network.app.id
+  }
+}
+
+resource "scaleway_vpc_public_gateway" "egress" {
+  name  = "platform-egress"
+  type  = "VPC-GW-S"
+  ip_id = scaleway_vpc_public_gateway_ip.egress.id
+  tags  = ["platform", "egress"]
+}
+
+resource "scaleway_vpc_gateway_network" "egress" {
+  gateway_id         = scaleway_vpc_public_gateway.egress.id
+  private_network_id = scaleway_vpc_private_network.app.id
+  enable_masquerade  = true
+
+  ipam_config {
+    push_default_route = true
+    ipam_ip_id         = scaleway_ipam_ip.gateway.id
+  }
 }
 
 # ---------------------------------------------------------------------------
@@ -207,6 +282,17 @@ resource "scaleway_instance_private_nic" "bastion" {
   private_network_id = scaleway_vpc_private_network.admin.id
 }
 
+# A user-data key beside cloud-init. The server's own `cloud_init` argument
+# writes the reserved `cloud-init` key; this resource writes a named key of
+# its own, which is a different door — SetServerUserData and GetServerUserData
+# take the value as a raw body, not JSON, and a stack is the only client that
+# reads a key back after writing it.
+resource "scaleway_instance_user_data" "bastion_motd" {
+  server_id = scaleway_instance_server.bastion.id
+  key       = "motd"
+  value     = "platform bastion - access is logged"
+}
+
 # ---------------------------------------------------------------------------
 # The web tier: addresses booked from IPAM before the NICs carry them, which is
 # what a platform does when it wants stable addresses rather than whatever the
@@ -279,6 +365,83 @@ resource "scaleway_instance_private_nic" "web" {
 }
 
 # ---------------------------------------------------------------------------
+# The load balancer in front of the web tier. What each piece exercises is
+# stated, because each is a distinct API family: the standalone address
+# (CreateIP), the balancer joined to the web network (AttachPrivateNetwork),
+# the backend whose pool travels through SetBackendServers, the frontend
+# carrying an inline ACL (CreateACL), and a route that splits by SNI — the
+# one lb resource no conformance fixture declares.
+#
+# What a green apply proves, honestly: the configuration round-trips, field
+# for field. Nothing probes a backend and no packet is forwarded — the
+# balancer's address is TEST-NET-2, and the stats operations are declined
+# rather than invented (docs/limits.md, "A Scaleway load balancer and public
+# gateway record their configuration").
+# ---------------------------------------------------------------------------
+
+resource "scaleway_lb_ip" "front" {}
+
+resource "scaleway_lb" "front" {
+  name   = "platform-front"
+  type   = "LB-S" # from the emulated offer table; an unknown type fails client-side
+  ip_ids = [scaleway_lb_ip.front.id]
+  tags   = ["platform", "web"]
+
+  private_network {
+    private_network_id = scaleway_vpc_private_network.web.id
+  }
+}
+
+resource "scaleway_lb_backend" "web" {
+  lb_id            = scaleway_lb.front.id
+  name             = "platform-web"
+  forward_protocol = "tcp"
+  forward_port     = 443
+
+  # The IPAM-booked addresses of the web tier: the pool is reconciled through
+  # SetBackendServers alone (the provider never edits it incrementally), so an
+  # emulator that stored the list without answering it back would re-plan here
+  # for ever.
+  server_ips = [for ip in scaleway_ipam_ip.web : ip.address]
+
+  health_check_timeout = "5s"
+  health_check_delay   = "30s"
+  health_check_https {
+    uri  = "/healthz"
+    code = 200
+  }
+}
+
+resource "scaleway_lb_frontend" "https" {
+  lb_id        = scaleway_lb.front.id
+  backend_id   = scaleway_lb_backend.web.id
+  name         = "platform-https"
+  inbound_port = 443
+
+  # An inline ACL, the way the provider models one: reconciled rule by rule
+  # (CreateACL, ListACLs, UpdateACL, DeleteACL) — the bulk SetACLs call has no
+  # client and the emulator declines it for exactly that reason.
+  acl {
+    name = "drop-documentation-range"
+    action {
+      type = "deny"
+    }
+    match {
+      ip_subnet = ["192.0.2.0/24"]
+    }
+  }
+}
+
+# The SNI split, on the lb family's own route resource. It is here because no
+# conformance fixture declares one: the route operations are driven by the CLI
+# suite, and this is their first Terraform reader in the repository.
+resource "scaleway_lb_route" "admin" {
+  frontend_id = scaleway_lb_frontend.https.id
+  backend_id  = scaleway_lb_backend.web.id
+  match_sni   = "admin.platform.example"
+}
+
+# ---------------------------------------------------------------------------
 # The application tier: no public address at all, and block-storage volumes
 # rather than instance ones, which is the other volume product and a different
 # API entirely.
@@ -299,6 +462,19 @@ resource "scaleway_block_snapshot" "app_data" {
   tags      = ["platform", "app"]
 }
 
+# Spread the workers apart. At provider pin 2.81.0 this one resource walks two
+# API doors on the same ID — CRUD through instance/v2alpha1, policy_mode
+# through instance/v1 — so it exercises the mixed-halves path that broke the
+# NIC family the day 2.81.0 released. The record is honest about its effect:
+# nothing schedules hosts here, so the policy round-trips and places nothing
+# (docs/limits.md, #285).
+resource "scaleway_instance_placement_group" "app" {
+  name        = "platform-app"
+  policy_type = "max_availability"
+  policy_mode = "enforced"
+  tags        = ["platform", "app"]
+}
+
 resource "scaleway_instance_server" "app" {
   for_each = var.app_servers
 
@@ -307,6 +483,11 @@ resource "scaleway_instance_server" "app" {
   image             = "ubuntu_jammy"
   security_group_id = scaleway_instance_security_group.app.id
   tags              = ["platform", "app"]
+
+  # The membership travels on the server (CreateServer's placement_group), and
+  # the read-back is an embedded object: a server view without it would detach
+  # the group at every refresh.
+  placement_group_id = scaleway_instance_placement_group.app.id
 
   # No ip_id at all: this tier is unreachable from outside, which is the point.
 }
@@ -324,6 +505,18 @@ resource "scaleway_instance_private_nic" "app" {
 
 output "bastion_ip" {
   value = scaleway_instance_ip.bastion.address
+}
+
+# TEST-NET-2, and routed nowhere on purpose: see docs/limits.md. It is read
+# here so the apply proves the balancer publishes an address at all.
+output "front_address" {
+  value = scaleway_lb_ip.front.ip_address
+}
+
+# TEST-NET-1, same argument, on the other product's address block: no two
+# products of this emulator ever publish the same address.
+output "egress_address" {
+  value = scaleway_vpc_public_gateway_ip.egress.address
 }
 
 output "web_addresses" {

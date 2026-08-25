@@ -1,5 +1,6 @@
 # A platform on Exoscale: two private networks, a pool that scales, block
-# storage, and an elastic IP in front.
+# storage, an elastic IP in front, a load balancer over the pool — and the
+# per-id reads no published client makes, driven here through data sources.
 #
 # ---------------------------------------------------------------------------
 # READ THIS BEFORE RUNNING IT — this stack needs a patched provider
@@ -285,8 +286,52 @@ resource "exoscale_nlb_service" "app" {
   }
 }
 
+# ---------------------------------------------------------------------------
+# Three reads no published client ever makes. GET /v2/load-balancer/{id},
+# /v2/instance-pool/{id} and /v2/elastic-ip/{id} are served and probed, but
+# `exo` resolves each of them by listing and filtering client-side, so the
+# per-id read has no caller — docs/routes.md carries each reason. The
+# provider's data sources look up by id, which makes this stack those routes'
+# first client-shaped reader: an id, a field or a state the emulator invents
+# on the per-id door and not on the list door surfaces as a diff between
+# these reads and the resources above.
+#
+# Honest limit, the same one the whole stack carries: this runs through the
+# patched fork, which is not the official client, so the `driven` axis of
+# coverage/evidence.json does not move. The reads still exercise the routes.
+# ---------------------------------------------------------------------------
+
+data "exoscale_nlb" "front" {
+  zone = var.zone
+  id   = exoscale_nlb.front.id
+}
+
+data "exoscale_instance_pool" "app" {
+  zone = var.zone
+  id   = exoscale_instance_pool.app.id
+}
+
+data "exoscale_elastic_ip" "ingress" {
+  zone = var.zone
+  id   = exoscale_elastic_ip.ingress.id
+}
+
 output "ingress_address" {
   value = exoscale_elastic_ip.ingress.ip_address
+}
+
+# The per-id doors, read back beside the resources that created them: the two
+# spellings must agree, or one of the two doors is answering an invention.
+output "front_by_id" {
+  value = data.exoscale_nlb.front.name
+}
+
+output "pool_size_by_id" {
+  value = data.exoscale_instance_pool.app.size
+}
+
+output "ingress_address_by_id" {
+  value = data.exoscale_elastic_ip.ingress.ip_address
 }
 
 output "pool_instances" {

@@ -8,16 +8,19 @@
 # spread over two subregions the way kasten-on-outscale places its workers, an
 # internet service and a route table serve the public side, a NAT service and
 # its own route table serve the private side, a peering carries the route
-# between the two Nets, and tags ride on almost every call because the
-# provider sends them on almost every call. Each of those motifs is lifted
-# from a stack in examples/stacks/surveyed.md written by someone who never saw
-# this repository.
+# between the two Nets, a load balancer fronts the web tier the way three of
+# the five surveyed stacks front theirs, the Net wears a DHCP options set of
+# its own, the app machine carries a second interface attached explicitly,
+# and tags ride on almost every call because the provider sends them on
+# almost every call. Each of those motifs is lifted from a stack in
+# examples/stacks/surveyed.md written by someone who never saw this
+# repository.
 
 terraform {
   required_version = ">= 1.7.0"
   required_providers {
     outscale = {
-      source  = "outscale/outscale"
+      source = "outscale/outscale"
       # The floor is 1.7, the same one the conformance fixture pins: the 1.7+
       # generation reads its endpoint path from the value (OSC_ENDPOINT_API
       # carries /api/v1), where 1.1.x appends the path itself — the boundary is
@@ -101,6 +104,35 @@ module "services" {
   }
 }
 
+# ---------------------------------------------------------------------------
+# The workload Net's DHCP options. On `outscale_net` itself the set is
+# computed-only, so this pair is UpdateNet's one client-reachable shape: the
+# dedicated set, and the attributes resource that points the Net at it. The
+# proof is that a *different* set than the Net's default is retained and read
+# back — pointing a Net at its own default proves only that the call decodes.
+# ---------------------------------------------------------------------------
+
+resource "outscale_dhcp_option" "workload" {
+  domain_name         = "platform.internal"
+  domain_name_servers = ["192.0.2.53", "192.0.2.54"]
+  ntp_servers         = ["192.0.2.123"]
+
+  tags {
+    key   = "Name"
+    value = "platform-dopt"
+  }
+
+  # Destroy order, pinned: the provider first re-points every Net wearing this
+  # set at the `default` keyword (ReadNets filtered on the set, then UpdateNet),
+  # and only then deletes it — so the Net must still be alive when that runs.
+  depends_on = [module.workload]
+}
+
+resource "outscale_net_attributes" "workload" {
+  net_id              = module.workload.net_id
+  dhcp_options_set_id = outscale_dhcp_option.workload.dhcp_options_set_id
+}
+
 resource "outscale_net_peering" "workload_to_services" {
   accepter_net_id = module.services.net_id
   source_net_id   = module.workload.net_id
@@ -153,6 +185,18 @@ resource "outscale_route_table_link" "public" {
 
   route_table_id = outscale_route_table.public.route_table_id
   subnet_id      = module.workload.subnet_ids[each.key]
+}
+
+# The Net's *main* route table, re-pointed at the public table: a subnet added
+# tomorrow without an explicit link then routes like the public tier, which is
+# what "default route table" means in practice. It is also the one resource
+# that sends UpdateRouteTableLink — `outscale_route_table_link` never does,
+# both its attributes force a replacement — and its destroy drives the same
+# operation a second time when the provider moves the main link back onto the
+# default table.
+resource "outscale_main_route_table_link" "workload" {
+  net_id         = module.workload.net_id
+  route_table_id = outscale_route_table.public.route_table_id
 }
 
 # ---------------------------------------------------------------------------
@@ -209,6 +253,18 @@ resource "outscale_security_group_rule" "web_https" {
   security_group_id = outscale_security_group.web.security_group_id
   from_port_range   = 443
   to_port_range     = 443
+  ip_protocol       = "tcp"
+  ip_range          = "0.0.0.0/0"
+}
+
+# Port 80 for the load balancer below: its listener and its health check both
+# speak HTTP, and a group that only opened 443 would document a balancer no
+# packet could reach.
+resource "outscale_security_group_rule" "web_http" {
+  flow              = "Inbound"
+  security_group_id = outscale_security_group.web.security_group_id
+  from_port_range   = 80
+  to_port_range     = 80
   ip_protocol       = "tcp"
   ip_range          = "0.0.0.0/0"
 }
@@ -315,6 +371,70 @@ resource "outscale_public_ip_link" "web" {
   public_ip = outscale_public_ip.web[each.key].public_ip
 }
 
+# ---------------------------------------------------------------------------
+# The LBU in front of the web tier — the family three of the five surveyed
+# stacks carry, and the one this stack lacked. The trio is the shape the
+# provider models: the balancer with its listeners inline, the backend Vms as
+# their own attachment, the health check as an attributes resource.
+#
+# The pack holds the delete algebra under it: a subnet or a security group
+# under a standing balancer refuses to go, so the destroy order this graph
+# implies is itself part of what an apply-destroy cycle proves.
+#
+# The backends here span the two public subnets on purpose — the exact ztiac
+# shape that found #457. Under `--vm incus-ovn` the host serves a dataplane
+# only for a balancer whose backends share its own subnet (four measurements,
+# docs/limits.md): this configuration is recorded, described and WARNed about,
+# and the runtime declines its dataplane by name rather than half-serving it.
+# With machines off it is a record that round-trips. Both are honest, and the
+# stack keeps the shape so the next run keeps checking the refusal.
+# ---------------------------------------------------------------------------
+
+resource "outscale_load_balancer" "front" {
+  load_balancer_name = "platform-front"
+  load_balancer_type = "internet-facing"
+  subnets            = [module.workload.subnet_ids["public-a"]]
+  security_groups    = [outscale_security_group.web.security_group_id]
+
+  listeners {
+    backend_port           = 80
+    backend_protocol       = "HTTP"
+    load_balancer_protocol = "HTTP"
+    load_balancer_port     = 80
+  }
+
+  tags {
+    key   = "Name"
+    value = "platform-front"
+  }
+
+  # A balancer belongs in a subnet that already routes to an internet service —
+  # the same ordering the NAT service states above.
+  depends_on = [outscale_route_table_link.public]
+}
+
+resource "outscale_load_balancer_vms" "front" {
+  load_balancer_name = outscale_load_balancer.front.load_balancer_name
+  backend_vm_ids     = [for vm in outscale_vm.web : vm.vm_id]
+}
+
+resource "outscale_load_balancer_attributes" "front" {
+  load_balancer_name = outscale_load_balancer.front.load_balancer_name
+
+  # Settings only: they must round-trip because the provider plans on them.
+  # No health *state* exists until something probes a backend, and with
+  # machines off nothing does.
+  health_check {
+    healthy_threshold   = 2
+    unhealthy_threshold = 5
+    check_interval      = 30
+    port                = 80
+    protocol            = "HTTP"
+    path                = "/healthz"
+    timeout             = 5
+  }
+}
+
 resource "outscale_vm" "app" {
   # The catalogue image, not outscale_image.golden above. Same measurement as
   # the Scaleway stack's web tier: this emulator keeps records, not disk
@@ -354,6 +474,36 @@ resource "outscale_nic" "app_services" {
   }
 }
 
+# A second interface for the app Vm, in its own subnet, attached explicitly:
+# LinkNic and UnlinkNic are only ever driven by an interface created apart
+# from its machine, since the one a Vm is born with never travels through
+# them. Device 1, because device 0 is the machine's own.
+resource "outscale_nic" "app_data_plane" {
+  subnet_id          = module.workload.subnet_ids["private"]
+  security_group_ids = [outscale_security_group.app.security_group_id]
+  description        = "platform app data plane"
+
+  tags {
+    key   = "Name"
+    value = "platform-app-nic"
+  }
+}
+
+resource "outscale_nic_link" "app_data_plane" {
+  device_number = "1"
+  vm_id         = outscale_vm.app.vm_id
+  nic_id        = outscale_nic.app_data_plane.nic_id
+}
+
+# Secondary addresses on that interface — the LinkPrivateIps door, which no
+# other resource of this stack or of the conformance fixtures opens from
+# Terraform. High in the /24 on purpose, clear of anything the subnet hands
+# out on its own.
+resource "outscale_nic_private_ip" "app_data_plane" {
+  nic_id      = outscale_nic.app_data_plane.nic_id
+  private_ips = ["10.50.2.200", "10.50.2.201"]
+}
+
 resource "outscale_volume" "app_data" {
   subregion_name = local.az_a
   size           = 20
@@ -381,6 +531,12 @@ output "web_subregions" {
 
 output "nat_public_ip" {
   value = outscale_public_ip.nat.public_ip
+}
+
+# What the surveyed stacks feed to templatefile() and local_file: it must be a
+# stable, well-formed name, or the second plan drifts.
+output "front_dns_name" {
+  value = outscale_load_balancer.front.dns_name
 }
 
 output "machines" {
