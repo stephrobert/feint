@@ -2,6 +2,9 @@ package cli
 
 import (
 	"bytes"
+	"context"
+	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stephrobert/feint/internal/core/machine"
 	"github.com/stephrobert/feint/internal/environment"
 )
 
@@ -265,5 +269,193 @@ func TestPreflightPassesADeclarationThisHostCanDeliver(t *testing.T) {
 	var out bytes.Buffer
 	if err := preflight(decl, true, &out); err != nil {
 		t.Fatalf("preflight refused a declaration nothing is wrong with: %v", err)
+	}
+}
+
+// The refusal the Scaleway declaration's own comment promises: a runtime the
+// host cannot deliver is refused **before anything starts**, naming the missing
+// half — and carrying a way through, because a guard with no door gets worked
+// around by copying the emulator.
+//
+// The seam is resolveRuntime, and the reason it exists is that this refusal is
+// host-dependent in the one direction that matters: this project's station has
+// OVN wired, so machineDriver refuses nothing here and a test written against
+// it would measure the station. What the refusal *says* is proved next door
+// (machine.TestVerifyNarrowsWhatTheHostCannotDeliver); the message stubbed below
+// is the one machineDriver builds from Verify's own unmet lines.
+//
+// TestUpRefusesADeclaredRuntimeTheHostCannotDeliver fails without the preflight
+// call, and its message assertions fail without waysPastTheRuntimeRefusal.
+func TestUpRefusesADeclaredRuntimeTheHostCannotDeliver(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("find a free port: %v", err)
+	}
+	addr := listener.Addr().String()
+	if err := listener.Close(); err != nil {
+		t.Fatalf("release the port: %v", err)
+	}
+	dir, err := instanceDir(addr)
+	if err != nil {
+		t.Fatalf("instance directory: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.RemoveAll(dir)
+		var discard strings.Builder
+		stop([]string{"--addr", addr}, &discard, &discard)
+	})
+
+	asked := ""
+	restore := resolveRuntime
+	resolveRuntime = func(mode string, _ io.Writer) (machine.Driver, error) {
+		asked = mode
+		if mode == "off" {
+			return machine.Noop{}, nil
+		}
+		return nil, fmt.Errorf("--vm %s requested but this host cannot deliver it:\n"+
+			"  isolation: the daemon did not answer for network.ovn.northbound", mode)
+	}
+	t.Cleanup(func() { resolveRuntime = restore })
+
+	work := t.TempDir()
+	declaration := "version: 1\nemulator:\n  addr: " + addr + "\nruntime:\n  mode: incus-ovn\n"
+	if err := os.WriteFile(filepath.Join(work, environment.DefaultFile), []byte(declaration), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(work)
+
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"feint", "up"}, &out, &errOut); code != exitError {
+		t.Fatalf("exited %d, want %d: a runtime the host cannot deliver must be refused, never downgraded",
+			code, exitError)
+	}
+	if asked != "incus-ovn" {
+		t.Fatalf("preflight asked the host about %q, and the declaration says incus-ovn", asked)
+	}
+	said := errOut.String()
+	// The missing half, by name. "This host cannot deliver it" alone sends the
+	// reader to a search engine.
+	if !strings.Contains(said, "isolation:") || !strings.Contains(said, "northbound") {
+		t.Errorf("the refusal does not name what is missing: %q", said)
+	}
+	// The doors. Each is a command or an edit the reader can make now.
+	for _, door := range []string{"feint doctor --vm incus-ovn", "feint up --runtime off", "runtime.mode"} {
+		if !strings.Contains(said, door) {
+			t.Errorf("the refusal offers no way past it: %q is missing from %q", door, said)
+		}
+	}
+	// And nothing was started, which is what makes it a refusal rather than a
+	// message printed on the way to starting one anyway.
+	if _, err := os.Stat(filepath.Join(dir, "feint.log")); err == nil {
+		t.Errorf("up spawned an emulator on %s before refusing the runtime it could not deliver", addr)
+	}
+}
+
+// The accepting half of the same guard, without which a preflight that refused
+// every mode would pass the test above and serve nobody.
+func TestUpAcceptsARuntimeTheHostDoesDeliver(t *testing.T) {
+	restore := resolveRuntime
+	resolveRuntime = func(_ string, _ io.Writer) (machine.Driver, error) { return machine.Noop{}, nil }
+	t.Cleanup(func() { resolveRuntime = restore })
+
+	decl, err := environment.Parse("version: 1\nruntime:\n  mode: incus-ovn\n")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	var out bytes.Buffer
+	if err := preflight(decl, true, &out); err != nil {
+		t.Fatalf("preflight refused a runtime the host answers for: %v", err)
+	}
+}
+
+// runtime.images is checked against the station and never built: a build costs
+// minutes, and this project asks before those rather than after. The refusal
+// carries the command that makes the image — a guard with no door is a guard
+// people route around.
+func TestADeclaredImageTheStationLacksIsRefusedWithTheCommandThatBuildsIt(t *testing.T) {
+	// A warm-up name the fake station does not hold. Taken from the runtime's
+	// own list rather than invented, so this cannot pass by naming something
+	// that was never buildable in the first place.
+	required := machine.RequiredImages()
+	if len(required) == 0 {
+		t.Fatal("the runtime declares no warm-up image: the list is not being read")
+	}
+	want := required[0].Name
+
+	decl, err := environment.Parse("version: 1\nruntime:\n  mode: incus\n  images:\n    - " + want + "\n")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	var buf bytes.Buffer
+	err = checkDeclaredImages(decl, emptyStation{}, &buf)
+	if err == nil {
+		t.Fatalf("a station holding no image accepted a declaration that needs %s", want)
+	}
+	if !strings.Contains(err.Error(), want) {
+		t.Errorf("the refusal does not name the image: %v", err)
+	}
+	if !strings.Contains(err.Error(), "feint images --only "+want) {
+		t.Errorf("the refusal offers no way to obtain it: %v", err)
+	}
+}
+
+// The three-outcome half. A name outside the warm-up set is not an error: the
+// boot path derives one on demand (#465). Reporting it as missing would refuse
+// something the runtime can do, and reporting nothing would hide minutes.
+func TestAnImageOutsideTheWarmUpSetIsAnnouncedAndNeverRefused(t *testing.T) {
+	decl, err := environment.Parse("version: 1\nruntime:\n  mode: incus\n  images:\n    - nixos/25.05\n")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	var out bytes.Buffer
+	if err := checkDeclaredImages(decl, emptyStation{}, &out); err != nil {
+		t.Fatalf("an image the boot path can derive was refused: %v", err)
+	}
+	if !strings.Contains(out.String(), "nixos/25.05") || !strings.Contains(out.String(), "derives one") {
+		t.Errorf("the run says nothing about the minutes the first boot will cost: %q", out.String())
+	}
+}
+
+// emptyStation is a runtime that answers for the image questions and holds
+// nothing, which is the state of a machine that has never run `feint images`.
+type emptyStation struct{ machine.Noop }
+
+func (emptyStation) LocalImages(context.Context) (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
+// The summary claims nothing it did not prove.
+//
+// When the engine was skipped, the ready conditions describing what it builds
+// are skipped too, and the endpoints block must say so rather than list them.
+// A summary that credited a condition nothing evaluated would be the shape of
+// every green verdict this project exists to distrust: the words of a proof with
+// none of the measurement.
+//
+// Only the decision is tested, for the reason the whole of this file documents:
+// `up` starts the emulator by re-execing the binary. The line that announces the
+// skip is driven by tools/conformance/environment/up.sh.
+func TestTheSummaryClaimsNothingItDidNotProve(t *testing.T) {
+	decl, err := environment.Parse("version: 1\nemulator:\n  addr: 127.0.0.1:4612\n" +
+		"iac:\n  engine: terraform\nready:\n  - resource:instance/server:6\n")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	var skipped bytes.Buffer
+	printEndpoints(decl, false, &skipped)
+	if strings.Contains(skipped.String(), "resource:instance/server:6") {
+		t.Errorf("a condition nothing evaluated is listed as what proved the environment:\n%s", skipped.String())
+	}
+	if !strings.Contains(skipped.String(), "proved:   nothing") {
+		t.Errorf("the summary does not say the conditions were skipped:\n%s", skipped.String())
+	}
+
+	// The accepting half: when the wait did run, its conditions are exactly what
+	// the summary credits.
+	var proved bytes.Buffer
+	printEndpoints(decl, true, &proved)
+	if !strings.Contains(proved.String(), "resource:instance/server:6") {
+		t.Errorf("a condition that was met is not credited:\n%s", proved.String())
 	}
 }

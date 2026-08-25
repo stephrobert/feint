@@ -19,6 +19,13 @@ emulator:
 # deliver it, rather than downgrading in silence.
 runtime:
   mode: off
+  # What this stack boots when the mode above is not `off`: every server here
+  # asks for `ubuntu_jammy`, which the catalogue maps to ubuntu:22.04. Declared
+  # rather than discovered — `feint up` checks the station holds it and names
+  # `feint images --only ubuntu/22.04` when it does not, before anything starts.
+  # Under `off` nothing boots, and the check says it is skipping for that reason.
+  images:
+    - ubuntu/22.04
 
 iac:
   engine: terraform

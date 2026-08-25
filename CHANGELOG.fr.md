@@ -59,6 +59,19 @@ change ni l'un ni l'autre a sa place dans `git log`.
   côté serveur, donc inopérant s'il est exporté après le démarrage
   (`emulator.env`, posé avant le spawn).
 
+  Éprouvé sous un vrai runtime de machines, et pas seulement en plan de
+  contrôle : la même déclaration Scaleway avec `--runtime incus-ovn` a appliqué
+  50 ressources, replanifié vide et détruit, et l'hôte portait ce que l'API
+  décrivait — six conteneurs en marche, trois réseaux OVN sur les blocs que la
+  stack déclare, trois jeux de règles marqués `feint security group` répartis sur
+  six interfaces, une ACL d'isolation par réseau, et rien après `feint down`.
+  `runtime.images` est contrôlé sur la station avant que rien ne démarre et
+  n'est jamais construit, avec trois réponses plutôt que deux : présente,
+  absente du jeu de préchauffage et refusée avec `feint images --only <nom>`, ou
+  hors de ce jeu et annoncée comme un premier démarrage qui en dérivera une. Un
+  runtime que l'hôte ne peut pas livrer est refusé avant tout démarrage, en
+  nommant la moitié manquante et les trois portes qui restent.
+
   Chaque stack d'exemple porte sa déclaration, et
   `tools/conformance/environment/` pilote les deux verbes sur un dépôt fixture
   en `--vm off`. [docs/environment.md](docs/environment.md) décrit le chemin de

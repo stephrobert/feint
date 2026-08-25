@@ -65,6 +65,38 @@
       "replace": "\tif err := preflight(decl, *skipIaC, stdout); err != nil && false {",
       "test": "TestUpRefusesBeforeStartingAnything",
       "package": "./internal/cli/"
+    },
+    {
+      "label": "the runtime refusal states the wall and not the door, so a reader routes around it by copying the emulator",
+      "file": "internal/cli/up.go",
+      "find": "\t\treturn fmt.Errorf(\"%w\\n\\n%s\", err, waysPastTheRuntimeRefusal(decl))",
+      "replace": "\t\tif false {\n\t\t\treturn fmt.Errorf(\"%w\\n\\n%s\", err, waysPastTheRuntimeRefusal(decl))\n\t\t}\n\t\treturn err",
+      "test": "TestUpRefusesADeclaredRuntimeTheHostCannotDeliver",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "a declared image the station does not hold is accepted, and the run dies minutes later on a boot instead of at once",
+      "file": "internal/cli/up.go",
+      "find": "\tif len(missing) > 0 {",
+      "replace": "\tif len(missing) > 0 && false {",
+      "test": "TestADeclaredImageTheStationLacksIsRefusedWithTheCommandThatBuildsIt",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "an image outside the warm-up set is refused as missing, so a declaration is refused for something the boot path can derive",
+      "file": "internal/cli/up.go",
+      "find": "\t\tcase contains(buildable, name):\n\t\t\tmissing = append(missing, name)\n\t\tdefault:\n\t\t\tonDemand = append(onDemand, name)",
+      "replace": "\t\tcase contains(buildable, name):\n\t\t\tmissing = append(missing, name)\n\t\tdefault:\n\t\t\tonDemand = append(onDemand, name)\n\t\t\tmissing = append(missing, name)",
+      "test": "TestAnImageOutsideTheWarmUpSetIsAnnouncedAndNeverRefused",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "the summary lists ready conditions nothing evaluated as what proved the environment",
+      "file": "internal/cli/up.go",
+      "find": "\tdefault:\n\t\tfmt.Fprintf(stdout, \"  proved:   nothing — the ready conditions were skipped with the engine\\n\")\n\t}",
+      "replace": "\tdefault:\n\t\tfmt.Fprintf(stdout, \"  proved:   %s\\n\", strings.Join(decl.Ready, \", \"))\n\t}",
+      "test": "TestTheSummaryClaimsNothingItDidNotProve",
+      "package": "./internal/cli/"
     }
   ],
   "note": "The declaration (#189) and the verbs that read it (#190). Every mutation removes a refusal rather than a computation, which is the shape this schema is made of: a file that accepts anything is the whole defect. Each one neutralises a condition rather than deleting a term, so no name is orphaned and a red verdict cannot be a compile failure wearing a guard's clothes. The last two live in internal/cli, because the two halves of the same rule sit either side of that boundary: the schema refuses what it cannot account for, and `up` refuses what the host cannot deliver."

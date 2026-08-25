@@ -117,14 +117,26 @@ func up(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	// Step 5.
-	if err := waitReady(decl, *timeout, stdout); err != nil {
-		fmt.Fprintf(stderr, "feint: %v\n", err)
-		return exitError
+	// Step 5. Skipped, out loud, when the engine that builds what the conditions
+	// describe was skipped: waiting for resources nobody asked to create would
+	// fail every time, and a flag whose only outcome is a failure is a flag
+	// nobody uses. Said rather than silent — that is the whole difference
+	// between a skip and a lie.
+	proved := true
+	switch {
+	case *skipIaC && decl.IaC.Engine != "" && len(decl.Ready) > 0:
+		proved = false
+		fmt.Fprintf(stdout, "- not waiting: --no-iac skipped %s, and the ready conditions describe what it builds (%s)\n",
+			decl.IaC.Engine, strings.Join(decl.Ready, ", "))
+	default:
+		if err := waitReady(decl, *timeout, stdout); err != nil {
+			fmt.Fprintf(stderr, "feint: %v\n", err)
+			return exitError
+		}
 	}
 
 	// Step 6.
-	printEndpoints(decl, stdout)
+	printEndpoints(decl, proved, stdout)
 	return exitOK
 }
 
@@ -263,9 +275,14 @@ func preflight(decl *environment.File, skipIaC bool, stdout io.Writer) error {
 	// This is the same check `serve` makes at startup (#181) — a mode the host
 	// cannot deliver is refused naming the missing half — moved ahead of
 	// everything so that nothing has started when it fires.
-	driver, err := machineDriver(decl.Runtime.Mode, stdout)
+	driver, err := resolveRuntime(decl.Runtime.Mode, stdout)
 	if err != nil {
-		return err
+		// A guard with no way past it gets worked around by copying the
+		// emulator, which teaches nobody anything — the reasoning that named
+		// FEINT_BOOT_IMAGES rather than hiding it. So the refusal carries the
+		// three doors: read the whole diagnosis, run this environment with less
+		// on purpose, or change what it asks for.
+		return fmt.Errorf("%w\n\n%s", err, waysPastTheRuntimeRefusal(decl))
 	}
 	if len(decl.Runtime.Images) == 0 {
 		return nil
@@ -277,12 +294,51 @@ func preflight(decl *environment.File, skipIaC bool, stdout io.Writer) error {
 	return checkDeclaredImages(decl, driver, stdout)
 }
 
+// resolveRuntime is machineDriver, behind a name a test can replace.
+//
+// The seam exists because the refusal it guards is host-dependent in the one
+// direction that matters: on a station with OVN wired, no mode is refused, and
+// a test asserting the refusal there would measure the station rather than the
+// verb. What the refusal *says* is machineDriver's and is proved next door
+// (machine.TestVerifyNarrowsWhatTheHostCannotDeliver); what this seam lets a
+// test assert is that `up` asks before it starts anything, and that the answer
+// carries a way through.
+var resolveRuntime = machineDriver
+
+// waysPastTheRuntimeRefusal is the door beside the wall.
+//
+// Every line of it is a command or an edit the reader can make now. A refusal
+// that only states the problem is one people route around by copying the
+// emulator and deleting the check, and this repository has written that
+// reasoning down once already.
+func waysPastTheRuntimeRefusal(decl *environment.File) string {
+	where := decl.Path
+	if where == "" {
+		where = environment.DefaultFile
+	}
+	return fmt.Sprintf(`Nothing was started. Three ways on, in the order they cost:
+  feint doctor --vm %s        the whole diagnosis, including what to install
+  feint up --runtime off              run this environment without machines, and say so
+  %s                          change runtime.mode to what this host delivers (%s)`,
+		decl.Runtime.Mode, where, strings.Join(environment.RuntimeModes, ", "))
+}
+
 // checkDeclaredImages holds the declaration to what the station actually has.
 //
 // It never builds: a build launches a container and takes minutes, which is a
 // side effect this project asks for rather than performs on the way past. So it
 // names what is missing and the command that makes it, which is the difference
 // between a refusal and a dead end.
+//
+// Three outcomes, never two, and the third is the one a two-way reader would get
+// wrong. The warm-up set (`feint images`) is enumerated; the boot path also
+// *derives* an image on demand for a family and version outside it (#465). So a
+// name the warm-up set does not carry is not an error — it is a first boot that
+// will cost minutes — and saying that is worth more than refusing something the
+// runtime can do.
+//
+// TestADeclaredImageTheStationLacksIsRefusedWithTheCommandThatBuildsIt fails
+// without the refusal, and its sibling holds the accepting half.
 func checkDeclaredImages(decl *environment.File, driver machine.Driver, stdout io.Writer) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -290,33 +346,47 @@ func checkDeclaredImages(decl *environment.File, driver machine.Driver, stdout i
 	if err != nil {
 		return fmt.Errorf("reading the machine images: %w", err)
 	}
+	derived, err := machine.DerivedImages(ctx, driver)
+	if err != nil {
+		return fmt.Errorf("reading the images this station derived: %w", err)
+	}
+
 	held := map[string]bool{}
-	known := make([]string, 0, len(inventory))
+	buildable := make([]string, 0, len(inventory))
 	for _, status := range inventory {
-		known = append(known, status.Spec.Name)
+		buildable = append(buildable, status.Spec.Name)
 		if status.Present() {
 			held[status.Spec.Name] = true
 		}
 	}
-	var missing, unknown []string
+	for _, status := range derived {
+		held[status.Spec.Name] = true
+	}
+
+	var missing, onDemand []string
 	for _, name := range decl.Runtime.Images {
 		switch {
 		case held[name]:
-		case contains(known, name):
+		case contains(buildable, name):
 			missing = append(missing, name)
 		default:
-			unknown = append(unknown, name)
+			onDemand = append(onDemand, name)
 		}
-	}
-	if len(unknown) > 0 {
-		return fmt.Errorf("`runtime.images` names %s, and this binary builds %s",
-			strings.Join(unknown, ", "), strings.Join(known, ", "))
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("`runtime.images` needs %s, which this station does not hold.\n"+
-			"  Build it: feint images --only %s", strings.Join(missing, ", "), missing[0])
+			"  Build it:  feint images --only %s\n"+
+			"  Or drop the line, and the first boot that needs it derives one, which costs minutes",
+			strings.Join(missing, ", "), missing[0])
 	}
-	fmt.Fprintf(stdout, "  runtime.images: %s present\n", strings.Join(decl.Runtime.Images, ", "))
+	for _, name := range onDemand {
+		fmt.Fprintf(stdout, "  runtime.images: %s is outside the warm-up set; "+
+			"the first boot that needs it derives one, which costs minutes\n", name)
+	}
+	if held := len(decl.Runtime.Images) - len(onDemand); held > 0 {
+		fmt.Fprintf(stdout, "  runtime.images: %d of %d present on this station\n",
+			held, len(decl.Runtime.Images))
+	}
 	return nil
 }
 
@@ -539,7 +609,7 @@ func countKindInInventory(endpoint, kind string) (int, error) {
 }
 
 // printEndpoints is step 6: where the environment is, and what proved it.
-func printEndpoints(decl *environment.File, stdout io.Writer) {
+func printEndpoints(decl *environment.File, proved bool, stdout io.Writer) {
 	fmt.Fprintf(stdout, "\nup: %s\n", decl.Endpoint())
 	if decl.Cloud.Provider != "" {
 		fmt.Fprintf(stdout, "  clients:  eval \"$(feint env %s)\"\n", decl.Cloud.Provider)
@@ -547,8 +617,15 @@ func printEndpoints(decl *environment.File, stdout io.Writer) {
 	fmt.Fprintf(stdout, "  page:     %s/_feint/ui\n", decl.Endpoint())
 	fmt.Fprintf(stdout, "  logs:     feint logs --addr %s\n", decl.Emulator.Addr)
 	fmt.Fprintf(stdout, "  state:    feint status --addr %s\n", decl.Emulator.Addr)
-	if len(decl.Ready) > 0 {
+	// What proved it, and never what would have. A summary that lists a
+	// condition nothing evaluated is the shape of every green verdict this
+	// project exists to distrust.
+	switch {
+	case len(decl.Ready) == 0:
+	case proved:
 		fmt.Fprintf(stdout, "  proved:   %s\n", strings.Join(decl.Ready, ", "))
+	default:
+		fmt.Fprintf(stdout, "  proved:   nothing — the ready conditions were skipped with the engine\n")
 	}
 	fmt.Fprintf(stdout, "  down:     feint down\n")
 }

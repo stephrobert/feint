@@ -139,17 +139,80 @@ script.
    after the emulator started leaves the guard armed. `emulator.env` sets it
    before the spawn.
 
+## Machines, and the refusal that comes before them
+
+`runtime.mode` is the `--vm` values and nothing else. It defaults to `off`,
+because starting machines is a side effect this project asks for rather than
+assumes — and the three example stacks ship with `off`, which is what lets them
+run on a CI runner with nothing installed.
+
+Flipping it is the whole difference between a control plane and a cloud. The
+same Scaleway declaration, on a station with Incus and OVN, measured on
+2026-08-25:
+
+```bash
+$ feint up --runtime incus-ovn
+examples/stacks/scaleway/feint.yaml: scaleway, runtime off, terraform in .
+  runtime off, overridden to incus-ovn by --runtime
+  runtime.images: 1 of 1 present on this station
+...
+Apply complete! Resources: 50 added
+  ok: resource:instance/server:6
+```
+
+and on the host, while it was up: six running containers, three OVN networks
+carrying the blocks the stack declares (`10.30.1.0/24`, `10.30.2.0/24`,
+`10.40.1.0/24`), three rule sets marked `feint security group` used by six
+interfaces between them, and one isolation ACL per network. After `feint down`,
+nothing of it remains.
+
+**`up` never downgrades on its own.** A declaration naming a runtime the host
+cannot deliver is refused *before anything is started*, naming the missing half
+— a developer who believes their subnets are separate and finds out otherwise in
+production is the exact failure this project exists to prevent:
+
+```text
+feint: --vm incus-ovn requested but this host cannot deliver it:
+  isolation: the daemon did not answer for network.ovn.northbound
+
+Nothing was started. Three ways on, in the order they cost:
+  feint doctor --vm incus-ovn        the whole diagnosis, including what to install
+  feint up --runtime off              run this environment without machines, and say so
+  feint.yaml                          change runtime.mode to what this host delivers
+```
+
+A guard with no way past it gets worked around by copying the emulator, which is
+why the refusal carries the doors rather than only the wall.
+
+### `runtime.images`, and the three answers it gives
+
+The declaration names the images this environment boots. `up` checks the station
+before anything starts and never builds one — a build launches a container and
+takes minutes, which is a side effect of its own. Three answers, and the third
+is the one a two-way check would get wrong:
+
+- **present** — `runtime.images: 1 of 1 present on this station`;
+- **in the warm-up set and absent** — refused, with `feint images --only <name>`;
+- **outside the warm-up set** — announced, never refused: the boot path derives
+  an image on demand for a family and version `feint images` does not build, so
+  refusing it would refuse something the runtime can do. The line says the first
+  boot will cost minutes.
+
+Under `mode: off` nothing boots, and the check says it is skipping for that
+reason rather than passing quietly.
+
 ## Asking for less on purpose
 
 ```bash
 feint up                      # what the file asks for
 feint up --runtime off        # deliberately less, and it says so
+feint up --no-iac             # the control plane only
 ```
 
-`up` never downgrades on its own. A declaration naming a runtime the host cannot
-deliver is refused, because a developer who believes their subnets are separate
-and finds out otherwise in production is the exact failure this project exists
-to prevent. Asking for less is a flag, and the run prints the override.
+Asking for something other than what the file declares is a flag, and the run
+prints the override. `--no-iac` skips the engine, and therefore skips the ready
+conditions that describe what the engine builds — out loud, and the summary then
+says `proved: nothing` rather than listing conditions nothing evaluated.
 
 ## The field reference
 

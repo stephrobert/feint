@@ -26,6 +26,10 @@ emulator:
 
 runtime:
   mode: off
+  # The template this stack resolves ("Linux Ubuntu 24.04 LTS 64-bit") maps to
+  # ubuntu:24.04. Checked before anything starts, once the mode is not `off`.
+  images:
+    - ubuntu/24.04
 
 iac:
   engine: terraform

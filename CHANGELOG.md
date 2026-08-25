@@ -55,6 +55,18 @@ what this project is judged on: **a response shape a client can observe**, and
   which is read server-side so exporting it after the start does nothing
   (`emulator.env`, set before the spawn).
 
+  Proved under a real machine runtime, not only as a control plane: the same
+  Scaleway declaration with `--runtime incus-ovn` applied 50 resources, re-planned
+  empty and destroyed, and the host carried what the API described — six running
+  containers, three OVN networks on the blocks the stack declares, three rule sets
+  marked `feint security group` across six interfaces, one isolation ACL per
+  network, and nothing left after `feint down`. `runtime.images` is checked against
+  the station before anything starts and never built, with three answers rather
+  than two: present, absent from the warm-up set and refused with
+  `feint images --only <name>`, or outside that set and announced as a first boot
+  that will derive one. A runtime the host cannot deliver is refused before
+  anything is started, naming the missing half and the three ways past it.
+
   Each example stack ships its declaration, and `tools/conformance/environment/`
   drives both verbs on a fixture repository with `--vm off`.
   [docs/environment.md](docs/environment.md) is the path from `git clone` to a
