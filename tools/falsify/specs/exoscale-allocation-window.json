@@ -1,0 +1,26 @@
+{
+  "package": "./internal/providers/exoscale/",
+  "mutations": [
+    {
+      "label": "the instance is stored after its boot again, so a pool allocating during the launch is handed the same address (#484)",
+      "file": "internal/providers/exoscale/pack.go",
+      "find": "\tp.env.Store.Put(res)\n\tunlock()",
+      "replace": "\tunlock()\n\tp.start(r.Context(), res)\n\tp.env.Store.Put(res)",
+      "test": "TestAPoolMemberAndAStandaloneInstanceNeverShareAnAddress"
+    },
+    {
+      "label": "a pool member's boot lands on a copy nobody can commit, so a refused launch stays published as the state the member was born with (#484)",
+      "file": "internal/providers/exoscale/pools.go",
+      "find": "\t_ = p.binding().Transition(p.env.Store, p.env.Now, kindInstance, id, func(res *resource.Resource) {\n\t\tp.start(ctx, res)\n\t})",
+      "replace": "\tif res, ok := p.env.Store.Get(Name, kindInstance, id); ok {\n\t\tp.start(ctx, res)\n\t}\n\t_ = p.binding().Transition\n\t_ = p.env.Now\n\t_ = func(res *resource.Resource) { p.start(ctx, res) }",
+      "test": "TestAFailedPoolMemberStartIsPublishedAsError"
+    },
+    {
+      "label": "the same discarded write-back, read from the accepting half: a started member records no machine",
+      "file": "internal/providers/exoscale/pools.go",
+      "find": "\t_ = p.binding().Transition(p.env.Store, p.env.Now, kindInstance, id, func(res *resource.Resource) {\n\t\tp.start(ctx, res)\n\t})",
+      "replace": "\tif res, ok := p.env.Store.Get(Name, kindInstance, id); ok {\n\t\tp.start(ctx, res)\n\t}\n\t_ = p.binding().Transition\n\t_ = p.env.Now\n\t_ = func(res *resource.Resource) { p.start(ctx, res) }",
+      "test": "TestAPoolMemberStartIsRecordedInTheStore"
+    }
+  ]
+}

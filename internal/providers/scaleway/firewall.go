@@ -2,7 +2,6 @@ package scaleway
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"github.com/stephrobert/feint/internal/core/machine"
@@ -29,48 +28,26 @@ func (p *Pack) enforcer() machine.Firewaller {
 
 // syncSecurityGroup pushes a group and replays it onto every server using it.
 // Called after any change to the group or to its rules.
+//
+// The mechanics — a permissive set attaches nothing, the deny-dominant
+// defaults, the Warn-or-Error report — are machine.Binding's, shared with the
+// two other packs since #475: written here alone, the same sequence was one
+// Outscale and Exoscale never wrote, and their machines ran with zero ACLs
+// while the API described a closed port. What stays in this file is only the
+// Scaleway vocabulary.
 func (p *Pack) syncSecurityGroup(ctx context.Context, group *resource.Resource) {
 	fw := p.enforcer()
 	if fw == nil {
 		return
 	}
-
+	b := p.binding()
 	spec := p.firewallSpecOf(group)
-	if err := fw.EnsureFirewall(ctx, spec); err != nil {
-		p.logger().Error("could not write the firewall rules",
-			"security_group", group.ID, "error", err)
+	if !b.SyncRuleSet(ctx, fw, spec) {
 		return
 	}
-
-	binding := p.bindingOf(spec)
 	for _, server := range p.serverResourcesUsing(group) {
-		name := server.Runtime[runtimeMachineKey]
-		if name == "" {
-			continue
-		}
-		if err := fw.ApplyFirewall(ctx, name, binding); err != nil {
-			p.reportFirewall(err, "security_group", group.ID, "server", server.ID)
-		}
+		b.ApplyRuleSets(ctx, fw, server.Runtime[runtimeMachineKey], spec)
 	}
-}
-
-// reportFirewall logs a failed application at the level it deserves. A rule
-// set the runtime has no mechanism for — a routed NIC, the interface of a
-// server with only a public address (#337) — is a declared limit, not an
-// operational failure: /_feint/health publishes it as
-// capabilities.firewall_public_only=false and docs/limits.md carries the
-// measurement, so the warning names the declaration instead of crying wolf.
-// Anything else stays an error, because nothing declared it.
-// TestAnUnenforceableGroupIsReportedAsTheDeclaredLimit fails without the
-// distinction.
-func (p *Pack) reportFirewall(err error, keyvals ...any) {
-	if errors.Is(err, machine.ErrFirewallUnenforceable) {
-		p.logger().Warn("the security group is not enforced on this machine's public-only interface, "+
-			"which the runtime declares (capabilities.firewall_public_only=false, docs/limits.md)",
-			append(keyvals, "error", err)...)
-		return
-	}
-	p.logger().Error("could not apply the firewall to a machine", append(keyvals, "error", err)...)
 }
 
 // applyServerFirewall binds the group a server carries to its machine. Called
@@ -90,69 +67,12 @@ func (p *Pack) applyServerFirewall(ctx context.Context, server *resource.Resourc
 		return
 	}
 
+	b := p.binding()
 	spec := p.firewallSpecOf(group)
-	if err := fw.EnsureFirewall(ctx, spec); err != nil {
-		p.logger().Error("could not write the firewall rules",
-			"security_group", groupID, "server", server.ID, "error", err)
+	if !b.SyncRuleSet(ctx, fw, spec) {
 		return
 	}
-	name := server.Runtime[runtimeMachineKey]
-	if name == "" {
-		return
-	}
-	if err := fw.ApplyFirewall(ctx, name, p.bindingOf(spec)); err != nil {
-		p.reportFirewall(err, "server", server.ID, "machine", name)
-	}
-}
-
-// bindingOf turns a rule set into what the machine's interfaces enforce.
-//
-// A group that enforces nothing attaches nothing, on every runtime. This is
-// not an optimisation, and each runtime family contributed its own measured
-// reason:
-//
-//   - OVN: the pipeline evaluates the sender's egress rules before the
-//     receiver's ingress default (the priority constants in acl_ovn.go at
-//     v7.2.0: NIC ingress default 100, NIC egress default 111, rule-level
-//     allow 300), so any allow carried by the sender's rule set opens a port
-//     the receiver's default-deny closes — measured here with the suite's own
-//     probe machine.
-//   - routed NICs (#337): the default security group — pure accept, filtering
-//     nothing upstream — rides every `scw instance server create`, including
-//     onto a server with no emulated network under it, whose one interface
-//     accepts no rule set at all. Attaching the empty policy there was an
-//     ERROR log the control plane answered over as if the group were
-//     enforced.
-//
-// The default security group filters nothing upstream, and the only faithful
-// translation of "filters nothing" is absence. A group that does restrict
-// something still attaches, and the residual gap between two such groups on
-// one OVN subnet is recorded in docs/limits.md.
-// TestAPermissiveGroupBindsNothingOnEveryRuntime fails without the
-// unconditional half.
-func (p *Pack) bindingOf(spec machine.FirewallSpec) machine.FirewallBinding {
-	if enforcesNothing(spec) {
-		return machine.FirewallBinding{}
-	}
-	return machine.FirewallBinding{
-		Names:          []string{spec.Name},
-		DefaultIngress: spec.DefaultIngress,
-		DefaultEgress:  spec.DefaultEgress,
-	}
-}
-
-// enforcesNothing reports whether a rule set restricts any traffic at all:
-// permissive in both directions, with no rule that denies anything.
-func enforcesNothing(spec machine.FirewallSpec) bool {
-	if spec.DefaultIngress != "allow" || spec.DefaultEgress != "allow" {
-		return false
-	}
-	for _, rule := range spec.Rules {
-		if rule.Action == "drop" || rule.Action == "reject" {
-			return false
-		}
-	}
-	return true
+	b.ApplyRuleSets(ctx, fw, server.Runtime[runtimeMachineKey], spec)
 }
 
 // firewallSpecOf translates a group and its rules.
@@ -206,19 +126,10 @@ func (p *Pack) firewallSpecOf(group *resource.Resource) machine.FirewallSpec {
 		spec.Rules = append(spec.Rules, converted)
 	}
 
-	// A permissive default policy is also written into the rule set itself, as a
-	// catch-all in last position of the runtime's precedence: allow loses to any
-	// drop or reject the group states, which is exactly what a default is. The
-	// binding's default actions say the same thing on bridged NICs, but an OVN
-	// NIC cannot take those keys without being re-plugged (and losing its
-	// address), so the rule set is the one place the policy can live everywhere.
-	if spec.DefaultIngress == "allow" {
-		spec.Rules = append(spec.Rules, machine.FirewallRule{Direction: "ingress", Action: allow})
-	}
-	if spec.DefaultEgress == "allow" {
-		spec.Rules = append(spec.Rules, machine.FirewallRule{Direction: "egress", Action: allow})
-	}
-	return spec
+	// A permissive default policy is also written into the rule set itself —
+	// WithPermissiveCatchAll says why, and carries the pack's own allow verb so
+	// a stateless group's openness stays stateless.
+	return spec.WithPermissiveCatchAll(allow)
 }
 
 // nativeIsolation reports whether the runtime keeps its networks apart by
@@ -350,14 +261,7 @@ func (p *Pack) serverResourcesUsing(group *resource.Resource) []*resource.Resour
 // and refusing the delete afterwards would leave the client with a resource it
 // cannot remove.
 func (p *Pack) removeFirewall(ctx context.Context, group *resource.Resource) {
-	fw := p.enforcer()
-	if fw == nil {
-		return
-	}
-	if err := fw.RemoveFirewall(ctx, machine.FirewallName("scw", group.ID)); err != nil {
-		p.logger().Error("could not remove the firewall rules",
-			"security_group", group.ID, "error", err)
-	}
+	p.binding().DropRuleSet(ctx, p.enforcer(), machine.FirewallName("scw", group.ID))
 }
 
 // EnforcesFirewall implements emulator.FirewallEnforcer: this pack reconciles a

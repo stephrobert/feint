@@ -22,6 +22,22 @@
       "replace": "func (p *Pack) EnforcesFirewall() bool { return false }",
       "test": "TestEveryPackThatWiresTheFirewallSaysSo",
       "package": "./internal/cli/"
+    },
+    {
+      "label": "the Outscale pack drops its declaration while still wiring the firewall (#475)",
+      "file": "internal/providers/outscale/firewall.go",
+      "find": "func (p *Pack) EnforcesFirewall() bool { return true }",
+      "replace": "func (p *Pack) EnforcesFirewall() bool { return false }",
+      "test": "TestEveryPackThatWiresTheFirewallSaysSo",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "the Exoscale pack drops its declaration while still wiring the firewall (#475)",
+      "file": "internal/providers/exoscale/firewall.go",
+      "find": "func (p *Pack) EnforcesFirewall() bool { return true }",
+      "replace": "func (p *Pack) EnforcesFirewall() bool { return false }",
+      "test": "TestEveryPackThatWiresTheFirewallSaysSo",
+      "package": "./internal/cli/"
     }
   ]
 }

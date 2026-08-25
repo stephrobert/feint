@@ -224,9 +224,10 @@ func (p *Pack) createInstancePool(w http.ResponseWriter, r *http.Request) {
 
 	// Started after the lock is released, and after every member exists: a
 	// client that reads the pool while the machines boot sees the size it asked
-	// for, which is what the control plane really promises.
+	// for, which is what the control plane really promises. Each boot commits
+	// its own result — startPoolMember says why.
 	for _, member := range created {
-		p.start(r.Context(), member)
+		p.startPoolMember(r.Context(), member.ID)
 	}
 
 	p.writeOperation(w, p.operationReferring(nounPool, pool.ID))
@@ -322,18 +323,50 @@ func (p *Pack) growPool(_ context.Context, pool *resource.Resource, target int64
 	existing := int64(len(p.poolMembers(pool.ID)))
 	created := make([]*resource.Resource, 0)
 	for i := existing; i < target; i++ {
+		// The member's address is chosen and the member stored under one hold
+		// of the address lock: freeAddress chooses from what the store holds,
+		// so a member allocated but not yet stored is a member whose address
+		// the next caller is handed again (#484). Per member rather than
+		// around the loop, so a pool of fifty does not hold every other
+		// allocation of the pack behind it.
+		unlock := p.lockAddresses()
 		member := p.newPoolMember(pool, i)
 		p.env.Store.Put(member)
+		unlock()
 		created = append(created, member)
 	}
 	return created
 }
 
+// startPoolMember boots one member and commits what the boot produced — the
+// machine name, the address, and the state the effect reached, "error"
+// included. The members used to be started on the caller's local copy and
+// never written back: the store kept the running state they were created
+// with, `running` stood over a member whose launch the host had refused, and
+// a member that did start showed "no machine" in its runtime for its whole
+// life (#484). Through Transition, so the write-back is conditional and a
+// delete landing mid-boot wins.
+//
+// TestAFailedPoolMemberStartIsPublishedAsError and
+// TestAPoolMemberStartIsRecordedInTheStore fail without this.
+func (p *Pack) startPoolMember(ctx context.Context, id string) {
+	_ = p.binding().Transition(p.env.Store, p.env.Now, kindInstance, id, func(res *resource.Resource) {
+		p.start(ctx, res)
+	})
+}
+
 // newPoolMember builds one member: an ordinary instance, carrying the pool's
 // declared shape and a manager reference back to it.
+// Called under p.lockAddresses(), held by growPool across the choice and the
+// Put: the address below must be in the store before the lock is released.
+//
+// The member is born stopped, not running: the state a client reads is the one
+// the boot produced, and startPoolMember commits that once the machine is up —
+// or failed. Born running, a member whose launch the host refused kept reading
+// `running` forever, with no machine behind it (#484).
 func (p *Pack) newPoolMember(pool *resource.Resource, index int64) *resource.Resource {
 	now := p.env.Now()
-	member := resource.New(p.env.NewID(), kindInstance, resource.Tenant{Provider: Name}, runningState, now)
+	member := resource.New(p.env.NewID(), kindInstance, resource.Tenant{Provider: Name}, stoppedState, now)
 	prefix, _ := pool.Attrs["instance-prefix"].(string)
 	poolName, _ := pool.Attrs["name"].(string)
 	if prefix == "pool" && poolName != "" {
@@ -366,15 +399,43 @@ func (p *Pack) newPoolMember(pool *resource.Resource, index int64) *resource.Res
 	// one since #202 and said why in a comment this path never read.
 	//
 	// TestAPoolMemberCarriesThePublicAddressItsPoolDeclares fails without it.
+	// No lock of its own: the caller already holds p.lockAddresses() across
+	// this choice and the Put that makes it visible (#484).
 	if assignment, _ := pool.Attrs["public-ip-assignment"].(string); assignment != "none" {
-		unlock := p.lockAddresses()
 		if ip, ok := p.freeAddress(); ok {
 			member.Attrs["public-ip"] = ip
 		}
-		unlock()
+	}
+	// The pool's declared shape the members inherit and upstream publishes on
+	// the instance itself: the security groups they wear — the app tier of
+	// examples/stacks/exoscale carries its whole firewall this way — and the
+	// keys their machines boot with. A member with no group wears the default
+	// one, exactly like an instance created directly.
+	if ids := poolRefIDs(pool.Attrs["security-groups"]); len(ids) > 0 {
+		member.Attrs[attrSecurityGroupIDs] = ids
+	} else {
+		p.ensureDefaultSecurityGroup()
+		member.Attrs[attrSecurityGroupIDs] = []any{defaultSecurityGroupID}
+	}
+	if keys, ok := pool.Attrs["ssh-keys"]; ok {
+		member.Attrs["ssh-keys"] = keys
 	}
 	member.Runtime = map[string]string{runtimePoolKey: pool.ID}
 	return member
+}
+
+// poolRefIDs reads the ids out of a stored list of {id: …} references,
+// tolerating the []any a snapshot restore produces.
+func poolRefIDs(v any) []any {
+	list, _ := v.([]any)
+	out := make([]any, 0, len(list))
+	for _, entry := range list {
+		ref, _ := entry.(map[string]any)
+		if id, _ := ref["id"].(string); id != "" {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 func (p *Pack) listInstancePools(w http.ResponseWriter, _ *http.Request) {
@@ -528,9 +589,10 @@ func (p *Pack) scaleInstancePool(w http.ResponseWriter, r *http.Request) {
 	unlock()
 
 	// Outside the lock, because both directions touch the runtime and take
-	// seconds: starting a container, and terminating one.
+	// seconds: starting a container, and terminating one. Each boot commits
+	// its own result — startPoolMember says why.
 	for _, member := range created {
-		p.start(r.Context(), member)
+		p.startPoolMember(r.Context(), member.ID)
 	}
 	for _, member := range removed {
 		p.destroy(r.Context(), member)

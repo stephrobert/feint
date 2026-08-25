@@ -620,6 +620,11 @@ func (p *Pack) updateVm(w http.ResponseWriter, r *http.Request) {
 		p.notFound(w, "Vm", req.VMID)
 		return
 	}
+	// A changed group list reaches the machine's interfaces: the sets it now
+	// wears attach, the ones it dropped detach with them (#475).
+	if len(req.SecurityGroupIDs) > 0 {
+		p.applyVMRuleSets(r.Context(), updated)
+	}
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"Vm":              p.vmView(updated),

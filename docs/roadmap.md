@@ -957,13 +957,16 @@ empty and destroying (OSC-3), and the storage chain (OSC-4). The parity bar
 this item named — that `net_vm` apply — is met, and [limits.md](limits.md)
 records what the served topology does and does not move.
 
-What remains is load balancing (OSC-5, #16) and one warning that belongs here
-because it is an architecture decision rather than pack work: a security-group
-rule sourced by *group* rather than by CIDR needs an OVN selector, not a
-static rule set, and that network-model question must be answered before any
-batch promises Outscale group **enforcement** — which
-[limits.md](limits.md) states is served as a control plane and not measured on
-traffic today.
+What remains is load balancing (OSC-5, #16). The warning this paragraph used
+to carry — that a rule sourced by *group* rather than by CIDR needs an OVN
+selector before any batch promises Outscale group **enforcement** — was
+answered by #475 the way the driver's own contract suggests: the runtime has
+no group selector, so the member reference is expanded into the addresses the
+member machines answer on, and re-expanded whenever a member boots or gains an
+interface. Outscale and Exoscale hand their groups to the runtime now, within
+the two measured bounds [limits.md](limits.md) states (a routed NIC enforces
+nothing by declaration, and #491 tracks the isolation set defeating a group's
+default-deny on multi-subnet OVN runs).
 
 **Evidence:** for what landed, the conformance suite as it runs now; for the
 remainder, the LB apply named in OSC-5.

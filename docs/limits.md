@@ -1357,6 +1357,15 @@ network ACL attached to every interface of the machine. A port no rule opens
 refuses the connection, authorising one opens it without a restart, and revoking
 it closes it again. All four are checked end to end against a live daemon.
 
+**The bound a second subnet adds (#491).** The "port no rule opens refuses"
+half holds only while the machine's network carries no isolation rule set. On
+an OVN run with two or more emulated subnets, the isolation set's catch-all
+allow (rule priority 300) outranks the NIC's default action (100/111), and the
+closed port answers. Measured on 2026-08-26 with one variable: the same
+forbidden port flips from OPEN to CLOSED when the isolation set is detached
+from the network. The rules a group *does* state keep being enforced either
+way; it is the default-deny that #491 tracks.
+
 **What this requires.** `security.acls` on a bridged NIC exists from Incus
 **6.0.4** onwards. On 6.0.0, which Ubuntu 24.04 ships and will not move past, the
 option is rejected outright and nothing is enforced. An ACL attached to a
@@ -2955,28 +2964,36 @@ use it to test whether a packet is dropped. The day a rule is worth programming
 for real it arrives as a declared driver capability, measured under OVN, not as
 a silent upgrade of these records.
 
-## Only Scaleway hands a security group to the runtime
+## The three packs hand their security groups to the runtime, within two measured bounds
 
-`internal/providers/scaleway/firewall.go` is the only file in any pack that
-references `machine.Firewaller`. An **Outscale** or **Exoscale** security group
-is served as a control plane, echoed back, and reconciled onto nothing: with a
-runtime configured, every port of the machine stays open whatever the group
-says, and the API answers success on every rule.
+Until #475 was fixed, `internal/providers/scaleway/firewall.go` was the only
+file in any pack that referenced `machine.Firewaller`: an **Outscale** or
+**Exoscale** security group was served as a control plane, echoed back, and
+reconciled onto nothing — with a runtime configured, every port of the machine
+stayed open whatever the group said, and the API answered success on every
+rule. All three packs now hand their rules over through the shared layer
+(`machine.Binding`), and the witness is observable on the host: `incus network
+acl list` carries `scw-*`, `osc-*` and `exo-*` sets marked `feint security
+group`, attached to the machines that wear the groups (measured 2026-08-26 on
+`examples/stacks/scaleway` — three `scw-*` sets, six interfaces between them —
+`examples/stacks/outscale` and `examples/stacks/exoscale`, each under
+`feint up --runtime incus-ovn`).
 
-That was published as the opposite until #180. `(*Incus).Capabilities()`
-declares `firewall: true` in every mode, one set for the whole process, and this
-repository tells a consumer to key on the capability rather than on a mode name.
-Following that advice, a user probed a port a deny-default group should have
-closed and found it answering.
+The history matters because the claim drifted once before. That gap was
+published as the opposite until #180: `(*Incus).Capabilities()` declares
+`firewall: true` in every mode, one set for the whole process, and this
+repository tells a consumer to key on the capability rather than on a mode
+name. Following that advice, a user probed a port a deny-default group should
+have closed and found it answering.
 
-`/_feint/health` now carries both halves, and the honest check is their
+`/_feint/health` carries both halves, and the honest check is their
 conjunction:
 
 ```console
 $ curl -s localhost:4599/_feint/health | jq '{capabilities: .capabilities.firewall, enforced: .enforced.firewall}'
 {
   "capabilities": true,
-  "enforced": ["scaleway"]
+  "enforced": ["exoscale", "outscale", "scaleway"]
 }
 ```
 
@@ -2985,21 +3002,21 @@ asks it to. A pack absent from that list either does not wire it or has not
 said, and a consumer cannot tell those apart — which is intended, because both
 mean the same thing to whoever is about to open a socket.
 
-## Whether a Scaleway security group filters is not measured under every mode
-
-The security-group family — `CreateSecurityGroup`, its rules, and the groups a
-machine and its interfaces wear — is served as a control plane by all three
-packs. For Scaleway the rules reach the runtime; whether they are *enforced* on
-traffic under `FEINT_VM=incus-ovn` has **not been measured**, and this section
-says so rather than claiming a limit.
-
-The distinction is the one the firewall section above makes for Scaleway, where
-enforcement is measured within stated bounds. Nothing equivalent has been run
-for Outscale groups. The open question named in the roadmap is a rule sourced by
-*group* rather than by CIDR, which needs an OVN selector; the emulator's own
-`machine.Capabilities` is where an answer would be declared, and it declares
-nothing here today.
-
-Until somebody runs it: assume the groups this pack serves describe a policy and
-apply none of it, and do not use the emulator to check that a rule blocks
-anything.
+**The two bounds, both measured.** First, an interface the runtime declares
+unenforceable stays unenforceable: a routed NIC accepts no security option
+(#337, `capabilities.firewall_public_only: false`), and that is the *primary*
+interface of every Exoscale instance and of every Scaleway server whose only
+address is public — the pack hands the set over, the driver refuses with the
+typed error, and the log names the declaring capability instead of crying
+wolf. Second, on any run where at least two emulated subnets exist in OVN
+mode, the emulator's own isolation rule set defeats every NIC-level default
+deny: its catch-all allow sits at rule priority 300 where the NIC default sits
+at 100/111, so a port no rule opens **answers anyway** on machines whose
+network carries an isolation set. Measured both ways on 2026-08-26 — the
+forbidden port flips from OPEN to CLOSED the moment the isolation set is
+detached from the network, nothing else changed — and filed as #491 with the
+upstream constants. Until #491 lands: a group's *allows* are enforced, and its
+default-deny holds only on networks without the emulator's isolation set.
+Group-sourced rules (the tiering statement, "tier 2 accepts tier 1") are
+expanded into the member machines' addresses, since the runtime has no group
+selector, and re-expanded whenever a member boots or gains an interface.

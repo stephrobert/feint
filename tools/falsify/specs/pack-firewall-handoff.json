@@ -1,0 +1,51 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "the Outscale boot stops handing the worn groups to the runtime, which is the whole of #475",
+      "file": "internal/providers/outscale/machines.go",
+      "find": "\tp.syncFirewallAfterBoot(ctx, res)\n}",
+      "replace": "\tif false {\n\t\tp.syncFirewallAfterBoot(ctx, res)\n\t}\n}",
+      "test": "TestAnOutscaleGroupReachesTheHostWhenItsVmBoots"
+    },
+    {
+      "label": "a member-sourced rule stops expanding, so the tiering statement contains nobody",
+      "file": "internal/providers/outscale/firewall.go",
+      "find": "\t\tif members, ok := rule[\"SecurityGroupsMembers\"].([]any); ok {",
+      "replace": "\t\tif members, ok := rule[\"SecurityGroupsMembers\"].([]any); ok && false {",
+      "test": "TestAMemberSourcedRuleExpandsToTheMembersAddresses"
+    },
+    {
+      "label": "the Exoscale boot stops handing the worn groups to the runtime",
+      "package": "./internal/providers/exoscale/",
+      "file": "internal/providers/exoscale/machines.go",
+      "find": "\tp.syncFirewallAfterBoot(ctx, res)\n}",
+      "replace": "\tif false {\n\t\tp.syncFirewallAfterBoot(ctx, res)\n\t}\n}",
+      "test": "TestAnExoscaleGroupReachesTheHostWhenAnInstanceBoots"
+    },
+    {
+      "label": "an egress rule no longer restricts the egress default, opening what upstream closes",
+      "package": "./internal/providers/exoscale/",
+      "file": "internal/providers/exoscale/firewall.go",
+      "find": "\t\tif direction := ruleDirection(rule); direction == \"egress\" {\n\t\t\tspec.DefaultEgress = \"drop\"\n\t\t}",
+      "replace": "\t\tif direction := ruleDirection(rule); direction == \"egress\" && false {\n\t\t\tspec.DefaultEgress = \"drop\"\n\t\t}",
+      "test": "TestAnEgressRuleFlipsTheEgressDefault"
+    },
+    {
+      "label": "a network attached after the boot leaves its interface without the instance's rule sets",
+      "package": "./internal/providers/exoscale/",
+      "file": "internal/providers/exoscale/privatenetworks.go",
+      "find": "\tp.applyInstanceRuleSets(r.Context(), inst)",
+      "replace": "\tif false {\n\t\tp.applyInstanceRuleSets(r.Context(), inst)\n\t}",
+      "test": "TestALateNetworkAttachCarriesTheRuleSets"
+    },
+    {
+      "label": "a pool member stops inheriting its pool's groups, so the app tier's firewall reaches no machine",
+      "package": "./internal/providers/exoscale/",
+      "file": "internal/providers/exoscale/pools.go",
+      "find": "\tif ids := poolRefIDs(pool.Attrs[\"security-groups\"]); len(ids) > 0 {",
+      "replace": "\tif ids := poolRefIDs(pool.Attrs[\"security-groups\"]); len(ids) > 0 && false {",
+      "test": "TestAPoolMemberWearsItsPoolsGroups"
+    }
+  ]
+}

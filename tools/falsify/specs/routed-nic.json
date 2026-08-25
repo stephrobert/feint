@@ -59,18 +59,16 @@
     },
     {
       "label": "a group that filters nothing goes back to binding on non-OVN runtimes",
-      "package": "./internal/providers/scaleway/",
-      "file": "internal/providers/scaleway/firewall.go",
-      "find": "\tif enforcesNothing(spec) {\n\t\treturn machine.FirewallBinding{}\n\t}",
-      "replace": "\tif p.nativeIsolation() && enforcesNothing(spec) {\n\t\treturn machine.FirewallBinding{}\n\t}",
+      "file": "internal/core/machine/firewall_binding.go",
+      "find": "\t\tif spec.EnforcesNothing() {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif spec.EnforcesNothing() && false {\n\t\t\tcontinue\n\t\t}",
       "test": "TestAPermissiveGroupBindsNothingOnEveryRuntime"
     },
     {
       "label": "a declared limit is reported as an operational failure again",
-      "package": "./internal/providers/scaleway/",
-      "file": "internal/providers/scaleway/firewall.go",
-      "find": "\tif errors.Is(err, machine.ErrFirewallUnenforceable) {",
-      "replace": "\tif errors.Is(err, machine.ErrFirewallUnenforceable) && false {",
+      "file": "internal/core/machine/firewall_binding.go",
+      "find": "\tif errors.Is(err, ErrFirewallUnenforceable) {",
+      "replace": "\tif errors.Is(err, ErrFirewallUnenforceable) && false {",
       "test": "TestAnUnenforceableGroupIsReportedAsTheDeclaredLimit"
     }
   ]

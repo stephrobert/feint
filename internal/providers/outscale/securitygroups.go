@@ -267,6 +267,9 @@ func (p *Pack) deleteSecurityGroup(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	p.env.Store.Delete(Name, kindSecurityGroup, res.ID)
+	// The runtime rule set goes with the group, once nothing wears it — the
+	// refusals above guarantee that (#475).
+	p.removeFirewall(r.Context(), res)
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
 }
 
@@ -463,6 +466,10 @@ func (p *Pack) createSecurityGroupRule(w http.ResponseWriter, r *http.Request) {
 		p.notFound(w, "security group", res.ID)
 		return
 	}
+	// The rule the client just authorised reaches the machines wearing the
+	// group: a client authorises a rule after the Vm is running and expects it
+	// to take effect (#475).
+	p.syncSecurityGroup(r.Context(), final)
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"SecurityGroup":   securityGroupView(final),
 		"ResponseContext": p.context(),
@@ -522,6 +529,9 @@ func (p *Pack) deleteSecurityGroupRule(w http.ResponseWriter, r *http.Request) {
 		p.notFound(w, "security group", res.ID)
 		return
 	}
+	// A revoked rule really disappears from the machines: replaying the set is
+	// what closes the port the client just closed (#475).
+	p.syncSecurityGroup(r.Context(), final)
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"SecurityGroup":   securityGroupView(final),
 		"ResponseContext": p.context(),

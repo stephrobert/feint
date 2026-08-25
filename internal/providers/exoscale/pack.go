@@ -1061,26 +1061,6 @@ func (p *Pack) createInstance(w http.ResponseWriter, r *http.Request) {
 	if req.UserData != "" {
 		res.Attrs["user-data"] = req.UserData
 	}
-	// A public address, assigned at creation, because that is what the real
-	// cloud does: an instance created with nothing but a type and a template
-	// answers `ip_address` on the first read — measured on a real account,
-	// 151.145.198.51, with no private network and no elastic IP.
-	//
-	// The pack recorded the intent above and never honoured it, so an emulated
-	// instance published nothing and the machine took whatever the runtime's
-	// default profile gave it, on the operator's own bridge. A machine carries
-	// the addresses its provider's API publishes and no others (#202), and
-	// "none published" was not the honest half of that rule, it was the pack
-	// failing to be its own cloud.
-	//
-	// TestAnInstanceIsGivenAPublicAddressAtCreation fails without this.
-	if assignment, _ := res.Attrs["public-ip-assignment"].(string); assignment != "none" {
-		unlock := p.lockAddresses()
-		if ip, ok := p.freeAddress(); ok {
-			res.Attrs["public-ip"] = ip
-		}
-		unlock()
-	}
 	if ids := refIDs(req.AntiAffinityGroups); len(ids) > 0 {
 		res.Attrs[attrAntiAffinityGroupIDs] = ids
 	}
@@ -1092,11 +1072,43 @@ func (p *Pack) createInstance(w http.ResponseWriter, r *http.Request) {
 	} else {
 		res.Attrs[attrSecurityGroupIDs] = []any{defaultSecurityGroupID}
 	}
-	// The address comes from the machine that starts, not from a constant. It
-	// used to be a fixed 203.0.113.10 on every instance: two of them reported
-	// the same address and nothing answered on either.
-	p.start(r.Context(), res)
+	// A public address, assigned at creation, because that is what the real
+	// cloud does: an instance created with nothing but a type and a template
+	// answers `ip_address` on the first read — measured on a real account,
+	// 151.145.198.51, with no private network and no elastic IP.
+	// TestAnInstanceIsGivenAPublicAddressAtCreation fails without the
+	// allocation.
+	//
+	// The Put happens under the same hold of the lock as the choice, because
+	// freeAddress chooses from what the store holds: an allocated address the
+	// store cannot see yet is an address the next caller is handed again. This
+	// path used to allocate here and only store the instance after the boot —
+	// seconds, with a runtime — and an instance pool created inside that window
+	// took the same address (#484): the host refused the second machine's
+	// route, and the API kept calling that instance running. Outscale's
+	// allocateVms already stores under its address lock for exactly this
+	// reason; this is the same motif, not a new one.
+	// TestAPoolMemberAndAStandaloneInstanceNeverShareAnAddress fails without
+	// the Put inside the lock.
+	unlock := p.lockAddresses()
+	if assignment, _ := res.Attrs["public-ip-assignment"].(string); assignment != "none" {
+		if ip, ok := p.freeAddress(); ok {
+			res.Attrs["public-ip"] = ip
+		}
+	}
 	p.env.Store.Put(res)
+	unlock()
+
+	// The boot runs outside every lock — a launch takes seconds where the lock
+	// takes microseconds — and its result is written back conditionally,
+	// through the shared Transition: a delete landing mid-boot wins, and the
+	// state published is the one the effect produced. The address comes from
+	// the machine that starts, not from a constant: it used to be a fixed
+	// 203.0.113.10 on every instance — two of them reported the same address
+	// and nothing answered on either.
+	_ = p.binding().Transition(p.env.Store, p.env.Now, kindInstance, res.ID, func(stored *resource.Resource) {
+		p.start(r.Context(), stored)
+	})
 
 	p.writeOperation(w, p.operationReferring(nounInstance, res.ID))
 }

@@ -29,7 +29,7 @@
 >
 > **Proven**: 348 of the 371 mounted operations are driven by a real client, on every pull request. `scw`, `octl`, `exo`, Terraform and OpenTofu run against the emulator in CI, and machines really boot: an ssh login on each provider's own default account, isolated subnets, a firewall that filters. The whole chain is described in [docs/conformance.md](docs/conformance.md).
 >
-> **Not proven**: quotas, prices, real capacity, identifier validation, authentication, eventual consistency. The 43 sections of [docs/limits.md](docs/limits.md) each say what one costs. An emulator with a single implicit account and no price list would have to invent those figures, and somebody would act on them.
+> **Not proven**: quotas, prices, real capacity, identifier validation, authentication, eventual consistency. The 42 sections of [docs/limits.md](docs/limits.md) each say what one costs. An emulator with a single implicit account and no price list would have to invent those figures, and somebody would act on them.
 >
 > **Unknown**: 23 operations are mounted and have never been driven by a client. Every one of them states why no official client reaches it, at the route and in [docs/routes.md](docs/routes.md). They are counted rather than glossed, one by one, in [coverage/evidence.json](coverage/evidence.json).
 >
@@ -638,14 +638,16 @@ by the install play yet.
 
 This is what separates Feint from a mock server, and it is measured rather than
 claimed: the block a client asks for is the block it gets, the address the API
-publishes is the address the machine carries, **a Scaleway** security group's
-default policy closes a port for real, and authorising it afterwards opens it
-without restarting anything.
+publishes is the address the machine carries, a security group's rules become
+a rule set the host actually holds — for the three packs since #475 — and
+authorising a port afterwards opens it without restarting anything.
 
-That provider name is load-bearing. Only Scaleway hands its rules to the
-runtime; an Outscale or Exoscale security group is served, echoed back and
-enforced on nothing (#180). `/_feint/health` answers which packs deliver it, so
-a program can ask rather than assume:
+Two measured bounds stand, and docs/limits.md carries both with their
+measurements: an interface the runtime declares unenforceable (a routed NIC,
+`capabilities.firewall_public_only: false`) stays unenforceable, and on a run
+with two or more subnets in OVN mode the isolation rule set still defeats a
+group's default-deny (#491). `/_feint/health` answers which packs deliver the
+handoff, so a program can ask rather than assume:
 
 ```bash
 curl -s localhost:4599/_feint/health | jq '{capabilities, enforced}'

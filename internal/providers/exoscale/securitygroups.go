@@ -152,7 +152,13 @@ func (p *Pack) deleteSecurityGroup(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	res, _ := p.env.Store.Get(Name, kindSecurityGroup, id)
 	p.env.Store.Delete(Name, kindSecurityGroup, id)
+	// The runtime rule set goes with the group, once nothing wears it — the
+	// refusal above guarantees that (#475).
+	if res != nil {
+		p.removeFirewall(r.Context(), res)
+	}
 	p.writeOperation(w, p.operationReferring(nounSecurityGroup, id))
 }
 
@@ -217,6 +223,12 @@ func (p *Pack) addRuleToSecurityGroup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "resource not found")
 		return
 	}
+	// The rule the client just added reaches the machines wearing the group:
+	// a client adds a rule after the instance is running and expects it to
+	// take effect (#475).
+	if group, found := p.env.Store.Get(Name, kindSecurityGroup, id); found {
+		p.syncSecurityGroup(r.Context(), group)
+	}
 	p.writeOperation(w, p.operationReferring(nounSecurityGroup, id))
 }
 
@@ -246,6 +258,11 @@ func (p *Pack) deleteRuleFromSecurityGroup(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusNotFound, "resource not found")
 		return
 	}
+	// A revoked rule really disappears from the machines: replaying the set
+	// is what closes the port the client just closed (#475).
+	if group, ok := p.env.Store.Get(Name, kindSecurityGroup, id); ok {
+		p.syncSecurityGroup(r.Context(), group)
+	}
 	p.writeOperation(w, p.operationReferring(nounSecurityGroup, id))
 }
 
@@ -264,11 +281,31 @@ type instanceTarget struct {
 }
 
 func (p *Pack) attachInstanceToSecurityGroup(w http.ResponseWriter, r *http.Request) {
-	p.changeInstanceMembership(w, r, kindSecurityGroup, nounSecurityGroup, attrSecurityGroupIDs, true)
+	instanceID, ok := p.changeInstanceMembership(w, r, kindSecurityGroup, nounSecurityGroup, attrSecurityGroupIDs, true)
+	if ok {
+		p.moveInstanceFirewall(r, instanceID)
+	}
 }
 
 func (p *Pack) detachInstanceFromSecurityGroup(w http.ResponseWriter, r *http.Request) {
-	p.changeInstanceMembership(w, r, kindSecurityGroup, nounSecurityGroup, attrSecurityGroupIDs, false)
+	instanceID, ok := p.changeInstanceMembership(w, r, kindSecurityGroup, nounSecurityGroup, attrSecurityGroupIDs, false)
+	if ok {
+		p.moveInstanceFirewall(r, instanceID)
+	}
+}
+
+// moveInstanceFirewall follows a membership change onto the runtime: the
+// instance's machine wears what the store now says, and every group whose
+// rules name the group that just gained or lost this member is re-expanded
+// (#475).
+func (p *Pack) moveInstanceFirewall(r *http.Request, instanceID string) {
+	if p.enforcer() == nil {
+		return
+	}
+	if inst, found := p.env.Store.Get(Name, kindInstance, instanceID); found {
+		p.applyInstanceRuleSets(r.Context(), inst)
+	}
+	p.syncGroupsReferencing(r.Context(), []string{r.PathValue("id")})
 }
 
 // changeInstanceMembership adds or removes one group-like resource on one
@@ -369,6 +406,9 @@ func (p *Pack) changeExternalSources(w http.ResponseWriter, r *http.Request, add
 		writeError(w, http.StatusNotFound, "resource not found")
 		return
 	}
+	// External sources extend the group's membership, so what changed is the
+	// expansion of every rule that names this group as a source (#475).
+	p.syncGroupsReferencing(r.Context(), []string{id})
 	p.writeOperation(w, p.operationReferring(nounSecurityGroup, id))
 }
 

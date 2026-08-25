@@ -659,6 +659,12 @@ func (p *Pack) attachInstanceToPrivateNetwork(w http.ResponseWriter, r *http.Req
 		return
 	}
 	p.attachMachineToPrivateNetwork(r.Context(), inst, pn, leaseIP)
+	// The interface this attach just created carries the instance's rule sets
+	// like every other one: the Terraform provider attaches networks after the
+	// create returns, and a set applied at boot never reaches an interface
+	// born later (#475). ApplyFirewall covers every NIC of the machine, so
+	// re-applying here is idempotent for the older ones.
+	p.applyInstanceRuleSets(r.Context(), inst)
 	p.writeOperation(w, p.operationReferring(nounPrivateNetwork, id))
 }
 

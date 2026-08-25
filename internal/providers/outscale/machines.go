@@ -132,6 +132,10 @@ func (p *Pack) powerOn(ctx context.Context, res *resource.Resource) {
 	for _, address := range p.publicBootAddresses(res.ID) {
 		p.routeLinkedIP(ctx, address, res)
 	}
+	// The groups this Vm wears reach its interfaces, and the groups that name
+	// those groups as members are re-expanded now that this machine has
+	// addresses (#475). After the routes, so the expansion sees them.
+	p.syncFirewallAfterBoot(ctx, res)
 }
 
 // rememberAddress keeps the private address on the resource, not only on the
@@ -170,8 +174,11 @@ func (p *Pack) refreshMachine(ctx context.Context, res *resource.Resource) bool 
 	changed := p.binding().RefreshIfRunning(ctx, res)
 	if changed {
 		// A virtual machine gets its address tens of seconds after it starts,
-		// so this is where it first becomes known for one.
+		// so this is where it first becomes known for one — and where every
+		// group naming this Vm's groups as members first has an address to
+		// expand to (#475).
 		p.rememberAddress(res)
+		p.syncGroupsReferencing(ctx, p.wornGroupIDs(res))
 	}
 	return changed
 }
