@@ -48,6 +48,14 @@
 // against a *fresh* one with zero divergences, which it cannot do without
 // rebinding, because the recording's own identifiers no longer exist anywhere.
 //
+// That rebinding is also what pairs the elements of a list. A recording made
+// against an account that already holds resources lists somebody else's objects
+// beside the one the run created, so walking two lists by index grades one
+// object against another and reports every field they do not share.
+// [compareElements] carries the rule, the two halves of "no counterpart" it has
+// to keep apart, and what re-running the corpus said about the count an audit
+// had estimated for it.
+//
 // # Nothing from the recording reaches the output
 //
 // A transcript is redacted of credentials and is not anonymous: docs/proxy.md
@@ -526,7 +534,7 @@ func compare(x *trace.Exchange, status int, got any, operation string, b *bindin
 			Got:  strconv.Itoa(status),
 		})
 	}
-	out = append(out, compareShape("", x.Res.Body, got, operation, opt)...)
+	out = append(out, compareShape("", x.Res.Body, got, operation, b, opt)...)
 	invariants, evaluated := compareInvariants(x.Res.Body, got, operation, b, opt)
 	out = append(out, invariants...)
 	sort.SliceStable(out, func(i, j int) bool {
@@ -551,7 +559,7 @@ func compare(x *trace.Exchange, status int, got any, operation string, b *bindin
 // the recording lacks is not a finding here: internal/contract already refuses
 // a field the provider's own description does not define, and a recording made
 // against a sparse account legitimately carries less than a full one.
-func compareShape(path string, want, got any, operation string, opt Options) []Finding {
+func compareShape(path string, want, got any, operation string, b *bindings, opt Options) []Finding {
 	switch w := want.(type) {
 	case map[string]any:
 		g, ok := got.(map[string]any)
@@ -591,7 +599,7 @@ func compareShape(path string, want, got any, operation string, opt Options) []F
 				out = append(out, absentOrExcused(child, jsonType(w[k]), operation, opt))
 				continue
 			}
-			out = append(out, compareShape(child, w[k], nested, operation, opt)...)
+			out = append(out, compareShape(child, w[k], nested, operation, b, opt)...)
 		}
 		return out
 	case []any:
@@ -606,14 +614,7 @@ func compareShape(path string, want, got any, operation string, opt Options) []F
 			// shape underneath was not observed, it was not omitted.
 			return []Finding{absentOrExcused(element, "array element", operation, opt)}
 		}
-		var out []Finding
-		for i := range w {
-			if i >= len(g) {
-				break
-			}
-			out = append(out, compareShape(element, w[i], g[i], operation, opt)...)
-		}
-		return out
+		return compareElements(element, w, g, operation, b, opt)
 	default:
 		if proxy.IsPlaceholder(want) {
 			// The recorder replaced this value, so its type is erased rather
@@ -638,6 +639,350 @@ func compareShape(path string, want, got any, operation string, opt Options) []F
 		}
 		return nil
 	}
+}
+
+// compareElements walks two lists together, pairing each recorded element with
+// the answered element that carries the same identifier rather than with the
+// one that happens to sit at its index.
+//
+// # Why position is not an answer
+//
+// A recording taken against an account that already holds resources lists the
+// objects that were there beside the one the run created. Compared by index,
+// element 0 of the recording — somebody else's volume, minted months ago with
+// its own set of optional fields populated — is graded against element 0 here,
+// which is the volume this run just created, and every field the two do not
+// share is reported as a divergence. Nothing in that is a fact about this
+// emulator, and #427 would have recorded 212 more operations through it (#469).
+//
+// # What the re-run said, against what the audit had estimated
+//
+// The audit of 2026-08-25 attributed 26 of the 59 findings of #433 and more
+// than 20 of the 92 of #434 to this defect, by reading the recordings. That
+// attribution does not survive re-running them. `corpus/scaleway/scw-billed-shapes.jsonl`
+// is the recording both issues measure, and it produces the *same 169 findings*
+// through this comparison and through the positional one it replaced — nothing
+// moved, because its findings sit on single objects (GetVolume, GetSnapshot,
+// GetLB, GetServer) and not on the members of a list.
+//
+// What the re-run did find is one manufactured finding, in another file, and
+// its own acceptance entry had already named the cure verbatim: "It goes when
+// the replay matches list elements by the identifier it has already rebound
+// instead of by position" (#436, exoscale/v2.list-security-groups). The defect
+// is real and the fix is right; the number attached to it was an estimate, and
+// this paragraph is here so that nobody re-derives 26 and 20 from a comment.
+//
+// # What identifies an element, and why no field name is written here
+//
+// The replay already rebinds identifiers — that is how it follows a resource
+// across a run — so where a recorded value has a binding, the object it names
+// and the one this emulator minted for it are already known to be the same. An
+// element is therefore named by the minted values it carries, mapped through
+// the bindings, and a value names an element only where it names *exactly one*
+// on each side: project_id is carried by every element of a list and identifies
+// none of them, an id is carried by one. Uniqueness is what tells those apart,
+// which is why no field name is hard-coded — a rule written on names would have
+// to learn Scaleway's id, Outscale's VmId, Exoscale's id, and whatever a fourth
+// pack mints.
+//
+// # The two halves of "no counterpart", and only one of them is a finding
+//
+// This is the half a first version gets wrong in the other direction, and it
+// was measured here before it was written down: reporting every unpaired
+// recorded element produced 64 findings over the committed corpus, 57 of them
+// saying that a real account has twelve Exoscale zones where this emulator
+// serves one.
+//
+// The distinction is whether the replay knows what the counterpart should have
+// been. An element whose identifier an earlier exchange *bound* has a
+// counterpart in this run by construction — this run created it — so its
+// absence from a list is a fact about this emulator and is reported. An element
+// nothing ever bound is an object of the recorded account that this run never
+// asked for: a zone, a public template, a security group that was already
+// there. It has no counterpart by construction, and calling it absent would
+// accuse this emulator of omitting something nobody asked it to make, which is
+// as false as comparing it by index.
+//
+// # The fallback
+//
+// Where no recorded element pairs with any answered one, the two lists are not
+// in the same namespace and identity says nothing at all — the marketplace
+// catalogue is the measured case, 90 images recorded against 18 served and not
+// one of the 90 identifiers ever minted here. The walk then falls back to
+// position, which is what it did before and no worse.
+//
+// TestListElementsAreMatchedByReboundIdentifier and
+// TestAnElementThisRunCreatedAndTheListOmitsIsOneFinding fail without this;
+// TestAListWithNothingToIdentifyItsElementsIsStillComparedByPosition holds the
+// fallback and TestAnAccountsOwnObjectIsNotReportedAsAbsent holds the half
+// above.
+func compareElements(element string, want, got []any, operation string, b *bindings, opt Options) []Finding {
+	matched, byIdentity, blanked := matchElements(want, got, b)
+
+	var out []Finding
+	if blanked {
+		// Named once, and never folded into "this element carries no
+		// identifier". Those are two different sentences: one says the element
+		// has nothing to be known by, the other says it has something and the
+		// recorder replaced it before writing. Reported for the reason an
+		// excused field is reported — what a comparison subtracts has to stay
+		// visible — and as [KindRedacted], which is not a divergence, because
+		// the proxy's own hygiene is not a defect of this emulator.
+		//
+		// TestAnElementWhoseIdentifierIsRedactedIsNotFiledAsUnidentified fails
+		// without this.
+		out = append(out, Finding{Kind: KindRedacted, Path: element, Want: "identifier"})
+	}
+	if !byIdentity {
+		for i := range want {
+			if i >= len(got) {
+				break
+			}
+			out = append(out, compareShape(element, want[i], got[i], operation, b, opt)...)
+		}
+		return out
+	}
+
+	taken := make([]bool, len(got))
+	for _, m := range matched {
+		if m.at >= 0 {
+			taken[m.at] = true
+		}
+	}
+	next := 0
+	spare := func() int {
+		for next < len(got) {
+			j := next
+			next++
+			if !taken[j] {
+				taken[j] = true
+				return j
+			}
+		}
+		return -1
+	}
+
+	orphan := false
+	for i := range want {
+		j := matched[i].at
+		if j < 0 {
+			switch {
+			case matched[i].outcome == identityRedacted:
+				// Not placed by position, and that is the whole point: an
+				// element nobody could read is not an element that belongs
+				// where the index puts it. The line above already named it.
+				continue
+			case matched[i].outcome == identityNone:
+				// Nothing identifies it, so position is all there is for it —
+				// the same answer the whole list falls back to, applied to the
+				// one element that needs it.
+				j = spare()
+			case matched[i].known:
+				// An object this run created, and this list does not carry it.
+				orphan = true
+				continue
+			default:
+				// The recorded account's own object. See the doc comment.
+				continue
+			}
+		}
+		if j < 0 {
+			continue
+		}
+		out = append(out, compareShape(element, want[i], got[j], operation, b, opt)...)
+	}
+	if orphan {
+		// One finding for the list, never one per element: the statement is
+		// "the recording carries elements this emulator does not answer", and
+		// it is the same statement the empty-list branch makes. Saying it once
+		// per element is how nine operations turned into several hundred lines
+		// the first time a list was graded here.
+		out = append(out, absentOrExcused(element, "array element", operation, opt))
+	}
+	return out
+}
+
+// identityOutcome is what reading one list element's identifier came to.
+//
+// Three and never two, which is rule 2 of the measurement-integrity skill: a
+// reader that maps its input to "identified" / "not identified" files
+// *unreadable* under *not identified*, and the element whose identifier the
+// recorder replaced would then be paired by position in silence — which is the
+// defect this file is fixing, arriving through the door the proxy's redaction
+// has already opened once (the first row of that skill's own table).
+type identityOutcome int
+
+const (
+	// identityNone: the element carries nothing a cloud mints. Position is all
+	// there is for it, and saying so is honest.
+	identityNone identityOutcome = iota
+	// identityFound: the element carries at least one minted value, mapped
+	// through the bindings into this emulator's namespace.
+	identityFound
+	// identityRedacted: the element carries a value the recorder replaced
+	// before writing it. Something was there and it cannot be read, so this
+	// walk refuses to assert the element has no identity — it cannot tell
+	// whether what was blanked was one.
+	identityRedacted
+)
+
+// identityKey is one name a list element answers to, in this emulator's
+// namespace.
+type identityKey struct {
+	// key is "<field>\x00<value>". The field name is part of it because one
+	// recorded value under two names is two different things here — the
+	// project_id and organization_id of [bindings] — and a bare value would
+	// merge them.
+	key string
+	// rebound reports that an earlier exchange actually bound this value, so
+	// the object it names is one this run created rather than one the recorded
+	// account already held. It is what separates the two halves of "no
+	// counterpart" in [compareElements].
+	rebound bool
+}
+
+// elementIdentity is what one list element is known by, with which of the three
+// outcomes reading it came to.
+type elementIdentity struct {
+	// keys are sorted by field name, so two runs over the same document pair
+	// the same way. Determinism first: a gate that answers differently on two
+	// identical inputs is a gate that gets disarmed the first time it seems to
+	// lie.
+	keys    []identityKey
+	outcome identityOutcome
+}
+
+// identifyElement reads the identifiers one list element carries.
+//
+// rebind is true for the recorded side, where a value has to be mapped into
+// this emulator's namespace before it can name anything here, and false for
+// what the endpoint answered, which is already in it.
+//
+// Only the element's own top-level string fields, deliberately: an identifier a
+// cloud hands out sits there, and walking deeper would let a nested project_id
+// — the same on every element — offer a pairing that [matchElements] then has
+// to undo by uniqueness anyway.
+func identifyElement(el any, b *bindings, rebind bool) elementIdentity {
+	var (
+		keys    []identityKey
+		blanked bool
+	)
+	consider := func(field, value string) {
+		if proxy.IsPlaceholder(value) {
+			blanked = true
+			return
+		}
+		if !looksMinted(value) {
+			return
+		}
+		bound := false
+		if rebind {
+			if to, ok := b.resolve(field, value); ok {
+				value, bound = to, true
+			}
+		}
+		keys = append(keys, identityKey{key: field + "\x00" + value, rebound: bound})
+	}
+	switch e := el.(type) {
+	case map[string]any:
+		names := make([]string, 0, len(e))
+		for k := range e {
+			names = append(names, k)
+		}
+		sort.Strings(names)
+		for _, k := range names {
+			if text, isText := e[k].(string); isText {
+				consider(k, text)
+			}
+		}
+	case string:
+		// A list of bare identifiers, which is how a body names the addresses
+		// of a server. No field to scope it by, which is the case
+		// [bindings.resolve] falls back to for a path segment.
+		consider("", e)
+	}
+	switch {
+	case len(keys) > 0:
+		return elementIdentity{keys: keys, outcome: identityFound}
+	case blanked:
+		return elementIdentity{outcome: identityRedacted}
+	default:
+		return elementIdentity{outcome: identityNone}
+	}
+}
+
+// match is what became of one recorded element.
+type match struct {
+	// at is the index in the answered list this element names, or -1.
+	at int
+	// known reports that at least one identifier naming this element, and
+	// naming only it, was bound by an earlier exchange — so this run created
+	// its counterpart and a list without it is a finding.
+	known   bool
+	outcome identityOutcome
+}
+
+// matchElements pairs recorded elements with answered ones by identifier.
+//
+// byIdentity reports whether any pair was made at all: it is what tells "these
+// two lists describe the same objects" from "these two lists have nothing in
+// common", and only the first justifies reading anything into an element that
+// did not pair. blanked reports whether any recorded element's identifier was
+// unreadable.
+func matchElements(want, got []any, b *bindings) (matched []match, byIdentity, blanked bool) {
+	matched = make([]match, len(want))
+	identities := make([]elementIdentity, len(want))
+	seen := map[string]int{}
+	for i := range want {
+		identities[i] = identifyElement(want[i], b, true)
+		matched[i] = match{at: -1, outcome: identities[i].outcome}
+		if identities[i].outcome == identityRedacted {
+			blanked = true
+		}
+		for _, k := range identities[i].keys {
+			seen[k.key]++
+		}
+	}
+
+	// A key that names two answered elements names neither: -1 rather than the
+	// last one walked, so a repeated value cannot decide a pairing by the order
+	// the list happened to arrive in.
+	at := map[string]int{}
+	for j := range got {
+		for _, k := range identifyElement(got[j], b, false).keys {
+			if _, twice := at[k.key]; twice {
+				at[k.key] = -1
+				continue
+			}
+			at[k.key] = j
+		}
+	}
+
+	taken := make([]bool, len(got))
+	for i := range identities {
+		for _, k := range identities[i].keys {
+			// Only a key that names one recorded element says anything about
+			// which element this is; a project_id every element carries says
+			// only which account the recording was made on.
+			if seen[k.key] != 1 {
+				continue
+			}
+			if k.rebound {
+				matched[i].known = true
+			}
+			if matched[i].at >= 0 {
+				continue
+			}
+			j, ok := at[k.key]
+			if !ok || j < 0 || taken[j] {
+				continue
+			}
+			matched[i].at = j
+			taken[j] = true
+			byIdentity = true
+		}
+	}
+	return matched, byIdentity, blanked
 }
 
 // absentOrExcused turns a missing field into a finding, or into the pack's own

@@ -1024,14 +1024,6 @@
       "file": "scaleway/scw-free-shapes.jsonl"
     },
     {
-      "file": "exoscale/exo-free-shapes.jsonl",
-      "operation": "exoscale/v2.list-security-groups",
-      "kind": "absent",
-      "path": "security-groups[].description",
-      "reason": "THIS IS THE COMPARISON, NOT THE PACK, and the recording proves it in its own body. The replay walks two arrays by position, and the two arrays do not hold the same groups: the recorded list answers THREE security groups -- two the ch-gva-2 account already had, then the one the run created -- and this emulator's answers two, the `default` group it ships and the one the run created. So element 1 is a pre-existing group of a real account on one side and a freshly created group on the other. The cloud's OWN created group, element 2 of the recording, carries no `description` key at all, which is exactly what this emulator answers for a group created without one; element 0, `default`, carries a description on both sides. Nothing here is a field the pack fails to serve, and no contract entry on the model of tools/contract/exoscale-recorded-fields.yaml would be honest, because the field is already declared and already served. It goes when the replay matches list elements by the identifier it has already rebound instead of by position, or when a recording is taken on an account holding no group of its own. Recorded 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/436"
-    },
-    {
       "file": "scaleway/scw-billed-shapes.jsonl",
       "operation": "instance/v1/API.GetImage",
       "kind": "type",

@@ -592,3 +592,200 @@ func TestAnInventoryKeyTheRecordingHasIsNotAMissingField(t *testing.T) {
 			"finding: %+v", gap.Results[0].Findings)
 	}
 }
+
+// #469, and the whole of it: two elements the recording tells apart by a field
+// only one of them carries, answered here in the opposite order.
+//
+// A comparison that walks the two lists by index grades the recording's first
+// element against this emulator's second, and reports both distinguishing
+// fields as missing. Neither statement is true — both elements are here, both
+// carry what the recording says they carry — and that is the shape the audit of
+// 2026-08-25 attributed 26 of the 59 findings of #433 and more than 20 of the
+// 92 of #434 to.
+//
+// The prelude is what makes the identifiers mean anything: two POST /ips bind
+// the recorded identifiers and the recorded addresses to the ones this emulator
+// minted, exactly as #320's own fixture does, so by the time the list is
+// compared the two sides are in one namespace.
+func TestListElementsAreMatchedByReboundIdentifier(t *testing.T) {
+	ts := answers(t, ipsThenServer(freshDistinctIPsReversed))
+	rep := run(t, distinctIPsRecording(), ts.URL)
+	if rep.Divergent != 0 {
+		t.Fatalf("a list answered in the opposite order reported %d divergent exchange(s); "+
+			"the elements are the same two objects and neither is missing a field: %+v",
+			rep.Divergent, findingsOf(rep))
+	}
+	if rep.Matched != 3 {
+		t.Fatalf("matched %d exchange(s), want 3", rep.Matched)
+	}
+}
+
+// The witness that keeps the one above honest.
+//
+// Without it, a comparison that stopped reporting anything at all would pass
+// for a fix — which is the failure this repository catches most often, and it
+// would be particularly easy here, since "report nothing" and "pair correctly"
+// look identical from the outside on a clean fixture.
+//
+// One element this run created, absent from the answer, has to be exactly one
+// finding: the composition genuinely differs, that difference is the finding,
+// and it is named once at the element rather than once per field underneath it.
+func TestAnElementThisRunCreatedAndTheListOmitsIsOneFinding(t *testing.T) {
+	short := `{"server":{"id":"` + freshID + `","name":"web-1","commercial_type":"DEV1-S",` +
+		`"public_ips":[{"id":"` + freshIPOne + `","address":"10.0.0.1","provisioning_mode":"dhcp"}]}}`
+	ts := answers(t, ipsThenServer(short))
+	rep := run(t, distinctIPsRecording(), ts.URL)
+
+	found := findingsOf(rep)
+	if len(found) != 1 {
+		t.Fatalf("%d finding(s) for one missing element, want exactly 1: %+v", len(found), found)
+	}
+	if found[0].Kind != replay.KindAbsent || found[0].Path != "server.public_ips[]" {
+		t.Fatalf("the missing element is reported as %+v, want an absent finding at server.public_ips[]", found[0])
+	}
+	if rep.Divergent != 1 {
+		t.Fatalf("divergent %d, want 1", rep.Divergent)
+	}
+}
+
+// The other half of the same rule, and the one a first version gets wrong in
+// the opposite direction.
+//
+// A recording is made against an account that already holds things. An element
+// no exchange of the run ever bound is one of those: a zone, a public template,
+// an address somebody reserved last year. It has no counterpart here by
+// construction, and calling it absent accuses this emulator of omitting
+// something nobody asked it to make.
+//
+// This was measured before it was written: reporting every unpaired element
+// produced 64 findings over the committed corpus, 57 of them saying that a real
+// Exoscale account has twelve zones where this emulator serves one.
+//
+// The fixture is the one above with the *second* reservation removed, so the
+// second recorded address is one the account already had — and nothing else
+// changes. The two tests are therefore the two answers to one question.
+func TestAnAccountsOwnObjectIsNotReportedAsAbsent(t *testing.T) {
+	short := `{"server":{"id":"` + freshID + `","name":"web-1","commercial_type":"DEV1-S",` +
+		`"public_ips":[{"id":"` + freshIPOne + `","address":"10.0.0.1","provisioning_mode":"dhcp"}]}}`
+	ts := answers(t, ipsThenServer(short))
+	full := distinctIPsRecording()
+	rep := run(t, []trace.Exchange{full[0], full[2]}, ts.URL)
+
+	if found := findingsOf(rep); len(found) != 0 {
+		t.Fatalf("%d finding(s) about an object the recorded account already held and this run "+
+			"never created: %+v", len(found), found)
+	}
+}
+
+// Nothing identifies these elements, so position is all there is — and the walk
+// still compares them.
+//
+// The fallback is not a detail: the marketplace catalogue is 90 recorded images
+// against 18 served, not one of the 90 identifiers ever minted here, and two
+// lists with no identifier in common are not evidence of anything. But a
+// fallback that quietly stopped comparing would be the same defect wearing the
+// other coat, so the assertion is that the missing field is still named.
+func TestAListWithNothingToIdentifyItsElementsIsStillComparedByPosition(t *testing.T) {
+	recorded := `{"server":{"id":"` + recordedID + `","name":"web-1","commercial_type":"DEV1-S",` +
+		`"labels":[{"name":"a","value":"x"},{"name":"b","value":"y"}]}}`
+	ts := answers(t, func(*http.Request) (int, string) {
+		return 201, `{"server":{"id":"` + freshID + `","name":"web-1","commercial_type":"DEV1-S",` +
+			`"labels":[{"name":"a","value":"x"},{"name":"b"}]}}`
+	})
+	rep := run(t, []trace.Exchange{exchange(t, createLine(recorded))}, ts.URL)
+	if !namesFinding(rep, replay.KindAbsent, "server.labels[].value") {
+		t.Fatalf("a field missing from an element of a list nothing identifies stopped being a "+
+			"finding: %+v", findingsOf(rep))
+	}
+}
+
+// Three outcomes, never two: identified, nothing to identify it, and unreadable.
+//
+// A reader that only knows "identified" and "not identified" files the third
+// under the second, and an element whose identifier the recorder replaced is
+// then paired by position in silence — which is the defect this file exists to
+// fix, arriving through the door the redaction has already opened once (the
+// account inventory of the measurement-integrity skill).
+//
+// It is not hypothetical here: `carriers` matches the substring "key", so an
+// Outscale tag's own `Key` reaches every transcript as a placeholder, and 25
+// elements of the committed corpus are in exactly this state.
+//
+// Both halves are asserted. The element whose identifier was blanked is named,
+// and it is not a divergence — the proxy's hygiene is not a defect of this
+// emulator. The element that simply has nothing to be known by is *not* named,
+// or the distinction would be decoration.
+func TestAnElementWhoseIdentifierIsRedactedIsNotFiledAsUnidentified(t *testing.T) {
+	recorded := `{"server":{"id":"` + recordedID + `","name":"web-1","commercial_type":"DEV1-S",` +
+		`"keys":[{"key_id":"REDACTED-0123abcd","name":"first"}],` +
+		`"labels":[{"name":"a","value":"x"}]}}`
+	ts := answers(t, func(*http.Request) (int, string) {
+		return 201, `{"server":{"id":"` + freshID + `","name":"web-1","commercial_type":"DEV1-S",` +
+			`"keys":[{"key_id":"` + freshIPOne + `","name":"first"}],` +
+			`"labels":[{"name":"a","value":"x"}]}}`
+	})
+	rep := run(t, []trace.Exchange{exchange(t, createLine(recorded))}, ts.URL)
+
+	if !namesFinding(rep, replay.KindRedacted, "server.keys[]") {
+		t.Fatalf("an element whose identifier the recorder replaced was filed with the elements "+
+			"that have none, and nothing said so: %+v", findingsOf(rep))
+	}
+	if namesFinding(rep, replay.KindRedacted, "server.labels[]") {
+		t.Fatalf("an element that simply carries no identifier was reported as unreadable, which "+
+			"makes the three outcomes two again: %+v", findingsOf(rep))
+	}
+	if rep.Divergent != 0 {
+		t.Fatalf("an unreadable identifier reddened the run; the recorder's hygiene is not a "+
+			"defect of this emulator: %+v", findingsOf(rep))
+	}
+	if rep.Redacted == 0 {
+		t.Fatalf("nothing was counted: a comparison that skips in silence reports \"all matched\" " +
+			"over a recording it half read")
+	}
+}
+
+// distinctIPsRecording is the #469 fixture: two reservations, then a create
+// whose two addresses are told apart by a field only one of them carries.
+//
+// Every value is invented, and the addresses are TEST-NET-3, for the reason the
+// rest of this file states.
+func distinctIPsRecording() []trace.Exchange {
+	lines := []string{
+		`{"method":"POST","path":"` + ipPath + `","operation":"instance/v1/API.CreateIP","status":201,` +
+			`"mounted":true,"req":{"body":{"type":"routed_ipv4"}},` +
+			`"res":{"body":{"ip":{"id":"` + recordedIPOne + `","address":"203.0.113.1"}}}}`,
+		`{"method":"POST","path":"` + ipPath + `","operation":"instance/v1/API.CreateIP","status":201,` +
+			`"mounted":true,"req":{"body":{"type":"routed_ipv4"}},` +
+			`"res":{"body":{"ip":{"id":"` + recordedIPTwo + `","address":"203.0.113.2"}}}}`,
+		`{"method":"POST","path":"` + serverPath + `","operation":"instance/v1/API.CreateServer","status":201,` +
+			`"mounted":true,"req":{"headers":{"Content-Type":"application/json"},` +
+			`"body":{"name":"web-1","commercial_type":"DEV1-S"}},` +
+			`"res":{"body":{"server":{"id":"` + recordedID + `","name":"web-1","commercial_type":"DEV1-S",` +
+			`"public_ips":[` +
+			`{"id":"` + recordedIPOne + `","address":"203.0.113.1","provisioning_mode":"dhcp"},` +
+			`{"id":"` + recordedIPTwo + `","address":"203.0.113.2","state":"attached"}]}}}}`,
+	}
+	out := make([]trace.Exchange, 0, len(lines))
+	for _, line := range lines {
+		out = append(out, mustExchange(line))
+	}
+	return out
+}
+
+// freshDistinctIPsReversed is what this emulator answers: the same two
+// addresses, its own identifiers, and the two elements the other way round.
+const freshDistinctIPsReversed = `{"server":{"id":"` + freshID + `","name":"web-1","commercial_type":"DEV1-S",` +
+	`"public_ips":[` +
+	`{"id":"` + freshIPTwo + `","address":"10.0.0.2","state":"attached"},` +
+	`{"id":"` + freshIPOne + `","address":"10.0.0.1","provisioning_mode":"dhcp"}]}}`
+
+// findingsOf flattens a report, so a test can assert on how many findings there
+// were and not only on whether one of them was named. The count is the half
+// that catches a fix which reports nothing at all.
+func findingsOf(rep replay.Report) []replay.Finding {
+	var out []replay.Finding
+	for _, r := range rep.Results {
+		out = append(out, r.Findings...)
+	}
+	return out
+}

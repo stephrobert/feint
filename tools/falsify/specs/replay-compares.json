@@ -86,6 +86,41 @@
       "find": "\t\tif proxy.IsPlaceholder(want) {",
       "replace": "\t\tif proxy.IsPlaceholder(want) && false {",
       "test": "TestARedactedValueIsNotComparedAndIsCounted"
+    },
+    {
+      "label": "list elements are compared by position again, so a recording taken on an account that already holds resources grades one object against another and reports every field they do not share",
+      "file": "internal/replay/replay.go",
+      "find": "\tmatched, byIdentity, blanked := matchElements(want, got, b)",
+      "replace": "\tmatched, byIdentity, blanked := matchElements(want, got, b)\n\tbyIdentity = false",
+      "test": "TestListElementsAreMatchedByReboundIdentifier"
+    },
+    {
+      "label": "an element this run created and the list omits stops being a finding, so pairing by identifier becomes a way to report nothing at all",
+      "file": "internal/replay/replay.go",
+      "find": "\t\t\tcase matched[i].known:",
+      "replace": "\t\t\tcase matched[i].known && false:",
+      "test": "TestAnElementThisRunCreatedAndTheListOmitsIsOneFinding"
+    },
+    {
+      "label": "THE SECOND DIRECTION: every unpaired element is called absent, which accuses this emulator of omitting the twelve zones and ninety templates of the account the recording was made on — 64 findings, measured over the committed corpus",
+      "file": "internal/replay/replay.go",
+      "find": "\t\t\tdefault:\n\t\t\t\t// The recorded account's own object. See the doc comment.\n\t\t\t\tcontinue",
+      "replace": "\t\t\tdefault:\n\t\t\t\t// The recorded account's own object. See the doc comment.\n\t\t\t\torphan = true\n\t\t\t\tcontinue",
+      "test": "TestAnAccountsOwnObjectIsNotReportedAsAbsent"
+    },
+    {
+      "label": "THE SECOND DIRECTION: two lists with no identifier in common stop being compared at all, so a fallback that had to keep comparing becomes the same silence wearing the other coat",
+      "file": "internal/replay/replay.go",
+      "find": "\tif !byIdentity {\n\t\tfor i := range want {",
+      "replace": "\tif !byIdentity {\n\t\tfor i := range want[:0] {",
+      "test": "TestAListWithNothingToIdentifyItsElementsIsStillComparedByPosition"
+    },
+    {
+      "label": "the three outcomes become two: an element whose identifier the recorder replaced is filed with the ones that have none, and is paired by position in silence",
+      "file": "internal/replay/replay.go",
+      "find": "\t\tif identities[i].outcome == identityRedacted {\n\t\t\tblanked = true\n\t\t}",
+      "replace": "\t\tif identities[i].outcome == identityRedacted && false {\n\t\t\tblanked = true\n\t\t}",
+      "test": "TestAnElementWhoseIdentifierIsRedactedIsNotFiledAsUnidentified"
     }
   ]
 }
