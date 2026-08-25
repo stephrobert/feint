@@ -109,6 +109,68 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Un groupe de sécurité portant une règle ICMP dont la source est en IPv6
+  garde son pare-feu, et un jeu de règles que l'hôte refuse cesse de se lire
+  comme un succès** (#454). Le rejeu des quinze stacks tierces de
+  `examples/stacks/surveyed.md` sous `--vm incus-ovn` l'a trouvé ;
+  `sergelogvinov/terraform-talos` livre
+  `whitelist_admins = ["0.0.0.0/0", "::/0"]`, donc une liste blanche
+  d'administration en double pile est ce qu'une stack apporte, pas un cas
+  exotique.
+
+  **Mesuré sur cette station, Incus 7.2 avec OVN, sur le témoin réduit de la
+  campagne : deux groupes identiques à une règle près.** Avant, le groupe A
+  décrivait une règle et en appliquait une ; le groupe B en décrivait deux et
+  en appliquait **une**, sa règle ICMP purement absente, avec trois refus
+  `Cannot use IPv6 source addresses with "icmp4" protocol` dans le journal de
+  l'émulateur et `capabilities.firewall: true` publié pendant tout ce temps.
+  Pire que le compte : la machine portant le groupe B ne portait **aucun jeu de
+  règles** sur son interface, parce que le pack retourne avant d'attacher quand
+  l'écriture échoue, si bien qu'un groupe en refus par défaut laissait sa
+  machine sans filtre. Après, A fait 1/1 et B fait 2/2, la seconde règle écrite
+  `protocol: icmp6, source: ::/0`, les deux machines portant leur jeu de règles,
+  et aucun échec dans le journal.
+
+  **La cause tient en une ligne, et dans l'écriture tout ou rien à côté
+  d'elle.** `toACLRule` choisissait le protocole de l'ACL sur le seul nom de la
+  règle (`case "icmp", "icmp4"`) sans jamais lire la famille d'adresses, tandis
+  qu'`EnsureFirewall` écrit tout le jeu en un seul PUT, délibérément, pour
+  qu'une règle révoquée disparaisse. Une règle inexprimable coûtait donc toutes
+  les règles de son groupe, et l'API continuait de les décrire toutes : le
+  commentaire de la fonction promettait l'inverse (« reports false for a rule
+  the runtime cannot express, which the caller drops rather than
+  approximating »), ce qui est le motif « un commentaire n'est pas un contrôle »
+  de ce dépôt, dans la couche qui agit sur la machine de l'opérateur.
+
+  La famille vient désormais des adresses de la règle : une source ou une
+  destination IPv6 donne `icmp6`, une IPv4 donne `icmp4`, et les orthographes
+  `icmp6`, `icmpv6` et `ipv6-icmp` sont comprises. `icmp` et `icmp4` restent
+  tous deux agnostiques, volontairement : `icmp4` est le nom de fil du runtime,
+  pas une revendication d'un pack, et la seule valeur de Scaleway est `ICMP`.
+  Une règle qui ne fixe aucune famille devient donc **deux** règles, une par
+  famille, parce que c'est ce que « ICMP depuis n'importe où » veut dire. Une
+  règle qu'aucun protocole n'exprime (deux familles dans une règle, un nom qui
+  contredit ses adresses, une adresse illisible) est laissée tomber **seule** et
+  rapportée en WARN, en nommant le jeu et la règle, ce que « visiblement
+  absente » était censé signifier.
+
+  **Et une limite a bougé, observable sur `/_feint/health` :
+  `capabilities.firewall` peut désormais passer à faux en cours d'exécution.**
+  Un jeu de règles que l'hôte refuse, c'est l'hôte qui répond que ce processus
+  n'applique pas ce que son API décrit ; la revendication est donc retirée, et
+  dite dans le journal. Le retrait est à sens unique, et seul un refus **de
+  l'hôte** compte : un nom que ce pilote refuse lui-même n'a jamais atteint le
+  démon et provient d'un instantané restaurable, ce qui donnerait sinon à un
+  fichier d'état fabriqué un interrupteur sur une revendication publiée.
+
+  Falsifié de neuf façons (`tools/falsify/specs/icmp-family.json`), dont le
+  choix sur le nom seul rétabli, le jumelage des deux familles retiré, le
+  retrait désarmé, et le refus de la garde interne compté comme celui de
+  l'hôte ; les neuf passent au rouge. Le témoin unitaire pilote `EnsureFirewall`
+  par le `runner` injectable contre un faux démon qui reproduit le refus
+  d'Incus, de sorte que le test mesure si l'écriture est *acceptée* plutôt que
+  la façon dont elle est orthographiée.
+
 - **Un Net à trois subnets ou plus s'appaire sous OVN, et un hôte qui porte déjà
   l'état qui l'en empêchait est réconcilié** (#456). Le rejeu des quinze stacks
   tierces sous `--vm incus-ovn` a coûté au registre son résultat vedette :

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/netip"
 	"strconv"
 	"strings"
 )
@@ -85,6 +86,12 @@ type aclBody struct {
 // security group is edited by replacing its list (Scaleway's own
 // SetSecurityGroupRules does exactly that), and replacing here is what makes a
 // revoked rule actually disappear.
+//
+// All-or-nothing is what makes the two halves below load-bearing (#454). A rule
+// the daemon refuses does not fail alone: it fails the PUT, and every rule of
+// the group with it, while the API keeps describing all of them. So a rule this
+// driver cannot express is dropped here and *said*, and a write the host still
+// refuses withdraws the claim that this runtime enforces anything.
 func (d *Incus) EnsureFirewall(ctx context.Context, spec FirewallSpec) error {
 	if !safeName.MatchString(spec.Name) {
 		return fmt.Errorf("invalid firewall name %q", spec.Name)
@@ -92,10 +99,10 @@ func (d *Incus) EnsureFirewall(ctx context.Context, spec FirewallSpec) error {
 
 	if _, err := d.run(ctx, "network", "acl", "show", spec.Name); err != nil {
 		if !isNotFound(err) {
-			return fmt.Errorf("inspect firewall %s: %w", spec.Name, err)
+			return d.firewallRefused(fmt.Errorf("inspect firewall %s: %w", spec.Name, err))
 		}
 		if _, err := d.run(ctx, "network", "acl", "create", spec.Name); err != nil {
-			return fmt.Errorf("create firewall %s: %w", spec.Name, err)
+			return d.firewallRefused(fmt.Errorf("create firewall %s: %w", spec.Name, err))
 		}
 	}
 
@@ -105,16 +112,27 @@ func (d *Incus) EnsureFirewall(ctx context.Context, spec FirewallSpec) error {
 		Egress:      []aclRule{},
 		Config:      map[string]string{},
 	}
+	var dropped []string
 	for _, rule := range spec.Rules {
-		converted, ok := toACLRule(rule)
-		if !ok {
+		converted := toACLRules(rule)
+		if len(converted) == 0 {
+			dropped = append(dropped, describeRule(rule))
 			continue
 		}
 		if rule.Direction == "egress" {
-			body.Egress = append(body.Egress, converted)
+			body.Egress = append(body.Egress, converted...)
 		} else {
-			body.Ingress = append(body.Ingress, converted)
+			body.Ingress = append(body.Ingress, converted...)
 		}
+	}
+	if len(dropped) > 0 {
+		// "Visibly absent" was the word the contract used, and nothing was
+		// saying it: a rule the runtime cannot express left no trace at all,
+		// while the API went on serving it. TestADroppedRuleIsReported fails
+		// without this line.
+		d.logger().Warn("some rules of a security group are not expressible by this runtime "+
+			"and were left out of the rule set; the API still describes them",
+			"firewall", spec.Name, "rules", strings.Join(dropped, "; "))
 	}
 
 	encoded, err := json.Marshal(body)
@@ -123,9 +141,34 @@ func (d *Incus) EnsureFirewall(ctx context.Context, spec FirewallSpec) error {
 	}
 	if _, err := d.run(ctx, "query", "-X", "PUT", "--data", string(encoded),
 		"/1.0/network-acls/"+spec.Name); err != nil {
-		return fmt.Errorf("write firewall %s: %w", spec.Name, err)
+		return d.firewallRefused(fmt.Errorf("write firewall %s: %w", spec.Name, err))
 	}
 	return nil
+}
+
+// firewallRefused records that the host refused a rule set this driver had
+// already accepted, and returns the error unchanged so no caller has to know.
+//
+// The claim goes and does not come back. `capabilities.firewall` says "a
+// security group's rules are enforced on the machine's interface", and a refused
+// write is the host answering that they are not — for that group, now, and for
+// any group whose rules meet the same refusal. #181 settled the direction for
+// this exact question: what the host answered wins over what the flag promised,
+// and a false capability is strictly worse than none, because this project tells
+// every consumer to key on the capability rather than on a mode name.
+//
+// Only a refusal *by the host* counts. A name this driver refused itself never
+// reached the daemon, and it arrives from a restorable snapshot — letting it
+// flip a published claim would hand that switch to a crafted state file.
+//
+// TestAFirewallWriteTheHostRefusesWithdrawsTheCapability fails without this.
+func (d *Incus) firewallRefused(err error) error {
+	if d.firewallDenied.CompareAndSwap(false, true) {
+		d.logger().Warn("the runtime refused a security group's rule set, so this process no "+
+			"longer claims to enforce firewalls (capabilities.firewall is now false)",
+			"error", err)
+	}
+	return err
 }
 
 // ApplyFirewall implements Firewaller. It sets the rule sets, and the default
@@ -337,42 +380,201 @@ func (d *Incus) networkDevices(ctx context.Context, machine string) ([]nicDevice
 	return devices, nil
 }
 
-// toACLRule converts one emulated rule. It reports false for a rule the runtime
-// cannot express, which the caller drops rather than approximating: a rule
-// enforced differently from what the API describes is worse than one visibly
-// absent.
-func toACLRule(rule FirewallRule) (aclRule, bool) {
-	out := aclRule{Action: rule.Action, State: "enabled"}
+// toACLRules converts one emulated rule into the rules the runtime can express.
+//
+// It returns nothing for a rule the runtime cannot express, which the caller
+// drops — and says so — rather than approximating: a rule enforced differently
+// from what the API describes is worse than one visibly absent. Dropping *that
+// rule* is the whole point. EnsureFirewall writes the set in one PUT, so a rule
+// this function let through and the daemon then refused cost every rule beside
+// it: a group whose API described two rules enforced one (#454).
+//
+// It can also return two, because the runtime has no single ICMP protocol.
+// icmp4 and icmp6 are separate protocols there, each refusing the other
+// family's addresses, so a rule that names no address at all means both.
+func toACLRules(rule FirewallRule) []aclRule {
 	switch rule.Action {
 	// allow-stateless is a real runtime action, and the translation of a
 	// stateless security group: dropping it here would silently turn the
 	// group's rules back into stateful ones.
 	case "allow", "allow-stateless", "drop", "reject":
 	default:
-		return aclRule{}, false
+		return nil
 	}
 
-	switch strings.ToLower(rule.Protocol) {
+	protocols, ok := aclProtocols(rule)
+	if !ok {
+		return nil
+	}
+
+	out := make([]aclRule, 0, len(protocols))
+	for _, protocol := range protocols {
+		converted := aclRule{
+			Action:      rule.Action,
+			State:       "enabled",
+			Protocol:    protocol,
+			Source:      rule.Source,
+			Destination: rule.Destination,
+		}
+		// Ports only exist for TCP and UDP; Incus rejects the field otherwise.
+		if protocol == "tcp" || protocol == "udp" {
+			converted.DestinationPort = portRange(rule.PortFrom, rule.PortTo)
+		}
+		out = append(out, converted)
+	}
+	return out
+}
+
+// aclProtocols reports the runtime protocols one rule becomes, and false when
+// no protocol expresses it.
+//
+// The ICMP half is where #454 lived: the protocol used to be chosen from the
+// rule's own name — `case "icmp", "icmp4"` — and the address family was never
+// read, so an ICMP rule sourced from an IPv6 block was written as icmp4 and the
+// daemon refused the whole PUT with `Cannot use IPv6 source addresses with
+// "icmp4" protocol`. The family of the addresses is the fact that decides here;
+// the name only decides when the addresses fix nothing.
+// TestAnICMPRuleWithAnIPv6SourceKeepsItsGroup fails without this.
+func aclProtocols(rule FirewallRule) ([]string, bool) {
+	switch name := strings.ToLower(strings.TrimSpace(rule.Protocol)); name {
 	case "", "any":
-		out.Protocol = ""
-	case "tcp":
-		out.Protocol = "tcp"
-	case "udp":
-		out.Protocol = "udp"
-	case "icmp", "icmp4":
-		out.Protocol = "icmp4"
+		// The empty protocol is "every protocol" on the wire, and it takes no
+		// family: an "any" rule carries whatever addresses it was given.
+		return []string{""}, true
+	case "tcp", "udp":
+		return []string{name}, true
 	default:
-		return aclRule{}, false
+		named, isICMP := icmpFamilyOfName(name)
+		if !isICMP {
+			return nil, false
+		}
+		return icmpProtocols(named, rule.Source, rule.Destination)
+	}
+}
+
+// icmpFamilyOfName reports the address family an ICMP spelling fixes — 4, 6, or
+// 0 for a spelling that fixes none — and false for a name that is not ICMP.
+//
+// "icmp4" fixes nothing, which reads odd and is deliberate: it is this package's
+// own documented spelling for ICMP (see FirewallRule.Protocol), taken from the
+// runtime's wire name rather than written as an assertion about a family, and
+// the only ICMP value Scaleway has is the family-agnostic "ICMP". Reading it as
+// a claim about IPv4 would drop exactly the rules #454 is about. The v6
+// spellings do fix one: a caller that writes icmpv6 has named the family, and
+// three vocabularies spell it three ways.
+func icmpFamilyOfName(name string) (int, bool) {
+	switch name {
+	case "icmp", "icmp4", "icmpv4":
+		return 0, true
+	case "icmp6", "icmpv6", "ipv6-icmp":
+		return 6, true
+	}
+	return 0, false
+}
+
+// icmpProtocols picks between the runtime's two ICMP protocols from the family
+// of the rule's own addresses, falling back to the family its name fixed.
+func icmpProtocols(named int, source, destination string) ([]string, bool) {
+	sourceV4, sourceV6, sourceRead := addressFamilies(source)
+	destinationV4, destinationV6, destinationRead := addressFamilies(destination)
+	if !sourceRead || !destinationRead {
+		// An address this cannot read is not an address that is absent. Picking
+		// a family for it would send the daemon a value it is about to refuse,
+		// and the refusal costs the whole group.
+		return nil, false
 	}
 
-	out.Source = rule.Source
-	out.Destination = rule.Destination
-
-	// Ports only exist for TCP and UDP; Incus rejects the field otherwise.
-	if out.Protocol == "tcp" || out.Protocol == "udp" {
-		out.DestinationPort = portRange(rule.PortFrom, rule.PortTo)
+	v4 := sourceV4 || destinationV4
+	v6 := sourceV6 || destinationV6
+	switch {
+	case v4 && v6:
+		// One rule, both families, and no ICMP protocol covers both.
+		return nil, false
+	case v4:
+		if named == 6 {
+			// The name says one family and the addresses say the other. Never
+			// approximated: the rule goes, alone and named in the log.
+			return nil, false
+		}
+		return []string{"icmp4"}, true
+	case v6:
+		if named == 4 {
+			return nil, false
+		}
+		return []string{"icmp6"}, true
+	case named == 4:
+		return []string{"icmp4"}, true
+	case named == 6:
+		return []string{"icmp6"}, true
+	default:
+		// Nothing fixes a family: "ICMP from anywhere" means both of them, and
+		// half of it enforced silently is the same defect one size smaller.
+		return []string{"icmp4", "icmp6"}, true
 	}
-	return out, true
+}
+
+// addressFamilies reports the families an ACL address field names, and whether
+// it could be read at all.
+//
+// Incus accepts a comma-separated list of CIDR blocks, bare addresses and
+// dash-separated ranges in `source` and `destination`, so each member is read on
+// its own. The third result is the third outcome a reader owes its caller: an
+// unreadable address is not an absent one, and mapping it onto "no family" would
+// silently pick a protocol for a value the daemon will reject.
+func addressFamilies(field string) (v4, v6, readable bool) {
+	if strings.TrimSpace(field) == "" {
+		return false, false, true
+	}
+	for _, member := range strings.Split(field, ",") {
+		member = strings.TrimSpace(member)
+		if member == "" {
+			return false, false, false
+		}
+		for _, bound := range strings.SplitN(member, "-", 2) {
+			addr, ok := parseAddressOrPrefix(strings.TrimSpace(bound))
+			if !ok {
+				return false, false, false
+			}
+			if addr.Is4() || addr.Is4In6() {
+				v4 = true
+			} else {
+				v6 = true
+			}
+		}
+	}
+	return v4, v6, true
+}
+
+// parseAddressOrPrefix reads one member of an address field: "10.0.0.0/8",
+// "::/0" or a bare address.
+func parseAddressOrPrefix(s string) (netip.Addr, bool) {
+	if prefix, err := netip.ParsePrefix(s); err == nil {
+		return prefix.Addr(), true
+	}
+	addr, err := netip.ParseAddr(s)
+	if err != nil {
+		return netip.Addr{}, false
+	}
+	return addr, true
+}
+
+// describeRule renders a rule for the line that reports it was dropped. A rule
+// the API still serves is only "visibly absent" if something is saying so.
+func describeRule(rule FirewallRule) string {
+	parts := []string{rule.Direction, rule.Action}
+	if rule.Protocol != "" {
+		parts = append(parts, rule.Protocol)
+	}
+	if rule.Source != "" {
+		parts = append(parts, "from "+rule.Source)
+	}
+	if rule.Destination != "" {
+		parts = append(parts, "to "+rule.Destination)
+	}
+	if ports := portRange(rule.PortFrom, rule.PortTo); ports != "" {
+		parts = append(parts, "port "+ports)
+	}
+	return strings.Join(parts, " ")
 }
 
 func portRange(from, to int) string {

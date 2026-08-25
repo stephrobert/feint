@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/stephrobert/feint/internal/core/serialise"
@@ -54,6 +55,15 @@ type Incus struct {
 	// UplinkCIDR is the block the uplink carries. Empty means
 	// DefaultUplinkCIDR.
 	UplinkCIDR string
+	// Log is where this driver says what it could not do. Nil means the
+	// default logger, which is what the CLI configures.
+	//
+	// A field rather than slog.Default() at the call site, for the reason
+	// Binding.Log is one: the two things this driver has to say — a rule it
+	// left out of a rule set, and a claim it is withdrawing — are assertions a
+	// test must be able to read, and swapping the process-wide default to read
+	// them would make one test's assertion depend on every other test's timing.
+	Log *slog.Logger
 
 	// runner replaces the CLI call, and is only ever set by a test. It exists
 	// because a handful of decisions in this driver are invisible to the
@@ -90,6 +100,16 @@ type Incus struct {
 	// the case in a test that builds a driver directly: the declared set is then
 	// the honest answer, because no host was consulted to contradict it.
 	verified *Capabilities
+
+	// firewallDenied is set once the host has refused a rule set (#454), and
+	// makes Capabilities answer firewall=false from then on.
+	//
+	// Atomic rather than guarded by the field above: `verified` is written once
+	// at startup by Verify and only read afterwards, while this one is written
+	// from EnsureFirewall — mid-run, from whichever request is reconciling a
+	// group — and read by every `/_feint/health`. See firewallRefused for why
+	// the retraction is one-way.
+	firewallDenied atomic.Bool
 
 	// Interface allocation is serialised per machine, by serialise.Lock in
 	// Attach — there is no field here on purpose.
@@ -157,6 +177,15 @@ func NewIncusOVN() *Incus {
 	d := NewIncus()
 	d.OVN = true
 	return d
+}
+
+// logger answers where this driver reports what it could not do, defaulting to
+// the process logger the way Binding.logger does.
+func (d *Incus) logger() *slog.Logger {
+	if d.Log != nil {
+		return d.Log
+	}
+	return slog.Default()
 }
 
 // Name implements Driver.
@@ -258,7 +287,7 @@ func (d *Incus) resolveImage(ctx context.Context, image string) string {
 	if _, ok := held[alias]; ok {
 		return alias
 	}
-	slog.Default().Warn("no image of ours for this system, booting the upstream one",
+	d.logger().Warn("no image of ours for this system, booting the upstream one",
 		"image", image, "wanted", alias, "using", upstream,
 		"consequence", "no upstream image carries an ssh daemon, and this machine has no route to a package repository, so nothing will answer on port 22",
 		"fix", "feint images")

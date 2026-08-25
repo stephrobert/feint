@@ -1,0 +1,68 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the ICMP protocol is chosen from the rule's name again, which is how #454 shipped",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\t\treturn icmpProtocols(named, rule.Source, rule.Destination)",
+      "replace": "\t\tif named == 0 {\n\t\t\treturn []string{\"icmp4\"}, true\n\t\t}\n\t\treturn icmpProtocols(named, rule.Source, rule.Destination)",
+      "test": "TestAnICMPRuleWithAnIPv6SourceKeepsItsGroup"
+    },
+    {
+      "label": "the same defect, read through the campaign's own two-group witness",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\tcase v6:\n\t\tif named == 4 {\n\t\t\treturn nil, false\n\t\t}\n\t\treturn []string{\"icmp6\"}, true",
+      "replace": "\tcase v6:\n\t\tif named == 4 {\n\t\t\treturn nil, false\n\t\t}\n\t\treturn []string{\"icmp4\"}, true",
+      "test": "TestTwoGroupsDifferingByOneRuleEachEnforceWhatTheyDescribe"
+    },
+    {
+      "label": "a rule naming both families is approximated to one of them instead of dropped",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\tcase v4 && v6:",
+      "replace": "\tcase v4 && v6 && false:",
+      "test": "TestADroppedRuleIsReported"
+    },
+    {
+      "label": "an address this cannot read is read as no address at all, and a family is guessed for it",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\tif !sourceRead || !destinationRead {",
+      "replace": "\tif (!sourceRead || !destinationRead) && false {",
+      "test": "TestToACLRules"
+    },
+    {
+      "label": "ICMP from anywhere covers one family only, and the other half is enforced by nobody",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\t\treturn []string{\"icmp4\", \"icmp6\"}, true",
+      "replace": "\t\treturn []string{\"icmp4\"}, true",
+      "test": "TestToACLRules"
+    },
+    {
+      "label": "a rule left out of the rule set goes back to leaving no trace",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\tif len(dropped) > 0 {",
+      "replace": "\tif len(dropped) > 0 && false {",
+      "test": "TestADroppedRuleIsReported"
+    },
+    {
+      "label": "a write the host refused no longer withdraws the firewall claim",
+      "file": "internal/core/machine/capabilities.go",
+      "find": "\tif d.firewallDenied.Load() {",
+      "replace": "\tif d.firewallDenied.Load() && false {",
+      "test": "TestAFirewallWriteTheHostRefusesWithdrawsTheCapability"
+    },
+    {
+      "label": "the withdrawal is published but never said, so only a reader of /_feint/health learns it",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\tif d.firewallDenied.CompareAndSwap(false, true) {",
+      "replace": "\tif d.firewallDenied.CompareAndSwap(false, true) && false {",
+      "test": "TestAFirewallWriteTheHostRefusesWithdrawsTheCapability"
+    },
+    {
+      "label": "this driver's own refusal of a name counts as the host denying the capability, so a crafted snapshot flips a published claim",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\t\treturn fmt.Errorf(\"invalid firewall name %q\", spec.Name)",
+      "replace": "\t\treturn d.firewallRefused(fmt.Errorf(\"invalid firewall name %q\", spec.Name))",
+      "test": "TestAFirewallWriteTheHostRefusesWithdrawsTheCapability"
+    }
+  ]
+}

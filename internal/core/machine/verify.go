@@ -80,7 +80,11 @@ var serverVersion = regexp.MustCompile(`^(\d+)\.(\d+)(?:\.(\d+))?`)
 // Both calls are reads. Neither creates a network, touches the uplink, or
 // leaves a trace.
 func (d *Incus) Verify(ctx context.Context) (Capabilities, []string) {
-	declared := d.Capabilities()
+	// The declaration, not Capabilities(): what this stores is what the *host*
+	// answered at startup, and a firewall claim withdrawn later by a refused
+	// write is a separate fact, applied on top by Capabilities (#454). Folding
+	// the two here would make a startup probe record a mid-run refusal.
+	declared := d.declaredCapabilities()
 	verified := declared
 	var unmet []string
 

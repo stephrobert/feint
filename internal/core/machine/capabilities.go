@@ -140,6 +140,24 @@ func (Noop) Capabilities() Capabilities { return Capabilities{} }
 // managed bridge has no load balancer primitive at all, so there is nothing to
 // measure there rather than something that half works.
 func (d *Incus) Capabilities() Capabilities {
+	caps := d.declaredCapabilities()
+	// And what the host *refused* wins over both (#454). A rule set the daemon
+	// rejected is the host saying, in the plainest way it has, that this
+	// process does not enforce what its API describes; going on publishing
+	// firewall=true afterwards is the lying 200 the whole project exists to
+	// refuse, one layer down. See firewallRefused for why it is one-way and why
+	// only a refusal by the host counts.
+	// TestAFirewallWriteTheHostRefusesWithdrawsTheCapability fails without this.
+	if d.firewallDenied.Load() {
+		caps.Firewall = false
+		caps.FirewallPublicOnly = false
+	}
+	return caps
+}
+
+// declaredCapabilities is what the flags promise, narrowed by what the host
+// answered at startup.
+func (d *Incus) declaredCapabilities() Capabilities {
 	// What the host answered wins over what the flag promised (#181). Verify
 	// narrows this set once at startup; before that, and in a test that builds a
 	// driver directly, the declaration below is what there is.

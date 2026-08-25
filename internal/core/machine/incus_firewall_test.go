@@ -1,8 +1,13 @@
 package machine
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
+	"net/netip"
 	"strings"
 	"testing"
 )
@@ -262,72 +267,141 @@ func TestRemoveFirewallIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestToACLRule(t *testing.T) {
+// TestToACLRules holds the translation table, and its ICMP rows are #454.
+//
+// The protocol used to be chosen from the rule's own name alone, so an ICMP rule
+// sourced from an IPv6 block was written as icmp4; the daemon answered `Cannot
+// use IPv6 source addresses with "icmp4" protocol`, and because the set is
+// written in one PUT the refusal cost every rule of that group. The family of
+// the addresses decides now, and a rule no protocol expresses is dropped alone.
+func TestToACLRules(t *testing.T) {
 	cases := []struct {
 		name string
 		in   FirewallRule
-		want aclRule
-		ok   bool
+		want []aclRule
 	}{
 		{
 			name: "an ingress rule keeps its source and its port range",
 			in:   FirewallRule{Direction: "ingress", Action: "allow", Protocol: "TCP", Source: "10.0.0.0/8", PortFrom: 80, PortTo: 90},
-			want: aclRule{Action: "allow", State: "enabled", Protocol: "tcp", Source: "10.0.0.0/8", DestinationPort: "80-90"},
-			ok:   true,
+			want: []aclRule{{Action: "allow", State: "enabled", Protocol: "tcp", Source: "10.0.0.0/8", DestinationPort: "80-90"}},
 		},
 		{
 			name: "a single port is not written as a range",
 			in:   FirewallRule{Direction: "ingress", Action: "allow", Protocol: "tcp", PortFrom: 22, PortTo: 22},
-			want: aclRule{Action: "allow", State: "enabled", Protocol: "tcp", DestinationPort: "22"},
-			ok:   true,
+			want: []aclRule{{Action: "allow", State: "enabled", Protocol: "tcp", DestinationPort: "22"}},
 		},
 		{
 			name: "no port means every port, not port zero",
 			in:   FirewallRule{Direction: "ingress", Action: "allow", Protocol: "tcp"},
-			want: aclRule{Action: "allow", State: "enabled", Protocol: "tcp"},
-			ok:   true,
+			want: []aclRule{{Action: "allow", State: "enabled", Protocol: "tcp"}},
 		},
 		{
-			name: "icmp carries no port, which the runtime rejects on it",
-			in:   FirewallRule{Direction: "ingress", Action: "allow", Protocol: "ICMP", PortFrom: 22},
-			want: aclRule{Action: "allow", State: "enabled", Protocol: "icmp4"},
-			ok:   true,
+			name: "icmp from an IPv4 block carries no port, which the runtime rejects on it",
+			in:   FirewallRule{Direction: "ingress", Action: "allow", Protocol: "ICMP", Source: "0.0.0.0/0", PortFrom: 22},
+			want: []aclRule{{Action: "allow", State: "enabled", Protocol: "icmp4", Source: "0.0.0.0/0"}},
+		},
+		{
+			// The defect. The name says nothing about a family; ::/0 does.
+			name: "icmp from an IPv6 block becomes the IPv6 protocol",
+			in:   FirewallRule{Direction: "ingress", Action: "allow", Protocol: "ICMP", Source: "::/0"},
+			want: []aclRule{{Action: "allow", State: "enabled", Protocol: "icmp6", Source: "::/0"}},
+		},
+		{
+			// "icmp4" is this package's own spelling for ICMP, not a claim about
+			// IPv4. Reading it as one would drop exactly the rules #454 is about.
+			name: "the icmp4 spelling is family-agnostic too",
+			in:   FirewallRule{Direction: "ingress", Action: "allow", Protocol: "icmp4", Source: "2001:db8::/32"},
+			want: []aclRule{{Action: "allow", State: "enabled", Protocol: "icmp6", Source: "2001:db8::/32"}},
+		},
+		{
+			name: "an egress icmp rule reads its destination",
+			in:   FirewallRule{Direction: "egress", Action: "drop", Protocol: "icmp", Destination: "fd00::/8"},
+			want: []aclRule{{Action: "drop", State: "enabled", Protocol: "icmp6", Destination: "fd00::/8"}},
+		},
+		{
+			name: "a bare address fixes a family as well as a block does",
+			in:   FirewallRule{Direction: "ingress", Action: "allow", Protocol: "icmp", Source: "2001:db8::1"},
+			want: []aclRule{{Action: "allow", State: "enabled", Protocol: "icmp6", Source: "2001:db8::1"}},
+		},
+		{
+			name: "an address range fixes a family through both of its bounds",
+			in:   FirewallRule{Direction: "ingress", Action: "allow", Protocol: "icmp", Source: "10.0.0.1-10.0.0.9"},
+			want: []aclRule{{Action: "allow", State: "enabled", Protocol: "icmp4", Source: "10.0.0.1-10.0.0.9"}},
+		},
+		{
+			// "ICMP from anywhere" means both families. Half of it enforced
+			// silently is the same defect one size smaller.
+			name: "icmp with no address at all becomes both protocols",
+			in:   FirewallRule{Direction: "ingress", Action: "allow", Protocol: "icmp"},
+			want: []aclRule{
+				{Action: "allow", State: "enabled", Protocol: "icmp4"},
+				{Action: "allow", State: "enabled", Protocol: "icmp6"},
+			},
+		},
+		{
+			name: "an explicit v6 spelling with no address stays v6, and gains no v4 twin",
+			in:   FirewallRule{Direction: "ingress", Action: "allow", Protocol: "ipv6-icmp"},
+			want: []aclRule{{Action: "allow", State: "enabled", Protocol: "icmp6"}},
+		},
+		{
+			name: "the icmpv6 spelling is understood rather than dropped",
+			in:   FirewallRule{Direction: "ingress", Action: "allow", Protocol: "ICMPv6", Source: "::/0"},
+			want: []aclRule{{Action: "allow", State: "enabled", Protocol: "icmp6", Source: "::/0"}},
 		},
 		{
 			name: "an empty protocol means any, and takes no port either",
 			in:   FirewallRule{Direction: "egress", Action: "drop", Destination: "0.0.0.0/0", PortFrom: 53},
-			want: aclRule{Action: "drop", State: "enabled", Destination: "0.0.0.0/0"},
-			ok:   true,
+			want: []aclRule{{Action: "drop", State: "enabled", Destination: "0.0.0.0/0"}},
+		},
+		{
+			// An "any" rule carries whatever addresses it was given: the empty
+			// protocol has no family, so an IPv6 block is not its business.
+			name: "an any rule with an IPv6 block is untouched by the family question",
+			in:   FirewallRule{Direction: "ingress", Action: "allow", Source: "::/0"},
+			want: []aclRule{{Action: "allow", State: "enabled", Source: "::/0"}},
 		},
 		{
 			name: "a stateless allow survives translation rather than becoming stateful",
 			in:   FirewallRule{Direction: "ingress", Action: "allow-stateless", Protocol: "udp", PortFrom: 53},
-			want: aclRule{Action: "allow-stateless", State: "enabled", Protocol: "udp", DestinationPort: "53"},
-			ok:   true,
+			want: []aclRule{{Action: "allow-stateless", State: "enabled", Protocol: "udp", DestinationPort: "53"}},
 		},
 		{
 			name: "an action the runtime does not know is dropped, not approximated",
 			in:   FirewallRule{Direction: "ingress", Action: "log", Protocol: "tcp"},
-			ok:   false,
 		},
 		{
 			name: "a protocol the runtime does not know is dropped too",
 			in:   FirewallRule{Direction: "ingress", Action: "allow", Protocol: "sctp"},
-			ok:   false,
+		},
+		{
+			// No ICMP protocol covers both families, and approximating with one
+			// of them would enforce something the API does not describe.
+			name: "an icmp rule naming both families is dropped rather than halved",
+			in:   FirewallRule{Direction: "ingress", Action: "allow", Protocol: "icmp", Source: "10.0.0.0/8,::/0"},
+		},
+		{
+			name: "an explicit v6 spelling beside an IPv4 block is a contradiction, not a v4 rule",
+			in:   FirewallRule{Direction: "ingress", Action: "allow", Protocol: "icmpv6", Source: "10.0.0.0/8"},
+		},
+		{
+			// Three outcomes, never two: an address this cannot read is not an
+			// address that is absent, and guessing a family for it sends the
+			// daemon a value it refuses — which costs the whole group.
+			name: "an unreadable source is dropped rather than read as no address",
+			in:   FirewallRule{Direction: "ingress", Action: "allow", Protocol: "icmp", Source: "not-an-address"},
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, ok := toACLRule(tc.in)
-			if ok != tc.ok {
-				t.Fatalf("acceptance: got %v, want %v", ok, tc.ok)
+			got := toACLRules(tc.in)
+			if len(got) != len(tc.want) {
+				t.Fatalf("got %d rules %+v, want %d %+v", len(got), got, len(tc.want), tc.want)
 			}
-			if !ok {
-				return
-			}
-			if got != tc.want {
-				t.Fatalf("got  %+v\nwant %+v", got, tc.want)
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Fatalf("rule %d:\ngot  %+v\nwant %+v", i, got[i], tc.want[i])
+				}
 			}
 		})
 	}
@@ -505,5 +579,259 @@ func TestApplyFirewallStillWorksOnOurOwnInstance(t *testing.T) {
 	}
 	if !applied {
 		t.Errorf("no rule set was applied:\n%s", strings.Join(f.commands(), "\n"))
+	}
+}
+
+// The rest of this file is #454: a security group that carried one ICMP rule
+// with an IPv6 source lost its *whole* firewall, because the protocol was
+// chosen from the rule's name alone and the daemon refuses icmp4 beside an IPv6
+// address — and the rule set is written in one PUT.
+
+// aclDaemon is a runtime that validates a rule set the way incusd does, so a
+// test measures whether the write is *accepted* rather than how it is spelled.
+//
+// This is the planted witness rule 1 of measurement-integrity asks for: without
+// it, a test asserting "the body holds two rules" would pass on a body the real
+// daemon rejects, which is exactly the state this defect shipped in. The one
+// refusal reproduced here is the one the issue recorded verbatim:
+//
+//	Invalid ingress rule 1: Cannot use IPv6 source addresses with "icmp4" protocol
+type aclDaemon struct {
+	fakeRuntime
+	// written holds the last body each rule set was written with.
+	written map[string]aclBody
+}
+
+func newACLDaemon() *aclDaemon {
+	d := &aclDaemon{written: map[string]aclBody{}}
+	d.hook = d.answer
+	return d
+}
+
+func (a *aclDaemon) answer(_ int, args []string) ([]byte, error, bool) {
+	if len(args) < 6 || args[0] != "query" || args[2] != "PUT" {
+		return nil, nil, false
+	}
+	name := strings.TrimPrefix(args[5], "/1.0/network-acls/")
+	var body aclBody
+	if err := json.Unmarshal([]byte(args[4]), &body); err != nil {
+		return nil, errors.New("incus query: Error: not JSON"), true
+	}
+	for direction, rules := range map[string][]aclRule{"ingress": body.Ingress, "egress": body.Egress} {
+		for i, rule := range rules {
+			if err := validateLikeIncus(direction, i, rule); err != nil {
+				return nil, err, true
+			}
+		}
+	}
+	a.written[name] = body
+	return []byte("{}"), nil, true
+}
+
+// validateLikeIncus refuses what the daemon refuses: an ICMP protocol beside an
+// address of the other family. Quoted shape, not invented — see the issue.
+func validateLikeIncus(direction string, index int, rule aclRule) error {
+	want := map[string]bool{"icmp4": true, "icmp6": false}
+	wantV4, isICMP := want[rule.Protocol]
+	if !isICMP {
+		return nil
+	}
+	for field, value := range map[string]string{"source": rule.Source, "destination": rule.Destination} {
+		for _, member := range strings.Split(value, ",") {
+			member = strings.TrimSpace(member)
+			if member == "" {
+				continue
+			}
+			prefix, err := netip.ParsePrefix(member)
+			if err != nil {
+				addr, addrErr := netip.ParseAddr(member)
+				if addrErr != nil {
+					return fmt.Errorf("incus query: Error: Invalid %s rule %d: Invalid %s %q",
+						direction, index, field, member)
+				}
+				prefix = netip.PrefixFrom(addr, addr.BitLen())
+			}
+			if prefix.Addr().Is4() != wantV4 {
+				return fmt.Errorf("incus query: Error: Invalid %s rule %d: Cannot use %s %s addresses with %q protocol",
+					direction, index, familyOf(prefix), field, rule.Protocol)
+			}
+		}
+	}
+	return nil
+}
+
+func familyOf(prefix netip.Prefix) string {
+	if prefix.Addr().Is4() {
+		return "IPv4"
+	}
+	return "IPv6"
+}
+
+// witnessGroup is the reduced witness of the replay campaign: a group holding
+// TCP/22 from anywhere, optionally plus one ICMP rule from the block given.
+func witnessGroup(name, icmpFrom string) FirewallSpec {
+	spec := FirewallSpec{
+		Name:           name,
+		DefaultIngress: "drop",
+		DefaultEgress:  "allow",
+		Rules: []FirewallRule{
+			{Direction: "ingress", Action: "allow", Protocol: "tcp", Source: "0.0.0.0/0", PortFrom: 22, PortTo: 22},
+		},
+	}
+	if icmpFrom != "" {
+		spec.Rules = append(spec.Rules,
+			FirewallRule{Direction: "ingress", Action: "allow", Protocol: "icmp", Source: icmpFrom})
+	}
+	return spec
+}
+
+// TestAnICMPRuleWithAnIPv6SourceKeepsItsGroup is the test the issue asked for.
+//
+// Red before the fix: the body carried icmp4 beside ::/0, the daemon refused the
+// PUT, and the TCP rule standing next to the ICMP one was lost with it — the API
+// went on describing two rules while the host enforced one.
+func TestAnICMPRuleWithAnIPv6SourceKeepsItsGroup(t *testing.T) {
+	daemon := newACLDaemon()
+	d := newFakeDriver(&daemon.fakeRuntime)
+
+	if err := d.EnsureFirewall(context.Background(), witnessGroup("scw-dual", "::/0")); err != nil {
+		t.Fatalf("the daemon refused the rule set: %v", err)
+	}
+
+	body, written := daemon.written["scw-dual"]
+	if !written {
+		t.Fatal("no rule set reached the daemon")
+	}
+	if len(body.Ingress) != 2 {
+		t.Fatalf("the group must keep both of its rules, got %d: %+v", len(body.Ingress), body.Ingress)
+	}
+	if got := body.Ingress[0]; got.Protocol != "tcp" || got.DestinationPort != "22" {
+		t.Errorf("the TCP rule beside the ICMP one was altered: %+v", got)
+	}
+	if got := body.Ingress[1]; got.Protocol != "icmp6" || got.Source != "::/0" {
+		t.Errorf("an ICMP rule from an IPv6 block must be written as icmp6, got %+v", got)
+	}
+}
+
+// TestTwoGroupsDifferingByOneRuleEachEnforceWhatTheyDescribe reproduces the
+// campaign's own reduced witness, at the layer that has a seam for it.
+//
+// Two groups, identical but for one rule, so the difference names the cause and
+// nothing else. Measured under --vm incus-ovn before the fix: the API described
+// 1 rule and 2 rules, the host enforced 1 and 1.
+func TestTwoGroupsDifferingByOneRuleEachEnforceWhatTheyDescribe(t *testing.T) {
+	daemon := newACLDaemon()
+	d := newFakeDriver(&daemon.fakeRuntime)
+
+	control := witnessGroup("scw-control", "")
+	dual := witnessGroup("scw-dual", "::/0")
+	for _, spec := range []FirewallSpec{control, dual} {
+		if err := d.EnsureFirewall(context.Background(), spec); err != nil {
+			t.Fatalf("%s: the daemon refused the rule set: %v", spec.Name, err)
+		}
+	}
+
+	for _, spec := range []FirewallSpec{control, dual} {
+		body, written := daemon.written[spec.Name]
+		if !written {
+			t.Fatalf("%s: nothing reached the daemon", spec.Name)
+		}
+		// What the API describes is len(spec.Rules); what the host enforces is
+		// what the accepted body holds. Every rule must be represented — the
+		// count can be higher, since a family-agnostic ICMP rule becomes two.
+		if len(body.Ingress) < len(spec.Rules) {
+			t.Errorf("%s: the API describes %d rules and the host holds %d: %+v",
+				spec.Name, len(spec.Rules), len(body.Ingress), body.Ingress)
+		}
+	}
+
+	// And the difference between the two groups is exactly one rule, which is
+	// what makes this witness name a cause rather than a symptom.
+	if got := len(daemon.written["scw-dual"].Ingress) - len(daemon.written["scw-control"].Ingress); got != 1 {
+		t.Fatalf("the two groups must differ by exactly one enforced rule, got %d", got)
+	}
+}
+
+// TestADroppedRuleIsReported holds the backstop's second half. Dropping a rule
+// the runtime cannot express is right; dropping it in silence is what let the
+// contract's own promise — "visibly absent" — go unkept for as long as it did.
+func TestADroppedRuleIsReported(t *testing.T) {
+	var log bytes.Buffer
+	daemon := newACLDaemon()
+	d := newFakeDriver(&daemon.fakeRuntime)
+	d.Log = slog.New(slog.NewTextHandler(&log, nil))
+
+	spec := witnessGroup("scw-mixed", "")
+	spec.Rules = append(spec.Rules,
+		// Both families in one rule: no ICMP protocol covers it.
+		FirewallRule{Direction: "ingress", Action: "allow", Protocol: "icmp", Source: "10.0.0.0/8,::/0"})
+	if err := d.EnsureFirewall(context.Background(), spec); err != nil {
+		t.Fatalf("one inexpressible rule must not cost the write: %v", err)
+	}
+
+	if got := len(daemon.written["scw-mixed"].Ingress); got != 1 {
+		t.Fatalf("the expressible rule must survive alone, got %d rules", got)
+	}
+	line := log.String()
+	if !strings.Contains(line, "level=WARN") {
+		t.Fatalf("a dropped rule must be reported, got %q", line)
+	}
+	if !strings.Contains(line, "scw-mixed") || !strings.Contains(line, "10.0.0.0/8,::/0") {
+		t.Fatalf("the report must name the rule set and the rule, got %q", line)
+	}
+
+	// The accepting half: a group whose rules are all expressible says nothing.
+	log.Reset()
+	if err := d.EnsureFirewall(context.Background(), witnessGroup("scw-plain", "::/0")); err != nil {
+		t.Fatalf("plain group: %v", err)
+	}
+	if strings.Contains(log.String(), "level=WARN") {
+		t.Fatalf("a group with nothing dropped must stay quiet, got %q", log.String())
+	}
+}
+
+// TestAFirewallWriteTheHostRefusesWithdrawsTheCapability is the half that holds
+// whatever the translation did not foresee.
+//
+// A refused write used to leave `/_feint/health` publishing
+// `capabilities.firewall: true` while the host enforced nothing of that group —
+// a lying 200 in the security plane, and the thing this project exists to
+// refuse. What the host answered wins over what the flag promised (#181), and a
+// refusal is the host answering.
+func TestAFirewallWriteTheHostRefusesWithdrawsTheCapability(t *testing.T) {
+	f := &fakeRuntime{fail: map[string]error{
+		"-X PUT": errors.New(`incus query: Error: Invalid ingress rule 1: something new`),
+	}}
+	var log bytes.Buffer
+	d := newFakeDriver(f)
+	d.Log = slog.New(slog.NewTextHandler(&log, nil))
+
+	// The accepting half first, and it matters: a driver that published
+	// firewall=false from the start would pass the assertion below and claim
+	// nothing at all.
+	if !d.Capabilities().Firewall {
+		t.Fatal("the Incus driver must claim the firewall before anything refuses it")
+	}
+
+	if err := d.EnsureFirewall(context.Background(), witnessGroup("scw-refused", "")); err == nil {
+		t.Fatal("the refusal must reach the caller")
+	}
+	if d.Capabilities().Firewall {
+		t.Error("the host refused a rule set and the process still claims to enforce firewalls")
+	}
+	if !strings.Contains(log.String(), "capabilities.firewall") {
+		t.Errorf("the withdrawal must be said, not only published, got %q", log.String())
+	}
+
+	// A name this driver refused itself never reached the daemon, so it is not
+	// the host denying anything — and the name comes from a restorable snapshot,
+	// which would otherwise hand a crafted state file a switch on a published
+	// claim.
+	clean := newFakeDriver(&fakeRuntime{})
+	if err := clean.EnsureFirewall(context.Background(), FirewallSpec{Name: "-oops"}); err == nil {
+		t.Fatal("an unsafe rule-set name must still be refused")
+	}
+	if !clean.Capabilities().Firewall {
+		t.Error("a refusal by this driver's own guard must not withdraw the host's capability")
 	}
 }
