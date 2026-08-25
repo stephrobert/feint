@@ -1,0 +1,41 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the family table stops being an authorization, so any family:version derives a build — plan9:4 included",
+      "file": "internal/core/machine/images.go",
+      "find": "\trecipe, known := imageFamilies()[family]\n\tif !known {\n\t\treturn ImageSpec{}, false\n\t}",
+      "replace": "\trecipe, known := imageFamilies()[family]\n\tif false && !known {\n\t\treturn ImageSpec{}, false\n\t}",
+      "test": "TestSpecForRefusesWhatNoRecipeCovers"
+    },
+    {
+      "label": "a failed image build stops refusing the boot, so the runtime is asked to boot the very source the build could not fetch",
+      "file": "internal/core/machine/binding.go",
+      "find": "\t\tif _, err := EnsureImage(ctx, b.Driver, boot.Image, b.logger()); err != nil {",
+      "replace": "\t\tif _, err := EnsureImage(ctx, b.Driver, boot.Image, b.logger()); err != nil && false {",
+      "test": "TestAFailedImageBuildRefusesTheBootAndNamesTheSource"
+    },
+    {
+      "label": "the operator's declaration is never consulted, so the door through the refusal is painted on",
+      "file": "internal/core/machine/binding.go",
+      "find": "\t\tdeclared, ok := b.Declared[boot.Requested]\n\t\tif !ok || boot.Requested == \"\" {",
+      "replace": "\t\tdeclared, ok := b.Declared[boot.Requested]\n\t\tif true || !ok || boot.Requested == \"\" {",
+      "test": "TestADeclaredIdentifierBootsTheImageTheOperatorNamed"
+    },
+    {
+      "label": "the refusal loses its gestures: the lookup command and the declaration vanish from the message, families and identifier kept evaluated",
+      "file": "internal/core/machine/binding.go",
+      "find": "\t\t\"ask\", \"`feint images resolve \"+id+\"` looks it up in the providers' public listings, no account needed\",\n\t\t\"fix\", \"declare what it is, then restart: FEINT_BOOT_IMAGES='\"+id+\"=<family>:<version>' with a family among \"+strings.Join(Families(), \", \"))",
+      "replace": "\t\t\"ask\", \"unresolved \"+id,\n\t\t\"fix\", strings.Join(Families(), \"/\"))",
+      "test": "TestTheBootRefusalNamesTheGesturesThatUnblock"
+    },
+    {
+      "label": "the removal guard stops refusing, so any string reaches `incus image delete` as long as the prefix is glued on",
+      "file": "internal/core/machine/incus_images.go",
+      "find": "\tfamily, version, found := strings.Cut(name, \"/\")\n\tif !found || !refToken(family) || !refToken(version) || strings.Contains(version, \"/\") {",
+      "replace": "\tfamily, version, found := strings.Cut(name, \"/\")\n\tif (!found || !refToken(family) || !refToken(version) || strings.Contains(version, \"/\")) && false {",
+      "test": "TestImageRemovalStaysInsideThePrefix"
+    }
+  ],
+  "note": "The guards of #465, each with the test its comment cites. The first is the line between deriving any version of a known family and building anything at all; the second is what keeps a withdrawn upstream version (debian:9 — a real witness, two surveyed stacks hardcode identifiers naming it) from reaching the runtime as a raw driver error; the third and fourth are the two halves of the actionable refusal — the door must exist, and the message must point at it. Every mutation still compiles: err and declared stay referenced, and the trailing arguments keep the call well formed."
+}

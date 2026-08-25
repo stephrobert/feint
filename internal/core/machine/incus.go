@@ -242,14 +242,13 @@ func (d *Incus) imageRef(image string) string {
 func (d *Incus) resolveImage(ctx context.Context, image string) string {
 	upstream := d.imageRef(image)
 	// An explicit Incus reference is the caller naming an image; honour it.
-	if strings.Contains(image, "/") {
+	// ImageAlias answers false for that case, and for anything that is not a
+	// family:version pair — it is the one spelling of this mapping, shared with
+	// EnsureImage so a build and a boot cannot look for different aliases.
+	alias, ours := ImageAlias(image)
+	if !ours {
 		return upstream
 	}
-	name, version, found := strings.Cut(image, ":")
-	if !found {
-		return upstream
-	}
-	alias := ImagePrefix + "/" + name + "/" + version
 
 	held, err := d.LocalImages(ctx)
 	if err != nil {

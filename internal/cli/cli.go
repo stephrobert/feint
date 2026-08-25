@@ -904,6 +904,18 @@ func serve(args []string, stdout io.Writer) error {
 		return err
 	}
 	env.Machines = driver
+	// The operator's own identifier declarations, the door through the boot
+	// refusal (#465). Read here in the composition root like the other
+	// deployment choices (FEINT_OUTSCALE_REGION), and only on the serve path:
+	// the docs and evidence entry points that share newServer must not depend
+	// on the environment. A bad entry refuses to start rather than surfacing
+	// hours later as a refused boot blamed on the stack.
+	if declared, err := machine.ParseDeclaredImages(os.Getenv("FEINT_BOOT_IMAGES")); err != nil {
+		return fmt.Errorf("FEINT_BOOT_IMAGES: %w", err)
+	} else if declared != nil {
+		env.BootImages = declared
+		fmt.Fprintf(stdout, "boot images declared by the operator: %d\n", len(declared))
+	}
 	// Set after newServer, which cannot know the flag. At debug the runtime's
 	// own lifecycle events come through, which is what makes a machine that
 	// will not start explainable without leaving the emulator's log.

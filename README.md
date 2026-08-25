@@ -592,6 +592,22 @@ FEINT_VM=auto      mise run serve   # the most capable runtime that answers
 mise run conformance:ssh            # register a key, boot a server, log in over ssh
 ```
 
+The machine images build themselves: the recipe derives from the OS family
+(ubuntu, debian, alpine, almalinux, rockylinux, centos, fedora), so a known
+family at any version is built on first boot, announced, and `feint images`
+warms a station ahead of a run. A configuration that hardcodes a real cloud's
+image id still applies and starts nothing — no catalogue here can know what
+`ami-a3ca408c` is — but the refusal now says what to do, and both gestures need
+no cloud account:
+
+```bash
+feint images resolve ami-a3ca408c        # asks the providers' public listings
+FEINT_BOOT_IMAGES='ami-a3ca408c=ubuntu:22.04' feint serve --vm incus-ovn
+```
+
+[docs/limits.md](docs/limits.md) carries the measured details, including why the
+emulator never guesses an OS and never fetches anything on the boot path.
+
 That mode needs Incus and OVN, and how to install them differs enough per
 distribution to be worth measuring: **[docs/install.md](docs/install.md)** carries
 the commands, measured on a fresh virtual machine of Debian 12 and 13, Ubuntu 24.04
