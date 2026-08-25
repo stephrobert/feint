@@ -2778,7 +2778,7 @@
       "status": "declined"
     },
     {
-      "operation": "vpc/v2/API.AddPrivateNetworkS3Endpoint",
+      "operation": "vpc/v2/API.AddPrivateNetworkObjectStoragePrivateAccess",
       "product": "vpc",
       "reason": "they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md",
       "version": "v2",
@@ -2830,7 +2830,7 @@
       "status": "implemented"
     },
     {
-      "operation": "vpc/v2/API.DeletePrivateNetworkS3Endpoint",
+      "operation": "vpc/v2/API.DeletePrivateNetworkObjectStoragePrivateAccess",
       "product": "vpc",
       "reason": "they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md",
       "version": "v2",
@@ -2856,7 +2856,7 @@
       "status": "declined"
     },
     {
-      "operation": "vpc/v2/API.DisableS3Endpoint",
+      "operation": "vpc/v2/API.DisableObjectStoragePrivateAccess",
       "product": "vpc",
       "reason": "they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md",
       "version": "v2",
@@ -2876,17 +2876,17 @@
       "status": "implemented"
     },
     {
-      "operation": "vpc/v2/API.EnableRouting",
-      "product": "vpc",
-      "version": "v2",
-      "status": "implemented"
-    },
-    {
-      "operation": "vpc/v2/API.EnableS3Endpoint",
+      "operation": "vpc/v2/API.EnableObjectStoragePrivateAccess",
       "product": "vpc",
       "reason": "they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md",
       "version": "v2",
       "status": "declined"
+    },
+    {
+      "operation": "vpc/v2/API.EnableRouting",
+      "product": "vpc",
+      "version": "v2",
+      "status": "implemented"
     },
     {
       "operation": "vpc/v2/API.GetACL",
@@ -2972,7 +2972,7 @@
       "status": "implemented"
     },
     {
-      "operation": "vpc/v2/API.SetPrivateNetworksS3Endpoint",
+      "operation": "vpc/v2/API.SetPrivateNetworksObjectStoragePrivateAccess",
       "product": "vpc",
       "reason": "they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md",
       "version": "v2",

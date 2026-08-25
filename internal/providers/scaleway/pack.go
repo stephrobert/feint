@@ -1064,17 +1064,27 @@ func (p *Pack) Declined() []emulator.Decline {
 			"vpcgw/v1/API.UpdatePATRule",
 			"vpcgw/v1/API.UpgradeGateway"),
 
-		// The five S3 endpoints vpc/v2 grew since the last scan. They attach a
-		// private network to Object Storage, and Object Storage is refused here
+		// The five Object Storage private-access operations of vpc/v2. They attach
+		// a private network to Object Storage, and Object Storage is refused here
 		// for a reason docs/limits.md measured: the Terraform provider builds the
 		// S3 endpoint from the region in code, so serving it needs DNS
 		// interception and a certificate the client accepts.
+		//
+		// Renamed upstream on 2026-08-25, *S3Endpoint -> *ObjectStoragePrivateAccess.
+		// The decision did not change and the reason did not either; only the
+		// spelling did. `drift:check` reported them as five new untriaged
+		// operations, which is what a rename looks like from one side — and
+		// `drift:update` named the other side, five orphan routes matching nothing
+		// upstream. Reading only the first half would have declined a second time
+		// what was already declined, and left the old names behind as a decline
+		// nothing upstream answers to. That pair of reports is why the scan reads
+		// both directions.
 		emulator.Because("they attach a private network to Object Storage, which is not emulated because the Terraform provider builds that endpoint in code, measured in docs/limits.md",
-			"vpc/v2/API.AddPrivateNetworkS3Endpoint",
-			"vpc/v2/API.DeletePrivateNetworkS3Endpoint",
-			"vpc/v2/API.DisableS3Endpoint",
-			"vpc/v2/API.EnableS3Endpoint",
-			"vpc/v2/API.SetPrivateNetworksS3Endpoint"),
+			"vpc/v2/API.AddPrivateNetworkObjectStoragePrivateAccess",
+			"vpc/v2/API.DeletePrivateNetworkObjectStoragePrivateAccess",
+			"vpc/v2/API.DisableObjectStoragePrivateAccess",
+			"vpc/v2/API.EnableObjectStoragePrivateAccess",
+			"vpc/v2/API.SetPrivateNetworksObjectStoragePrivateAccess"),
 
 		// ipam/v1alpha1 is the superseded draft of ipam/v1, which is served.
 		emulator.Because("ipam/v1alpha1 is the superseded draft of ipam/v1, which is served",
