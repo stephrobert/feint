@@ -21,7 +21,7 @@
 #      would.
 #   3. The real Outscale Terraform provider survives 503, 503, 200 inside an
 #      apply, and says so in its own log.
-#   4. `exo` and `oapi-cli` meet the same 403 in their own dialects, so what a
+#   4. `exo` and `octl` meet the same 403 in their own dialects, so what a
 #      client decodes is its provider's error and never this tool's.
 #   5. The evidence separation, observed rather than asserted: an operation that
 #      only ever answered injected faults stays un-driven and un-proven, and a
@@ -60,7 +60,7 @@ ok() { echo "  ok: $*"; }
 
 command -v jq >/dev/null 2>&1 || fail "jq is not installed"
 command -v scw >/dev/null 2>&1 || fail "scw is not installed"
-command -v oapi-cli >/dev/null 2>&1 || fail "oapi-cli is not installed"
+command -v octl >/dev/null 2>&1 || fail "octl is not installed"
 command -v exo >/dev/null 2>&1 || fail "exo is not installed"
 
 TF="${FEINT_TF:-terraform}"
@@ -135,10 +135,13 @@ ok "scw retried through two 429s and completed"
 set -a
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/outscale/fake-credentials.env"
-# shellcheck disable=SC2034 # read by oapi-cli from the environment
-OSC_ENDPOINT_API="$ENDPOINT"
+# The endpoint carries /api/v1: octl reads it from osc-sdk-go, whose default is
+# https://api.<region>.outscale.com/api/v1, so the path is part of the value —
+# the opposite of the archived oapi-cli this replaced (#460).
+# shellcheck disable=SC2034 # read by octl from the environment
+OSC_ENDPOINT_API="$ENDPOINT/api/v1"
 set +a
-guard_no_real_profile OSC_ENDPOINT_API oapi-cli
+guard_no_real_profile OSC_ENDPOINT_API octl
 
 cat > "$WORK/osc.json" <<EOF
 {
@@ -147,22 +150,33 @@ cat > "$WORK/osc.json" <<EOF
     "secret_key": "$OSC_SECRET_KEY",
     "region": "$OSC_REGION",
     "protocol": "http",
-    "endpoints": { "api": "$ENDPOINT" }
+    "endpoints": { "api": "$ENDPOINT/api/v1" }
   }
 }
 EOF
 
-echo "- oapi-cli decodes the injected 403 in Outscale's own envelope"
+echo "- octl decodes the injected 403 in Outscale's own envelope"
 arm "$RULES_DIR/refusals.json"
-osc_refused="$(oapi-cli --config "$WORK/osc.json" ReadNets </dev/null 2>&1 || true)"
+# -o raw, because the default -o json RESHAPES the answer and would hand this
+# assertion the CLI's own arrangement instead of the API's bytes; `iaas api
+# ReadNets` rather than the `iaas net list` alias, because the API is what is
+# measured. Both rules are stated at length in outscale/octl.sh.
+#
+# 2>&1 folds the streams on purpose here: octl writes the error document to
+# stderr under its own "The server returned an error" line, and jq reads a
+# document, not a line — so the fold is followed by the same brace-onwards
+# extraction the suite uses.
+osc_refused="$(octl --config "$WORK/osc.json" --no-upgrade -o raw iaas api ReadNets </dev/null 2>&1 || true)"
+osc_refused="$(printf '%s\n' "$osc_refused" | awk 'BEGIN { found = 0 }
+  { if (!found) { i = index($0, "{"); if (i > 0) { print substr($0, i); found = 1 } } else print }')"
 # 4120 is in osc.IsAuthError's explicit list (pkg/osc/errors.go), so a client
 # asking "was I refused for lack of a grant" gets a true answer — and
 # osc.IsNotFound, which reads 5000-5999, gets a false one.
 printf '%s' "$osc_refused" | jq -e '.Errors[0].Code == "4120"' >/dev/null 2>&1 \
-  || fail "oapi-cli did not decode the injected 403 as an Outscale auth error: $osc_refused"
+  || fail "octl did not decode the injected 403 as an Outscale auth error: $osc_refused"
 printf '%s' "$osc_refused" | jq -e '.ResponseContext.RequestId | length > 0' >/dev/null 2>&1 \
   || fail "the injected refusal carries no ResponseContext: it is not Outscale's envelope"
-ok "oapi-cli: Code 4120 inside a ResponseContext, which osc.IsAuthError reads"
+ok "octl: Code 4120 inside a ResponseContext, which osc.IsAuthError reads"
 
 echo "- terraform apply survives 503, 503, 200 on ReadNets"
 cp "$RULES_DIR"/*.tf "$WORK/"

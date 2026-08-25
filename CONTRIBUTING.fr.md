@@ -61,7 +61,7 @@ exécution n'a porté ce champ* suppose : un gate qui juge une exécution y est 
 **par construction**. La CI ne fait pas cela. Le workflow de conformance
 répartit les clients en matrice, un émulateur par jambe, si bien que toute jambe
 sauf `fields` est une exécution partielle : la jambe `probe` ne pilote aucun
-client, et la jambe `terraform` ne pilote pas `oapi-cli`.
+client, et la jambe `terraform` ne pilote pas `octl`.
 
 `mise run conformance:leg -- probe` reproduit une de ces jambes en local, et la
 reproduction est prouvée plutôt que supposée : en remettant la garde qui
@@ -126,7 +126,7 @@ assertion jusqu'à ce qu'elle ne puisse plus échouer, puis exige que le rejeu
 rougisse en la nommant pendant que la suite reste verte.
 
 `mise run conformance` n'est **délibérément pas** dans le hook. Il réclame `scw`,
-`oapi-cli`, `exo` et Terraform installés, et prend des minutes : en hook, il
+`octl`, `exo` et Terraform installés, et prend des minutes : en hook, il
 échouerait sur un binaire absent plutôt que sur votre code, et le réflexe qu'il
 enseignerait est `--no-verify`, qui désarme tous les hooks d'un coup. Un gate que
 l'on saute par habitude est pire que pas de gate.
@@ -305,7 +305,7 @@ discutable :
 
 ```bash
 mise run check          # gofmt, vet, lint, go test -race
-mise run conformance    # scw, oapi-cli, exo, Terraform, OpenTofu, et la sonde
+mise run conformance    # scw, octl, exo, Terraform, OpenTofu, et la sonde
 mise run drift:check    # la surface upstream correspond encore à la baseline
 ```
 

@@ -432,7 +432,7 @@ func TestARootVolumeAnswersItsDeleteOnVmDeletionFilter(t *testing.T) {
 //
 // Without the refusal the field is served on one kind of object and declined
 // for the operation that answers both, which is #389 exactly: score.sh fails
-// the terraform, opentofu, oapi-cli and fields legs at once.
+// the terraform, opentofu, octl and fields legs at once.
 func TestCreateImageRefusesAnIopsItCannotHonour(t *testing.T) {
 	ts := newServer(t)
 

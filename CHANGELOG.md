@@ -15,6 +15,68 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+### Changed
+
+- **The Outscale suite drives `octl`, and the client it drove for a year is
+  archived** (#460). `outscale/oapi-cli` and `outscale/osc-cli` are both
+  `archived: true` on the GitHub API, read-only, with "Deprecated Outscale CLI"
+  in their own description; `outscale/octl` was pushed to the day this was
+  measured. A suite driving an archived client proves the emulator against
+  something Outscale no longer ships, so the north star moved with it.
+
+  `tools/conformance/outscale/oapi-cli.sh` became
+  `tools/conformance/outscale/octl.sh`, the matrix leg `oapi-cli` became `octl`,
+  and every other Outscale script that drove a client moved with it:
+  `faults.sh` (which runs on the `fields` leg and would otherwise have failed on
+  a missing binary), `outscale/network.sh`, `outscale/balancer.sh`,
+  `outscale/ssh.sh`, `parity.sh` and `tools/demo/osc.sh`.
+
+  **Coverage was measured before and after, operation by operation, and nothing
+  was lost.** The baseline was taken from the emulator's own
+  `/_feint/conformance` on the unmodified suite and compared against the same
+  reading of the migrated one: **77 distinct operations before, 77 after, none
+  gained, none lost**, and the seven evidence axes byte-identical. The count of
+  `prove_begin negative` sites is 13 before and 13 after, and `behaviour` 6 and
+  6, so no assertion could have been dropped in the rewrite.
+
+  The call totals moved from 700 to 677, and every one of the twelve differences
+  has the same cause: **`oapi-cli` sent three requests for every 409 it met**,
+  backing off between them, where `octl` sends one. `AcceptNetPeering` 7 → 3,
+  `CreatePublicIp` 261 → 257, nine operations short by exactly two per refusal
+  site. Two operations went up: `ReadNets` 2 → 4 for the new `-o raw` witness,
+  `ReadPublicIps` 4 → 5 because the address inventory is now read three times.
+
+  Three things about `octl` are load-bearing and each is stated in the suite:
+  **the endpoint carries `/api/v1`** — the opposite of `oapi-cli`, because both
+  `octl` and the Terraform provider ≥ 1.7 read `osc-sdk-go`, whose default
+  endpoint template is `%s://api.%s.outscale.com/api/v1`; **`iaas api <Call>`
+  and never an alias**, because `octl iaas net list` resolves to
+  `octl iaas api ReadNets` and an alias is a convenience of the CLI where the
+  API is what is measured; and **`-o raw` on every call**, because the default
+  `-o json` reshapes the answer, unwrapping
+  `{"Nets":[…],"ResponseContext":{…}}` to a bare list. One assertion at the top
+  of the suite is the witness for the third: it fails if the raw form ever stops
+  carrying the envelope, and it fails if `-o json` ever stops reshaping.
+
+  `feint env outscale --client octl` prints the shape, and the `oapi-cli` note
+  now says the client is archived and names the live replacement.
+  `feint doctor` looks for `octl`, the Ansible role installs it against
+  upstream's own checksums file (the AppImage's FUSE extraction, its APPDIR
+  wrapper and its hand-pinned digest are all gone with it), and
+  `feint proxy`'s client vocabulary gained `octl` — user agent measured through
+  the proxy as `octl/v0.0.31`, and nothing else.
+
+  **What it costs, stated rather than glossed.** `octl` spends ~700 ms starting
+  up on every invocation with no network at all, against ~30 ms for the request,
+  so the suite went from 177 s to 369 s: the bottleneck moved from a back-off on
+  eleven calls to a fixed cost on all of them. The public-IP block is now filled
+  through one `--waitfor` process (255 calls in 51 s, against 186 s as separate
+  processes) rather than one process per address. Three filter arguments cannot
+  be expressed as `octl` flags at all — a float array gets no flag generated, and
+  the two date filters are registered as scalars while their setter asks for a
+  slice — so they travel as `--payload`; `docs/limits.md` carries the
+  measurement and why a mistyped payload cannot pass silently.
+
 ### Fixed
 
 - **A sweep no longer traps the host it is cleaning, and `feint clean --force`

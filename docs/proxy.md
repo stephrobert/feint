@@ -389,7 +389,7 @@ product the emulator has not started means adding that product to
 `tools/contract/scaleway-products.txt` first.
 
 **The client column is a closed vocabulary** — `terraform`, `opentofu`, `scw`,
-`exo`, `oapi-cli`, `sdk`, `unknown` — and never the raw `User-Agent`, which is
+`exo`, `octl`, `oapi-cli`, `sdk`, `unknown` — and never the raw `User-Agent`, which is
 the one request header the proxy writes down in full and which carries whatever
 the build put in it. The mapping was measured rather than guessed, and two
 entries contradict the obvious guess: `scw` announces `scaleway-sdk-go/… (…)
@@ -529,8 +529,8 @@ Measured against Outscale's `cloudgouv-eu-west-1`, same credential, same body:
 
 The signature covers the `Host` header, the proxy forwards with the upstream's
 host, and the cloud validates against its own name. So a client that derives the
-signed host from the endpoint it was configured with — `oapi-cli`, the Terraform
-provider, any SDK — cannot be recorded against a **real** cloud through this
+signed host from the endpoint it was configured with — `octl`, `oapi-cli`, the
+Terraform provider, any SDK — cannot be recorded against a **real** cloud through this
 proxy. Only a client that lets the signed host be set independently of the
 connection target can.
 

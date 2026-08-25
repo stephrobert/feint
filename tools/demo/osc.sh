@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
-# oapi-cli, pointed at the local emulator, for the network demo.
+# octl, pointed at the local emulator, for the network demo.
 #
-# It exists because oapi-cli has no --endpoint flag: it is configured through a
+# It exists because octl has no --endpoint flag: it is configured through a
 # JSON profile, and writing that profile inside a vhs tape is not possible (the
 # parser has no escape for a quote inside a typed line). So the profile is
 # written here, from the same fake credentials the conformance suite uses, and
 # the tape calls this wrapper as `osc`.
 #
-# The endpoint is the bare host on purpose. oapi-cli appends /api/v1/<Call>
+# The endpoint carries /api/v1 on purpose. octl reads it from osc-sdk-go, whose
+# default endpoint is https://api.<region>.outscale.com/api/v1, so the path is
+# part of the value — the opposite of the archived oapi-cli (#460). The old
+# comment that used to stand here said "bare host", and it was right about the
+# client it named.
 # itself, so passing http://host/api/v1 asks for /api/v1/api/v1/<Call> and gets a
 # 404 that looks exactly like a missing route.
 set -euo pipefail
@@ -29,9 +33,9 @@ cat > "$CONFIG_DIR/config.json" <<EOF
     "secret_key": "$OSC_SECRET_KEY",
     "region": "$OSC_REGION",
     "protocol": "http",
-    "endpoints": { "api": "$ENDPOINT" }
+    "endpoints": { "api": "$ENDPOINT/api/v1" }
   }
 }
 EOF
 
-exec oapi-cli --config "$CONFIG_DIR/config.json" "$@"
+exec octl --config "$CONFIG_DIR/config.json" --no-upgrade -o raw iaas api "$@" </dev/null

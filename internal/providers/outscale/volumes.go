@@ -14,7 +14,7 @@ import (
 //
 // The pack served none, so `outscale_volume` failed on CreateVolume and the
 // whole plan died before the machine it was for. A CLI never showed it: nothing
-// in the oapi-cli suite creates a volume, which is the gap this batch exists to
+// in the Outscale CLI suite creates a volume, which is the gap this batch exists to
 // close.
 //
 // What is emulated is what the emulator can be honest about: a size, a type, a

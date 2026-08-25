@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Conformance check: an Outscale load balancer distributes real packets (#315).
 #
-# oapi-cli.sh proves the configuration — listeners, backends, health-check
+# octl.sh proves the configuration — listeners, backends, health-check
 # settings, the delete guards — and every bit of that is true of a server that
 # stores JSON and forwards nothing, which is exactly what this emulator did
 # until now and what docs/limits.md said. This suite measures the other half,
@@ -31,7 +31,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/../guard.sh"
 guard_local "$ENDPOINT"
 
-command -v oapi-cli >/dev/null 2>&1 || { echo "FAIL: oapi-cli is not installed" >&2; exit 1; }
+command -v octl >/dev/null 2>&1 || { echo "FAIL: octl is not installed" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is not installed" >&2; exit 1; }
 command -v incus >/dev/null 2>&1 || { echo "FAIL: the incus client is not on PATH" >&2; exit 1; }
 
@@ -64,14 +64,21 @@ chmod 700 "$WORK"
 set -a
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/fake-credentials.env"
-# shellcheck disable=SC2034 # read by oapi-cli from the environment
-OSC_ENDPOINT_API="$ENDPOINT"
+# The endpoint comes from the argument, not from the credentials file, and it
+# carries /api/v1: octl reads that from osc-sdk-go, whose default endpoint is
+# https://api.<region>.outscale.com/api/v1, so the path is part of the value.
+# The archived oapi-cli this replaced wanted the bare host (#460).
+# shellcheck disable=SC2034 # read by octl from the environment
+OSC_ENDPOINT_API="$ENDPOINT/api/v1"
 set +a
 cat >"$WORK/config.json" <<JSON
 {"default": {"access_key": "$OSC_ACCESS_KEY", "secret_key": "$OSC_SECRET_KEY",
- "protocol": "http", "region": "eu-west-2", "endpoints": {"api": "$ENDPOINT"}}}
+ "protocol": "http", "region": "eu-west-2", "endpoints": {"api": "$ENDPOINT/api/v1"}}}
 JSON
-osc() { oapi-cli --config "$WORK/config.json" "$@"; }
+# See tools/conformance/outscale/octl.sh for why each of these three is not
+# optional: the API and not an alias, the API's own body and not the CLI's, and
+# a request body that can only come from flags.
+osc() { octl --config "$WORK/config.json" --no-upgrade -o raw iaas api "$@" </dev/null; }
 
 lb_name="feint-lbu-data"
 net_id=""; sub_id=""; vm_a=""; vm_b=""; vm_c=""; lb_made=""
@@ -79,7 +86,7 @@ net_id=""; sub_id=""; vm_a=""; vm_b=""; vm_c=""; lb_made=""
 cleanup() {
   [ -n "$lb_made" ] && osc DeleteLoadBalancer --LoadBalancerName "$lb_name" >/dev/null 2>&1
   for vm in "$vm_a" "$vm_b" "$vm_c"; do
-    [ -n "$vm" ] && osc DeleteVms '--VmIds[]' "$vm" >/dev/null 2>&1
+    [ -n "$vm" ] && osc DeleteVms --VmIds "$vm" >/dev/null 2>&1
   done
   sleep 2
   [ -n "$sub_id" ] && osc DeleteSubnet --SubnetId "$sub_id" >/dev/null 2>&1
@@ -137,8 +144,9 @@ ok "both backends answer directly"
 
 echo "- an internal load balancer, its two machines registered"
 lb="$(osc CreateLoadBalancer --LoadBalancerName "$lb_name" --LoadBalancerType internal \
-      '--Subnets[]' "$sub_id" \
-      --Listeners "[{\"LoadBalancerPort\": 80, \"LoadBalancerProtocol\": \"TCP\", \"BackendPort\": 80, \"BackendProtocol\": \"TCP\"}]")" \
+      --Subnets "$sub_id" \
+      --Listeners.0.LoadBalancerPort 80 --Listeners.0.LoadBalancerProtocol TCP \
+      --Listeners.0.BackendPort 80 --Listeners.0.BackendProtocol TCP)" \
   || fail "CreateLoadBalancer rejected: $lb"
 lb_made="yes"
 vip="$(printf '%s' "$lb" | jq -r '.LoadBalancer.PrivateIp // empty')"
@@ -147,9 +155,9 @@ case "$vip" in
   "${SUBBLOCK%.*}."*) ;;
   *) fail "the balancer's PrivateIp $vip is outside its own Subnet $SUBBLOCK" ;;
 esac
-osc RegisterVmsInLoadBalancer --LoadBalancerName "$lb_name" '--BackendVmIds[]' "$vm_a" >/dev/null \
+osc RegisterVmsInLoadBalancer --LoadBalancerName "$lb_name" --BackendVmIds "$vm_a" >/dev/null \
   || fail "RegisterVmsInLoadBalancer rejected the first machine"
-osc RegisterVmsInLoadBalancer --LoadBalancerName "$lb_name" '--BackendVmIds[]' "$vm_b" >/dev/null \
+osc RegisterVmsInLoadBalancer --LoadBalancerName "$lb_name" --BackendVmIds "$vm_b" >/dev/null \
   || fail "RegisterVmsInLoadBalancer rejected the second machine"
 sleep 2
 ok "$lb_name answers on $vip"
@@ -190,7 +198,7 @@ ok "6/6 answered again:$hits"
 # The replace-not-patch rule, measured rather than asserted in a unit test: a
 # machine the API has stopped listing must stop receiving connections.
 echo "- an unlinked machine stops receiving connections"
-osc UnlinkLoadBalancerBackendMachines --LoadBalancerName "$lb_name" '--BackendVmIds[]' "$vm_a" >/dev/null \
+osc UnlinkLoadBalancerBackendMachines --LoadBalancerName "$lb_name" --BackendVmIds "$vm_a" >/dev/null \
   || fail "UnlinkLoadBalancerBackendMachines rejected"
 sleep 2
 hits="$(probe 6)"
@@ -211,10 +219,11 @@ ok "everything goes to $vm_b:$hits"
 # really does stand with no listener at all in between. Both ends are measured:
 # the old port must stop answering, and the new one must start.
 echo "- a moved listener moves the balancer with it"
-osc DeleteLoadBalancerListeners --LoadBalancerName "$lb_name" '--LoadBalancerPorts[]' 80 >/dev/null \
+osc DeleteLoadBalancerListeners --LoadBalancerName "$lb_name" --LoadBalancerPorts 80 >/dev/null \
   || fail "DeleteLoadBalancerListeners rejected"
 osc CreateLoadBalancerListeners --LoadBalancerName "$lb_name" \
-  --Listeners "[{\"LoadBalancerPort\": 8080, \"LoadBalancerProtocol\": \"TCP\", \"BackendPort\": 80, \"BackendProtocol\": \"TCP\"}]" >/dev/null \
+  --Listeners.0.LoadBalancerPort 8080 --Listeners.0.LoadBalancerProtocol TCP \
+  --Listeners.0.BackendPort 80 --Listeners.0.BackendProtocol TCP >/dev/null \
   || fail "CreateLoadBalancerListeners rejected"
 sleep 3
 

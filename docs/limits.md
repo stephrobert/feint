@@ -64,7 +64,7 @@ across three providers' Terraform providers, CLIs and Go SDKs, that set is
 | Scaleway Object Storage | Terraform provider | **no** — `newS3Client` hardcodes `https://s3.<region>.scw.cloud`, virtual-host, no env var, no attribute |
 | Scaleway Object Storage | SDK, `scw` CLI | yes — `SCW_S3_ENDPOINT` |
 | Exoscale SOS (object storage) | `exo` CLI, Terraform provider | yes — `sos_endpoint` / `--sos-endpoint`, honoured by both |
-| Outscale (all served) | oapi-cli, Terraform provider | yes — `endpoints.api` / `OSC_ENDPOINT_API` |
+| Outscale (all served) | octl, Terraform provider | yes — `endpoints.api` / `OSC_ENDPOINT_API` |
 | every compute/network API, 3 providers | all clients | yes — `SCW_API_URL`, `EXOSCALE_API_ENDPOINT`, Outscale `endpoint` |
 
 So the coverage cap #76 worried about is real but narrow: it is **Object Storage
@@ -2092,6 +2092,58 @@ account for all 1700 upstream operations would fail forever and train everyone t
 ignore it. Widening the scope is a decision to make when a product is started,
 not before.
 
+## Two Outscale filters reach the API only as a payload, and that is `octl`'s gap
+
+The Outscale suite drives `octl` since 2026-08-25 (#460), and three of its calls
+cannot be expressed as `octl` flags. None of the three is a limit of the
+emulator; all three are limits of the client, and they are written here because
+somebody reading `tools/conformance/outscale/octl.sh` will otherwise read
+`--payload` as sloppiness.
+
+`octl` generates one flag per field of the SDK's own request struct. Its flag
+builder (`pkg/builder/build.go`) has a case for `bool`, `int`, `int32`, `int64`,
+`string` and `map`, and **none for float**, so a field typed as an array of
+numbers gets no flag at all:
+
+| call | field | what `octl` v0.0.31 does |
+|---|---|---|
+| `ReadVmTypes` | `Filters.MemorySizes` (`[]float32`) | no flag is generated |
+| `ReadVolumes` | `Filters.CreationDates` (a slice of `iso8601.Time`) | the flag exists and is unusable |
+| `ReadNetPeerings` | `Filters.ExpirationDates` (same) | the flag exists and is unusable |
+
+The second and third are a different defect and worth naming precisely, because
+the error message points at the value and the value is not the problem. The flag
+is **registered** as a scalar `Var` — `buildFlags`'s `reflect.String` case takes
+the `FlagValue` branch without ever looking at `f.Slice` — while the setter asks
+pflag for a string slice. Every value is refused, well-formed or not:
+
+```
+$ octl iaas api ReadVolumes --Filters.CreationDates 2026-01-01T00:00:00.000Z
+an error occurred: invalid Filters.CreationDates value: trying to get
+stringSlice value of flag of type osctime
+```
+
+All three go through `--payload` instead, which is still `octl` composing and
+signing `iaas api <Call>` — not a hand-rolled `curl`, which would stop measuring
+what a real client does. And the substitution cannot pass silently: `octl`
+decodes a payload with `DisallowUnknownFields` and **drops it without failing**
+when the decode errors, so a mistyped payload would send the request with no
+filter, the emulator would answer 200 with the whole inventory, and the suite's
+`refuse_call` fails on "accepted what it must refuse". The assertion is what
+proves the field arrived.
+
+One more cost of the same client, measured 2026-08-25 with the return code and a
+slice of output beside every timing: **`octl` spends about 700 ms starting up on
+every invocation, with no network at all** — `--version` 678 ms, `--help` 689 ms
+— against roughly 30 ms for the HTTP request. The binary is 84 MB and embeds
+416 KB of IaaS specification. That is why the Outscale suite fills its public-IP
+block through one `--waitfor` process rather than spawning one per address: 255
+calls in 51 s that way, against 186 s as separate processes. The whole suite runs
+in 369 s against `oapi-cli`'s 177 s, and the trade is deliberate — the old
+client's 409 back-off cost 12 s a refusal on eleven refusals, but its startup was
+cheap, so the bottleneck moved from a back-off on eleven calls to a fixed cost on
+all of them.
+
 ## Exoscale has one zone per process, and the reason is the client
 
 The API description enumerates eight zone names and this emulator publishes
@@ -2619,7 +2671,7 @@ What an **accepted** peering does depends on the runtime mode, same rule as
   accepted peering grants nothing a measurement could see, and the suite skips
   and says so.
 - **With `--vm off`**, the whole lifecycle is control plane, proven by
-  `oapi-cli` and the Terraform provider.
+  `octl` and the Terraform provider.
 
 One deliberate simplification either way: upstream, traffic flows only once
 both Nets' route tables carry a route through the peering. Here the acceptance

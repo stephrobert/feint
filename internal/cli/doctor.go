@@ -369,7 +369,7 @@ func checkClients() []check {
 	type client struct{ binary, args, why string }
 	clients := []client{
 		{"scw", "version", "the Scaleway CLI suite"},
-		{"oapi-cli", "--version", "the Outscale CLI suite"},
+		{"octl", "--version", "the Outscale CLI suite"},
 		{"exo", "version", "the Exoscale CLI suite"},
 		{"terraform", "version", "the Terraform suite"},
 		{"tofu", "version", "the OpenTofu suite"},

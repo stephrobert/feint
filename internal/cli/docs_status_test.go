@@ -69,7 +69,7 @@ func TestTheStatusTableNamesOnlyClientsCIRuns(t *testing.T) {
 	// The rest of the row survives: a guard that empties the cell would pass the
 	// assertion above and lose a proof that is still taken.
 	if len(after["outscale"]) == 0 {
-		t.Error("removing one suite emptied the Outscale row, and oapi-cli still runs")
+		t.Error("removing one suite emptied the Outscale row, and octl still runs")
 	}
 }
 

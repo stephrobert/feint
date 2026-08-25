@@ -26,6 +26,7 @@ const (
 	ClientSCW       = "scw"
 	ClientExo       = "exo"
 	ClientOAPI      = "oapi-cli"
+	ClientOCTL      = "octl"
 	ClientSDK       = "sdk"
 	ClientUnknown   = "unknown"
 )
@@ -62,8 +63,16 @@ var agents = []struct{ needle, family string }{
 	{"scaleway-cli", ClientSCW}, // measured: scw 2.56.3
 	{"exocli", ClientExo},       // measured: exo 1.95.1
 	{"exoscale-cli", ClientExo}, // the spelling internal/providers/exoscale's entry test carries
-	{"oapi-cli", ClientOAPI},    // measured: oapi-cli 0.13.0
-	{"osc-cli", ClientOAPI},     // Outscale's other CLI, frozen upstream in favour of octl
+	// measured 2026-08-25 through `feint proxy`: "octl/v0.0.31", and nothing
+	// else — unlike scw and exo, octl announces neither its SDK nor its
+	// toolchain, so this is the whole header. It comes before the SDK entries
+	// below for the same reason terraform does: octl carries osc-sdk-go.
+	{"octl", ClientOCTL}, // measured: octl v0.0.31
+	// The two archived CLIs, kept for the corpora recorded with them (#460):
+	// outscale/oapi-cli and outscale/osc-cli are read-only upstream, so nothing
+	// new will ever carry these agents, and everything already recorded does.
+	{"oapi-cli", ClientOAPI}, // measured: oapi-cli 0.13.0
+	{"osc-cli", ClientOAPI},  // Outscale's other CLI, archived upstream
 	{"scaleway-sdk-go", ClientSDK},
 	{"egoscale", ClientSDK},
 	{"osc-sdk-c", ClientSDK},

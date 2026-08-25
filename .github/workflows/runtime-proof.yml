@@ -236,25 +236,24 @@ jobs:
           sudo install -m 0755 "${workdir}/${asset}" /usr/local/bin/scw
           scw version
 
+      # octl since #460: outscale/oapi-cli is archived and read-only upstream, and
+      # octl publishes a checksums file, so the sum comes from upstream instead
+      # of a digest pinned here. Same pin and same recipe as conformance.yml.
       - name: Install the Outscale CLI
         env:
-          OAPI_VERSION: 'v0.15.0'
-          OAPI_SHA256: '798b9af7db9da9539303732ba55be71ff0bec58aa9ef51751de41b2eeee8138a'
+          OCTL_VERSION: 'v0.0.31'
         run: |
           set -euo pipefail
           workdir="$(mktemp -d)"
-          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/oapi-cli.AppImage" \
-            "https://github.com/outscale/oapi-cli/releases/download/${OAPI_VERSION}/oapi-cli-x86_64.AppImage"
-          echo "${OAPI_SHA256}  ${workdir}/oapi-cli.AppImage" | sha256sum -c -
-          chmod +x "${workdir}/oapi-cli.AppImage"
-          (cd "${workdir}" && ./oapi-cli.AppImage --appimage-extract >/dev/null)
-          sudo tee /usr/local/bin/oapi-cli >/dev/null <<WRAPPER
-          #!/usr/bin/env bash
-          export APPDIR="${workdir}/squashfs-root"
-          exec "\${APPDIR}/AppRun" "\$@"
-          WRAPPER
-          sudo chmod 0755 /usr/local/bin/oapi-cli
-          oapi-cli --version
+          version="${OCTL_VERSION#v}"
+          base="https://github.com/outscale/octl/releases/download/${OCTL_VERSION}"
+          asset="octl_Linux_x86_64"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/${asset}" "${base}/${asset}"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/sums" \
+            "${base}/octl_${version}_checksums.txt"
+          (cd "${workdir}" && grep " ${asset}$" sums | sha256sum -c -)
+          sudo install -m 0755 "${workdir}/${asset}" /usr/local/bin/octl
+          octl --version
 
       - name: Install the Exoscale CLI
         env:

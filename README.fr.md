@@ -26,9 +26,9 @@
 > [!IMPORTANT]
 > **Ce qu'on peut pointer vers cet émulateur, et ce qu'on ne peut pas.**
 >
-> **Prouvé** : 348 des 371 opérations montées sont pilotées par un vrai client, à chaque pull request. `scw`, `oapi-cli`, `exo`, Terraform et OpenTofu tournent contre l'émulateur en CI, et les machines démarrent réellement : connexion ssh sur le compte par défaut de chaque provider, subnets isolés, pare-feu qui filtre. La chaîne complète est décrite dans [docs/conformance.md](docs/conformance.md).
+> **Prouvé** : 348 des 371 opérations montées sont pilotées par un vrai client, à chaque pull request. `scw`, `octl`, `exo`, Terraform et OpenTofu tournent contre l'émulateur en CI, et les machines démarrent réellement : connexion ssh sur le compte par défaut de chaque provider, subnets isolés, pare-feu qui filtre. La chaîne complète est décrite dans [docs/conformance.md](docs/conformance.md).
 >
-> **Pas prouvé** : quotas, prix, capacité réelle, validation des identifiants, authentification, cohérence à terme. Les 42 sections de [docs/limits.md](docs/limits.md) disent chacune ce qu'elle coûte. Un émulateur avec un seul compte implicite et aucune grille tarifaire devrait inventer ces chiffres, et quelqu'un agirait dessus.
+> **Pas prouvé** : quotas, prix, capacité réelle, validation des identifiants, authentification, cohérence à terme. Les 43 sections de [docs/limits.md](docs/limits.md) disent chacune ce qu'elle coûte. Un émulateur avec un seul compte implicite et aucune grille tarifaire devrait inventer ces chiffres, et quelqu'un agirait dessus.
 >
 > **Inconnu** : 23 opérations sont montées et n'ont jamais été pilotées par un client. Chacune dit pourquoi aucun client officiel ne l'atteint, à la route et dans [docs/routes.md](docs/routes.md). Elles sont comptées plutôt qu'escamotées, une par une, dans [coverage/evidence.json](coverage/evidence.json).
 >
@@ -158,7 +158,7 @@ l'enregistre.
 **Aucun, pour ce que la plupart des gens viennent chercher.** Feint est un seul
 binaire statique sans dépendance externe : il émule les trois plans de contrôle,
 garde son état en mémoire, et n'a besoin d'aucun démon, d'aucun runtime de
-conteneurs et d'aucun compte. Si vous voulez pointer `scw`, `oapi-cli`, `exo` ou
+conteneurs et d'aucun compte. Si vous voulez pointer `scw`, `octl`, `exo` ou
 Terraform vers un émulateur, arrêtez de lire ici et allez à
 [Installer](#installer).
 
@@ -300,15 +300,26 @@ fonctionne est dans
 [`tools/conformance/scaleway/terraform/`](tools/conformance/scaleway/terraform/),
 et `terraform` comme `tofu` sont exécutés contre elle en CI.
 
-### Outscale — `oapi-cli`
+### Outscale — `octl`
 
-`oapi-cli` n'a pas de drapeau `--endpoint` : il se configure par un profil JSON.
+`octl` n'a pas de drapeau `--endpoint` : il se configure par un profil JSON, et
+la valeur de l'endpoint **porte le chemin `/api/v1`**. Il le lit de
+`osc-sdk-go`, dont le gabarit par défaut est
+`%s://api.%s.outscale.com/api/v1` : le chemin fait partie de la valeur. C'est
+l'inverse d'`oapi-cli`, le CLI que ce projet pilotait jusqu'au 2026-08-25, dont
+le dépôt est aujourd'hui archivé et en lecture seule.
 
-**Un piège qui coûte une heure**, mesuré ici : `oapi-cli` lit la clé `region`,
-jamais `region_name`. Cette dernière est la clé d'`osc-cli`, le client Python —
-un autre outil qui lit le même fichier. Un profil écrit pour l'un fait répondre
-`InvalidParameterValue 4120` à tous les appels authentifiés de l'autre, pendant
-que les appels publics continuent de passer et masquent la cause.
+Deux règles que la suite tient : `iaas api <Call>` et jamais un alias, parce que
+c'est l'API qu'on mesure et pas la commodité du CLI ; et `-o raw` partout, parce
+que le `-o json` par défaut **reforme** la réponse et déballe
+`{"Vms":[…],"ResponseContext":{…}}` en liste nue.
+
+**Un piège qui coûte une heure**, mesuré ici : `octl` lit la clé `region`,
+jamais `region_name` — la même clé qu'`oapi-cli`, et toujours pas celle
+d'`osc-cli`, le client Python qui lit pourtant le même fichier. Un profil écrit
+pour l'un fait répondre `InvalidParameterValue 4120` à tous les appels
+authentifiés de l'autre, pendant que les appels publics continuent de passer et
+masquent la cause.
 
 Le détail et la configuration exacte sont dans
 [`tools/conformance/outscale/`](tools/conformance/outscale/).

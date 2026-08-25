@@ -135,7 +135,7 @@
       loop:
         - tools/conformance/scaleway/scw-cli.sh
         - tools/conformance/scaleway/terraform.sh
-        - tools/conformance/outscale/oapi-cli.sh
+        - tools/conformance/outscale/octl.sh
         - tools/conformance/exoscale/exo-cli.sh
       register: feint_conformance
       changed_when: false

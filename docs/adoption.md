@@ -42,7 +42,8 @@ every row was re-measured against the emulator on 2026-08-19 ([#286]):
 | your provider | the recipe | given the other shape |
 |---|---|---|
 | `outscale/outscale` >= 1.7 (current; 1.8.0 measured) | `eval "$(feint env outscale)"` — the printed `OSC_ENDPOINT_API` carries `/api/v1`, which this generation wants in the value | a fast 404 naming the missing prefix (a six-minute retry backoff before the emulator learned to say so) |
-| `outscale/outscale` 1.1.x (1.1.3 measured), or oapi-cli | `eval "$(feint env outscale --client oapi-cli)"` — the bare host; these clients append `/api/v1` themselves | 1.1.x dies client-side in seconds: `invalid port ":4599%2Fapi%2Fv1"`; oapi-cli gets a 404 saying the endpoint carries `/api/v1` twice |
+| `octl` (0.0.31 measured, 2026-08-25) | `eval "$(feint env outscale --client octl)"` — the same `/api/v1` shape: octl reads it from `osc-sdk-go`, whose default endpoint is `https://api.<region>.outscale.com/api/v1` | given the bare host it posts `/<Call>` at the root and gets a 404 |
+| `outscale/outscale` 1.1.x (1.1.3 measured), or `oapi-cli` (**archived upstream**) | `eval "$(feint env outscale --client oapi-cli)"` — the bare host; these clients append `/api/v1` themselves | 1.1.x dies client-side in seconds: `invalid port ":4599%2Fapi%2Fv1"`; oapi-cli gets a 404 saying the endpoint carries `/api/v1` twice |
 | `outscale-dev/*` 0.x | none exists: these read no endpoint variable at all. 0.5.3 honours only an `endpoints { api = … }` block and needs TLS interception; 0.7.0 crashes in its own error path. Measured once in the survey register, not replayed since | — |
 
 Two values in one shell cannot both win, which is why the flag exists rather
@@ -84,7 +85,7 @@ The offer is concrete rather than a request for attention:
 > tests — no account, no credentials, no resources created.
 
 Your own clients already run against it on every pull request here — `scw`,
-`oapi-cli`, `exo`, Terraform and OpenTofu — and the upstream surface of your SDK
+`octl`, `exo`, Terraform and OpenTofu — and the upstream surface of your SDK
 is scanned weekly, so an operation you add shows up as untriaged until somebody
 decides about it.
 

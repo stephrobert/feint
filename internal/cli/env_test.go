@@ -154,6 +154,20 @@ func TestEnvOutscaleServesTheClientFamilyItWasAskedFor(t *testing.T) {
 		t.Fatalf("the default does not carry the /api/v1 path the current provider reads:\n%s", printed)
 	}
 
+	// octl, the client the conformance suite drives since #460, takes the path
+	// in the value — so this is the same shape as the default and NOT the same
+	// as the archived CLI two blocks down. Asserted through the CLI rather than
+	// only on the pack, because what a reader types is `feint env outscale
+	// --client octl` and a flag that silently served another family's shape
+	// would be the exact wall #286 removed.
+	code, printed, errOut = run("env", "outscale", "--client", "octl", "--endpoint", "http://127.0.0.1:4599")
+	if code != 0 {
+		t.Fatalf("--client octl exited %d: %s", code, errOut)
+	}
+	if !strings.Contains(printed, "export OSC_ENDPOINT_API='http://127.0.0.1:4599/api/v1'") {
+		t.Fatalf("--client octl does not print the /api/v1 shape octl reads:\n%s", printed)
+	}
+
 	code, printed, errOut = run("env", "outscale", "--client", "oapi-cli", "--endpoint", "http://127.0.0.1:4599")
 	if code != 0 {
 		t.Fatalf("--client oapi-cli exited %d: %s", code, errOut)
@@ -168,8 +182,10 @@ func TestEnvOutscaleServesTheClientFamilyItWasAskedFor(t *testing.T) {
 	if code == 0 {
 		t.Fatalf("an unknown client family was served:\n%s", printed)
 	}
-	if !strings.Contains(errOut, "oapi-cli") || !strings.Contains(errOut, "terraform") {
-		t.Fatalf("the refusal does not name the families that exist: %q", errOut)
+	for _, family := range []string{"oapi-cli", "octl", "terraform"} {
+		if !strings.Contains(errOut, family) {
+			t.Fatalf("the refusal does not name %s, a family that exists: %q", family, errOut)
+		}
 	}
 
 	// A pack whose clients all read the same environment refuses the flag

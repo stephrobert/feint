@@ -12,7 +12,7 @@ import (
 // credentials are read at the moment of use and never stored anywhere.
 //
 // They come from the files the official clients already use, so an operator who
-// can run `scw`, `oapi-cli` or `exo` can run this with no extra setup — and,
+// can run `scw`, `octl` or `exo` can run this with no extra setup — and,
 // more importantly, so this package never becomes a second place where a cloud
 // credential lives.
 type credentials struct {
@@ -98,11 +98,12 @@ func yamlValue(text, key string) string {
 // outscaleCredentials reads ~/.osc/config.json.
 //
 // The region comes from `region_name` or `region`, in that order, and the
-// distinction matters: `region_name` is osc-cli's key and `region` is
-// oapi-cli's, the same file serves both clients, and a profile written for one
-// makes the other answer InvalidParameterValue 4120 on every authenticated call
-// while the public ones keep working. Reading both is what stops this package
-// from repeating an hour that has already been spent.
+// distinction matters: `region_name` is osc-cli's key and `region` is the one
+// octl and oapi-cli read — verified in osc-sdk-go's own struct tag,
+// `json:"region,omitempty"`. The same file serves all three clients, and a
+// profile written for one makes the others answer InvalidParameterValue 4120 on
+// every authenticated call while the public ones keep working. Reading both is
+// what stops this package from repeating an hour that has already been spent.
 func outscaleCredentials(profile string) (credentials, error) {
 	path := filepath.Join(home(), ".osc", "config.json")
 	raw, err := os.ReadFile(path) //nolint:gosec // the operator's own client config

@@ -192,7 +192,8 @@ type packEnv interface {
 // packEnvClients is the optional half of a pack whose clients disagree about a
 // value, so that one printed environment cannot serve them all. Outscale is
 // the measured case (#286): OSC_ENDPOINT_API carries the /api/v1 path for the
-// Terraform provider >= 1.7 and must not for oapi-cli and the 1.1.x provider.
+// Terraform provider >= 1.7 and for octl, and must not for oapi-cli and the
+// 1.1.x provider.
 //
 // Optional and declared here rather than on emulator.Pack: the core has no
 // business knowing that a provider's clients quarrel, and a pack whose clients

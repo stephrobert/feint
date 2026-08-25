@@ -74,7 +74,7 @@ checks that the tag matches it, and the prose stays yours.
    prints the commands to run once everything passes.
 
    It deliberately does **not** run the conformance suites itself: they need
-   `scw`, `oapi-cli`, `exo` and Terraform installed, and a release cut from a
+   `scw`, `octl`, `exo` and Terraform installed, and a release cut from a
    machine missing one of them would silently skip the very proof this project
    rests on. It asks CI whether they passed instead.
 

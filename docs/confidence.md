@@ -27,7 +27,7 @@ prints the reason under the pack that owns it.
 | What you want to validate | Verdict | Proof, or the limit |
 |---|---|---|
 | Terraform and OpenTofu syntax, plan and lifecycle | **yes** | `mise run conformance`: apply, an empty second plan, destroy — [conformance.md](conformance.md#link-3--two-witnesses-and-neither-is-the-other) |
-| A CLI workflow end to end (`scw`, `oapi-cli`, `exo`) | **yes** | the same run drives all three against one emulator — [conformance.md](conformance.md#link-3--two-witnesses-and-neither-is-the-other) |
+| A CLI workflow end to end (`scw`, `octl`, `exo`) | **yes** | the same run drives all three against one emulator — [conformance.md](conformance.md#link-3--two-witnesses-and-neither-is-the-other) |
 | Request and response shapes, field by field | **yes**, with a stated ceiling | every answer is checked against the provider's own API description, and what a schema cannot catch is named in [conformance.md](conformance.md#link-2--the-contract-and-what-a-green-run-does-not-prove) |
 | That your client reads a field the cloud really returns | **yes**, where a recording exists | recorded shapes arbitrate; the blind spot is counted in the run's own output — [conformance.md](conformance.md#link-4--the-recordings-the-only-source-that-looks-the-other-way) |
 | Resource dependency order: what refuses to be deleted under what | **yes** | the refusal assertions in each suite, and the relations in [limits.md](limits.md#an-exoscale-block-volume-holds-no-bytes-and-every-number-it-publishes-says-so) |

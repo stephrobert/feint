@@ -78,7 +78,7 @@ prose reste la vôtre.
    premier, et il affiche les commandes à lancer une fois que tout passe.
 
    Il ne lance délibérément **pas** les suites de conformance lui-même : elles
-   demandent `scw`, `oapi-cli`, `exo` et Terraform installés, et une release
+   demandent `scw`, `octl`, `exo` et Terraform installés, et une release
    publiée depuis une machine à laquelle il en manque un sauterait en silence la
    preuve même sur laquelle ce projet repose. Il demande plutôt à la CI si elles
    sont passées.

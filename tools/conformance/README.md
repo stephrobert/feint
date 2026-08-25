@@ -15,7 +15,7 @@ silence, so you find out at once — but the list is worth having up front:
 | `curl` | every suite | your package manager |
 | `scw` | `scaleway/scw-cli.sh` | [scaleway-cli releases](https://github.com/scaleway/scaleway-cli/releases) |
 | `terraform` or `tofu` | `scaleway/terraform.sh` | [terraform.io](https://developer.hashicorp.com/terraform/install) or [opentofu.org](https://opentofu.org/docs/intro/install/) |
-| `oapi-cli` | `outscale/oapi-cli.sh` | [oapi-cli releases](https://github.com/outscale/oapi-cli/releases) (AppImage) |
+| `octl` | `outscale/octl.sh` | [octl releases](https://github.com/outscale/octl/releases) (a plain binary, with a checksums file) |
 | `exo` | `exoscale/exo-cli.sh` | [exoscale/cli releases](https://github.com/exoscale/cli/releases) |
 | `incus` | the `network.sh` suites and `ssh.sh` | [Zabbly packages](https://github.com/zabbly/incus), 6.0.4 or later |
 | the machine images | the `ssh.sh` suites | `feint images --vm incus`, once, minutes |
@@ -38,9 +38,18 @@ than assumes; CI runs the command as a step of its own.
 
 Two client quirks are worth knowing before you debug one:
 
-- **`oapi-cli` takes the bare host.** It appends `/api/v1/<Call>` itself, so
-  passing `http://host/api/v1` makes it request `/api/v1/api/v1/<Call>` — a 404
-  that looks exactly like a missing route.
+- **`octl` takes the endpoint WITH its path**, `http://host/api/v1`. It reads
+  that from `osc-sdk-go`, whose default endpoint template is
+  `%s://api.%s.outscale.com/api/v1`, so the path is part of the value. The
+  archived `oapi-cli` wanted the opposite — the bare host, appending
+  `/api/v1/<Call>` itself — and that inversion is the single thing most likely
+  to send you debugging a 404 that says nothing about the emulator.
+- **`octl` reshapes its answers unless you ask for `-o raw`.** The default
+  `-o json` unwraps `{"Nets":[…],"ResponseContext":{…}}` to a bare list, and a
+  suite asserting on that measures the CLI rather than the emulator. Every call
+  in `outscale/octl.sh` goes through one wrapper that pins `-o raw`, and one
+  assertion at the top of that file is the witness proving the two forms still
+  differ.
 - **`exo` has no endpoint flag and no endpoint environment variable.** It is
   redirected only through the `endpoint` key of its own configuration file, and
   that value must carry the `/v2` suffix, because the CLI concatenates it with
@@ -69,17 +78,25 @@ runtime-free; `ssh.sh` is not in the suite for the same reason and runs through
 
 | Script | What it proves |
 |---|---|
-| `outscale/oapi-cli.sh` | the official CLI drives create, read, delete, and both error paths decode |
+| `outscale/octl.sh` | the official CLI drives create, read, delete, and both error paths decode |
 | `outscale/network.sh` | the block a Subnet declares exists on the host, with the range asked for, and goes away with it |
 
-`oapi-cli` is the client, not `osc-cli`: the latter is deprecated and addresses
-`/api/latest/<Call>` where the current API is `/api/v1/<Call>`, so it would fail
-for a reason that says nothing about the emulator.
+`octl` is the client, and since 2026-08-25 it is the only live one (#460):
+`outscale/oapi-cli` and `outscale/osc-cli` are both `archived: true` on the
+GitHub API, read-only, with "Deprecated Outscale CLI" in their own description.
+`osc-cli` also addresses `/api/latest/<Call>` where the current API is
+`/api/v1/<Call>`, so pointing it here would fail for a reason that says nothing
+about the emulator.
 
-It also has no `--endpoint` flag, and wants the bare host rather than the API
-path. Both traps are described once, at the top of this file.
+It has no `--endpoint` flag, and wants the endpoint WITH the API path. Both
+traps are described once, at the top of this file.
 
-`oapi-cli.sh` proves the addressing arithmetic with no runtime at all, which a
+Two rules the suite holds and a reader should know before adding a case:
+**`iaas api <Call>`, never an alias** (`octl iaas net list` resolves to
+`octl iaas api ReadNets`, and an alias is a convenience of the CLI where the API
+is what is measured), and **`-o raw` everywhere**.
+
+`octl.sh` proves the addressing arithmetic with no runtime at all, which a
 server storing JSON could also pass; `network.sh` measures the other half and
 therefore skips itself with `--vm off`, like its Scaleway namesake.
 

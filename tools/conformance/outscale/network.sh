@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Conformance check: an Outscale Subnet is a real network, not an answer.
 #
-# oapi-cli.sh proves the arithmetic — masks bounded, containment enforced,
+# octl.sh proves the arithmetic — masks bounded, containment enforced,
 # overlap refused, the address count computed. All of that runs with no machine
 # runtime at all, so all of it could be true of a server that stores JSON and
 # nothing else. This suite measures the other half: the block a client declares
@@ -28,7 +28,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/../guard.sh"
 guard_local "$ENDPOINT"
 
-command -v oapi-cli >/dev/null 2>&1 || { echo "FAIL: oapi-cli is not installed" >&2; exit 1; }
+command -v octl >/dev/null 2>&1 || { echo "FAIL: octl is not installed" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is not installed" >&2; exit 1; }
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -79,17 +79,18 @@ SUBBLOCK="${FEINT_TEST_SUBNET_BLOCK:-10.182.9.0/24}"
 set -a
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/fake-credentials.env"
-# The endpoint comes from the argument, not from the credentials file: oapi-cli
-# lets the environment override --config, so a pinned value there silently wins
-# over the port this run was asked to measure.
-# shellcheck disable=SC2034 # read by oapi-cli from the environment, not here
-OSC_ENDPOINT_API="$ENDPOINT"
+# The endpoint comes from the argument, not from the credentials file, and it
+# carries /api/v1: octl reads that from osc-sdk-go, whose default endpoint is
+# https://api.<region>.outscale.com/api/v1, so the path is part of the value.
+# The archived oapi-cli this replaced wanted the bare host (#460).
+# shellcheck disable=SC2034 # read by octl from the environment, not here
+OSC_ENDPOINT_API="$ENDPOINT/api/v1"
 set +a
 
-# And it must be set, because an unset one sends oapi-cli looking for the
-# operator's stored profile. guard_local checked where we intend to go; this
-# checks the client cannot go anywhere else.
-guard_no_real_profile OSC_ENDPOINT_API oapi-cli
+# And it must be set, because an unset one sends octl looking for the operator's
+# stored profile. guard_local checked where we intend to go; this checks the
+# client cannot go anywhere else.
+guard_no_real_profile OSC_ENDPOINT_API octl
 
 WORK="$(mktemp -d)"
 cat > "$WORK/config.json" <<EOF
@@ -99,11 +100,15 @@ cat > "$WORK/config.json" <<EOF
     "secret_key": "$OSC_SECRET_KEY",
     "region": "$OSC_REGION",
     "protocol": "http",
-    "endpoints": { "api": "$ENDPOINT" }
+    "endpoints": { "api": "$ENDPOINT/api/v1" }
   }
 }
 EOF
-osc() { oapi-cli --config "$WORK/config.json" "$@"; }
+# `iaas api <Call>` rather than an alias, `-o raw` so the body is the API's own
+# and not the CLI's rearrangement of it, `</dev/null` because octl reads stdin as
+# the request body whenever stdin is not a terminal. tools/conformance/outscale/
+# octl.sh states all three at length.
+osc() { octl --config "$WORK/config.json" --no-upgrade -o raw iaas api "$@" </dev/null; }
 
 net_id=""
 sub_id=""
@@ -116,8 +121,8 @@ net_b=""
 # Delete through the API, which is what removes the backing network. Killing the
 # bridge directly would hide a leak in the emulator behind the cleanup.
 cleanup() {
-  [ -n "$vm_a" ] && osc DeleteVms '--VmIds[]' "$vm_a" >/dev/null 2>&1
-  [ -n "$vm_b" ] && osc DeleteVms '--VmIds[]' "$vm_b" >/dev/null 2>&1
+  [ -n "$vm_a" ] && osc DeleteVms --VmIds "$vm_a" >/dev/null 2>&1
+  [ -n "$vm_b" ] && osc DeleteVms --VmIds "$vm_b" >/dev/null 2>&1
   sleep 2
   [ -n "$sub_id" ] && osc DeleteSubnet --SubnetId "$sub_id" >/dev/null 2>&1
   [ -n "$sub_a" ] && osc DeleteSubnet --SubnetId "$sub_a" >/dev/null 2>&1
@@ -196,12 +201,12 @@ echo "- the machine carries no address the API does not publish"
 # Outscale publishes a Vm's addresses as PrivateIp and, when one is linked,
 # PublicIp. Nothing else on the machine may exist: an address the runtime handed
 # out and no field describes is exactly what #202 removed.
-osc_published="$(osc ReadVms --Filters "{\"VmIds\": [\"$vm_id\"]}" \
+osc_published="$(osc ReadVms --Filters.VmIds "$vm_id" \
   | jq -r '[.Vms[0].PrivateIp, .Vms[0].PublicIp] | map(select(. != null and . != "")) | join(" ")')"
 # shellcheck disable=SC2086 # the published list is several arguments on purpose
 assert_only_published "feint-osc-$vm_id" $osc_published
 
-osc DeleteVms '--VmIds[]' "$vm_id" >/dev/null || fail "DeleteVms rejected"
+osc DeleteVms --VmIds "$vm_id" >/dev/null || fail "DeleteVms rejected"
 sleep 2
 
 echo "- the network goes when the Subnet goes"
@@ -228,7 +233,7 @@ net_id=""
 # any peering (the isolation the capability declares), still unreachable while
 # the peering is only pending-acceptance (a request grants nothing), reachable
 # once accepted, and unreachable again once deleted. The control plane's
-# answers are proven by the oapi-cli suite with no runtime at all; this is the
+# answers are proven by the octl suite with no runtime at all; this is the
 # other half — the packets.
 ISOLATION="$(curl -sf "$ENDPOINT/_feint/health" | jq -r '.capabilities.isolation')"
 if [ "$ISOLATION" != "true" ]; then
@@ -326,13 +331,13 @@ else
   else
     fail "$same_ip is unreachable inside one Net; the isolation separates too much"
   fi
-  osc DeleteVms '--VmIds[]' "$same_vm" >/dev/null 2>&1
+  osc DeleteVms --VmIds "$same_vm" >/dev/null 2>&1
   sleep 3
   osc DeleteSubnet --SubnetId "$same_sub" >/dev/null 2>&1
 fi
 
-osc DeleteVms '--VmIds[]' "$vm_a" >/dev/null && vm_a=""
-osc DeleteVms '--VmIds[]' "$vm_b" >/dev/null && vm_b=""
+osc DeleteVms --VmIds "$vm_a" >/dev/null && vm_a=""
+osc DeleteVms --VmIds "$vm_b" >/dev/null && vm_b=""
 sleep 2
 osc DeleteSubnet --SubnetId "$sub_a" >/dev/null && sub_a=""
 osc DeleteSubnet --SubnetId "$sub_b" >/dev/null && sub_b=""

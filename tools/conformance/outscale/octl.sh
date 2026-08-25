@@ -1,45 +1,84 @@
 #!/usr/bin/env bash
-# Conformance check: drive the emulator with the real Outscale CLI.
+# Conformance check: drive the emulator with octl, the Outscale CLI.
 #
-# oapi-cli is the client this suite measures against. osc-cli exists and is
-# deprecated, and it addresses a different path — /api/latest/<Call> rather than
-# /api/v1/<Call> — so pointing it here would fail for a reason that says nothing
-# about the emulator.
+# octl is the client this suite measures against, and the reason it is not
+# oapi-cli any more is a fact rather than a preference: `outscale/oapi-cli` and
+# `outscale/osc-cli` are both `archived: true` on the GitHub API, with
+# "Deprecated Outscale CLI" in their own description, while `outscale/octl` is
+# live (#460). An archived repository is read-only, so the north star — "the
+# official client must not see the difference" — now points here.
 #
-# The client is configured through a JSON profile, not flags: it has no
-# --endpoint. The endpoint given here is the bare host, because oapi-cli appends
-# /api/v1/<Call> itself. Passing http://host/api/v1 makes it request
-# /api/v1/api/v1/<Call>, which is a 404 that looks like a missing route.
+# WHAT MOVED, AND EACH LINE OF IT COST A MEASUREMENT
 #
-# oapi-cli reads `region`, never `region_name` — an hour was paid to learn it.
+# 1. The endpoint carries its path. OSC_ENDPOINT_API is
+#    http://host:port/api/v1, the exact opposite of oapi-cli, which wanted the
+#    bare host and appended /api/v1 itself. This is not a guess: the SDK's
+#    default template is "%s://api.%s.outscale.com/api/v1"
+#    (osc-sdk-go/pkg/profile/endpoint.go), so the path is part of the value by
+#    construction. It is the same shape the Terraform provider >= 1.7 wants,
+#    and `feint env outscale --client octl` prints it.
 #
-# A ~/.osc/config.json profile written for osc-cli, the Python client, carries
-# region_name, host, https and method. oapi-cli ignores region_name, falls back
-# to its default region (eu-west-2), and presents the profile's credentials
-# there; against a real cloud the server answers InvalidParameterValue 4120 —
-# which its own error table files under authentication — and it reads exactly
-# like a broken client. Measured on a profile whose region_name was
-# cloudgouv-eu-west-1:
+# 2. `iaas api <Call>`, never an alias. `octl iaas net list` resolves to
+#    `octl iaas api ReadNets`; an alias is a convenience of the CLI and the API
+#    is what this project measures. Every call below goes through `iaas api`,
+#    which is also what makes the operation names in /_feint/conformance mean
+#    what they say.
 #
-#   oapi-cli --profile=<p> ReadRegions                       -> 200, but the eu-west-2 list
-#   oapi-cli --profile=<p> ReadKeypairs                      -> 4120
-#   same profile with "region": "cloudgouv-eu-west-1"        -> 200, real data
+# 3. `-o raw` on every call, which is why it lives in the `osc` wrapper rather
+#    than being repeated. The default `-o json` RESHAPES the answer: it unwraps
+#    {"Nets":[...],"ResponseContext":{...}} to a bare list, and a suite
+#    asserting on a reshaped body measures the CLI instead of the emulator.
+#    `-o raw` hands back the API's own bytes, ResponseContext and Errors
+#    included. The block "the suite reads raw bodies" below is the witness that
+#    would catch a reintroduction of the reshaped form.
 #
-# ReadRegions passes because it is public and signs nothing, so the wrong
-# region does not show. That partial success is what misleads the diagnosis:
-# the call that works hides the cause of the one that fails, and two calls
-# differing only by authentication are what settles it.
+# 4. The error body arrives on STDERR, not stdout, and in two shapes: a refusal
+#    the API composed comes after the line "The server returned an error", and a
+#    404 comes inline after "an error occurred: unexpected response status 404
+#    Not Found: ". `api_error` below is the one reader for both. oapi-cli put
+#    its error JSON on stdout, so every refusal assertion had to move.
 #
-# Against the emulator none of this bites — any signature is accepted — but a
-# recording session against a real account must keep `region` matching the
-# account, or the 4120 comes back looking like an emulator defect.
+# 5. Stdin is a request body. octl reads all of stdin whenever stdin is not a
+#    terminal and decodes it as the payload (osc-sdk-go runner/stdin.go). A
+#    suite that runs `while read ... done < file` around a client call would
+#    hand the client its own loop input, or block. Every call here is
+#    </dev/null, in the wrapper, so the body can only come from flags.
 #
-# Roadmap note: Outscale has placed osc-cli and oapi-cli in maintenance mode
-# and names octl, written in Go, as its reference CLI; the osc-cli and
-# osc-sdk-c repositories are archived, the latter since July 2026. Whether this
-# suite migrates is an open decision, not this script's to make.
+# 6. --no-upgrade. Without it octl asks GitHub for a newer release when stdout
+#    is a terminal, which is a network call a conformance run must not make and
+#    a difference between running the suite by hand and running it in CI.
 #
-# Usage: tools/conformance/outscale/oapi-cli.sh [endpoint]   (default http://127.0.0.1:4599)
+# 7. It does not retry a 409. Measured on this suite's own call counters, one
+#    run each: oapi-cli sent THREE requests for every 409 it met and backed off
+#    between them — AcceptNetPeering 7 calls against octl's 3, CreatePublicIp
+#    261 against 257, nine operations short by exactly two per refusal — and the
+#    issue clocked each of those refusals at 12 s (#459, #460). octl answers a
+#    409 in the same ~750 ms as a 200, once.
+#
+# 8. What it costs instead: ~700 ms of process startup on EVERY invocation,
+#    against ~30 ms for the request. Measured 2026-08-25: `--version` 678 ms
+#    with no network at all, ReadNets 737 ms, a 409 731 ms. That is why the
+#    address-exhaustion block below fills through one process rather than
+#    spawning one per address.
+#
+# THE PROFILE, AND THE KEY THAT COST AN HOUR ONCE
+#
+# octl reads the same ~/.osc/config.json as oapi-cli and the same key: `region`,
+# never `region_name` — the SDK's own struct tag says so
+# (osc-sdk-go/pkg/profile/profile.go, `json:"region,omitempty"`). A profile
+# written for osc-cli, the Python client, carries region_name and is ignored the
+# same way it always was; against a real account that means the default region,
+# the wrong signature scope and a 4120 that reads like a broken client.
+#
+# What DID invert is the precedence. oapi-cli let the environment win over
+# --config, which is why fake-credentials.env refuses to pin OSC_ENDPOINT_API.
+# octl does the opposite: with --config or --profile given it loads the file
+# FIRST and merges the environment into what the file left empty
+# (octl cmd/sdk.go, `profile.FromFile(...)` then `MergeWith(FromEnv())`). So the
+# endpoint written below is the authoritative one, and the exported variable is
+# a second lock rather than the first.
+#
+# Usage: tools/conformance/outscale/octl.sh [endpoint]   (default http://127.0.0.1:4599)
 set -euo pipefail
 
 ENDPOINT="${1:-http://127.0.0.1:4599}"
@@ -58,23 +97,22 @@ guard_local "$ENDPOINT"
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/../prove.sh"
 
-command -v oapi-cli >/dev/null 2>&1 || { echo "FAIL: oapi-cli is not installed" >&2; exit 1; }
+command -v octl >/dev/null 2>&1 || { echo "FAIL: octl is not installed" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is not installed" >&2; exit 1; }
 
 set -a
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/fake-credentials.env"
-# The endpoint comes from the argument, not from the credentials file: oapi-cli
-# lets the environment override --config, so a pinned value there silently wins
-# over the port this run was asked to measure.
-# shellcheck disable=SC2034 # read by oapi-cli from the environment, not here
-OSC_ENDPOINT_API="$ENDPOINT"
+# The endpoint comes from the argument, not from the credentials file, and it
+# carries /api/v1 — see point 1 of the header.
+# shellcheck disable=SC2034 # read by octl from the environment, not here
+OSC_ENDPOINT_API="$ENDPOINT/api/v1"
 set +a
 
-# And it must be set, because an unset one sends oapi-cli looking for the
-# operator's stored profile. guard_local checked where we intend to go; this
-# checks the client cannot go anywhere else.
-guard_no_real_profile OSC_ENDPOINT_API oapi-cli
+# And it must be set, because an unset one sends octl looking for the operator's
+# stored profile. guard_local checked where we intend to go; this checks the
+# client cannot go anywhere else.
+guard_no_real_profile OSC_ENDPOINT_API octl
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -86,7 +124,7 @@ cat > "$WORK/config.json" <<EOF
     "secret_key": "$OSC_SECRET_KEY",
     "region": "$OSC_REGION",
     "protocol": "http",
-    "endpoints": { "api": "$ENDPOINT" }
+    "endpoints": { "api": "$ENDPOINT/api/v1" }
   }
 }
 EOF
@@ -94,9 +132,49 @@ EOF
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "  ok: $*"; }
 skip() { echo "  SKIP: $*" >&2; }
-osc() { oapi-cli --config "$WORK/config.json" "$@"; }
 
-echo "conformance: oapi-cli against $ENDPOINT"
+# One wrapper, three non-negotiables: --config so the endpoint cannot come from
+# anywhere else, -o raw so the body is the API's own, and </dev/null so the
+# request body cannot come from whatever this script's stdin happens to be.
+osc() { octl --config "$WORK/config.json" --no-upgrade -o raw iaas api "$@" </dev/null; }
+
+# api_error prints the API's own error document out of a failed octl run.
+#
+# Two shapes, one reader: octl prefixes an API refusal with the line "The server
+# returned an error" and pretty-prints the body under it, and reports a 404
+# inline as "...unexpected response status 404 Not Found: {...}". Everything
+# from the first brace onwards is the only thing the two have in common, so that
+# is what this takes. A failure that is octl's own — an unknown flag, a bad
+# value — carries no brace at all, which makes it print nothing and lets the
+# caller say "the client refused this itself" instead of parsing a warning as a
+# body.
+api_error() {
+  awk 'BEGIN { found = 0 }
+       { if (!found) { i = index($0, "{"); if (i > 0) { print substr($0, i); found = 1 } }
+         else print }' "$1"
+}
+
+echo "conformance: octl against $ENDPOINT"
+
+# The witness for point 3 of the header, and it is a control rather than a
+# comment: it fails if the raw form ever stops carrying the envelope, and it
+# fails if -o json ever stops reshaping — the day that happens this wrapper's
+# -o raw stops being load-bearing and somebody should be told, not left with a
+# guard nobody can see the point of any more.
+echo "- the suite reads raw bodies, and would notice if it stopped"
+raw_body="$(osc ReadNets)" || fail "ReadNets rejected: $raw_body"
+printf '%s' "$raw_body" | jq -e 'has("Nets") and has("ResponseContext")' >/dev/null \
+  || fail "-o raw did not hand back the API's own envelope: $raw_body"
+reshaped="$(octl --config "$WORK/config.json" --no-upgrade -o json iaas api ReadNets </dev/null)" \
+  || fail "ReadNets rejected under -o json: $reshaped"
+# A bare list, so it cannot be carrying the envelope: the type is the whole
+# assertion, and it fails in both directions. If octl ever stops reshaping, this
+# answer becomes an object, the line below fails, and somebody is told that the
+# wrapper's -o raw has stopped being what makes this suite honest — rather than
+# being left with a guard whose point nobody can see any more.
+printf '%s' "$reshaped" | jq -e 'type == "array"' >/dev/null \
+  || fail "-o json no longer reshapes the answer to a bare list: $reshaped"
+ok "raw carries Nets and ResponseContext; json flattens both away to a bare list"
 
 # Every client reads the inventory before it creates anything. The Scaleway pack
 # learned this the expensive way: decline the catalogue and the official CLI
@@ -191,7 +269,7 @@ printf '%s' "$net" | jq -e '.Net.DhcpOptionsSetId | startswith("dopt-")' >/dev/n
 dhcp="$(osc ReadDhcpOptions)" || fail "ReadDhcpOptions rejected: $dhcp"
 printf '%s' "$dhcp" | jq -e '.DhcpOptionsSets[0].Default == true' >/dev/null \
   || fail "no default DHCP options set: $dhcp"
-sgs="$(osc ReadSecurityGroups '--Filters.NetIds[]' "$net_id")" || fail "ReadSecurityGroups rejected: $sgs"
+sgs="$(osc ReadSecurityGroups --Filters.NetIds "$net_id")" || fail "ReadSecurityGroups rejected: $sgs"
 printf '%s' "$sgs" | jq -e '.SecurityGroups | length == 1 and .[0].SecurityGroupName == "default"' >/dev/null \
   || fail "the Net has no default security group: $sgs"
 # Measured conditionality: the pristine inbound rule has SecurityGroupsMembers
@@ -199,7 +277,7 @@ printf '%s' "$sgs" | jq -e '.SecurityGroups | length == 1 and .[0].SecurityGroup
 # empty arrays where the real cloud omits the key fails this.
 printf '%s' "$sgs" | jq -e '.SecurityGroups[0].InboundRules[0] | has("IpRanges") | not' >/dev/null \
   || fail "the pristine inbound rule carries an IpRanges key the real cloud omits: $sgs"
-rtbs="$(osc ReadRouteTables '--Filters.NetIds[]' "$net_id")" || fail "ReadRouteTables rejected: $rtbs"
+rtbs="$(osc ReadRouteTables --Filters.NetIds "$net_id")" || fail "ReadRouteTables rejected: $rtbs"
 printf '%s' "$rtbs" | jq -e --arg r 10.190.0.0/16 \
   '.RouteTables[0].Routes[0] | .GatewayId == "local" and .DestinationIpRange == $r' >/dev/null \
   || fail "the main route table does not carry the local route: $rtbs"
@@ -277,7 +355,7 @@ if osc DeletePublicIp --PublicIpId "$eip_id" >/dev/null 2>&1; then
   fail "an address held by a NAT service was released"
 fi
 prove_end "$neg"
-held="$(osc ReadPublicIps '--Filters.PublicIpIds[]' "$eip_id")" || fail "ReadPublicIps rejected: $held"
+held="$(osc ReadPublicIps --Filters.PublicIpIds "$eip_id")" || fail "ReadPublicIps rejected: $held"
 printf '%s' "$held" | jq -e --arg n "$nat_id" '.PublicIps[0].NatServiceId == $n' >/dev/null \
   || fail "the held address does not name its holder: $held"
 osc DeleteNatService --NatServiceId "$nat_id" >/dev/null || fail "DeleteNatService rejected"
@@ -292,7 +370,7 @@ ok "held refuses, released goes, in the order destroy needs"
 # dependency order this very span exists to prove. Read the link back from the
 # table rather than remembering an id from the create — the same reason every
 # destruction here is proved by a read.
-linked_link_id="$(osc ReadRouteTables '--Filters.RouteTableIds[]' "$linked_rtb_id" \
+linked_link_id="$(osc ReadRouteTables --Filters.RouteTableIds "$linked_rtb_id" \
   | jq -r '.RouteTables[0].LinkRouteTables[0].LinkRouteTableId // empty')"
 [ -n "$linked_link_id" ] || fail "the linked table names no link to unlink"
 osc UnlinkRouteTable --LinkRouteTableId "$linked_link_id" >/dev/null \
@@ -332,7 +410,7 @@ printf '%s' "$pcx" | jq -e --arg a "$net_a" --arg b "$net_b" \
    and .NetPeering.SourceNet.IpRange == "10.191.0.0/16"' >/dev/null \
   || fail "the peering does not carry its two ends: $pcx"
 
-read_back="$(osc ReadNetPeerings '--Filters.NetPeeringIds[]' "$pcx_id")" \
+read_back="$(osc ReadNetPeerings --Filters.NetPeeringIds "$pcx_id")" \
   || fail "ReadNetPeerings rejected the provider's own filter: $read_back"
 printf '%s' "$read_back" | jq -e '.NetPeerings | length == 1' >/dev/null \
   || fail "the peering did not read back: $read_back"
@@ -347,7 +425,7 @@ accepted="$(osc AcceptNetPeering --NetPeeringId "$pcx_id")" \
   || fail "AcceptNetPeering rejected a pending peering: $accepted"
 printf '%s' "$accepted" | jq -e '.NetPeering.State.Name == "active"' >/dev/null \
   || fail "an accepted peering is not active: $accepted"
-osc ReadNetPeerings '--Filters.NetPeeringIds[]' "$rev_id" \
+osc ReadNetPeerings --Filters.NetPeeringIds "$rev_id" \
   | jq -e '.NetPeerings[0].State.Name == "rejected"' >/dev/null \
   || fail "the reverse pending peering was not auto-rejected on accept"
 
@@ -362,7 +440,7 @@ third_id="$(printf '%s' "$third_doc" | jq -r '.NetPeering.NetPeeringId // empty'
 [ -n "$third_id" ] || fail "no NetPeeringId in the third create response: $third_doc"
 osc RejectNetPeering --NetPeeringId "$third_id" >/dev/null \
   || fail "RejectNetPeering rejected a pending peering"
-osc ReadNetPeerings '--Filters.NetPeeringIds[]' "$third_id" \
+osc ReadNetPeerings --Filters.NetPeeringIds "$third_id" \
   | jq -e '.NetPeerings[0].State.Name == "rejected"' >/dev/null \
   || fail "an explicitly rejected peering did not reach the rejected state"
 # And it stays refused: rejecting twice is not a second transition.
@@ -374,7 +452,7 @@ prove_end "$neg"
 
 osc DeleteNetPeering --NetPeeringId "$pcx_id" >/dev/null \
   || fail "DeleteNetPeering rejected an active peering"
-osc ReadNetPeerings '--Filters.NetPeeringIds[]' "$pcx_id" \
+osc ReadNetPeerings --Filters.NetPeeringIds "$pcx_id" \
   | jq -e '.NetPeerings[0].State.Name == "deleted"' >/dev/null \
   || fail "a deleted peering must stay readable in the deleted state"
 # The Nets go inside the span: a deleted peering is a state transition, not a
@@ -395,12 +473,13 @@ fi
 if osc DeleteNetPeering --NetPeeringId "$rev_id" >/dev/null 2>&1; then
   fail "a rejected peering was deleted"
 fi
-# The refusal speaks the API's dialect: 409, typed ResourceConflict. The
-# non-zero exit is captured, not piped: with pipefail, a pipeline that starts
-# with an expected failure reads as the failure it expects.
-refusal="$(osc AcceptNetPeering --NetPeeringId "$rev_id" 2>&1 || true)"
-printf '%s' "$refusal" | grep -q "ResourceConflict" \
-  || fail "the state refusal is not typed ResourceConflict: $refusal"
+# The refusal speaks the API's dialect: 409, typed ResourceConflict. Read
+# through api_error rather than grepped out of the raw stream: octl puts its own
+# "The server returned an error" line above the body, and a grep that matched
+# the two together would keep passing on a body that had stopped saying it.
+osc AcceptNetPeering --NetPeeringId "$rev_id" >/dev/null 2>"$WORK/state-refusal.err" || true
+api_error "$WORK/state-refusal.err" | jq -e '.Errors[0].Type == "ResourceConflict"' >/dev/null 2>&1 \
+  || fail "the state refusal is not typed ResourceConflict:"$'\n'"$(cat "$WORK/state-refusal.err")"
 prove_end "$neg"
 ok "accept and delete of a rejected peering refused, as ResourceConflict"
 
@@ -437,7 +516,7 @@ restored_id="$(printf '%s' "$restored" | jq -r '.Volume.VolumeId')"
 # a ReadVolumes in this window, no listed volume ever carries the key, and
 # deleting it from volumeView would stay green — the exact example issue #88
 # names as what a fix must catch.
-listed="$(osc ReadVolumes --Filters.VolumeIds[] "$restored_id")" || fail "ReadVolumes rejected: $listed"
+listed="$(osc ReadVolumes --Filters.VolumeIds "$restored_id")" || fail "ReadVolumes rejected: $listed"
 printf '%s' "$listed" | jq -e --arg s "$snap_id" '.Volumes[0].SnapshotId == $s' >/dev/null \
   || fail "the listed restored volume does not carry its provenance: $listed"
 osc DeleteSnapshot --SnapshotId "$snap_id" >/dev/null || fail "DeleteSnapshot rejected"
@@ -482,21 +561,21 @@ printf '%s' "$updated" | jq -e --arg i "$img_id" \
   || fail "UpdateImage did not apply the description it was given: $updated"
 # And it reads back, because an update that answers the new value while storing
 # the old one is the failure a single response cannot distinguish.
-reread="$(osc ReadImages --Filters.ImageIds.0 "$img_id")" || fail "ReadImages rejected: $reread"
+reread="$(osc ReadImages --Filters.ImageIds "$img_id")" || fail "ReadImages rejected: $reread"
 printf '%s' "$reread" | jq -e '.Images[0].Description == "renamed by conformance"' >/dev/null \
   || fail "the description did not survive the write: $reread"
 
 # The half that is refused, and must stay refused.
 #
-# Additions is an object carrying AccountIds, not a list of objects. The old
-# spelling — Additions.0.AccountId — was refused by oapi-cli itself before
-# anything was sent, so this assertion was green while the emulator's refusal
-# went unexercised: osc exited non-zero for a reason that said nothing about
-# the API. The negative span below is what exposed it, by demanding that the
-# refusal really cross the wire.
+# Additions is an object carrying AccountIds, not a list of objects. Under
+# oapi-cli the old spelling — Additions.0.AccountId — was refused by the client
+# itself before anything was sent, so the assertion was green while the
+# emulator's refusal went unexercised; the negative span is what exposed it, by
+# demanding that the refusal really cross the wire. octl spells the same field
+# --PermissionsToLaunch.Additions.AccountIds, and the span still holds the line.
 neg="$(prove_begin negative)"
 if osc UpdateImage --ImageId "$img_id" \
-     '--PermissionsToLaunch.Additions.AccountIds[]' 123456789012 >/dev/null 2>&1; then
+     --PermissionsToLaunch.Additions.AccountIds 123456789012 >/dev/null 2>&1; then
   fail "PermissionsToLaunch was accepted, granting to an account that cannot exist here"
 fi
 prove_end "$neg"
@@ -546,12 +625,17 @@ echo "- a filter the client sends is applied, not ignored"
 # DryRun false is a legitimate request, and it used to fail this project's own
 # gate: the flag is answered at the mount point, so no handler decodes it and it
 # counted as a field nobody read.
-plain="$(osc ReadVms --DryRun false)" || fail "ReadVms with DryRun false was rejected: $plain"
-absent="$(osc ReadVms --Filters.VmIds[] i-00000000)" || fail "a filtered ReadVms was rejected: $absent"
+#
+# `--DryRun=false`, with the equals sign, and not `--DryRun false`: cobra reads a
+# boolean flag's value only in the attached form, and octl serialises a flag only
+# when it was Changed. Verified with `octl --dry-run`, which prints the body it
+# would send: `--DryRun=false` gives {"DryRun": false} and no flag gives {}.
+plain="$(osc ReadVms --DryRun=false)" || fail "ReadVms with DryRun false was rejected: $plain"
+absent="$(osc ReadVms --Filters.VmIds i-00000000)" || fail "a filtered ReadVms was rejected: $absent"
 printf '%s' "$absent" | jq -e '.Vms | length == 0' >/dev/null \
   || fail "a filter on an id that does not exist returned machines: $absent"
 # And a filter this pack does not serve is refused rather than silently dropped.
-if osc ReadVms --Filters.Architectures[] x86_64 >/dev/null 2>&1; then
+if osc ReadVms --Filters.Architectures x86_64 >/dev/null 2>&1; then
   fail "an unemulated filter was accepted, which is indistinguishable from applying it"
 fi
 ok "filters apply, and an unserved one is refused"
@@ -618,7 +702,7 @@ printf '%s' "$vms" | jq -e --arg id "$vm_id" --arg t "$default_type" --arg i "$i
 ok "read back identical"
 
 echo "- stop, retype, start, reboot"
-stopped="$(osc StopVms '--VmIds[]' "$vm_id")" || fail "StopVms rejected: $stopped"
+stopped="$(osc StopVms --VmIds "$vm_id")" || fail "StopVms rejected: $stopped"
 printf '%s' "$stopped" | jq -e --arg id "$vm_id" \
   'any(.Vms[]; .VmId == $id and .PreviousState == "running" and .CurrentState == "stopped")' >/dev/null \
   || fail "the stop did not report the transition: $stopped"
@@ -627,13 +711,13 @@ printf '%s' "$stopped" | jq -e --arg id "$vm_id" \
 retyped="$(osc UpdateVm --VmId "$vm_id" --VmType tinav6.c2r2p2)" || fail "UpdateVm rejected: $retyped"
 printf '%s' "$retyped" | jq -e '.Vm.VmType == "tinav6.c2r2p2"' >/dev/null \
   || fail "the type did not change: $retyped"
-started="$(osc StartVms '--VmIds[]' "$vm_id")" || fail "StartVms rejected: $started"
+started="$(osc StartVms --VmIds "$vm_id")" || fail "StartVms rejected: $started"
 printf '%s' "$started" | jq -e --arg id "$vm_id" \
   'any(.Vms[]; .VmId == $id and .PreviousState == "stopped" and .CurrentState == "running")' >/dev/null \
   || fail "the start did not report the transition: $started"
 # RebootVmsResponse carries no Vms field: answering one would be a shape no
 # client asked for.
-rebooted="$(osc RebootVms '--VmIds[]' "$vm_id")" || fail "RebootVms rejected: $rebooted"
+rebooted="$(osc RebootVms --VmIds "$vm_id")" || fail "RebootVms rejected: $rebooted"
 printf '%s' "$rebooted" | jq -e 'has("Vms") | not' >/dev/null \
   || fail "RebootVms answered a Vms field the API does not define: $rebooted"
 ok "the lifecycle reports every transition"
@@ -657,18 +741,18 @@ lbu_net="$(osc CreateNet --IpRange 10.193.0.0/16)" || fail "CreateNet rejected: 
 lbu_net_id="$(printf '%s' "$lbu_net" | jq -r '.Net.NetId')"
 lbu_sub="$(osc CreateSubnet --NetId "$lbu_net_id" --IpRange 10.193.1.0/24)" || fail "CreateSubnet rejected: $lbu_sub"
 lbu_sub_id="$(printf '%s' "$lbu_sub" | jq -r '.Subnet.SubnetId')"
-lbu="$(osc CreateLoadBalancer --LoadBalancerName conformance-oapi-lb \
+lbu="$(osc CreateLoadBalancer --LoadBalancerName conformance-octl-lb \
   --Listeners.0.BackendPort 80 --Listeners.0.LoadBalancerPort 80 \
   --Listeners.0.LoadBalancerProtocol TCP \
-  '--Subnets[]' "$lbu_sub_id")" || fail "CreateLoadBalancer rejected: $lbu"
-printf '%s' "$lbu" | jq -e '.LoadBalancer.DnsName | test("^conformance-oapi-lb-[0-9]+\\..*\\.lbu\\.outscale\\.com$")' >/dev/null \
+  --Subnets "$lbu_sub_id")" || fail "CreateLoadBalancer rejected: $lbu"
+printf '%s' "$lbu" | jq -e '.LoadBalancer.DnsName | test("^conformance-octl-lb-[0-9]+\\..*\\.lbu\\.outscale\\.com$")' >/dev/null \
   || fail "the DnsName does not follow the measured format: $lbu"
-registered="$(osc RegisterVmsInLoadBalancer --LoadBalancerName conformance-oapi-lb \
-  '--BackendVmIds[]' "$vm_id")" || fail "RegisterVmsInLoadBalancer rejected: $registered"
-osc ReadLoadBalancers '--Filters.LoadBalancerNames[]' conformance-oapi-lb \
+registered="$(osc RegisterVmsInLoadBalancer --LoadBalancerName conformance-octl-lb \
+  --BackendVmIds "$vm_id")" || fail "RegisterVmsInLoadBalancer rejected: $registered"
+osc ReadLoadBalancers --Filters.LoadBalancerNames conformance-octl-lb \
   | jq -e --arg id "$vm_id" '.LoadBalancers[0].BackendVmIds == [$id]' >/dev/null \
   || fail "the registered backend does not read back"
-osc DeleteLoadBalancer --LoadBalancerName conformance-oapi-lb >/dev/null \
+osc DeleteLoadBalancer --LoadBalancerName conformance-octl-lb >/dev/null \
   || fail "DeleteLoadBalancer rejected"
 osc DeleteSubnet --SubnetId "$lbu_sub_id" >/dev/null || fail "DeleteSubnet rejected after the balancer went"
 osc DeleteNet --NetId "$lbu_net_id" >/dev/null || fail "DeleteNet rejected after the balancer went"
@@ -705,14 +789,14 @@ printf '%s' "$admin" | jq -e 'has("AdminPassword") and has("ResponseContext")' >
 # A tag put on and taken off again. CreateTags was driven by the Terraform
 # fixture from the first apply; DeleteTags needed a second apply that drops one,
 # which no fixture did, so the emulator's removal path had never run.
-osc CreateTags --ResourceIds "[\"$vm_id\"]" --Tags '[{"Key":"conformance","Value":"one"}]' >/dev/null \
+osc CreateTags --ResourceIds "$vm_id" --Tags.0.Key conformance --Tags.0.Value one >/dev/null \
   || fail "CreateTags rejected"
-osc ReadTags '--Filters.ResourceIds[]' "$vm_id" \
+osc ReadTags --Filters.ResourceIds "$vm_id" \
   | jq -e 'any(.Tags[]; .Key == "conformance" and .Value == "one")' >/dev/null \
   || fail "the tag was accepted and is not readable"
-osc DeleteTags --ResourceIds "[\"$vm_id\"]" --Tags '[{"Key":"conformance","Value":"one"}]' >/dev/null \
+osc DeleteTags --ResourceIds "$vm_id" --Tags.0.Key conformance --Tags.0.Value one >/dev/null \
   || fail "DeleteTags rejected"
-osc ReadTags '--Filters.ResourceIds[]' "$vm_id" \
+osc ReadTags --Filters.ResourceIds "$vm_id" \
   | jq -e 'any(.Tags[]; .Key == "conformance") | not' >/dev/null \
   || fail "the tag survived DeleteTags"
 
@@ -732,14 +816,14 @@ nic_sub_id="$(printf '%s' "$nic_sub" | jq -r '.Subnet.SubnetId // empty')"
 nic="$(osc CreateNic --SubnetId "$nic_sub_id")" || fail "CreateNic rejected: $nic"
 nic_id="$(printf '%s' "$nic" | jq -r '.Nic.NicId // empty')"
 [ -n "$nic_id" ] || fail "no NicId in the create response: $nic"
-osc LinkPrivateIps --NicId "$nic_id" --PrivateIps '["10.193.1.42"]' >/dev/null \
+osc LinkPrivateIps --NicId "$nic_id" --PrivateIps 10.193.1.42 >/dev/null \
   || fail "LinkPrivateIps rejected"
-osc ReadNics '--Filters.NicIds[]' "$nic_id" \
+osc ReadNics --Filters.NicIds "$nic_id" \
   | jq -e 'any(.Nics[0].PrivateIps[]; .PrivateIp == "10.193.1.42")' >/dev/null \
   || fail "the secondary address was accepted and is not carried by the NIC"
-osc UnlinkPrivateIps --NicId "$nic_id" --PrivateIps '["10.193.1.42"]' >/dev/null \
+osc UnlinkPrivateIps --NicId "$nic_id" --PrivateIps 10.193.1.42 >/dev/null \
   || fail "UnlinkPrivateIps rejected"
-osc ReadNics '--Filters.NicIds[]' "$nic_id" \
+osc ReadNics --Filters.NicIds "$nic_id" \
   | jq -e 'any(.Nics[0].PrivateIps[]; .PrivateIp == "10.193.1.42") | not' >/dev/null \
   || fail "the secondary address survived its unlink"
 osc DeleteNic --NicId "$nic_id" >/dev/null || fail "DeleteNic rejected"
@@ -774,23 +858,24 @@ peer_sg="$(osc CreateSecurityGroup --NetId "$in_net_id" --SecurityGroupName conf
   --Description 'the group a rule points at')" || fail "CreateSecurityGroup rejected: $peer_sg"
 peer_sg_id="$(printf '%s' "$peer_sg" | jq -r '.SecurityGroup.SecurityGroupId // empty')"
 ruled="$(osc CreateSecurityGroupRule --SecurityGroupId "$in_sg_id" --Flow Inbound \
-  --Rules "[{\"FromPortRange\":22,\"ToPortRange\":22,\"IpProtocol\":\"tcp\",\"SecurityGroupsMembers\":[{\"SecurityGroupId\":\"$peer_sg_id\"}]}]")" \
+  --Rules.0.FromPortRange 22 --Rules.0.ToPortRange 22 --Rules.0.IpProtocol tcp \
+  --Rules.0.SecurityGroupsMembers.0.SecurityGroupId "$peer_sg_id")" \
   || fail "a rule sourced from another group was rejected: $ruled"
 printf '%s' "$ruled" | jq -e --arg id "$peer_sg_id" \
   'any(.SecurityGroup.InboundRules[]; any(.SecurityGroupsMembers[]?; .SecurityGroupId == $id))' \
   >/dev/null || fail "the rule came back without the group it points at: $ruled"
 in_vm="$(osc CreateVms --ImageId "$image_id" --VmType "$default_type" --SubnetId "$in_sub_id" \
-  '--SecurityGroupIds[]' "$in_sg_id")" || fail "CreateVms in a Subnet rejected: $in_vm"
+  --SecurityGroupIds "$in_sg_id")" || fail "CreateVms in a Subnet rejected: $in_vm"
 in_vm_id="$(printf '%s' "$in_vm" | jq -r '.Vms[0].VmId // empty')"
 [ -n "$in_vm_id" ] || fail "no VmId for the in-Net machine: $in_vm"
-osc StopVms '--VmIds[]' "$in_vm_id" >/dev/null || fail "StopVms rejected for the in-Net machine"
+osc StopVms --VmIds "$in_vm_id" >/dev/null || fail "StopVms rejected for the in-Net machine"
 in_updated="$(osc UpdateVm --VmId "$in_vm_id" --VmType tinav6.c2r2p2)" \
   || fail "UpdateVm rejected for the in-Net machine: $in_updated"
 printf '%s' "$in_updated" | jq -e --arg n "$in_net_id" --arg s "$in_sub_id" \
   '.Vm | .NetId == $n and .SubnetId == $s and (.PrivateIp | length > 0)
         and (.Nics | length >= 1) and (.SecurityGroups | length >= 1)' >/dev/null \
   || fail "an updated machine in a Net answers without its network keys: $in_updated"
-osc DeleteVms '--VmIds[]' "$in_vm_id" >/dev/null || fail "DeleteVms rejected for the in-Net machine"
+osc DeleteVms --VmIds "$in_vm_id" >/dev/null || fail "DeleteVms rejected for the in-Net machine"
 osc DeleteSecurityGroup --SecurityGroupId "$in_sg_id" >/dev/null || fail "DeleteSecurityGroup rejected"
 osc DeleteSecurityGroup --SecurityGroupId "$peer_sg_id" >/dev/null || fail "DeleteSecurityGroup rejected"
 osc DeleteSubnet --SubnetId "$in_sub_id" >/dev/null || fail "DeleteSubnet rejected"
@@ -798,7 +883,7 @@ osc DeleteNet --NetId "$in_net_id" >/dev/null || fail "DeleteNet rejected once e
 ok "a machine in a Net keeps its network keys through an update, and a rule names a group"
 
 echo "- delete"
-deleted="$(osc DeleteVms '--VmIds[]' "$vm_id")" || fail "DeleteVms rejected: $deleted"
+deleted="$(osc DeleteVms --VmIds "$vm_id")" || fail "DeleteVms rejected: $deleted"
 printf '%s' "$deleted" | jq -e --arg id "$vm_id" \
   'any(.Vms[]; .VmId == $id and .CurrentState == "terminated")' >/dev/null \
   || fail "delete did not report the transition: $deleted"
@@ -820,12 +905,12 @@ ok "deleted, and gone"
 # wrong place entirely.
 echo "- a rejected request is a readable API error"
 neg="$(prove_begin negative)"
-if bad="$(osc CreateVms --VmType tinav4.c1r1p2 2>&1)"; then
-  fail "creating without an ImageId was accepted: $bad"
+if osc CreateVms --VmType tinav4.c1r1p2 >/dev/null 2>"$WORK/bad.err"; then
+  fail "creating without an ImageId was accepted"
 fi
 prove_end "$neg"
-printf '%s' "$bad" | jq -e '.Errors[0] | has("Code") and has("Type") and has("Details")' >/dev/null \
-  || fail "the error is not in the SDK's ErrorResponse shape: $bad"
+api_error "$WORK/bad.err" | jq -e '.Errors[0] | has("Code") and has("Type") and has("Details")' >/dev/null 2>&1 \
+  || fail "the error is not in the SDK's ErrorResponse shape:"$'\n'"$(cat "$WORK/bad.err")"
 ok "Errors carries Code, Type and Details"
 
 # With most of the surface still unserved, this is the likeliest answer of all.
@@ -853,11 +938,14 @@ done
 [ -n "$unserved_action" ] \
   || fail "every candidate is served now: add a still-unserved action to the list above"
 
-if unserved="$(osc "$unserved_action" 2>&1)"; then
-  fail "$unserved_action is not served but answered successfully: $unserved"
+if osc "$unserved_action" >/dev/null 2>"$WORK/unserved.err"; then
+  fail "$unserved_action is not served but answered successfully"
 fi
-printf '%s' "$unserved" | jq -e '.Errors[0].Type == "OperationNotEmulated"' >/dev/null \
-  || fail "an unserved operation did not answer a decodable error: $unserved"
+# This is the 404 shape of api_error's two: octl reports it inline rather than
+# under its "The server returned an error" banner, and a reader that only knew
+# the banner would report a decodable error as an unreadable one.
+api_error "$WORK/unserved.err" | jq -e '.Errors[0].Type == "OperationNotEmulated"' >/dev/null 2>&1 \
+  || fail "an unserved operation did not answer a decodable error:"$'\n'"$(cat "$WORK/unserved.err")"
 ok "decodable, and says what it is"
 
 echo "- clean up"
@@ -911,53 +999,69 @@ ok "nothing left behind"
 # refuse_call drives one call that must be refused, and fails the suite when the
 # emulator accepts it.
 #
-# stdout and stderr are captured SEPARATELY, and that is the fix for a harness
-# that lied here: oapi-cli retries a 409 three times and prints "WARN: attempt 0
-# failed" to stderr, so a reader folding the two together parses warnings as the
-# body and reports a correct refusal as a missing one. The first version of this
-# block did exactly that.
-#
 # Three outcomes, never two: refused in the Outscale envelope with the code
 # asked for, accepted, or unreadable. The middle one is the defect this guards;
-# the third is the harness breaking, reported as itself.
+# the third is the harness breaking, reported as itself — and here it also
+# catches the case that matters most, a refusal octl made on its own before
+# sending anything, whose stderr carries no JSON document at all.
 refuse_call() { # expected-code operation args...
   local want="$1" op="$2" out rc=0; shift 2
   out="$(osc "$op" "$@" 2>"$WORK/refusal.err")" || rc=$?
   if [ "$rc" -eq 0 ]; then
     fail "$op accepted what it must refuse: $out"
   fi
-  printf '%s' "$out" | jq -e --arg c "$want" '.Errors[0].Code == $c' >/dev/null 2>&1 \
-    || fail "$op did not refuse with code $want: $out"$'\n'"client stderr: $(cat "$WORK/refusal.err")"
+  api_error "$WORK/refusal.err" | jq -e --arg c "$want" '.Errors[0].Code == $c' >/dev/null 2>&1 \
+    || fail "$op did not refuse with code $want"$'\n'"client stderr: $(cat "$WORK/refusal.err")"
 }
 
 # Each line sends ONE filter that Outscale's own API description declares on
 # that call and this pack does not serve, so the request is valid to the client,
 # valid to the API, and refused by the emulator on its own terms — the filter
 # guard of filters.go, which answers 400 naming the field rather than returning
-# the whole inventory. `--Filters.<x>[]` is checked against oapi-cli's embedded
-# schema before it goes out, so a name this client accepts is a name the API
-# declares.
+# the whole inventory. `--Filters.<x>` is a generated flag: octl builds one per
+# field of the SDK's own filter struct, so a name this client accepts is a name
+# the API declares.
 #
 # It is a table rather than sixteen blocks because the assertion is one
 # assertion, and sixteen copies of it is sixteen places for one of them to rot.
+#
+# Two of the sixteen travel as a payload rather than a flag, and that is an octl
+# defect rather than a choice. A date filter is a SLICE of iso8601.Time, but
+# octl's flag builder registers any field whose element is a string-like with a
+# FlagValue as a scalar Var (pkg/builder/build.go, the reflect.String case never
+# looks at f.Slice), while its setter asks pflag for a string slice. Every value
+# is therefore refused by the client itself:
+#
+#   octl iaas api ReadVolumes --Filters.CreationDates 2026-01-01T00:00:00.000Z
+#   -> invalid Filters.CreationDates value: trying to get stringSlice value of
+#      flag of type osctime
+#
+# That was caught by refuse_call's third outcome rather than by a reader, which
+# is what the third outcome is for: the client exited non-zero, and a helper
+# with only "refused" and "accepted" would have marked it proven.
+#
+# `--payload` is still octl composing and signing `iaas api <Call>`, and a
+# payload it fails to decode cannot pass silently here: the request would go out
+# without the filter, the emulator would answer 200 with the whole inventory,
+# and refuse_call fails on "accepted what it must refuse".
 echo "- every read refuses the filter it does not emulate"
 neg="$(prove_begin negative)"
-refuse_call 4001 ReadVms               '--Filters.Architectures[]' x86_64
-refuse_call 4001 ReadNets              '--Filters.TagKeys[]' owner
-refuse_call 4001 ReadSubnets           '--Filters.TagKeys[]' owner
-refuse_call 4001 ReadKeypairs          '--Filters.KeypairIds[]' key-feintnone
-refuse_call 4001 ReadSecurityGroups    '--Filters.InboundRuleAccountIds[]' 000000000001
-refuse_call 4001 ReadRouteTables       '--Filters.LinkRouteTableLinkRouteTableIds[]' rtbassoc-feintnone
-refuse_call 4001 ReadNics              '--Filters.Descriptions[]' none
-refuse_call 4001 ReadVolumes           '--Filters.CreationDates[]' 2026-01-01
-refuse_call 4001 ReadSnapshots         '--Filters.AccountAliases[]' none
-refuse_call 4001 ReadPublicIps         '--Filters.NicAccountIds[]' 000000000001
-refuse_call 4001 ReadNatServices       '--Filters.ClientTokens[]' none
-refuse_call 4001 ReadInternetServices  '--Filters.LinkStates[]' available
-refuse_call 4001 ReadDhcpOptions       '--Filters.DomainNameServers[]' 192.0.2.53
-refuse_call 4001 ReadNetPeerings       '--Filters.ExpirationDates[]' 2026-01-01
-refuse_call 4001 ReadImages            '--Filters.AccountAliases[]' none
-refuse_call 4001 ReadVmsState          '--Filters.MaintenanceEventCodes[]' none
+refuse_call 4001 ReadVms               --Filters.Architectures x86_64
+refuse_call 4001 ReadNets              --Filters.TagKeys owner
+refuse_call 4001 ReadSubnets           --Filters.TagKeys owner
+refuse_call 4001 ReadKeypairs          --Filters.KeypairIds key-feintnone
+refuse_call 4001 ReadSecurityGroups    --Filters.InboundRuleAccountIds 000000000001
+refuse_call 4001 ReadRouteTables       --Filters.LinkRouteTableLinkRouteTableIds rtbassoc-feintnone
+refuse_call 4001 ReadNics              --Filters.Descriptions none
+refuse_call 4001 ReadVolumes           --payload '{"Filters":{"CreationDates":["2026-01-01T00:00:00.000Z"]}}'
+refuse_call 4001 ReadSnapshots         --Filters.AccountAliases none
+refuse_call 4001 ReadPublicIps         --Filters.NicAccountIds 000000000001
+refuse_call 4001 ReadNatServices       --Filters.ClientTokens none
+refuse_call 4001 ReadInternetServices  --Filters.LinkStates available
+refuse_call 4001 ReadDhcpOptions       --Filters.DomainNameServers 192.0.2.53
+refuse_call 4001 ReadNetPeerings       --payload '{"Filters":{"ExpirationDates":["2026-01-01T00:00:00.000Z"]}}'
+refuse_call 4001 ReadImages            --Filters.AccountAliases none
+refuse_call 4001 ReadVmsState          --Filters.MaintenanceEventCodes none
 prove_end "$neg"
 ok "sixteen reads named the filter they do not apply, instead of answering the whole inventory"
 
@@ -972,9 +1076,9 @@ ok "sixteen reads named the filter they do not apply, instead of answering the w
 echo "- attaching a backend to a balancer that does not exist is refused"
 neg="$(prove_begin negative)"
 refuse_call 5063 LinkLoadBalancerBackendMachines \
-  --LoadBalancerName feint-no-such-balancer '--BackendVmIds[]' i-feintnone
+  --LoadBalancerName feint-no-such-balancer --BackendVmIds i-feintnone
 refuse_call 5063 UnlinkLoadBalancerBackendMachines \
-  --LoadBalancerName feint-no-such-balancer '--BackendVmIds[]' i-feintnone
+  --LoadBalancerName feint-no-such-balancer --BackendVmIds i-feintnone
 prove_end "$neg"
 ok "both spellings answered 5063, which osc.IsNotFound reports true on"
 
@@ -1006,11 +1110,20 @@ ok "five reads bounded their page size instead of ignoring it"
 # defect filters.go removed from every other read of this pack, still standing
 # on the one call every client makes before it creates anything.
 echo "- the type catalogue filters, and refuses what it cannot filter on"
-selected="$(osc ReadVmTypes '--Filters.VmTypeNames[]' "$default_type" | jq -r '.VmTypes | length')" \
+selected="$(osc ReadVmTypes --Filters.VmTypeNames "$default_type" | jq -r '.VmTypes | length')" \
   || fail "ReadVmTypes refused the filter it serves"
 [ "$selected" = "1" ] || fail "VmTypeNames selected $selected rows; the filter is not applied"
 neg="$(prove_begin negative)"
-refuse_call 4001 ReadVmTypes '--Filters.MemorySizes[]' 8
+# MemorySizes travels as a payload rather than a flag, and that is octl's gap
+# rather than a choice: its flag builder has a case for bool, int, int32, int64,
+# string and map and none for float (pkg/builder/build.go), and FiltersVmType
+# spells MemorySizes as an array of numbers — so no --Filters.MemorySizes flag
+# is generated at all. `--payload` is still octl composing and signing the
+# request through `iaas api ReadVmTypes`, not a hand-rolled curl, and the
+# refusal below is what proves the field arrived: the emulator names MemorySizes
+# back. A silently dropped payload would answer 200 with the whole table, which
+# is exactly the defect this line exists to catch.
+refuse_call 4001 ReadVmTypes --payload '{"Filters":{"MemorySizes":[8]}}'
 prove_end "$neg"
 ok "one type selected by name, and the arithmetic filters refused by name"
 
@@ -1022,36 +1135,55 @@ ok "one type selected by name, and the arithmetic filters refused by name"
 #
 # The inventory is read before and after and compared BY IDENTIFIER, never by
 # count: this suite shares its emulator with the ones that run after it, and an
-# address left behind is an address the Terraform fixture cannot have. The loop
-# is bounded well above the block so a defect in the allocator ends the test
-# rather than the run.
+# address left behind is an address the Terraform fixture cannot have.
 echo "- the public block runs out, and says so"
-before_ips="$(osc ReadPublicIps | jq -r '.PublicIps[].PublicIpId' | sort)"
-mine=""
-exhausted=""
-for _ in $(seq 1 300); do
-  rc=0
-  out="$(osc CreatePublicIp 2>/dev/null)" || rc=$?
-  if [ "$rc" -ne 0 ]; then exhausted="yes"; break; fi
-  id="$(printf '%s' "$out" | jq -r '.PublicIp.PublicIpId // empty')"
-  [ -n "$id" ] || fail "CreatePublicIp answered no PublicIpId: $out"
-  mine="$mine $id"
-done
-[ -n "$exhausted" ] || fail "300 addresses came out of a /24; the block is not bounded at all"
-# The span opens only now: the fill above is setup, and a span bracketing three
-# hundred successful creates would be claiming a refusal it had not asked for
-# yet. oapi-cli retries a 409 three times before giving up, so this one call is
-# four requests on the wire and several seconds long.
+osc ReadPublicIps | jq -r '.PublicIps[].PublicIpId' | sort >"$WORK/ips.before"
+
+# The fill is ONE process, and that is what makes this block affordable under
+# octl: ~700 ms of startup on every invocation against ~30 ms for the request
+# (#460), so two hundred and fifty separate processes would cost three minutes
+# on their own. `--waitfor` keeps calling the same operation inside one process
+# until its jq expression holds or the API refuses; `false` never holds, so the
+# loop ends on the refusal and nothing else. Measured 2026-08-25: 255 calls in
+# 51 s, against 186 s as separate processes.
+#
+# The timeout is a bound on a defect, the way the old `seq 1 300` was: at the
+# measured ~200 ms per iteration two minutes is roughly six hundred addresses,
+# far past a /24, so an allocator that never refuses ends this block instead of
+# the run.
+fill_rc=0
+osc CreatePublicIp --waitfor 'false' --interval 10ms --waitfor-timeout 2m \
+  >/dev/null 2>"$WORK/fill.err" || fill_rc=$?
+[ "$fill_rc" -ne 0 ] \
+  || fail "the fill never ended: a /24 handed out addresses without limit"
+# Three outcomes, never two: the loop stopped because the block ran out, it
+# stopped for another reason, or it timed out. Only the first means anything,
+# and a timeout reads exactly like the block being bounded if nobody asks.
+api_error "$WORK/fill.err" | jq -e '.Errors[0].Code == "9029"' >/dev/null 2>&1 \
+  || fail "the fill stopped on something other than an exhausted block:"$'\n'"$(cat "$WORK/fill.err")"
+
+osc ReadPublicIps | jq -r '.PublicIps[].PublicIpId' | sort >"$WORK/ips.filled"
+comm -13 "$WORK/ips.before" "$WORK/ips.filled" >"$WORK/ips.mine"
+[ -s "$WORK/ips.mine" ] || fail "the fill exhausted the block without taking a single address"
+
+# The span opens only now: the fill above is setup, and a span bracketing two
+# hundred and fifty successful creates would be claiming a refusal it had not
+# asked for yet.
 neg="$(prove_begin negative)"
 refuse_call 9029 CreatePublicIp
 prove_end "$neg"
 
-for id in $mine; do
-  osc DeletePublicIp --PublicIpId "$id" >/dev/null || fail "DeletePublicIp rejected $id, and the address is now stranded"
-done
-after_ips="$(osc ReadPublicIps | jq -r '.PublicIps[].PublicIpId' | sort)"
-[ "$before_ips" = "$after_ips" ] \
-  || fail "the address inventory did not return to what it was, by identifier"$'\n'"before: $before_ips"$'\n'"after: $after_ips"
+# The `osc` wrapper's </dev/null is what makes this loop safe: octl reads all of
+# stdin as its request body whenever stdin is not a terminal, so a client call
+# inside a `while read` would eat the list it is iterating.
+while read -r id; do
+  [ -n "$id" ] || continue
+  osc DeletePublicIp --PublicIpId "$id" >/dev/null \
+    || fail "DeletePublicIp rejected $id, and the address is now stranded"
+done <"$WORK/ips.mine"
+osc ReadPublicIps | jq -r '.PublicIps[].PublicIpId' | sort >"$WORK/ips.after"
+diff "$WORK/ips.before" "$WORK/ips.after" >"$WORK/ips.diff" \
+  || fail "the address inventory did not return to what it was, by identifier"$'\n'"$(cat "$WORK/ips.diff")"
 ok "the block refused past its last address, and every address taken was given back"
 
 # A tag put on and taken off a resource that then dies, which is what DeleteTags
@@ -1074,14 +1206,14 @@ span="$(prove_begin behaviour)"
 tag_net="$(osc CreateNet --IpRange 10.195.0.0/16)" || fail "CreateNet rejected: $tag_net"
 tag_net_id="$(printf '%s' "$tag_net" | jq -r '.Net.NetId // empty')"
 [ -n "$tag_net_id" ] || fail "no NetId for the tagged Net: $tag_net"
-osc CreateTags --ResourceIds "[\"$tag_net_id\"]" --Tags '[{"Key":"conformance-net","Value":"one"}]' >/dev/null \
+osc CreateTags --ResourceIds "$tag_net_id" --Tags.0.Key conformance-net --Tags.0.Value one >/dev/null \
   || fail "CreateTags rejected on a Net"
-osc ReadTags '--Filters.ResourceIds[]' "$tag_net_id" \
+osc ReadTags --Filters.ResourceIds "$tag_net_id" \
   | jq -e 'any(.Tags[]; .Key == "conformance-net" and .ResourceType == "vpc")' >/dev/null \
   || fail "the Net tag is not readable, or does not carry the SDK's own ResourceType"
-osc DeleteTags --ResourceIds "[\"$tag_net_id\"]" --Tags '[{"Key":"conformance-net","Value":"one"}]' >/dev/null \
+osc DeleteTags --ResourceIds "$tag_net_id" --Tags.0.Key conformance-net --Tags.0.Value one >/dev/null \
   || fail "DeleteTags rejected on a Net"
-osc ReadTags '--Filters.ResourceIds[]' "$tag_net_id" \
+osc ReadTags --Filters.ResourceIds "$tag_net_id" \
   | jq -e 'any(.Tags[]; .Key == "conformance-net") | not' >/dev/null \
   || fail "the Net tag survived DeleteTags"
 osc DeleteNet --NetId "$tag_net_id" >/dev/null || fail "DeleteNet rejected once its tag was gone"
@@ -1098,4 +1230,4 @@ if [ -n "$contracts" ] && printf '%s' "$contracts" | jq -e '.contracts | index("
   ok "every response matched Outscale's own API description"
 fi
 
-echo "conformance: oapi-cli passed"
+echo "conformance: octl passed"

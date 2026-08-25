@@ -191,10 +191,10 @@ jobs:
         # (#88) needs to mean anything. Its verdict is that *no answer of
         # this run* carried a declared field, and every other leg here is a
         # partial run by construction — the terraform leg drives no
-        # oapi-cli, so ReadVms carries no UserData and the gate would blame
+        # octl, so ReadVms carries no UserData and the gate would blame
         # the emulator for the shape of the leg. Only this one sets
         # FEINT_FIELD_GATE.
-        client: [scw-cli, terraform, opentofu, oapi-cli, exo-cli, probe, fields]
+        client: [scw-cli, terraform, opentofu, octl, exo-cli, probe, fields]
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
@@ -262,48 +262,34 @@ jobs:
         if: matrix.client == 'scw-cli' || matrix.client == 'fields'
         run: tools/conformance/scaleway/scw-cli.sh http://127.0.0.1:4599
 
-      # The AppImage is the only binary Outscale publishes for it. It needs FUSE
-      # to self-mount, which the runner does not have, so it is extracted and run
-      # from the extraction instead — the documented fallback, and it avoids
-      # installing a kernel module to run a CLI.
-      # Outscale publishes no checksum file with its AppImage, so the digest is
-      # pinned here instead. That is weaker than an upstream sum — it proves the
-      # asset has not changed since somebody looked at it, not that upstream
-      # signed it — and it is the strongest thing available. Bumping OAPI_VERSION
-      # means recomputing OAPI_SHA256, which is the point: the bump becomes a
-      # decision rather than a version string.
+      # octl replaced oapi-cli here on 2026-08-25 (#460), and the reason is not
+      # taste: `outscale/oapi-cli` and `outscale/osc-cli` are both archived on
+      # the GitHub API, with "Deprecated Outscale CLI" in their own description,
+      # so the suite was proving the emulator against something Outscale no
+      # longer ships. It also buys back the AppImage dance this step used to
+      # need — FUSE, an extraction, an APPDIR wrapper — and a stronger check:
+      # octl publishes a checksums file with its release, so the sum comes from
+      # upstream instead of being a digest pinned here by hand.
       - name: Install the Outscale CLI
-        if: matrix.client == 'oapi-cli' || matrix.client == 'fields'
+        if: matrix.client == 'octl' || matrix.client == 'fields'
         env:
-          OAPI_VERSION: 'v0.15.0'
-          OAPI_SHA256: '798b9af7db9da9539303732ba55be71ff0bec58aa9ef51751de41b2eeee8138a'
+          OCTL_VERSION: 'v0.0.31'
         run: |
           set -euo pipefail
           workdir="$(mktemp -d)"
-          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/oapi-cli.AppImage" \
-            "https://github.com/outscale/oapi-cli/releases/download/${OAPI_VERSION}/oapi-cli-x86_64.AppImage"
-          echo "${OAPI_SHA256}  ${workdir}/oapi-cli.AppImage" | sha256sum -c -
-          chmod +x "${workdir}/oapi-cli.AppImage"
-          # Extracted rather than self-mounted: the AppImage needs FUSE, which
-          # the runner does not have, and installing a kernel module to run a CLI
-          # is a worse trade than the documented fallback.
-          (cd "${workdir}" && ./oapi-cli.AppImage --appimage-extract >/dev/null)
-          # A wrapper, not a symlink to AppRun. AppRun resolves its own files
-          # through $APPDIR, and a symlink leaves it unset: the CLI then looked
-          # for /import-ssl.sh at the filesystem root and exited 127. Measured on
-          # the first CI run of this suite — locally the extraction is invoked
-          # from its own directory, which hid it.
-          sudo tee /usr/local/bin/oapi-cli >/dev/null <<WRAPPER
-          #!/usr/bin/env bash
-          export APPDIR="${workdir}/squashfs-root"
-          exec "\${APPDIR}/AppRun" "\$@"
-          WRAPPER
-          sudo chmod 0755 /usr/local/bin/oapi-cli
-          oapi-cli --version
+          version="${OCTL_VERSION#v}"
+          base="https://github.com/outscale/octl/releases/download/${OCTL_VERSION}"
+          asset="octl_Linux_x86_64"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/${asset}" "${base}/${asset}"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/sums" \
+            "${base}/octl_${version}_checksums.txt"
+          (cd "${workdir}" && grep " ${asset}$" sums | sha256sum -c -)
+          sudo install -m 0755 "${workdir}/${asset}" /usr/local/bin/octl
+          octl --version
 
       - name: Run the Outscale CLI conformance suite
-        if: matrix.client == 'oapi-cli' || matrix.client == 'fields'
-        run: tools/conformance/outscale/oapi-cli.sh http://127.0.0.1:4599
+        if: matrix.client == 'octl' || matrix.client == 'fields'
+        run: tools/conformance/outscale/octl.sh http://127.0.0.1:4599
 
       # The Exoscale CLI cannot be redirected by a flag or an environment
       # variable — only by the `endpoint` key of its own configuration file, and
@@ -417,7 +403,7 @@ jobs:
 
       # Fault injection (#26, #356): the four real clients meeting a refusal.
       #
-      # On `fields` because that is the only leg with scw, oapi-cli, exo and
+      # On `fields` because that is the only leg with scw, octl, exo and
       # Terraform installed at once, and this suite needs all four — a 403 has
       # to reach each client in its own dialect or the whole seam is unproven.
       # Its traffic goes to an emulator it starts itself, on its own port, so

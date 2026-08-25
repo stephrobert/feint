@@ -10,7 +10,7 @@
 # the signal cannot say more than the traffic did.
 #
 # Why not a header on the requests themselves: none of the official clients
-# (scw, terraform, oapi-cli, exo) lets a suite attach one, and this project only
+# (scw, terraform, octl, exo) lets a suite attach one, and this project only
 # measures with real clients.
 #
 # Requires $ENDPOINT (the suites all set it before sourcing anything), curl and
@@ -69,7 +69,7 @@ prove_end() {
 # reads the emulator's own verdict rather than the client's output (#428).
 #
 # It is here rather than in each suite for the reason the shared layer exists at
-# all: three clients, one rule. `scw`, `exo` and `oapi-cli` all answer a refusal
+# all: three clients, one rule. `scw`, `exo` and `octl` all answer a refusal
 # they made THEMSELVES and a refusal the API made with the same non-zero exit
 # code and a similar JSON envelope, so a suite parsing that text cannot tell the
 # two apart — and the difference is the whole measurement. `scw` validates enums

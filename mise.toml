@@ -323,9 +323,9 @@ depends = ["build"]
 # running emulator's networks. It owns its emulator, on its own port.
 run = "tools/conformance/crash.sh"
 
-[tasks."conformance:oapi"]
-description = "Drive the running emulator with the real Outscale CLI"
-run = "tools/conformance/outscale/oapi-cli.sh http://$FEINT_ADDR"
+[tasks."conformance:octl"]
+description = "Drive the running emulator with octl, the Outscale CLI"
+run = "tools/conformance/outscale/octl.sh http://$FEINT_ADDR"
 
 [tasks.lint-shell]
 description = "shellcheck every script in the repository"
@@ -495,7 +495,7 @@ tools/conformance/guard.sh leftovers "${FEINT_VM:-off}"
 trap './feint stop --addr $FEINT_ADDR >/dev/null 2>&1 || true' EXIT
 tools/conformance/scaleway/scw-cli.sh "http://$FEINT_ADDR"
 tools/conformance/scaleway/terraform.sh "http://$FEINT_ADDR"
-tools/conformance/outscale/oapi-cli.sh "http://$FEINT_ADDR"
+tools/conformance/outscale/octl.sh "http://$FEINT_ADDR"
 tools/conformance/outscale/terraform.sh "http://$FEINT_ADDR"
 # The example stacks, which are examples and tests at once: written the way a
 # platform team writes Terraform rather than the way a fixture is written, and

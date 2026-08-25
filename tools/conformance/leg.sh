@@ -37,7 +37,7 @@ usage: mise run conformance:leg -- <leg>
   scw-cli     the Scaleway CLI alone
   terraform   both Terraform fixtures, one engine
   opentofu    the same through OpenTofu
-  oapi-cli    the Outscale CLI alone
+  octl        the Outscale CLI alone
   exo-cli     the Exoscale CLI alone
   probe       the contract-driven probe alone, no client at all
   fields      every client against one emulator, with the whole-run gate on
@@ -50,7 +50,7 @@ EOF
 }
 
 case "$leg" in
-  scw-cli|terraform|opentofu|oapi-cli|exo-cli|probe|fields) ;;
+  scw-cli|terraform|opentofu|octl|exo-cli|probe|fields) ;;
   *) usage ;;
 esac
 
@@ -69,8 +69,8 @@ case "$leg" in
     tools/conformance/scaleway/terraform.sh "$endpoint"
     tools/conformance/outscale/terraform.sh "$endpoint"
     ;;
-  oapi-cli)
-    tools/conformance/outscale/oapi-cli.sh "$endpoint"
+  octl)
+    tools/conformance/outscale/octl.sh "$endpoint"
     ;;
   exo-cli)
     tools/conformance/exoscale/exo-cli.sh "$endpoint"
@@ -80,7 +80,7 @@ case "$leg" in
     ;;
   fields)
     tools/conformance/scaleway/scw-cli.sh "$endpoint"
-    tools/conformance/outscale/oapi-cli.sh "$endpoint"
+    tools/conformance/outscale/octl.sh "$endpoint"
     tools/conformance/exoscale/exo-cli.sh "$endpoint"
     tools/conformance/scaleway/terraform.sh "$endpoint"
     tools/conformance/outscale/terraform.sh "$endpoint"

@@ -32,7 +32,7 @@ guard_local "$ENDPOINT"
 # promises an address; without them nothing answers on port 22 (#335).
 guard_images "$ENDPOINT"
 
-command -v oapi-cli >/dev/null 2>&1 || { echo "FAIL: oapi-cli is not installed" >&2; exit 1; }
+command -v octl >/dev/null 2>&1 || { echo "FAIL: octl is not installed" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is not installed" >&2; exit 1; }
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -50,13 +50,13 @@ fi
 set -a
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/fake-credentials.env"
-# The endpoint comes from the argument, not from the credentials file: oapi-cli
+# The endpoint comes from the argument, not from the credentials file: octl
 # lets the environment override --config, so a pinned value there silently wins
 # over the port this run was asked to measure.
-# shellcheck disable=SC2034 # read by oapi-cli from the environment, not here
-OSC_ENDPOINT_API="$ENDPOINT"
+# shellcheck disable=SC2034 # read by octl from the environment, not here
+OSC_ENDPOINT_API="$ENDPOINT/api/v1"
 set +a
-guard_no_real_profile OSC_ENDPOINT_API oapi-cli
+guard_no_real_profile OSC_ENDPOINT_API octl
 
 WORK="$(mktemp -d)"
 KEY_NAME="feint-sshconf-osc"
@@ -71,7 +71,7 @@ cleanup() {
   # gone, and under `set -e` a failing delete inside this trap turns a passed
   # suite into exit 1 — measured, the task runner then never ran the next
   # suite while this one printed "passed".
-  [ -n "$vm_id" ] && osc DeleteVms '--VmIds[]' "$vm_id" >/dev/null 2>&1 || true
+  [ -n "$vm_id" ] && osc DeleteVms --VmIds "$vm_id" >/dev/null 2>&1 || true
   [ -n "$ip_id" ] && osc DeletePublicIp --PublicIpId "$ip_id" >/dev/null 2>&1 || true
   osc DeleteKeypair --KeypairName "$KEY_NAME" >/dev/null 2>&1 || true
   rm -rf "$WORK"
@@ -85,11 +85,14 @@ cat > "$WORK/config.json" <<EOF
     "secret_key": "$OSC_SECRET_KEY",
     "region": "$OSC_REGION",
     "protocol": "http",
-    "endpoints": { "api": "$ENDPOINT" }
+    "endpoints": { "api": "$ENDPOINT/api/v1" }
   }
 }
 EOF
-osc() { oapi-cli --config "$WORK/config.json" "$@"; }
+# See tools/conformance/outscale/octl.sh: the API rather than an alias, the
+# API's own body rather than the CLI's rearrangement, and a request body that
+# can only come from flags.
+osc() { octl --config "$WORK/config.json" --no-upgrade -o raw iaas api "$@" </dev/null; }
 
 echo "- generate a throwaway key pair"
 ssh-keygen -q -t ed25519 -N '' -C feint-sshconf -f "$WORK/id" </dev/null
@@ -149,7 +152,7 @@ remote="$(ssh -F /dev/null -i "$WORK/id" -o StrictHostKeyChecking=no -o UserKnow
 ok "logged in: $(echo "$remote" | tr '\n' ' ')"
 
 echo "- clean up"
-osc DeleteVms '--VmIds[]' "$vm_id" >/dev/null || fail "DeleteVms rejected"
+osc DeleteVms --VmIds "$vm_id" >/dev/null || fail "DeleteVms rejected"
 vm_id=""
 osc DeletePublicIp --PublicIpId "$ip_id" >/dev/null || fail "DeletePublicIp rejected"
 ip_id=""

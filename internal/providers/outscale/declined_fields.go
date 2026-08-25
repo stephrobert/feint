@@ -71,7 +71,7 @@ func (p *Pack) DeclinedFields() []emulator.FieldDecline {
 		// are standard volumes, and createImage refuses an Iops rather than
 		// storing one, so no image this operation can answer carries the field.
 		// #389 is the record of what happens otherwise: score.sh fails the
-		// terraform, opentofu, oapi-cli and fields legs at once with "field
+		// terraform, opentofu, octl and fields legs at once with "field
 		// declines whose field the emulator now serves".
 		//
 		// TestNoImageThisPackServesCarriesADeclinedField fails without the

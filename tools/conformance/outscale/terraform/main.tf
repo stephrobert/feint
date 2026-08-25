@@ -124,7 +124,7 @@ resource "outscale_keypair" "conformance" {
 }
 
 # A volume, because the provider creates one, reads it back and links it — and
-# because nothing else in this repository drives CreateVolume. The oapi-cli suite
+# because nothing else in this repository drives CreateVolume. The octl suite
 # never touches one, which is exactly why the routes were missing.
 resource "outscale_volume" "conformance" {
   subregion_name = "eu-west-2a"

@@ -32,38 +32,27 @@
         mode: "0755"
         checksum: "sha256:{{ feint_clients_scw_sums.content | regex_search('([0-9a-f]{64})\\s+scaleway-cli_' ~ feint_clients_scw_version ~ '_linux_amd64', '\\1') | first }}"
 
-# --- Outscale: upstream publishes nothing, so the digest is pinned here -------
+# --- Outscale: upstream publishes a checksums file ---------------------------
+#
+# octl replaced oapi-cli on 2026-08-25 (#460): the old CLI's repository is
+# archived and read-only. It is also a plain binary, so the AppImage this block
+# used to extract — FUSE, an extraction, an APPDIR wrapper — is gone with it.
 - name: The Outscale CLI
+  vars:
+    feint_clients_octl_plain: "{{ feint_clients_octl_version | regex_replace('^v', '') }}"
   block:
-    - name: Download the AppImage, verified against the pinned digest
+    - name: Fetch its checksum file
+      ansible.builtin.uri:
+        url: "https://github.com/outscale/octl/releases/download/{{ feint_clients_octl_version }}/octl_{{ feint_clients_octl_plain }}_checksums.txt"
+        return_content: true
+      register: feint_clients_octl_sums
+
+    - name: Install it, verified against that file
       ansible.builtin.get_url:
-        url: "https://github.com/outscale/oapi-cli/releases/download/{{ feint_clients_oapi_version }}/oapi-cli-x86_64.AppImage"
-        dest: /opt/oapi-cli.AppImage
+        url: "https://github.com/outscale/octl/releases/download/{{ feint_clients_octl_version }}/octl_Linux_x86_64"
+        dest: /usr/local/bin/octl
         mode: "0755"
-        checksum: "sha256:{{ feint_clients_oapi_sha256 }}"
-
-    # Extracted rather than self-mounted: the AppImage needs FUSE, and installing
-    # a kernel module to run a CLI is a worse trade than the documented fallback.
-    - name: Extract it
-      ansible.builtin.command:
-        chdir: /opt
-        cmd: /opt/oapi-cli.AppImage --appimage-extract
-      args:
-        creates: /opt/squashfs-root/AppRun
-
-    # A wrapper, not a symlink. AppRun resolves its own helpers against $APPDIR,
-    # and behind a symlink that variable is empty — the CLI then looks for
-    # /import-ssl.sh and dies on a path that explains nothing. Measured.
-    - name: Put it on PATH
-      ansible.builtin.copy:
-        dest: /usr/local/bin/oapi-cli
-        mode: "0755"
-        content: |
-          #!/bin/sh
-          # AppRun needs APPDIR; a symlink does not give it one.
-          APPDIR=/opt/squashfs-root
-          export APPDIR
-          exec "$APPDIR/AppRun" "$@"
+        checksum: "sha256:{{ feint_clients_octl_sums.content | regex_search('([0-9a-f]{64})\\s+octl_Linux_x86_64', '\\1') | first }}"
 
 # --- Exoscale: upstream publishes a checksums file ---------------------------
 - name: The Exoscale CLI

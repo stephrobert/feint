@@ -6,14 +6,17 @@
 # gives them a shell — the same reasoning as the CI workflow, which uses these
 # same versions and sums.
 #
-# `sha256` is empty where upstream publishes a checksum file: the digest then
-# comes from them, and is fetched beside the asset. It is filled in only where
-# upstream publishes nothing, which is weaker — it proves the asset has not
-# changed since somebody looked at it, not that upstream signed it — and is the
-# strongest thing available there.
+# Every client here now publishes a checksum file, so no digest is pinned in
+# this file at all: the sums are fetched beside the assets and come from
+# upstream. The last one that did not was oapi-cli, whose AppImage carried a
+# hand-pinned digest until #460 replaced it with octl — weaker, because a pinned
+# digest proves the asset has not changed since somebody looked at it, not that
+# upstream signed it. A future client without upstream sums would need one back.
 feint_clients_scw_version: "2.56.3"
-feint_clients_oapi_version: "v0.15.0"
-feint_clients_oapi_sha256: "798b9af7db9da9539303732ba55be71ff0bec58aa9ef51751de41b2eeee8138a"
+# octl, not oapi-cli: `outscale/oapi-cli` is archived, read-only, and describes
+# itself as deprecated (#460). octl publishes a checksums file, so no digest is
+# pinned here.
+feint_clients_octl_version: "v0.0.31"
 # 1.95.6, not 1.86: v1.86 ignores the `endpoint` key in its own configuration
 # file and goes to the real Exoscale, which the suite met as "Invalid key or
 # request signature" — a client talking to a paying account because a version

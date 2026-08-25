@@ -346,8 +346,9 @@ Usage:
                     Exports on stdout, everything else on stderr, so
                     eval "$(feint env scaleway)" is safe. --client selects a
                     family when a provider's clients disagree about a value:
-                    outscale serves terraform (>= 1.7, the default) and
-                    oapi-cli / terraform-1.1, which want the bare host.
+                    outscale serves terraform (>= 1.7, the default) and octl,
+                    which take the /api/v1 path in the value, and oapi-cli /
+                    terraform-1.1, which want the bare host.
 
   feint snapshot   save <name> [--addr :4599] [--force]
                    load <name> [--addr :4599]

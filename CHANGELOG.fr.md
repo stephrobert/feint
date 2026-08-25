@@ -17,6 +17,71 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Unreleased]
 
+### Modifié
+
+- **La suite Outscale pilote `octl`, et le client qu'elle pilotait est archivé**
+  (#460). `outscale/oapi-cli` et `outscale/osc-cli` sont tous deux
+  `archived: true` sur l'API GitHub, en lecture seule, avec « Deprecated
+  Outscale CLI » dans leur propre description ; `outscale/octl` avait reçu un
+  push le jour de la mesure. Une suite qui pilote un client archivé prouve
+  l'émulateur contre quelque chose qu'Outscale ne livre plus : l'étoile polaire
+  s'est déplacée avec.
+
+  `tools/conformance/outscale/oapi-cli.sh` est devenu
+  `tools/conformance/outscale/octl.sh`, la jambe de matrice `oapi-cli` est
+  devenue `octl`, et tous les autres scripts Outscale qui pilotaient un client
+  ont suivi : `faults.sh` (qui tourne sur la jambe `fields` et aurait échoué sur
+  un binaire absent), `outscale/network.sh`, `outscale/balancer.sh`,
+  `outscale/ssh.sh`, `parity.sh` et `tools/demo/osc.sh`.
+
+  **La couverture a été mesurée avant et après, opération par opération, et rien
+  n'a été perdu.** La ligne de base vient du `/_feint/conformance` de
+  l'émulateur sur la suite intacte, comparée à la même lecture de la suite
+  migrée : **77 opérations distinctes avant, 77 après, aucune gagnée, aucune
+  perdue**, et les sept axes d'évidence identiques au bit près. Le compte de
+  sites `prove_begin negative` vaut 13 avant et 13 après, `behaviour` 6 et 6 :
+  aucune assertion ne peut avoir disparu dans la réécriture.
+
+  Le total d'appels passe de 700 à 677, et les douze écarts ont tous la même
+  cause : **`oapi-cli` envoyait trois requêtes pour chaque 409 rencontré**, avec
+  une temporisation entre elles, là où `octl` en envoie une.
+  `AcceptNetPeering` 7 → 3, `CreatePublicIp` 261 → 257, neuf opérations en
+  baisse de deux exactement par site de refus. Deux opérations montent :
+  `ReadNets` 2 → 4 pour le nouveau témoin `-o raw`, `ReadPublicIps` 4 → 5 parce
+  que l'inventaire d'adresses est désormais lu trois fois.
+
+  Trois faits sur `octl` portent le reste, et chacun est écrit dans la suite :
+  **l'endpoint porte `/api/v1`** — l'inverse d'`oapi-cli`, parce qu'`octl` comme
+  le provider Terraform ≥ 1.7 lisent `osc-sdk-go`, dont le gabarit d'endpoint par
+  défaut est `%s://api.%s.outscale.com/api/v1` ; **`iaas api <Call>` et jamais un
+  alias**, parce qu'`octl iaas net list` se résout en `octl iaas api ReadNets` et
+  qu'un alias est une commodité du CLI là où c'est l'API qu'on mesure ; et
+  **`-o raw` sur chaque appel**, parce que le `-o json` par défaut reforme la
+  réponse et déballe `{"Nets":[…],"ResponseContext":{…}}` en liste nue. Une
+  assertion en tête de suite est le témoin du troisième : elle échoue si la forme
+  brute cesse de porter l'enveloppe, et elle échoue si `-o json` cesse de
+  reformer.
+
+  `feint env outscale --client octl` imprime la forme, et la note `oapi-cli` dit
+  maintenant que le client est archivé et nomme son remplaçant vivant.
+  `feint doctor` cherche `octl`, le rôle Ansible l'installe contre le fichier de
+  sommes publié en amont (l'extraction FUSE de l'AppImage, son enrobage APPDIR et
+  son empreinte épinglée à la main disparaissent avec), et le vocabulaire de
+  clients de `feint proxy` gagne `octl` — user agent mesuré au travers du proxy :
+  `octl/v0.0.31`, et rien d'autre.
+
+  **Ce que ça coûte, dit plutôt qu'escamoté.** `octl` passe environ 700 ms à
+  démarrer à chaque invocation, sans le moindre réseau, contre environ 30 ms pour
+  la requête : la suite passe de 177 s à 369 s, et le goulot se déplace d'une
+  temporisation sur onze appels à un coût fixe sur tous. Le bloc d'adresses
+  publiques est désormais rempli par un seul processus `--waitfor` (255 appels en
+  51 s, contre 186 s en processus séparés) plutôt qu'un processus par adresse.
+  Trois arguments de filtre ne s'expriment pas du tout en drapeaux `octl` — un
+  tableau de flottants ne produit aucun drapeau, et les deux filtres de date sont
+  enregistrés en scalaires quand leur lecteur réclame une liste — donc ils
+  voyagent en `--payload` ; `docs/limits.md` porte la mesure et dit pourquoi un
+  payload mal formé ne peut pas passer en silence.
+
 ### Corrigé
 
 - **Un balayage ne piège plus l'hôte qu'il nettoie, et `feint clean --force`

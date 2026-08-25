@@ -113,7 +113,7 @@ fi
 # it is a statement about the run's entire population. CI splits the clients
 # across a matrix, one emulator per leg, and a leg that never exercises a
 # feature legitimately never serves the fields that feature produces: the
-# terraform leg drives no oapi-cli, so ReadVms carries no UserData, ReadVolumes
+# terraform leg drives no octl, so ReadVms carries no UserData, ReadVolumes
 # no SnapshotId, and ReadSecurityGroups no rule whose member is another group.
 # Failing there blamed the emulator for the shape of the leg.
 #

@@ -88,7 +88,7 @@ func renderContainer(workflow, goMod, changelog string) (string, error) {
 	b.WriteString("```\n\n")
 	b.WriteString("Then point the client at the port: the same endpoint settings the\n" +
 		"conformance suites under `tools/conformance/` pass to `scw`, Terraform,\n" +
-		"`oapi-cli` and `exo` work unchanged against the container.\n\n")
+		"`octl` and `exo` work unchanged against the container.\n\n")
 	b.WriteString("The image is signed and attested by the same release workflow as the\n" +
 		"binaries, under the same identity — and this recipe is executed, not\n" +
 		"published on faith: the release workflow runs it against the image it has\n" +

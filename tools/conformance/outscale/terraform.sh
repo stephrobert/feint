@@ -2,7 +2,7 @@
 # Conformance check: the real Outscale Terraform provider against the emulator.
 #
 # This is the pack's first Terraform evidence. Until it existed, everything
-# Outscale claimed was proven by `oapi-cli` alone, and the provider walks paths
+# Outscale claimed was proven by the Outscale CLI alone, and the provider walks paths
 # no CLI does: it polls after a delete, it addresses a keypair by id while
 # creating it by name, and it reads ProductCodes to decide whether a machine is
 # Windows.

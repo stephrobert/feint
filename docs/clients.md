@@ -58,7 +58,7 @@ table is that declaration, printed from the same source the refusal reads.
 | `scw` | 2.56.3 | `.github/workflows/conformance.yml` (`SCW_VERSION`) | Scaleway |
 | Terraform | 1.13.3 | `.github/workflows/conformance.yml` (`TERRAFORM_VERSION`) | Outscale, Scaleway |
 | OpenTofu | 1.12.5 | `.github/workflows/conformance.yml` (`TOFU_VERSION`) | Outscale, Scaleway |
-| `oapi-cli` | 0.15.0 | `.github/workflows/conformance.yml` (`OAPI_VERSION`) | Outscale |
+| `octl` | 0.0.31 | `.github/workflows/conformance.yml` (`OCTL_VERSION`) | Outscale |
 | `exo` | 1.95.6 | `.github/workflows/conformance.yml` (`EXO_VERSION`) | Exoscale |
 
 ### The Terraform providers

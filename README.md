@@ -27,9 +27,9 @@
 > [!IMPORTANT]
 > **What is safe to point at this emulator, and what is not.**
 >
-> **Proven**: 348 of the 371 mounted operations are driven by a real client, on every pull request. `scw`, `oapi-cli`, `exo`, Terraform and OpenTofu run against the emulator in CI, and machines really boot: an ssh login on each provider's own default account, isolated subnets, a firewall that filters. The whole chain is described in [docs/conformance.md](docs/conformance.md).
+> **Proven**: 348 of the 371 mounted operations are driven by a real client, on every pull request. `scw`, `octl`, `exo`, Terraform and OpenTofu run against the emulator in CI, and machines really boot: an ssh login on each provider's own default account, isolated subnets, a firewall that filters. The whole chain is described in [docs/conformance.md](docs/conformance.md).
 >
-> **Not proven**: quotas, prices, real capacity, identifier validation, authentication, eventual consistency. The 42 sections of [docs/limits.md](docs/limits.md) each say what one costs. An emulator with a single implicit account and no price list would have to invent those figures, and somebody would act on them.
+> **Not proven**: quotas, prices, real capacity, identifier validation, authentication, eventual consistency. The 43 sections of [docs/limits.md](docs/limits.md) each say what one costs. An emulator with a single implicit account and no price list would have to invent those figures, and somebody would act on them.
 >
 > **Unknown**: 23 operations are mounted and have never been driven by a client. Every one of them states why no official client reaches it, at the route and in [docs/routes.md](docs/routes.md). They are counted rather than glossed, one by one, in [coverage/evidence.json](coverage/evidence.json).
 >
@@ -148,7 +148,7 @@ It needs Incus with OVN; `mise run demo:network` records it.
 **None, for what most people came for.** Feint is one static binary with no
 external dependencies: it emulates the three control planes, holds its state in
 memory, and needs no daemon, no container runtime and no account. If you are
-pointing `scw`, `oapi-cli`, `exo` or Terraform at an emulator, stop reading here
+pointing `scw`, `octl`, `exo` or Terraform at an emulator, stop reading here
 and go to [Install](#install).
 
 Two things are needed only for what they enable:
@@ -372,12 +372,19 @@ Terraform reaches it through the provider's `api_url`. A working configuration i
 in [`tools/conformance/scaleway/terraform/`](tools/conformance/scaleway/terraform/),
 and both `terraform` and `tofu` are run against it in CI.
 
-### Outscale — `oapi-cli`
+### Outscale — `octl`
 
-`oapi-cli` has no `--endpoint` flag: it is configured through a JSON profile. The
-endpoint is the **bare host** — the CLI appends `/api/v1/<Call>` itself, so
-passing `http://host/api/v1` produces a request for `/api/v1/api/v1/<Call>`, a
-404 that looks exactly like a missing route.
+`octl` has no `--endpoint` flag: it is configured through a JSON profile. The
+endpoint **carries the `/api/v1` path** — `octl` reads it from `osc-sdk-go`,
+whose default endpoint template is `%s://api.%s.outscale.com/api/v1`, so the
+path is part of the value. Given the bare host it posts `/<Call>` at the root
+and gets a 404.
+
+That is the opposite of `oapi-cli`, the CLI this project drove until 2026-08-25.
+`outscale/oapi-cli` and `outscale/osc-cli` are both archived and read-only on
+GitHub, describing themselves as deprecated, so the conformance suite moved to
+`octl` — which also answers a 409 in the same 750 ms as a 200, where `oapi-cli`
+spent twelve seconds backing off.
 
 ```bash
 cat > /tmp/osc.json <<'EOF'
@@ -387,14 +394,18 @@ cat > /tmp/osc.json <<'EOF'
     "secret_key": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
     "region": "eu-west-2",
     "protocol": "http",
-    "endpoints": { "api": "http://127.0.0.1:4599" }
+    "endpoints": { "api": "http://127.0.0.1:4599/api/v1" }
   }
 }
 EOF
 
-oapi-cli --config /tmp/osc.json CreateVms --ImageId ami-00000001 --VmType tinav6.c1r1p2
-oapi-cli --config /tmp/osc.json ReadVms
+octl --config /tmp/osc.json -o raw iaas api CreateVms --ImageId ami-00000001 --VmType tinav6.c1r1p2
+octl --config /tmp/osc.json -o raw iaas api ReadVms
 ```
+
+`-o raw` is not decoration: the default `-o json` reshapes the answer, unwrapping
+`{"Vms":[…],"ResponseContext":{…}}` to a bare list. And `iaas api <Call>` rather
+than an alias such as `octl iaas vm list`, so what you drive is the API.
 
 `osc-cli` is deprecated and addresses `/api/latest/<Call>` where the current API
 is `/api/v1/<Call>`; pointing it here fails for a reason that says nothing about
@@ -677,7 +688,7 @@ those. Nothing else on your host is touched.
 | Provider | Protocol | Proven by, in CI | Maturity |
 |---|---|---|---|
 | Scaleway | REST JSON, `X-Auth-Token` | Terraform, OpenTofu, `scw` | usable |
-| Outscale | `POST /api/v1/<Action>`, AWS Signature v4 | Terraform, OpenTofu, `oapi-cli` | starter |
+| Outscale | `POST /api/v1/<Action>`, AWS Signature v4 | Terraform, OpenTofu, `octl` | starter |
 | Exoscale | REST `/v2/<resource>`, asynchronous operations | `exo` | starter |
 
 Read *proven by* narrowly: these are the clients a workflow drives on every
@@ -720,7 +731,7 @@ argument is that the upstream moves:
 | `scw` | 2.56.3 | Scaleway |
 | Terraform | 1.13.3 with providers `outscale/outscale ~> 1.7`, `scaleway/scaleway 2.81.0` | Outscale, Scaleway |
 | OpenTofu | 1.12.5 with providers `outscale/outscale ~> 1.7`, `scaleway/scaleway 2.81.0` | Outscale, Scaleway |
-| `oapi-cli` | 0.15.0 | Outscale |
+| `octl` | 0.0.31 | Outscale |
 | `exo` | 1.95.6 | Exoscale |
 
 These are the versions the conformance workflow installs and runs on every
@@ -956,7 +967,7 @@ precedence over any other design consideration:
 2. **The baseline** is committed. An operation that appears upstream and that
    nobody has triaged fails CI. Not "not yet supported" — *undecided*, which is a
    different and more useful thing to know.
-3. **The conformance suites** replay the real clients: `scw`, `oapi-cli`, `exo`,
+3. **The conformance suites** replay the real clients: `scw`, `octl`, `exo`,
    Terraform and OpenTofu, in CI, on every pull request.
 
 <!-- closed:start -->

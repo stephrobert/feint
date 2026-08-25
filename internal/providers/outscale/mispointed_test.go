@@ -42,9 +42,12 @@ func TestAMispointedOutscaleClientIsToldWhichSideIsWrong(t *testing.T) {
 			refuses: "does not serve",
 		},
 		{
-			name:  "the deprecated osc-cli addresses another API version",
-			path:  "/api/latest/ReadVms",
-			wants: []string{"osc-cli", "deprecated", "oapi-cli"},
+			name: "the deprecated osc-cli addresses another API version",
+			path: "/api/latest/ReadVms",
+			// The remedy must name the client this project actually drives, and
+			// that is octl since #460: outscale/oapi-cli is archived upstream, so
+			// sending a reader there would be sending them to a dead CLI.
+			wants: []string{"osc-cli", "deprecated", "octl"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

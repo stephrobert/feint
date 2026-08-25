@@ -148,7 +148,7 @@ func clientPinMismatches(workflow, ansible string) []string {
 	// whole function exists to end.
 	pairs := []struct{ workflowVar, ansibleVar string }{
 		{"SCW_VERSION", "feint_clients_scw_version"},
-		{"OAPI_VERSION", "feint_clients_oapi_version"},
+		{"OCTL_VERSION", "feint_clients_octl_version"},
 		{"EXO_VERSION", "feint_clients_exo_version"},
 		{"TERRAFORM_VERSION", "feint_clients_terraform_version"},
 		{"TOFU_VERSION", "feint_clients_tofu_version"},

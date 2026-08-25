@@ -56,7 +56,7 @@ exactly the population a verdict like *no answer of this run carried this field*
 assumes: a whole-run gate is green there **by construction**. CI does not do
 that. The conformance workflow splits the clients across a matrix, one emulator
 per leg, so every leg but `fields` is a partial run — the `probe` leg drives no
-client at all, and the `terraform` leg drives no `oapi-cli`.
+client at all, and the `terraform` leg drives no `octl`.
 
 `mise run conformance:leg -- probe` reproduces one of those legs locally, and
 the reproduction is proved rather than assumed: put back the guard that was
@@ -117,7 +117,7 @@ until it cannot fail, then requires the replay to go red naming it while the
 suite stays green.
 
 `mise run conformance` is deliberately **not** in the hook. It needs `scw`,
-`oapi-cli`, `exo` and Terraform installed and takes minutes; as a hook it would
+`octl`, `exo` and Terraform installed and takes minutes; as a hook it would
 fail on a missing binary rather than on your code, and the reflex it would teach
 is `--no-verify`, which turns off every hook at once. A gate people routinely
 skip is worse than no gate.
@@ -285,7 +285,7 @@ costs the reviewer one command and it cannot be argued with:
 
 ```bash
 mise run check          # gofmt, vet, lint, go test -race
-mise run conformance    # scw, oapi-cli, exo, Terraform, OpenTofu, and the probe
+mise run conformance    # scw, octl, exo, Terraform, OpenTofu, and the probe
 mise run drift:check    # the upstream surface still matches the baseline
 ```
 

@@ -101,7 +101,7 @@ nothing is signed until it is released:
 go install github.com/stephrobert/feint/cmd/feint@latest
 ```
 
-That gives you the control plane — every API answers, `scw`, `oapi-cli`, `exo`
+That gives you the control plane — every API answers, `scw`, `octl`, `exo`
 and Terraform drive it, and nothing runs. It is what CI uses and it needs no
 prerequisite at all.
 
@@ -201,7 +201,7 @@ services:
 
 Then point the client at the port: the same endpoint settings the
 conformance suites under `tools/conformance/` pass to `scw`, Terraform,
-`oapi-cli` and `exo` work unchanged against the container.
+`octl` and `exo` work unchanged against the container.
 
 The image is signed and attested by the same release workflow as the
 binaries, under the same identity — and this recipe is executed, not

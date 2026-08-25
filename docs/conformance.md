@@ -30,7 +30,7 @@ page covers how anything here gets to be called *proven*.
                  ┌─────────────────┴─────────────────┐
                  │                                   │
          a real client drives              the probe drives every
-      (scw, oapi-cli, exo, Terraform)       route from the contract
+      (scw, octl, exo, Terraform)           route from the contract
                  │                                   │
                  │           recordings of a real cloud
                  │                (shapes/)
@@ -86,7 +86,7 @@ equally strong.
 ## Link 3 — two witnesses, and neither is the other
 
 **A real client** is the only thing that can prove the claim, because the claim
-is about clients. `tools/conformance/<provider>/` drives `scw`, `oapi-cli`,
+is about clients. `tools/conformance/<provider>/` drives `scw`, `octl`,
 `exo`, Terraform and OpenTofu against the emulator. What a suite asserts is what
 is proven; nothing more. Two defects were `driven` the whole time they were
 wrong.

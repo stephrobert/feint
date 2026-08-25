@@ -183,7 +183,7 @@ func (p *Pack) dryRunnable(handler http.HandlerFunc) http.HandlerFunc {
 // thirteen candidates came back earnable and are NOT declared here: DeleteTags
 // is marked when the resource it untags is created and destroyed inside the
 // span, and CreatePublicIp is refused when the address block runs out. Both are
-// driven by oapi-cli.sh instead, which is the point of measuring first.
+// driven by octl.sh instead, which is the point of measuring first.
 
 // statelessBehaviour declares a catalogue read out of reach on `behaviour`.
 //
@@ -429,8 +429,9 @@ func (p *Pack) NotFound(w http.ResponseWriter, r *http.Request) {
 		p.writeError(w, http.StatusNotFound, "", "OperationNotEmulated",
 			"feint serves "+strings.TrimSuffix(pathPrefix, "/")+" and not "+
 				strings.TrimSuffix(legacyPrefix, "/")+": osc-cli is deprecated and addresses "+
-				"an API version this emulator does not serve. oapi-cli is the client the "+
-				"conformance suite drives; `feint env outscale` prints its configuration")
+				"an API version this emulator does not serve. octl is the client the "+
+				"conformance suite drives; `feint env outscale --client octl` prints its "+
+				"configuration")
 		return
 	}
 
@@ -440,9 +441,10 @@ func (p *Pack) NotFound(w http.ResponseWriter, r *http.Request) {
 		// again. Naming the operation here would be the confident, wrong answer.
 		p.writeError(w, http.StatusNotFound, "", "OperationNotEmulated",
 			"the endpoint carries "+strings.TrimSuffix(pathPrefix, "/")+" twice: point the "+
-				"client at the bare host, oapi-cli appends "+strings.TrimSuffix(pathPrefix, "/")+
-				"/<Call> itself. `feint env outscale --client oapi-cli` prints the endpoint to "+
-				"use — the flagless default carries the path, for the Terraform provider >= 1.7")
+				"client at the bare host, oapi-cli and the Terraform provider 1.1.x append "+
+				strings.TrimSuffix(pathPrefix, "/")+"/<Call> themselves. `feint env outscale "+
+				"--client oapi-cli` prints the endpoint to use — the flagless default carries "+
+				"the path, which is what octl and the Terraform provider >= 1.7 want")
 		return
 	}
 
@@ -519,13 +521,23 @@ func orDefault(v, fallback string) string {
 //     the path, 1.1.3 URL-escapes it and dies client-side on
 //     `invalid port ":4599%2Fapi%2Fv1"`.
 //
+// And one more, measured on 2026-08-25 (#460):
+//
+//   - octl wants the path IN the value, like the modern provider. That is not
+//     a coincidence to be folded away: both read it from osc-sdk-go, whose
+//     default endpoint template is "%s://api.%s.outscale.com/api/v1", so the
+//     path is part of the value by construction. It gets its own case because
+//     what a reader needs from `feint env outscale --client <x>` is the name of
+//     the client they are holding, not a mapping they have to work out.
+//
 // One variable, two shapes: no single printed value serves both families, so
 // the choice is a client parameter rather than a Note a reader has to reverse-
 // engineer. The default is the family a stranger meets first — the current
 // Terraform provider line, which is what docs/adoption.md invites them to run.
 const (
 	clientTerraform   = "terraform"     // provider >= 1.7: the path belongs in the value
-	clientOAPICLI     = "oapi-cli"      // bare host: the CLI appends /api/v1 itself
+	clientOCTL        = "octl"          // the current CLI: the path belongs in the value too
+	clientOAPICLI     = "oapi-cli"      // bare host: the archived CLI appends /api/v1 itself
 	clientTerraform11 = "terraform-1.1" // bare host: the 1.1.x provider appends it too
 )
 
@@ -557,7 +569,7 @@ func (p *Pack) Env(endpoint string) emulator.Environment {
 // EnvClients names the client families EnvFor accepts, sorted, for the CLI to
 // print when a caller asks for one it does not know.
 func (p *Pack) EnvClients() []string {
-	return []string{clientOAPICLI, clientTerraform, clientTerraform11}
+	return []string{clientOAPICLI, clientOCTL, clientTerraform, clientTerraform11}
 }
 
 // EnvFor answers the environment one client family needs, or ok=false for a
@@ -578,18 +590,30 @@ func (p *Pack) EnvFor(endpoint, client string) (emulator.Environment, bool) {
 	case clientTerraform:
 		return emulator.Environment{
 			Vars: vars(bare + apiPath),
-			Note: "this endpoint carries " + apiPath + ": the shape the Terraform provider >= 1.7 reads. " +
-				"oapi-cli and the Terraform provider 1.1.x append " + apiPath + " themselves and want the " +
-				"bare host instead: eval \"$(feint env outscale --client oapi-cli)\". " +
+			Note: "this endpoint carries " + apiPath + ": the shape the Terraform provider >= 1.7 reads, " +
+				"and the one octl reads. oapi-cli and the Terraform provider 1.1.x append " + apiPath +
+				" themselves and want the bare host instead: eval \"$(feint env outscale --client oapi-cli)\". " +
 				"The 0.x providers (outscale-dev/*) read no endpoint variable at all " +
 				"(examples/stacks/surveyed.md).",
+		}, true
+	case clientOCTL:
+		return emulator.Environment{
+			Vars: vars(bare + apiPath),
+			Note: "this endpoint carries " + apiPath + ", which is what octl reads: its SDK's default is " +
+				"https://api.<region>.outscale.com" + apiPath + ", so the path is part of the value. " +
+				"With --config or --profile, octl loads the FILE first and merges the environment into " +
+				"what the file left empty — the opposite of oapi-cli — so endpoints.api in that file wins " +
+				"over these variables and must be set to " + bare + apiPath + ". " +
+				"octl also reads `region` and never `region_name`.",
 		}, true
 	case clientOAPICLI, clientTerraform11:
 		return emulator.Environment{
 			Vars: vars(bare),
 			Note: "the bare host: oapi-cli and the Terraform provider 1.1.x append " + apiPath + " themselves. " +
-				"The Terraform provider >= 1.7 wants the path in the value: drop --client for that one. " +
-				"With --config, oapi-cli wants endpoints.api set to " + bare + ".",
+				"octl and the Terraform provider >= 1.7 want the path in the value: --client octl, or drop " +
+				"--client, for those. With --config, oapi-cli wants endpoints.api set to " + bare + ". " +
+				"Note that outscale/oapi-cli is archived upstream and describes itself as deprecated; " +
+				"octl is the client this project's conformance suite drives (#460).",
 		}, true
 	}
 	return emulator.Environment{}, false

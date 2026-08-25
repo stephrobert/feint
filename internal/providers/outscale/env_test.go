@@ -29,6 +29,36 @@ func TestEnvServesTheCurrentTerraformProviderLine(t *testing.T) {
 	}
 }
 
+// octl takes the path in the value, like the modern Terraform provider and
+// unlike the CLI it replaced (#460).
+//
+// It has its own case rather than being folded into `terraform`, and this test
+// is why that is not decoration: what a reader types is the name of the client
+// in their hand. Measured on 2026-08-25 — OSC_ENDPOINT_API=http://127.0.0.1:PORT
+// /api/v1 drives this emulator on the first try, and the bare host makes octl
+// post /<Call> at the root.
+//
+// The note carries the two facts that cost time on the old client, restated for
+// this one because they inverted: octl reads `region` and never `region_name`
+// (osc-sdk-go's own struct tag), and with --config it loads the FILE first and
+// merges the environment into what the file left empty — the opposite of
+// oapi-cli, where the environment won.
+func TestEnvForServesOctlThePathShape(t *testing.T) {
+	pack := outscale.New(emulator.DefaultEnv())
+	env, ok := pack.EnvFor("http://127.0.0.1:4599", "octl")
+	if !ok {
+		t.Fatal("EnvFor refused octl, which is the client the conformance suite drives")
+	}
+	if got := env.Vars["OSC_ENDPOINT_API"]; got != "http://127.0.0.1:4599/api/v1" {
+		t.Fatalf("EnvFor(octl) printed %q; octl reads osc-sdk-go's default, which carries /api/v1", got)
+	}
+	for _, want := range []string{"region", "--config"} {
+		if !strings.Contains(env.Note, want) {
+			t.Errorf("the octl note never mentions %q, and both facts inverted with the client: %q", want, env.Note)
+		}
+	}
+}
+
 // The families that append /api/v1 themselves get the bare host, and a family
 // nobody measured gets a refusal rather than a guess.
 func TestEnvForServesEachMeasuredClientFamily(t *testing.T) {
@@ -41,6 +71,16 @@ func TestEnvForServesEachMeasuredClientFamily(t *testing.T) {
 		if got := env.Vars["OSC_ENDPOINT_API"]; got != "http://127.0.0.1:4599" {
 			t.Errorf("EnvFor(%q) printed %q; this family appends /api/v1 itself and wants the bare host", client, got)
 		}
+	}
+	// oapi-cli is still served, because a reader may still hold it — but the
+	// note has to say what it is now, or `feint env` sends somebody to a CLI
+	// whose repository is read-only (#460).
+	archived, _ := pack.EnvFor("http://127.0.0.1:4599", "oapi-cli")
+	if !strings.Contains(archived.Note, "archived") {
+		t.Errorf("the oapi-cli note does not say the client is archived upstream: %q", archived.Note)
+	}
+	if !strings.Contains(archived.Note, "octl") {
+		t.Errorf("the oapi-cli note names no live replacement: %q", archived.Note)
 	}
 	if _, ok := pack.EnvFor("http://127.0.0.1:4599", "osc-cli"); ok {
 		t.Fatal("an unmeasured client family was served a guessed environment")

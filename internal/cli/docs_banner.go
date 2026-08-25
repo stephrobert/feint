@@ -173,7 +173,7 @@ func renderSafety(facts safetyFacts, french bool) string {
 		b.WriteString("> [!IMPORTANT]\n")
 		b.WriteString("> **Ce qu'on peut pointer vers cet émulateur, et ce qu'on ne peut pas.**\n>\n")
 		fmt.Fprintf(&b, "> **Prouvé** : %d des %d opérations montées sont pilotées par un vrai client, "+
-			"à chaque pull request. `scw`, `oapi-cli`, `exo`, Terraform et OpenTofu tournent contre "+
+			"à chaque pull request. `scw`, `octl`, `exo`, Terraform et OpenTofu tournent contre "+
 			"l'émulateur en CI, et les machines démarrent réellement : connexion ssh sur le compte par "+
 			"défaut de chaque provider, subnets isolés, pare-feu qui filtre. La chaîne complète est "+
 			"décrite dans [docs/conformance.md](docs/conformance.md).\n>\n", facts.Driven, facts.Mounted)
@@ -196,7 +196,7 @@ func renderSafety(facts safetyFacts, french bool) string {
 	b.WriteString("> [!IMPORTANT]\n")
 	b.WriteString("> **What is safe to point at this emulator, and what is not.**\n>\n")
 	fmt.Fprintf(&b, "> **Proven**: %d of the %d mounted operations are driven by a real client, on every "+
-		"pull request. `scw`, `oapi-cli`, `exo`, Terraform and OpenTofu run against the emulator in "+
+		"pull request. `scw`, `octl`, `exo`, Terraform and OpenTofu run against the emulator in "+
 		"CI, and machines really boot: an ssh login on each provider's own default account, isolated "+
 		"subnets, a firewall that filters. The whole chain is described in "+
 		"[docs/conformance.md](docs/conformance.md).\n>\n", facts.Driven, facts.Mounted)

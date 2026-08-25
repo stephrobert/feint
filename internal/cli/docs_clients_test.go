@@ -45,8 +45,8 @@ func TestTheClientMatrixCreditsEveryProviderCIProves(t *testing.T) {
 
 	// And the single-provider clients stay single, so the derivation is not
 	// simply crediting everything to everyone.
-	if row := rowFor(t, rendered, "`oapi-cli`"); strings.Contains(row, "Scaleway") {
-		t.Errorf("the oapi-cli row credits Scaleway, which no workflow drives it against:\n  %s", row)
+	if row := rowFor(t, rendered, "`octl`"); strings.Contains(row, "Scaleway") {
+		t.Errorf("the octl row credits Scaleway, which no workflow drives it against:\n  %s", row)
 	}
 }
 

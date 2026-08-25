@@ -36,7 +36,7 @@ page décrit comment quoi que ce soit ici obtient le droit d'être appelé
                  ┌─────────────────┴─────────────────┐
                  │                                   │
         un vrai client pilote              la sonde pilote chaque
-     (scw, oapi-cli, exo, Terraform)      route depuis le contrat
+     (scw, octl, exo, Terraform)          route depuis le contrat
                  │                                   │
                  │        enregistrements d'un vrai cloud
                  │                 (shapes/)
@@ -94,7 +94,7 @@ détail mesuré, y compris pourquoi les trois descriptions ne se valent pas.
 
 **Un vrai client** est la seule chose qui puisse prouver l'affirmation,
 puisqu'elle porte sur les clients. `tools/conformance/<fournisseur>/` pilote
-`scw`, `oapi-cli`, `exo`, Terraform et OpenTofu contre l'émulateur. Ce qu'une
+`scw`, `octl`, `exo`, Terraform et OpenTofu contre l'émulateur. Ce qu'une
 suite affirme est ce qui est prouvé, rien de plus : deux défauts ont porté
 `driven` pendant tout le temps où ils étaient faux.
 

@@ -15,7 +15,7 @@ body:
     id: client
     attributes:
       label: The client
-      description: Name and version. `scw version`, `oapi-cli --version`, `exo version`, `terraform version`, or the SDK and its version.
+      description: Name and version. `scw version`, `octl --version`, `exo version`, `terraform version`, or the SDK and its version.
       placeholder: scw 2.56.3
     validations:
       required: true

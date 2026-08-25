@@ -59,7 +59,7 @@ var clientSources = []struct {
 	{"`scw`", "SCW_VERSION"},
 	{"Terraform", "TERRAFORM_VERSION"},
 	{"OpenTofu", "TOFU_VERSION"},
-	{"`oapi-cli`", "OAPI_VERSION"},
+	{"`octl`", "OCTL_VERSION"},
 	{"`exo`", "EXO_VERSION"},
 }
 

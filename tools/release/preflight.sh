@@ -292,12 +292,12 @@ fi
 # rests on. CI runs it on every push; this checks that it did.
 # A check-run carries the name of the JOB, not of the workflow, and the
 # conformance jobs are named after the client they drive: scw-cli, terraform,
-# opentofu, oapi-cli, exo-cli, probe. Matching on "conformance" found nothing on
+# opentofu, octl, exo-cli, probe. Matching on "conformance" found nothing on
 # a green run and refused every tag with "no conformance run found" — a gate that
 # blocks the release it was written to authorise.
 # `image` is in the list because the release publishes one: a tag whose image
 # job never ran would push a container nobody has driven a client against.
-conformance_jobs='^(scw-cli|terraform|opentofu|oapi-cli|exo-cli|probe|image)$'
+conformance_jobs='^(scw-cli|terraform|opentofu|octl|exo-cli|probe|image)$'
 
 # And the query is written out rather than parameterised, because the previous
 # attempt to parameterise it is what broke this gate a second time.

@@ -80,7 +80,7 @@ HAVE_OSC=""; HAVE_EXO=""
 # if/else rather than `A && B || C`: with the short form C also runs when A
 # succeeded and B returned non-zero, so a station that HAS the client could be
 # told it does not — and this suite's whole verdict is a population count.
-if command -v oapi-cli >/dev/null 2>&1; then HAVE_OSC=1; else skip "oapi-cli is not installed; Outscale sits out this comparison"; fi
+if command -v octl >/dev/null 2>&1; then HAVE_OSC=1; else skip "octl is not installed; Outscale sits out this comparison"; fi
 if command -v exo      >/dev/null 2>&1; then HAVE_EXO=1; else skip "exo is not installed; Exoscale sits out this comparison"; fi
 
 # Blocks, distinct from every other suite on this host.
@@ -129,7 +129,7 @@ WORK="$(mktemp -d)"
 cleanup() {
   [ -n "$scw_srv" ] && api -X POST "$ENDPOINT/instance/v1/zones/$ZONE/servers/$scw_srv/action" \
     -d '{"action":"terminate"}' >/dev/null 2>&1
-  [ -n "$osc_vm" ] && osc DeleteVms '--VmIds[]' "$osc_vm" >/dev/null 2>&1
+  [ -n "$osc_vm" ] && osc DeleteVms --VmIds "$osc_vm" >/dev/null 2>&1
   [ -n "$exo_id" ] && curl -sf -X DELETE "$ENDPOINT/v2/instance/$exo_id" >/dev/null 2>&1
   sleep 8
   [ -n "$scw_ip_id" ] && api -X DELETE "$ENDPOINT/instance/v1/zones/$ZONE/ips/$scw_ip_id" >/dev/null 2>&1
@@ -172,20 +172,25 @@ scw_m="feint-scw-$scw_srv"
 
 # ---- Outscale: a Vm born in a Subnet ----------------------------------------
 
-osc() { oapi-cli --config "$WORK/osc-config.json" "$@"; }
+# See tools/conformance/outscale/octl.sh for the three rules folded in here:
+# the API rather than an alias, `-o raw` rather than the reshaped default, and a
+# request body that can only come from flags.
+osc() { octl --config "$WORK/osc-config.json" --no-upgrade -o raw iaas api "$@" </dev/null; }
 if [ -n "$HAVE_OSC" ]; then
   echo "- outscale: a Vm in a Subnet"
   set -a
   # shellcheck source=/dev/null
   . "$SCRIPT_DIR/outscale/fake-credentials.env"
-  # shellcheck disable=SC2034 # read by oapi-cli from the environment, not here
-  OSC_ENDPOINT_API="$ENDPOINT"
+  # shellcheck disable=SC2034 # read by octl from the environment, not here
+  # The path belongs in the value: octl reads osc-sdk-go's default, which is
+  # https://api.<region>.outscale.com/api/v1 (#460).
+  OSC_ENDPOINT_API="$ENDPOINT/api/v1"
   set +a
-  # oapi-cli falls back to its stored credentials when the environment says
+  # octl falls back to its stored credentials when the environment says
   # nothing, and this station carries real Outscale profiles. Every other
   # Outscale suite asks this question before its first call; this one drives
   # CreateNet and CreateVms, so it asks it too.
-  guard_no_real_profile OSC_ENDPOINT_API oapi-cli
+  guard_no_real_profile OSC_ENDPOINT_API octl
   cat > "$WORK/osc-config.json" <<EOF
 {
   "default": {
@@ -193,7 +198,7 @@ if [ -n "$HAVE_OSC" ]; then
     "secret_key": "$OSC_SECRET_KEY",
     "region": "$OSC_REGION",
     "protocol": "http",
-    "endpoints": { "api": "$ENDPOINT" }
+    "endpoints": { "api": "$ENDPOINT/api/v1" }
   }
 }
 EOF
@@ -204,7 +209,7 @@ EOF
   osc_priv="$(printf '%s' "$osc_doc" | jq -r '.Vms[0].PrivateIp // empty')"
   [ -n "$osc_vm" ] && [ -n "$osc_priv" ] || fail "the outscale Vm was not created with a PrivateIp"
   wait_carried "$osc_priv" || fail "no machine carries $osc_priv"
-  osc_public_baseline="$(osc ReadVms '--Filters.VmIds[]' "$osc_vm" | jq -r '.Vms[0].PublicIp // empty')"
+  osc_public_baseline="$(osc ReadVms --Filters.VmIds "$osc_vm" | jq -r '.Vms[0].PublicIp // empty')"
   [ -z "$osc_public_baseline" ] || fail "outscale allocated a public address nobody asked for"
   osc_m="feint-osc-$osc_vm"
 fi

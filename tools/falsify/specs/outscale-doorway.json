@@ -29,6 +29,20 @@
       "replace": "\t\t\tfor _, warning := range hazards.EnvHazards(os.LookupEnv) {\n\t\t\t\t_ = stderr\n\t\t\t\tfmt.Fprintf(stdout, \"warning: %s\\n\", warning)\n\t\t\t}",
       "test": "TestEnvHazardWarningsReachStderrNeverStdout",
       "package": "./internal/cli/"
+    },
+    {
+      "label": "octl is served the bare host, the shape it cannot use (#460)",
+      "file": "internal/providers/outscale/pack.go",
+      "find": "\tcase clientOCTL:\n\t\treturn emulator.Environment{\n\t\t\tVars: vars(bare + apiPath),",
+      "replace": "\tcase clientOCTL:\n\t\treturn emulator.Environment{\n\t\t\tVars: vars(bare + apiPath[:0]),",
+      "test": "TestEnvForServesOctlThePathShape"
+    },
+    {
+      "label": "the oapi-cli note stops saying the client is archived, and a reader is sent to a read-only CLI (#460)",
+      "file": "internal/providers/outscale/pack.go",
+      "find": "\t\t\t\t\"Note that outscale/oapi-cli is archived upstream and describes itself as deprecated; \" +",
+      "replace": "\t\t\t\t\"Note that outscale/oapi-cli is one of two Outscale CLIs; \" +",
+      "test": "TestEnvForServesEachMeasuredClientFamily"
     }
   ]
 }

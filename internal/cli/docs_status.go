@@ -46,9 +46,9 @@ var suiteInvocation = regexp.MustCompile(`tools/conformance/([a-z]+)/([a-z-]+)\.
 // name nobody mapped is how a table understates what is proven — the mirror of
 // the defect above, and just as wrong.
 var clientOf = map[string]string{
-	"scw-cli":  "`scw`",
-	"oapi-cli": "`oapi-cli`",
-	"exo-cli":  "`exo`",
+	"scw-cli": "`scw`",
+	"octl":    "`octl`",
+	"exo-cli": "`exo`",
 	// The two-zone suite (#278) drives the same real CLI, against an emulator
 	// it starts itself on a non-default zone; the client a reader would name
 	// is still `exo`, and both consumers deduplicate.
