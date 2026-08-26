@@ -1,0 +1,97 @@
+{
+  "package": "./tools/conformance/",
+  "mutations": [
+    {
+      "label": "a running resource with no machine on the runtime passes, which is #484 waved through by the gate built to stop it",
+      "file": "tools/conformance/witnesslib.sh",
+      "find": "    if [ \"$status\" = \"absent\" ]; then\n      fail \"$provider says $id is running, but no machine $name exists on the runtime (#484)\"\n    fi",
+      "replace": "    if [ \"$status\" = \"absent\" ] && false; then\n      fail \"$provider says $id is running, but no machine $name exists on the runtime (#484)\"\n    fi",
+      "test": "TestARunningResourceWithNoMachineBehindItFailsNamingBoth"
+    },
+    {
+      "label": "a machine the host holds Stopped answers for a resource the API calls running",
+      "file": "tools/conformance/witnesslib.sh",
+      "find": "    if [ \"$status\" != \"Running\" ]; then",
+      "replace": "    if [ \"$status\" != \"Running\" ] && false; then",
+      "test": "TestARunningResourceWhoseMachineIsStoppedFails"
+    },
+    {
+      "label": "a running resource that never recorded a machine passes in silence",
+      "file": "tools/conformance/witnesslib.sh",
+      "find": "    if [ -z \"$name\" ]; then\n      fail \"$provider says $id is running and recorded no machine for it — a claimed dataplane with nothing behind it (#484)\"\n    fi",
+      "replace": "    if [ -z \"$name\" ] && false; then\n      fail \"$provider says $id is running and recorded no machine for it — a claimed dataplane with nothing behind it (#484)\"\n    fi",
+      "test": "TestARunningResourceWithNoRecordedMachineFails"
+    },
+    {
+      "label": "a machine with zero rule sets passes under a pack that claims enforced.firewall, which is #475 waved through",
+      "file": "tools/conformance/witnesslib.sh",
+      "find": "    if [ -z \"$acls\" ]; then\n      fail \"$provider claims enforced.firewall, and machine $name (resource $id) carries no rule set on any NIC — the API describes a closed port the host answers on (#475)\"\n    fi",
+      "replace": "    if [ -z \"$acls\" ] && false; then\n      fail \"$provider claims enforced.firewall, and machine $name (resource $id) carries no rule set on any NIC — the API describes a closed port the host answers on (#475)\"\n    fi",
+      "test": "TestAClaimedFirewallWithNoRuleSetFailsNamingProviderAndMachine"
+    },
+    {
+      "label": "an operator's hand-made ACL on the NIC answers for the pack's handoff",
+      "file": "tools/conformance/witnesslib.sh",
+      "find": "    if [ -z \"$owned\" ]; then\n      fail \"$provider claims enforced.firewall, and machine $name (resource $id) carries rule sets, but none the emulator wrote — the pack handed nothing over (#475)\"\n    fi",
+      "replace": "    if [ -z \"$owned\" ] && false; then\n      fail \"$provider claims enforced.firewall, and machine $name (resource $id) carries rule sets, but none the emulator wrote — the pack handed nothing over (#475)\"\n    fi",
+      "test": "TestAForeignRuleSetDoesNotAnswerForThePack"
+    },
+    {
+      "label": "a transport error reads as a seen witness: the reader that reported a live account empty for forty minutes, on this gate",
+      "file": "tools/conformance/witnesslib.sh",
+      "find": "    if ! doc=\"$(\"$read_instance\" \"$name\")\"; then\n      fail \"cannot look: reading machine $name off the runtime failed; no witness because nobody could look is not 'no witness'\"\n    fi",
+      "replace": "    if ! doc=\"$(\"$read_instance\" \"$name\")\" && false; then\n      fail \"cannot look: reading machine $name off the runtime failed; no witness because nobody could look is not 'no witness'\"\n    fi",
+      "test": "TestAFirewallTransportErrorIsNotAnAbsence"
+    },
+    {
+      "label": "a balancer the runtime does not hold passes, which is #483 waved through by the gate built to stop it",
+      "file": "tools/conformance/witnesslib.sh",
+      "find": "    if [ -z \"$found\" ]; then\n      fail \"$provider registered balancer $wanted with a listener and a backend, and the runtime holds no balancer for it (#483)\"\n    fi",
+      "replace": "    if [ -z \"$found\" ] && false; then\n      fail \"$provider registered balancer $wanted with a listener and a backend, and the runtime holds no balancer for it (#483)\"\n    fi",
+      "test": "TestABalancerTheRuntimeDoesNotHoldFails"
+    },
+    {
+      "label": "a balancer registered and holding nothing — no backend, no port — passes as delivered",
+      "file": "tools/conformance/witnesslib.sh",
+      "find": "      if [ \"${backends:-0}\" -lt 1 ] || [ \"${ports:-0}\" -lt 1 ]; then",
+      "replace": "      if { [ \"${backends:-0}\" -lt 1 ] || [ \"${ports:-0}\" -lt 1 ]; } && false; then",
+      "test": "TestABalancerHeldEmptyFails"
+    },
+    {
+      "label": "every pack reads as claiming every capability, so the gate demands of Scaleway a balancer it never promised — the other half of #481",
+      "file": "tools/conformance/witnesslib.sh",
+      "find": "  jq -e --arg p \"$1\" --arg c \"$2\" \\\n    '(.enforced[$c] // []) | index($p) != null' >/dev/null",
+      "replace": "  jq -e --arg p \"$1\" --arg c \"$2\" \\\n    '((.enforced[$c] // []) | index($p) != null) or true' >/dev/null",
+      "test": "TestAnUnclaimedCapabilityReadsAsAbsent"
+    },
+    {
+      "label": "the machine reader matches by substring, so another run's machine answers for this one and the control stops biting",
+      "file": "tools/conformance/witnesslib.sh",
+      "find": "  jq -r --arg n \"$1\" '[.[] | select(.name == $n) | .status] | first // \"absent\"'",
+      "replace": "  jq -r --arg n \"$1\" '[.[] | select(.name | startswith($n)) | .status] | first // \"absent\"'",
+      "test": "TestTheMachineReaderRefusesASubstringMatch"
+    },
+    {
+      "label": "the rule-set reader loses the NIC filter key, finds nothing, and every firewall absence it reports is an instrument failure — the false #475",
+      "file": "tools/conformance/witnesslib.sh",
+      "find": "  jq -r '[.expanded_devices // {} | to_entries[]\n          | select(.value.type == \"nic\")\n          | (.value[\"security.acls\"] // \"\")\n          | split(\",\")[] | select(. != \"\")] | .[]?'",
+      "replace": "  jq -r '[.expanded_devices // {} | to_entries[]\n          | select(.value.type == \"nic\")\n          | (.value[\"security.acl\"] // \"\")\n          | split(\",\")[] | select(. != \"\")] | .[]?'",
+      "test": "TestEveryReaderControlFindsItsPlantedWitness"
+    },
+    {
+      "label": "the balancer reader keys on a name pattern instead of the description the runtime writes, and reads zero on a host carrying one",
+      "file": "tools/conformance/witnesslib.sh",
+      "find": "  jq -r '.[] | select((.description // \"\") | startswith(\"feint load balancer \"))",
+      "replace": "  jq -r '.[] | select((.description // \"\") | startswith(\"feint-load-balancer \"))",
+      "test": "TestEveryReaderControlFindsItsPlantedWitness"
+    },
+    {
+      "label": "the gate stops running the reader controls before it judges, so a broken reader files false absences again",
+      "file": "tools/conformance/witness.sh",
+      "find": "witness_machine_reader_control\nwitness_acl_reader_control\nwitness_balancer_reader_control",
+      "replace": "true || witness_machine_reader_control\ntrue || witness_acl_reader_control\ntrue || witness_balancer_reader_control",
+      "test": "TestTheWitnessGateWiresEveryVerdictAndNamesItsSkips"
+    }
+  ],
+  "note": "The subject is #486: four issues in one evening (#475, #481, #483, #484) were four instances of one absent rule — a claimed dataplane needs a witness on the runtime, per provider. The verdicts live in witnesslib.sh so these mutations can neutralise each one and require the matching test to fail; the gate witness.sh is held by a structural test that these same mutations cover for the wiring. The two reader mutations are the ones worth reading twice: an ACL reader filtering on the wrong key reported 0 rule sets on a run carrying six during #486's own preparation, and filed as written that would have been a false #475 against Scaleway. The reader controls are what make that mistake fail the gate instead of the pack."
+}

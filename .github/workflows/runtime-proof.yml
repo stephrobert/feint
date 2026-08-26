@@ -343,6 +343,38 @@ jobs:
         if: always()
         run: sudo ./feint stop --addr 127.0.0.1:4599 || true
 
+      # The dataplane witness gate (#486) needs Terraform: it applies the
+      # example stacks through `feint up`. Same pinned version and upstream
+      # checksums as conformance.yml's TERRAFORM_VERSION — one client, two
+      # workflows, one truth.
+      - name: Install Terraform
+        if: matrix.mode == 'incus-ovn'
+        env:
+          TERRAFORM_VERSION: '1.13.3'
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          base="https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}"
+          asset="terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/${asset}" "${base}/${asset}"
+          curl --retry 3 --retry-connrefused -fsSL -o "${workdir}/sums" "${base}/terraform_${TERRAFORM_VERSION}_SHA256SUMS"
+          (cd "${workdir}" && grep " ${asset}$" sums | sha256sum -c -)
+          sudo unzip -o "${workdir}/${asset}" terraform -d /usr/local/bin
+          terraform version
+
+      # The dataplane witness gate (#486): the example stacks under
+      # `feint up --runtime incus-ovn`, then the host read back with incus — a
+      # `running` resource has a Running machine (#484), a claimed firewall
+      # leaves rule sets on the machines (#475), a claimed balancer holds a
+      # backend and a port (#483), and a pack that claims nothing is skipped by
+      # name (#481). On this leg only, and after the main emulator stopped: the
+      # gate brings one emulator per stack up on its own port, and it belongs
+      # here — never on a leg without OVN, where it could not look — on the
+      # same terms as the ssh suites above.
+      - name: Dataplane witness gate
+        if: matrix.mode == 'incus-ovn'
+        run: sudo tools/conformance/witness.sh
+
       # The crash policy, proven by a kill (#135): SIGKILL a serving emulator
       # with a machine up, assert the leftovers survive labelled, assert the
       # restart names them without adopting them, assert `clean` leaves zero

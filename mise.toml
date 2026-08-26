@@ -292,6 +292,20 @@ run = [
   "tools/conformance/exoscale/ssh.sh http://$FEINT_ADDR",
 ]
 
+[tasks."conformance:witness"]
+description = "The dataplane witness gate (#486): what each pack claims, the runtime must show. Needs incus-ovn"
+depends = ["build"]
+# The stacks under `feint up --runtime incus-ovn`, on this suite's own port,
+# then the host is read with incus: a `running` resource has a Running machine
+# (#484), a claimed firewall leaves rule sets on the machines (#475), a claimed
+# balancer holds a backend and a port (#483) — and a pack that claims none of
+# it is skipped by name with exit 0, because an undeclared capability counts as
+# absent (#481). Not in the `conformance` aggregate: it needs a machine runtime
+# and starts emulators of its own, so it runs here by hand and on the incus-ovn
+# leg of .github/workflows/runtime-proof.yml — the same terms as
+# conformance:ssh and the environment suite.
+run = "tools/conformance/witness.sh"
+
 [tasks."conformance:parity"]
 description = "The same request, on the three clouds: assert the machines match, by reading the host. Needs FEINT_VM=incus or incus-ovn"
 # Deliberately NOT in the `conformance` aggregate, and the reason is a
