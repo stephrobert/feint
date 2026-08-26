@@ -2270,6 +2270,169 @@ what this project is judged on: **a response shape a client can observe**, and
   a closing inventory byte-identical to the opening one across all seven
   resource kinds.
 
+## [0.11.0] - 2026-08-26
+
+The release where the emulator stopped taking its own word for it. Four defects
+found by hand on one evening — a security group served and enforced on nothing,
+a balancing capability nobody materialised, a load balancer distributing
+nothing, two machines given one address — were all four green: apply exit 0,
+empty second plan, clean destroy, and three of them without a single ERROR
+line. Nothing failed, so nothing could have caught them but a person reading the
+host.
+
+### Added
+
+- **A claimed dataplane now needs a witness on the runtime** (#486).
+  `mise run conformance:witness` drives the example stacks under
+  `--vm incus-ovn`, reads the claims from each pack's own API, and reads the
+  witnesses **only** through `incus` — asking the emulator whether the emulator
+  is right is the failure this gate exists to remove. It renders four verdicts:
+  a pack claiming a firewall and handing no rule set fails by name; a balancer
+  whose spec the runtime refused fails rather than sitting registered and empty;
+  a resource the API calls `running` with no machine behind it fails; and a pack
+  that claims *nothing* is skipped by name with exit 0 — without that last one
+  the gate would demand of Scaleway a property it never promised.
+
+  **A green gate proves nothing, so the four reds were obtained on demand**,
+  each by planting the defect it names in an out-of-tree copy. Every reader
+  plants its positive control first, and three verdicts are distinguished, never
+  two: "no witness because nobody could look" prints `NOTHING WAS MEASURED` and
+  keeps exit 0. It runs outside the `conformance` aggregate and on the
+  `incus-ovn` leg of `runtime-proof.yml`, the same terms as `conformance:ssh`.
+
+- **`/_feint/health` answers which pack delivers balancing**, not only what the
+  runtime can do (#481). `capabilities.balancing: true` was true — OVN really
+  does forward — and said nothing about whether a pack materialises it, so a
+  consumer told by this repository to key on the declared capability would have
+  asserted a property Scaleway lacks. `enforced.balancing` now publishes
+  `["outscale"]` alone, and `TestEveryPackThatWiresTheBalancerSaysSo` holds the
+  declaration against the source **through the AST**: a substring reader would
+  have manufactured a false finding against Exoscale, whose comments name
+  `machine.Balancer` precisely to say it does not use it.
+
+- **A red scheduled night opens one issue, and a green one closes it** (#502).
+  `runtime-proof.yml` had been red on ten of twelve scheduled nights and the
+  only trace was a job log — the one place nobody opens without already knowing
+  there is a problem. The logic lives in `tools/ci/night-report.sh`, a versioned
+  script rather than a `run:` block, because a `run:` block cannot be executed
+  outside GitHub Actions and this repository has three scars from CI fixes
+  described in comments and never run. It names the failing step and its mode,
+  carries the consecutive-green streak #125 waits on, distinguishes an
+  infrastructure failure from a measured one, and updates one issue rather than
+  opening one per night.
+
+- **A repository declares the cloud it develops against, and one verb reads it**
+  (#189–#192, #485). `feint.yaml` carries the provider, the emulator's address,
+  the runtime, the environment and the IaC engine; `feint up` reads it.
+
+### Changed
+
+- **No Terraform drives the Exoscale pack — the pinned fork included — until
+  `exoscale/terraform-provider-exoscale#573` is fixed upstream** (#525). The
+  published provider builds two API clients and only one honours
+  `EXOSCALE_API_ENDPOINT`, so a single `apply` or `destroy` splits between the
+  emulator and the real cloud. That is not theoretical: a `feint down` run
+  without `TF_CLI_CONFIG_FILE` resolved the published provider and five signed
+  `GET` requests left for `api-ch-*.exoscale.com` before the run stopped at
+  refresh. Nothing was damaged — the requests carried the pack's deliberately
+  public fake credentials and were refused at authentication — but the only
+  reason nothing worse happened was the order in which `engineEnvironment`
+  appends the pack's variables after `os.Environ()`, **a property no test
+  asserted**. It has one now, and it protects all three packs.
+
+  The refusal falls **client-side, before anything starts**: an emulator-side
+  refusal is worthless here, since those five requests never reached it. It
+  names its reason, the upstream issue, and what remains possible — the `exo`
+  CLI drives this pack end to end. "Nothing was started" is measured, not
+  asserted: no process before or after, and `feint.log`'s mtime identical to the
+  byte, since the spawn creates that file before the child can fail.
+
+- **The Outscale suite drives `octl`** (#462), the CLI Outscale now maintains,
+  with no operation lost in the move.
+
+- **The emulated public block is a /28** (#464), which stops the suite spending
+  four minutes reclaiming addresses.
+
+### Fixed
+
+- **The three packs hand their security groups to the runtime** (#475). Only
+  Scaleway did: an Outscale or Exoscale group was served, echoed back and
+  reconciled onto nothing, so every port stayed open whatever the group said.
+  The reconciliation now lives once in a provider-neutral layer; each pack keeps
+  only what it alone knows — its rule vocabulary, who wears what, and the
+  expansion of group-sourced rules into their members' /32.
+
+- **A port no rule opens refuses, and two networks stay isolated** (#491). The
+  isolation rule set carried a catch-all `allow` at priority 300 where the NIC
+  default sits at 100/111, so on any multi-subnet OVN run a forbidden port
+  answered — on all three packs, Scaleway included. Both properties now hold
+  together, each with its positive control.
+
+- **Exoscale pool members join their pool's private networks** (#492), so the
+  app tier's rule set has an interface to attach to; and **a boot publishes the
+  state the effect produced** (#484) — a refused start publishes `error` instead
+  of leaving the API calling a machine that never started `running`.
+
+- **OVN under concurrency** (#473, #493, #519). Fifteen concurrent subnet
+  creates were serialised at 2.3 → 35.5 s strictly linear, and the tenth was cut
+  at 60 s while its retry met its own subnet as a conflict; they now finish
+  together at 11.6 s. A parallel destroy could leave a running machine, its
+  network and its rule set behind `Destroy complete!`; edits and detaches now
+  take turns and a teardown waits out what still holds the instance. Fifteen
+  parallel deletes paid one uplink rebuild each and now share them: 28.8 s
+  becomes 7.0 s.
+
+  Found while measuring, and worth its own line: **two concurrent
+  `ApplyFirewall` calls each created the ACL's OVN port group, the loser died on
+  the OVSDB constraint, and a NIC was left wearing no rule set at all while the
+  API reported it applied.** Nothing else was red; it surfaced because the
+  branch brief carried the expected `used_by` counts as invariants.
+
+- **An ordinary `CreateSubnet` no longer severs an active Net peering** (#508).
+  Two reconcilers wrote one reachability state with two truths and the last
+  writer erased the other's; there is one writer now, and the newborn subnet
+  joins the peering it was born into.
+
+- **The Outscale balancer distributes what the host can take, and writes down
+  what it withheld** (#483). One backend outside the subnet used to refuse the
+  whole spec at WARN, leaving a balancer registered and forwarding nothing.
+
+- **A conformance run ends on the host state its own doorstep accepts** (#521).
+  A green run left the shared uplink and one detached rule set behind, and the
+  suite's own doorstep then refused the next launch. Traced rather than deduced:
+  the default security group is the only one no client call can delete, so its
+  host ACL could only ever fall through the pack's `deleteNet` cascade — no
+  suite cleanup could have removed it.
+
+- **The ssh suites name what they lack** (#501), instead of dying silently on a
+  `grep -c` that returns 1 on zero; and **the peering check measures what it
+  claims** (#499), an assertion that had been green only while no security group
+  reached the runtime at all.
+
+- **A package step with no route out is said at boot** (#507). Under a runtime,
+  a machine on a routed NIC has no outbound route and no resolver, so
+  `cloud-init` ended in `status: error` inside a machine log nobody opens.
+  Measured by changing one variable: the same cloud-config on a NATed network
+  finishes `done` with nginx really installed. The bound is the NIC's shape, not
+  the station.
+
+### Ships with seven documented limits
+
+`docs/limits.md` goes from 43 to 50 sections. Seven measured defects ship with
+this release rather than being fixed (#518), each written with its dated
+measurement, the measured/deduced split its issue draws, what a user should do,
+and what would lift it: the station reaching OVN private addresses only through
+the network's router (#496), `routing_enabled` defaulting false where the real
+cloud answers true (#497), a non-idempotent public route re-laid at reboot
+(#498), one documented refusal logged at two different levels (#474),
+`feint images resolve` printing an identifier that cannot boot (#476), the `scw`
+CLI's recovered panic on every successful `lb acl delete` — an upstream defect
+with nothing to fix here (#505), and the Exoscale stack's second plan carrying
+two output-only additions (#520).
+
+Shipping them is a decision, not an omission. What each section deliberately
+leaves vague is what its issue leaves vague, and it says so.
+
 ## [0.10.0] - 2026-08-20
 
 ### Added
@@ -4333,5 +4496,21 @@ against the providers' own SDKs rather than followed by hand.
   `unread_request_fields` run after run while Terraform looped. An introspection
   nobody gates on is a confession nobody hears.
 
+[0.11.0]: https://github.com/stephrobert/feint/releases/tag/v0.11.0
+[0.10.0]: https://github.com/stephrobert/feint/releases/tag/v0.10.0
+[0.9.0]: https://github.com/stephrobert/feint/releases/tag/v0.9.0
+[0.8.0]: https://github.com/stephrobert/feint/releases/tag/v0.8.0
+[0.7.3]: https://github.com/stephrobert/feint/releases/tag/v0.7.3
+[0.7.2]: https://github.com/stephrobert/feint/releases/tag/v0.7.2
+[0.7.1]: https://github.com/stephrobert/feint/releases/tag/v0.7.1
+[0.7.0]: https://github.com/stephrobert/feint/releases/tag/v0.7.0
+[0.6.0]: https://github.com/stephrobert/feint/releases/tag/v0.6.0
+[0.5.0]: https://github.com/stephrobert/feint/releases/tag/v0.5.0
+[0.4.1]: https://github.com/stephrobert/feint/releases/tag/v0.4.1
+[0.4.0]: https://github.com/stephrobert/feint/releases/tag/v0.4.0
+[0.3.3]: https://github.com/stephrobert/feint/releases/tag/v0.3.3
+[0.3.2]: https://github.com/stephrobert/feint/releases/tag/v0.3.2
+[0.3.1]: https://github.com/stephrobert/feint/releases/tag/v0.3.1
+[0.3.0]: https://github.com/stephrobert/feint/releases/tag/v0.3.0
 [0.2.0]: https://github.com/stephrobert/feint/releases/tag/v0.2.0
 [0.1.0]: https://github.com/stephrobert/feint/releases/tag/v0.1.0

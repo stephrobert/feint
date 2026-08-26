@@ -2358,6 +2358,181 @@ change ni l'un ni l'autre a sa place dans `git log`.
   une release à comprendre.
 
 
+## [0.11.0] - 2026-08-26
+
+La version où l'émulateur a cessé de se croire sur parole. Quatre défauts
+trouvés à la main en une soirée — un groupe de sécurité servi et appliqué à
+rien, une capacité de répartition que personne ne matérialisait, un répartiteur
+qui ne distribuait rien, deux machines dotées d'une même adresse — étaient tous
+les quatre verts : apply à 0, second plan vide, destruction propre, et trois
+d'entre eux sans une seule ligne ERROR. Rien n'échouait, donc rien ne pouvait
+les attraper sauf quelqu'un qui lisait l'hôte.
+
+### Ajouté
+
+- **Un plan de données revendiqué exige désormais un témoin sur le runtime**
+  (#486). `mise run conformance:witness` pilote les stacks d'exemple sous
+  `--vm incus-ovn`, lit les revendications dans l'API de chaque pack, et lit les
+  témoins **uniquement** par `incus` — demander à l'émulateur s'il a raison est
+  précisément le défaut que cette porte existe pour retirer. Elle rend quatre
+  verdicts : un pack qui revendique un pare-feu sans remettre de jeu de règles
+  échoue nommément ; un répartiteur dont le runtime a refusé la spec échoue au
+  lieu de rester enregistré et vide ; une ressource que l'API dit `running` sans
+  machine derrière échoue ; et un pack qui ne revendique **rien** est sauté par
+  son nom, exit 0 — sans ce dernier, la porte exigerait de Scaleway une
+  propriété qu'il n'a jamais promise.
+
+  **Une porte verte ne prouve rien, donc les quatre rouges ont été obtenus sur
+  demande**, chacun en plantant le défaut qu'il nomme dans une copie hors dépôt.
+  Chaque lecteur plante son contrôle positif d'abord, et trois verdicts sont
+  distingués, jamais deux : « aucun témoin parce que personne n'a pu regarder »
+  imprime `NOTHING WAS MEASURED` et garde exit 0. Elle vit hors de l'agrégat
+  `conformance` et sur la jambe `incus-ovn` de `runtime-proof.yml`, aux mêmes
+  conditions que `conformance:ssh`.
+
+- **`/_feint/health` dit quel pack livre la répartition**, et pas seulement ce
+  que le runtime sait faire (#481). `capabilities.balancing: true` était vrai —
+  OVN sait réellement répartir — et ne disait rien de ce qu'un pack matérialise,
+  si bien qu'un consommateur suivant la règle de ce dépôt aurait affirmé une
+  propriété que Scaleway n'a pas. `enforced.balancing` publie désormais
+  `["outscale"]` seul, et `TestEveryPackThatWiresTheBalancerSaysSo` tient la
+  déclaration contre la source **par l'AST** : un lecteur par sous-chaîne aurait
+  fabriqué un faux constat contre Exoscale, dont les commentaires nomment
+  `machine.Balancer` précisément pour dire qu'il ne l'utilise pas.
+
+- **Une nuit planifiée rouge ouvre une issue, une verte la referme** (#502).
+  `runtime-proof.yml` était rouge dix nuits sur douze et la seule trace était le
+  journal d'un job — le seul endroit que personne n'ouvre sans déjà savoir qu'il
+  y a un problème. La logique vit dans `tools/ci/night-report.sh`, un script
+  versionné plutôt qu'un bloc `run:`, parce qu'un bloc `run:` ne s'exécute que
+  sur un runner GitHub et que ce dépôt porte trois cicatrices de correctifs de
+  CI décrits en commentaire et jamais exécutés. Il nomme l'étape en échec et son
+  mode, porte la série de verts consécutifs qu'attend #125, distingue un échec
+  d'infrastructure d'un échec de mesure, et met à jour une issue au lieu d'en
+  ouvrir une par nuit.
+
+- **Un dépôt déclare le cloud contre lequel il se développe, et un seul verbe le
+  lit** (#189–#192, #485). `feint.yaml` porte le provider, l'adresse de
+  l'émulateur, le runtime, l'environnement et le moteur d'IaC ; `feint up` le
+  lit.
+
+### Modifié
+
+- **Aucun Terraform ne pilote le pack Exoscale — le fork épinglé compris — tant
+  que `exoscale/terraform-provider-exoscale#573` n'est pas corrigé en amont**
+  (#525). Le provider publié construit deux clients d'API dont un seul honore
+  `EXOSCALE_API_ENDPOINT`, donc un même `apply` ou `destroy` se scinde entre
+  l'émulateur et le vrai cloud. Ce n'est pas théorique : un `feint down` lancé
+  sans `TF_CLI_CONFIG_FILE` a résolu le provider publié, et cinq requêtes `GET`
+  signées sont parties vers `api-ch-*.exoscale.com` avant que le run ne s'arrête
+  au refresh. Rien n'a été détruit — elles portaient les identifiants factices
+  volontairement publics du pack et ont été refusées à l'authentification — mais
+  la seule raison pour laquelle rien de pire n'est arrivé tient à l'ordre dans
+  lequel `engineEnvironment` appose les variables du pack après `os.Environ()`,
+  **une propriété qu'aucun test n'affirmait**. Elle en a une désormais, et elle
+  protège les trois packs.
+
+  Le refus tombe **côté client, avant que rien ne démarre** : un refus côté
+  émulateur ne servirait à rien ici, puisque ces cinq requêtes ne l'ont jamais
+  atteint. Il nomme sa raison, l'issue amont, et ce qui reste possible — la CLI
+  `exo` pilote ce pack de bout en bout. Le « rien n'a démarré » est mesuré, pas
+  affirmé : aucun processus avant ni après, et le mtime de `feint.log` identique
+  à l'octet, puisque le lancement crée ce fichier avant que l'enfant puisse
+  échouer.
+
+- **La suite Outscale pilote `octl`** (#462), la CLI qu'Outscale maintient
+  désormais, sans qu'aucune opération soit perdue dans le déplacement.
+
+- **Le bloc public émulé est un /28** (#464), ce qui évite à la suite de passer
+  quatre minutes à récupérer des adresses.
+
+### Corrigé
+
+- **Les trois packs remettent leurs groupes de sécurité au runtime** (#475).
+  Seul Scaleway le faisait : un groupe Outscale ou Exoscale était servi, renvoyé
+  tel quel et réconcilié sur rien, donc tous les ports restaient ouverts quoi
+  que dise le groupe. La réconciliation vit désormais une seule fois dans une
+  couche neutre ; chaque pack ne garde que ce que lui seul sait — le vocabulaire
+  de ses règles, qui porte quoi, et l'expansion des règles sourcées par groupe en
+  /32 de leurs membres.
+
+- **Un port qu'aucune règle n'ouvre refuse, et deux réseaux restent isolés**
+  (#491). Le jeu d'isolation portait un attrape-tout `allow` à la priorité 300 là
+  où le défaut de la NIC siège à 100/111 : sur tout run OVN à plusieurs
+  sous-réseaux, un port interdit répondait — pour les trois packs, Scaleway
+  compris. Les deux propriétés tiennent désormais ensemble, chacune avec son
+  contrôle positif.
+
+- **Les membres de pool Exoscale rejoignent les réseaux privés de leur pool**
+  (#492), donc le jeu de règles du tiers applicatif a une interface à laquelle
+  s'attacher ; et **un boot publie l'état que l'effet a produit** (#484) — un
+  démarrage refusé publie `error` au lieu de laisser l'API appeler `running` une
+  machine qui n'a jamais démarré.
+
+- **OVN sous concurrence** (#473, #493, #519). Quinze créations de subnets
+  concurrentes étaient sérialisées de 2,3 à 35,5 s, strictement linéaires, et la
+  dixième était coupée à 60 s pendant que sa reprise rencontrait son propre
+  subnet comme un conflit ; elles finissent maintenant ensemble à 11,6 s. Une
+  destruction parallèle pouvait laisser une machine vivante, son réseau et son
+  jeu de règles derrière un `Destroy complete!` ; les éditions et les
+  détachements prennent leur tour, et un démontage attend ce qui tient encore
+  l'instance. Quinze suppressions parallèles payaient chacune une réécriture
+  d'uplink et les partagent désormais : 28,8 s deviennent 7,0 s.
+
+  Trouvé en mesurant, et cela mérite sa ligne : **deux `ApplyFirewall`
+  concurrents créaient chacun le port group OVN de l'ACL, le perdant mourait sur
+  la contrainte OVSDB, et une NIC restait sans aucun jeu de règles pendant que
+  l'API disait « appliqué ».** Rien d'autre n'était rouge ; c'est apparu parce
+  que le brief de la branche portait les comptes `used_by` attendus comme des
+  invariants.
+
+- **Un `CreateSubnet` ordinaire ne coupe plus un peering actif** (#508). Deux
+  réconciliateurs écrivaient un même état de joignabilité avec deux vérités et
+  le dernier effaçait celle de l'autre ; il n'y en a plus qu'un, et le subnet
+  nouveau-né rejoint le peering dans lequel il est né.
+
+- **Le répartiteur Outscale distribue ce que l'hôte accepte, et consigne ce
+  qu'il a retenu** (#483). Un arrière-plan hors du subnet faisait refuser la
+  spec entière au niveau WARN, laissant un répartiteur enregistré qui ne
+  transmettait rien.
+
+- **Une exécution de conformance finit sur l'état d'hôte que son propre
+  portillon accepte** (#521). Une exécution verte laissait derrière elle
+  l'uplink partagé et un jeu de règles détaché, et le portillon de la suite
+  refusait alors le lancement suivant. Tracé plutôt que déduit : le groupe de
+  sécurité par défaut est le seul qu'aucun appel client ne peut supprimer, donc
+  son ACL sur l'hôte ne pouvait tomber que par la cascade du `deleteNet` du
+  pack — aucun nettoyage de suite n'aurait pu la retirer.
+
+- **Les suites ssh nomment ce qui leur manque** (#501), au lieu de mourir en
+  silence sur un `grep -c` qui rend 1 quand le compte est zéro ; et **le contrôle
+  de peering mesure ce qu'il prétend** (#499), une assertion qui n'était verte
+  que tant qu'aucun groupe de sécurité n'atteignait le runtime.
+
+- **Une étape de paquets sans route sortante est dite au démarrage** (#507).
+  Sous un runtime, une machine sur NIC routée n'a ni route sortante ni
+  résolveur, donc `cloud-init` finissait en `status: error` dans un journal de
+  machine que personne n'ouvre. Mesuré en changeant une seule variable : le même
+  cloud-config sur un réseau NATé finit `done`, nginx réellement installé. La
+  borne est la forme de la NIC, pas la station.
+
+### Part avec sept limites documentées
+
+`docs/limits.md` passe de 43 à 50 sections. Sept défauts mesurés partent avec
+cette version plutôt que d'être corrigés (#518), chacun écrit avec sa mesure
+datée, la séparation mesuré/déduit telle que son issue la fait, le geste qu'un
+utilisateur doit en tirer, et ce qui le lèverait : la station qui n'atteint les
+adresses privées OVN que par le routeur du réseau (#496), `routing_enabled` faux
+par défaut là où le vrai cloud répond vrai (#497), une route publique reposée
+sans idempotence au reboot (#498), un même refus documenté journalisé à deux
+niveaux différents (#474), `feint images resolve` qui imprime un identifiant
+incapable de démarrer (#476), la panique récupérée de la CLI `scw` sur chaque
+`lb acl delete` réussi — un défaut amont, rien à corriger ici (#505), et le
+second plan de la stack Exoscale portant deux ajouts d'outputs seuls (#520).
+
+Les livrer est une décision, pas un oubli. Ce que chaque section laisse vague
+est ce que son issue laisse vague, et elle le dit.
+
 ## [0.10.0] - 2026-08-20
 
 ### Ajouté
@@ -4652,5 +4827,21 @@ contre les SDK des providers eux-mêmes plutôt que suivie à la main.
   que Terraform bouclait. Une introspection sur laquelle personne ne fait gate est
   un aveu que personne n'entend.
 
+[0.11.0]: https://github.com/stephrobert/feint/releases/tag/v0.11.0
+[0.10.0]: https://github.com/stephrobert/feint/releases/tag/v0.10.0
+[0.9.0]: https://github.com/stephrobert/feint/releases/tag/v0.9.0
+[0.8.0]: https://github.com/stephrobert/feint/releases/tag/v0.8.0
+[0.7.3]: https://github.com/stephrobert/feint/releases/tag/v0.7.3
+[0.7.2]: https://github.com/stephrobert/feint/releases/tag/v0.7.2
+[0.7.1]: https://github.com/stephrobert/feint/releases/tag/v0.7.1
+[0.7.0]: https://github.com/stephrobert/feint/releases/tag/v0.7.0
+[0.6.0]: https://github.com/stephrobert/feint/releases/tag/v0.6.0
+[0.5.0]: https://github.com/stephrobert/feint/releases/tag/v0.5.0
+[0.4.1]: https://github.com/stephrobert/feint/releases/tag/v0.4.1
+[0.4.0]: https://github.com/stephrobert/feint/releases/tag/v0.4.0
+[0.3.3]: https://github.com/stephrobert/feint/releases/tag/v0.3.3
+[0.3.2]: https://github.com/stephrobert/feint/releases/tag/v0.3.2
+[0.3.1]: https://github.com/stephrobert/feint/releases/tag/v0.3.1
+[0.3.0]: https://github.com/stephrobert/feint/releases/tag/v0.3.0
 [0.2.0]: https://github.com/stephrobert/feint/releases/tag/v0.2.0
 [0.1.0]: https://github.com/stephrobert/feint/releases/tag/v0.1.0

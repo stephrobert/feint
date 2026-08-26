@@ -47,7 +47,7 @@ that wants real machines behind `--vm` on a host with Incus:
 ```yaml
 - uses: stephrobert/setup-feint@v1
   with:
-    version: 0.10.0
+    version: 0.11.0
     provider: scaleway     # exports what the official client needs
 - run: terraform apply -auto-approve
 ```
