@@ -28,6 +28,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # account. That is not hypothetical — it happened, to this repository.
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/../guard.sh"
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/../sshlogin.sh"
 guard_local "$ENDPOINT"
 # The images this suite boots have to exist before it registers a key and
 # promises an address; without them nothing answers on port 22 (#335).
@@ -148,11 +150,9 @@ for _ in $(seq 1 45); do
 done
 [ "$logged_in" = true ] \
   || fail "no ssh daemon answered for $user@$eip although the $MACHINES runtime is on: the published address is a promise nobody keeps"
-remote="$(ssh -F /dev/null -i "$WORK/id" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            -o BatchMode=yes "$user@$eip" 'id -un; grep -c feint-sshconf ~/.ssh/authorized_keys')"
-[ "$(printf '%s' "$remote" | head -1)" = "$user" ] \
-  || fail "logged in as '$(printf '%s' "$remote" | head -1)', not as the template's declared $user"
-ok "logged in: $(echo "$remote" | tr '\n' ' ')"
+# The assertions live in sshlogin.sh, shared by the three ssh suites: every
+# one carries its message, and no grep ever decides an exit status (#501).
+assert_login "$user@$eip" "$WORK/id" "$user" "$WORK/id.pub"
 
 echo "- clean up"
 exo -Q compute instance delete "$instance_id" --force >/dev/null || fail "instance delete rejected"

@@ -1,0 +1,34 @@
+{
+  "package": "./tools/conformance/",
+  "mutations": [
+    {
+      "label": "the key-material assertion never fails, so a machine provisioned without the registered key logs a success — the suite is silent about the one thing it exists to say",
+      "file": "tools/conformance/sshlogin.sh",
+      "find": "  grep -qF \"$key_material\" <<<\"$authorized\" \\",
+      "replace": "  grep -qF \"$key_material\" <<<\"$authorized\" || true \\",
+      "test": "TestALoginMissingItsKeyFailsNamingAuthorizedKeys"
+    },
+    {
+      "label": "the account assertion never fails, so a default login that moved goes unreported",
+      "file": "tools/conformance/sshlogin.sh",
+      "find": "  [ \"$remote_user\" = \"$want_user\" ] \\",
+      "replace": "  [ \"$remote_user\" = \"$want_user\" ] || true \\",
+      "test": "TestALoginAsTheWrongUserFailsNamingTheAccount"
+    },
+    {
+      "label": "the readability guard never fails, so an io error on authorized_keys is reported as a missing key — 'the shape is unknown' collapsed into 'not found'",
+      "file": "tools/conformance/sshlogin.sh",
+      "find": "  authorized=\"$(ssh_login 'cat ~/.ssh/authorized_keys')\" \\",
+      "replace": "  authorized=\"$(ssh_login 'cat ~/.ssh/authorized_keys')\" || true \\",
+      "test": "TestAnUnreadableAuthorizedKeysFailsSayingSo"
+    },
+    {
+      "label": "the Scaleway suite stops calling the shared assertions, which is the shape the defect had: one block written three times, fixed in one",
+      "file": "tools/conformance/scaleway/ssh.sh",
+      "find": "  assert_login \"root@$ip\" \"$WORK/id\" root \"$WORK/id.pub\"",
+      "replace": "  true || assert_login \"root@$ip\" \"$WORK/id\" root \"$WORK/id.pub\"",
+      "test": "TestEverySshSuiteAssertsItsLoginThroughTheSharedBlock"
+    }
+  ],
+  "note": "The subject is #501. runtime-proof.yml was red on the 'Scaleway ssh suite' step for five consecutive scheduled nights (2026-08-22 to 2026-08-26) with no FAIL line and no emulator ERROR: the login block was one unguarded command substitution whose remote command ended in `grep -c`, which exits 1 when the count is zero — and the count was legitimately zero, because it counted the key's COMMENT and the real cloud drops the comment (measured on a real fr-par account 2026-08-21; the pack emulates it in sshkeys.go, held by TestASSHKeyIsPublishedWithoutItsComment, merged in b71d085 the very day the red nights began). Reproduced on the author's station 2026-08-26 under FEINT_VM=incus: once given its voice, the suite failed on 'the registered key (comment feint-conformance) is missing from authorized_keys (1 line(s) present)', and reading that one line inside the machine showed the material present and the comment gone. The repair asserts the material, never the comment, one guarded message per assertion, in a block shared by the three suites — the previous block was written three times and the silent death lived in all three."
+}

@@ -21,6 +21,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # account. That is not hypothetical — it happened, to this repository.
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/../guard.sh"
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/../sshlogin.sh"
 guard_local "$ENDPOINT"
 # The images this suite boots have to exist before it registers a key and
 # promises an address; without them nothing answers on port 22 (#335).
@@ -102,9 +104,12 @@ for _ in $(seq 1 45); do
 done
 
 if [ "$logged_in" = true ]; then
-  remote="$(ssh -F /dev/null -i "$WORK/id" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-              -o BatchMode=yes "root@$ip" 'hostname; id -un; grep -c feint-conformance ~/.ssh/authorized_keys')"
-  ok "logged in: $(echo "$remote" | tr '\n' ' ')"
+  # The assertions live in sshlogin.sh, shared by the three ssh suites, and
+  # every one of them names what it did not get. This block used to be a
+  # single unguarded ssh whose last sub-command was `grep -c`, which exits 1
+  # when the count is zero: under `set -euo pipefail` the script died right
+  # here without a word, five scheduled nights in a row (#501).
+  assert_login "root@$ip" "$WORK/id" root "$WORK/id.pub"
 elif [ "$MACHINES" = "none" ]; then
   echo "  SKIP: no ssh daemon answered on $ip (expected with --vm off; use --vm incus)" >&2
 else
