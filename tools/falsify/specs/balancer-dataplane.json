@@ -11,8 +11,8 @@
     {
       "label": "a balancer is written onto a network the emulator does not own",
       "file": "internal/core/machine/incus_balancer.go",
-      "find": "\tif err := d.mustOwn(ctx, spec.Network); err != nil {\n\t\treturn err\n\t}\n\tblock, err := d.networkGateway(ctx, spec.Network)",
-      "replace": "\tif err := d.mustOwn(ctx, spec.Network); err != nil && false {\n\t\treturn err\n\t}\n\tblock, err := d.networkGateway(ctx, spec.Network)",
+      "find": "\tif err := d.mustOwn(ctx, spec.Network); err != nil {\n\t\treturn none, err\n\t}\n\tblock, err := d.networkGateway(ctx, spec.Network)",
+      "replace": "\tif err := d.mustOwn(ctx, spec.Network); err != nil && false {\n\t\treturn none, err\n\t}\n\tblock, err := d.networkGateway(ctx, spec.Network)",
       "test": "TestABalancerOnAForeignNetworkIsRefused"
     },
     {
@@ -25,8 +25,8 @@
     {
       "label": "an untranslated protocol is dropped instead of refused, and the balancer serves half its listeners",
       "file": "internal/core/machine/incus_balancer.go",
-      "find": "\t\tif !balancerProtocols[strings.ToLower(listener.Protocol)] {\n\t\t\treturn fmt.Errorf(\"balancer %s: %q is not a protocol this runtime distributes; \"+",
-      "replace": "\t\tif !balancerProtocols[strings.ToLower(listener.Protocol)] && false {\n\t\t\treturn fmt.Errorf(\"balancer %s: %q is not a protocol this runtime distributes; \"+",
+      "find": "\t\tif !balancerProtocols[strings.ToLower(listener.Protocol)] {\n\t\t\treturn none, fmt.Errorf(\"balancer %s: %q is not a protocol this runtime distributes; \"+",
+      "replace": "\t\tif !balancerProtocols[strings.ToLower(listener.Protocol)] && false {\n\t\t\treturn none, fmt.Errorf(\"balancer %s: %q is not a protocol this runtime distributes; \"+",
       "test": "TestAnUndistributableProtocolIsRefused"
     },
     {
@@ -75,18 +75,34 @@
       "package": "./internal/providers/outscale/"
     },
     {
-      "label": "a backend on another subnet passes the guard and dies inside the runtime, mid-write (#457)",
+      "label": "a backend on another subnet is handed to the daemon and dies inside the runtime, mid-write (#457, #483)",
       "file": "internal/core/machine/incus_balancer.go",
       "find": "\t\tif !block.Contains(address) {",
       "replace": "\t\tif !block.Contains(address) && false {",
-      "test": "TestABalancerWithATargetOutsideTheNetworkIsRefused"
+      "test": "TestABackendOutsideTheNetworkIsWithheldAndNamed"
     },
     {
       "label": "a balancer with no backend is written with a port naming nothing, which the runtime refuses with \"Missing VIP target(s)\"",
       "file": "internal/core/machine/incus_balancer.go",
-      "find": "\tif len(spec.Targets) > 0 {",
-      "replace": "\tif len(spec.Targets) > 0 || true {",
+      "find": "\tif len(served.Targets) > 0 {",
+      "replace": "\tif len(served.Targets) > 0 || true {",
       "test": "TestABalancerWithNoBackendIsWrittenWithoutPorts"
+    },
+    {
+      "label": "a partial delivery is never written on the resource, so the host and the API disagree with no record of it (#483)",
+      "file": "internal/providers/outscale/loadbalancer_dataplane.go",
+      "find": "\tmachine.RecordBalancerDelivery(p.env.Store, res, p.env.Now(), distributed, undistributed)\n}",
+      "replace": "\tif false {\n\t\tmachine.RecordBalancerDelivery(p.env.Store, res, p.env.Now(), distributed, undistributed)\n\t}\n}",
+      "test": "TestAPartialDeliveryIsRecordedAndSaidAtWarn",
+      "package": "./internal/providers/outscale/"
+    },
+    {
+      "label": "the withheld backends are recorded and never said, so the only human-visible trace of #483 goes quiet",
+      "file": "internal/providers/outscale/loadbalancer_dataplane.go",
+      "find": "\tif undistributed != \"\" {",
+      "replace": "\tif undistributed != \"\" && false {",
+      "test": "TestAPartialDeliveryIsRecordedAndSaidAtWarn",
+      "package": "./internal/providers/outscale/"
     },
     {
       "label": "a load balancer the host refused leaves capabilities.balancing true, so a suite keys on a claim the host denied",

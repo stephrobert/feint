@@ -382,12 +382,16 @@ resource "outscale_public_ip_link" "web" {
 # implies is itself part of what an apply-destroy cycle proves.
 #
 # The backends here span the two public subnets on purpose — the exact ztiac
-# shape that found #457. Under `--vm incus-ovn` the host serves a dataplane
-# only for a balancer whose backends share its own subnet (four measurements,
-# docs/limits.md): this configuration is recorded, described and WARNed about,
-# and the runtime declines its dataplane by name rather than half-serving it.
-# With machines off it is a record that round-trips. Both are honest, and the
-# stack keeps the shape so the next run keeps checking the refusal.
+# shape that found #457, then #483. Under `--vm incus-ovn` the host can only
+# distribute to backends on the balancer's own subnet (four measurements,
+# docs/limits.md), so the driver distributes to the web machine in public-a,
+# withholds the one in public-b by name, and the pack writes both halves into
+# the balancer's Runtime record (`balancer-distributed` /
+# `balancer-undistributed`, readable through /_feint/state) beside a WARN.
+# Refusing the whole spec was measured first and cost more: the host held a
+# balancer distributing to nobody while the API described two healthy
+# backends. With machines off it is a record that round-trips. The stack keeps
+# the shape so the next run keeps checking the split and its record.
 # ---------------------------------------------------------------------------
 
 resource "outscale_load_balancer" "front" {

@@ -41,6 +41,29 @@ type FirewallEnforcer interface {
 	EnforcesFirewall() bool
 }
 
+// BalancingEnforcer is FirewallEnforcer one capability over (#481).
+//
+// It exists because the firewall's history repeated itself on the balancer,
+// measured on 2026-08-25: `capabilities.balancing` was true under OVN — the
+// runtime really can distribute — while a Scaleway stack's load balancer left
+// no trace on the host, because that pack hands nothing to `machine.Balancer`.
+// Both statements were true, and a suite following this repository's own advice
+// ("key on the declared capability, never on a mode name") would have asserted
+// distribution on a cloud that never promised it. The vocabulary was one word
+// short: nothing could ask "does this *provider's* balancer forward packets
+// here", only "can this runtime balance". `enforced.balancing` is that word.
+//
+// TestEveryPackThatWiresTheBalancerSaysSo (internal/cli) holds the declaration
+// against the source, in both directions.
+type BalancingEnforcer interface {
+	// EnforcesBalancing reports whether this pack hands its load balancers to
+	// the machine runtime. Like EnforcesFirewall, it answers about the pack and
+	// not about the driver: a pack that wires the handoff says true even in a
+	// process with no runtime, because the question a consumer needs answered
+	// is whether pointing a runtime at it would change anything.
+	EnforcesBalancing() bool
+}
+
 // enforcement answers, per capability, the packs that hand work to it. The
 // value is what `/_feint/health` publishes under `enforced`.
 //
@@ -55,17 +78,24 @@ func enforcement(packs []Pack) map[string][]string {
 	// wires anything. Found by TestEnforcementPublishesAnEmptyListRatherThanNoKey
 	// on its first run.
 	firewall := []string{}
+	balancing := []string{}
 	for _, p := range packs {
 		fe, ok := p.(FirewallEnforcer)
 		if ok && fe.EnforcesFirewall() {
 			firewall = append(firewall, p.Name())
 		}
+		be, ok := p.(BalancingEnforcer)
+		if ok && be.EnforcesBalancing() {
+			balancing = append(balancing, p.Name())
+		}
 	}
 	sort.Strings(firewall)
-	// The key exists even when empty: a consumer distinguishing "no pack wires
+	sort.Strings(balancing)
+	// The keys exist even when empty: a consumer distinguishing "no pack wires
 	// it" from "this build does not publish the field" needs the key to be
 	// there, and an absent key would read as the older payload.
 	out["firewall"] = firewall
+	out["balancing"] = balancing
 
 	return out
 }

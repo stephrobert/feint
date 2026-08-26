@@ -3,6 +3,7 @@ package outscale_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -45,11 +46,13 @@ func (r *recordingBalancer) Capabilities() machine.Capabilities {
 	return machine.Capabilities{Machines: true, Addresses: true, Balancing: r.declares}
 }
 
-func (r *recordingBalancer) EnsureBalancer(_ context.Context, spec machine.BalancerSpec) error {
+func (r *recordingBalancer) EnsureBalancer(_ context.Context, spec machine.BalancerSpec) (machine.BalancerDelivery, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.ensured = append(r.ensured, spec)
-	return nil
+	// The whole spec distributed: this fake plays the runtime on the happy
+	// path, and the partial path has its own fake below.
+	return machine.BalancerDelivery{Distributed: append([]string(nil), spec.Targets...)}, nil
 }
 
 func (r *recordingBalancer) RemoveBalancer(_ context.Context, network, listen string) error {
@@ -258,16 +261,37 @@ func containsAddress(line, address string) bool {
 }
 
 // refusingBalancer is a runtime that declares balancing and refuses one shape,
-// the way the Incus driver refuses a balancer in front of machines on another
-// subnet (#457).
+// the way the Incus driver refuses a listen address outside its network's
+// block (#315).
 type refusingBalancer struct {
 	*recordingBalancer
 	err error
 }
 
-func (r *refusingBalancer) EnsureBalancer(ctx context.Context, spec machine.BalancerSpec) error {
-	_ = r.recordingBalancer.EnsureBalancer(ctx, spec)
-	return r.err
+func (r *refusingBalancer) EnsureBalancer(ctx context.Context, spec machine.BalancerSpec) (machine.BalancerDelivery, error) {
+	_, _ = r.recordingBalancer.EnsureBalancer(ctx, spec)
+	return machine.BalancerDelivery{}, r.err
+}
+
+// withholdingBalancer is a runtime that takes part of a spec and names the
+// rest, the way the Incus driver withholds a backend outside the balancer's
+// own subnet (#457, #483).
+type withholdingBalancer struct {
+	*recordingBalancer
+	withheld map[string]string
+}
+
+func (r *withholdingBalancer) EnsureBalancer(ctx context.Context, spec machine.BalancerSpec) (machine.BalancerDelivery, error) {
+	_, _ = r.recordingBalancer.EnsureBalancer(ctx, spec)
+	delivery := machine.BalancerDelivery{Undistributed: map[string]string{}}
+	for _, target := range spec.Targets {
+		if reason, held := r.withheld[target]; held {
+			delivery.Undistributed[target] = reason
+			continue
+		}
+		delivery.Distributed = append(delivery.Distributed, target)
+	}
+	return delivery, nil
 }
 
 // newLoggedRuntimeServer is newRuntimeServer with somewhere to read the log,
@@ -331,5 +355,119 @@ func TestAnUndistributableShapeIsNotLoggedAsAnError(t *testing.T) {
 	aBalancedStack(t, newLoggedRuntimeServer(t, failing, &broken))
 	if !strings.Contains(broken.String(), "level=ERROR") {
 		t.Errorf("a runtime failure must stay an error: %q", broken.String())
+	}
+}
+
+// balancerRuntimeRecord reads the store's own account of what the runtime
+// holds for lbu-data, through the surface an operator or a gate reads it from:
+// `/_feint/state`. Reading the store through its public door on purpose — the
+// record's whole value is that somebody outside this process can meet it.
+func balancerRuntimeRecord(t *testing.T, ts *httptest.Server) map[string]string {
+	t.Helper()
+	resp, err := ts.Client().Get(ts.URL + "/_feint/state") //nolint:noctx // a local test server
+	if err != nil {
+		t.Fatalf("read the state: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var state struct {
+		Resources []struct {
+			Kind    string            `json:"Kind"`
+			ID      string            `json:"ID"`
+			Runtime map[string]string `json:"Runtime"`
+		} `json:"resources"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&state); err != nil {
+		t.Fatalf("decode the state: %v", err)
+	}
+	for _, res := range state.Resources {
+		if res.Kind == "loadbalancer" && res.ID == "lbu-data" {
+			return res.Runtime
+		}
+	}
+	t.Fatal("the state holds no load balancer, so there is no record to read")
+	return nil
+}
+
+// A partial delivery is recorded where a reader can meet it, and said at WARN.
+//
+// #483, measured before this test existed: the ordinary two-tier stack — one
+// backend on the balancer's own subnet, one on another — left the host holding
+// a balancer with no backend and no port while the API described both backends
+// and the run logged zero ERROR lines. One WARN was the only trace, and no
+// gate reads a log. The state published must be the state the effect produced:
+// the delivered half and the withheld half both go into the resource's
+// Runtime, visible through `/_feint/state`, and the WARN names what the API
+// goes on describing.
+//
+// The record has to follow every sync, not only the first: after the withheld
+// machine is unlinked, a record still claiming it would be the same lie with
+// the sign flipped.
+func TestAPartialDeliveryIsRecordedAndSaidAtWarn(t *testing.T) {
+	var log bytes.Buffer
+	runtime := &withholdingBalancer{recordingBalancer: newRecordingBalancer(true), withheld: map[string]string{}}
+	close(runtime.release)
+	ts := newLoggedRuntimeServer(t, runtime, &log)
+
+	doc := contractDoc(t)
+	out := call(t, ts, doc, "CreateNet", `{"IpRange":"10.188.0.0/16"}`)
+	netID, _ := out["Net"].(map[string]any)["NetId"].(string)
+	out = call(t, ts, doc, "CreateSubnet", `{"NetId":"`+netID+`","IpRange":"10.188.3.0/24"}`)
+	subnet, _ := out["Subnet"].(map[string]any)["SubnetId"].(string)
+	launch := func() (id, ip string) {
+		t.Helper()
+		out := call(t, ts, doc, "CreateVms",
+			`{"ImageId":"ami-00000003","VmType":"tinav6.c1r1p2","SubnetId":"`+subnet+`"}`)
+		vms, _ := out["Vms"].([]any)
+		if len(vms) == 0 {
+			t.Fatalf("CreateVms answered no machine: %v", out)
+		}
+		vm, _ := vms[0].(map[string]any)
+		id, _ = vm["VmId"].(string)
+		ip, _ = vm["PrivateIp"].(string)
+		if id == "" || ip == "" {
+			t.Fatalf("a machine came back without an id or an address: %v", vm)
+		}
+		return id, ip
+	}
+	vmA, ipA := launch()
+	vmB, ipB := launch()
+	runtime.withheld[ipB] = "outside fnt-x's own block 10.188.3.0/24, which this runtime cannot distribute to (#457)"
+
+	call(t, ts, doc, "CreateLoadBalancer",
+		`{"LoadBalancerName":"lbu-data","LoadBalancerType":"internal","Subnets":["`+subnet+`"],`+
+			`"Listeners":[{"LoadBalancerPort":80,"LoadBalancerProtocol":"TCP","BackendPort":8080,"BackendProtocol":"TCP"}]}`)
+	call(t, ts, doc, "RegisterVmsInLoadBalancer",
+		`{"LoadBalancerName":"lbu-data","BackendVmIds":["`+vmA+`","`+vmB+`"]}`)
+	if len(runtime.specs()) == 0 {
+		t.Fatal("the balancer never reached the runtime, so this test measures nothing")
+	}
+
+	record := balancerRuntimeRecord(t, ts)
+	if record[machine.RuntimeBalancerDistributed] != ipA {
+		t.Errorf("the record must say exactly what is distributed, got %q want %q",
+			record[machine.RuntimeBalancerDistributed], ipA)
+	}
+	undistributed := record[machine.RuntimeBalancerUndistributed]
+	if !strings.Contains(undistributed, ipB) || !strings.Contains(undistributed, "#457") {
+		t.Errorf("the record must name the withheld backend and its reason, got %q", undistributed)
+	}
+	if strings.Contains(log.String(), "level=ERROR") {
+		t.Errorf("a partial delivery is a limit, not an incident: %q", log.String())
+	}
+	if !strings.Contains(log.String(), "level=WARN") || !strings.Contains(log.String(), ipB) {
+		t.Errorf("the WARN must exist and name the withheld backend, got %q", log.String())
+	}
+
+	// The record follows the next sync: once the withheld machine is
+	// unlinked, the API and the host agree again and the record says so.
+	call(t, ts, doc, "UnlinkLoadBalancerBackendMachines",
+		`{"LoadBalancerName":"lbu-data","BackendVmIds":["`+vmB+`"]}`)
+	record = balancerRuntimeRecord(t, ts)
+	if record[machine.RuntimeBalancerDistributed] != ipA {
+		t.Errorf("the surviving backend must stay on the record, got %q", record[machine.RuntimeBalancerDistributed])
+	}
+	if record[machine.RuntimeBalancerUndistributed] != "" {
+		t.Errorf("a record still claiming a withheld backend after its unlink is the same lie "+
+			"with the sign flipped, got %q", record[machine.RuntimeBalancerUndistributed])
 	}
 }

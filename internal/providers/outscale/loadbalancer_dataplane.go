@@ -91,36 +91,68 @@ func (p *Pack) syncBalancer(ctx context.Context, name string) {
 		if err := b.RemoveBalancer(ctx, network, listen); err != nil {
 			p.logger().Error("could not withdraw a load balancer that lost its listeners",
 				"load_balancer", res.ID, "listen", listen, "error", err)
+			return
 		}
+		// The record follows the withdrawal: nothing distributed, nothing
+		// withheld, because nothing is on the host any more.
+		machine.RecordBalancerDelivery(p.env.Store, res, p.env.Now(), "", "")
 		return
 	}
-	if err := b.EnsureBalancer(ctx, spec); err != nil {
+	delivery, err := b.EnsureBalancer(ctx, spec)
+	if err != nil {
 		// A limit is not an incident, and levelling the two the same is how a
 		// log teaches people to skip its errors (#457).
 		//
-		// The shape this runtime does not distribute — a balancer in front of
-		// machines on another subnet, which is the ordinary two-tier
-		// architecture — is refused by name at the driver, on every register,
-		// for as long as the stack lives. Reported at ERROR it would be a
-		// permanent error on a working configuration; reported at WARN, with
-		// what the API still describes, it is what it is: this emulator records
-		// that balancer and does not distribute for it. docs/limits.md carries
-		// the measurement, and `capabilities.balancing` says which shape it
-		// covers.
+		// A whole spec the driver refuses by name — a listen address outside
+		// its network's block — is a limit that holds for the life of the
+		// stack. Reported at ERROR it would be a permanent error on a working
+		// configuration; reported at WARN, with what the API still describes,
+		// it is what it is. And since #483 the refusal is written down where a
+		// reader of `/_feint/state` meets it, not only said once in a log:
+		// nothing distributed, and the reason.
 		//
 		// Anything else is the runtime failing at something it had accepted,
-		// which stays an error.
+		// which stays an error — and leaves the record alone, because what the
+		// host holds after a failure this code did not classify is exactly
+		// what it cannot claim to know.
 		// TestAnUndistributableShapeIsNotLoggedAsAnError fails without this.
 		if errors.Is(err, machine.ErrBalancerNotDistributed) {
 			p.logger().Warn("this runtime does not distribute a load balancer of this shape; "+
 				"the API goes on describing it and its backends",
 				"load_balancer", res.ID, "listen", spec.Listen, "error", err)
+			machine.RecordBalancerDelivery(p.env.Store, res, p.env.Now(), "", err.Error())
 			return
 		}
 		p.logger().Error("could not hand the load balancer to the runtime",
 			"load_balancer", res.ID, "listen", spec.Listen, "error", err)
+		return
 	}
+	// The effect, recorded on the resource — the two-tier shape #483 measured:
+	// a backend outside the balancer's own subnet is withheld by the driver
+	// while the ones inside it are distributed, and both halves go on the
+	// record. The WARN names the withheld backends because the API goes on
+	// describing them; it is a limit said next to the delivery that works,
+	// never an ERROR that would be permanent on a working configuration.
+	// TestAPartialDeliveryIsRecordedAndSaidAtWarn fails without either half.
+	distributed, undistributed := delivery.Lines()
+	if undistributed != "" {
+		p.logger().Warn("this runtime distributes part of this load balancer: backends outside "+
+			"its own subnet are withheld, and the API goes on describing them (#483)",
+			"load_balancer", res.ID, "listen", spec.Listen,
+			"distributed", distributed, "undistributed", undistributed)
+	}
+	machine.RecordBalancerDelivery(p.env.Store, res, p.env.Now(), distributed, undistributed)
 }
+
+// EnforcesBalancing says this pack hands its load balancers to the runtime —
+// this file is what makes the sentence true. The claim reaches
+// `/_feint/health` as `enforced.balancing`, beside the firewall's (#481): a
+// consumer that wants to assert distribution needs the conjunction of
+// `capabilities.balancing` (the runtime can) and this list (this pack asks it
+// to), because each half has been measured true while the other was false.
+// internal/cli's TestEveryPackThatWiresTheBalancerSaysSo is what notices if
+// this declaration and the code stop agreeing, in either direction.
+func (p *Pack) EnforcesBalancing() bool { return true }
 
 // removeBalancer undoes it, on the way out.
 func (p *Pack) removeBalancer(ctx context.Context, res *resource.Resource) {

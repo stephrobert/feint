@@ -56,7 +56,7 @@ func TestABalancerOutsideTheNetworksBlockIsRefused(t *testing.T) {
 	}, hook: answerExactly(map[string]string{emptyCollection: "[]"})}
 	d := ovnDriver(f)
 
-	err := d.EnsureBalancer(context.Background(), BalancerSpec{
+	_, err := d.EnsureBalancer(context.Background(), BalancerSpec{
 		Name:      "lbu-x",
 		Network:   "fnt-a",
 		Listen:    "198.51.100.240",
@@ -86,7 +86,7 @@ func TestABalancerOnAForeignNetworkIsRefused(t *testing.T) {
 	}}
 	d := ovnDriver(f)
 
-	err := d.EnsureBalancer(context.Background(), BalancerSpec{
+	_, err := d.EnsureBalancer(context.Background(), BalancerSpec{
 		Name:      "lbu-x",
 		Network:   "fnt-a",
 		Listen:    "10.61.1.240",
@@ -135,7 +135,7 @@ func TestTheBalancerBodyCarriesTheRuntimesOwnShape(t *testing.T) {
 	}, hook: answerExactly(map[string]string{emptyCollection: "[]"})}
 	d := ovnDriver(f)
 
-	err := d.EnsureBalancer(context.Background(), BalancerSpec{
+	_, err := d.EnsureBalancer(context.Background(), BalancerSpec{
 		Name:    "lbu-x",
 		Network: "fnt-a",
 		Listen:  "10.61.1.240",
@@ -205,7 +205,7 @@ func TestABridgeBackedRunHasNoBalancer(t *testing.T) {
 	f := &fakeRuntime{}
 	d := newFakeDriver(f) // not OVN
 
-	if err := d.EnsureBalancer(context.Background(), BalancerSpec{
+	if _, err := d.EnsureBalancer(context.Background(), BalancerSpec{
 		Name: "lbu-x", Network: "fnt-a", Listen: "10.61.1.240",
 		Listeners: []BalancerListener{{Protocol: "tcp", Listen: 80}},
 	}); err == nil {
@@ -233,7 +233,7 @@ func TestAnUndistributableProtocolIsRefused(t *testing.T) {
 	}, hook: answerExactly(map[string]string{emptyCollection: "[]"})}
 	d := ovnDriver(f)
 
-	err := d.EnsureBalancer(context.Background(), BalancerSpec{
+	_, err := d.EnsureBalancer(context.Background(), BalancerSpec{
 		Name: "lbu-x", Network: "fnt-a", Listen: "10.61.1.240",
 		Listeners: []BalancerListener{
 			{Protocol: "tcp", Listen: 80, Backend: 8080},
@@ -271,7 +271,7 @@ func TestABalancerIsCreatedWhenTheCollectionDoesNotHoldIt(t *testing.T) {
 	}, hook: answerExactly(map[string]string{emptyCollection: "[]"})}
 	d := ovnDriver(f)
 
-	if err := d.EnsureBalancer(context.Background(), BalancerSpec{
+	if _, err := d.EnsureBalancer(context.Background(), BalancerSpec{
 		Name: "lbu-x", Network: "fnt-a", Listen: "10.61.1.240",
 		Listeners: []BalancerListener{{Protocol: "tcp", Listen: 80}},
 		Targets:   []string{"10.61.1.10"},
@@ -303,7 +303,7 @@ func TestAnExistingBalancerIsReplacedWhole(t *testing.T) {
 	})}
 	d := ovnDriver(f)
 
-	if err := d.EnsureBalancer(context.Background(), BalancerSpec{
+	if _, err := d.EnsureBalancer(context.Background(), BalancerSpec{
 		Name: "lbu-x", Network: "fnt-a", Listen: "10.61.1.240",
 		Listeners: []BalancerListener{{Protocol: "tcp", Listen: 80}},
 		Targets:   []string{"10.61.1.10"},
@@ -335,67 +335,111 @@ func payloadOf(t *testing.T, f *fakeRuntime, substr string) string {
 	return ""
 }
 
-// A backend outside the balancer's own network is refused, whole.
+// A backend outside the balancer's own network is withheld and named; the ones
+// inside it are distributed.
 //
-// #457, and it is the ordinary two-tier architecture rather than an exotic
-// shape: a load balancer on the public subnet, the machines on the private one.
-// Before this guard the listen address was checked and each target was only
-// parsed, so the specification passed every refusal here and died inside the
-// runtime — in the middle of an update, which leaves the balancer standing on
-// the backends it already had while the API describes the new set.
+// #457 measured the boundary, #483 measured the cost of refusing the whole
+// spec over it: the ordinary two-tier stack — one backend on the balancer's
+// subnet, one on another — was dropped entire, so the host held a balancer
+// distributing to nobody while the API described two backends, and the one
+// machine the runtime could have served received nothing. The decision, stated
+// in balancer.go: distribute what the host can take, withhold the rest, and
+// report both.
 //
-// The measurements that make refusing the honest answer rather than laziness
-// are in balancer.go: the runtime refuses such a backend, peering the two
-// networks does not relax it, and the placement that would serve the shape is
-// refused on its listen address instead.
+// Three properties, each asserted on the commands rather than on prose:
 //
-// The commands are asserted, not only the error: a refusal that has already
-// written the object is not a refusal.
-func TestABalancerWithATargetOutsideTheNetworkIsRefused(t *testing.T) {
+//  1. the body handed to the daemon carries only the in-block backend — an
+//     out-of-block target reaching the daemon dies mid-write and leaves the
+//     balancer standing on stale backends;
+//  2. the delivery names the withheld address and its reason, because the
+//     caller has to write that down where the API's readers can see it;
+//  3. the in-block backend is distributed — a guard that withholds everything
+//     passes every attack test and breaks the product.
+func TestABackendOutsideTheNetworkIsWithheldAndNamed(t *testing.T) {
 	f := &fakeRuntime{answers: map[string]string{
 		"network get fnt-a ipv4.address": "10.61.1.1/24\n",
 		"network get fnt-a user.":        "outscale\n",
 	}, hook: answerExactly(map[string]string{emptyCollection: "[]"})}
 	d := ovnDriver(f)
 
-	err := d.EnsureBalancer(context.Background(), BalancerSpec{
+	delivery, err := d.EnsureBalancer(context.Background(), BalancerSpec{
 		Name:      "lbu-public",
 		Network:   "fnt-a",
 		Listen:    "10.61.1.5",
 		Listeners: []BalancerListener{{Protocol: "tcp", Listen: 80, Backend: 8080}},
-		// One backend the network holds and one it does not: the guard has to
+		// One backend the network holds and one it does not: the split has to
 		// look at every target, not at the first.
 		Targets: []string{"10.61.1.10", "10.61.5.10"},
 	})
-	if err == nil {
-		t.Fatalf("a backend on another subnet was accepted; commands: %v", f.commands())
+	if err != nil {
+		t.Fatalf("a spec with one distributable backend must be delivered, got %v", err)
 	}
-	if !errors.Is(err, ErrBalancerNotDistributed) {
-		t.Errorf("a shape this runtime never distributes must be tellable from a runtime failure, got %v", err)
+	if len(delivery.Distributed) != 1 || delivery.Distributed[0] != "10.61.1.10" {
+		t.Errorf("the in-block backend must be distributed, got %v", delivery.Distributed)
 	}
-	if !strings.Contains(err.Error(), "10.61.5.10") {
-		t.Errorf("the refusal must name the backend it could not take, got %v", err)
+	reason, withheld := delivery.Undistributed["10.61.5.10"]
+	if !withheld {
+		t.Fatalf("the out-of-block backend must be named as withheld, got %v", delivery.Undistributed)
 	}
-	if !strings.Contains(err.Error(), "10.61.1.0/24") {
-		t.Errorf("the refusal must name the block the backend had to be in, got %v", err)
+	if !strings.Contains(reason, "10.61.1.0/24") {
+		t.Errorf("the reason must name the block the backend had to be in, got %q", reason)
 	}
-	if wrote := f.matching("load-balancers"); len(wrote) != 0 {
-		t.Errorf("the refusal still wrote to the runtime: %v", wrote)
+
+	var created lbBody
+	if err := json.Unmarshal([]byte(payloadOf(t, f, "-X POST")), &created); err != nil {
+		t.Fatalf("decode the payload: %v", err)
 	}
-	// The accepting half of the same guard, and it is the half that keeps the
-	// product: nothing here withdrew the claim, because nothing reached the
-	// host to refuse it.
+	if len(created.Backends) != 1 || created.Backends[0].TargetAddress != "10.61.1.10" {
+		t.Fatalf("the daemon must receive exactly the in-block backend, got %+v", created.Backends)
+	}
+	if len(created.Ports) != 1 || len(created.Ports[0].TargetBackend) != 1 {
+		t.Fatalf("the port must reference exactly the distributed backend, got %+v", created.Ports)
+	}
+	// The property the split exists for, asserted through the runner: no
+	// command of the whole exchange carries the withheld address. A body that
+	// smuggled it would die inside the daemon, mid-write (#457).
+	for _, command := range f.commands() {
+		if strings.Contains(command, "10.61.5.10") {
+			t.Fatalf("a withheld backend reached the runtime: %s", command)
+		}
+	}
+	// Withholding is a delivery, not a refusal: nothing here may withdraw the
+	// published claim — only the host's own refusal does that.
 	if !d.Capabilities().Balancing {
-		t.Error("this driver's own refusal withdrew a published claim; only the host's refusal may")
+		t.Error("withholding a backend withdrew a published claim; only the host's refusal may")
 	}
-	if err := d.EnsureBalancer(context.Background(), BalancerSpec{
-		Name:      "lbu-internal",
+}
+
+// And when no backend at all is distributable, the balancer still reaches the
+// host — with no port, the same daemon-accepted shape as the no-backend create
+// — and the delivery says nothing is distributed. The API's readers learn it
+// from the record; the host never receives an address it would refuse.
+func TestABalancerWithOnlyWithheldBackendsIsWrittenEmpty(t *testing.T) {
+	f := &fakeRuntime{answers: map[string]string{
+		"network get fnt-a ipv4.address": "10.61.1.1/24\n",
+		"network get fnt-a user.":        "outscale\n",
+	}, hook: answerExactly(map[string]string{emptyCollection: "[]"})}
+	d := ovnDriver(f)
+
+	delivery, err := d.EnsureBalancer(context.Background(), BalancerSpec{
+		Name:      "lbu-remote",
 		Network:   "fnt-a",
 		Listen:    "10.61.1.5",
-		Listeners: []BalancerListener{{Protocol: "tcp", Listen: 80, Backend: 8080}},
-		Targets:   []string{"10.61.1.10", "10.61.1.11"},
-	}); err != nil {
-		t.Fatalf("backends of the network's own block must still be served: %v", err)
+		Listeners: []BalancerListener{{Protocol: "tcp", Listen: 80}},
+		Targets:   []string{"10.61.5.10", "10.61.6.10"},
+	})
+	if err != nil {
+		t.Fatalf("withheld backends are a delivery, not an error, got %v", err)
+	}
+	if len(delivery.Distributed) != 0 || len(delivery.Undistributed) != 2 {
+		t.Errorf("both backends must be withheld and none distributed, got %+v", delivery)
+	}
+	var created lbBody
+	if err := json.Unmarshal([]byte(payloadOf(t, f, "-X POST")), &created); err != nil {
+		t.Fatalf("decode the payload: %v", err)
+	}
+	if len(created.Backends) != 0 || len(created.Ports) != 0 {
+		t.Errorf("nothing distributable means an empty body, got %+v", created)
 	}
 }
 
@@ -417,7 +461,7 @@ func TestABalancerWithNoBackendIsWrittenWithoutPorts(t *testing.T) {
 	}, hook: answerExactly(map[string]string{emptyCollection: "[]"})}
 	d := ovnDriver(f)
 
-	if err := d.EnsureBalancer(context.Background(), BalancerSpec{
+	if _, err := d.EnsureBalancer(context.Background(), BalancerSpec{
 		Name: "lbu-x", Network: "fnt-a", Listen: "10.61.1.240",
 		Listeners: []BalancerListener{{Protocol: "tcp", Listen: 80, Backend: 8080}},
 	}); err != nil {
@@ -443,7 +487,7 @@ func TestABalancerWithNoBackendIsWrittenWithoutPorts(t *testing.T) {
 		emptyCollection: `["/1.0/networks/fnt-a/load-balancers/10.61.1.240"]`,
 	})}
 	d = ovnDriver(second)
-	if err := d.EnsureBalancer(context.Background(), BalancerSpec{
+	if _, err := d.EnsureBalancer(context.Background(), BalancerSpec{
 		Name: "lbu-x", Network: "fnt-a", Listen: "10.61.1.240",
 		Listeners: []BalancerListener{{Protocol: "tcp", Listen: 80, Backend: 8080}},
 		Targets:   []string{"10.61.1.10"},
@@ -486,7 +530,7 @@ func TestABalancerWriteTheHostRefusesWithdrawsTheCapability(t *testing.T) {
 	if !d.Capabilities().Balancing {
 		t.Fatal("an OVN-backed driver must claim balancing before anything refuses it")
 	}
-	if err := d.EnsureBalancer(context.Background(), BalancerSpec{
+	if _, err := d.EnsureBalancer(context.Background(), BalancerSpec{
 		Name: "lbu-x", Network: "fnt-a", Listen: "10.61.1.240",
 		Listeners: []BalancerListener{{Protocol: "tcp", Listen: 80}},
 		Targets:   []string{"10.61.1.10"},
@@ -504,12 +548,16 @@ func TestABalancerWriteTheHostRefusesWithdrawsTheCapability(t *testing.T) {
 		"network get fnt-a ipv4.address": "10.61.1.1/24\n",
 		"network get fnt-a user.":        "outscale\n",
 	}, hook: answerExactly(map[string]string{emptyCollection: "[]"})})
-	if err := clean.EnsureBalancer(context.Background(), BalancerSpec{
-		Name: "lbu-x", Network: "fnt-a", Listen: "10.61.1.240",
+	// A listen address outside the block: the one whole-spec shape this driver
+	// still refuses on its own (a withheld backend is a delivery now, not a
+	// refusal), and it arrives from a restorable snapshot, so it must not be a
+	// switch on a published claim.
+	if _, err := clean.EnsureBalancer(context.Background(), BalancerSpec{
+		Name: "lbu-x", Network: "fnt-a", Listen: "10.62.9.240",
 		Listeners: []BalancerListener{{Protocol: "tcp", Listen: 80}},
-		Targets:   []string{"10.62.9.10"},
+		Targets:   []string{"10.61.1.10"},
 	}); err == nil {
-		t.Fatal("a backend outside the network must still be refused")
+		t.Fatal("a listen address outside the network must still be refused")
 	}
 	if !clean.Capabilities().Balancing {
 		t.Error("a refusal by this driver's own guard must not withdraw the host's capability")

@@ -19,6 +19,23 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **`/_feint/health` répond désormais qui livre la répartition, et plus
+  seulement si le runtime en serait capable : `enforced.balancing`,
+  schema_version 6 (#481).** `capabilities.balancing: true` disait vrai du
+  runtime (OVN distribue réellement) pendant que le répartiteur d'une stack
+  Scaleway ne laissait aucune trace sur l'hôte, parce que ce pack ne confie
+  rien au runtime ; les deux affirmations étaient vraies, et une suite branchée
+  sur la capacité, ce que ce dépôt lui-même conseille, aurait affirmé une
+  distribution que personne n'a promise. L'objet `enforced` gagne `balancing` à
+  côté de `firewall` : la liste des packs qui confient leurs répartiteurs au
+  runtime, aujourd'hui `["outscale"]`. Une suite qui veut affirmer la
+  distribution se branche sur la conjonction des deux moitiés ;
+  `tools/conformance/outscale/balancer.sh` le fait désormais, et se saute à
+  voix haute quand une moitié manque. Les packs Scaleway et Exoscale sont
+  volontairement hors de la liste : leurs répartiteurs enregistrent la
+  configuration et ne transfèrent rien ([limits.md](docs/limits.md)), et une
+  capacité non déclarée qui vaut absente est ce qui garde cette phrase honnête.
+
 - **`feint.yaml`, et les deux verbes qui le lisent : `feint up` et `feint down`
   (#189, #190).** Les drapeaux qui décident de ce que l'émulateur d'un collègue
   sait faire — quel runtime, quel provider, quels contrats, quel état de départ
@@ -169,6 +186,29 @@ change ni l'un ni l'autre a sa place dans `git log`.
   payload mal formé ne peut pas passer en silence.
 
 ### Corrigé
+
+- **Le répartiteur deux-tiers distribue vers les arrière-plans que le runtime
+  sait prendre, retient les autres en les nommant, et écrit les deux moitiés là
+  où un lecteur les rencontre (#483).** Le refus en bloc posé par #457 a été
+  mesuré une seconde fois, et il coûtait plus qu'il ne protégeait : la stack
+  d'exemple Outscale (un arrière-plan sur le subnet du répartiteur, un sur un
+  autre, la forme ordinaire du tiers public) laissait l'hôte porter un
+  répartiteur enregistré **sans arrière-plan ni port** pendant que l'API en
+  décrivait deux sains ; apply exit 0, second plan vide, zéro ligne ERROR, un
+  seul WARN pour toute trace, invisible pour toutes les portes. Le pilote
+  scinde désormais au lieu de refuser en bloc : les arrière-plans du bloc du
+  répartiteur sont distribués (`EnsureBalancer` rend une `BalancerDelivery`),
+  ceux d'un autre bloc sont retenus avant l'écriture, jamais remis au démon
+  pour mourir au milieu d'une mise à jour, et le pack consigne les deux listes
+  dans le `Runtime` du répartiteur (`balancer-distributed`,
+  `balancer-undistributed`, lisibles par `/_feint/state`), tenues à jour à
+  chaque register, unlink et changement de listener. Le WARN reste un WARN,
+  parce que la limite est permanente sur une configuration valide, mais l'état
+  porte désormais le fait au lieu que le journal le porte seul. Ce qu'il
+  faudrait pour une livraison entière est nommé dans
+  [limits.md](docs/limits.md) : qu'Incus lève sa restriction au sous-réseau
+  sur les cibles de `network load-balancer`, ou un seul réseau runtime par
+  Net ; d'ici là, cette scission est toute la vérité que l'hôte sait porter.
 
 - **Un répartiteur de charge devant des machines d'un autre sous-réseau cesse de
   revendiquer un plan de données qu'il n'a pas, et l'ordre Terraform ordinaire

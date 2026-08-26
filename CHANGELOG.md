@@ -17,6 +17,22 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **`/_feint/health` answers who delivers the balancer, not only whether the
+  runtime could: `enforced.balancing`, schema_version 6 (#481).**
+  `capabilities.balancing: true` was the truth about the runtime — OVN really
+  does distribute — while a Scaleway stack's load balancer left no trace on the
+  host, because that pack hands nothing to the runtime; both statements were
+  true and a suite keyed on the capability, which is this project's own advice,
+  would have asserted a distribution nobody promised. The `enforced` object
+  gained `balancing` beside `firewall`: the packs that hand their load
+  balancers to the runtime, today `["outscale"]`. A suite that wants to assert
+  distribution gates on the conjunction of the two halves —
+  `tools/conformance/outscale/balancer.sh` now does, and skips out loud when
+  either half is absent. The Scaleway and Exoscale packs are deliberately not
+  in the list: their balancers record configuration and forward nothing
+  ([limits.md](docs/limits.md)), and an undeclared capability counting as
+  absent is what keeps that honest.
+
 - **`feint.yaml`, and the two verbs that read it: `feint up` and `feint down`
   (#189, #190).** The flags that decide what a colleague's emulator can do —
   which runtime, which provider, which contracts, which state to start from —
@@ -160,6 +176,27 @@ what this project is judged on: **a response shape a client can observe**, and
   measurement and why a mistyped payload cannot pass silently.
 
 ### Fixed
+
+- **The two-tier load balancer distributes to the backends the runtime can
+  take, withholds the others by name, and writes both halves where a reader
+  can meet them (#483).** #457's whole-spec refusal was measured a second time
+  and it cost more than it protected: the Outscale example stack — one backend
+  on the balancer's own subnet, one on another, the ordinary public tier — left
+  the host holding a registered balancer with **no backend and no port** while
+  the API described two healthy ones; apply exit 0, second plan empty, zero
+  ERROR lines, one WARN as the only trace, invisible to every gate. The driver
+  now splits instead of refusing whole: in-block backends are distributed
+  (`EnsureBalancer` returns a `BalancerDelivery`), out-of-block ones are
+  withheld before the write — never handed to the daemon to die mid-update —
+  and the pack records both lists on the balancer's `Runtime`
+  (`balancer-distributed`, `balancer-undistributed`, readable through
+  `/_feint/state`), keeping the record current on every register, unlink and
+  listener change. The WARN stays a WARN because the limit is permanent on a
+  working configuration, but the state now carries the fact instead of the log
+  carrying it alone. What full delivery would take is named in
+  [limits.md](docs/limits.md): Incus lifting its same-subnet restriction on
+  `network load-balancer` targets, or one runtime network per Net — until
+  then, this split is the whole truth the host can carry.
 
 - **A load balancer in front of machines on another subnet stops claiming a
   dataplane it does not have, and an ordinary Terraform order stops failing**

@@ -54,7 +54,16 @@ const (
 	// point. `capabilities.firewall` alone read as "my security groups are
 	// enforced", it was true for a machine on a private network and false for
 	// one with only a public address, and nothing said which.
-	HealthSchemaVersion = 5
+	//
+	// 6 since #481: `enforced` gained `balancing`, the list of packs that hand
+	// their load balancers to the runtime. Additive, and the same sentence as
+	// version 2 one capability over: `capabilities.balancing` says the runtime
+	// can distribute, and it was true on a process whose Scaleway pack left no
+	// balancer on the host at all — measured under incus-ovn on 2026-08-25. A
+	// suite that wants to assert distribution keys on the conjunction of the
+	// two halves; a build that cannot answer the per-pack question is what the
+	// version bump makes visible.
+	HealthSchemaVersion = 6
 	// RoutesSchemaVersion is the shape of GET /_feint/routes.
 	//
 	// This one is not on the wire: the endpoint answers a bare JSON array — the

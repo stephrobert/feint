@@ -84,79 +84,94 @@ var balancerProtocols = map[string]bool{"tcp": true, "udp": true}
 //     balancer answers for a minute or two and then goes dark for ever
 //     (#315, measured 2026-08-19). Refusing beats configuring a balancer whose
 //     failure arrives three minutes after the test that proved it worked.
-//   - a *backend* outside that same block, which is the fourth and was missing
-//     (#457). The listen address was checked and each target was only parsed,
-//     so a load balancer in front of machines on another subnet passed every
-//     guard here and died inside the runtime — after the write had begun, with
-//     the balancer left standing on its previous backends and nothing but a log
-//     line saying so. The measurement that settles it is in balancer.go: OVN
+//   - a *backend* outside that same block is not refused whole any more, and
+//     that is #483's decision on top of #457's measurement. #457 found the
+//     targets only parsed, so the ordinary two-tier spec died inside the
+//     runtime — after the write had begun, with the balancer left standing on
+//     its previous backends. The first fix refused the whole spec before the
+//     write, and #483 measured what that costs: the two-tier stack registers
+//     one backend the runtime could take and one it could not, the whole-spec
+//     refusal dropped both, and the host held a balancer distributing to
+//     nobody while the API described two. So the out-of-block backend is
+//     **withheld and named in the delivery**, the in-block ones are written,
+//     and what reaches the daemon is a body it accepts whole. The measurement
+//     that makes withholding the only honest option is in balancer.go: OVN
 //     refuses such a backend, peering the two networks does not relax it, and
-//     the placement that would serve the shape is refused on the listen address
-//     instead. So it is refused here, whole, before anything is written.
+//     the placement that would serve the shape is refused on the listen
+//     address instead.
 //
 // TestABalancerOutsideTheNetworksBlockIsRefused fails without the third,
-// TestABalancerWithATargetOutsideTheNetworkIsRefused without the fourth.
-func (d *Incus) EnsureBalancer(ctx context.Context, spec BalancerSpec) error {
+// TestABackendOutsideTheNetworkIsWithheldAndNamed without the fourth.
+func (d *Incus) EnsureBalancer(ctx context.Context, spec BalancerSpec) (BalancerDelivery, error) {
+	none := BalancerDelivery{}
 	if !d.OVN {
-		return fmt.Errorf("balancing %s needs the OVN mode: a managed bridge has no load balancer", spec.Name)
+		return none, fmt.Errorf("balancing %s needs the OVN mode: a managed bridge has no load balancer", spec.Name)
 	}
 	if !safeName.MatchString(spec.Network) {
-		return fmt.Errorf("invalid network name %q", spec.Network)
+		return none, fmt.Errorf("invalid network name %q", spec.Network)
 	}
 	listen, err := netip.ParseAddr(spec.Listen)
 	if err != nil {
-		return fmt.Errorf("balancer %s: parse the listen address %q: %w", spec.Name, spec.Listen, err)
+		return none, fmt.Errorf("balancer %s: parse the listen address %q: %w", spec.Name, spec.Listen, err)
 	}
 	if err := d.mustOwn(ctx, spec.Network); err != nil {
-		return err
+		return none, err
 	}
 	block, err := d.networkGateway(ctx, spec.Network)
 	if err != nil {
-		return err
+		return none, err
 	}
 	if !block.Contains(listen) {
-		return fmt.Errorf("%w: balancer %s listens on %s, which is outside %s's own block %s — "+
+		return none, fmt.Errorf("%w: balancer %s listens on %s, which is outside %s's own block %s — "+
 			"an address the runtime has to announce goes dark within minutes (#315)",
 			ErrBalancerNotDistributed, spec.Name, spec.Listen, spec.Network, block.Masked())
 	}
 
+	delivery := BalancerDelivery{Undistributed: map[string]string{}}
 	for _, target := range spec.Targets {
 		address, err := netip.ParseAddr(target)
 		if err != nil {
-			return fmt.Errorf("balancer %s: parse the backend address %q: %w", spec.Name, target, err)
+			// Not a limit: an unparseable target is the caller's defect, and
+			// withholding it quietly would bury a bug under the vocabulary
+			// built for a measured boundary.
+			return none, fmt.Errorf("balancer %s: parse the backend address %q: %w", spec.Name, target, err)
 		}
-		// The guard #457 was missing. Parsing a target says it is an address;
-		// it says nothing about whether the runtime will take it, and the
-		// runtime takes only its own subnet's — measured on Incus 7.2 on
-		// 2026-08-25, peered networks included (balancer.go carries the four
-		// measurements). Refused here rather than in the middle of the write,
-		// because the write that fails is an update: it leaves the balancer
-		// standing with the backends it had, which is a dataplane nobody
-		// described.
+		// The boundary #457 measured: the runtime takes only its own subnet's
+		// addresses — Incus 7.2, re-measured 2026-08-26, peered networks
+		// included; balancer.go carries the four measurements. Held back here,
+		// before the write, because handing it over dies in the *middle* of an
+		// update and leaves the balancer standing with the backends it had —
+		// a dataplane nobody described.
 		if !block.Contains(address) {
-			return fmt.Errorf("%w: balancer %s on %s has the backend %s, which is outside "+
-				"that network's own block %s — the runtime answers \"Target address is not within "+
-				"the network subnet\", peered or not, so a balancer in front of machines on another "+
-				"subnet is not distributed here (#457)",
-				ErrBalancerNotDistributed, spec.Name, spec.Network, target, block.Masked())
+			delivery.Undistributed[target] = fmt.Sprintf(
+				"outside %s's own block %s, which this runtime cannot distribute to (#457)",
+				spec.Network, block.Masked())
+			continue
 		}
+		delivery.Distributed = append(delivery.Distributed, target)
 	}
 	for _, listener := range spec.Listeners {
 		if !balancerProtocols[strings.ToLower(listener.Protocol)] {
-			return fmt.Errorf("balancer %s: %q is not a protocol this runtime distributes; "+
+			return none, fmt.Errorf("balancer %s: %q is not a protocol this runtime distributes; "+
 				"translate it to tcp or udp where the provider's vocabulary is known",
 				spec.Name, listener.Protocol)
 		}
 	}
 
 	if len(spec.Listeners) == 0 {
-		return fmt.Errorf("balancer %s carries no listener the runtime can distribute", spec.Name)
+		return none, fmt.Errorf("balancer %s carries no listener the runtime can distribute", spec.Name)
 	}
+
+	// Everything below sees only what the host will take: the withheld targets
+	// are already on the record above, and a body carrying one would be the
+	// mid-write failure this split exists to prevent.
+	served := spec
+	served.Targets = delivery.Distributed
 
 	body := lbBody{
 		Description: balancerDescription + " " + spec.Name,
 		Config:      map[string]string{},
-		Backends:    expandBackends(spec),
+		Backends:    expandBackends(served),
 		Ports:       []lbPort{},
 	}
 	// No target, no port — and this is a measurement, not tidiness.
@@ -176,18 +191,18 @@ func (d *Incus) EnsureBalancer(ctx context.Context, spec BalancerSpec) error {
 	// balancer that loses its last machine really does stop receiving.
 	//
 	// TestABalancerWithNoBackendIsWrittenWithoutPorts fails without this.
-	if len(spec.Targets) > 0 {
+	if len(served.Targets) > 0 {
 		// Every listener, with no skip: the loop above already refused anything
 		// this runtime cannot distribute, so a `continue` here would be a second
 		// filter with nothing left to filter and one more place for a listener to
 		// disappear quietly.
-		for _, listener := range spec.Listeners {
+		for _, listener := range served.Listeners {
 			port := lbPort{
 				Protocol:      strings.ToLower(listener.Protocol),
 				ListenPort:    strconv.Itoa(listener.Listen),
 				TargetBackend: []string{},
 			}
-			for i := range spec.Targets {
+			for i := range served.Targets {
 				port.TargetBackend = append(port.TargetBackend, backendName(i, listener))
 			}
 			body.Ports = append(body.Ports, port)
@@ -197,25 +212,25 @@ func (d *Incus) EnsureBalancer(ctx context.Context, spec BalancerSpec) error {
 	path := "/1.0/networks/" + spec.Network + "/load-balancers"
 	exists, err := d.balancerExists(ctx, spec.Network, spec.Listen)
 	if err != nil {
-		return err
+		return none, err
 	}
 	if !exists {
 		body.ListenAddress = spec.Listen
 	}
 	encoded, err := json.Marshal(body)
 	if err != nil {
-		return fmt.Errorf("encode balancer %s: %w", spec.Name, err)
+		return none, fmt.Errorf("encode balancer %s: %w", spec.Name, err)
 	}
 	if exists {
 		if _, err := d.run(ctx, "query", "-X", "PUT", "--data", string(encoded), path+"/"+spec.Listen); err != nil {
-			return d.balancerRefused(fmt.Errorf("write balancer %s: %w", spec.Name, err))
+			return none, d.balancerRefused(fmt.Errorf("write balancer %s: %w", spec.Name, err))
 		}
-		return nil
+		return delivery, nil
 	}
 	if _, err := d.run(ctx, "query", "-X", "POST", "--data", string(encoded), path); err != nil {
-		return d.balancerRefused(fmt.Errorf("create balancer %s: %w", spec.Name, err))
+		return none, d.balancerRefused(fmt.Errorf("create balancer %s: %w", spec.Name, err))
 	}
-	return nil
+	return delivery, nil
 }
 
 // balancerRefused records that the host refused a balancer this driver had

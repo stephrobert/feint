@@ -14,10 +14,13 @@
 # emulator refuses to configure it and docs/limits.md carries the figures. A
 # suite asserting it would be asserting a defect.
 #
-# The gate is the runtime's *declared* capability, never a mode name: a suite
-# that compares mode strings has to be edited every time a driver gains one, and
-# it lies the day a mode stops delivering it. An undeclared capability reads as
-# absent and the suite skips.
+# The gate is the conjunction of the two declared halves, never a mode name:
+# `capabilities.balancing` says the runtime can distribute, `enforced.balancing`
+# says this pack hands its balancers to it (#481). Each half has been measured
+# true while the other was false — the capability was true on a process whose
+# Scaleway pack left no balancer on the host — so a suite keying on one half
+# asserts a property nobody promised. An undeclared half reads as absent and
+# the suite skips.
 #
 # Requires a machine runtime with balancing: `feint serve --vm incus-ovn`.
 #
@@ -52,6 +55,16 @@ fi
 BALANCING="$(printf '%s' "$health" | jq -r '.capabilities.balancing // empty')"
 if [ "$BALANCING" != "true" ]; then
   skip "this runtime does not declare balancing; a load balancer here records its configuration and forwards nothing (docs/limits.md)"
+  exit 0
+fi
+# The other half of the claim (#481): the runtime can distribute, and this pack
+# must say it hands its balancers over. `// []` for the same reason as above —
+# a build older than `enforced.balancing` never claimed anything, and a suite
+# that asserted distribution against it would be asserting a property nobody
+# promised, which is the exact trap #481 measured on the Scaleway pack.
+ENFORCED="$(printf '%s' "$health" | jq -r '(.enforced.balancing // []) | index("outscale") != null')"
+if [ "$ENFORCED" != "true" ]; then
+  skip "the outscale pack does not declare enforced.balancing; its load balancer records its configuration and this suite has nothing to measure"
   exit 0
 fi
 
