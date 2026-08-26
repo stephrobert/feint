@@ -275,6 +275,24 @@ sleep 2
 # the binding's, prefix feint-osc-.
 reach() { incus exec "feint-osc-$vm_a" -- ping -c 2 -W 2 "$ip_b" >/dev/null 2>&1; }
 
+# The rule a real user would write, posed BEFORE the negative checks (#499).
+# Both Vms carry the default group of their own Net, whose inbound accepts the
+# group's own members and nobody else — measured on a real account, and the
+# head comment of internal/providers/outscale/securitygroups.go. So without an
+# explicit allow, the accepted peering below would still not carry this ping,
+# on the real cloud exactly as here; the check was only ever green while no
+# group reached the runtime (before #494). Placing the allow first also makes
+# the refusals stronger: an explicit allow that still does not cross an
+# unpeered or pending Net is the strongest form of those refusals, because the
+# isolation rejects at 400 dominate any allow at 300.
+sg_b="$(osc ReadSecurityGroups --Filters.NetIds "$net_b" --Filters.SecurityGroupNames default \
+        | jq -r '.SecurityGroups[0].SecurityGroupId // empty')"
+[ -n "$sg_b" ] || fail "the default group of $net_b was not found"
+osc CreateSecurityGroupRule --Flow Inbound --SecurityGroupId "$sg_b" \
+    --IpProtocol icmp --IpRange "$PEER_BLOCK_A" >/dev/null \
+  || fail "CreateSecurityGroupRule rejected on $sg_b"
+sleep 2
+
 # The positive control, before four negative verdicts in a row: the target answers
 # on its own address. A machine whose stack never came up refuses a ping exactly
 # as an unpeered Net does, and this suite draws its strongest conclusion from that
