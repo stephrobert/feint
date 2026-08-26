@@ -553,6 +553,16 @@ fi
 # client never had the chance. Set here, and in the workflow job that does the
 # same; nowhere else, so a partial run reports and judges nothing.
 FEINT_FIELD_GATE=1 tools/conformance/score.sh "http://$FEINT_ADDR"
+# The run ends on the host state its own doorstep accepts (#521): the question
+# of second zero, asked again once the emulator is gone. Two green runs left
+# the uplink and a detached rule set behind, the next launch refused at second
+# zero, and five agents in one day paid a manual `feint clean` the task never
+# mentioned. The stop is explicit here so the doorstep runs after it — the trap
+# above stays as the safety net for a run that dies mid-flight — and a suite
+# that leaks now fails the run that leaked, not the next one.
+# TestTheConformanceTaskEndsOnItsOwnDoorstep fails without these two lines.
+./feint stop --addr $FEINT_ADDR
+tools/conformance/guard.sh leftovers "${FEINT_VM:-off}"
 """
 
 [tasks.falsify]

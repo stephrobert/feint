@@ -1036,16 +1036,7 @@ func serve(args []string, stdout io.Writer) error {
 
 	// Swept before the state is written: what the runtime no longer holds must
 	// not be described as running in a snapshot the next run restores.
-	if *cleanup {
-		if pruner, ok := driver.(machine.Pruner); ok {
-			pruned, err := pruner.Prune(context.Background())
-			fmt.Fprintf(stdout, "cleanup: removed %d machine(s), %d network(s), %d rule set(s)\n",
-				pruned.Machines, pruned.Networks, pruned.Firewalls)
-			if err != nil {
-				fmt.Fprintf(stdout, "cleanup: %v\n", err)
-			}
-		}
-	}
+	shutdownSweep(driver, *cleanup, stdout)
 
 	if *state != "" {
 		f, err := os.OpenFile(*state, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600) //nolint:gosec // operator-supplied path, by design
@@ -1064,6 +1055,43 @@ func serve(args []string, stdout io.Writer) error {
 		fmt.Fprintf(stdout, "saved %d resources to %s\n", env.Store.Len(), *state)
 	}
 	return nil
+}
+
+// shutdownSweep is what a graceful exit leaves the host as: --cleanup prunes
+// everything this run created, and the uplink goes in every case where it is
+// this process's own and nothing draws from it any more (#521).
+//
+// The release is not gated on --cleanup, deliberately. --cleanup is a sweep,
+// and running it by default would hide a client that leaks — the suites are
+// supposed to delete what they create, and the doorstep of the next run is the
+// instrument that says whether they did. The uplink is different in kind: no
+// client owns it and no client's delete will ever remove it, so leaving it is
+// not a measurement of anything, it is a leftover by construction — the one
+// that made two green conformance runs fail their successor's doorstep.
+// TestAGracefulExitReleasesTheUplink fails without the call.
+func shutdownSweep(driver machine.Driver, cleanup bool, stdout io.Writer) {
+	if cleanup {
+		if pruner, ok := driver.(machine.Pruner); ok {
+			pruned, err := pruner.Prune(context.Background())
+			fmt.Fprintf(stdout, "cleanup: removed %d machine(s), %d network(s), %d rule set(s)\n",
+				pruned.Machines, pruned.Networks, pruned.Firewalls)
+			if err != nil {
+				fmt.Fprintf(stdout, "cleanup: %v\n", err)
+			}
+		}
+	}
+	if releaser, ok := driver.(machine.UplinkReleaser); ok {
+		released, err := releaser.ReleaseUplink(context.Background())
+		switch {
+		case err != nil:
+			// Said rather than swallowed: an uplink this exit could not judge
+			// is one the next run's doorstep will refuse, and the operator
+			// should hear it from the run that caused it.
+			fmt.Fprintf(stdout, "uplink: %v\n", err)
+		case released:
+			fmt.Fprintf(stdout, "released the uplink; no network of this run holds the host\n")
+		}
+	}
 }
 
 // coverage compares the upstream SDK surface with what the packs serve. This is

@@ -59,6 +59,22 @@ type Surveyor interface {
 	Survey(ctx context.Context) (Leftovers, error)
 }
 
+// UplinkReleaser is the optional half of a Driver whose networks share one
+// piece of host plumbing no resource delete will ever remove: the uplink.
+// Every emulated resource goes when a client deletes it, so a run whose
+// clients cleaned up after themselves still leaves exactly one labelled
+// network standing — and the doorstep of the next run refuses exactly that
+// (#521, measured twice after two green conformance runs). The process that
+// set the uplink up is the one that takes it down, on its way out.
+type UplinkReleaser interface {
+	// ReleaseUplink removes the uplink when, and only when, this process is
+	// the one holding it and nothing draws from it any more. It reports
+	// whether the uplink went; an uplink another run left, one an operator
+	// named, or one that networks still sit on is left standing, so the sweep
+	// and the doorstep keep naming what this path must not hide.
+	ReleaseUplink(ctx context.Context) (bool, error)
+}
+
 // A leftover the sweep can still remove is untidy. A leftover no ordinary
 // command of the runtime can remove any more is something else, and #455
 // measured it: an OVN network whose peering points at a network that no longer

@@ -65,8 +65,8 @@
     {
       "label": "the conformance task stops asking, so the leg goes back to burning every client suite before saying the host was never ready",
       "file": "mise.toml",
-      "find": "tools/conformance/guard.sh leftovers \"${FEINT_VM:-off}\"",
-      "replace": "true || tools/conformance/guard.sh leftovers \"${FEINT_VM:-off}\"",
+      "find": "tools/conformance/guard.sh leftovers \"${FEINT_VM:-off}\"\n./feint start",
+      "replace": "true || tools/conformance/guard.sh leftovers \"${FEINT_VM:-off}\"\n./feint start",
       "test": "TestEveryRuntimeSuiteAsksAboutLeftovers",
       "package": "./tools/conformance/"
     }

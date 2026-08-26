@@ -325,16 +325,62 @@ func TestEveryRuntimeSuiteAsksAboutLeftovers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read mise.toml: %v", err)
 	}
+	// Asked before `feint start`, not merely somewhere: the task now also asks
+	// after its stop (#521), and a mutation that silences the second-zero call
+	// stayed green against a mere "the line exists" because the closing call
+	// still matched. The property is the position, so the position is what is
+	// held.
 	asked := false
 	for _, line := range strings.Split(string(task), "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "tools/conformance/guard.sh leftovers ") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "./feint start ") {
+			break
+		}
+		if strings.HasPrefix(trimmed, "tools/conformance/guard.sh leftovers ") {
 			asked = true
 			break
 		}
 	}
 	if !asked {
-		t.Error("the conformance task never runs guard.sh leftovers on a line of its own: the leg " +
-			"goes back to burning every client suite before it says the host was never ready")
+		t.Error("the conformance task never runs guard.sh leftovers on a line of its own before " +
+			"`feint start`: the leg goes back to burning every client suite before it says the host " +
+			"was never ready")
+	}
+}
+
+// The other end of the same doorstep (#521): a conformance run must finish on
+// the host state its own doorstep accepts. Two green runs left the uplink and
+// a detached rule set behind, and the next launch refused at second zero —
+// five manual `feint clean` in one day, none of them mentioned by the task.
+// So the task stops the emulator on a line of its own and re-asks the doorstep
+// after it: a suite that leaks now fails the run that leaked, not the next one.
+func TestTheConformanceTaskEndsOnItsOwnDoorstep(t *testing.T) {
+	task, err := os.ReadFile(filepath.Join("..", "..", "mise.toml")) //nolint:gosec // a fixed path in this repository
+	if err != nil {
+		t.Fatalf("read mise.toml: %v", err)
+	}
+	stopAt := -1
+	askedAfterStop := false
+	for i, line := range strings.Split(string(task), "\n") {
+		trimmed := strings.TrimSpace(line)
+		// The explicit stop, not the trap: the doorstep can only run after the
+		// emulator is gone, and a check inside an EXIT trap cannot redden the
+		// task — bash keeps the pre-trap exit status.
+		if trimmed == "./feint stop --addr $FEINT_ADDR" {
+			stopAt = i
+		}
+		if stopAt >= 0 && i > stopAt &&
+			strings.HasPrefix(trimmed, "tools/conformance/guard.sh leftovers ") {
+			askedAfterStop = true
+		}
+	}
+	if stopAt < 0 {
+		t.Fatal("the conformance task never stops the emulator on a line of its own, so nothing " +
+			"can ask the doorstep question after the run — the residue waits for the next run's refusal (#521)")
+	}
+	if !askedAfterStop {
+		t.Error("the conformance task never re-asks the doorstep after its stop: a green run may " +
+			"leave what its own doorstep refuses, and the next run pays for it (#521)")
 	}
 }
 

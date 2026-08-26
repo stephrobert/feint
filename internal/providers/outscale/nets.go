@@ -249,13 +249,27 @@ func (p *Pack) deleteNet(w http.ResponseWriter, r *http.Request) {
 	// The defaults the Net was born with go with it, silently, exactly as the
 	// real API removes them: nobody created them, nobody is asked to delete
 	// them.
-	for _, sg := range p.securityGroupsOf(req.NetID) {
+	bornWith := p.securityGroupsOf(req.NetID)
+	for _, sg := range bornWith {
 		p.env.Store.Delete(Name, kindSecurityGroup, sg.ID)
 	}
 	for _, rtb := range p.routeTablesOf(req.NetID) {
 		p.env.Store.Delete(Name, kindRouteTable, rtb.ID)
 	}
 	unlock()
+	// And the default group's runtime rule set goes with the group — after the
+	// lock, like every runtime call (#521). This cascade is the one group
+	// delete a client cannot trigger any other way: DeleteSecurityGroup
+	// refuses the default group above, so a suite that tears its Net down by
+	// the API — Vms, Subnet, Net, exactly balancer.sh's cleanup — left the
+	// group's host ACL detached on the station after a run that exited green,
+	// where deleteSecurityGroup already drops the set for every group a client
+	// deletes itself. No machine can still wear it here: the subnet guard above
+	// makes a Net with Vms in it undeletable.
+	// TestDeleteNetDropsTheDefaultGroupsRuleSet fails without this.
+	for _, sg := range bornWith {
+		p.removeFirewall(r.Context(), sg)
+	}
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"ResponseContext": p.context(),

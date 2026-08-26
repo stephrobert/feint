@@ -1,0 +1,59 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the DeleteNet cascade stops dropping the default group's rule set, so the one group no client can delete leaves its host ACL detached — the osc-* residue of #521",
+      "file": "internal/providers/outscale/nets.go",
+      "find": "\tfor _, sg := range bornWith {\n\t\tp.removeFirewall(r.Context(), sg)\n\t}",
+      "replace": "\tfor _, sg := range bornWith {\n\t\tif false {\n\t\t\tp.removeFirewall(r.Context(), sg)\n\t\t}\n\t}",
+      "test": "TestDeleteNetDropsTheDefaultGroupsRuleSet",
+      "package": "./internal/providers/outscale/"
+    },
+    {
+      "label": "the release stops checking who holds the uplink, so an exit deletes the plumbing of another live run — the reach one object up that ensureUplink refuses on the way in",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tif existing.Config[\"user.\"+UplinkHolderKey] != strconv.Itoa(os.Getpid()) {",
+      "replace": "\tif false && existing.Config[\"user.\"+UplinkHolderKey] != strconv.Itoa(os.Getpid()) {",
+      "test": "TestAReleaseNeverTouchesAnUplinkThisProcessDoesNotHold"
+    },
+    {
+      "label": "the release stops checking the label, so a holder pid — a value anybody can write — outranks the ownership mark and an operator's bridge under the uplink's name is deleted",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tif existing.Type != \"bridge\" || existing.Config[\"user.\"+LabelKey] == \"\" {\n\t\treturn false, nil\n\t}",
+      "replace": "\tif false && (existing.Type != \"bridge\" || existing.Config[\"user.\"+LabelKey] == \"\") {\n\t\treturn false, nil\n\t}",
+      "test": "TestAReleaseNeverTouchesAnUplinkThisProcessDoesNotHold"
+    },
+    {
+      "label": "the release claims an uplink it never deleted: the exit reads instead of removing, reports true, and the residue that failed two doorsteps is back with a green sentence over it",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tif _, err := d.run(ctx, \"network\", \"delete\", name); err != nil {",
+      "replace": "\tif _, err := d.run(ctx, \"network\", \"get\", name, \"ipv4.routes\"); err != nil {",
+      "test": "TestAShutdownReleaseTakesTheUnusedUplinkOfThisProcess"
+    },
+    {
+      "label": "serve stops asking the driver on its way out, so the uplink outlives every graceful stop again and the next run's doorstep refuses the host",
+      "file": "internal/cli/cli.go",
+      "find": "\tif releaser, ok := driver.(machine.UplinkReleaser); ok {",
+      "replace": "\tif releaser, ok := driver.(machine.UplinkReleaser); ok && false {",
+      "test": "TestAGracefulExitReleasesTheUplink",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "the conformance task stops re-asking the doorstep after its stop, so a green run may again leave what its own doorstep refuses and the next run pays for it",
+      "file": "mise.toml",
+      "find": "./feint stop --addr $FEINT_ADDR\ntools/conformance/guard.sh leftovers \"${FEINT_VM:-off}\"",
+      "replace": "./feint stop --addr $FEINT_ADDR\ntrue || tools/conformance/guard.sh leftovers \"${FEINT_VM:-off}\"",
+      "test": "TestTheConformanceTaskEndsOnItsOwnDoorstep",
+      "package": "./tools/conformance/"
+    },
+    {
+      "label": "the explicit stop goes back into the trap alone, where the doorstep cannot follow it — bash keeps the pre-trap exit status, so a red doorstep there reddens nothing",
+      "file": "mise.toml",
+      "find": "./feint stop --addr $FEINT_ADDR\ntools/conformance/guard.sh leftovers \"${FEINT_VM:-off}\"",
+      "replace": "true || ./feint stop --addr $FEINT_ADDR\ntools/conformance/guard.sh leftovers \"${FEINT_VM:-off}\"",
+      "test": "TestTheConformanceTaskEndsOnItsOwnDoorstep",
+      "package": "./tools/conformance/"
+    }
+  ],
+  "note": "The subject is #521: two full `FEINT_VM=incus-ovn mise run conformance` runs, both green, each left the host holding `feint-uplink` and one detached `osc-*` rule set at used_by 0 — and the suite's own doorstep refused the next launch on exactly that, `0 machine(s) and 1 network(s) of an earlier run still hold this host`. Five manual `feint clean --vm incus-ovn` were paid in one day, in four different work streams, for a sweep the task never mentions.\n\nTwo residues, two causes, and neither is the suites' fault. The `osc-*` rule set is the default security group a Net is born with: DeleteSecurityGroup refuses it by design (`the default security group of ... cannot be deleted`), so a client that tears down Vms, Subnet, Net — balancer.sh's cleanup, or any terraform destroy — has no call that could ever drop its host ACL; only the DeleteNet cascade can, and the cascade deleted the store record without touching the runtime. The uplink is process plumbing: no resource owns it, so no resource's delete removes it, and the closing `feint stop` pruned nothing.\n\nThe fix lands the end of the run where the start would accept it: the DeleteNet cascade drops the default group's rule set (the store delete and the runtime delete were asymmetric — deleteSecurityGroup had both since #475, the cascade had one); a graceful serve exit releases the uplink when this process holds it and nothing draws from it; and the conformance task stops explicitly, then re-asks its own doorstep, so a suite that leaks fails the run that leaked rather than the next one.\n\nThe refusing halves matter as much as the release: mutations 2 and 3 are the #455 family one object up — an exit that deletes an uplink held by another live run, or an operator's bridge under the uplink's name because a pid claim outranked the label. Mutation 4 is the lying-instrument family: released=true over an uplink still standing reads exactly like the fix working."
+}

@@ -1125,3 +1125,62 @@ func (d *Incus) dropUplinkRoutes(ctx context.Context, routes []string) error {
 	}
 	return nil
 }
+
+// ReleaseUplink implements UplinkReleaser: the graceful exit takes the one
+// object no client's delete will ever remove (#521). Two green conformance
+// runs each left `feint-uplink` standing — every resource had been deleted by
+// the clients that made it, the closing `feint stop` pruned nothing, and the
+// next run's own doorstep refused the host on exactly that network.
+//
+// Both questions, per the rule that well formed is not owned. The label says
+// an emulator made it; the holder pid says *this process* is the one whose
+// plumbing it is. An uplink a dead run left is not released here — unless this
+// process adopted it, in which case the holder is this pid — and an operator's
+// bridge under the uplink's name is never touched, which is ensureUplink's
+// refusal replayed on the way out.
+//
+// An uplink that networks still draw from stays, silently: those networks are
+// this run's leftovers, the doorstep and the sweep name them, and a release
+// that hid them behind a forced teardown would be the sweep this path
+// deliberately is not.
+// TestAShutdownReleaseTakesTheUnusedUplinkOfThisProcess fails without the
+// release; TestAReleaseNeverTouchesAnUplinkThisProcessDoesNotHold holds the
+// refusing half.
+func (d *Incus) ReleaseUplink(ctx context.Context) (bool, error) {
+	if !d.OVN {
+		return false, nil
+	}
+	d.uplinkMu.Lock()
+	defer d.uplinkMu.Unlock()
+	name := d.uplinkName()
+	out, err := d.run(ctx, "query", "/1.0/networks/"+name)
+	if err != nil {
+		if isNotFound(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("inspect uplink %s: %w", name, err)
+	}
+	var existing struct {
+		Type   string            `json:"type"`
+		Config map[string]string `json:"config"`
+	}
+	if err := json.Unmarshal(out, &existing); err != nil {
+		return false, fmt.Errorf("decode uplink %s: %w", name, err)
+	}
+	if existing.Type != "bridge" || existing.Config["user."+LabelKey] == "" {
+		return false, nil
+	}
+	if existing.Config["user."+UplinkHolderKey] != strconv.Itoa(os.Getpid()) {
+		return false, nil
+	}
+	if _, err := d.run(ctx, "network", "delete", name); err != nil {
+		if isNotFound(err) {
+			return false, nil
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "in use") {
+			return false, nil
+		}
+		return false, fmt.Errorf("release uplink %s: %w", name, err)
+	}
+	return true, nil
+}
