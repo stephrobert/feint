@@ -122,6 +122,16 @@ func (p *Pack) syncBalancer(ctx context.Context, name string) {
 	}
 }
 
+// EnforcesBalancing says this pack hands its load balancers to the runtime —
+// this file is what makes the sentence true. The claim reaches
+// `/_feint/health` as `enforced.balancing`, beside the firewall's (#481): a
+// consumer that wants to assert distribution needs the conjunction of
+// `capabilities.balancing` (the runtime can) and this list (this pack asks it
+// to), because each half has been measured true while the other was false.
+// internal/cli's TestEveryPackThatWiresTheBalancerSaysSo is what notices if
+// this declaration and the code stop agreeing, in either direction.
+func (p *Pack) EnforcesBalancing() bool { return true }
+
 // removeBalancer undoes it, on the way out.
 func (p *Pack) removeBalancer(ctx context.Context, res *resource.Resource) {
 	b := p.balancer()

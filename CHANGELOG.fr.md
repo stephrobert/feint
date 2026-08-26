@@ -19,6 +19,23 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Ajouté
 
+- **`/_feint/health` répond désormais qui livre la répartition, et plus
+  seulement si le runtime en serait capable : `enforced.balancing`,
+  schema_version 6 (#481).** `capabilities.balancing: true` disait vrai du
+  runtime (OVN distribue réellement) pendant que le répartiteur d'une stack
+  Scaleway ne laissait aucune trace sur l'hôte, parce que ce pack ne confie
+  rien au runtime ; les deux affirmations étaient vraies, et une suite branchée
+  sur la capacité, ce que ce dépôt lui-même conseille, aurait affirmé une
+  distribution que personne n'a promise. L'objet `enforced` gagne `balancing` à
+  côté de `firewall` : la liste des packs qui confient leurs répartiteurs au
+  runtime, aujourd'hui `["outscale"]`. Une suite qui veut affirmer la
+  distribution se branche sur la conjonction des deux moitiés ;
+  `tools/conformance/outscale/balancer.sh` le fait désormais, et se saute à
+  voix haute quand une moitié manque. Les packs Scaleway et Exoscale sont
+  volontairement hors de la liste : leurs répartiteurs enregistrent la
+  configuration et ne transfèrent rien ([limits.md](docs/limits.md)), et une
+  capacité non déclarée qui vaut absente est ce qui garde cette phrase honnête.
+
 - **`feint.yaml`, et les deux verbes qui le lisent : `feint up` et `feint down`
   (#189, #190).** Les drapeaux qui décident de ce que l'émulateur d'un collègue
   sait faire — quel runtime, quel provider, quels contrats, quel état de départ

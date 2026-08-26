@@ -591,11 +591,13 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	// it matters. A conformance suite gating on `capabilities.isolation` asserts
 	// what this process can actually prove instead of hardcoding a mode name,
 	// and an operator can see what they have without reading a file.
-	// And which packs hand work to those capabilities (#180). The driver's set
-	// is one for the whole process; wiring is per pack, and publishing only the
-	// first told a user the firewall was delivered for three packs when one
-	// delivered it. The honest check is both: capabilities.firewall says the
-	// runtime can, enforced.firewall says who asks it to.
+	// And which packs hand work to those capabilities (#180, #481). The
+	// driver's set is one for the whole process; wiring is per pack, and
+	// publishing only the first told a user the firewall was delivered for
+	// three packs when one delivered it — then told a suite the balancer was,
+	// for a pack that hands none over. The honest check is both:
+	// capabilities.<name> says the runtime can, enforced.<name> says who asks
+	// it to.
 	// `instance` is identity, and it exists because its absence was measured
 	// (#309): a stale emulator on a shared port answered a probe with the
 	// previous build's catalogue, and nothing in the answer said which process

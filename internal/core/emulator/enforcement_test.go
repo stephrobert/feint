@@ -17,6 +17,16 @@ type enforcingPack struct {
 
 func (p enforcingPack) EnforcesFirewall() bool { return p.wires }
 
+// balancingPack is a stubPack that wires the balancer dataplane; it does not
+// wire the firewall, so the two lists cannot be conflated by the code under
+// test answering one question for both (#481).
+type balancingPack struct {
+	stubPack
+	wires bool
+}
+
+func (p balancingPack) EnforcesBalancing() bool { return p.wires }
+
 // TestEnforcementNamesOnlyThePacksThatWireIt holds `/_feint/health`'s `enforced`
 // key to the one thing it claims: which packs hand work to a capability the
 // driver declares.
@@ -37,6 +47,13 @@ func TestEnforcementNamesOnlyThePacksThatWireIt(t *testing.T) {
 		enforcingPack{stubPack: stubPack{name: "wires"}, wires: true},
 		enforcingPack{stubPack: stubPack{name: "declines"}, wires: false},
 		stubPack{name: "silent"},
+		balancingPack{stubPack: stubPack{name: "balances"}, wires: true},
+		// The third-pack case again, on the other list: implements the
+		// interface and answers false, and must be as absent as a pack that
+		// never said anything. Without this pack, replacing the answer with
+		// the type assertion alone would leave the published list unchanged
+		// and the mutation would survive falsification.
+		balancingPack{stubPack: stubPack{name: "refrains"}, wires: false},
 	)
 	if err != nil {
 		t.Fatalf("mount the stub packs: %v", err)
@@ -66,6 +83,21 @@ func TestEnforcementNamesOnlyThePacksThatWireIt(t *testing.T) {
 		t.Errorf("enforced.firewall must name the pack that hands rules over and "+
 			"only that one, got %v", firewall)
 	}
+
+	// The balancing list answers its own question (#481): the pack that wires
+	// the balancer appears here and nowhere in the firewall list, and the
+	// firewall packs do not leak in. A single list answering both questions is
+	// how `capabilities` lied in the first place — one answer for two claims.
+	balancing, present := health.Enforced["balancing"]
+	if !present {
+		t.Fatal("health publishes no `enforced.balancing`: a consumer cannot ask " +
+			"whether this provider's balancer forwards packets here, which is the " +
+			"one-word gap #481 measured")
+	}
+	if len(balancing) != 1 || balancing[0] != "balances" {
+		t.Errorf("enforced.balancing must name the pack that hands its balancers "+
+			"over and only that one, got %v", balancing)
+	}
 }
 
 // And the key survives a process with no pack wiring anything: empty, not
@@ -94,12 +126,14 @@ func TestEnforcementPublishesAnEmptyListRatherThanNoKey(t *testing.T) {
 	if !ok {
 		t.Fatalf("health carries no `enforced` object, got %T", raw["enforced"])
 	}
-	list, ok := enforced["firewall"].([]any)
-	if !ok {
-		t.Fatalf("`enforced.firewall` is absent or not a list, got %T", enforced["firewall"])
-	}
-	if len(list) != 0 {
-		t.Errorf("no pack wires the firewall here, so the list must be empty, got %v", list)
+	for _, capability := range []string{"firewall", "balancing"} {
+		list, ok := enforced[capability].([]any)
+		if !ok {
+			t.Fatalf("`enforced.%s` is absent or not a list, got %T", capability, enforced[capability])
+		}
+		if len(list) != 0 {
+			t.Errorf("no pack wires the %s here, so the list must be empty, got %v", capability, list)
+		}
 	}
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("health answered %d", resp.StatusCode)

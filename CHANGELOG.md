@@ -17,6 +17,22 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Added
 
+- **`/_feint/health` answers who delivers the balancer, not only whether the
+  runtime could: `enforced.balancing`, schema_version 6 (#481).**
+  `capabilities.balancing: true` was the truth about the runtime — OVN really
+  does distribute — while a Scaleway stack's load balancer left no trace on the
+  host, because that pack hands nothing to the runtime; both statements were
+  true and a suite keyed on the capability, which is this project's own advice,
+  would have asserted a distribution nobody promised. The `enforced` object
+  gained `balancing` beside `firewall`: the packs that hand their load
+  balancers to the runtime, today `["outscale"]`. A suite that wants to assert
+  distribution gates on the conjunction of the two halves —
+  `tools/conformance/outscale/balancer.sh` now does, and skips out loud when
+  either half is absent. The Scaleway and Exoscale packs are deliberately not
+  in the list: their balancers record configuration and forward nothing
+  ([limits.md](docs/limits.md)), and an undeclared capability counting as
+  absent is what keeps that honest.
+
 - **`feint.yaml`, and the two verbs that read it: `feint up` and `feint down`
   (#189, #190).** The flags that decide what a colleague's emulator can do —
   which runtime, which provider, which contracts, which state to start from —

@@ -2579,11 +2579,28 @@ What a `200` from `CreateLoadBalancer` means here, stated rather than implied:
   survivor after an unlink. `tools/conformance/outscale/balancer.sh` is that
   measurement, replayed on demand.
 
-  The claim is declared, never deduced: `/_feint/health` answers
-  `capabilities.balancing`, the OVN mode alone sets it, startup verification
-  clears it on a host with no OVN wiring, and a build that does not know the
-  key answers nothing — which reads as absent. A suite must gate on it and
-  never on a mode name.
+  The claim is declared, never deduced, and it has two halves (#481):
+  `capabilities.balancing` says the runtime can distribute — the OVN mode alone
+  sets it, startup verification clears it on a host with no OVN wiring —
+  and `enforced.balancing` says which packs hand their balancers to it, exactly
+  as `enforced.firewall` does one capability over. A build that does not know a
+  key answers nothing, which reads as absent. A suite that wants to assert
+  distribution gates on the **conjunction** and never on a mode name:
+
+  ```console
+  $ curl -s localhost:4599/_feint/health | jq '{capabilities: .capabilities.balancing, enforced: .enforced.balancing}'
+  {
+    "capabilities": true,
+    "enforced": ["outscale"]
+  }
+  ```
+
+  The two halves exist because each has been measured true while the other was
+  false: under `incus-ovn` the capability was true on a process whose Scaleway
+  stack held one `lb/lb` in the API and zero balancers on the host (#481,
+  2026-08-25), and `tools/conformance/outscale/balancer.sh`, keyed on the
+  capability alone, would have been correct for Outscale and wrong word for
+  word if copied for Scaleway.
 - **The public face distributes nothing, and that is a measurement too.** The
   `DnsName` follows the measured format
   (`<name>-<digits>.<region>.lbu.outscale.com`, `internal-` prefix included)
@@ -2695,7 +2712,13 @@ Scaleway's own LB and VPC modules, `scw lb` and `scw vpc-gw`. The dataplane
 same and the pack is not, so the honest statement is that a Scaleway balancer
 still records its configuration and forwards nothing. `capabilities.balancing`
 says what the *runtime* can do, never what a given pack asked it for, and this
-pack asks for nothing.
+pack asks for nothing — which is why it does not appear in
+`enforced.balancing` (#481). That absence is the declaration: a suite gating on
+the conjunction of the two halves skips here instead of asserting a
+distribution this pack never promised, and the measurement behind the sentence
+is on the record — under `incus-ovn` on 2026-08-25, a Scaleway stack held one
+`lb/lb`, one frontend, one backend and one route in the API, and a sweep of
+every managed network on the host found zero load balancers.
 
 What a `200` means here, stated rather than implied:
 

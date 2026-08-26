@@ -38,6 +38,28 @@
       "replace": "func (p *Pack) EnforcesFirewall() bool { return false }",
       "test": "TestEveryPackThatWiresTheFirewallSaysSo",
       "package": "./internal/cli/"
+    },
+    {
+      "label": "every pack is named as balancing, the way the process-global capability lied one capability over (#481)",
+      "file": "internal/core/emulator/enforcement.go",
+      "find": "\t\tbe, ok := p.(BalancingEnforcer)\n\t\tif ok && be.EnforcesBalancing() {",
+      "replace": "\t\tbe, ok := p.(BalancingEnforcer)\n\t\tif ok && be != nil {",
+      "test": "TestEnforcementNamesOnlyThePacksThatWireIt"
+    },
+    {
+      "label": "the empty balancing list marshals to null, and a consumer iterating it breaks",
+      "file": "internal/core/emulator/enforcement.go",
+      "find": "\tbalancing := []string{}",
+      "replace": "\tvar balancing []string",
+      "test": "TestEnforcementPublishesAnEmptyListRatherThanNoKey"
+    },
+    {
+      "label": "the Outscale pack drops its declaration while still wiring the balancer dataplane (#481)",
+      "file": "internal/providers/outscale/loadbalancer_dataplane.go",
+      "find": "func (p *Pack) EnforcesBalancing() bool { return true }",
+      "replace": "func (p *Pack) EnforcesBalancing() bool { return false }",
+      "test": "TestEveryPackThatWiresTheBalancerSaysSo",
+      "package": "./internal/cli/"
     }
   ]
 }
