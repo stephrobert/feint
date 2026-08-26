@@ -350,11 +350,16 @@ Le détail et la configuration exacte sont dans
 `EXOSCALE_API_ENDPOINT`, **et cette valeur doit porter le suffixe `/v2`**, que le
 CLI concatène avec la route au lieu de le remplacer.
 
-Le provider Terraform d'Exoscale est **refusé** par l'émulateur, et ce n'est pas
-un choix : il construit deux clients internes, l'un honore l'endpoint et l'autre
-part vers le vrai cloud, donc un `apply` se retrouverait à cheval entre
-l'émulateur et un compte payant. Le raisonnement complet est dans
-[docs/limits.md](docs/limits.md).
+Le provider Terraform d'Exoscale est **refusé**, et depuis le 2026-08-26 le
+refus tombe avant tout démarrage : `feint up` et `feint down` refusent le
+moteur pour Exoscale, en plus du refus par user agent côté émulateur. Ce n'est
+pas un choix : le provider publié construit deux clients internes, l'un honore
+l'endpoint et l'autre part vers le vrai cloud, donc un `apply` se retrouverait
+à cheval entre l'émulateur et un compte payant (amont
+[#573](https://github.com/exoscale/terraform-provider-exoscale/issues/573) ;
+la mesure de l'incident est #525). Terraform reviendra quand le provider
+publié portera le correctif ; d'ici là, `exo` pilote tout. Le raisonnement
+complet est dans [docs/limits.md](docs/limits.md).
 
 ### Demander à l'émulateur ce qu'il fait
 

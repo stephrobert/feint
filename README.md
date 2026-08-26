@@ -751,13 +751,17 @@ link proves, and which links are not enforced yet — is
 Exoscale has no Terraform column, and that is not a gap in this emulator. The
 provider honours `EXOSCALE_API_ENDPOINT` for one of the two clients it builds
 and reaches the real cloud with the other, so an apply splits between here and a
-paying account — which is why the emulator refuses that client outright rather
-than serve half of it. Filed upstream as
-[#573](https://github.com/exoscale/terraform-provider-exoscale/issues/573). A
-patched build that closes the split is documented in
-[docs/limits.md](docs/limits.md#the-patched-provider-while-upstream-decides),
-and it deliberately counts for nothing here: a client this project patched is no
-longer the official client.
+paying account. Filed upstream as
+[#573](https://github.com/exoscale/terraform-provider-exoscale/issues/573), and
+since 2026-08-26 the answer is a refusal on every layer: `feint up` and `feint
+down` refuse the engine for Exoscale before anything starts, and the emulator
+refuses the provider by its user agent. A patched fork once proved the emulated
+surface itself holds under Terraform — the dated record is in
+[docs/limits.md](docs/limits.md#the-patched-provider-while-upstream-decides) —
+but a client this project patched is not the official client, and #525 measured
+what keeping that path warm costs: five signed requests leaving for the real
+cloud from a single `feint down`. The `exo` CLI drives this pack; Terraform
+returns the day the published provider carries the fix.
 
 Every command in the [Use it](#use-it) section above is executed against the
 emulator before it is written here.

@@ -1809,15 +1809,37 @@ it: `CreateClient`, `getClient`, and the plugin-framework provider's
 serving it is the worst of the three outcomes: a half-success is
 indistinguishable from working until the invoice arrives.
 
-The refusal can be lifted by someone who understands the split and wants the
-half this emulator can serve:
+**And since 2026-08-26, the refusal starts one layer earlier: no Terraform for
+Exoscale, at all, until upstream fixes the split.** #525 measured why the
+user-agent guard alone was not enough: a `feint down` on the example stack,
+run without the fork's `dev_overrides`, resolved the published 0.70.0 and its
+refresh sent five signed requests to `api-ch-gva-2` and `api-ch-dk-2` — traffic
+that leaves for the real cloud never reaches an emulator-side guard. What
+stood between those requests and a real account was one unasserted property:
+`feint up` appends the pack's deliberately public credential pair after the
+caller's environment, so the fake pair wins and Exoscale refuses the
+signature. So the refusal now falls where the incident proved it must:
+
+- **`feint up` and `feint down` refuse `iac.engine: terraform` (and
+  `opentofu`) for `cloud.provider: exoscale`** before any process starts —
+  neither an emulator nor an engine. The message names this measurement, the
+  upstream issue, and the client that remains.
+- **A `feint.yaml` cannot carry `FEINT_EXOSCALE_ALLOW_TERRAFORM`**: the
+  declaration schema refuses the name. The example stack used to set it,
+  which lifted the emulator's one refusal for whatever provider the engine
+  resolved — the published one, on the day of #525.
+- The variable itself survives, as a hand-export and nothing else:
 
 ```bash
 FEINT_EXOSCALE_ALLOW_TERRAFORM=1 feint serve
 ```
 
-That variable is named rather than hidden on purpose. A guard with no way past
-it gets worked around by copying the emulator, which teaches nobody anything.
+What it is still for is narrow and named: pointing a candidate fix for
+[#573][exo-573] at this emulator to verify it no longer splits — the exact
+verification this project will owe the day upstream lands one. A guard with
+no way past it gets worked around by copying the emulator, which teaches
+nobody anything; three deliberate hand-gestures — export, serve, terraform —
+are the way past, and a file that travels is not.
 
 The `exo` CLI is unaffected and is driven by the conformance suite: it reads
 `EXOSCALE_API_ENDPOINT` for everything.
@@ -1826,9 +1848,19 @@ Closing this properly needs an endpoint option on the provider's v2 client,
 which is upstream work. It is filed as
 [exoscale/terraform-provider-exoscale#573][exo-573], with the mechanism, the
 three construction sites and a reproduction. Until it lands, `feint env
-exoscale` prints the warning on stderr, where `eval` cannot swallow it.
+exoscale` prints the warning on stderr, where `eval` cannot swallow it — and
+Terraform returns to this pack the day the published provider carries the
+fix, which is the condition written into every refusal above.
 
 ### The patched provider, while upstream decides
+
+**Retired from use on 2026-08-26 (#525): no Terraform for Exoscale, the fork
+included, until [#573][exo-573] is fixed upstream.** This section stays as the
+dated record of what the fork was for and what it proved — this repository
+does not rewrite its past, it dates it. Do not follow the recipe below to
+drive a stack; `feint up` refuses the engine, and
+`tools/conformance/exoscale/terraform.sh` refuses with the same reasons. The
+recipe's remaining audience is whoever verifies a candidate upstream fix.
 
 The fix is four lines per site, so it is also carried on a fork, pinned:
 

@@ -88,13 +88,15 @@ The stacks the last column says CI does not apply are declared rather than
 merely absent, so a `no` is a decision somebody wrote down and not a stack
 nobody wired up:
 
-- `examples/stacks/exoscale` — the published Exoscale provider builds two
-  clients and only one honours `EXOSCALE_API_ENDPOINT`, so an apply splits
-  between the emulator and a paying account (docs/limits.md, upstream
-  exoscale/terraform-provider-exoscale#573). Running it needs the patched
-  fork, and no gate here clones a third-party repository — that would put
-  somebody else's availability in this pipeline. Applied by hand on
-  2026-08-18: 13 resources, empty second plan, clean destroy.
+- `examples/stacks/exoscale` — suspended — no Terraform for Exoscale
+  until upstream exoscale/terraform-provider-exoscale#573 is fixed: the
+  published provider honours `EXOSCALE_API_ENDPOINT` for one of the two
+  clients it builds, so an apply splits between the emulator and a paying
+  account, and #525 measured five signed requests leaving for the real cloud
+  from a `feint down` on this stack (2026-08-26). `feint up` refuses the
+  engine at the doorstep; the exo CLI drives the pack instead. What the
+  pinned fork had proved stays dated in docs/limits.md: 16 resources, empty
+  second plan, clean destroy, 2026-08-24.
 <!-- proved:end -->
 
 ## Where else this appears

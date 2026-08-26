@@ -5,8 +5,9 @@ written the way the surveyed third-party stacks are written — modules,
 `for_each` over typed variables, a `terraform.tfvars.example`, zones asked
 from the API rather than hardcoded. The Scaleway and Outscale stacks run
 against Feint in CI on every pull request — apply, an empty second plan,
-destroy — with no cloud account and nothing billed. The Exoscale one is run
-by hand, for a reason [measured below](#the-exoscale-stack-needs-the-patched-provider).
+destroy — with no cloud account and nothing billed. The Exoscale one is
+suspended, for a reason
+[measured below](#the-exoscale-stack-is-suspended-no-terraform-for-exoscale).
 
 ## Running one
 
@@ -76,11 +77,11 @@ Resource counts are measured — the number the apply reports — not estimated.
   whose reads produced the [#271] transcript.
 - **Keeps under watch**: [#271] — a query parameter the API document declares
   must be served or refused, never dropped; the elastic-ip healthcheck block
-  must read back as sent. It is also the Terraform reader of the
+  must read back as sent. While it ran, it was the Terraform reader of the
   block-storage and instance-pool work of #12 and #232, which the exo CLI
-  suite otherwise exercises alone.
-- **Not run by CI** — it needs the patched provider,
-  [measured below](#the-exoscale-stack-needs-the-patched-provider).
+  suite now exercises alone.
+- **Suspended, run by nothing** — no Terraform for Exoscale until upstream
+  \#573 is fixed, [measured below](#the-exoscale-stack-is-suspended-no-terraform-for-exoscale).
 
 ## What a run proves, and the rule that makes the stacks grow
 
@@ -129,31 +130,39 @@ first run. The commit a tag is cut from gets the same image run on `main`
 after the merge, which is what makes the image eventually published a proven
 one.
 
-## The Exoscale stack needs the patched provider
+## The Exoscale stack is suspended: no Terraform for Exoscale
 
 The published Exoscale provider builds two clients: one honours
 `EXOSCALE_API_ENDPOINT`, the other has `.exoscale.com` compiled in. An apply
 therefore does not fail — it **splits**, half against the emulator and half
-against a paying account. Feint refuses that client by its user agent rather
-than serving half of it, and the whole measurement is in
-[docs/limits.md](../../docs/limits.md#the-exoscale-terraform-provider-is-refused-and-why),
-with the pinned fork and the `dev_overrides` recipe.
+against a paying account (upstream
+[#573](https://github.com/exoscale/terraform-provider-exoscale/issues/573)).
+The whole measurement is in
+[docs/limits.md](../../docs/limits.md#the-exoscale-terraform-provider-is-refused-and-why).
 
-To run it:
+**Since 2026-08-26, nothing runs this stack, and that is the decision, not a
+gap.** A pinned four-line fork used to close the split for a by-hand run, and
+what it proved stays dated in limits.md — 13 resources on 2026-08-18, then 16
+with block storage and private networking on 2026-08-24, empty second plan and
+clean destroy both times. Then #525 measured what every path around the fork
+costs: a `feint down` in this directory, run without the fork's
+`dev_overrides`, resolved the published 0.70.0 and sent five signed requests
+to `api-ch-*.exoscale.com`. A client this project patched could never count
+towards conformance anyway, so the fork's only role was keeping this path
+warm, and #525 priced it.
 
-```bash
-FEINT_EXOSCALE_ALLOW_TERRAFORM=1 feint start
-export TF_CLI_CONFIG_FILE=/tmp/dev.tfrc     # the dev_overrides from limits.md
-eval "$(feint env exoscale)"
-cd examples/stacks/exoscale && terraform apply   # no init: the override resolves the provider
-```
+So today:
 
-**CI does not run it, on purpose.** No gate here clones a third-party
-repository — that would put somebody else's availability in this project's
-pipeline — and a client this project patched is not the official client, so
-it could not count towards conformance in any case. It was last applied by
-hand on 2026-08-18: apply, an empty second plan, destroy — 13 resources, zero
-contract violations.
+- `feint up` and `feint down` here **refuse the engine at the doorstep**,
+  before an emulator or a Terraform process starts, naming #573 and the exo
+  CLI;
+- the stack's `feint.yaml` no longer carries
+  `FEINT_EXOSCALE_ALLOW_TERRAFORM`, and the declaration schema refuses that
+  name outright;
+- the `*.tf` stays what it is — the platform shape this stack asserts — and
+  becomes runnable again the day upstream fixes #573 in the published
+  provider. The exo CLI drives the Exoscale pack in CI in the meantime
+  (`exo-cli.sh`, `network.sh`, `ssh.sh`, `zones.sh`).
 
 ## Offering your stack: what we ask, and what we do with it
 
