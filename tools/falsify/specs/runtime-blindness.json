@@ -1,0 +1,76 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "a pack branches on which runtime is behind --vm — legal through any facade, which is why the call surface of #511 cannot see it (#516)",
+      "file": "internal/providers/scaleway/machines.go",
+      "find": "// DefaultUser is the login Scaleway provisions on its images.",
+      "replace": "// The mode comparison capabilities exist so no pack ever needs.\nfunc plantedModeComparison(mode string) bool { return mode == \"incus-ovn\" }\n\n// DefaultUser is the login Scaleway provisions on its images.",
+      "test": "TestNoPackKnowsWhichRuntimeIsBehindTheDriver"
+    },
+    {
+      "label": "a pack writes a configuration key of the runtime, which is the mechanics the driver owns and the pack was told to stop knowing (#516)",
+      "file": "internal/providers/outscale/machines.go",
+      "find": "func (p *Pack) logger() *slog.Logger {",
+      "replace": "// The runtime key a rule set is attached under, spelled by a pack.\nfunc plantedRuntimeConfigKey() string { return \"security.acls\" }\n\nfunc (p *Pack) logger() *slog.Logger {",
+      "test": "TestNoPackKnowsWhichRuntimeIsBehindTheDriver"
+    },
+    {
+      "label": "a pack names the implementation of machine.Driver itself, the shape that survives every facade because it needs no driver value (#516)",
+      "file": "internal/providers/exoscale/machines.go",
+      "find": "func (p *Pack) logger() *slog.Logger {",
+      "replace": "// The runtime, named in a pack.\nfunc plantedImplementationName() bool {\n\tvar d *machine.Incus\n\treturn d == nil\n}\n\nfunc (p *Pack) logger() *slog.Logger {",
+      "test": "TestNoPackKnowsWhichRuntimeIsBehindTheDriver"
+    },
+    {
+      "label": "a pack builds the runtime through its constructor, which names the implementation without ever holding a Driver value (#516)",
+      "file": "internal/providers/scaleway/machines.go",
+      "find": "func imageFor(label string) (machine.Image, bool) {",
+      "replace": "// The runtime, built by a pack.\nfunc plantedConstructorName() bool { return machine.NewIncusOVN() != nil }\n\nfunc imageFor(label string) (machine.Image, bool) {",
+      "test": "TestNoPackKnowsWhichRuntimeIsBehindTheDriver"
+    },
+    {
+      "label": "a pack imports os/exec and runs a command on the host, which walks past every ownership check the shared layer holds on names that arrive by snapshot (#516)",
+      "file": "internal/providers/exoscale/machines.go",
+      "find": "import (\n\t\"context\"\n\t\"log/slog\"\n\n\t\"github.com/stephrobert/feint/internal/core/cloudinit\"\n\t\"github.com/stephrobert/feint/internal/core/machine\"\n\t\"github.com/stephrobert/feint/internal/core/resource\"\n)",
+      "replace": "import (\n\t\"context\"\n\t\"log/slog\"\n\t\"os/exec\"\n\n\t\"github.com/stephrobert/feint/internal/core/cloudinit\"\n\t\"github.com/stephrobert/feint/internal/core/machine\"\n\t\"github.com/stephrobert/feint/internal/core/resource\"\n)\n\n// The pack reaches the host itself, past Binding.ours and past mustOwn.\nfunc plantedRuntimeReach() { _, _ = exec.Command(\"true\").Output() }",
+      "test": "TestNoPackKnowsWhichRuntimeIsBehindTheDriver"
+    },
+    {
+      "label": "the detector reads comments as well as code, so every measurement the packs cite becomes an offence and the provenance of a limit becomes uncommentable (#516)",
+      "file": "internal/cli/runtime_blindness_test.go",
+      "find": "\t\t\tcase *ast.CommentGroup:\n\t\t\t\t// A comment is not behaviour",
+      "replace": "\t\t\tcase *ast.CommentGroup:\n\t\t\t\tfor _, line := range n.List {\n\t\t\t\t\tfor _, tell := range tells {\n\t\t\t\t\t\tif tell.match.MatchString(line.Text) {\n\t\t\t\t\t\t\tadd(tell.name, \"a comment\", tell.why, line)\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\t// A comment is not behaviour",
+      "test": "TestTheDisciplineDetectorsFindWhatTheyLookFor"
+    },
+    {
+      "label": "no type derives as an implementation of machine.Driver, so the vocabulary forbids no runtime name at all (#516)",
+      "file": "internal/cli/runtime_blindness_test.go",
+      "find": "\t\tif complete {\n\t\t\timpls = append(impls, name)",
+      "replace": "\t\tif complete && false {\n\t\t\timpls = append(impls, name)",
+      "test": "TestTheDisciplineDetectorsFindWhatTheyLookFor"
+    },
+    {
+      "label": "the pack scan reads no file, and a scan that parsed nothing reports three runtime-blind packs (#516)",
+      "file": "internal/cli/runtime_blindness_test.go",
+      "find": "\t\tif strings.HasSuffix(file, \"_test.go\") {",
+      "replace": "\t\tif strings.HasSuffix(file, \"_test.go\") || true {",
+      "test": "TestNoPackKnowsWhichRuntimeIsBehindTheDriver"
+    },
+    {
+      "label": "a runtime-knowledge exemption is granted with a reason nobody can weigh (#516)",
+      "file": "internal/cli/runtime_blindness_test.go",
+      "find": "var runtimeKnowledgeExemptions = map[string]string{",
+      "replace": "var runtimeKnowledgeExemptions = map[string]string{\"scaleway/pack.go:incus\": \"legacy\",",
+      "test": "TestEveryBarrageExemptionSaysWhy"
+    },
+    {
+      "label": "a declared tell names a key the runtime never writes, so it guards a spelling nobody can use and reads as a guard anyway (#516)",
+      "file": "internal/cli/runtime_blindness_test.go",
+      "find": "\t\tmatch: regexp.MustCompile(`(?i)nictype`),",
+      "replace": "\t\tmatch: regexp.MustCompile(`(?i)nictypewasrenamed`),",
+      "test": "TestTheRuntimeVocabularyIsTheRuntimesOwn"
+    }
+  ],
+  "note": "#516 is a ratchet on a tree already measured clean — zero runtime knowledge in the packs' non-test code on 2026-08-26 — so the test passing proves only that it can pass. The first five mutations plant the five shapes a pack could leak through and require the named test to say which pack, which tell and which line. The sixth is the detector's own trap, measured rather than assumed: the packs' comments cite a measured OVN behaviour dozens of times, so a detector that read prose would fail against the provenance of its own limits; the refusal is written as code precisely so this mutation can turn it into a scan. The seventh blinds the derivation that makes a fourth runtime forbidden vocabulary the day it compiles. The eighth empties the scan's population, which is how a silent instrument reads as a clean repository. The last two hold the two ways a declared list rots: an exemption without a reason, and a tell the runtime stopped writing."
+}
