@@ -1,0 +1,78 @@
+# A red scheduled night opens or updates one issue; a green one closes it (#502).
+#
+# runtime-proof.yml was red ten scheduled nights out of twelve (#501) and the
+# only trace was a job log, plus a streak counter written to a job summary —
+# the two places nobody opens without already knowing there is a problem. This
+# workflow is the mechanism drift.yml's "Open the drift issue" job already
+# carries, generalised: one issue per calling workflow, updated, never a new
+# one per night, closed by the first green night. An issue per night teaches
+# everyone to close them unread, which is the failure mode the whole mechanism
+# exists to avoid.
+#
+# Why a reusable workflow rather than a block in each scheduled caller: a
+# control copied into every caller is a control one caller forgets (CLAUDE.md
+# states it, and #335/#502 are both that story). runtime-proof.yml consumes it
+# first; falsify.yml, conformance.yml and corpus-cloud.yml can adopt it with a
+# six-line job when their turn comes.
+#
+# Why the decisions live in tools/ci/night-report.sh rather than in a run:
+# block here: a run: block only executes on GitHub's runners, and this
+# repository has three audited cases of CI fixes that existed only as comments
+# ("Un commentaire n'est pas un contrôle"). The script is the same one a human
+# runs, read-only, against any past run. The controls on it:
+# tools/ci/night_report_test.go drives it with a stubbed `gh` over
+# field-trimmed payloads of real runs (a red night, a green one, a
+# cancellation), and tools/falsify/specs/a-red-night-opens-an-issue.json
+# replays those tests with each decision neutralised.
+name: Night report
+
+on:
+  workflow_call:
+    inputs:
+      streak-target:
+        description: >-
+          Consecutive green scheduled nights the caller is aiming for
+          (runtime-proof passes 14, the promotion criterion of #125). Empty
+          hides the target from the issue rather than inventing one.
+        type: string
+        required: false
+        default: ''
+
+permissions: {}
+
+jobs:
+  report:
+    name: Open, update or close the red-night issue
+    # The caller's event, not this file's: a workflow_call job runs under the
+    # calling run's context. Dispatches and pushes are a human asking a
+    # question and watching the answer; the issue reports nights, and counting
+    # anything else would let it shout about runs somebody is already reading.
+    # The guard sits here, in the shared layer, so a caller that forgets its
+    # own `if:` still cannot turn the mechanism into noise.
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # checkout, for the script below
+      actions: read # this run's jobs, and the scheduled history for the streak
+      issues: write # the issue itself
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The script inspects the very run it is part of: the measuring jobs are
+      # completed (the caller gates on needs:), its own job is in_progress and
+      # therefore outside its own verdict.
+      - name: Open, update or close the issue for this night
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ github.run_id }}
+          NIGHT_STREAK_TARGET: ${{ inputs.streak-target }}
+        run: tools/ci/night-report.sh --apply "${RUN_ID}"

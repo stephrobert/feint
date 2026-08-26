@@ -1,0 +1,34 @@
+{
+  "package": "./tools/ci/",
+  "mutations": [
+    {
+      "label": "a red run reads as green, so no night — however red — ever opens or updates the issue; this is the exact state runtime-proof.yml was in for ten of twelve nights",
+      "file": "tools/ci/night-report.sh",
+      "find": "if [ \"$(jq 'length' <<<\"${findings}\")\" -gt 0 ]; then\n  verdict=red\nfi",
+      "replace": "if [ \"$(jq 'length' <<<\"${findings}\")\" -gt 0 ] && false; then\n  verdict=red\nfi",
+      "test": "TestAFirstRedNightOpensTheIssue"
+    },
+    {
+      "label": "the open issue is never found on the write path, so every red night creates a fresh one — the failure mode drift.yml's comment names: issues nobody reads before closing",
+      "file": "tools/ci/night-report.sh",
+      "find": "if [ \"${verdict}\" = \"red\" ]; then\n  if [ -n \"${existing}\" ]; then\n    gh issue comment \"${existing}\" --repo \"${repo}\" --body-file \"${body_file}\"",
+      "replace": "if [ \"${verdict}\" = \"red\" ]; then\n  if [ -n \"${existing}\" ] && false; then\n    gh issue comment \"${existing}\" --repo \"${repo}\" --body-file \"${body_file}\"",
+      "test": "TestASecondRedNightUpdatesTheIssue"
+    },
+    {
+      "label": "a green night no longer closes the issue, so a permanently red issue becomes scenery within three weeks and the silence returns in another shape",
+      "file": "tools/ci/night-report.sh",
+      "find": "elif [ -n \"${existing}\" ]; then\n  gh issue close \"${existing}\" --repo \"${repo}\" --comment \"$(cat \"${body_file}\")\"\nfi",
+      "replace": "elif [ -n \"${existing}\" ] && false; then\n  gh issue close \"${existing}\" --repo \"${repo}\" --comment \"$(cat \"${body_file}\")\"\nfi",
+      "test": "TestAGreenNightClosesTheIssue"
+    },
+    {
+      "label": "the measured/infrastructure distinction collapses: any failing step counts, so a cancelled run gets blamed on its if: always() reporting step and the issue invents a cause",
+      "file": "tools/ci/night-report.sh",
+      "find": "   | if .conclusion == \"failure\" and (failed_steps | length) > 0",
+      "replace": "   | if (.conclusion == \"failure\" or true) and (failed_steps | length) > 0",
+      "test": "TestARedWithNoFailingStepBlamesTheRunNotASuite"
+    }
+  ],
+  "note": "The subject is #502. runtime-proof.yml was red ten scheduled nights out of twelve (#501) and the only trace was a job log plus a streak counter written to a job summary — the two places nobody opens without already knowing there is a problem. The mechanism repeats drift.yml's report job (one issue, updated, never one per night) but its decisions live in tools/ci/night-report.sh rather than in a run: block, precisely so these mutations have something to bite: a run: block cannot be executed outside GitHub Actions, and this repository has three audited cases of CI fixes that existed only as comments. The tests drive the script over field-trimmed payloads of real runs, including the cancellation 31716251612 whose only step with conclusion 'failure' is 'Report what was exercised' — an if: always() collateral that mutation 4 makes the script accuse."
+}

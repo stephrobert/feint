@@ -428,3 +428,33 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
           echo "streak=${streak}/${TARGET}"
+
+  # A red night tells somebody (#502). Ten scheduled reds in twelve nights
+  # (#501) left no trace outside job logs and the summary above — the two
+  # places nobody opens without already knowing there is a problem. This job
+  # opens or updates one issue on a red scheduled night, naming the failing
+  # step and its job (mode) plus the streak, and closes it on the first green
+  # one; a run where no step failed is written as the run's own infrastructure,
+  # never blamed on a suite.
+  #
+  # The mechanism is drift.yml's report job — one issue, updated, never a new
+  # one per night — as a reusable workflow, because a block copied into each
+  # scheduled caller is a control one caller forgets. Its decisions live in
+  # tools/ci/night-report.sh, not in a run: block, so they are provable off
+  # GitHub Actions: tools/ci/night_report_test.go drives the script over
+  # field-trimmed payloads of real runs of this workflow, and
+  # tools/falsify/specs/a-red-night-opens-an-issue.json replays those tests
+  # with each decision neutralised.
+  report:
+    name: A red night opens the issue, a green one closes it
+    needs: runtime
+    if: always() && github.event_name == 'schedule'
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    uses: ./.github/workflows/night-report.yml
+    with:
+      # The promotion criterion of #125, the number the `streak` job above
+      # publishes; the issue carries it so nobody has to open a summary.
+      streak-target: '14'

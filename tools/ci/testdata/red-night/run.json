@@ -1,0 +1,10 @@
+{
+  "id": 32924409224,
+  "name": "Runtime proof",
+  "path": ".github/workflows/runtime-proof.yml",
+  "event": "schedule",
+  "status": "completed",
+  "conclusion": "failure",
+  "created_at": "2026-08-26T02:53:45Z",
+  "html_url": "https://github.com/stephrobert/feint/actions/runs/32924409224"
+}
