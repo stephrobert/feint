@@ -1625,6 +1625,65 @@ Until then `mise run conformance:parity` runs on demand and is deliberately not
 in the `conformance` aggregate: a red suite inside the gate every other change is
 judged by teaches people to skip the gate.
 
+## A machine's route out: which shapes reach a package repository (#507)
+
+Whether an emulated machine can reach the internet is a property of its
+**primary interface's shape**, not of the host it runs on. Measured on
+2026-08-26, one emulator (`incus-ovn`), one station, one minute apart, the same
+`#cloud-config` declaring `package_update: true` and `packages: [nginx]` on
+both:
+
+| shape | outbound | DNS | cloud-init | port 80 |
+|---|---|---|---|---|
+| routed NIC (Scaleway server, public IP, no private network at create) | none | none | `status: error` on `package_update_upgrade_install` | never listens |
+| NAT-backed network (Outscale public-Cloud Vm on `fnt-default`) | yes | yes | `status: done` | listening — nginx installed |
+
+The port-22 positive control was OPEN on both, so the `error` measures the
+machine, not the reader.
+
+Why the routed shape has no route out is #202's decision: a machine carries
+exactly the addresses its provider's API publishes, on a routed NIC with no
+network underneath — and therefore no NAT and no resolver, because the images
+`feint images` builds carry their ssh daemon already (#203) and nothing else
+about the machine needs the internet. The default route inside the guest is
+`via 169.254.0.1`, the routed NIC's link-local next hop, and it wins even when
+a private NIC with a NAT-backed network is attached later, which is the
+ordinary Terraform order on Scaleway and Exoscale (server first, NIC after).
+Outscale's Subnets are NAT-less **on purpose and faithfully**: upstream, a
+Subnet reaches out only through an internet or NAT service, and this emulator
+records those without routing them (see "Outscale's gateways and NAT move
+records, not packets").
+
+This is not a per-environment fact. The runtime-proof runner showed the same
+boundary from both sides: machines whose outbound is routed and NATed through
+the host crossed the Docker `FORWARD` policy (the comment in
+`runtime-proof.yml`), and the routed shape without NAT kept the ssh suite red
+for five consecutive nights until the images stopped needing a repository
+(#335). Two shapes, one boundary, both environments.
+
+Consequences, stated rather than implied:
+
+- **A stack's `packages:` clause cannot complete on a routed-shape machine.**
+  cloud-init runs the user data — the config reaches
+  `/var/lib/cloud/instance/user-data.txt` — and ends in `status: error`, in a
+  journal inside the guest that nobody opens. The example stacks therefore
+  declare none (#507); their user data does what an offline machine can hold
+  (`write_files`, `runcmd`, a python listener — python is guaranteed wherever
+  cloud-init runs).
+- **The emulator says it at boot**: a client cloud-config that declares a
+  package step on a machine booting with no emulated network under it is
+  warned about in the emulator's log, naming this section.
+  `TestAPackageStepWithNoRouteOutIsSaidOutLoud` holds the warning, and its
+  absence on the shapes that can install.
+- **No NAT is added for the routed shape here.** A routed NIC has no network
+  object, so there is no `ipv4.nat` to switch on: feint would have to write
+  masquerade rules on the operator's host outside anything Incus manages, and
+  provide a resolver besides — for an interface that `firewall_public_only`
+  already documents as unfiltered. The real cloud does give such a machine
+  outbound, so this is a divergence, and it is recorded here rather than
+  papered over; widening the machine layer's contract is the boundary work of
+  the architecture audit (#514), not a patch.
+
 ## Subnet isolation depends on the runtime mode
 
 Upstream, two private networks of two different VPCs do not reach each other.

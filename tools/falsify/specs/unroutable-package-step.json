@@ -1,0 +1,26 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the package-step warning never fires, and a stack's packages: dies in a guest journal nobody opens (#507)",
+      "file": "internal/core/machine/binding.go",
+      "find": "\tif _, metadataOnly := b.Driver.(Noop); !metadataOnly &&\n\t\tboot.CloudInit != \"\" && len(boot.Attachments) == 0 && declaresPackageStep(boot.CloudInit) {",
+      "replace": "\tif _, metadataOnly := b.Driver.(Noop); !metadataOnly &&\n\t\tboot.CloudInit != \"\" && len(boot.Attachments) == 0 && declaresPackageStep(boot.CloudInit) && false {",
+      "test": "TestAPackageStepWithNoRouteOutIsSaidOutLoud"
+    },
+    {
+      "label": "the scan warns on user data that is not cloud-config at all, and the warning becomes noise nobody reads (#507)",
+      "file": "internal/core/machine/binding.go",
+      "find": "\tif !strings.HasPrefix(strings.TrimSpace(userData), \"#cloud-config\") {\n\t\treturn false\n\t}",
+      "replace": "\tif !strings.HasPrefix(strings.TrimSpace(userData), \"#cloud-config\") && false {\n\t\treturn false\n\t}",
+      "test": "TestAPackageStepWithNoRouteOutIsSaidOutLoud"
+    },
+    {
+      "label": "an indented key counts as top-level, so a packages: inside a write_files body triggers the warning (#507)",
+      "file": "internal/core/machine/binding.go",
+      "find": "\t\t// The key is compared raw, indentation included: an indented\n\t\t// \"packages:\" belongs to something nested — a write_files body, a\n\t\t// list item — and must not count as the module's own directive.\n\t\tswitch key {",
+      "replace": "\t\t// The key is compared raw, indentation included: an indented\n\t\t// \"packages:\" belongs to something nested — a write_files body, a\n\t\t// list item — and must not count as the module's own directive.\n\t\tswitch strings.TrimSpace(key) {",
+      "test": "TestAPackageStepWithNoRouteOutIsSaidOutLoud"
+    }
+  ]
+}

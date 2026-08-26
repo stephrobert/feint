@@ -218,11 +218,20 @@ resource "exoscale_compute_instance" "web" {
     network_id = exoscale_private_network.front.id
   }
 
+  # No `packages:` here, deliberately (#507). An instance with an elastic IP
+  # boots on a routed NIC with no NAT and no resolver (docs/limits.md, "A
+  # machine's route out"), so a package step cannot complete: under a runtime,
+  # cloud-init would end in `status: error` in a journal nobody opens. The web
+  # tier still gets a real listener on 80 — python3 is guaranteed wherever
+  # cloud-init runs, since cloud-init is python.
   user_data = <<-EOT
     #cloud-config
-    package_update: true
-    packages:
-      - nginx
+    write_files:
+      - path: /var/www/html/index.html
+        content: |
+          <h1>platform web</h1>
+    runcmd:
+      - [systemd-run, --unit=platform-web, --working-directory=/var/www/html, python3, -m, http.server, "80"]
   EOT
 }
 

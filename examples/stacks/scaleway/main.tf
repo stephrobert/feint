@@ -269,11 +269,21 @@ resource "scaleway_instance_server" "bastion" {
   security_group_id = scaleway_instance_security_group.bastion.id
   tags              = ["platform", "bastion"]
 
+  # No `packages:` here, deliberately (#507). A server created with a public IP
+  # boots on a routed NIC with no NAT and no resolver (docs/limits.md, "A
+  # machine's route out"), so a package step cannot complete: under a runtime,
+  # cloud-init ends in `status: error` on every machine that declares one, in a
+  # journal inside the guest that nobody opens. A stack declares what its
+  # environment can hold — this user data exercises the same delivery path,
+  # with steps that succeed offline.
   cloud_init = <<-EOT
     #cloud-config
-    package_update: true
-    packages:
-      - fail2ban
+    write_files:
+      - path: /etc/motd
+        content: |
+          platform bastion — access is logged
+    runcmd:
+      - [sh, -c, "touch /var/lib/platform-bastion-ready"]
   EOT
 }
 
@@ -348,11 +358,18 @@ resource "scaleway_instance_server" "web" {
   additional_volume_ids = [scaleway_instance_volume.web_data[count.index].id]
   tags                  = ["platform", "web"]
 
+  # No `packages:` for the same reason as the bastion (#507): no route out on a
+  # routed NIC, so `nginx` could never install. The web tier still gets a real
+  # listener on 80 — python3 is guaranteed wherever cloud-init runs, since
+  # cloud-init is python.
   cloud_init = <<-EOT
     #cloud-config
-    package_update: true
-    packages:
-      - nginx
+    write_files:
+      - path: /var/www/html/index.html
+        content: |
+          <h1>platform web</h1>
+    runcmd:
+      - [systemd-run, --unit=platform-web, --working-directory=/var/www/html, python3, -m, http.server, "80"]
   EOT
 }
 

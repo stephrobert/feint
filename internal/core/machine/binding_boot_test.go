@@ -290,3 +290,81 @@ func TestTheBootRefusalNamesTheGesturesThatUnblock(t *testing.T) {
 		}
 	}
 }
+
+// A client cloud-config that declares a package step cannot complete on a
+// machine booting with no emulated network under it (#507): no NAT, no
+// resolver, no route to a package repository (#202). The guest's own journal
+// is the only place cloud-init reports the resulting `status: error`, and
+// nobody opens it — so the shared layer says it in the emulator's log, once,
+// at boot. Both halves are asserted: the shapes that must warn, and the shapes
+// that must not, because a warning that fires for every machine is one nobody
+// reads either.
+func TestAPackageStepWithNoRouteOutIsSaidOutLoud(t *testing.T) {
+	const packagesConfig = "#cloud-config\npackage_update: true\npackages:\n  - nginx\n"
+	cases := map[string]struct {
+		boot Boot
+		warn bool
+	}{
+		"packages on a routed machine": {
+			boot: Boot{Image: "ubuntu:22.04", Requested: "ubuntu_jammy", CloudInit: packagesConfig,
+				PublicAddresses: []string{"203.0.113.9"}},
+			warn: true,
+		},
+		"package_update alone on a routed machine": {
+			boot: Boot{Image: "ubuntu:22.04", Requested: "ubuntu_jammy",
+				CloudInit: "#cloud-config\npackage_update: true\n"},
+			warn: true,
+		},
+		"packages on a machine with an emulated network": {
+			boot: Boot{Image: "ubuntu:22.04", Requested: "ubuntu_jammy", CloudInit: packagesConfig,
+				Attachments: []Attachment{{Network: "fnt-sub1"}}},
+			warn: false,
+		},
+		"a shell script whose heredoc carries a column-zero packages line": {
+			boot: Boot{Image: "ubuntu:22.04", Requested: "ubuntu_jammy",
+				CloudInit: "#!/bin/sh\ncat > /tmp/x <<'E'\npackages:\n  - nginx\nE\n"},
+			warn: false,
+		},
+		"packages indented inside write_files content": {
+			boot: Boot{Image: "ubuntu:22.04", Requested: "ubuntu_jammy",
+				CloudInit: "#cloud-config\nwrite_files:\n  - path: /etc/x\n    content: |\n      packages:\n"},
+			warn: false,
+		},
+		"package_update declared false": {
+			boot: Boot{Image: "ubuntu:22.04", Requested: "ubuntu_jammy",
+				CloudInit: "#cloud-config\npackage_update: false\n"},
+			warn: false,
+		},
+		"no client user data at all": {
+			boot: Boot{Image: "ubuntu:22.04", Requested: "ubuntu_jammy",
+				AuthorizedKeys: []string{"ssh-ed25519 AAAA test"}},
+			warn: false,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			driver := &recordingDriver{}
+			b := bootBinding(driver)
+			var log bytes.Buffer
+			b.Log = slog.New(slog.NewTextHandler(&log, nil))
+			res := &resource.Resource{ID: "srv-1", State: "stopped"}
+			if !b.PowerOn(context.Background(), res, tc.boot) {
+				t.Fatal("the boot itself must proceed: the limit degrades the guest, not the control plane")
+			}
+			said := strings.Contains(log.String(), "package step it cannot complete")
+			if said != tc.warn {
+				t.Fatalf("warned=%v, want %v; log:\n%s", said, tc.warn, log.String())
+			}
+		})
+	}
+
+	// And never with a metadata-only runtime: nothing boots, so nothing fails.
+	b := bootBinding(Noop{})
+	var log bytes.Buffer
+	b.Log = slog.New(slog.NewTextHandler(&log, nil))
+	res := &resource.Resource{ID: "srv-1", State: "stopped"}
+	b.PowerOn(context.Background(), res, Boot{Requested: "ubuntu_jammy", CloudInit: packagesConfig})
+	if strings.Contains(log.String(), "package step") {
+		t.Fatalf("a metadata-only boot warned about a machine that does not exist; log:\n%s", log.String())
+	}
+}

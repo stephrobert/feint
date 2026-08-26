@@ -276,6 +276,26 @@ func (b Binding) Start(ctx context.Context, boot Boot) Started {
 		userData = rendered
 	}
 
+	// A client cloud-config that declares a package step cannot complete on a
+	// machine booting with no emulated network under it: such a machine
+	// carries only what its provider's API publishes — a routed public
+	// address with no NAT and no resolver, or no interface at all (#202) — so
+	// `packages:` dies on "Temporary failure resolving" and cloud-init
+	// finishes in `status: error`, in a journal inside the guest that nobody
+	// opens (#507). Measured both ways on 2026-08-26: the same cloud-config
+	// ends `error` on a routed machine and `done` — package installed,
+	// listening — on a machine whose network has NAT. Said here, in the shared
+	// layer, so every pack's operator reads it in the emulator's log instead
+	// of diagnosing a healthy-looking machine; the boot itself proceeds,
+	// because everything else about the machine works.
+	// TestAPackageStepWithNoRouteOutIsSaidOutLoud fails without this.
+	if _, metadataOnly := b.Driver.(Noop); !metadataOnly &&
+		boot.CloudInit != "" && len(boot.Attachments) == 0 && declaresPackageStep(boot.CloudInit) {
+		b.logger().Warn("this machine's user data declares a package step it cannot complete",
+			"provider", b.Provider, "resource", boot.ID, "machine", name,
+			"consequence", "the machine boots with no emulated network under it, so it has no route to a package repository and no resolver; cloud-init will finish in `status: error` on package_update_upgrade_install (docs/limits.md, #507)")
+	}
+
 	labels := map[string]string{LabelKey: b.Provider}
 	for k, v := range boot.Labels {
 		labels[k] = v
@@ -507,4 +527,39 @@ func (b Binding) RefreshIfRunning(ctx context.Context, res *resource.Resource) b
 // does not call it at all, when its API declares none.
 func (b Binding) AddressOf(res *resource.Resource) string {
 	return res.Runtime[b.AddressKey]
+}
+
+// declaresPackageStep reports whether a client's user data asks cloud-init for
+// a package install or update — the one step that needs a route out of the
+// machine (#507).
+//
+// Deliberately a line scan, not a YAML parse: the value is untrusted client
+// input, this answer only gates a warning, and a parser here would be a second
+// place that interprets cloud-config (the first being cloud-init itself).
+// Top-level keys only, so a `packages:` nested under `write_files` content
+// does not trigger it; anything that is not a #cloud-config document — a shell
+// script, a MIME archive — answers false, because the packages semantics
+// belong to cloud-config alone.
+func declaresPackageStep(userData string) bool {
+	if !strings.HasPrefix(strings.TrimSpace(userData), "#cloud-config") {
+		return false
+	}
+	for line := range strings.SplitSeq(userData, "\n") {
+		key, value, found := strings.Cut(line, ":")
+		if !found {
+			continue
+		}
+		// The key is compared raw, indentation included: an indented
+		// "packages:" belongs to something nested — a write_files body, a
+		// list item — and must not count as the module's own directive.
+		switch key {
+		case "packages":
+			return true
+		case "package_update", "package_upgrade":
+			if strings.TrimSpace(value) == "true" {
+				return true
+			}
+		}
+	}
+	return false
 }
