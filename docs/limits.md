@@ -3171,3 +3171,259 @@ stated bounds" carries the runs).
 Group-sourced rules (the tiering statement, "tier 2 accepts tier 1") are
 expanded into the member machines' addresses, since the runtime has no group
 selector, and re-expanded whenever a member boots or gains an interface.
+
+## The station reaches an OVN private address only via the network's router, and the posted uplink routes do not go there (#496)
+
+The runtime posts a scope-link route on the uplink for each OVN subnet, and the
+station cannot reach a private address through it. Measured on 2026-08-26
+(`--vm incus-ovn`, Incus 7.2), with zero ACL on the path — network detached from
+its isolation set, NIC rule set empty — and the listener proven alive inside
+the machine:
+
+```console
+$ ip route | grep 10.30.1
+10.30.1.0/24 dev feint-uplink proto static scope link
+$ python3 probe.py 10.30.1.11 443
+10.30.1.11:443 connect_ex=113 CLOSED
+$ sudo tcpdump -ni feint-uplink host 10.30.1.11
+ARP, Request who-has 10.30.1.11 tell 10.209.83.1   (x5, no answer)
+```
+
+One variable changed, everything opens:
+
+```console
+$ sudo ip route replace 10.30.1.0/24 via 10.209.83.128 dev feint-uplink
+$ python3 probe.py 10.30.1.11 443
+10.30.1.11:443 connect_ex=0 OPEN
+```
+
+`10.209.83.128` is the network's `volatile.network.ipv4.address` — the OVN
+router's own address on the uplink. Reproduced identically on the Exoscale
+stack's networks (`10.90.1.0/24`, `10.90.2.0/24`). Outscale is not concerned:
+its station probes go through **public** addresses, whose /32s l2proxy answers
+ARP for.
+
+Measured: the routes, the capture, the two flips above. Deduced, not
+instrumented: the OVN router answers ARP only for its own addresses and the
+l2proxy /32s, which is consistent with the capture — the scope-link route makes
+the station ask who-has for the *internal* address, and nothing on the uplink
+answers. One counter-witness is on record and stays on record: #491's probe of
+2026-08-26 00:00 read `connect_ex=0` from the station on `10.99.1.4`, a
+station→private measurement that worked at least once in a configuration this
+finding does not explain. Both observations are written here as they were made.
+
+Who this touches: any harness that probes a private address from the station,
+firewall proofs first. Machines between themselves are not concerned. The
+capability already says it — `capabilities.private_from_host` is `false` under
+OVN — so a consumer asks `/_feint/health` instead of probing blind (see "A
+public address is the provider's value, made to answer on the host"). What
+would lift it: posting the subnet route `via` the network's router address
+instead of `dev`-only, which is what #496 asks and what the manual
+`ip route replace` above demonstrated.
+
+## A VPC created without `enable_routing` answers `routing_enabled=false` where the real cloud answers `true` (#497)
+
+The premise was verified on the real cloud before anything else (real account,
+2026-08-26, the test VPC deleted afterwards):
+
+```console
+$ scw vpc vpc create name=feint-premise-routing        # no enable_routing
+RoutingEnabled                  true
+```
+
+This emulator stores the request field as-is
+(`internal/providers/scaleway/vpc.go:207`,
+`res.Attrs["routing_enabled"] = req.EnableRouting`), so the Go zero value
+becomes the default — the inverse of upstream. The Scaleway example stack
+creates its two VPCs without the field, and both read back `false`:
+
+```console
+$ curl -s …/vpc/v2/regions/fr-par/vpcs | jq '.vpcs[] | {name, routing_enabled}'
+platform-workload    routing_enabled=false
+platform-management  routing_enabled=false
+```
+
+Consequence measured on the host: the web and app networks of the same
+workload VPC are not peered (`incus network peer list` empty), their isolation
+sets reject each other, and `app→web:443` reads `connect_ex=111 CLOSED` while
+the web group's rule accepts `0.0.0.0/0`. On the real cloud, two Private
+Networks of one routed VPC reach each other. Measured: the three blocks above.
+Deduced: nothing.
+
+What to do with it: declare `enable_routing = true` explicitly (Terraform) or
+`enable_routing` on the create. The stored value is the request's, so an
+explicit `true` is stored as `true`, and two networks of a routing VPC are
+joined the runtime's own way ("Subnet isolation depends on the runtime mode"
+carries that measurement). What would lift it: matching upstream's default at
+create, at the line named above.
+
+## A reboot through the API logs `Failed to add route: file exists` for its own public /32, over a host that ends up correct (#498)
+
+Witness (2026-08-26, `--vm incus-ovn`, `examples/stacks/scaleway`, `POST
+/servers/{id}/action {"action":"reboot"}` on a server carrying a routed public
+address):
+
+```text
+01:06:50 ERROR could not route the public address to the machine address=203.0.113.3
+  server=e2297f8a-… error="set routes of uplink feint-uplink: incus network:
+  Error: Failed to add route {… Dst: 203.0.113.3/32 …}: file exists"
+```
+
+The final state is correct: the /32 is on the uplink and the address answers
+after the reboot. The re-install of the same route is what is not idempotent.
+Measured: the log line, the route present, the address answering. Deduced,
+undecided: which side is at fault — the stop half of the reboot not removing
+the route, or the re-install not tolerating `file exists`. Both live around the
+uplink route path in `internal/core/machine/incus_ovn.go` (`delegateRoute` and
+the re-install at boot, their inverse at stop).
+
+What to do with it: after an API reboot, this ERROR with `file exists` on the
+server's own public /32 does not mean the address is broken — check the
+address, it answers. It is exactly the noise that teaches ignoring the next
+true ERROR, which is why it is recorded rather than excused. What would lift
+it: settling which of the two sides is at fault and making that side
+idempotent (#498).
+
+## Fourteen ERROR lines over fifteen stack replays are one documented refusal, logged at the wrong level (#474)
+
+Replaying the fifteen surveyed stacks under a machine runtime (`main@72d861d`,
+`--vm incus-ovn`, logs of 2026-08-25), five runs printed `level=ERROR` —
+fourteen lines between them (O1-rke 1, O2-ztiac 5, O4-k3s 1, O5-kasten 5,
+S1-talos 2) — and every one is the same deliberate, documented refusal to boot
+an image identifier the catalogue does not hold (the call site built around
+`DeclaredImageSyntax` in `internal/core/machine/binding.go`). The refusal text
+itself is right: reason, consequence, and both gestures (`feint images
+resolve`, `FEINT_BOOT_IMAGES`). The level is what is wrong, and the same log
+says so 200 ms later:
+
+```text
+19:54:23.185 level=ERROR msg="refusing to boot: nothing says which operating system this image identifier names" …
+19:54:23.385 level=WARN  msg="this runtime does not distribute a load balancer of this shape; the API goes on describing it and its backends" …
+```
+
+Two documented degradations, same run, two levels — the second is #457's, and
+it is the one that follows the rule. The run that printed five of these ERRORs
+was a **success**: ztiac applied 54 of 54, matched its reference exactly, and
+destroyed 54 cleanly.
+
+What to do with it: do not grade an emulator log by `grep ERROR` alone — under
+these replays it finds fourteen lines about a documented behaviour and nothing
+about the run that really failed. What would lift it: logging this refusal at
+WARN, where its balancer sibling already is; the distinction, if a rule is
+wanted, is that an ERROR is something the emulator did not do that it was
+built to do, and a WARN is something it deliberately declines and documents
+while the API answer stays honest. Not measured: whether any other ERROR site
+is in the same position — the fifteen replays surfaced only this one.
+
+## `feint images resolve` can print a `FEINT_BOOT_IMAGES` line that cannot boot (#476)
+
+The command exists to turn an opaque identifier into the line an operator
+pastes ("Identifiers are not checked against anything" describes it). For two
+of the three identifiers the surveyed stacks hardcode, the line it prints
+names a version the upstream image server withdrew, and it says so nowhere
+(measured at `main@72d861d`):
+
+```console
+$ ./feint images resolve ami-a3ca408c ami-538af795 ami-47899c77 ; echo "rc=$?"
+…
+declare and restart:
+  FEINT_BOOT_IMAGES='ami-a3ca408c=ubuntu:22.04,ami-538af795=ubuntu:18.04,ami-47899c77=debian:9' feint serve ...
+rc=0
+```
+
+`images:` no longer publishes ubuntu/18.04 or debian/9 — this file already
+names them as withdrawn — so pasting that line buys nothing: the declaration
+is honoured, the build fails ("The requested image couldn't be found"), and
+the boot is refused. Replayed on `michaelcourcy/kasten-on-outscale @f1fcc87`
+with exactly that declaration: **29 applied, 0 machines started**, five Vms
+tainted — the same figures as with no declaration at all. The absence was
+measured with a control so that "absent" is not "looked nowhere": the
+`images:` listing read as JSON holds 726 aliases, `ubuntu/18.04` and
+`debian/9` absent, `ubuntu/22.04` and `debian/12` present as controls. Read it
+as JSON deliberately — `incus image list -c l` prints one alias and
+`(7 more)`, and grepping that column reports present aliases as absent too.
+
+What to do with it: before pasting the printed line, check each version
+against the `images:` listing, and substitute a version it publishes yourself
+(the boot refusal's own fix line says as much: "name one it does") — a
+substitution the operator signs, rather than a fact about the identifier. What would lift it: `resolve`
+checking buildability before printing — a warning line on an unbuildable ref,
+a clearly-labelled nearest-buildable suggestion, or a non-zero exit; #476
+leaves the shape to the author. Not measured: whether the Scaleway and
+Exoscale resolve paths can produce the same unbuildable output — only the
+Outscale listing was exercised, because it is the one the surveyed stacks
+reach for.
+
+## `scw` 2.56.3 prints a recovered panic on every successful `lb acl delete`, and the defect is upstream (#505)
+
+Every conformance pass of the Scaleway load-balancer chain carries one orphan
+line, glued before the step's `ok:`:
+
+```text
+runtime error: invalid memory address or nil pointer dereference  ok: the balancer chain round-tripped, …
+```
+
+Bisected command by command on 2026-08-26, stderr separated per step
+(emulator `--vm off`, 24 + 11 commands replayed): exactly one command emits
+it, `scw lb acl delete <id>` — which **succeeds** (rc=0, the ACL is deleted,
+the suite goes on). The recovered panic's stack points into the CLI itself
+(`main.cleanup`, `cmd/scw/main.go:45`; `interceptACL.func21`,
+`internal/namespaces/lb/v1/custom_acl.go:83`): the interceptor guards its
+pre-fetch with a type assertion on `*ZonedAPIDeleteCertificateRequest` where
+the argument is a `*ZonedAPIDeleteACLRequest`, so `getACL` stays nil and the
+delete's success path dereferences `getACL.Frontend.LB.Tags`. The panic is
+recovered, printed, and the process exits 0.
+
+Measured: the exact command, rc=0, the ACL deleted, the stack, the
+reproduction under `--vm off` as under `--vm incus-ovn`, and no ERROR on the
+emulator's side. Deduced, not measured on a real account: the real cloud would
+provoke the same panic — nothing in the faulty path depends on the emulator's
+answer.
+
+What to do with it: nothing, here. This is not a divergence and there is
+nothing to fix in the emulator; the line is one of noise in every conformance
+log, tolerated because delete stderr passes through and rc is 0. Whoever meets
+it in a log: #505 is the reference to point at. What would lift it: the
+upstream fix in scaleway-cli — one type in the assertion, to be reported
+through `scw feedback bug`; the line disappears when a fixed `scw` ships.
+
+## The Exoscale stack's second plan is not empty: two per-id outputs read back null at apply time (#520)
+
+`feint up --runtime incus-ovn` applies `examples/stacks/exoscale` (the pinned
+maintainer fork, `dev_overrides`) green, and the apply's own `Outputs:` block
+lists five outputs — `front_by_id` and `ingress_address_by_id` are missing
+from it. The second plan is then not empty:
+
+```console
+$ terraform plan -detailed-exitcode        # exit 2
+Changes to Outputs:
+  + front_by_id           = "platform-front"
+  + ingress_address_by_id = "192.0.2.2"
+```
+
+No resource changes: the whole diff is those two outputs appearing, and
+applying that plan changes 0 resources and converges — the third plan exits 0
+(#506, the earlier filing of the same defect). Reproduced on **three
+independent trees** on 2026-08-26 — `main@46230cc`,
+`fix/473-493-ovn-under-concurrency`, `fix/481-483-…@f11d384` — with the same
+two lines, so it is deterministic and belongs to no branch. The two outputs
+are exactly the per-id doors #478 added: data sources that read the NLB and
+the elastic IP back **by id** (`data.exoscale_nlb.front.name`, the ingress
+address by its id); every output that reads the resources or the list-shaped
+data sources is present from the first apply. The clean second plan
+`docs/clients.md` records for 2026-08-18 was measured on the 13-resource
+stack, before those doors existed.
+
+Deduced, not instrumented: Terraform omits an output whose value is null, so
+the first apply's by-id read — issued immediately after the create — answered
+a document whose `name` (and the elastic IP's address) was empty, while the
+same read at plan time answers the filled document. That points at the pack's
+by-id GET racing its own async create-completion, but nobody has captured the
+raw exchange; a `feint proxy --record` of the apply would settle it.
+
+What to do with it: this stack is replayed by hand (it is deliberately not in
+CI — "The Exoscale Terraform provider is refused, and why"), and
+`-detailed-exitcode` does not distinguish an outputs-only diff from a resource
+diff. An honest replay of it therefore reports "exit 2, outputs-only,
+resources at zero", not "red". What would lift it: capturing the exchange and
+making the by-id read answer the filled document on the first apply (#520).
