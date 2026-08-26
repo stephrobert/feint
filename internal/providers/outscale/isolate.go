@@ -28,11 +28,49 @@ import (
 //
 // TestSubnetsOfOtherNetsAreForeign fails without this.
 
-// reachableFrom reports whether one subnet may reach another: same Net, and
-// nothing else. Net peerings widen this, and they do it through PeerNetworks
-// rather than here, so a peering that is only pending grants nothing.
-func (p *Pack) reachableFrom(subnet, other *resource.Resource) bool {
-	return stringOf(subnet.Attrs["NetId"]) == stringOf(other.Attrs["NetId"])
+// reachableFrom reports whether one subnet may reach another: same Net, or a
+// Net an *active* peering joins to its own — a peering "works both ways" (SDK
+// doc), whoever requested it, and one that is only pending grants nothing.
+//
+// Both truths live in this one predicate on purpose. An earlier version kept
+// the peering half in a second writer (reconcilePeerings) beside this one, and
+// machine.PeerNetworks reconciles rather than appends: whichever writer ran
+// last erased the other's declaration, so an ordinary CreateSubnet in a peered
+// Net severed the active peering at the runtime and the newborn subnet never
+// joined it (#508). One predicate, one writer, and the last pass is always
+// right because every pass states the whole truth.
+//
+// TestACreateSubnetDoesNotSeverAnActivePeering fails without the peering half.
+func (p *Pack) reachableFrom(subnet, other *resource.Resource, peered netReachability) bool {
+	a := stringOf(subnet.Attrs["NetId"])
+	b := stringOf(other.Attrs["NetId"])
+	return a == b || peered[a][b]
+}
+
+// netReachability says which Nets reach which through active peerings, in both
+// directions. Built once per reconciliation pass rather than queried per pair:
+// the predicate runs O(N²) times over the subnets and must not scan the store
+// each time.
+type netReachability map[string]map[string]bool
+
+func (p *Pack) activePeeringReaches() netReachability {
+	reaches := netReachability{}
+	join := func(a, b string) {
+		if reaches[a] == nil {
+			reaches[a] = map[string]bool{}
+		}
+		reaches[a][b] = true
+	}
+	for _, pcx := range p.env.Store.List(kindNetPeering, resource.Tenant{Provider: Name}) {
+		if pcx.State != statePeeringActive {
+			continue
+		}
+		source := stringOf(pcx.Attrs["SourceNetId"])
+		accepter := stringOf(pcx.Attrs["AccepterNetId"])
+		join(source, accepter)
+		join(accepter, source)
+	}
+	return reaches
 }
 
 // isolateNetworks reconciles what every subnet's backing network may reach.
@@ -64,6 +102,7 @@ func (p *Pack) isolateNetworks(ctx context.Context) {
 // runs. Only the Coalescer calls it.
 func (p *Pack) isolationPass(ctx context.Context) {
 	all := p.env.Store.List(kindSubnet, resource.Tenant{Provider: Name})
+	peered := p.activePeeringReaches()
 	members := make([]machine.IsolationMember, len(all))
 	for i, subnet := range all {
 		members[i] = machine.IsolationMember{
@@ -73,5 +112,5 @@ func (p *Pack) isolationPass(ctx context.Context) {
 		}
 	}
 	machine.ReconcileIsolation(ctx, p.env.Machines, p.logger(), "subnet",
-		members, func(from, to int) bool { return p.reachableFrom(all[from], all[to]) })
+		members, func(from, to int) bool { return p.reachableFrom(all[from], all[to], peered) })
 }

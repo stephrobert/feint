@@ -46,8 +46,8 @@
     {
       "label": "a deleted peering keeps carrying traffic on the runtime",
       "file": "internal/providers/outscale/netpeerings.go",
-      "find": "\t// Whatever reachability the peering granted goes with it.\n\tp.reconcilePeerings(r.Context())",
-      "replace": "\t// Whatever reachability the peering granted goes with it.\n\tif false {\n\t\tp.reconcilePeerings(r.Context())\n\t}",
+      "find": "\t// Whatever reachability the peering granted goes with it — through the one\n\t// writer, so nothing else's truth is erased on the way (#508).\n\tp.isolateNetworks(r.Context())",
+      "replace": "\t// Whatever reachability the peering granted goes with it — through the one\n\t// writer, so nothing else's truth is erased on the way (#508).\n\tif false {\n\t\tp.isolateNetworks(r.Context())\n\t}",
       "test": "TestAnAcceptedPeeringPeersTheBackingNetworks"
     }
   ]

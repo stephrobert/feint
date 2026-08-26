@@ -429,3 +429,80 @@ func TestAnAcceptedPeeringPeersTheBackingNetworks(t *testing.T) {
 		t.Fatalf("after delete, %s still peers with %v", networkB, got)
 	}
 }
+
+// TestACreateSubnetDoesNotSeverAnActivePeering is the audit witness of #508.
+//
+// Two Nets, one subnet each, a peering accepted: both backing networks peer.
+// Then one ordinary CreateSubnet in the source Net. Before the fix, two
+// reconcilers wrote this runtime state with two different truths — the
+// subnet-side pass knew "same Net, and nothing else", the peering-side pass
+// knew "active peering" — and machine.PeerNetworks reconciles rather than
+// appends, so the subnet create's pass severed the active peering of the
+// existing subnet, and the newborn subnet never joined it. Both properties
+// are asserted on the recorder, and the negative control matters as much: a
+// third, unpeered Net goes through the same sequence and stays out of every
+// peer list.
+func TestACreateSubnetDoesNotSeverAnActivePeering(t *testing.T) {
+	env := emulator.DefaultEnv()
+	rt := newPeererRuntime()
+	env.Machines = rt
+	srv, err := emulator.NewServer(env, outscale.New(env))
+	if err != nil {
+		t.Fatalf("build emulator: %v", err)
+	}
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+
+	netA, subnetA := netAndSubnet(t, ts, "10.60.0.0/16", "10.60.1.0/24")
+	netB, subnetB := netAndSubnet(t, ts, "10.61.0.0/16", "10.61.1.0/24")
+	_, subnetC := netAndSubnet(t, ts, "10.62.0.0/16", "10.62.1.0/24")
+	networkA := machine.NetworkName(machine.NetworkPrefix, subnetA)
+	networkB := machine.NetworkName(machine.NetworkPrefix, subnetB)
+	networkC := machine.NetworkName(machine.NetworkPrefix, subnetC)
+
+	_, out := post(t, ts, "CreateNetPeering", `{"SourceNetId":"`+netA+`","AccepterNetId":"`+netB+`"}`)
+	id, _ := peeringOf(t, out)["NetPeeringId"].(string)
+
+	// A pass that runs while the peering is only pending must not grant it:
+	// the predicate counts *active* peerings and nothing weaker. The probe
+	// subnet is what forces a pass to run at exactly that moment.
+	post(t, ts, "CreateSubnet", `{"NetId":"`+netA+`","IpRange":"10.60.3.0/24"}`)
+	if got := rt.peersOf(networkA); has(got, networkB) {
+		t.Fatalf("a subnet create while the peering is pending-acceptance granted it: %s peers with %v", networkA, got)
+	}
+
+	post(t, ts, "AcceptNetPeering", `{"NetPeeringId":"`+id+`"}`)
+	if got := rt.peersOf(networkA); !has(got, networkB) {
+		t.Fatalf("after accept, %s peers with %v, want %s; nothing after this measures the subnet create", networkA, got, networkB)
+	}
+
+	// The ordinary create the issue names, in the Net the peering joins.
+	_, out = post(t, ts, "CreateSubnet", `{"NetId":"`+netA+`","IpRange":"10.60.2.0/24"}`)
+	s, _ := out["Subnet"].(map[string]any)
+	newborn, _ := s["SubnetId"].(string)
+	if newborn == "" {
+		t.Fatalf("CreateSubnet answered no SubnetId: %v", out)
+	}
+	networkNew := machine.NetworkName(machine.NetworkPrefix, newborn)
+
+	if got := rt.peersOf(networkA); !has(got, networkB) {
+		t.Fatalf("an ordinary CreateSubnet in %s severed the active peering: %s peers with %v and no longer with %s", netA, networkA, got, networkB)
+	}
+	if got := rt.peersOf(networkNew); !has(got, networkB) {
+		t.Fatalf("the newborn subnet never joined the active peering: %s peers with %v, want %s", networkNew, got, networkB)
+	}
+	if got := rt.peersOf(networkB); !has(got, networkA) || !has(got, networkNew) {
+		t.Fatalf("the far side does not name both subnets of the peered Net: %s peers with %v", networkB, got)
+	}
+
+	// The widening must not leak: the unpeered Net reaches nobody and nobody
+	// reaches it, through the exact same sequence.
+	if got := rt.peersOf(networkC); len(got) != 0 {
+		t.Fatalf("the unpeered Net's subnet gained peers: %s peers with %v", networkC, got)
+	}
+	for _, network := range []string{networkA, networkNew, networkB} {
+		if has(rt.peersOf(network), networkC) {
+			t.Fatalf("%s peers with the unpeered Net's %s", network, networkC)
+		}
+	}
+}

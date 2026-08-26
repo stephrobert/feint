@@ -1,0 +1,26 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "the predicate loses its peering half, so the subnet-side pass severs an active peering and the newborn never joins it (#508)",
+      "file": "internal/providers/outscale/isolate.go",
+      "find": "\treturn a == b || peered[a][b]",
+      "replace": "\treturn a == b || (peered[a][b] && false)",
+      "test": "TestACreateSubnetDoesNotSeverAnActivePeering"
+    },
+    {
+      "label": "a pending peering already grants reachability, so a request joins two Nets nobody accepted (#508)",
+      "file": "internal/providers/outscale/isolate.go",
+      "find": "\t\tif pcx.State != statePeeringActive {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif pcx.State != statePeeringActive && false {\n\t\t\tcontinue\n\t\t}",
+      "test": "TestACreateSubnetDoesNotSeverAnActivePeering"
+    },
+    {
+      "label": "accepting a peering no longer reconciles the runtime, so the acceptance grants nothing until an unrelated subnet moves (#508)",
+      "file": "internal/providers/outscale/netpeerings.go",
+      "find": "\t// a second one dedicated to peerings erased the subnet writer's truth and\n\t// vice versa, whichever ran last (#508).\n\tp.isolateNetworks(r.Context())",
+      "replace": "\t// a second one dedicated to peerings erased the subnet writer's truth and\n\t// vice versa, whichever ran last (#508).\n\tif false {\n\t\tp.isolateNetworks(r.Context())\n\t}",
+      "test": "TestAnAcceptedPeeringPeersTheBackingNetworks"
+    }
+  ]
+}

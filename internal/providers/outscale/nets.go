@@ -369,7 +369,11 @@ func (p *Pack) createSubnet(w http.ResponseWriter, r *http.Request) {
 
 	// What each subnet may reach changed, so every rule set is reconciled. That
 	// includes a subnet born into a Net an active peering already joins: it must
-	// reach the peer's subnets from the start, not from the next transition.
+	// reach the peer's subnets from the start, not from the next transition —
+	// and the pass must not sever what the peering granted the Net's other
+	// subnets, which is what happened while a second writer held the peering
+	// half of the truth (#508).
+	// TestACreateSubnetDoesNotSeverAnActivePeering fails without both halves.
 	p.isolateNetworks(r.Context())
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{

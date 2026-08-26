@@ -1,13 +1,11 @@
 package outscale
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"time"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
-	"github.com/stephrobert/feint/internal/core/machine"
 	"github.com/stephrobert/feint/internal/core/resource"
 )
 
@@ -249,8 +247,11 @@ func (p *Pack) acceptNetPeering(w http.ResponseWriter, r *http.Request) {
 	// The reachability the acceptance granted, on the runtime, outside any
 	// lock: the store already says active, and a failing runtime degrades the
 	// data plane without taking the control plane down (same policy as the
-	// sibling packs' reconcilers, vpc.go and privatenetworks.go).
-	p.reconcilePeerings(r.Context())
+	// sibling packs' reconcilers, vpc.go and privatenetworks.go). The same
+	// reconciliation as a subnet create, because reachability has one writer:
+	// a second one dedicated to peerings erased the subnet writer's truth and
+	// vice versa, whichever ran last (#508).
+	p.isolateNetworks(r.Context())
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{
 		"NetPeering":      netPeeringView(res),
@@ -327,8 +328,9 @@ func (p *Pack) deleteNetPeering(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Whatever reachability the peering granted goes with it.
-	p.reconcilePeerings(r.Context())
+	// Whatever reachability the peering granted goes with it — through the one
+	// writer, so nothing else's truth is erased on the way (#508).
+	p.isolateNetworks(r.Context())
 
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"ResponseContext": p.context()})
 }
@@ -414,68 +416,14 @@ func (p *Pack) activePeeringBetween(sourceID, accepterID string) bool {
 	return false
 }
 
-// reconcilePeerings makes the runtime reachability match the store: every
-// subnet's backing network is peered with the backing networks of every subnet
-// of every Net an *active* peering joins to its own — and with nothing else,
-// because machine.PeerNetworks reconciles rather than appends, so a deleted
-// peering separates the Nets again on the same call.
-//
-// Only a runtime whose networks are born separate has anything to do here. On
-// a Peerer with native isolation (OVN) the peering is what joins two Nets; on
-// bridges nothing was ever separated, which is exactly the bridge-mode limit
-// docs/limits.md records — a suite must gate on `capabilities.isolation`, and
-// no document says "peered" without naming the mode.
-//
-// Errors are logged, not answered: the store is committed by the time this
-// runs, and a runtime failure degrades the data plane without taking the
-// control plane down (the same policy as vpc.go's isolateNetworks).
-func (p *Pack) reconcilePeerings(ctx context.Context) {
-	peerer, ok := p.env.Machines.(machine.Peerer)
-	if !ok || !peerer.NativeIsolation() {
-		return
-	}
-
-	// Which Nets each Net reaches, through active peerings, in both
-	// directions: a peering "works both ways" (SDK doc), whoever requested it.
-	reaches := map[string]map[string]bool{}
-	join := func(a, b string) {
-		if reaches[a] == nil {
-			reaches[a] = map[string]bool{}
-		}
-		reaches[a][b] = true
-	}
-	for _, pcx := range p.env.Store.List(kindNetPeering, resource.Tenant{Provider: Name}) {
-		if pcx.State != statePeeringActive {
-			continue
-		}
-		source := stringOf(pcx.Attrs["SourceNetId"])
-		accepter := stringOf(pcx.Attrs["AccepterNetId"])
-		join(source, accepter)
-		join(accepter, source)
-	}
-
-	// The backing networks per Net, from the runtime name each subnet carries.
-	backing := map[string][]string{}
-	subnets := p.env.Store.List(kindSubnet, resource.Tenant{Provider: Name})
-	for _, subnet := range subnets {
-		if name := subnet.Runtime[runtimeNetworkKey]; name != "" {
-			netID := stringOf(subnet.Attrs["NetId"])
-			backing[netID] = append(backing[netID], name)
-		}
-	}
-
-	for _, subnet := range subnets {
-		name := subnet.Runtime[runtimeNetworkKey]
-		if name == "" {
-			continue
-		}
-		peers := make([]string, 0, 4)
-		for peerNet := range reaches[stringOf(subnet.Attrs["NetId"])] {
-			peers = append(peers, backing[peerNet]...)
-		}
-		if err := peerer.PeerNetworks(ctx, name, peers); err != nil {
-			p.logger().Error("could not reconcile the peering of a subnet's network",
-				"subnet", subnet.ID, "network", name, "error", err)
-		}
-	}
-}
+// The runtime half of a peering transition is isolateNetworks, the same
+// reconciliation a subnet create or delete runs. There used to be a dedicated
+// reconciler here, computing peers from the active peerings alone, while
+// isolateNetworks computed them from Net membership alone — two writers of one
+// runtime state, each stating a partial truth, and machine.PeerNetworks
+// reconciles rather than appends, so whichever ran last erased the other's
+// half: an ordinary CreateSubnet in a peered Net severed the active peering,
+// and the newborn subnet never joined it (#508). The active-peering half now
+// lives in the shared predicate (reachableFrom, isolate.go), which is the
+// widening CLAUDE.md's "Factoriser" section prescribes — the abstraction
+// grows, the pack does not grow a second writer beside it.

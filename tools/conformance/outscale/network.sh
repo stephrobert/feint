@@ -114,8 +114,10 @@ net_id=""
 sub_id=""
 vm_a=""
 vm_b=""
+born_vm=""
 sub_a=""
 sub_b=""
+born_sub=""
 net_a=""
 net_b=""
 # Delete through the API, which is what removes the backing network. Killing the
@@ -123,10 +125,12 @@ net_b=""
 cleanup() {
   [ -n "$vm_a" ] && osc DeleteVms --VmIds "$vm_a" >/dev/null 2>&1
   [ -n "$vm_b" ] && osc DeleteVms --VmIds "$vm_b" >/dev/null 2>&1
+  [ -n "$born_vm" ] && osc DeleteVms --VmIds "$born_vm" >/dev/null 2>&1
   sleep 2
   [ -n "$sub_id" ] && osc DeleteSubnet --SubnetId "$sub_id" >/dev/null 2>&1
   [ -n "$sub_a" ] && osc DeleteSubnet --SubnetId "$sub_a" >/dev/null 2>&1
   [ -n "$sub_b" ] && osc DeleteSubnet --SubnetId "$sub_b" >/dev/null 2>&1
+  [ -n "$born_sub" ] && osc DeleteSubnet --SubnetId "$born_sub" >/dev/null 2>&1
   [ -n "$net_id" ] && osc DeleteNet --NetId "$net_id" >/dev/null 2>&1
   [ -n "$net_a" ] && osc DeleteNet --NetId "$net_a" >/dev/null 2>&1
   [ -n "$net_b" ] && osc DeleteNet --NetId "$net_b" >/dev/null 2>&1
@@ -320,13 +324,53 @@ sleep 2
 reach || fail "the peering is active and $vm_a still cannot reach $ip_b"
 ok "$vm_a reaches $ip_b through the active peering"
 
+# The regression #508 measured, held in the same pass as the lifecycle above:
+# two reconcilers used to write the runtime's peer state with two different
+# truths — "same Net" on every subnet transition, "active peering" on every
+# peering transition — and the runtime reconciles rather than appends, so an
+# ordinary CreateSubnet in a peered Net severed the active peering, and the
+# newborn subnet never joined it. Both halves are asserted here on packets,
+# and the deleted-peering verdict below now runs after this create, so it is
+# also the negative control: the widening must not leave anything joined once
+# the peering is gone, the newborn included.
+echo "- a Subnet created while the peering is active does not sever it (#508)"
+born_sub="$(osc CreateSubnet --NetId "$net_a" --IpRange "${PEER_BLOCK_A%.0.0/16}.3.0/24" | jq -r '.Subnet.SubnetId')"
+[ -n "$born_sub" ] || fail "CreateSubnet was refused while the peering is active"
+sleep 2
+reach || fail "an ordinary CreateSubnet in $net_a severed the active peering: $vm_a no longer reaches $ip_b (#508)"
+ok "the existing machine still reaches $ip_b after the create"
+
+echo "- a machine born in that Subnet joins the active peering (#508)"
+born_doc="$(osc CreateVms --ImageId ami-00000003 --VmType tinav6.c1r1p2 --SubnetId "$born_sub")" \
+  || fail "CreateVms rejected in $born_sub: $born_doc"
+born_vm="$(printf '%s' "$born_doc" | jq -r '.Vms[0].VmId')"
+born_ip="$(printf '%s' "$born_doc" | jq -r '.Vms[0].PrivateIp // empty')"
+[ -n "$born_ip" ] || fail "the newborn Vm came back without a PrivateIp"
+born_up=""
+for _ in $(seq 1 12); do
+  if machine_carries "feint-osc-$born_vm" "$born_ip"; then born_up="yes"; break; fi
+  sleep 2
+done
+[ -n "$born_up" ] || fail "feint-osc-$born_vm does not carry $born_ip; cannot measure the newborn's reachability"
+sleep 2
+incus exec "feint-osc-$born_vm" -- ping -c 2 -W 3 "$ip_b" >/dev/null 2>&1 \
+  || fail "the newborn Subnet's machine never joined the active peering: $born_vm cannot reach $ip_b (#508)"
+ok "$born_vm reaches $ip_b through the peering it was born into"
+
 echo "- a deleted peering separates them again"
 osc DeleteNetPeering --NetPeeringId "$pcx_id" >/dev/null || fail "DeleteNetPeering rejected"
 sleep 2
 if reach; then
   fail "the peering is deleted and the Nets still reach each other"
 fi
-ok "unreachable again"
+if incus exec "feint-osc-$born_vm" -- ping -c 2 -W 2 "$ip_b" >/dev/null 2>&1; then
+  fail "the peering is deleted and the newborn Subnet's machine still reaches $ip_b"
+fi
+ok "unreachable again, the newborn included"
+
+osc DeleteVms --VmIds "$born_vm" >/dev/null 2>&1 && born_vm=""
+sleep 3
+osc DeleteSubnet --SubnetId "$born_sub" >/dev/null 2>&1 && born_sub=""
 
 # And the accepting half, which the peering lifecycle above does not cover: a
 # rule set that kept everything out would pass every check so far and separate
