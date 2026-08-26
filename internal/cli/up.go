@@ -50,9 +50,11 @@ import (
 //     EXOSCALE_API_ENDPOINT, path included. That value comes from the pack's own
 //     Env, never from a field, so no reader has to learn which provider wants
 //     its path inside the value.
-//   - FEINT_EXOSCALE_ALLOW_TERRAFORM is read inside the emulator's process, so
-//     exporting it afterwards does nothing. `emulator.env` is set before the
-//     spawn.
+//   - `emulator.env` is set before the spawn, because FEINT_* knobs are read
+//     inside the emulator's process and exporting one afterwards does nothing.
+//     One name is refused there outright since #525 — see checkEnvName in
+//     internal/environment — and the engine a pack vetoes is refused at the
+//     doorstep here, before any process starts.
 
 // upTimeout bounds the whole of step 5. Every condition is also announced
 // before it is waited on, because a wait with no output is indistinguishable
@@ -162,11 +164,33 @@ func down(args []string, stdout, stderr io.Writer) int {
 	// a state file describing resources nothing can reach.
 	failed := exitOK
 	if decl.IaC.Engine != "" {
-		if err := runEngine(decl, "destroy", stdout, stderr); err != nil {
-			// Reported and carried on: leaving the emulator running because the
-			// engine failed would leave the operator with both problems.
+		// The same doorstep `up` has, because #525 measured this exact verb:
+		// a `feint down` on the Exoscale stack resolved the published provider
+		// and its refresh sent five signed requests to api-ch-*.exoscale.com
+		// before failing on the fake signature. A vetoed engine never becomes
+		// a process here either. The skip is said out loud rather than
+		// reported as a failure: the teardown this verb owes — the emulator
+		// and its state — still happens below, and it is the whole of what
+		// exists when no engine was ever allowed to build anything.
+		//
+		// TestDownSkipsAVetoedEngineOutLoudAndNeverRunsIt fails when this
+		// check is removed.
+		reason, err := engineVeto(decl)
+		switch {
+		case err != nil:
 			fmt.Fprintf(stderr, "feint: %v\n", err)
 			failed = exitError
+		case reason != "":
+			fmt.Fprintf(stdout, "- %s destroy skipped: %s\n", decl.IaC.Engine, reason)
+			fmt.Fprintf(stdout, "  the emulator held whatever existed, and the stop below discards it; "+
+				"a terraform.tfstate left in %s describes nothing\n", decl.IaC.Directory)
+		default:
+			if err := runEngine(decl, "destroy", stdout, stderr); err != nil {
+				// Reported and carried on: leaving the emulator running because the
+				// engine failed would leave the operator with both problems.
+				fmt.Fprintf(stderr, "feint: %v\n", err)
+				failed = exitError
+			}
 		}
 	}
 	if *keep {
@@ -259,6 +283,23 @@ func preflight(decl *environment.File, skipIaC bool, stdout io.Writer) error {
 	}
 
 	if decl.IaC.Engine != "" && !skipIaC {
+		// The pack's veto comes before the host questions, because it is not a
+		// host question: no install and no directory makes it right to run an
+		// engine whose resolved provider splits between this emulator and the
+		// real cloud. #525 measured that split reaching api-ch-*.exoscale.com
+		// from this very verb's sibling, so the refusal falls here, before any
+		// process starts — the emulator-side guard never sees those requests.
+		//
+		// TestUpRefusesAVetoedEngineBeforeStartingAnything fails when this
+		// check is removed.
+		reason, err := engineVeto(decl)
+		if err != nil {
+			return err
+		}
+		if reason != "" {
+			return fmt.Errorf("`iac.engine: %s` is refused for `cloud.provider: %s`: %s\n\n%s",
+				decl.IaC.Engine, decl.Cloud.Provider, reason, waysPastTheEngineVeto(decl))
+		}
 		dir := decl.Resolve(decl.IaC.Directory)
 		info, err := os.Stat(dir)
 		if err != nil || !info.IsDir() {
@@ -304,6 +345,62 @@ func preflight(decl *environment.File, skipIaC bool, stdout io.Writer) error {
 // test assert is that `up` asks before it starts anything, and that the answer
 // carries a way through.
 var resolveRuntime = machineDriver
+
+// packEngineVeto is the optional half of a pack whose published IaC providers
+// cannot drive this emulator at all, so that pointing an engine at it must be
+// refused rather than half served.
+//
+// Optional and declared here rather than on emulator.Pack, for the reason
+// packEnvHazards is: which client splits is provider knowledge and lives in
+// the pack; this verb only carries the refusal to the doorstep, before any
+// process starts. A pack whose engines work (Scaleway, Outscale) does not
+// implement a method to say so — TestOnlyTheExoscalePackVetoesAnEngine holds
+// that boundary.
+type packEngineVeto interface {
+	// VetoEngine answers why the named engine must not run against this pack,
+	// or "" when it may. The reason has to name what remains possible: a wall
+	// with no door beside it gets worked around by copying the emulator.
+	VetoEngine(engine string) string
+}
+
+// engineVeto asks the declared provider's pack whether the declared engine may
+// run at all. Both callers — `up` before anything starts, `down` before the
+// destroy — ask the same question, because #525 measured the escape on `down`:
+// the doorstep that guards only the apply leaves the destroy to send the same
+// requests to the same real cloud.
+func engineVeto(decl *environment.File) (string, error) {
+	if decl.Cloud.Provider == "" || decl.IaC.Engine == "" {
+		return "", nil
+	}
+	srv, _, err := newServer(nil)
+	if err != nil {
+		return "", err
+	}
+	for _, p := range srv.Packs() {
+		if p.Name() != decl.Cloud.Provider {
+			continue
+		}
+		if veto, ok := p.(packEngineVeto); ok {
+			return veto.VetoEngine(decl.IaC.Engine), nil
+		}
+	}
+	return "", nil
+}
+
+// waysPastTheEngineVeto is the door beside that wall, on the model of
+// waysPastTheRuntimeRefusal below: every line is a command or an edit the
+// reader can make now. What replaces the engine — the pack's own CLI — is
+// named by the veto reason itself, because which client that is belongs to the
+// pack.
+func waysPastTheEngineVeto(decl *environment.File) string {
+	where := decl.Path
+	if where == "" {
+		where = environment.DefaultFile
+	}
+	return fmt.Sprintf(`Nothing was started. Two ways on:
+  feint up --no-iac                   the emulator alone, and the client the refusal names beside it
+  %s                          drop iac.engine, and the declaration stops asking for it`, where)
+}
 
 // waysPastTheRuntimeRefusal is the door beside the wall.
 //
@@ -462,6 +559,14 @@ func runEngine(decl *environment.File, action string, stdout, stderr io.Writer) 
 // Pack.Env, and this reads the same method rather than a copy of its output —
 // which is what keeps the endpoint form (Exoscale carries its /v2 path inside
 // the value; Scaleway does not) a fact with one owner.
+//
+// The order below is load-bearing, not stylistic: the caller's environment
+// first, the pack's variables appended after, because exec.Cmd lets the last
+// duplicate win. That is what makes real credentials exported in the shell
+// lose to the pack's deliberately public pair — the one property that stood
+// between #525's five escaped requests and a real account, and it stood
+// unasserted until that incident. TestThePacksOwnCredentialsOutrankTheCallersShell
+// fails when the two halves are appended the other way around.
 func engineEnvironment(decl *environment.File) ([]string, error) {
 	out := os.Environ()
 	// TF_IN_AUTOMATION and TF_INPUT are what tell the engine no human is

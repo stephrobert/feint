@@ -1,19 +1,33 @@
 # The environment this stack needs, declared once. See docs/environment.md.
 #
-# Two things about this one, and neither is optional:
+# SUSPENDED: no Terraform for Exoscale, until upstream lands
+# exoscale/terraform-provider-exoscale#573. `feint up` here refuses the engine
+# at the doorstep, before anything starts, and that refusal is this stack's
+# declared state — not a defect.
 #
-#   1. FEINT_EXOSCALE_ALLOW_TERRAFORM is read inside the emulator's process, so
-#      exporting it after the start does nothing at all. It sits under
-#      emulator.env, where `feint up` sets it before the emulator is spawned.
-#      What it lifts, and why the guard exists, is in docs/limits.md.
-#   2. The provider has to be the patched fork, resolved through dev_overrides.
-#      TF_CLI_CONFIG_FILE stays in your shell: it names a file on your machine,
-#      so a declaration carrying it would only work on the machine that wrote it.
+# Why, dated rather than erased. The published provider builds two clients and
+# honours EXOSCALE_API_ENDPOINT for one of them, so an apply or destroy splits
+# between the emulator and the real cloud. A pinned four-line fork proved the
+# emulated surface itself holds under Terraform — sixteen resources, empty
+# second plan, clean destroy, 2026-08-24 (docs/limits.md) — and then #525
+# measured what every path around the fork costs: a `feint down` in this very
+# directory, run without the fork's dev_overrides, resolved the published
+# 0.70.0 and sent five signed requests to api-ch-*.exoscale.com. This file
+# carried FEINT_EXOSCALE_ALLOW_TERRAFORM: "1" that day, lifting the emulator's
+# one refusal for whatever provider the engine resolved; the schema now refuses
+# that declaration by name.
 #
-# There is no `endpoint` variable here, and that is not an omission: the Exoscale
-# provider has no such attribute. It reads EXOSCALE_API_ENDPOINT — with the /v2
-# path inside the value — which comes from the pack's own environment, the same
-# one `feint env exoscale` prints.
+# What still runs: the exo CLI drives this pack end to end
+# (tools/conformance/exoscale/exo-cli.sh, network.sh, ssh.sh, zones.sh), and
+# `feint up --no-iac` brings the emulator up from this declaration without the
+# engine. The *.tf beside this file stays what it is — the platform shape the
+# stack asserts — and becomes runnable again the day the published provider
+# honours its endpoint for both clients.
+#
+# There is no `endpoint` variable here, and that is not an omission: the
+# Exoscale provider has no such attribute. It reads EXOSCALE_API_ENDPOINT —
+# with the /v2 path inside the value — which comes from the pack's own
+# environment, the same one `feint env exoscale` prints.
 version: 1
 
 cloud:
@@ -21,8 +35,6 @@ cloud:
 
 emulator:
   addr: 127.0.0.1:4599
-  env:
-    FEINT_EXOSCALE_ALLOW_TERRAFORM: "1"
 
 runtime:
   mode: off

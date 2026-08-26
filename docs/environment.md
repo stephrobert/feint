@@ -48,31 +48,34 @@ Then, when you are done:
 which destroys what the declaration built and stops the emulator, saying what it
 discards.
 
-### The Exoscale stack needs two more things, and they are not optional
+### The Exoscale stack is suspended: `feint up` refuses its engine
 
-The published Exoscale Terraform provider cannot be pointed at a local emulator:
-it builds two clients and only one of them honours `EXOSCALE_API_ENDPOINT`, so
-an apply **splits** between the emulator and a paying account. Feint refuses
-that client by its user agent rather than serving half of it. The whole
-measurement, the pinned fork and the `dev_overrides` recipe are in
-[limits.md](limits.md#the-exoscale-terraform-provider-is-refused-and-why).
-
-So, for that stack only:
+No Terraform for Exoscale, until upstream fixes
+[#573](https://github.com/exoscale/terraform-provider-exoscale/issues/573):
+the published provider builds two clients and only one honours
+`EXOSCALE_API_ENDPOINT`, so an apply or destroy **splits** between the
+emulator and a paying account. #525 measured exactly that from `feint down`
+on this stack — five signed requests left for `api-ch-*.exoscale.com` — so
+the refusal now falls at the doorstep, before anything starts:
 
 ```bash
-export TF_CLI_CONFIG_FILE=/path/to/dev.tfrc     # the dev_overrides from limits.md
 cd examples/stacks/exoscale && feint up
+# feint: `iac.engine: terraform` is refused for `cloud.provider: exoscale`: …
+# Nothing was started. Two ways on: …
 ```
 
-`FEINT_EXOSCALE_ALLOW_TERRAFORM=1` is **not** something to export by hand: it is
-read inside the emulator's own process, so exporting it after the start does
-nothing at all, and that is one of the traps this file exists to remove. It sits
-in the stack's `feint.yaml`, under `emulator.env`, where `feint up` sets it
-before the emulator is spawned.
+That refusal is the stack's declared state, not a defect. The exo CLI drives
+the Exoscale pack end to end (`feint up --no-iac`, then
+`eval "$(feint env exoscale)"` and `exo`), and the whole history — the split,
+the fork that once proved the surface holds, and the condition of Terraform's
+return — is dated in
+[limits.md](limits.md#the-exoscale-terraform-provider-is-refused-and-why).
 
-`TF_CLI_CONFIG_FILE` stays in the shell, and deliberately: it names a file
-outside this repository, on your machine, so a declaration that carried it would
-be a declaration that only works on the machine it was written on.
+A declaration cannot lift the emulator-side refusal either:
+`FEINT_EXOSCALE_ALLOW_TERRAFORM` is refused by name in `emulator.env`, because
+this stack's own `feint.yaml` carried it on the day of #525 and armed it for
+whatever provider the engine resolved. The variable survives as a hand-export
+to `feint serve`, for verifying a candidate upstream fix, and nothing else.
 
 ## What the file is, and what it is not
 
@@ -135,9 +138,11 @@ script.
    mechanism is `TF_VAR_`, not `-var`, and the difference is measured: an
    undeclared `TF_VAR_` is ignored, where `-var endpoint=…` fails outright on a
    stack that declares no such variable.
-4. **`FEINT_EXOSCALE_ALLOW_TERRAFORM` is read server-side**, so exporting it
-   after the emulator started leaves the guard armed. `emulator.env` sets it
-   before the spawn.
+4. **FEINT_\* knobs are read server-side**, so exporting one after the emulator
+   started leaves it unread. `emulator.env` sets them before the spawn — with
+   one name refused outright since #525: `FEINT_EXOSCALE_ALLOW_TERRAFORM`,
+   which a stack declaration once armed for whatever provider the engine
+   resolved, is a hand-export to `feint serve` or nothing.
 
 ## Machines, and the refusal that comes before them
 
@@ -232,7 +237,7 @@ gate. The sentence a field carries lives on the field.
 | `emulator.contracts` | a directory | — | `feint up` | The API descriptions every response is checked against: `serve --contracts`. Relative to the declaration's own directory. |
 | `emulator.log_level` | error, warn, info or debug | `info` | `feint up` | `serve --log-level`, which is what `feint logs` then shows. |
 | `emulator.cleanup` | true or false | `false` | `feint up` | Remove the machines and networks the run created before exiting: `serve --cleanup`. |
-| `emulator.env` | a block of FEINT_* variables | — | `feint up` | The environment the emulator's own process starts with. This is where the per-provider declarations that travelled in a chat paragraph belong — FEINT_EXOSCALE_ALLOW_TERRAFORM, which is read server-side and so cannot be exported after the start, and FEINT_BOOT_IMAGES. FEINT_* only: a declaration that could set any variable of a process it spawns would be a different kind of file. |
+| `emulator.env` | a block of FEINT_* variables | — | `feint up` | The environment the emulator's own process starts with — FEINT_BOOT_IMAGES and the other FEINT_* knobs, which are read server-side and so cannot be exported after the start. FEINT_* only: a declaration that could set any variable of a process it spawns would be a different kind of file. One name is refused outright: FEINT_EXOSCALE_ALLOW_TERRAFORM, because #525 measured a stack declaration arming it for whatever provider the engine resolved — an escape hatch that consequential is exported by hand, in the shell that runs `feint serve`, never carried by a file that travels. |
 | `runtime.mode` | off, incus, incus-vm, incus-ovn, auto | `off` | `feint up` | What backs a powered-on server: the `--vm` values and nothing else. Absent means `off`, because starting machines is a side effect this project asks for rather than assumes. `up` checks the host can deliver the named mode before it starts anything, and refuses rather than downgrading. |
 | `runtime.images` | a list of family/version | — | `feint up` | The machine images this environment needs present. `up` checks them and refuses naming what is missing and the `feint images` command that builds it; it never builds them itself, because a build takes minutes. Ignored when `runtime.mode` is `off`, where nothing boots. |
 | `snapshot.load` | a snapshot name | — | `feint up` | A snapshot loaded once the emulator answers, so this environment starts from a known state rather than from nothing: `feint snapshot load <name>`. The name, never a path — snapshots live where `feint snapshot list` says they live. |
