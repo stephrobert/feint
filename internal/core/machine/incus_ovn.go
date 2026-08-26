@@ -699,6 +699,18 @@ func (d *Incus) routeAddressOVN(ctx context.Context, spec AddressSpec) error {
 	if err := d.mustOwn(ctx, network); err != nil {
 		return err
 	}
+	// Exclusive on the NIC's network for the whole edit. The route keys are
+	// not live-updatable on an OVN NIC, so the set below re-plugs the device,
+	// and the daemon then re-ensures every rule set the network references —
+	// resolving names to IDs with no lock shared with its own ACL paths. An
+	// isolation detach running concurrently (IsolateNetwork holds this same
+	// lock) deletes the referenced set between the two steps, and the edit
+	// dies on `Cannot find security ACL ID for "iso-fnt-…"` with the failed
+	// update operation holding the instance busy — the first link of #493's
+	// chain. Same lock, so the edit and the detach take turns.
+	// TestARouteAddressEditAndAnIsolationDetachTakeTurns fails without it.
+	release := d.networkLock(network)
+	defer release()
 	devices, err := d.instanceDevices(ctx, spec.Machine)
 	if err != nil {
 		return fmt.Errorf("inspect %s: %w", spec.Machine, err)
@@ -766,19 +778,53 @@ func (d *Incus) unrouteAddressOVN(ctx context.Context, machine, address string) 
 			if !routeListContains(cfg["ipv4.routes.external"], route) {
 				continue
 			}
-			kept := removeRoute(cfg["ipv4.routes.external"], route)
-			if _, err := d.run(ctx, "config", "device", "set", machine, device,
-				"ipv4.routes.external="+kept); err != nil {
-				return fmt.Errorf("unroute %s from %s/%s: %w", address, machine, device, err)
-			}
-			// The re-plug already dropped every guest address, including the
-			// public one; the repair puts back only what stays.
-			if err := d.repairGuestInterface(ctx, machine, cfg["network"], device); err != nil {
+			if err := d.unrouteOVNDevice(ctx, machine, device, cfg["network"], address); err != nil {
 				return err
 			}
 		}
 	}
 	return d.setUplinkRoute(ctx, address, false)
+}
+
+// unrouteOVNDevice takes one public address off one OVN NIC, holding the
+// network's lock across the edit and its repair.
+//
+// The lock is the ordering half of #493: the set below re-plugs the device,
+// the daemon re-ensures every rule set the NIC's network references while
+// setting the OVN port back up, and an isolation detach landing between the
+// two steps leaves it resolving a rule set that no longer exists — `Cannot
+// find security ACL ID for "iso-fnt-…"`, with the failed update operation
+// holding the instance busy against the stop and remove that follow. The
+// detach holds this same lock (IsolateNetwork), so the two take turns; taken
+// per device, because the loop above walks NICs that may sit on different
+// networks and each edit only needs its own.
+// TestAPublicAddressEditAndAnIsolationDetachTakeTurns fails without it.
+func (d *Incus) unrouteOVNDevice(ctx context.Context, machine, device, network, address string) error {
+	if network != "" {
+		release := d.networkLock(network)
+		defer release()
+	}
+	devices, err := d.instanceDevices(ctx, machine)
+	if err != nil {
+		if isNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("inspect %s: %w", machine, err)
+	}
+	cfg := devices.own[device]
+	route := address + "/32"
+	if !routeListContains(cfg["ipv4.routes.external"], route) {
+		// Withdrawn while this call waited for the lock: nothing left to undo.
+		return nil
+	}
+	kept := removeRoute(cfg["ipv4.routes.external"], route)
+	if _, err := d.run(ctx, "config", "device", "set", machine, device,
+		"ipv4.routes.external="+kept); err != nil {
+		return fmt.Errorf("unroute %s from %s/%s: %w", address, machine, device, err)
+	}
+	// The re-plug already dropped every guest address, including the
+	// public one; the repair puts back only what stays.
+	return d.repairGuestInterface(ctx, machine, network, device)
 }
 
 // repairGuestInterface restores what a device re-plug cost the guest: the

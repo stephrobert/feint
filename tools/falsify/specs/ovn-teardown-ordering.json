@@ -1,0 +1,40 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the address withdrawal edits the OVN NIC without the network's lock again, so an isolation detach can delete the referenced rule set inside the edit (#493)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tif network != \"\" {\n\t\trelease := d.networkLock(network)\n\t\tdefer release()\n\t}",
+      "replace": "\tif network != \"\" {\n\t\trelease := d.networkLock(network)\n\t\trelease()\n\t}",
+      "test": "TestAPublicAddressEditAndAnIsolationDetachTakeTurns"
+    },
+    {
+      "label": "the address grant edits the OVN NIC without the network's lock again, same hazard on the granting side (#493)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\t// TestARouteAddressEditAndAnIsolationDetachTakeTurns fails without it.\n\trelease := d.networkLock(network)\n\tdefer release()",
+      "replace": "\t// TestARouteAddressEditAndAnIsolationDetachTakeTurns fails without it.\n\trelease := d.networkLock(network)\n\trelease()",
+      "test": "TestARouteAddressEditAndAnIsolationDetachTakeTurns"
+    },
+    {
+      "label": "the stop and delete of a teardown give up on the first \"Instance is busy\" again, which is what left a running machine behind a feint down that exited 0 (#493)",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tif !isTransientConflict(err) || time.Now().After(deadline) {\n\t\t\treturn out, err\n\t\t}",
+      "replace": "\t\tif !isTransientConflict(err) || !time.Now().After(deadline) {\n\t\t\treturn out, err\n\t\t}",
+      "test": "TestRemoveWaitsOutABusyInstance"
+    },
+    {
+      "label": "the transient-conflict predicate stops recognising the ETag and port-group shapes, so a crossed apply gives up first try and a NIC loses its rule set (#493)",
+      "file": "internal/core/machine/incus.go",
+      "find": "\treturn isBusy(err) ||\n\t\tstrings.Contains(said, \"etag doesn't match\") ||\n\t\tstrings.Contains(said, \"transaction causes multiple rows\")",
+      "replace": "\treturn isBusy(err) ||\n\t\t(false && strings.Contains(said, \"etag doesn't match\")) ||\n\t\t(false && strings.Contains(said, \"transaction causes multiple rows\"))",
+      "test": "TestApplyFirewallRidesOutADuplicatePortGroupRace"
+    },
+    {
+      "label": "the predicate widens to every error, so an ordering defect like a vanished rule set is retried into silence instead of reported (#493)",
+      "file": "internal/core/machine/incus.go",
+      "find": "\treturn isBusy(err) ||\n\t\tstrings.Contains(said, \"etag doesn't match\") ||\n\t\tstrings.Contains(said, \"transaction causes multiple rows\")",
+      "replace": "\treturn (err != nil) || isBusy(err) ||\n\t\tstrings.Contains(said, \"etag doesn't match\") ||\n\t\tstrings.Contains(said, \"transaction causes multiple rows\")",
+      "test": "TestANonTransientFailureIsNotRetried"
+    }
+  ]
+}

@@ -282,7 +282,16 @@ func (d *Incus) ApplyFirewall(ctx context.Context, machine string, binding Firew
 				"security.acls.default.ingress.action="+orDrop(binding.DefaultIngress),
 				"security.acls.default.egress.action="+orDrop(binding.DefaultEgress))
 		}
-		if _, err := d.run(ctx, args...); err != nil {
+		// runUntilFree, not run: this edit makes the daemon re-ensure every
+		// rule set the NIC references in OVN, and two such edits crossing —
+		// the two machines of one group applied concurrently, or an address
+		// route holding the instance — fail in one of the transient shapes
+		// isTransientConflict names. Measured: an OVSDB port-group collision
+		// left one NIC with no rule set at all while the API said applied,
+		// which is a machine open (or closed) against everything the control
+		// plane claims. TestApplyFirewallRidesOutADuplicatePortGroupRace
+		// fails without the retry.
+		if _, err := d.runUntilFree(ctx, args...); err != nil {
 			return fmt.Errorf("apply firewall to %s/%s: %w", machine, device.name, err)
 		}
 	}

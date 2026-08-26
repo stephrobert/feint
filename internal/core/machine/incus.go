@@ -90,6 +90,13 @@ type Incus struct {
 	// can hold in milliseconds.
 	agentPoll time.Duration
 
+	// busyPoll and busyBudget override how runUntilFree waits out an
+	// instance another operation still holds. Only a test sets them, so the
+	// suite does not pay real seconds for a property it can hold in
+	// milliseconds; zero means the defaults in runUntilFree.
+	busyPoll   time.Duration
+	busyBudget time.Duration
+
 	// leftoverScan replaces the host process scan behind networkCreateError,
 	// and is only ever set by a test: which processes a diagnostic may name is
 	// an argument-level fact, and the real scan reads the tester's own /proc.
@@ -1431,10 +1438,83 @@ func (d *Incus) Stop(ctx context.Context, name string) error {
 	if _, ok, err := d.Inspect(ctx, name); err != nil || !ok {
 		return err
 	}
-	if _, err := d.run(ctx, "stop", "--force", name); err != nil {
+	if _, err := d.runUntilFree(ctx, "stop", "--force", name); err != nil {
 		return fmt.Errorf("stop instance %s: %w", name, err)
 	}
 	return nil
+}
+
+// isBusy reads "another operation still holds this instance" out of a failed
+// command — `Error: Instance is busy running a "update" operation` is the
+// wording Incus 7.2 uses. Busy is a promise of later, not a verdict: the
+// operation holding the instance ends, and a teardown that gives up on the
+// first refusal leaves a running machine the control plane no longer
+// describes, which is #493's tail.
+func isBusy(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "instance is busy")
+}
+
+// isTransientConflict reads "another edit crossed this one" out of a failed
+// command: the three shapes measured on Incus 7.2 during parallel applies and
+// destroys, every one of which succeeds when simply asked again.
+//
+//   - "Instance is busy running a … operation": another operation holds the
+//     instance (isBusy, #493);
+//   - "ETag doesn't match": the daemon's own optimistic concurrency check —
+//     a concurrent edit changed the instance between this edit's read and its
+//     write (measured on two Outscale eth0 applies of one run);
+//   - `Transaction causes multiple rows in "Port_Group" table`: two device
+//     edits referencing one rule set both asked OVN to create the set's port
+//     group, and the loser died on the OVSDB uniqueness constraint — measured
+//     on the two machines of one Scaleway group, applied concurrently, which
+//     left one NIC with no rule set at all while the API said applied.
+//
+// The retry is the remedy because each conflict is transient by construction:
+// the operation ends, the re-read sees the new ETag, the port group exists on
+// the second look. A wording outside these three is not retried — notably
+// "Cannot find security ACL ID", which is an ordering defect the network lock
+// closes, not a conflict that resolves itself.
+func isTransientConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+	said := strings.ToLower(err.Error())
+	return isBusy(err) ||
+		strings.Contains(said, "etag doesn't match") ||
+		strings.Contains(said, "transaction causes multiple rows")
+}
+
+// runUntilFree runs one command, waiting out "Instance is busy" refusals until
+// the budget is spent. Any other outcome — success, or a different error —
+// returns at once.
+//
+// It exists for the stop and delete of a teardown (#493): a failed device
+// update elsewhere in a parallel destroy holds the instance for seconds, both
+// paths used to try exactly once, and `feint down` then exited 0 over a
+// machine still running. The wait is per call and bounded: an instance still
+// busy after the budget is reported, never silently abandoned.
+// TestRemoveWaitsOutABusyInstance fails without the waiting.
+func (d *Incus) runUntilFree(ctx context.Context, args ...string) ([]byte, error) {
+	interval := d.busyPoll
+	if interval == 0 {
+		interval = 500 * time.Millisecond
+	}
+	budget := d.busyBudget
+	if budget == 0 {
+		budget = 15 * time.Second
+	}
+	deadline := time.Now().Add(budget)
+	for {
+		out, err := d.run(ctx, args...)
+		if !isTransientConflict(err) || time.Now().After(deadline) {
+			return out, err
+		}
+		select {
+		case <-ctx.Done():
+			return out, err
+		case <-time.After(interval):
+		}
+	}
 }
 
 // Remove implements Driver.
@@ -1455,12 +1535,12 @@ func (d *Incus) Remove(ctx context.Context, name string) error {
 	if !safeName.MatchString(name) {
 		return fmt.Errorf("refusing to remove %q: not a name this emulator creates", name)
 	}
-	if _, err := d.run(ctx, "stop", "--force", name); err != nil && !isNotFound(err) {
+	if _, err := d.runUntilFree(ctx, "stop", "--force", name); err != nil && !isNotFound(err) {
 		// Not fatal: an instance that refuses to stop must still be deletable,
 		// which is what --force below is for.
 		_ = err
 	}
-	if _, err := d.run(ctx, "delete", "--force", name); err != nil {
+	if _, err := d.runUntilFree(ctx, "delete", "--force", name); err != nil {
 		// Asked, not guessed: a delete can fail for reasons whose message also
 		// contains "not found" ("Storage pool not found" was one), and treating
 		// those as success left the instance running while the caller believed
