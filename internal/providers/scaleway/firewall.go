@@ -20,59 +20,54 @@ import (
 // running and expects it to take effect, so every mutation of a group replays it
 // onto the machines that carry it.
 
-// enforcer returns the runtime's firewall half, or nil when it has none.
-func (p *Pack) enforcer() machine.Firewaller {
-	fw, _ := p.env.Machines.(machine.Firewaller)
-	return fw
+// groupSync is this pack's half of the shared firewall orchestration (#509):
+// the skeleton — sync-then-apply, the wearer replay, the fresh copy, the
+// after-boot re-expansion — lives in machine.GroupSync, written once for every
+// pack; what is declared here is only what Scaleway knows. Referencing
+// machine.GroupSync is also this pack's marker for the enforcement test: a
+// pack wires the firewall when a non-test file of its own builds one of these.
+//
+// Two fields are deliberately narrower than the other packs':
+//
+//   - Referrers is nil, because no Scaleway rule can name a group as a source
+//     — ip_range is the only selector its SDK declares — so the re-expansion
+//     half of AfterBoot is honestly empty rather than emptily looped;
+//   - ForeignBlocks is set, the bridge-mode defence the other two packs never
+//     embedded: what is foreign is this pack's routing model (a VPC routes
+//     between its own private networks), where the rejects go is the
+//     skeleton's, once.
+func (p *Pack) groupSync() machine.GroupSync {
+	return machine.GroupSync{
+		Binding:       p.binding(),
+		SpecOf:        p.firewallSpecOf,
+		ForeignBlocks: p.foreignBlocksFor,
+		Wearers:       p.serverResourcesUsing,
+		WornIDs:       p.wornGroupIDs,
+		Group: func(id string) (*resource.Resource, bool) {
+			return p.env.Store.Get(Name, kindSecurityGroup, id)
+		},
+	}
+}
+
+// wornGroupIDs is the identifier of the one group a server carries — a list,
+// because the skeleton speaks in lists and this provider's servers wear
+// exactly one group.
+func (p *Pack) wornGroupIDs(res *resource.Resource) []string {
+	summary, _ := res.Attrs["security_group"].(map[string]any)
+	groupID, _ := summary["id"].(string)
+	if groupID == "" {
+		return nil
+	}
+	return []string{groupID}
 }
 
 // syncSecurityGroup pushes a group and replays it onto every server using it.
-// Called after any change to the group or to its rules.
-//
-// The mechanics — a permissive set attaches nothing, the deny-dominant
-// defaults, the Warn-or-Error report — are machine.Binding's, shared with the
-// two other packs since #475: written here alone, the same sequence was one
-// Outscale and Exoscale never wrote, and their machines ran with zero ACLs
-// while the API described a closed port. What stays in this file is only the
-// Scaleway vocabulary.
+// Called after any change to the group or to its rules. The skeleton is
+// machine.GroupSync's, shared with the two other packs since #475: written
+// here alone, the same sequence was one Outscale and Exoscale never wrote, and
+// their machines ran with zero ACLs while the API described a closed port.
 func (p *Pack) syncSecurityGroup(ctx context.Context, group *resource.Resource) {
-	fw := p.enforcer()
-	if fw == nil {
-		return
-	}
-	b := p.binding()
-	spec := p.firewallSpecOf(group)
-	if !b.SyncRuleSet(ctx, fw, spec) {
-		return
-	}
-	for _, server := range p.serverResourcesUsing(group) {
-		b.ApplyRuleSets(ctx, fw, server.Runtime[runtimeMachineKey], spec)
-	}
-}
-
-// applyServerFirewall binds the group a server carries to its machine. Called
-// once the machine exists, since a rule set attaches to interfaces.
-func (p *Pack) applyServerFirewall(ctx context.Context, server *resource.Resource) {
-	fw := p.enforcer()
-	if fw == nil {
-		return
-	}
-	summary, _ := server.Attrs["security_group"].(map[string]any)
-	groupID, _ := summary["id"].(string)
-	if groupID == "" {
-		return
-	}
-	group, found := p.env.Store.Get(Name, kindSecurityGroup, groupID)
-	if !found {
-		return
-	}
-
-	b := p.binding()
-	spec := p.firewallSpecOf(group)
-	if !b.SyncRuleSet(ctx, fw, spec) {
-		return
-	}
-	b.ApplyRuleSets(ctx, fw, server.Runtime[runtimeMachineKey], spec)
+	p.groupSync().SyncGroup(ctx, group, nil)
 }
 
 // firewallSpecOf translates a group and its rules.
@@ -81,7 +76,10 @@ func (p *Pack) applyServerFirewall(ctx context.Context, server *resource.Resourc
 // and they are what a rule does not override. Note the mapping of accept onto
 // allow, of inbound onto ingress, and that a rule's ip_range is a source going
 // in and a destination going out.
-func (p *Pack) firewallSpecOf(group *resource.Resource) machine.FirewallSpec {
+//
+// fresh is unused: no Scaleway rule expands other resources' addresses — see
+// the Referrers note on groupSync — so there is no stale copy to win over.
+func (p *Pack) firewallSpecOf(group, _ *resource.Resource) machine.FirewallSpec {
 	inbound, _ := group.Attrs["inbound_default_policy"].(string)
 	outbound, _ := group.Attrs["outbound_default_policy"].(string)
 
@@ -98,21 +96,6 @@ func (p *Pack) firewallSpecOf(group *resource.Resource) machine.FirewallSpec {
 	allow := "allow"
 	if ok && !stateful {
 		allow = "allow-stateless"
-	}
-
-	// Isolation first: the runtime orders rules by action, not by position, so a
-	// reject wins over any allow the group adds. Two private networks that
-	// upstream keeps apart must not reach each other whatever the group says,
-	// because that separation is the subnet's, not the group's. A runtime whose
-	// networks are separate by construction gets none of this: the blocks would
-	// name subnets the machine cannot reach anyway.
-	if !p.nativeIsolation() {
-		for _, block := range p.foreignBlocksFor(group) {
-			spec.Rules = append(spec.Rules,
-				machine.FirewallRule{Direction: "egress", Action: "reject", Destination: block},
-				machine.FirewallRule{Direction: "ingress", Action: "reject", Source: block},
-			)
-		}
 	}
 
 	for _, rule := range p.rulesOf(group.ID) {
@@ -132,17 +115,11 @@ func (p *Pack) firewallSpecOf(group *resource.Resource) machine.FirewallSpec {
 	return spec.WithPermissiveCatchAll(allow)
 }
 
-// nativeIsolation reports whether the runtime keeps its networks apart by
-// construction, in which case reject rules against foreign subnets are dead
-// weight and reachability is granted by peering instead (see isolateNetworks).
-func (p *Pack) nativeIsolation() bool {
-	peerer, ok := p.env.Machines.(machine.Peerer)
-	return ok && peerer.NativeIsolation()
-}
-
 // foreignBlocksFor lists the emulated subnets a server carrying this group must
 // not reach: another project, or another VPC, or a VPC that does not route
-// between its own private networks.
+// between its own private networks. What is foreign is the question this pack
+// answers; where the rejects ride, and on which runtimes, is the skeleton's
+// (GroupSync.ForeignBlocks says both).
 //
 // The group is the carrier rather than the subject: a rule set attaches to
 // interfaces, and this is the only rule set a server's interfaces carry.
@@ -261,7 +238,7 @@ func (p *Pack) serverResourcesUsing(group *resource.Resource) []*resource.Resour
 // and refusing the delete afterwards would leave the client with a resource it
 // cannot remove.
 func (p *Pack) removeFirewall(ctx context.Context, group *resource.Resource) {
-	p.binding().DropRuleSet(ctx, p.enforcer(), machine.FirewallName("scw", group.ID))
+	p.groupSync().Drop(ctx, machine.FirewallName("scw", group.ID))
 }
 
 // EnforcesFirewall implements emulator.FirewallEnforcer: this pack reconciles a

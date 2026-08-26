@@ -4,8 +4,8 @@
     {
       "label": "the Outscale boot stops handing the worn groups to the runtime, which is the whole of #475",
       "file": "internal/providers/outscale/machines.go",
-      "find": "\tp.syncFirewallAfterBoot(ctx, res)\n}",
-      "replace": "\tif false {\n\t\tp.syncFirewallAfterBoot(ctx, res)\n\t}\n}",
+      "find": "\tp.groupSync().AfterBoot(ctx, res)\n}",
+      "replace": "\tif false {\n\t\tp.groupSync().AfterBoot(ctx, res)\n\t}\n}",
       "test": "TestAnOutscaleGroupReachesTheHostWhenItsVmBoots"
     },
     {
@@ -19,8 +19,8 @@
       "label": "the Exoscale boot stops handing the worn groups to the runtime",
       "package": "./internal/providers/exoscale/",
       "file": "internal/providers/exoscale/machines.go",
-      "find": "\tp.syncFirewallAfterBoot(ctx, res)\n}",
-      "replace": "\tif false {\n\t\tp.syncFirewallAfterBoot(ctx, res)\n\t}\n}",
+      "find": "\tp.groupSync().AfterBoot(ctx, res)\n}",
+      "replace": "\tif false {\n\t\tp.groupSync().AfterBoot(ctx, res)\n\t}\n}",
       "test": "TestAnExoscaleGroupReachesTheHostWhenAnInstanceBoots"
     },
     {
@@ -35,8 +35,8 @@
       "label": "a network attached after the boot leaves its interface without the instance's rule sets",
       "package": "./internal/providers/exoscale/",
       "file": "internal/providers/exoscale/privatenetworks.go",
-      "find": "\tp.applyInstanceRuleSets(r.Context(), inst)",
-      "replace": "\tif false {\n\t\tp.applyInstanceRuleSets(r.Context(), inst)\n\t}",
+      "find": "\tp.groupSync().ApplyMachine(r.Context(), inst)",
+      "replace": "\tif false {\n\t\tp.groupSync().ApplyMachine(r.Context(), inst)\n\t}",
       "test": "TestALateNetworkAttachCarriesTheRuleSets"
     },
     {
@@ -46,6 +46,30 @@
       "find": "\tif ids := poolRefIDs(pool.Attrs[\"security-groups\"]); len(ids) > 0 {",
       "replace": "\tif ids := poolRefIDs(pool.Attrs[\"security-groups\"]); len(ids) > 0 && false {",
       "test": "TestAPoolMemberWearsItsPoolsGroups"
+    },
+    {
+      "label": "the skeleton hands the pack's translation the store's stale copy instead of the transition's fresh one (#509)",
+      "package": "./internal/core/machine/",
+      "file": "internal/core/machine/groupsync.go",
+      "find": "\tspec := s.SpecOf(group, fresh)",
+      "replace": "\tif fresh != nil {\n\t\tfresh = nil\n\t}\n\tspec := s.SpecOf(group, fresh)",
+      "test": "TestAFreshResourceWinsOverItsStaleStoreCopy"
+    },
+    {
+      "label": "the wearer replay re-translates with each wearer's stale store copy, erasing the fresh expansion it just delivered (#509)",
+      "package": "./internal/core/machine/",
+      "file": "internal/core/machine/groupsync.go",
+      "find": "\t\ts.applyMachine(ctx, wearer, fresh)",
+      "replace": "\t\tif fresh != nil {\n\t\t\tfresh = wearer\n\t\t}\n\t\ts.applyMachine(ctx, wearer, fresh)",
+      "test": "TestTheWearerReplayKeepsTheFreshExpansion"
+    },
+    {
+      "label": "the bridge-mode rejects stop riding the group's rule set, re-opening what the subnets keep apart (#509)",
+      "package": "./internal/core/machine/",
+      "file": "internal/core/machine/groupsync.go",
+      "find": "\tif s.ForeignBlocks == nil || s.nativeIsolation() {",
+      "replace": "\tif true || s.ForeignBlocks == nil || s.nativeIsolation() {",
+      "test": "TestForeignRejectsRideTheRuleSetOnlyWhereNetworksAreBornJoined"
     }
   ]
 }

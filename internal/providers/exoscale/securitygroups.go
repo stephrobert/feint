@@ -299,13 +299,10 @@ func (p *Pack) detachInstanceFromSecurityGroup(w http.ResponseWriter, r *http.Re
 // rules name the group that just gained or lost this member is re-expanded
 // (#475).
 func (p *Pack) moveInstanceFirewall(r *http.Request, instanceID string) {
-	if p.enforcer() == nil {
-		return
-	}
 	if inst, found := p.env.Store.Get(Name, kindInstance, instanceID); found {
-		p.applyInstanceRuleSets(r.Context(), inst)
+		p.groupSync().ApplyMachine(r.Context(), inst)
 	}
-	p.syncGroupsReferencing(r.Context(), []string{r.PathValue("id")})
+	p.groupSync().SyncReferrers(r.Context(), []string{r.PathValue("id")}, nil)
 }
 
 // changeInstanceMembership adds or removes one group-like resource on one
@@ -408,7 +405,7 @@ func (p *Pack) changeExternalSources(w http.ResponseWriter, r *http.Request, add
 	}
 	// External sources extend the group's membership, so what changed is the
 	// expansion of every rule that names this group as a source (#475).
-	p.syncGroupsReferencing(r.Context(), []string{id})
+	p.groupSync().SyncReferrers(r.Context(), []string{id}, nil)
 	p.writeOperation(w, p.operationReferring(nounSecurityGroup, id))
 }
 

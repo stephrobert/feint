@@ -182,8 +182,9 @@ func (p *Pack) start(ctx context.Context, res *resource.Resource) {
 	// The groups this instance wears reach its interfaces, and the groups
 	// that name those groups as sources are re-expanded now that this machine
 	// has addresses (#475). After the networks, so the expansion sees every
-	// interface.
-	p.syncFirewallAfterBoot(ctx, res)
+	// interface — and the transition's own copy rides as fresh, because the
+	// store has not committed it yet.
+	p.groupSync().AfterBoot(ctx, res)
 }
 
 // reattachPrivateNetworks puts a freshly booted machine back on every private

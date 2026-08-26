@@ -340,8 +340,10 @@ func (p *Pack) attachNIC(w http.ResponseWriter, r *http.Request, serverID string
 	// The rule set binds to interfaces, so a NIC created after the server was
 	// powered on carries none until this runs. Without it the security group
 	// applies to the first interface and not to the private one, which is
-	// exactly the interface the group is about.
-	p.applyServerFirewall(r.Context(), server)
+	// exactly the interface the group is about. On a stopped server this still
+	// re-writes the set: the new NIC changed the foreign blocks its group must
+	// reject, and the set lives on the runtime for every wearer at once.
+	p.groupSync().AfterBoot(r.Context(), server)
 
 	return res, true
 }

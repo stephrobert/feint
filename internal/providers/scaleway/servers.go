@@ -772,7 +772,7 @@ func (p *Pack) serverAction(w http.ResponseWriter, r *http.Request) {
 			// attaches to interfaces. A server powered on before its group was
 			// edited still gets the current rules, because every group mutation
 			// replays onto the machines carrying it.
-			p.applyServerFirewall(r.Context(), res)
+			p.groupSync().AfterBoot(r.Context(), res)
 			// The launch installed the host half of every public route; this
 			// hands the guest its addresses, and repairs a machine that already
 			// existed. Without it, an address attached at create was published

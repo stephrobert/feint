@@ -710,7 +710,7 @@ func (p *Pack) attachInstanceToPrivateNetwork(w http.ResponseWriter, r *http.Req
 	// create returns, and a set applied at boot never reaches an interface
 	// born later (#475). ApplyFirewall covers every NIC of the machine, so
 	// re-applying here is idempotent for the older ones.
-	p.applyInstanceRuleSets(r.Context(), inst)
+	p.groupSync().ApplyMachine(r.Context(), inst)
 	p.writeOperation(w, p.operationReferring(nounPrivateNetwork, id))
 }
 

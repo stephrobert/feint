@@ -22,15 +22,17 @@ import (
 // same reasoning that stopped the README's client matrix being a constant.
 //
 // So the truth is read where it lives: a pack wires the firewall when a
-// non-test file of its own references machine.Firewaller. Nothing else counts,
-// and in particular a comment does not: the marker is the type, which the
-// compiler resolves.
+// non-test file of its own references machine.GroupSync — the shared
+// orchestration a pack builds to hand its groups to the runtime (#509; the
+// marker was machine.Firewaller until that type left the packs' vocabulary
+// with the skeleton). Nothing else counts, and in particular a comment does
+// not: the marker is the type, which the compiler resolves.
 //
 // This is what fails if a pack starts handing rules over and forgets to say so,
 // and equally if a pack says so and hands nothing over. Both directions matter:
 // the first understates and the second is the defect #180 was filed for.
 func TestEveryPackThatWiresTheFirewallSaysSo(t *testing.T) {
-	declarationMatchesSource(t, "machine.Firewaller", "EnforcesFirewall",
+	declarationMatchesSource(t, "machine.GroupSync", "EnforcesFirewall",
 		func(p emulator.Pack) bool {
 			fe, ok := p.(emulator.FirewallEnforcer)
 			return ok && fe.EnforcesFirewall()

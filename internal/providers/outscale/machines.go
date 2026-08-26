@@ -134,8 +134,9 @@ func (p *Pack) powerOn(ctx context.Context, res *resource.Resource) {
 	}
 	// The groups this Vm wears reach its interfaces, and the groups that name
 	// those groups as members are re-expanded now that this machine has
-	// addresses (#475). After the routes, so the expansion sees them.
-	p.syncFirewallAfterBoot(ctx, res)
+	// addresses (#475). After the routes, so the expansion sees them. The
+	// transition's own copy rides as fresh: the store has not committed it yet.
+	p.groupSync().AfterBoot(ctx, res)
 }
 
 // rememberAddress keeps the private address on the resource, not only on the
@@ -176,9 +177,12 @@ func (p *Pack) refreshMachine(ctx context.Context, res *resource.Resource) bool 
 		// A virtual machine gets its address tens of seconds after it starts,
 		// so this is where it first becomes known for one — and where every
 		// group naming this Vm's groups as members first has an address to
-		// expand to (#475).
+		// expand to (#475). res rides as fresh: rememberAddress wrote the
+		// address into this copy and Observe has not committed it yet, so an
+		// expansion reading the store alone would miss the very address this
+		// refresh just learned — the boot door's gap, one door over.
 		p.rememberAddress(res)
-		p.syncGroupsReferencing(ctx, p.wornGroupIDs(res))
+		p.groupSync().SyncReferrers(ctx, p.wornGroupIDs(res), res)
 	}
 	return changed
 }

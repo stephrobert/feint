@@ -122,7 +122,7 @@ func TestAnEgressRuleFlipsTheEgressDefault(t *testing.T) {
 		"network": "0.0.0.0/0", "start-port": 22, "end-port": 22,
 	}})
 
-	spec := p.firewallSpecOf(open)
+	spec := p.firewallSpecOf(open, nil)
 	if spec.DefaultEgress != "allow" {
 		t.Fatalf("egress default %q, want allow while no egress rule exists", spec.DefaultEgress)
 	}
@@ -140,7 +140,7 @@ func TestAnEgressRuleFlipsTheEgressDefault(t *testing.T) {
 		"id": "r2", "flow-direction": "egress", "protocol": "tcp",
 		"network": "10.0.0.0/8", "start-port": 443, "end-port": 443,
 	}})
-	spec = p.firewallSpecOf(restricted)
+	spec = p.firewallSpecOf(restricted, nil)
 	if spec.DefaultEgress != "drop" {
 		t.Fatalf("egress default %q, want drop: one outbound rule restricts outbound to the defined rules", spec.DefaultEgress)
 	}
@@ -170,7 +170,7 @@ func TestAGroupSourcedRuleExpandsToTheMembersAddresses(t *testing.T) {
 		"start-port":     8080, "end-port": 8080,
 	}})
 
-	spec := p.firewallSpecOf(app)
+	spec := p.firewallSpecOf(app, nil)
 	sources := map[string]bool{}
 	for _, rule := range spec.Rules {
 		if rule.PortFrom == 8080 {

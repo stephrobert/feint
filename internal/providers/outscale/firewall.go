@@ -26,10 +26,25 @@ import (
 // the default group's "everything from myself" inbound rule, which expands
 // below like any other member reference.
 
-// enforcer returns the runtime's firewall half, or nil when it has none.
-func (p *Pack) enforcer() machine.Firewaller {
-	fw, _ := p.env.Machines.(machine.Firewaller)
-	return fw
+// groupSync is this pack's half of the shared firewall orchestration (#509):
+// the skeleton — sync-then-apply, the wearer replay, the fresh copy, the
+// after-boot re-expansion — lives in machine.GroupSync, written once for every
+// pack; what is declared here is only what Outscale knows. Referencing
+// machine.GroupSync is also this pack's marker for the enforcement test: a
+// pack wires the firewall when a non-test file of its own builds one of these.
+func (p *Pack) groupSync() machine.GroupSync {
+	return machine.GroupSync{
+		Binding: p.binding(),
+		SpecOf:  p.firewallSpecOf,
+		Wearers: func(group *resource.Resource) []*resource.Resource {
+			return p.vmsWearing(group.ID)
+		},
+		WornIDs: p.wornGroupIDs,
+		Group: func(id string) (*resource.Resource, bool) {
+			return p.env.Store.Get(Name, kindSecurityGroup, id)
+		},
+		Referrers: p.groupsReferencing,
+	}
 }
 
 // firewallSpecOf translates a group and its rules for the runtime.
@@ -165,76 +180,10 @@ func (p *Pack) vmsWearing(groupID string) []*resource.Resource {
 }
 
 // syncSecurityGroup pushes a group's rule set and replays it onto every Vm
-// wearing it. Called after any change to the group or to its rules.
+// wearing it. Called after any change to the group or to its rules. The
+// skeleton is machine.GroupSync's, shared with the two other packs.
 func (p *Pack) syncSecurityGroup(ctx context.Context, group *resource.Resource) {
-	fw := p.enforcer()
-	if fw == nil {
-		return
-	}
-	p.syncSecurityGroupSeen(ctx, group, nil)
-}
-
-// syncSecurityGroupSeen is syncSecurityGroup with the transition's own copy of
-// a booting Vm, which the expansion must see — firewallSpecOf says why.
-func (p *Pack) syncSecurityGroupSeen(ctx context.Context, group, fresh *resource.Resource) {
-	fw := p.enforcer()
-	if fw == nil {
-		return
-	}
-	b := p.binding()
-	if !b.SyncRuleSet(ctx, fw, p.firewallSpecOf(group, fresh)) {
-		return
-	}
-	for _, vm := range p.vmsWearing(group.ID) {
-		if fresh != nil && vm.ID == fresh.ID {
-			vm = fresh
-		}
-		p.applyVMRuleSets(ctx, vm)
-	}
-}
-
-// applyVMRuleSets attaches everything one Vm wears to its machine, in one
-// call, because the runtime replaces the attachment list rather than merging
-// it. Every set is written first, so an attach cannot name a set the runtime
-// has never seen.
-func (p *Pack) applyVMRuleSets(ctx context.Context, vm *resource.Resource) {
-	fw := p.enforcer()
-	if fw == nil {
-		return
-	}
-	name := vm.Runtime[p.binding().RuntimeKey]
-	if name == "" {
-		return
-	}
-	b := p.binding()
-	specs := make([]machine.FirewallSpec, 0, 2)
-	for _, ref := range p.effectiveSecurityGroups(vm) {
-		summary, _ := ref.(map[string]any)
-		group, found := p.env.Store.Get(Name, kindSecurityGroup, stringOf(summary["SecurityGroupId"]))
-		if !found {
-			continue
-		}
-		spec := p.firewallSpecOf(group, vm)
-		if !b.SyncRuleSet(ctx, fw, spec) {
-			continue
-		}
-		specs = append(specs, spec)
-	}
-	b.ApplyRuleSets(ctx, fw, name, specs...)
-}
-
-// syncFirewallAfterBoot runs once a machine exists or first publishes an
-// address: its own sets attach, and every group whose rules point at a group
-// this Vm wears is re-expanded, because this Vm's addresses are now part of
-// what those groups mean. Without the second half, the three-tier statement a
-// stack writes — tier 2 accepts tier 1 and nobody else — never contains the
-// machines it talks about.
-func (p *Pack) syncFirewallAfterBoot(ctx context.Context, vm *resource.Resource) {
-	if p.enforcer() == nil {
-		return
-	}
-	p.applyVMRuleSets(ctx, vm)
-	p.syncGroupsReferencingSeen(ctx, p.wornGroupIDs(vm), vm)
+	p.groupSync().SyncGroup(ctx, group, nil)
 }
 
 // wornGroupIDs is the identifiers of the groups one Vm wears.
@@ -250,25 +199,17 @@ func (p *Pack) wornGroupIDs(vm *resource.Resource) []string {
 	return out
 }
 
-// syncGroupsReferencing re-syncs every group one of whose rules names one of
-// the given groups as a member source.
-func (p *Pack) syncGroupsReferencing(ctx context.Context, groupIDs []string) {
-	p.syncGroupsReferencingSeen(ctx, groupIDs, nil)
-}
-
-func (p *Pack) syncGroupsReferencingSeen(ctx context.Context, groupIDs []string, fresh *resource.Resource) {
-	if len(groupIDs) == 0 {
-		return
-	}
-	named := make(map[string]bool, len(groupIDs))
-	for _, id := range groupIDs {
-		named[id] = true
-	}
+// groupsReferencing lists every group one of whose rules names one of the
+// given groups as a member source — the enumeration is Outscale's (its rule
+// attributes), the re-sync it feeds is the shared skeleton's.
+func (p *Pack) groupsReferencing(named map[string]bool) []*resource.Resource {
+	var out []*resource.Resource
 	for _, group := range p.env.Store.List(kindSecurityGroup, resource.Tenant{Provider: Name}) {
 		if groupReferencesAny(group, named) {
-			p.syncSecurityGroupSeen(ctx, group, fresh)
+			out = append(out, group)
 		}
 	}
+	return out
 }
 
 // groupReferencesAny reports whether any rule of the group names one of the
@@ -292,7 +233,7 @@ func groupReferencesAny(group *resource.Resource, named map[string]bool) bool {
 
 // removeFirewall drops the runtime rule set of a group being deleted.
 func (p *Pack) removeFirewall(ctx context.Context, group *resource.Resource) {
-	p.binding().DropRuleSet(ctx, p.enforcer(), machine.FirewallName("osc", group.ID))
+	p.groupSync().Drop(ctx, machine.FirewallName("osc", group.ID))
 }
 
 // EnforcesFirewall implements emulator.FirewallEnforcer: this pack reconciles
