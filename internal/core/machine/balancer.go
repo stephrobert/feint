@@ -3,6 +3,12 @@ package machine
 import (
 	"context"
 	"errors"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/stephrobert/feint/internal/core/resource"
+	"github.com/stephrobert/feint/internal/core/store"
 )
 
 // A load balancer that distributes packets, within the one bound that was
@@ -61,11 +67,22 @@ import (
 // address class of the paragraph above, the one that goes dark in minutes, and
 // it is not the address the API published either.
 //
-// So a load balancer in front of machines on another subnet is not served here,
-// it is refused by name, and docs/limits.md carries the measurement. Refusing is
-// what makes the refusal reach somebody: the runtime's own refusal arrives in
-// the middle of the write, leaving the balancer standing with the backends it
-// already had.
+// So a backend on another subnet cannot be distributed here, and docs/limits.md
+// carries the measurement. What that refusal must NOT do is take the whole
+// specification down with it, and it did until #483: the ordinary two-tier
+// stack registers one backend on the balancer's own subnet and one on another,
+// the whole-spec refusal dropped both, and the host held a balancer with no
+// backend and no port while the API described two healthy ones — apply exit 0,
+// zero ERROR lines, found only by reading the host. The decision, stated
+// rather than implied: **the runtime distributes to the backends it can take,
+// withholds the ones it cannot, and reports both lists** (BalancerDelivery).
+// Partial distribution that names what it withheld beats none, because the
+// host then carries a witness of the distribution that does work, and the
+// withheld half is on the record — in the delivery, in the pack's WARN, and in
+// the resource's Runtime — instead of looking exactly like a balancer that was
+// never handed over. What withholding still must never become is the runtime's
+// own mid-write failure: an out-of-block backend is held back *before* the
+// write, so the write that reaches the daemon is one it accepts whole.
 
 // ErrBalancerNotDistributed marks a balancer whose shape this runtime does not
 // distribute — a stated limit, not a failure.
@@ -109,14 +126,82 @@ type BalancerSpec struct {
 	Listen string
 	// Listeners are the ports, at least one.
 	Listeners []BalancerListener
-	// Targets are the addresses of the machines behind it. They must belong to
-	// Network's own block too, for the reason the package comment measures: the
-	// runtime refuses a backend outside it, peered or not.
+	// Targets are the addresses of the machines behind it. Only the ones
+	// belonging to Network's own block are distributed, for the reason the
+	// package comment measures: the runtime refuses a backend outside it,
+	// peered or not. The others are withheld before the write and named in the
+	// BalancerDelivery, never handed to the daemon to die mid-write.
 	//
 	// An empty list is valid and means exactly what it says: a balancer with no
 	// backend, which is what a stack has between creating one and registering
 	// its first machine.
 	Targets []string
+}
+
+// BalancerDelivery is what the runtime actually holds after EnsureBalancer —
+// the effect, reported next to the intent, so the caller can publish the first
+// rather than the second (#483).
+//
+// It exists because the gap it names was measured: a spec with one backend the
+// runtime could take and one it could not was refused whole, the host held a
+// balancer distributing to nobody, and the API went on describing both
+// backends with nothing but a WARN in between. A caller that hands a balancer
+// over owns writing this down where its API's readers can see it.
+type BalancerDelivery struct {
+	// Distributed is the target addresses the host now distributes to, in the
+	// order of the spec.
+	Distributed []string
+	// Undistributed maps each withheld target address to the short, measured
+	// reason it was withheld. Empty when the runtime took the spec whole.
+	Undistributed map[string]string
+}
+
+// Lines renders the delivery as the two strings RecordBalancerDelivery stores:
+// the distributed addresses comma-joined in spec order, and the withheld ones
+// with their reasons, sorted so two identical deliveries write two identical
+// records — a map order leaking into a stored value is a diff nobody made.
+func (d BalancerDelivery) Lines() (distributed, undistributed string) {
+	addresses := make([]string, 0, len(d.Undistributed))
+	for address := range d.Undistributed {
+		addresses = append(addresses, address)
+	}
+	sort.Strings(addresses)
+	parts := make([]string, 0, len(addresses))
+	for _, address := range addresses {
+		parts = append(parts, address+" ("+d.Undistributed[address]+")")
+	}
+	return strings.Join(d.Distributed, ","), strings.Join(parts, "; ")
+}
+
+// The Runtime keys where a pack records what the runtime holds for a load
+// balancer, next to the network and machine names the same map already
+// carries. They exist because #483 measured their absence: a host balancer
+// distributing to nobody while the API described two healthy backends, with
+// one WARN line as the only trace — invisible to every gate, found by a person
+// reading the host. The record is the emulator's own account of the effect,
+// readable through `/_feint/state`, so a gate can compare the three parties —
+// what the API describes, what this record says was delivered, what the host
+// actually holds — without asking the emulator to grade itself.
+const (
+	RuntimeBalancerDistributed   = "balancer-distributed"
+	RuntimeBalancerUndistributed = "balancer-undistributed"
+)
+
+// RecordBalancerDelivery writes the effect a balancer hand-off produced onto
+// the resource that asked for it — the state published is the one the effect
+// produced, never the one the intent visited.
+//
+// Clone-then-Commit, never Put: the hand-off ran outside the store lock, and a
+// balancer deleted while the runtime worked must stay deleted. A false return
+// from Commit is exactly that case and there is nothing to record on it.
+func RecordBalancerDelivery(st *store.Store, res *resource.Resource, now time.Time, distributed, undistributed string) {
+	base := res.Clone()
+	if res.Runtime == nil {
+		res.Runtime = map[string]string{}
+	}
+	res.Runtime[RuntimeBalancerDistributed] = distributed
+	res.Runtime[RuntimeBalancerUndistributed] = undistributed
+	st.Commit(base, res, now)
 }
 
 // Balancer is the optional half of a Driver that can distribute packets.
@@ -127,8 +212,11 @@ type BalancerSpec struct {
 // configuration round-trips, nothing forwards — and says so.
 type Balancer interface {
 	// EnsureBalancer creates or replaces the balancer as a whole. It must
-	// succeed when called again with the same specification.
-	EnsureBalancer(ctx context.Context, spec BalancerSpec) error
+	// succeed when called again with the same specification, and its delivery
+	// reports what the host now holds: the targets distributed, and the ones
+	// withheld with their reasons. The delivery is meaningful only when the
+	// error is nil.
+	EnsureBalancer(ctx context.Context, spec BalancerSpec) (BalancerDelivery, error)
 	// RemoveBalancer deletes it. It must succeed when nothing is there, and it
 	// must refuse a balancer the emulator did not create.
 	RemoveBalancer(ctx context.Context, network, listen string) error

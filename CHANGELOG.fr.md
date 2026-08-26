@@ -187,6 +187,29 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Le répartiteur deux-tiers distribue vers les arrière-plans que le runtime
+  sait prendre, retient les autres en les nommant, et écrit les deux moitiés là
+  où un lecteur les rencontre (#483).** Le refus en bloc posé par #457 a été
+  mesuré une seconde fois, et il coûtait plus qu'il ne protégeait : la stack
+  d'exemple Outscale (un arrière-plan sur le subnet du répartiteur, un sur un
+  autre, la forme ordinaire du tiers public) laissait l'hôte porter un
+  répartiteur enregistré **sans arrière-plan ni port** pendant que l'API en
+  décrivait deux sains ; apply exit 0, second plan vide, zéro ligne ERROR, un
+  seul WARN pour toute trace, invisible pour toutes les portes. Le pilote
+  scinde désormais au lieu de refuser en bloc : les arrière-plans du bloc du
+  répartiteur sont distribués (`EnsureBalancer` rend une `BalancerDelivery`),
+  ceux d'un autre bloc sont retenus avant l'écriture, jamais remis au démon
+  pour mourir au milieu d'une mise à jour, et le pack consigne les deux listes
+  dans le `Runtime` du répartiteur (`balancer-distributed`,
+  `balancer-undistributed`, lisibles par `/_feint/state`), tenues à jour à
+  chaque register, unlink et changement de listener. Le WARN reste un WARN,
+  parce que la limite est permanente sur une configuration valide, mais l'état
+  porte désormais le fait au lieu que le journal le porte seul. Ce qu'il
+  faudrait pour une livraison entière est nommé dans
+  [limits.md](docs/limits.md) : qu'Incus lève sa restriction au sous-réseau
+  sur les cibles de `network load-balancer`, ou un seul réseau runtime par
+  Net ; d'ici là, cette scission est toute la vérité que l'hôte sait porter.
+
 - **Un répartiteur de charge devant des machines d'un autre sous-réseau cesse de
   revendiquer un plan de données qu'il n'a pas, et l'ordre Terraform ordinaire
   cesse d'échouer** (#457). Le rejeu des quinze stacks tierces de

@@ -2621,12 +2621,27 @@ What a `200` from `CreateLoadBalancer` means here, stated rather than implied:
   So `EnsureBalancer` **refuses** a listen address outside the network's own
   block rather than configuring one. A balancer that passes a test and fails
   three minutes later is worse than a balancer that was never claimed.
-- **Backends on another subnet are not distributed, under any `--vm` mode**
-  (#457, measured on Incus 7.2 with OVN on 2026-08-25). This is the ordinary
-  two-tier architecture — a load balancer on the public subnet, the application
-  machines on the private one — and it is served as configuration only: the
-  `200` stands, `ReadLoadBalancers` describes the balancer and its
-  `BackendVmIds`, and nothing forwards for it.
+- **A backend on another subnet is withheld; the ones on the balancer's own
+  subnet are distributed** (#457 measured the boundary on Incus 7.2 with OVN,
+  2026-08-25, re-measured 2026-08-26; #483 measured what refusing the whole
+  spec over it cost). The two-tier architecture — a load balancer on the
+  public subnet, machines spread over others — is the ordinary shape, and the
+  runtime cannot take it whole: the driver distributes to the backends inside
+  the balancer's own block, withholds the others by name before the write, and
+  the pack records both halves on the balancer's `Runtime`
+  (`balancer-distributed`, `balancer-undistributed`, readable through
+  `/_feint/state`) beside one WARN. The `200` stands and `ReadLoadBalancers`
+  goes on describing every registered `BackendVmId`, because that is the
+  configuration the client asked for and the real cloud would honour it whole.
+
+  Why partial rather than none, decided rather than implied: the first fix
+  refused the spec entire, and #483 measured the result — the host held a
+  registered balancer with **no backend and no port** while the API described
+  two healthy ones, apply exit 0, zero ERROR lines. A balancer that
+  distributes to the machines it can reach, with the withheld ones named in
+  the record and the log, leaves a witness on the host and a trace a gate can
+  read; a balancer that distributes to nobody is indistinguishable from one
+  never handed over.
 
   The four measurements, because the shape is common enough that "it should be
   possible" deserves an answer rather than an opinion. On two OVN networks of
@@ -2649,13 +2664,23 @@ What a `200` from `CreateLoadBalancer` means here, stated rather than implied:
   address class of the paragraph above, the one that goes dark in minutes, and
   not the address the API published either.
 
-  So the driver refuses the shape by name, before writing anything, and the pack
-  reports it at WARN rather than ERROR: it is a limit that holds for the life of
-  the stack, not an incident, and an error that is permanent on a working
-  configuration teaches people to skip errors. `capabilities.balancing` covers
-  the balancer whose backends are on its own network and says nothing about this
-  one; what withdraws the claim entirely is the host refusing a write the driver
-  had accepted.
+  What full delivery would take, named so nobody re-derives it: either Incus
+  lifting the same-subnet restriction on `network load-balancer` targets — the
+  OVN load balancer underneath can reach any address its logical router routes
+  to, and the peered route exists; the boundary is the daemon's own validation,
+  `Target address is not within the network subnet` — or this emulator mapping
+  every subnet of a Net onto one runtime network, which Incus's
+  one-`ipv4.address`-per-network model does not offer. Until one of those
+  moves, the split above is the whole truth the host can carry.
+
+  The withheld half is a limit, not an incident, so the pack says it at WARN
+  rather than ERROR: it holds for the life of the stack, and an error that is
+  permanent on a working configuration teaches people to skip errors. The
+  level is bearable *because* the state carries the fact — the record is what
+  a gate reads, the WARN is for the human watching the boot.
+  `capabilities.balancing` covers the balancer whose backends are on its own
+  network and says nothing about this one; what withdraws the claim entirely
+  is the host refusing a write the driver had accepted.
 - **No backend health exists, and none is invented.** `ReadVmsHealth` stays
   declined, and it stays declined *after* the dataplane landed: `incus network
   load-balancer info` answers "No load-balancer health information available",

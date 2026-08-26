@@ -177,6 +177,27 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **The two-tier load balancer distributes to the backends the runtime can
+  take, withholds the others by name, and writes both halves where a reader
+  can meet them (#483).** #457's whole-spec refusal was measured a second time
+  and it cost more than it protected: the Outscale example stack — one backend
+  on the balancer's own subnet, one on another, the ordinary public tier — left
+  the host holding a registered balancer with **no backend and no port** while
+  the API described two healthy ones; apply exit 0, second plan empty, zero
+  ERROR lines, one WARN as the only trace, invisible to every gate. The driver
+  now splits instead of refusing whole: in-block backends are distributed
+  (`EnsureBalancer` returns a `BalancerDelivery`), out-of-block ones are
+  withheld before the write — never handed to the daemon to die mid-update —
+  and the pack records both lists on the balancer's `Runtime`
+  (`balancer-distributed`, `balancer-undistributed`, readable through
+  `/_feint/state`), keeping the record current on every register, unlink and
+  listener change. The WARN stays a WARN because the limit is permanent on a
+  working configuration, but the state now carries the fact instead of the log
+  carrying it alone. What full delivery would take is named in
+  [limits.md](docs/limits.md): Incus lifting its same-subnet restriction on
+  `network load-balancer` targets, or one runtime network per Net — until
+  then, this split is the whole truth the host can carry.
+
 - **A load balancer in front of machines on another subnet stops claiming a
   dataplane it does not have, and an ordinary Terraform order stops failing**
   (#457). Replaying the fifteen third-party stacks of
