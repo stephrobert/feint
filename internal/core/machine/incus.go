@@ -170,6 +170,13 @@ type Incus struct {
 	// measurement (#473).
 	uplinkQueueMu sync.Mutex
 	uplinkQueue   map[string]bool
+	// withdrawQueue is the delete side's mirror of uplinkQueue (#519): the
+	// blocks of networks already deleted, waiting for one shared uplink write
+	// to withdraw them. A block is queued only after its network's delete
+	// succeeded — a network still standing keeps its delegation — and drained
+	// under uplinkMu; see drainUplinkWithdrawals for the measurement.
+	withdrawQueueMu sync.Mutex
+	withdrawQueue   map[string]bool
 	// holderProbe answers whether a pid recorded on the uplink is a live feint
 	// process. A test seam; nil means reading /proc.
 	holderProbe func(pid int) bool
@@ -1308,14 +1315,42 @@ func (d *Incus) RemoveNetwork(ctx context.Context, name string) error {
 	// networkLock for the measurement (#386).
 	release := d.networkLock(name)
 	defer release()
+	if err := d.removeNetworkObject(ctx, name); err != nil {
+		return err
+	}
+	if !d.OVN {
+		return nil
+	}
+	// The withdrawal, under a second turn of the lock rather than the same one
+	// (#519). Every uplink write makes the daemon clear and rebuild its
+	// firewall — ~1 s measured on Incus 7.2 — so one write per delete queued
+	// fifteen rebuilds behind each other on a fifteen-subnet destroy, a flat
+	// +1.3 s per delete after #473 had removed the same queue from the create
+	// side. Releasing uplinkMu between the delete and the withdrawal is what
+	// lets the other deletes of the burst land their blocks in the queue, and
+	// whoever drains first withdraws the whole set in one write; the deletes
+	// themselves stay serialised under uplinkMu, which is #341's rule about
+	// concurrent uplink rebuilds, not a queue this change may remove.
+	// TestQueuedWithdrawalsShareOneUplinkWrite fails without the drain.
+	d.uplinkMu.Lock()
+	defer d.uplinkMu.Unlock()
+	return d.drainUplinkWithdrawals(ctx)
+}
+
+// removeNetworkObject is the delete half of RemoveNetwork: everything up to
+// and including the runtime delete and what a deleted network leaves attached,
+// but never an uplink write of its own — a successful delete queues the
+// delegated block and the caller drains the queue under its own turn of
+// uplinkMu.
+func (d *Incus) removeNetworkObject(ctx context.Context, name string) error {
 	// The delegated block goes with the network it was delegated for. Left
 	// behind, each one is a real route on the host pointed at the uplink for as
 	// long as the uplink lives — seven of them were measured on one station,
 	// every one the block of a network long deleted (#341, the leftover half).
 	// Read before the delete, because afterwards nobody remembers the block;
-	// withdrawn only after a delete that succeeded, because a network still
-	// standing must keep its delegation. The lock spans the whole sequence for
-	// the same measured reason EnsureNetwork's does (see uplinkMu).
+	// queued for withdrawal only after a delete that succeeded, because a
+	// network still standing must keep its delegation. The lock spans the whole
+	// delete for the same measured reason EnsureNetwork's does (see uplinkMu).
 	// TestRemoveNetworkWithdrawsTheDelegatedBlock fails without the withdrawal.
 	block := ""
 	if d.OVN {
@@ -1380,6 +1415,13 @@ func (d *Incus) RemoveNetwork(ctx context.Context, name string) error {
 //
 // RemoveFirewall is not a refusal here: it treats an absent rule set as done,
 // which is the normal case for a network that was never isolated.
+//
+// The delegated block is queued rather than withdrawn (#519): the caller holds
+// uplinkMu across the delete, and a write here would put every delete of a
+// burst behind a serial firewall rebuild — the exact queue #473 removed from
+// the create side. RemoveNetwork drains the queue under its next turn of the
+// lock, so the block is off the uplink before the call returns, in a write the
+// burst shares.
 func (d *Incus) afterNetworkDelete(ctx context.Context, name, block string) error {
 	if err := d.RemoveFirewall(ctx, isolationACL(name)); err != nil {
 		return fmt.Errorf("drop the isolation rule set of %s: %w", name, err)
@@ -1396,17 +1438,10 @@ func (d *Incus) afterNetworkDelete(ctx context.Context, name, block string) erro
 		!strings.Contains(strings.ToLower(err.Error()), "in use") {
 		return fmt.Errorf("drop the permissive posture set: %w", err)
 	}
-	return d.dropUplinkRouteOVN(ctx, block)
-}
-
-// dropUplinkRouteOVN withdraws one delegated block after a network delete, and
-// is a no-op outside OVN mode or for an unknown block. The caller holds
-// uplinkMu when d.OVN.
-func (d *Incus) dropUplinkRouteOVN(ctx context.Context, block string) error {
-	if !d.OVN || block == "" {
-		return nil
+	if d.OVN {
+		d.queueUplinkWithdrawal(block)
 	}
-	return d.dropUplinkRoute(ctx, block)
+	return nil
 }
 
 // gatewayAddress renders the gateway in the form Incus expects. An empty

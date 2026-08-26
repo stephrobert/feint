@@ -98,10 +98,87 @@ func (d *Incus) delegateQueuedRoutes(ctx context.Context, own string) error {
 	if !slices.Contains(blocks, own) {
 		blocks = append(blocks, own)
 	}
+	// A block being delegated is a block whose pending withdrawal must be
+	// forgotten (#519): a subnet recreated on a deleted subnet's block would
+	// otherwise be delegated here and then stripped by the drain the delete
+	// left queued — a live network losing its route to a write about a dead
+	// one. The cancel is why drainUplinkWithdrawals trusts its queue instead
+	// of always withdrawing the caller's own block.
+	// TestADelegationCancelsAQueuedWithdrawalOfItsBlock fails without it.
+	for _, block := range blocks {
+		d.cancelUplinkWithdrawal(block)
+	}
 	// Sorted so two runs write the same value and a log diff means something.
 	slices.Sort(blocks)
 	if err := d.addUplinkRoutes(ctx, blocks); err != nil {
 		return fmt.Errorf("delegate %s to uplink %s: %w", own, d.uplinkName(), err)
+	}
+	return nil
+}
+
+// queueUplinkWithdrawal registers one block as waiting to leave the uplink's
+// routes, after the delete of its network succeeded (#519). It is the delete
+// side's queueUplinkRoute: the holder of uplinkMu withdraws the whole queue in
+// one write, and drainUplinkWithdrawals is the other half. Queued only after a
+// successful delete — the ordering afterNetworkDelete already keeps — so a
+// network still standing never has its block here.
+func (d *Incus) queueUplinkWithdrawal(block string) {
+	if block == "" {
+		return
+	}
+	d.withdrawQueueMu.Lock()
+	if d.withdrawQueue == nil {
+		d.withdrawQueue = map[string]bool{}
+	}
+	d.withdrawQueue[block] = true
+	d.withdrawQueueMu.Unlock()
+}
+
+// cancelUplinkWithdrawal forgets a queued withdrawal: the block's network has
+// been recreated, so its delegation must survive whichever drain runs next.
+// delegateQueuedRoutes is the caller.
+func (d *Incus) cancelUplinkWithdrawal(block string) {
+	d.withdrawQueueMu.Lock()
+	delete(d.withdrawQueue, block)
+	d.withdrawQueueMu.Unlock()
+}
+
+// drainUplinkWithdrawals takes every queued block off the uplink's ipv4.routes
+// in a single write. The caller holds uplinkMu.
+//
+// The measurement is #519, and it is #473's mirror. Fifteen concurrent subnet
+// deletes were serialised at a flat ~1.3 s each — one `network delete` (~0.2 s)
+// plus one uplink write (~1 s, the daemon's firewall rebuild) per network, all
+// under uplinkMu — so the fifteenth withdrawal waited for the fourteen before
+// it. Draining the queue keeps the rebuilds serialised (#341's rule) and stops
+// paying one per network.
+//
+// An empty queue is the normal case of a shared write: an earlier holder's
+// drain already carried this caller's block, or a create re-delegated it and
+// cancelled the withdrawal — the one case a "withdraw my own block no matter
+// what" would strip a live network's route. On a failed write the blocks go
+// back in the queue rather than vanishing, so the callers still waiting retry
+// them under their own turn; the holder that saw the failure reports it.
+// TestAFailedWithdrawalKeepsItsBlocksQueued fails without the requeue.
+func (d *Incus) drainUplinkWithdrawals(ctx context.Context) error {
+	d.withdrawQueueMu.Lock()
+	blocks := make([]string, 0, len(d.withdrawQueue))
+	for block := range d.withdrawQueue {
+		blocks = append(blocks, block)
+	}
+	d.withdrawQueue = nil
+	d.withdrawQueueMu.Unlock()
+	if len(blocks) == 0 {
+		return nil
+	}
+	// Sorted so two runs write the same value and a log diff means something.
+	slices.Sort(blocks)
+	if err := d.dropUplinkRoutes(ctx, blocks); err != nil {
+		for _, block := range blocks {
+			d.queueUplinkWithdrawal(block)
+		}
+		return fmt.Errorf("withdraw %s from uplink %s: %w",
+			strings.Join(blocks, ","), d.uplinkName(), err)
 	}
 	return nil
 }
@@ -1008,13 +1085,21 @@ func (d *Incus) addUplinkRoutes(ctx context.Context, routes []string) error {
 }
 
 // dropUplinkRoute takes one entry off the uplink's ipv4.routes. The caller
-// holds uplinkMu. An uplink already gone, or an entry already absent, is the
-// outcome asked for — and skipping the write in the absent case matters, since
-// every write makes the runtime clear and rebuild the uplink's firewall.
+// holds uplinkMu.
 func (d *Incus) dropUplinkRoute(ctx context.Context, route string) error {
 	if route == "" {
 		return nil
 	}
+	return d.dropUplinkRoutes(ctx, []string{route})
+}
+
+// dropUplinkRoutes is dropUplinkRoute for a set: one read, and at most one
+// write, whatever the set's size — the mirror of addUplinkRoutes (#519). The
+// caller holds uplinkMu. An uplink already gone, or an entry already absent,
+// is the outcome asked for — and skipping the write in the absent case
+// matters, since every write makes the runtime clear and rebuild the uplink's
+// firewall.
+func (d *Incus) dropUplinkRoutes(ctx context.Context, routes []string) error {
 	name := d.uplinkName()
 	out, err := d.run(ctx, "network", "get", name, "ipv4.routes")
 	if err != nil {
@@ -1023,11 +1108,19 @@ func (d *Incus) dropUplinkRoute(ctx context.Context, route string) error {
 		}
 		return fmt.Errorf("read routes of uplink %s: %w", name, err)
 	}
-	current := strings.TrimSpace(string(out))
-	if !routeListContains(current, route) {
+	kept := strings.TrimSpace(string(out))
+	changed := false
+	for _, route := range routes {
+		if !routeListContains(kept, route) {
+			continue
+		}
+		kept = removeRoute(kept, route)
+		changed = true
+	}
+	if !changed {
 		return nil
 	}
-	if _, err := d.run(ctx, "network", "set", name, "ipv4.routes="+removeRoute(current, route)); err != nil {
+	if _, err := d.run(ctx, "network", "set", name, "ipv4.routes="+kept); err != nil {
 		return fmt.Errorf("set routes of uplink %s: %w", name, err)
 	}
 	return nil

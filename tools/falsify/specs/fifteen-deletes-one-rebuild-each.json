@@ -1,0 +1,34 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "a successful delete stops queueing its block, so the delegation outlives the network — seven such routes were once measured on one station's uplink, each for a network long deleted",
+      "file": "internal/core/machine/incus.go",
+      "find": "\tif d.OVN {\n\t\td.queueUplinkWithdrawal(block)\n\t}",
+      "replace": "\tif d.OVN && false {\n\t\td.queueUplinkWithdrawal(block)\n\t}",
+      "test": "TestRemoveNetworkWithdrawsTheDelegatedBlock"
+    },
+    {
+      "label": "the drain stops carrying the queue, so every block a neighbour's delete parked waits for a write that never comes — the burst is back to one rebuild per network or worse",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tfor block := range d.withdrawQueue {\n\t\tblocks = append(blocks, block)\n\t}",
+      "replace": "\tfor block := range d.withdrawQueue {\n\t\tif false {\n\t\t\tblocks = append(blocks, block)\n\t\t}\n\t}",
+      "test": "TestQueuedWithdrawalsShareOneUplinkWrite"
+    },
+    {
+      "label": "a delegation stops cancelling the pending withdrawal of its block, so a subnet recreated on a deleted subnet's block loses its route to a drain about the dead one",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tfor _, block := range blocks {\n\t\td.cancelUplinkWithdrawal(block)\n\t}",
+      "replace": "\tfor _, block := range blocks {\n\t\tif false {\n\t\t\td.cancelUplinkWithdrawal(block)\n\t\t}\n\t}",
+      "test": "TestADelegationCancelsAQueuedWithdrawalOfItsBlock"
+    },
+    {
+      "label": "a failed write drops the queue on the floor, so the blocks of everybody who trusted this drain stay delegated with nothing left to retry them",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\t\tfor _, block := range blocks {\n\t\t\td.queueUplinkWithdrawal(block)\n\t\t}",
+      "replace": "\t\tfor _, block := range blocks {\n\t\t\tif false {\n\t\t\t\td.queueUplinkWithdrawal(block)\n\t\t\t}\n\t\t}",
+      "test": "TestAFailedWithdrawalKeepsItsBlocksQueued"
+    }
+  ],
+  "note": "The subject is #519, the destroy-side mirror of #473. Fifteen concurrent DeleteSubnet against one emulator under --vm incus-ovn were serialised at a flat ~1.3 s each — wall 19.4 s for the fifteenth, bad=0, no residue: purely a latency curve. Each RemoveNetwork paid one uplink write (~1 s, the daemon clears and rebuilds the uplink's firewall on every ipv4.routes edit) plus one network delete (~0.2 s), all under uplinkMu, which is #341's serialisation and must stay.\n\nThe fix is the queue the create side already has (delegateQueuedRoutes, #473), pointed the other way: a successful delete queues its block and drains the whole queue under a second turn of the lock, so a burst shares its rebuilds instead of paying one each. The ordering constraint the issue names — withdraw only after a delete that succeeded, never for a network that survived — is kept by construction: only afterNetworkDelete queues, and it runs only on the success paths.\n\nMutation 3 is the one the shared write makes possible and the direct write never had: between a delete's queueing and a neighbour's drain, a create can take the same block back, and a drain that still withdraws it strips a live network's route. delegateQueuedRoutes therefore cancels the pending withdrawal of every block it delegates, and the drain trusts its queue instead of always withdrawing the caller's own block. Mutation 4 is the failure half: a drain carries other callers' blocks, so losing them on a failed write would leave routes nobody retries — they go back in the queue, and the holder that saw the failure is the one that reports it."
+}

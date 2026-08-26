@@ -9,10 +9,10 @@
       "test": "TestConcurrentSubnetAndMachineNetworkCreatesSerialiseOnTheUplink"
     },
     {
-      "label": "a deleted network's block is never withdrawn from the uplink, so delegations accumulate run after run (#341)",
+      "label": "a deleted network’s block is never withdrawn from the uplink — the drain is skipped — so delegations accumulate run after run (#341, carried by the withdrawal queue since #519)",
       "file": "internal/core/machine/incus.go",
-      "find": "\tif !d.OVN || block == \"\" {\n\t\treturn nil\n\t}\n\treturn d.dropUplinkRoute(ctx, block)",
-      "replace": "\tif !d.OVN || block == \"\" {\n\t\treturn nil\n\t}\n\treturn d.dropUplinkRoute(ctx, block[:0])",
+      "find": "\td.uplinkMu.Lock()\n\tdefer d.uplinkMu.Unlock()\n\treturn d.drainUplinkWithdrawals(ctx)",
+      "replace": "\td.uplinkMu.Lock()\n\tdefer d.uplinkMu.Unlock()\n\tif false {\n\t\treturn d.drainUplinkWithdrawals(ctx)\n\t}\n\treturn nil",
       "test": "TestRemoveNetworkWithdrawsTheDelegatedBlock"
     },
     {
