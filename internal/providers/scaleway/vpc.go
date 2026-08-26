@@ -780,7 +780,21 @@ func (p *Pack) newVPC(region, project, name string, isDefault bool) *resource.Re
 // neighbours must keep out — is machine.ReconcileIsolation, shared with the
 // two other packs rather than copied a third time (#201 measured what the
 // copies cost).
+//
+// Coalesced like the Outscale pack's (#473, the measurement and the guarantee
+// are on isolateNetworks there): the pass is O(N) over every network and a
+// client creates its networks concurrently, so a burst shares its passes
+// instead of each request paying a full one. The pass re-reads the store when
+// it runs, and every caller returns only once a pass that read its own change
+// has completed.
 func (p *Pack) isolateNetworks(ctx context.Context) {
+	ctx = context.WithoutCancel(ctx)
+	p.isolation.Run(func() { p.isolationPass(ctx) })
+}
+
+// isolationPass is one full reconciliation, reading the store at the moment it
+// runs. Only the Coalescer calls it.
+func (p *Pack) isolationPass(ctx context.Context) {
 	all := p.env.Store.List(kindPrivateNetwork, resource.Tenant{Provider: Name})
 	members := make([]machine.IsolationMember, len(all))
 	for i, pn := range all {

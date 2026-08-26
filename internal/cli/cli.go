@@ -993,12 +993,7 @@ func serve(args []string, stdout io.Writer) error {
 		// caller asked for against what this process is bound to.
 		Handler:           emulator.GuardRebinding(srv.Handler(), *addr),
 		ReadHeaderTimeout: 10 * time.Second,
-		// A client that opens a response and stops reading it holds a handler
-		// goroutine, and before the store learned to encode outside its lock,
-		// held the whole emulator with it. The lock is fixed; the timeout is the
-		// second line, and it costs nothing here because every response this
-		// emulator produces is small and local.
-		WriteTimeout: 60 * time.Second,
+		WriteTimeout:      writeTimeoutFor(driver),
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

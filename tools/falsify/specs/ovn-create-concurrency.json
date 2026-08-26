@@ -1,0 +1,36 @@
+{
+  "package": "./internal/core/serialise/",
+  "mutations": [
+    {
+      "label": "the coalescer satisfies a caller with the pass that was already reading when it arrived, so a change landing mid-pass is answered before anything reconciled it (#473)",
+      "file": "internal/core/serialise/coalesce.go",
+      "find": "\ttarget := c.begun + 1",
+      "replace": "\ttarget := c.begun",
+      "test": "TestRunWaitsForAPassThatSawTheCall"
+    },
+    {
+      "label": "the pack runs its own full pass per request again instead of sharing, which is the O(N) per create the straight line of #473 is made of",
+      "file": "internal/providers/outscale/isolate.go",
+      "find": "\tp.isolation.Run(func() { p.isolationPass(ctx) })",
+      "replace": "\tp.isolation.Run(func() {})\n\tp.isolationPass(ctx)",
+      "test": "TestConcurrentSubnetCreatesShareTheirIsolationPasses",
+      "package": "./internal/providers/outscale/"
+    },
+    {
+      "label": "the uplink queue is no longer drained, so every concurrent create pays its own uplink write and firewall rebuild again (#473)",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tfor block := range d.uplinkQueue {\n\t\tblocks = append(blocks, block)\n\t}",
+      "replace": "\tfor block := range d.uplinkQueue {\n\t\t_ = append(blocks, block)\n\t}",
+      "test": "TestConcurrentOVNCreatesShareTheirUplinkWrites",
+      "package": "./internal/core/machine/"
+    },
+    {
+      "label": "the write deadline goes back to sixty seconds under a machine runtime, the figure that cut six completed creates on the ztiac replay (#473)",
+      "file": "internal/cli/timeout.go",
+      "find": "\treturn 10 * time.Minute",
+      "replace": "\treturn 60 * time.Second",
+      "test": "TestTheWriteDeadlineFollowsTheRuntime",
+      "package": "./internal/cli/"
+    }
+  ]
+}

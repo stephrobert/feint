@@ -32,7 +32,7 @@ import (
 // The two are not the same mechanism, and reading the second measurement as a
 // verdict on the first is the mistake this comment exists to prevent: an
 // in-block address needs no announcement at all. The emulator already delegates
-// every emulated subnet to the uplink (delegateRoute), so the uplink routes the
+// every emulated subnet to the uplink (delegateQueuedRoutes), so the uplink routes the
 // whole block to the OVN router, and the router answers for the VIP as it does
 // for any other address of its own switch.
 //

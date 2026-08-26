@@ -25,6 +25,9 @@ const Name = "scaleway"
 // Pack implements emulator.Pack for Scaleway.
 type Pack struct {
 	env *emulator.Env
+	// isolation coalesces the full-set reconciliation passes of
+	// isolateNetworks; the measurement is on the Outscale pack's (#473).
+	isolation serialise.Coalescer
 }
 
 // lockAddresses serialises address allocation, which is read-modify-write over

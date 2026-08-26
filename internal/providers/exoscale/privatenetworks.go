@@ -322,7 +322,20 @@ func (p *Pack) ensureBackingNetwork(ctx context.Context, res *resource.Resource,
 // this batch, and the predicate below says exactly that. The reconciliation —
 // empty peer lists under native isolation, every managed block to keep out
 // otherwise — is machine.ReconcileIsolation, shared with the two other packs.
+//
+// Coalesced like the Outscale pack's (#473, the measurement and the guarantee
+// are on isolateNetworks there): a burst of concurrent creates shares its
+// passes instead of each request paying a full O(N) one. The pass re-reads
+// the store when it runs, and every caller returns only once a pass that read
+// its own change has completed.
 func (p *Pack) isolatePrivateNetworks(ctx context.Context) {
+	ctx = context.WithoutCancel(ctx)
+	p.isolation.Run(func() { p.isolationPass(ctx) })
+}
+
+// isolationPass is one full reconciliation, reading the store at the moment it
+// runs. Only the Coalescer calls it.
+func (p *Pack) isolationPass(ctx context.Context) {
 	all := p.env.Store.List(kindPrivateNetwork, resource.Tenant{Provider: Name})
 	members := make([]machine.IsolationMember, len(all))
 	for i, pn := range all {

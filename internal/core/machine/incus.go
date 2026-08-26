@@ -150,13 +150,19 @@ type Incus struct {
 	// lock in the daemon — so of two concurrent rebuilds, the loser dies on
 	// `Failed deleting nftables chain "fwd.feint-uplink" ... No such file or
 	// directory` (#341, measured on Incus 7.2 with the daemon's debug log: a
-	// PUT from delegateRoute interleaved with the POST creating fnt-default).
+	// PUT from a route delegation interleaved with the POST creating fnt-default).
 	// TestConcurrentSubnetAndMachineNetworkCreatesSerialiseOnTheUplink fails
 	// without this serialisation.
 	uplinkMu sync.Mutex
 	// uplinkAdopt runs once per process, at the first reuse of an uplink a
 	// previous emulator left behind: see adoptUplink.
 	uplinkAdopt sync.Once
+	// uplinkQueue collects the blocks whose delegation is waiting for
+	// uplinkMu, so the holder of the lock delegates the whole queue in one
+	// uplink write instead of one write each; see delegateQueuedRoutes for the
+	// measurement (#473).
+	uplinkQueueMu sync.Mutex
+	uplinkQueue   map[string]bool
 	// holderProbe answers whether a pid recorded on the uplink is a live feint
 	// process. A test seam; nil means reading /proc.
 	holderProbe func(pid int) bool
@@ -1159,6 +1165,10 @@ func (d *Incus) EnsureNetwork(ctx context.Context, spec NetworkSpec) error {
 		// lock": the uplink is the single named target whose reconfigurations
 		// must be exclusive, and a network create costs seconds, not the tens
 		// of seconds of a machine launch.
+		// Queued before the lock, so whoever holds it can delegate this block
+		// along with its own in a single uplink write; see
+		// delegateQueuedRoutes for the measurement (#473).
+		d.queueUplinkRoute(spec.CIDR)
 		d.uplinkMu.Lock()
 		defer d.uplinkMu.Unlock()
 		// The uplink is what an OVN network draws its router address from;
@@ -1168,7 +1178,7 @@ func (d *Incus) EnsureNetwork(ctx context.Context, spec NetworkSpec) error {
 		}
 		// The block has to be delegated before the network that carries it: an
 		// OVN network outside its uplink's routes is refused outright.
-		if err := d.delegateRoute(ctx, spec.CIDR); err != nil {
+		if err := d.delegateQueuedRoutes(ctx, spec.CIDR); err != nil {
 			return err
 		}
 		args = append(args, "--type=ovn", "network="+d.uplinkName())

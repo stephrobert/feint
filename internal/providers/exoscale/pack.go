@@ -73,6 +73,10 @@ type Pack struct {
 	// #269 invariant, this pack's turn.
 	templates     []map[string]any
 	instanceTypes []map[string]any
+	// isolation coalesces the full-set reconciliation passes of
+	// isolatePrivateNetworks; the measurement is on the Outscale pack's
+	// isolateNetworks (#473).
+	isolation serialise.Coalescer
 }
 
 // lockAddresses serializes elastic IP and lease allocation, which is

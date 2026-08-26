@@ -59,6 +59,9 @@ type Pack struct {
 	// subregion — the API's own behaviour for a create outside a Net. The
 	// region's first zone, which is the "<region>a" every region publishes.
 	defaultSubregion string
+	// isolation coalesces the full-set reconciliation passes of
+	// isolateNetworks; see that function for the measurement (#473).
+	isolation serialise.Coalescer
 }
 
 // lockAddresses serialises the choice of a block or an address, which is

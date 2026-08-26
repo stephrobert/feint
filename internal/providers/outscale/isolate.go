@@ -42,7 +42,27 @@ func (p *Pack) reachableFrom(subnet, other *resource.Resource) bool {
 // machine.ReconcileIsolation, shared with the two other packs — this pack is
 // the one that had no isolation wiring at all until #201 — and only the
 // Outscale question above stays here, as the predicate.
+//
+// Coalesced, because the pass is O(N) over every subnet and a terraform apply
+// issues its creates concurrently: fifteen subnets each paying a full pass,
+// serialised on the runtime's locks, is the straight line of #473 — a flat
+// ~6 s per create, cut at the emulator's write deadline from the tenth on.
+// Any pass that starts after a change covers it, so the coalescer runs at
+// most the pass in flight plus one for a whole burst, and every caller still
+// returns only once a pass that read its own change has completed. The pass
+// re-reads the store when it runs (isolationPass), which is what makes
+// covering a burst sound. Detached from the request's cancellation because
+// one pass serves many requests, and the first client hanging up must not
+// abort the reconciliation the others are waiting on.
+// TestConcurrentSubnetCreatesShareTheirIsolationPasses fails without this.
 func (p *Pack) isolateNetworks(ctx context.Context) {
+	ctx = context.WithoutCancel(ctx)
+	p.isolation.Run(func() { p.isolationPass(ctx) })
+}
+
+// isolationPass is one full reconciliation, reading the store at the moment it
+// runs. Only the Coalescer calls it.
+func (p *Pack) isolationPass(ctx context.Context) {
 	all := p.env.Store.List(kindSubnet, resource.Tenant{Provider: Name})
 	members := make([]machine.IsolationMember, len(all))
 	for i, subnet := range all {

@@ -4,8 +4,8 @@
     {
       "label": "the uplink rebuilds stop being serialised, so a subnet delegation and a machine-network create race in the daemon's firewall clear (#341)",
       "file": "internal/core/machine/incus.go",
-      "find": "\t\t// of seconds of a machine launch.\n\t\td.uplinkMu.Lock()\n\t\tdefer d.uplinkMu.Unlock()",
-      "replace": "\t\t// of seconds of a machine launch.\n\t\tif false {\n\t\t\td.uplinkMu.Lock()\n\t\t\tdefer d.uplinkMu.Unlock()\n\t\t}",
+      "find": "\t\td.queueUplinkRoute(spec.CIDR)\n\t\td.uplinkMu.Lock()\n\t\tdefer d.uplinkMu.Unlock()",
+      "replace": "\t\td.queueUplinkRoute(spec.CIDR)\n\t\tif false {\n\t\t\td.uplinkMu.Lock()\n\t\t\tdefer d.uplinkMu.Unlock()\n\t\t}",
       "test": "TestConcurrentSubnetAndMachineNetworkCreatesSerialiseOnTheUplink"
     },
     {
