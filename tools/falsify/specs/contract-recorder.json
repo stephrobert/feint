@@ -1,0 +1,35 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the unknown-gesture detector reports nothing, so a gesture outside the contract passes as legitimate",
+      "file": "internal/core/machine/recorder.go",
+      "find": "\t\tif _, known := contractGestures[e.Kind]; !known {",
+      "replace": "\t\tif _, known := contractGestures[e.Kind]; !known && false {",
+      "test": "TestAPlantedUnknownGestureIsReported"
+    },
+    {
+      "label": "the vocabulary misnames a gesture, so the contract no longer covers the driver surface it claims to",
+      "file": "internal/core/machine/recorder.go",
+      "find": "\t\"PeerNetworks\":    true,",
+      "replace": "\t\"PeerNetworksX\":    true,",
+      "test": "TestTheContractNamesEveryGesture"
+    },
+    {
+      "label": "the recorder records nothing, so every sequence is empty and every property built on it holds by vacuity",
+      "file": "internal/core/machine/recorder.go",
+      "find": "\tr.events = append(r.events, g)",
+      "replace": "\tif false {\n\t\tr.events = append(r.events, g)\n\t}",
+      "test": "TestARecorderReplaysTheLifecycleInCallOrder"
+    },
+    {
+      "label": "the sequence comparator reads every pair as equal, so three divergent orders would report as one",
+      "file": "internal/providers/replay_test.go",
+      "find": "\tif len(a) != len(b) {\n\t\treturn false\n\t}\n\tfor i := range a {\n\t\tif a[i] != b[i] {\n\t\t\treturn false\n\t\t}\n\t}\n\treturn true",
+      "replace": "\tif len(a) != len(b) && false {\n\t\treturn false\n\t}\n\tfor i := range a {\n\t\tif a[i] != b[i] && false {\n\t\t\treturn false\n\t\t}\n\t}\n\treturn true",
+      "test": "TestAShuffledReplayIsToldFromItsOriginal",
+      "package": "./internal/providers/"
+    }
+  ],
+  "note": "The instrument of #515 falsified on itself: the recorder and its two assertions are what the 0.12.0 corridor's proofs replay against, so a defect here reads exactly like proof. The first mutation blinds the outside-contract detector against its planted witness; the second breaks the both-ways hold between the vocabulary and the driver interfaces; the third silences the recording, which turns every sequence property vacuous; the fourth blinds the equivalence comparator that must tell a shuffled replay from its original before the red cross-pack divergence (three boot orders, measured 2026-08-26) can be believed."
+}
