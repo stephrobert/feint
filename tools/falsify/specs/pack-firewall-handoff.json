@@ -3,9 +3,9 @@
   "mutations": [
     {
       "label": "the Outscale boot stops handing the worn groups to the runtime, which is the whole of #475",
-      "file": "internal/providers/outscale/machines.go",
-      "find": "\tp.groupSync().AfterBoot(ctx, res)\n}",
-      "replace": "\tif false {\n\t\tp.groupSync().AfterBoot(ctx, res)\n\t}\n}",
+      "file": "internal/core/machine/plan.go",
+      "find": "\tr.Groups.AfterBoot(ctx, res)\n\treturn true",
+      "replace": "\tif false {\n\t\tr.Groups.AfterBoot(ctx, res)\n\t}\n\treturn true",
       "test": "TestAnOutscaleGroupReachesTheHostWhenItsVmBoots"
     },
     {
@@ -18,9 +18,9 @@
     {
       "label": "the Exoscale boot stops handing the worn groups to the runtime",
       "package": "./internal/providers/exoscale/",
-      "file": "internal/providers/exoscale/machines.go",
-      "find": "\tp.groupSync().AfterBoot(ctx, res)\n}",
-      "replace": "\tif false {\n\t\tp.groupSync().AfterBoot(ctx, res)\n\t}\n}",
+      "file": "internal/core/machine/plan.go",
+      "find": "\tr.Groups.AfterBoot(ctx, res)\n\treturn true",
+      "replace": "\tif false {\n\t\tr.Groups.AfterBoot(ctx, res)\n\t}\n\treturn true",
       "test": "TestAnExoscaleGroupReachesTheHostWhenAnInstanceBoots"
     },
     {
@@ -34,9 +34,9 @@
     {
       "label": "a network attached after the boot leaves its interface without the instance's rule sets",
       "package": "./internal/providers/exoscale/",
-      "file": "internal/providers/exoscale/privatenetworks.go",
-      "find": "\tp.groupSync().ApplyMachine(r.Context(), inst)",
-      "replace": "\tif false {\n\t\tp.groupSync().ApplyMachine(r.Context(), inst)\n\t}",
+      "file": "internal/core/machine/plan.go",
+      "find": "\terr := r.attach(ctx, res, att)\n\tr.Groups.AfterBoot(ctx, res)\n\treturn err",
+      "replace": "\terr := r.attach(ctx, res, att)\n\tif false {\n\t\tr.Groups.AfterBoot(ctx, res)\n\t}\n\treturn err",
       "test": "TestALateNetworkAttachCarriesTheRuleSets"
     },
     {

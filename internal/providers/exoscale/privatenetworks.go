@@ -289,27 +289,16 @@ func stringOf(v *string) string {
 
 // ensureBackingNetwork asks the machine driver for a real network carrying the
 // managed range. The gateway is the block's first host address, one the lease
-// allocator below never hands out.
+// allocator below never hands out. The mechanics — the derived name, the
+// labels, recording the name only once the driver accepted it — are
+// Binding.EnsureBackingNetwork's, shared with the two other packs (#510).
 func (p *Pack) ensureBackingNetwork(ctx context.Context, res *resource.Resource, prefix netip.Prefix) error {
-	if p.env.Machines == nil {
-		return nil
-	}
-	name := machine.NetworkName(machine.NetworkPrefix, res.ID)
-	if res.Runtime == nil {
-		res.Runtime = map[string]string{}
-	}
-	res.Runtime[runtimeNetworkKey] = name
-
-	gateway := prefix.Masked().Addr().Next()
-	return p.env.Machines.EnsureNetwork(ctx, machine.NetworkSpec{
-		Name:    name,
-		CIDR:    prefix.Masked().String(),
-		Gateway: gateway.String(),
+	return p.binding().EnsureBackingNetwork(ctx, res, machine.BackingNetwork{
+		Key:     runtimeNetworkKey,
+		CIDR:    prefix,
+		Gateway: true,
 		NAT:     true,
-		Labels: map[string]string{
-			"feint.provider":        Name,
-			"feint.private-network": res.ID,
-		},
+		Marker:  "feint.private-network",
 	})
 }
 
@@ -543,11 +532,11 @@ func (p *Pack) updatePrivateNetwork(w http.ResponseWriter, r *http.Request) {
 	// on an existing network without reshaping it, so the old one goes first —
 	// safe here because the refusal above proved nothing is attached.
 	if rangeChanged && p.env.Machines != nil {
-		if name := res.Runtime[runtimeNetworkKey]; name != "" {
-			if err := p.env.Machines.RemoveNetwork(r.Context(), name); err != nil {
-				p.logger().Error("could not remove the outgrown backing network",
-					"private-network", res.ID, "network", name, "error", err)
-			}
+		if err := p.binding().RemoveBackingNetwork(r.Context(), res, runtimeNetworkKey); err != nil {
+			p.logger().Error("could not remove the outgrown backing network",
+				"private-network", res.ID, "network", res.Runtime[runtimeNetworkKey], "error", err)
+			// Forgotten anyway: the re-ensure below derives the same name, and
+			// keeping the record would change nothing about what it finds.
 			delete(res.Runtime, runtimeNetworkKey)
 		}
 		if managed {
@@ -611,11 +600,9 @@ func (p *Pack) deletePrivateNetwork(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	if name := res.Runtime[runtimeNetworkKey]; name != "" && p.env.Machines != nil {
-		if err := p.env.Machines.RemoveNetwork(r.Context(), name); err != nil {
-			p.logger().Error("could not remove the backing network",
-				"private-network", res.ID, "network", name, "error", err)
-		}
+	if err := p.binding().RemoveBackingNetwork(r.Context(), res, runtimeNetworkKey); err != nil {
+		p.logger().Error("could not remove the backing network",
+			"private-network", res.ID, "network", res.Runtime[runtimeNetworkKey], "error", err)
 	}
 	p.env.Store.Delete(Name, kindPrivateNetwork, id)
 	p.isolatePrivateNetworks(r.Context())
@@ -704,13 +691,14 @@ func (p *Pack) attachInstanceToPrivateNetwork(w http.ResponseWriter, r *http.Req
 		writeError(w, http.StatusNotFound, "resource not found")
 		return
 	}
-	p.attachMachineToPrivateNetwork(r.Context(), inst, pn, leaseIP)
-	// The interface this attach just created carries the instance's rule sets
-	// like every other one: the Terraform provider attaches networks after the
-	// create returns, and a set applied at boot never reaches an interface
-	// born later (#475). ApplyFirewall covers every NIC of the machine, so
-	// re-applying here is idempotent for the older ones.
-	p.groupSync().ApplyMachine(r.Context(), inst)
+	// Join attaches and then resyncs the firewall: the interface this attach
+	// just created carries the instance's rule sets like every other one — the
+	// Terraform provider attaches networks after the create returns, and a set
+	// applied at boot never reaches an interface born later (#475).
+	// ApplyFirewall covers every NIC of the machine, so re-applying is
+	// idempotent for the older ones; the groups naming this instance's groups
+	// re-expand with it, because the new lease is now part of what they mean.
+	p.joinPrivateNetwork(r.Context(), inst, pn, leaseIP)
 	p.writeOperation(w, p.operationReferring(nounPrivateNetwork, id))
 }
 
@@ -872,7 +860,7 @@ func (p *Pack) updatePrivateNetworkInstanceIP(w http.ResponseWriter, r *http.Req
 		return
 	}
 	if inst, ok := p.env.Store.Get(Name, kindInstance, req.Instance.ID); ok {
-		p.attachMachineToPrivateNetwork(r.Context(), inst, pn, req.IP)
+		p.joinPrivateNetwork(r.Context(), inst, pn, req.IP)
 	}
 	p.writeOperation(w, p.operationReferring(nounPrivateNetwork, id))
 }
@@ -930,37 +918,33 @@ func (p *Pack) moveLease(w http.ResponseWriter, pn *resource.Resource, dhcp mana
 
 // ---- The machine half -------------------------------------------------------
 
-// attachMachineToPrivateNetwork puts the backing machine on the backing
-// network at the address the control plane just published. Degrades quietly,
-// like every runtime call of this pack: with no runtime, or none started yet,
-// the membership is still true and the interface arrives with the next boot.
-func (p *Pack) attachMachineToPrivateNetwork(ctx context.Context, inst, pn *resource.Resource, ip string) {
-	if p.env.Machines == nil {
-		return
-	}
-	networkName := pn.Runtime[runtimeNetworkKey]
-	machineName := inst.Runtime[p.binding().RuntimeKey]
-	if networkName == "" || machineName == "" {
-		return
-	}
-	att := machine.Attachment{Network: networkName, Address: ip}
+// membershipAttachment is what one private-network membership means to the
+// runtime: the backing network, the leased address, and the range's mask when
+// the network is managed — configuring the interface inside the guest needs
+// both halves.
+func (p *Pack) membershipAttachment(pn *resource.Resource, ip string) machine.Attachment {
+	att := machine.Attachment{Network: pn.Runtime[runtimeNetworkKey], Address: ip}
 	if dhcp, managed := rangeOf(pn); managed && ip != "" {
 		att.PrefixLen = dhcp.prefix.Bits()
 	}
-	if err := p.env.Machines.Attach(ctx, machineName, att); err != nil {
-		p.logger().Error("could not attach the machine to the private network",
-			"instance", inst.ID, "private-network", pn.ID, "address", ip, "error", err)
-	}
+	return att
 }
 
-// detachMachineFromPrivateNetwork is the exact undo of
-// attachMachineToPrivateNetwork, and degrades the same way: with no runtime, or
-// a machine that never started, there is nothing to take off and the membership
-// has already gone from the store.
+// joinPrivateNetwork puts the backing machine on the backing network at the
+// address the control plane just published, and resyncs the firewall after it
+// — the hot half of a membership, through the shared Reconciler (#510).
+// Degrades quietly, like every runtime call of this pack: with no runtime, or
+// none started yet, the membership is still true and the interface arrives
+// with the next boot's plan.
+func (p *Pack) joinPrivateNetwork(ctx context.Context, inst, pn *resource.Resource, ip string) {
+	_ = p.reconciler().Join(ctx, inst, p.membershipAttachment(pn, ip))
+}
+
+// detachMachineFromPrivateNetwork is the exact undo of joinPrivateNetwork's
+// attach half, and degrades the same way: with no runtime, or a machine that
+// never started, there is nothing to take off and the membership has already
+// gone from the store.
 func (p *Pack) detachMachineFromPrivateNetwork(ctx context.Context, instanceID, networkID string) {
-	if p.env.Machines == nil {
-		return
-	}
 	inst, found := p.env.Store.Get(Name, kindInstance, instanceID)
 	if !found {
 		return
@@ -969,15 +953,7 @@ func (p *Pack) detachMachineFromPrivateNetwork(ctx context.Context, instanceID, 
 	if !found {
 		return
 	}
-	networkName := pn.Runtime[runtimeNetworkKey]
-	machineName := inst.Runtime[p.binding().RuntimeKey]
-	if networkName == "" || machineName == "" {
-		return
-	}
-	if err := p.env.Machines.Detach(ctx, machineName, networkName); err != nil {
-		p.logger().Error("could not detach the machine from the private network",
-			"instance", instanceID, "private-network", networkID, "error", err)
-	}
+	p.reconciler().Leave(ctx, inst, pn.Runtime[runtimeNetworkKey])
 }
 
 // privateNetworkRefs is the instance-side wire shape: their instance schema

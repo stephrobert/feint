@@ -369,7 +369,6 @@ func (p *Pack) carrySecondary(ctx context.Context, nic *resource.Resource) {
 	if !found {
 		return
 	}
-	machineName := p.binding().Name(vm.ID)
 	prefixLen := 0
 	if subnet, ok := p.env.Store.Get(Name, kindSubnet, stringOf(nic.Attrs["SubnetId"])); ok {
 		if prefix, err := prefixOf(subnet, "IpRange"); err == nil {
@@ -382,8 +381,9 @@ func (p *Pack) carrySecondary(ctx context.Context, nic *resource.Resource) {
 		PrefixLen: prefixLen,
 		Secondary: secondaryAddresses(nic),
 	}
-	if err := p.env.Machines.Attach(ctx, machineName, att); err != nil {
-		p.logger().Error("could not carry the secondary addresses",
-			"nic", nic.ID, "machine", machineName, "error", err)
-	}
+	// Through the shared Join, which reads the machine name off Runtime the
+	// way every other runtime path does — this function used to derive it
+	// with binding().Name and would have reconfigured a machine the Vm never
+	// started — and resyncs the firewall after the interface changed shape.
+	_ = p.reconciler().Join(ctx, vm, att)
 }

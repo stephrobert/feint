@@ -39,9 +39,9 @@
     {
       "label": "the Exoscale attach routes the address without moving it off the previous instance",
       "package": "./internal/providers/exoscale/",
-      "file": "internal/providers/exoscale/elasticips.go",
-      "find": "\tif err := p.binding().RouteAddress(ctx, router, machine.AddressSpec{Machine: name, Address: address}); err != nil {",
-      "replace": "\t_ = p.binding()\n\tif err := router.RouteAddress(ctx, machine.AddressSpec{Machine: name, Address: address}); err != nil {",
+      "file": "internal/core/machine/plan.go",
+      "find": "\tif err := r.binding().RouteAddress(ctx, router, AddressSpec{\n\t\tMachine: name,\n\t\tAddress: address,\n\t\tNetwork: plan.RouteVia,\n\t}); err != nil {",
+      "replace": "\t_ = r.binding()\n\tif err := router.RouteAddress(ctx, AddressSpec{\n\t\tMachine: name,\n\t\tAddress: address,\n\t\tNetwork: plan.RouteVia,\n\t}); err != nil {",
       "test": "TestAnElasticIPReachesOneMachineAtATime"
     }
   ]

@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
-	"github.com/stephrobert/feint/internal/core/machine"
 	"github.com/stephrobert/feint/internal/core/resource"
 )
 
@@ -63,6 +62,9 @@ const publicIPBase = "198.51.100."
 // every suite and fixture in this repository, is two.
 const publicIPBlock = "198.51.100.0/28"
 
+// publicIPPrefix is the block parsed once, for the Reconciler's route guard.
+var publicIPPrefix = netip.MustParsePrefix(publicIPBlock)
+
 // publicIPHosts is how many addresses publicIPBlock holds, derived from the
 // prefix rather than written a second time. A bound that does not follow the
 // prefix is exactly how an allocator and the catalogue it publishes come to
@@ -103,44 +105,22 @@ func emulatedPublicIP(address string) bool {
 // stopped being one. Degrades quietly, like every runtime call in this pack.
 // TestLinkPublicIpRoutesTheAddress fails without it.
 func (p *Pack) routeLinkedIP(ctx context.Context, address string, vm *resource.Resource) {
-	router, ok := p.env.Machines.(machine.Router)
-	if !ok {
-		return
-	}
-	name := vm.Runtime[p.binding().RuntimeKey]
-	if name == "" || address == "" {
-		return
-	}
-	if !emulatedPublicIP(address) {
-		p.logger().Warn("refusing to route an address outside the emulated public block",
-			"address", address, "vm", vm.ID)
-		return
-	}
-	// Through the binding: this pack refuses to move a linked address unless the
-	// request passes AllowRelink, which is the real API's own default, and the
-	// runtime half of that move is the same in all three packs (#213).
-	if err := p.binding().RouteAddress(ctx, router, machine.AddressSpec{Machine: name, Address: address}); err != nil {
-		p.logger().Error("could not route the public IP to the machine",
-			"address", address, "vm", vm.ID, "error", err)
-	}
+	// Through the shared Reconciler, which holds the block guard and the
+	// router assertion once for the three packs (#510). This pack's own half
+	// stays at the control plane: a linked address moves only when the request
+	// passes AllowRelink, the real API's default (#213).
+	p.reconciler().Route(ctx, vm, address)
 }
 
 // unrouteLinkedIP takes the route back. The machine may already be gone; the
 // driver treats that as nothing left to undo, and on OVN it still withdraws
 // the uplink route, which outlives the machine.
 func (p *Pack) unrouteLinkedIP(ctx context.Context, address string, vm *resource.Resource) {
-	router, ok := p.env.Machines.(machine.Router)
-	if !ok || !emulatedPublicIP(address) {
-		return
-	}
 	machineName := ""
 	if vm != nil {
 		machineName = vm.Runtime[p.binding().RuntimeKey]
 	}
-	if err := p.binding().UnrouteAddress(ctx, router, machineName, address); err != nil {
-		p.logger().Error("could not stop routing the public IP",
-			"address", address, "error", err)
-	}
+	p.reconciler().Unroute(ctx, machineName, address)
 }
 
 // publicBootAddresses is what a Vm's machine must answer on from its first

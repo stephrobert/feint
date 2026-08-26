@@ -1,0 +1,41 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the boot replay applies the firewall before joining the memberships, the order three packs kept only in comments (#510)",
+      "file": "internal/core/machine/plan.go",
+      "find": "\tfor _, m := range plan.Memberships {\n\t\t_ = r.attach(ctx, res, m)\n\t}\n\t// The firewall last, so the expansion sees every address and every\n\t// interface the two loops above delivered. This line is the order the\n\t// packs kept in comments; TestTheReplayRoutesThenJoinsThenAppliesTheFirewall\n\t// is what holds it now.\n\tr.Groups.AfterBoot(ctx, res)",
+      "replace": "\t// The firewall last, so the expansion sees every address and every\n\t// interface the two loops above delivered. This line is the order the\n\t// packs kept in comments; TestTheReplayRoutesThenJoinsThenAppliesTheFirewall\n\t// is what holds it now.\n\tr.Groups.AfterBoot(ctx, res)\n\tfor _, m := range plan.Memberships {\n\t\t_ = r.attach(ctx, res, m)\n\t}",
+      "test": "TestTheReplayRoutesThenJoinsThenAppliesTheFirewall"
+    },
+    {
+      "label": "a hot join resyncs the firewall before the interface it must cover exists (#510)",
+      "file": "internal/core/machine/plan.go",
+      "find": "\terr := r.attach(ctx, res, att)\n\tr.Groups.AfterBoot(ctx, res)\n\treturn err",
+      "replace": "\tr.Groups.AfterBoot(ctx, res)\n\terr := r.attach(ctx, res, att)\n\treturn err",
+      "test": "TestJoinRunsTheFirewallAfterTheAttach"
+    },
+    {
+      "label": "the shared block guard stops firing, and a poisoned stored address reaches the driver (#510)",
+      "file": "internal/core/machine/plan.go",
+      "find": "\tif !r.emulated(address) {\n\t\tr.binding().logger().Warn(\"refusing to route an address outside the emulated public block\",",
+      "replace": "\tif !r.emulated(address) && false {\n\t\tr.binding().logger().Warn(\"refusing to route an address outside the emulated public block\",",
+      "test": "TestAPoisonedStoredAddressIsNeverRoutedByTheLayer"
+    },
+    {
+      "label": "the backing network is recorded before the driver accepted it, the ordering two packs had (#510)",
+      "file": "internal/core/machine/plan.go",
+      "find": "\tif err := b.Driver.EnsureNetwork(ctx, network); err != nil {\n\t\treturn err\n\t}\n\tif res.Runtime == nil {\n\t\tres.Runtime = map[string]string{}\n\t}\n\tres.Runtime[spec.Key] = name\n\treturn nil",
+      "replace": "\tif res.Runtime == nil {\n\t\tres.Runtime = map[string]string{}\n\t}\n\tres.Runtime[spec.Key] = name\n\tif err := b.Driver.EnsureNetwork(ctx, network); err != nil {\n\t\treturn err\n\t}\n\treturn nil",
+      "test": "TestEnsureBackingNetworkRecordsOnlyWhatTheDriverAccepted"
+    },
+    {
+      "label": "one pack stops declaring its promised addresses, and the cross-pack equivalence names the divergence (#510, #515)",
+      "package": "./internal/providers/",
+      "file": "internal/providers/scaleway/machines.go",
+      "find": "\treturn machine.Plan{\n\t\tBoot:     p.attachmentsOf(res),\n\t\tPublics:  p.publicAddressesOf(res),\n\t\tRouteVia: p.privateNetworkNameOf(res),\n\t}",
+      "replace": "\treturn machine.Plan{\n\t\tBoot:     p.attachmentsOf(res),\n\t\tPublics:  p.publicAddressesOf(res)[:0],\n\t\tRouteVia: p.privateNetworkNameOf(res),\n\t}",
+      "test": "TestSameIntentSameRuntimeSequenceAcrossPacks"
+    }
+  ]
+}

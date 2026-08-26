@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
-	"github.com/stephrobert/feint/internal/core/machine"
 	"github.com/stephrobert/feint/internal/core/network"
 	"github.com/stephrobert/feint/internal/core/resource"
 )
@@ -21,6 +20,9 @@ import (
 // these addresses to machines, and doing that on a real public range would
 // capture the host's own traffic towards it.
 const flexibleBlock = "203.0.113.0/24"
+
+// flexiblePrefix is the block parsed once, for the Reconciler's route guard.
+var flexiblePrefix = netip.MustParsePrefix(flexibleBlock)
 
 // kindIP is the store kind for flexible IPs.
 const kindIP = "instance/ip"
@@ -420,58 +422,15 @@ func (p *Pack) attachAddress(ctx context.Context, ip, server *resource.Resource)
 // routeAddress routes one public address — flexible or dynamic — to the
 // server's machine. Idempotent by the Router contract, which is what lets the
 // poweron replay call it on addresses the launch already installed.
+//
+// Through the shared Reconciler, which holds the block guard and the router
+// assertion once for the three packs (#510), takes the address back from its
+// previous holder before handing it over (#213), and routes it on the network
+// the server lives on when it has one — a public address on the runtime's
+// default bridge would sit on an interface the emulated topology says nothing
+// about, which is why machinePlan declares RouteVia.
 func (p *Pack) routeAddress(ctx context.Context, address string, server *resource.Resource) {
-	router, ok := p.env.Machines.(machine.Router)
-	if !ok {
-		return
-	}
-	name := server.Runtime[runtimeMachineKey]
-	if name == "" || address == "" {
-		return
-	}
-	// A stored address is untrusted input: a restored snapshot carries it
-	// verbatim, and routing an arbitrary value would send the host's traffic
-	// for that address into a container. See emulatedAddress.
-	if !emulatedAddress(address) {
-		p.logger().Warn("refusing to route an address outside the emulated public block",
-			"address", address, "server", server.ID)
-		return
-	}
-	// On the network the server lives on, when it has one: a public address on
-	// the runtime's default bridge would answer, and would sit on an interface
-	// the emulated topology says nothing about.
-	// Through the binding, which takes the address back from its previous holder
-	// before handing it over: this pack moves a flexible IP to the server the
-	// client names, and the move used to be written here rather than shared, which
-	// is how a third pack came to be missing it entirely (#213).
-	if err := p.binding().RouteAddress(ctx, router, machine.AddressSpec{
-		Machine: name,
-		Address: address,
-		Network: p.privateNetworkNameOf(server),
-	}); err != nil {
-		p.logger().Error("could not route the public address to the machine",
-			"address", address, "server", server.ID, "error", err)
-	}
-}
-
-// routeServerAddresses (re)routes every public address a server holds.
-//
-// Called after the machine exists: at poweron, and on the read that discovers
-// a late address. The boot itself installs the host half (the route keys ride
-// the launch); this replay is what hands the guest its addresses, and what
-// repairs a machine that already existed with different attachments.
-//
-// It is the missing half of #116: an address attached at create was recorded
-// and never routed, because attachAddress ran while the server had no machine
-// and nothing replayed it once one existed.
-// TestPowerOnRoutesAnAddressAttachedBeforeBoot fails without it.
-func (p *Pack) routeServerAddresses(ctx context.Context, res *resource.Resource) {
-	for _, ip := range p.attachedIPsOf(res.ID, res.Tenant.Zone) {
-		p.attachAddress(ctx, ip, res)
-	}
-	if address := res.Runtime[runtimeDynamicIPKey]; address != "" {
-		p.routeAddress(ctx, address, res)
-	}
+	p.reconciler().Route(ctx, server, address)
 }
 
 // privateNetworkNameOf returns the runtime network of the server's first
@@ -487,10 +446,6 @@ func (p *Pack) privateNetworkNameOf(server *resource.Resource) string {
 }
 
 func (p *Pack) detachAddress(ctx context.Context, ip *resource.Resource) {
-	router, ok := p.env.Machines.(machine.Router)
-	if !ok {
-		return
-	}
 	address, _ := ip.Attrs["address"].(string)
 	if address == "" {
 		return
@@ -504,10 +459,7 @@ func (p *Pack) detachAddress(ctx context.Context, ip *resource.Resource) {
 			}
 		}
 	}
-	if err := p.binding().UnrouteAddress(ctx, router, holder, address); err != nil {
-		p.logger().Error("could not stop routing the flexible IP",
-			"ip", ip.ID, "address", address, "error", err)
-	}
+	p.reconciler().Unroute(ctx, holder, address)
 }
 
 func (p *Pack) deleteIP(w http.ResponseWriter, r *http.Request) {
@@ -634,12 +586,5 @@ func (p *Pack) releaseDynamicAddress(ctx context.Context, res *resource.Resource
 	}
 	delete(res.Runtime, runtimeDynamicIPKey)
 	delete(res.Runtime, runtimeDynamicIPIDKey)
-	router, ok := p.env.Machines.(machine.Router)
-	if !ok || !emulatedAddress(address) {
-		return
-	}
-	if err := p.binding().UnrouteAddress(ctx, router, res.Runtime[runtimeMachineKey], address); err != nil {
-		p.logger().Error("could not stop routing the dynamic address",
-			"address", address, "server", res.ID, "error", err)
-	}
+	p.reconciler().Unroute(ctx, res.Runtime[runtimeMachineKey], address)
 }

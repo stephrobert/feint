@@ -455,7 +455,7 @@ func (p *Pack) getServer(w http.ResponseWriter, r *http.Request) {
 		// The machine just proved reachable, so the guest half of its public
 		// addresses can finally land — a virtual machine's agent answers long
 		// after poweron returned. Idempotent for a machine already served.
-		p.routeServerAddresses(r.Context(), res)
+		p.reconciler().ReplayAddresses(r.Context(), res)
 	}
 	emulator.WriteJSON(w, http.StatusOK, map[string]any{"server": p.view(res)})
 }
@@ -701,53 +701,70 @@ func (p *Pack) serverAction(w http.ResponseWriter, r *http.Request) {
 	}
 	id := r.PathValue("id")
 
-	// One action at a time on one server, held past the write-back below.
-	//
-	// The runtime call runs outside the store lock on purpose, and Commit only
-	// refuses to resurrect a deleted resource: it does not order two writers.
-	// Two concurrent poweron each launched a container, the second failed on the
-	// name the first had taken, and the API then described as "stopped" a
-	// machine that was running. TestConcurrentPowerOnStartsTheMachineOnce fails
-	// without this line.
-	unlock := p.binding().Serialise(id)
-	defer unlock()
-
-	res, found := p.env.Store.Get(Name, kindServer, id)
-	if !found || res.Tenant.Zone != zone {
-		writeNotFound(w, "server", id)
-		return
-	}
-	// The base of the write-back at the bottom: the action owns the state, the
-	// allowed actions and the machine's runtime entries, and nothing else — a
-	// tag or a user-data key acknowledged while the machine boots survives it
-	// (#295). TestConcurrentServerUpdateAndActionKeepBothWrites fails without
-	// it.
-	base := res.Clone()
-
 	var req serverActionRequest
 	if err := emulator.DecodeJSON(r, &req); err != nil {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
 		return
 	}
 
-	// The protection flag was stored at create and at update, published on every
-	// read, and consulted nowhere (#212). A field that round-trips perfectly and
-	// governs nothing reads as a feature, which is the *un commentaire n'est pas
-	// un contrôle* family arriving through data rather than prose.
+	now := p.env.Now()
+
+	// The transactional half — one action at a time on one server, the
+	// existence check inside the hold, the runtime work outside the store lock,
+	// the conditional write-back scoped to what the action owns — is
+	// Binding.Observe, shared with the two other packs' lifecycles instead of
+	// staying this pack's inline copy (#510). What it holds is measured
+	// history: two concurrent poweron each launched a container and the API
+	// described as "stopped" a machine that was running
+	// (TestConcurrentPowerOnStartsTheMachineOnce), and a tag acknowledged
+	// while the machine boots must survive the action's write-back (#295,
+	// TestConcurrentServerUpdateAndActionKeepBothWrites).
 	//
-	// Which door it closes was measured on fr-par-1, and the measurement reversed
-	// the issue: DELETE removes a protected server with 204, twice over. It is the
-	// action endpoint that refuses, for every action that stops or destroys the
-	// machine. Implementing the intuition would have made this emulator diverge
-	// from the cloud it imitates.
-	//
-	// TestProtectionRefusesEveryStoppingAction fails without this.
-	if stopsTheMachine(req.Action) && protectedServer(res) {
-		writePreconditionFailed(w, "protected_resource", "server is protected")
+	// The reply is decided under the hold and written after it: what to answer
+	// depends on state read under the lock, and writing it there would hold
+	// the target across the client's read of the response.
+	var reply func()
+	_, err := p.binding().Observe(p.env.Store, p.env.Now, kindServer, id, func(res *resource.Resource) bool {
+		if res.Tenant.Zone != zone {
+			reply = func() { writeNotFound(w, "server", id) }
+			return false
+		}
+
+		// The protection flag was stored at create and at update, published on
+		// every read, and consulted nowhere (#212). A field that round-trips
+		// perfectly and governs nothing reads as a feature, which is the *un
+		// commentaire n'est pas un contrôle* family arriving through data
+		// rather than prose.
+		//
+		// Which door it closes was measured on fr-par-1, and the measurement
+		// reversed the issue: DELETE removes a protected server with 204, twice
+		// over. It is the action endpoint that refuses, for every action that
+		// stops or destroys the machine. Implementing the intuition would have
+		// made this emulator diverge from the cloud it imitates.
+		//
+		// TestProtectionRefusesEveryStoppingAction fails without this.
+		if stopsTheMachine(req.Action) && protectedServer(res) {
+			reply = func() { writePreconditionFailed(w, "protected_resource", "server is protected") }
+			return false
+		}
+
+		reply = func() {
+			emulator.WriteJSON(w, http.StatusAccepted, map[string]any{"task": task(p.env.NewID(), "server_"+req.Action, now)})
+		}
+		return p.applyServerAction(w, r, req, res, id, zone, now, &reply)
+	})
+	if err != nil {
+		writeNotFound(w, "server", id)
 		return
 	}
+	reply()
+}
 
-	now := p.env.Now()
+// applyServerAction runs one lifecycle action on the held server and reports
+// whether the change must be written back. It rewrites reply when the action
+// answers something other than the accepted task.
+func (p *Pack) applyServerAction(w http.ResponseWriter, r *http.Request, req serverActionRequest,
+	res *resource.Resource, id, zone string, now time.Time, reply *func()) bool {
 	switch req.Action {
 	case "poweron", "reboot":
 		// A poweron on a server that is already running is not a second launch.
@@ -767,17 +784,12 @@ func (p *Pack) serverAction(w http.ResponseWriter, r *http.Request) {
 			// degraded mode; with a runtime that failed to start the machine it
 			// stays stopped, because a server reported running while nothing
 			// exists is the defect this project is built to avoid.
+			//
+			// The whole post-boot order rides inside: the promised addresses
+			// (an address attached at create was once published and never
+			// routed, #116), then the firewall, replayed by the shared
+			// Reconciler in the one order every pack follows (#510).
 			p.startMachine(r.Context(), res)
-			// The security group binds once the machine exists, since a rule set
-			// attaches to interfaces. A server powered on before its group was
-			// edited still gets the current rules, because every group mutation
-			// replays onto the machines carrying it.
-			p.groupSync().AfterBoot(r.Context(), res)
-			// The launch installed the host half of every public route; this
-			// hands the guest its addresses, and repairs a machine that already
-			// existed. Without it, an address attached at create was published
-			// and never routed (#116).
-			p.routeServerAddresses(r.Context(), res)
 		}
 		res.Attrs["allowed_actions"] = allowedActions(res.State, protectedServer(res))
 	case "poweroff", "stop_in_place":
@@ -819,28 +831,29 @@ func (p *Pack) serverAction(w http.ResponseWriter, r *http.Request) {
 		// lifecycle expected the root volume to vanish here and was wrong; the
 		// SDK is what settled it.
 		p.releaseServerResources(r.Context(), id, zone)
-		emulator.WriteJSON(w, http.StatusAccepted, map[string]any{"task": task(p.env.NewID(), "server_terminate", now)})
-		return
+		// The server is gone: nothing to write back, and the accepted task is
+		// the whole answer.
+		*reply = func() {
+			emulator.WriteJSON(w, http.StatusAccepted, map[string]any{"task": task(p.env.NewID(), "server_terminate", now)})
+		}
+		return false
 	case "backup":
 		// Accepted and ignored: backups need an image catalogue the emulator
 		// does not have. Declared here so the action does not 400 in a script.
 	default:
-		writeInvalidArguments(w, ArgumentError{
-			ArgumentName: "action",
-			Reason:       "constraint",
-			HelpMessage:  "unknown action " + req.Action,
-		})
-		return
+		*reply = func() {
+			writeInvalidArguments(w, ArgumentError{
+				ArgumentName: "action",
+				Reason:       "constraint",
+				HelpMessage:  "unknown action " + req.Action,
+			})
+		}
+		return false
 	}
-
-	// Starting a machine takes tens of seconds and runs outside the lock. A
-	// terminate that landed meanwhile must stay landed: Put would bring the
-	// server back, address and all.
-	if !p.env.Store.Commit(base, res, now) {
-		writeNotFound(w, "server", id)
-		return
-	}
-	emulator.WriteJSON(w, http.StatusAccepted, map[string]any{"task": task(p.env.NewID(), "server_"+req.Action, now)})
+	// Starting a machine takes tens of seconds and runs outside the lock; the
+	// conditional write-back is Observe's, so a terminate that landed meanwhile
+	// stays landed — Put would bring the server back, address and all.
+	return true
 }
 
 // stopsTheMachine names the actions protection refuses.

@@ -12,8 +12,8 @@
     {
       "label": "the network delete goes back to logging its failure and answering 204, so the API reports gone a network whose bridge still holds the block",
       "file": "internal/providers/scaleway/vpc.go",
-      "find": "\t\tif err := p.env.Machines.RemoveNetwork(r.Context(), name); err != nil {",
-      "replace": "\t\tif err := p.env.Machines.RemoveNetwork(r.Context(), name); err != nil && false {",
+      "find": "\tif err := p.binding().RemoveBackingNetwork(r.Context(), res, runtimeNetworkKey); err != nil {",
+      "replace": "\tif err := p.binding().RemoveBackingNetwork(r.Context(), res, runtimeNetworkKey); err != nil && false {",
       "test": "TestAPrivateNetworkTheRuntimeKeptIsNotReportedDeleted",
       "package": "./internal/providers/scaleway/"
     },

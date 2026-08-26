@@ -325,7 +325,15 @@ func (p *Pack) attachNIC(w http.ResponseWriter, r *http.Request, serverID string
 	// not carry — the one thing this project exists to avoid.
 	//
 	// TestARefusedAttachmentIsVisibleOnTheNIC fails without this.
-	if err := p.attachMachineToNetwork(r.Context(), server, pn, address); err != nil {
+	// Join attaches and then resyncs the firewall, in that order: the rule set
+	// binds to interfaces, so a NIC created after the server was powered on
+	// carries none until the resync runs — and without it the security group
+	// applies to the first interface and not to the private one, which is
+	// exactly the interface the group is about. On a stopped server the attach
+	// waits for the boot plan but the set is still re-written: the new NIC
+	// changed the foreign blocks its group must reject, and the set lives on
+	// the runtime for every wearer at once.
+	if err := p.joinNetwork(r.Context(), server, pn, address); err != nil {
 		// Inside the store lock, and only the state: Put re-inserted a NIC
 		// deleted during the seconds the attachment took, and wrote the whole
 		// stale clone over anything else that landed meanwhile (#295).
@@ -336,14 +344,6 @@ func (p *Pack) attachNIC(w http.ResponseWriter, r *http.Request, serverID string
 		})
 		res.State = "syncing_error"
 	}
-
-	// The rule set binds to interfaces, so a NIC created after the server was
-	// powered on carries none until this runs. Without it the security group
-	// applies to the first interface and not to the private one, which is
-	// exactly the interface the group is about. On a stopped server this still
-	// re-writes the set: the new NIC changed the foreign blocks its group must
-	// reject, and the set lives on the runtime for every wearer at once.
-	p.groupSync().AfterBoot(r.Context(), server)
 
 	return res, true
 }
@@ -497,23 +497,15 @@ func hexPair(b byte) string {
 	return string([]byte{digits[b>>4], digits[b&0x0f]})
 }
 
-// attachMachineToNetwork puts the backing machine on the backing network at the
-// address the control plane just published.
+// joinNetwork puts the backing machine on the backing network at the address
+// the control plane just published, and resyncs the firewall after it — the
+// hot half of a membership, through the shared Reconciler (#510).
 //
 // Everything here degrades quietly, as elsewhere in the pack: with no runtime,
 // or with one that refuses, the control plane still answers and the NIC still
-// exists. The log is then the only way to learn why nothing is attached.
-func (p *Pack) attachMachineToNetwork(ctx context.Context, server, pn *resource.Resource, address netip.Addr) error {
-	// No runtime, or nothing started yet: there is no machine to refuse, so the
-	// NIC is not in error. The address is applied when the machine boots.
-	if p.env.Machines == nil {
-		return nil
-	}
-	networkName := pn.Runtime[runtimeNetworkKey]
-	machineName := server.Runtime[runtimeMachineKey]
-	if networkName == "" || machineName == "" {
-		return nil
-	}
+// exists. The log is then the only way to learn why nothing is attached, and
+// the error comes back so the NIC can say syncing_error.
+func (p *Pack) joinNetwork(ctx context.Context, server, pn *resource.Resource, address netip.Addr) error {
 	// The mask travels with the address: reserving it on the bridge is not the
 	// same as the guest carrying it, and configuring the interface needs both.
 	prefix, err := prefixOf(pn)
@@ -522,20 +514,15 @@ func (p *Pack) attachMachineToNetwork(ctx context.Context, server, pn *resource.
 			"private_network", pn.ID, "error", err)
 		return err
 	}
-	if err := p.env.Machines.Attach(ctx, machineName, machine.Attachment{
-		Network:   networkName,
+	return p.reconciler().Join(ctx, server, machine.Attachment{
+		Network:   pn.Runtime[runtimeNetworkKey],
 		Address:   address.String(),
 		PrefixLen: prefix.Bits(),
-	}); err != nil {
-		p.logger().Error("could not attach the machine to the private network",
-			"server", server.ID, "private_network", pn.ID, "address", address, "error", err)
-		return err
-	}
-	return nil
+	})
 }
 
 // detachMachineFromNetwork takes the backing machine off the backing network,
-// the exact undo of attachMachineToNetwork.
+// the exact undo of joinNetwork's attach half.
 //
 // It degrades quietly for the same reason the attach does: with no runtime, or
 // with a machine that never started, there is nothing to detach and the NIC
@@ -543,9 +530,6 @@ func (p *Pack) attachMachineToNetwork(ctx context.Context, server, pn *resource.
 // plane has already decided the NIC is gone; what must not happen is the
 // silence this replaced, where nothing was even attempted.
 func (p *Pack) detachMachineFromNetwork(ctx context.Context, nic *resource.Resource) {
-	if p.env.Machines == nil {
-		return
-	}
 	server, ok := p.env.Store.Get(Name, kindServer, nic.Runtime[runtimeServerKey])
 	if !ok {
 		return
@@ -554,15 +538,7 @@ func (p *Pack) detachMachineFromNetwork(ctx context.Context, nic *resource.Resou
 	if !ok {
 		return
 	}
-	machineName := server.Runtime[runtimeMachineKey]
-	networkName := pn.Runtime[runtimeNetworkKey]
-	if machineName == "" || networkName == "" {
-		return
-	}
-	if err := p.env.Machines.Detach(ctx, machineName, networkName); err != nil {
-		p.logger().Error("could not detach the machine from the private network",
-			"private_nic", nic.ID, "server", server.ID, "private_network", pn.ID, "error", err)
-	}
+	p.reconciler().Leave(ctx, server, pn.Runtime[runtimeNetworkKey])
 }
 
 // privateNICView is the wire shape, and it carries no address on purpose:

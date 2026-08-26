@@ -98,8 +98,8 @@ func requestedImageOf(res *resource.Resource, label string) string {
 	return id
 }
 
-// startMachine powers the server on. It returns the address to publish, empty
-// when nothing is actually running.
+// startMachine powers the server on: the boot, the address replay and the
+// firewall, in the shared Reconciler's one order.
 func (p *Pack) startMachine(ctx context.Context, res *resource.Resource) {
 	label, _ := res.Attrs["image_label"].(string)
 	hostname, _ := res.Attrs["hostname"].(string)
@@ -109,29 +109,50 @@ func (p *Pack) startMachine(ctx context.Context, res *resource.Resource) {
 	// hands the "cloud-init" user data key to cloud-init at boot. The
 	// consequence is stated in docs/limits.md: with a custom cloud-init, the
 	// project's SSH keys are only installed if the script installs them.
-	p.binding().PowerOn(ctx, res, machine.Boot{
+	p.reconciler().PowerOn(ctx, res, machine.Boot{
 		Image:          img.Ref,
 		User:           img.User,
 		Requested:      requestedImageOf(res, label),
 		Hostname:       hostname,
 		AuthorizedKeys: p.authorizedKeys(res.Tenant.Project),
 		CloudInit:      userDataOf(res, CloudInitKey),
-		// The NICs the server already owns travel with the boot. Attaching a NIC
-		// to a stopped server then powering it on is the ordinary Terraform
-		// order, and without this the machine came up on the runtime's default
-		// bridge alone while the API published an address on a private network
-		// it had never joined.
-		Attachments: p.attachmentsOf(res),
-		// So do the public addresses it was promised — flexible IPs attached
-		// before the boot, and the dynamic one when the flag asked for it. On
-		// the launch, not routed afterwards: editing a live OVN NIC re-plugs it
-		// and the guest loses its DHCP lease (#116).
-		PublicAddresses: p.publicAddressesOf(res),
 		Labels: map[string]string{
 			"feint.server": res.ID,
 			"feint.zone":   res.Tenant.Zone,
 		},
 	})
+}
+
+// reconciler is this pack's half of the shared interface choreography (#510):
+// the plan declares what only Scaleway knows, the layer executes the one
+// post-boot order — addresses, then memberships, the firewall last.
+func (p *Pack) reconciler() machine.Reconciler {
+	return machine.Reconciler{
+		Groups:      p.groupSync(),
+		PlanOf:      p.machinePlan,
+		PublicBlock: flexiblePrefix,
+	}
+}
+
+// machinePlan declares a server's interface shape.
+//
+// The NICs the server already owns ride the launch: attaching a NIC to a
+// stopped server then powering it on is the ordinary Terraform order, and
+// without this the machine came up on the runtime's default bridge alone while
+// the API published an address on a private network it had never joined. So do
+// the public addresses it was promised — flexible IPs attached before the
+// boot, and the dynamic one when the flag asked for it: editing a live OVN NIC
+// re-plugs it and the guest loses its DHCP lease (#116). No membership joins
+// after boot here — a NIC created on a running server is the hot path,
+// Reconciler.Join. Routes ride the network the server lives on, when it has
+// one: a public address on the runtime's default bridge would sit on an
+// interface the emulated topology says nothing about.
+func (p *Pack) machinePlan(res *resource.Resource) machine.Plan {
+	return machine.Plan{
+		Boot:     p.attachmentsOf(res),
+		Publics:  p.publicAddressesOf(res),
+		RouteVia: p.privateNetworkNameOf(res),
+	}
 }
 
 // attachmentsOf turns the NICs a server already owns into the attachments its

@@ -604,35 +604,21 @@ func (p *Pack) subnetSubregion(subnetID string) string {
 const runtimeNetworkKey = "network"
 
 func (p *Pack) ensureBackingNetwork(ctx context.Context, res *resource.Resource, prefix netip.Prefix) error {
-	if p.env.Machines == nil {
-		return nil
-	}
-	name := machine.NetworkName(machine.NetworkPrefix, res.ID)
 	// NAT is deliberately left off. A Subnet reaches the internet only once a
 	// client attaches an internet service or a NAT service, which is Outscale's
 	// model and AWS's before it. Switching NAT on here would make every emulated
 	// Subnet routable and quietly turn a plan that should fail into one that
 	// works — the emulator would be more permissive than the cloud it imitates,
 	// which is the one direction a test environment must never take.
-	if err := p.env.Machines.EnsureNetwork(ctx, machine.NetworkSpec{
-		Name:   name,
-		CIDR:   prefix.String(),
-		Labels: map[string]string{machine.LabelKey: Name, "feint.subnet": res.ID},
-	}); err != nil {
-		return err
-	}
-	if res.Runtime == nil {
-		res.Runtime = map[string]string{}
-	}
-	res.Runtime[runtimeNetworkKey] = name
-	return nil
+	return p.binding().EnsureBackingNetwork(ctx, res, machine.BackingNetwork{
+		Key:    runtimeNetworkKey,
+		CIDR:   prefix,
+		Marker: "feint.subnet",
+	})
 }
 
 func (p *Pack) removeBackingNetwork(ctx context.Context, res *resource.Resource) {
-	if p.env.Machines == nil || res.Runtime[runtimeNetworkKey] == "" {
-		return
-	}
-	if err := p.env.Machines.RemoveNetwork(ctx, res.Runtime[runtimeNetworkKey]); err != nil {
+	if err := p.binding().RemoveBackingNetwork(ctx, res, runtimeNetworkKey); err != nil {
 		p.logger().Error("could not remove the backing network",
 			"subnet", res.ID, "network", res.Runtime[runtimeNetworkKey], "error", err)
 	}

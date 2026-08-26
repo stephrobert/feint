@@ -115,9 +115,13 @@ func TestAnAddressLinkDoesNotHoldTheAddressLockAcrossTheRuntime(t *testing.T) {
 
 	// A machine, so the NIC has something to be carried on: carrySecondary is a
 	// no-op for a NIC linked to nothing, and a test that measured that would
-	// measure the absence of the call rather than its placement.
+	// measure the absence of the call rather than its placement. A bootable
+	// image, because the runtime path reads the machine name off Runtime now
+	// (#510): with the boot refused, no machine exists, nothing reaches Attach,
+	// and this test would measure the absence of the call again — under the
+	// old derived name it silently reconfigured a machine the Vm never started.
 	status, doc := doAction(t, ts, "CreateVms",
-		`{"ImageId":"ami-12345678","VmType":"tinav4.c1r1p2","SubnetId":"`+subnet+`"}`)
+		`{"ImageId":"ami-00000001","VmType":"tinav4.c1r1p2","SubnetId":"`+subnet+`"}`)
 	if status != http.StatusOK {
 		t.Fatalf("CreateVms answered %d: %v", status, doc)
 	}

@@ -8,7 +8,6 @@ import (
 	"sort"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
-	"github.com/stephrobert/feint/internal/core/machine"
 	"github.com/stephrobert/feint/internal/core/resource"
 )
 
@@ -33,6 +32,9 @@ import (
 // elasticIPBlock is the block as a prefix, for the guard below.
 const elasticIPBlock = "192.0.2.0/24"
 
+// elasticIPPrefix is the block parsed once, for the Reconciler's route guard.
+var elasticIPPrefix = netip.MustParsePrefix(elasticIPBlock)
+
 // emulatedElasticIP reports whether an address is one this pack can have
 // handed out: inside elasticIPBlock. A stored address is restored verbatim by
 // PUT /_feint/state and `feint snapshot load`, and routing an arbitrary value
@@ -53,54 +55,31 @@ func emulatedElasticIP(address string) bool {
 // routeElasticIP makes an attached address reach the instance's machine.
 // Degrades quietly, like every runtime call in this pack.
 // TestAttachElasticIPRoutesTheAddress fails without it.
+//
+// Through the shared Reconciler, which holds the block guard and the router
+// assertion once for the three packs (#510) — and, through the binding it
+// rides on, takes the address back from its previous holder before handing it
+// over: this pack lets several instances hold one Elastic IP, which is what
+// the real cloud does, measured on ch-gva-2, where two instances both reported
+// holding 185.19.28.243. The control plane is right to allow it; the runtime
+// cannot honour it, since two containers answering ARP for one /32 make the
+// host pick arbitrarily while the API describes both as holders. So the
+// address goes to the most recent attach; upstream elects by healthcheck,
+// feint has none and does not invent one — docs/limits.md names the rule.
+// TestAnElasticIPReachesOneMachineAtATime fails without this.
 func (p *Pack) routeElasticIP(ctx context.Context, address string, inst *resource.Resource) {
-	router, ok := p.env.Machines.(machine.Router)
-	if !ok {
-		return
-	}
-	name := inst.Runtime[p.binding().RuntimeKey]
-	if name == "" || address == "" {
-		return
-	}
-	if !emulatedElasticIP(address) {
-		p.logger().Warn("refusing to route an address outside the emulated elastic block",
-			"address", address, "instance", inst.ID)
-		return
-	}
-	// Through the binding rather than straight at the router, because this pack
-	// lets several instances hold one Elastic IP — which is what the real cloud
-	// does, measured on ch-gva-2, where two instances both reported holding
-	// 185.19.28.243. The control plane is right to allow it; the runtime cannot
-	// honour it, since two containers answering ARP for one /32 make the host
-	// pick arbitrarily while the API describes both as holders.
-	//
-	// So the address goes to the most recent attach and is taken back from the
-	// previous holder. Upstream elects by healthcheck; feint has none and does
-	// not invent one — docs/limits.md names the rule instead.
-	//
-	// TestAnElasticIPReachesOneMachineAtATime fails without this.
-	if err := p.binding().RouteAddress(ctx, router, machine.AddressSpec{Machine: name, Address: address}); err != nil {
-		p.logger().Error("could not route the elastic IP to the machine",
-			"address", address, "instance", inst.ID, "error", err)
-	}
+	p.reconciler().Route(ctx, inst, address)
 }
 
 // unrouteElasticIP takes the route back. The machine may already be gone; the
 // driver treats that as nothing left to undo, and on OVN it still withdraws
 // the uplink route, which outlives the machine.
 func (p *Pack) unrouteElasticIP(ctx context.Context, address string, inst *resource.Resource) {
-	router, ok := p.env.Machines.(machine.Router)
-	if !ok || !emulatedElasticIP(address) {
-		return
-	}
 	name := ""
 	if inst != nil {
 		name = inst.Runtime[p.binding().RuntimeKey]
 	}
-	if err := p.binding().UnrouteAddress(ctx, router, name, address); err != nil {
-		p.logger().Error("could not stop routing the elastic IP",
-			"address", address, "error", err)
-	}
+	p.reconciler().Unroute(ctx, name, address)
 }
 
 // elasticBootAddresses is what an instance's machine must answer on from its

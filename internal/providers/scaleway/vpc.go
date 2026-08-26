@@ -547,15 +547,13 @@ func (p *Pack) deletePrivateNetwork(w http.ResponseWriter, r *http.Request) {
 	// says it must refuse rather than cut off.
 	//
 	// TestAPrivateNetworkTheRuntimeKeptIsNotReportedDeleted fails without this.
-	if name := res.Runtime[runtimeNetworkKey]; name != "" && p.env.Machines != nil {
-		if err := p.env.Machines.RemoveNetwork(r.Context(), name); err != nil {
-			p.logger().Error("could not remove the backing network",
-				"private_network", res.ID, "network", name, "error", err)
-			writePrecondition(w, "private_network", res.ID,
-				"the machine runtime still holds the network backing this private network, "+
-					"so deleting it here would report gone something that still holds its block: "+err.Error())
-			return
-		}
+	if err := p.binding().RemoveBackingNetwork(r.Context(), res, runtimeNetworkKey); err != nil {
+		p.logger().Error("could not remove the backing network",
+			"private_network", res.ID, "network", res.Runtime[runtimeNetworkKey], "error", err)
+		writePrecondition(w, "private_network", res.ID,
+			"the machine runtime still holds the network backing this private network, "+
+				"so deleting it here would report gone something that still holds its block: "+err.Error())
+		return
 	}
 	p.env.Store.Delete(Name, kindPrivateNetwork, res.ID)
 	p.isolateNetworks(r.Context())
@@ -995,27 +993,17 @@ func (p *Pack) allocatorFor(res *resource.Resource) (*network.Allocator, error) 
 
 // ensureBackingNetwork asks the machine driver for a real network carrying the
 // block. Failure is logged, never fatal: the control plane must keep answering
-// when no runtime is available, which is the default configuration.
+// when no runtime is available, which is the default configuration. The
+// mechanics — the derived name, the labels, recording the name only once the
+// driver accepted it — are Binding.EnsureBackingNetwork's, shared with the two
+// other packs (#510).
 func (p *Pack) ensureBackingNetwork(ctx context.Context, res *resource.Resource, prefix netip.Prefix) error {
-	if p.env.Machines == nil {
-		return nil
-	}
-	name := machine.NetworkName(machine.NetworkPrefix, res.ID)
-	if res.Runtime == nil {
-		res.Runtime = map[string]string{}
-	}
-	res.Runtime[runtimeNetworkKey] = name
-
-	gateway := prefix.Masked().Addr().Next()
-	return p.env.Machines.EnsureNetwork(ctx, machine.NetworkSpec{
-		Name:    name,
-		CIDR:    prefix.String(),
-		Gateway: gateway.String(),
+	return p.binding().EnsureBackingNetwork(ctx, res, machine.BackingNetwork{
+		Key:     runtimeNetworkKey,
+		CIDR:    prefix,
+		Gateway: true,
 		NAT:     true,
-		Labels: map[string]string{
-			"feint.provider":        Name,
-			"feint.private-network": res.ID,
-		},
+		Marker:  "feint.private-network",
 	})
 }
 

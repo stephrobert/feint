@@ -105,38 +105,50 @@ func (p *Pack) powerOn(ctx context.Context, res *resource.Resource) {
 		reason = p.bootRefusalReason(imageID)
 	}
 
-	p.binding().PowerOn(ctx, res, machine.Boot{
+	// The plan — the Subnet attachment riding the launch, the linked public
+	// address, the private address remembered before the expansion reads it —
+	// is declared to the shared Reconciler, which executes the one post-boot
+	// order: addresses, then memberships, the firewall last (#510). Written
+	// here as a comment three ways before that; held by a test now.
+	p.reconciler().PowerOn(ctx, res, machine.Boot{
 		Image:          img.Ref,
 		User:           img.User,
 		Requested:      imageID,
 		Reason:         reason,
 		Hostname:       res.ID,
 		AuthorizedKeys: p.authorizedKeys(keypair),
-		// The Subnet the client asked for, carried onto the machine. Without
-		// this the address published as PrivateIp is a number in a store and
-		// nothing answers on it — which is the defect this project exists to
-		// avoid, not a detail of the API shape.
-		Attachments: p.attachmentOf(res),
 		// Decoded here, stored encoded: Outscale documents UserData as
 		// Base64-encoded, so that is what a read must give back, and what
 		// cloud-init must never receive.
 		CloudInit: cloudinit.Decode(userData),
-		// The public address linked to this Vm, on the launch: a route edited
-		// onto a live OVN NIC re-plugs it and costs the guest its lease.
-		PublicAddresses: p.publicBootAddresses(res.ID),
-		Labels:          map[string]string{"feint.vm": res.ID},
+		Labels:    map[string]string{"feint.vm": res.ID},
 	})
-	p.rememberAddress(res)
-	// The boot installed the host half of the route; this hands the guest its
-	// address, and repairs a machine that already existed. Idempotent.
-	for _, address := range p.publicBootAddresses(res.ID) {
-		p.routeLinkedIP(ctx, address, res)
+}
+
+// reconciler is this pack's half of the shared interface choreography (#510):
+// the plan declares what only Outscale knows, the layer executes the order.
+func (p *Pack) reconciler() machine.Reconciler {
+	return machine.Reconciler{
+		Groups: p.groupSync(),
+		PlanOf: p.machinePlan,
+		// The private address is kept on the resource before the firewall
+		// expansion reads it — rememberAddress says why it lives in Attrs.
+		Settle:      p.rememberAddress,
+		PublicBlock: publicIPPrefix,
 	}
-	// The groups this Vm wears reach its interfaces, and the groups that name
-	// those groups as members are re-expanded now that this machine has
-	// addresses (#475). After the routes, so the expansion sees them. The
-	// transition's own copy rides as fresh: the store has not committed it yet.
-	p.groupSync().AfterBoot(ctx, res)
+}
+
+// machinePlan declares a Vm's interface shape: the Subnet the client asked
+// for rides the launch — without it the address published as PrivateIp is a
+// number in a store and nothing answers on it — and the linked public address
+// rides too, because a route edited onto a live OVN NIC re-plugs it and costs
+// the guest its lease. No membership joins after boot: a Vm is born on its
+// Subnet, which is this provider's model.
+func (p *Pack) machinePlan(res *resource.Resource) machine.Plan {
+	return machine.Plan{
+		Boot:    p.attachmentOf(res),
+		Publics: p.publicBootAddresses(res.ID),
+	}
 }
 
 // rememberAddress keeps the private address on the resource, not only on the

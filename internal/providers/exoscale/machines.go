@@ -141,7 +141,14 @@ func (p *Pack) start(ctx context.Context, res *resource.Resource) {
 	name, _ := res.Attrs["name"].(string)
 	userData, _ := res.Attrs["user-data"].(string)
 
-	p.binding().PowerOn(ctx, res, machine.Boot{
+	// The plan — no interface rides the launch, the elastic addresses do, the
+	// memberships come back as extra interfaces after the boot — is declared
+	// to the shared Reconciler, which executes the one post-boot order:
+	// addresses, then memberships, the firewall last (#510). The rule this
+	// pack used to keep as a comment — a membership must never become the
+	// primary the way a Boot.Attachment would — is the layer's law now:
+	// Plan.Memberships never ride the launch.
+	p.reconciler().PowerOn(ctx, res, machine.Boot{
 		Image:     img.Ref,
 		Requested: templateID,
 		Hostname:  name,
@@ -162,44 +169,40 @@ func (p *Pack) start(ctx context.Context, res *resource.Resource) {
 		// Decoded here, stored encoded: Exoscale documents user-data as base64,
 		// so that is what a read gives back and what cloud-init must not see.
 		CloudInit: cloudinit.Decode(userData),
-		// The elastic IPs already attached, on the launch: a route edited onto
-		// a live OVN NIC re-plugs it and costs the guest its lease.
-		PublicAddresses: p.elasticBootAddresses(res),
-		Labels:          map[string]string{"feint.instance": res.ID},
+		Labels:    map[string]string{"feint.instance": res.ID},
 	})
-	// The boot installed the host half of every route; this hands the guest
-	// its addresses, and repairs a machine that already existed. Idempotent.
-	for _, address := range p.elasticBootAddresses(res) {
-		p.routeElasticIP(ctx, address, res)
-	}
-	// The private networks the instance already joined come back as extra
-	// interfaces, after the boot rather than on it: Exoscale's eth0 is the
-	// public interface — the address this pack publishes as public-ip is the
-	// primary interface's — so a membership must never become the primary the
-	// way a Boot.Attachment would. Attach is idempotent by network, so a
-	// machine that kept its devices across a stop is repaired, not doubled.
-	p.reattachPrivateNetworks(ctx, res)
-	// The groups this instance wears reach its interfaces, and the groups
-	// that name those groups as sources are re-expanded now that this machine
-	// has addresses (#475). After the networks, so the expansion sees every
-	// interface — and the transition's own copy rides as fresh, because the
-	// store has not committed it yet.
-	p.groupSync().AfterBoot(ctx, res)
 }
 
-// reattachPrivateNetworks puts a freshly booted machine back on every private
-// network its memberships name. Attaching to a stopped instance and then
-// starting it is the ordinary order, and without this the machine came up on
-// the default network alone while the API published a membership it had never
-// taken.
-func (p *Pack) reattachPrivateNetworks(ctx context.Context, res *resource.Resource) {
+// reconciler is this pack's half of the shared interface choreography (#510):
+// the plan declares what only Exoscale knows, the layer executes the order.
+func (p *Pack) reconciler() machine.Reconciler {
+	return machine.Reconciler{
+		Groups:      p.groupSync(),
+		PlanOf:      p.machinePlan,
+		PublicBlock: elasticIPPrefix,
+	}
+}
+
+// machinePlan declares an instance's interface shape: nothing rides the
+// launch, because Exoscale's eth0 is the public interface — the address this
+// pack publishes as public-ip is the primary interface's — so a membership
+// must never become the primary the way a Boot attachment would. The elastic
+// IPs already attached ride as promised addresses (a route edited onto a live
+// OVN NIC re-plugs it and costs the guest its lease), and the private
+// networks the instance already joined come back as memberships, after the
+// boot: attaching to a stopped instance and then starting it is the ordinary
+// order, and without the replay the machine came up on the default network
+// alone while the API published a membership it had never taken.
+func (p *Pack) machinePlan(res *resource.Resource) machine.Plan {
+	plan := machine.Plan{Publics: p.elasticBootAddresses(res)}
 	for _, m := range instanceAttachmentsOf(res) {
 		pn, found := p.env.Store.Get(Name, kindPrivateNetwork, m.NetworkID)
 		if !found {
 			continue
 		}
-		p.attachMachineToPrivateNetwork(ctx, res, pn, m.IP)
+		plan.Memberships = append(plan.Memberships, p.membershipAttachment(pn, m.IP))
 	}
+	return plan
 }
 
 // authorizedKeys is the material of the key an instance names, or nothing.
