@@ -15,6 +15,16 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-08-26
+
+The release where the emulator stopped taking its own word for it. Four defects
+found by hand on one evening — a security group served and enforced on nothing,
+a balancing capability nobody materialised, a load balancer distributing
+nothing, two machines given one address — were all four green: apply exit 0,
+empty second plan, clean destroy, and three of them without a single ERROR
+line. Nothing failed, so nothing could have caught them but a person reading the
+host.
+
 ### Added
 
 - **`/_feint/health` answers who delivers the balancer, not only whether the
@@ -2270,15 +2280,7 @@ what this project is judged on: **a response shape a client can observe**, and
   a closing inventory byte-identical to the opening one across all seven
   resource kinds.
 
-## [0.11.0] - 2026-08-26
-
-The release where the emulator stopped taking its own word for it. Four defects
-found by hand on one evening — a security group served and enforced on nothing,
-a balancing capability nobody materialised, a load balancer distributing
-nothing, two machines given one address — were all four green: apply exit 0,
-empty second plan, clean destroy, and three of them without a single ERROR
-line. Nothing failed, so nothing could have caught them but a person reading the
-host.
+<!-- the late-cycle work, written at release time from the merged pull requests -->
 
 ### Added
 

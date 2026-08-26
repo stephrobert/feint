@@ -17,6 +17,16 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-08-26
+
+La version où l'émulateur a cessé de se croire sur parole. Quatre défauts
+trouvés à la main en une soirée — un groupe de sécurité servi et appliqué à
+rien, une capacité de répartition que personne ne matérialisait, un répartiteur
+qui ne distribuait rien, deux machines dotées d'une même adresse — étaient tous
+les quatre verts : apply à 0, second plan vide, destruction propre, et trois
+d'entre eux sans une seule ligne ERROR. Rien n'échouait, donc rien ne pouvait
+les attraper sauf quelqu'un qui lisait l'hôte.
+
 ### Ajouté
 
 - **`/_feint/health` répond désormais qui livre la répartition, et plus
@@ -2357,16 +2367,7 @@ change ni l'un ni l'autre a sa place dans `git log`.
   genre d'objet et fausse pour l'autre, est exactement la forme que #389 a coûté
   une release à comprendre.
 
-
-## [0.11.0] - 2026-08-26
-
-La version où l'émulateur a cessé de se croire sur parole. Quatre défauts
-trouvés à la main en une soirée — un groupe de sécurité servi et appliqué à
-rien, une capacité de répartition que personne ne matérialisait, un répartiteur
-qui ne distribuait rien, deux machines dotées d'une même adresse — étaient tous
-les quatre verts : apply à 0, second plan vide, destruction propre, et trois
-d'entre eux sans une seule ligne ERROR. Rien n'échouait, donc rien ne pouvait
-les attraper sauf quelqu'un qui lisait l'hôte.
+<!-- le travail de fin de cycle, écrit à la publication depuis les pull requests fusionnées -->
 
 ### Ajouté
 
