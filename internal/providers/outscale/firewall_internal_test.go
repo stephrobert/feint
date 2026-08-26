@@ -63,16 +63,17 @@ func (d *firewallDriver) RemoveFirewall(_ context.Context, name string) error {
 // groups need.
 func firewallPack(driver machine.Driver) *Pack {
 	n := 0
-	return New(&emulator.Env{
-		Store:    store.New(),
-		Machines: driver,
-		Now:      func() time.Time { return time.Unix(1700000000, 0).UTC() },
+	env := &emulator.Env{
+		Store: store.New(),
+		Now:   func() time.Time { return time.Unix(1700000000, 0).UTC() },
 		NewID: func() string {
 			n++
 			return fmt.Sprintf("%08d", n)
 		},
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
-	})
+	}
+	env.UseMachines(driver)
+	return New(env)
 }
 
 func storedGroup(p *Pack, name string, inbound []any) *resource.Resource {

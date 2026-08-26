@@ -64,7 +64,7 @@ func (f *passIsolator) networksSeen() []string {
 func TestConcurrentSubnetCreatesShareTheirIsolationPasses(t *testing.T) {
 	env := emulator.DefaultEnv()
 	driver := newPassIsolator()
-	env.Machines = driver
+	env.UseMachines(driver)
 	p := New(env)
 
 	subnet := func(id, network, block string) *resource.Resource {

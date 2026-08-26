@@ -221,3 +221,56 @@ type Balancer interface {
 	// must refuse a balancer the emulator did not create.
 	RemoveBalancer(ctx context.Context, network, listen string) error
 }
+
+// balancer is the runtime's balancing half, nil when it has none — the
+// assertion the balancing pack wrote for itself, now inside the layer beside
+// Reconciler.router and GroupSync.enforcer (#511).
+//
+// Two questions, both asked, and the second is not redundant: the Incus driver
+// implements Balancer in every mode and can only deliver it under OVN, and
+// Verify clears the claim on a host whose daemon has no northbound connection.
+// Asking only whether the interface is implemented would drive a
+// bridge-backed run into a refusal on every register.
+func (b Binding) balancer() Balancer {
+	if b.driver == nil || !CapabilitiesOf(b.driver).Balancing {
+		return nil
+	}
+	balancer, _ := b.driver.(Balancer)
+	return balancer
+}
+
+// Balances reports whether this runtime both implements and declares
+// balancing, so a pack can leave its load-balancer family a record — which is
+// what it was before #315 — instead of asking the host for something it has
+// said it cannot do.
+func (b Binding) Balances() bool { return b.balancer() != nil }
+
+// EnsureBalancer hands the whole balancer to the runtime and reports what it
+// actually holds. See BalancerSpec for why the spec is whole rather than
+// patched, and BalancerDelivery for why the effect comes back beside it.
+//
+// A runtime that does not balance answers ErrBalancerNotDistributed rather
+// than an empty delivery and a nil error: an empty delivery reads exactly like
+// a balancer with no backend, which is a legitimate state a stack passes
+// through, so the caller would record "nothing distributed" with no reason
+// beside it. Three outcomes, never two.
+func (b Binding) EnsureBalancer(ctx context.Context, spec BalancerSpec) (BalancerDelivery, error) {
+	balancer := b.balancer()
+	if balancer == nil {
+		return BalancerDelivery{}, ErrBalancerNotDistributed
+	}
+	return balancer.EnsureBalancer(ctx, spec)
+}
+
+// RemoveBalancer withdraws it. It succeeds when nothing is there, which is the
+// normal path: a delete runs after an emptied listener set that may never have
+// reached the host. A runtime that does not balance holds nothing to withdraw,
+// so this is a no-op rather than an error — the asymmetry with EnsureBalancer
+// is deliberate, and it is the same one Driver.Remove documents.
+func (b Binding) RemoveBalancer(ctx context.Context, network, listen string) error {
+	balancer := b.balancer()
+	if balancer == nil {
+		return nil
+	}
+	return balancer.RemoveBalancer(ctx, network, listen)
+}

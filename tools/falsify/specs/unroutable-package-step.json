@@ -4,8 +4,8 @@
     {
       "label": "the package-step warning never fires, and a stack's packages: dies in a guest journal nobody opens (#507)",
       "file": "internal/core/machine/binding.go",
-      "find": "\tif _, metadataOnly := b.Driver.(Noop); !metadataOnly &&\n\t\tboot.CloudInit != \"\" && len(boot.Attachments) == 0 && declaresPackageStep(boot.CloudInit) {",
-      "replace": "\tif _, metadataOnly := b.Driver.(Noop); !metadataOnly &&\n\t\tboot.CloudInit != \"\" && len(boot.Attachments) == 0 && declaresPackageStep(boot.CloudInit) && false {",
+      "find": "\tif _, metadataOnly := b.driver.(Noop); !metadataOnly &&\n\t\tboot.CloudInit != \"\" && len(boot.Attachments) == 0 && declaresPackageStep(boot.CloudInit) {",
+      "replace": "\tif _, metadataOnly := b.driver.(Noop); !metadataOnly &&\n\t\tboot.CloudInit != \"\" && len(boot.Attachments) == 0 && declaresPackageStep(boot.CloudInit) && false {",
       "test": "TestAPackageStepWithNoRouteOutIsSaidOutLoud"
     },
     {

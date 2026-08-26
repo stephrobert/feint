@@ -80,7 +80,7 @@ func (r Reconciler) binding() Binding { return r.Groups.Binding }
 // router is the runtime's routing half, nil when it has none — the assertion
 // every pack wrote for itself, now inside the layer.
 func (r Reconciler) router() Router {
-	router, _ := r.binding().Driver.(Router)
+	router, _ := r.binding().driver.(Router)
 	return router
 }
 
@@ -209,7 +209,7 @@ func (r Reconciler) Join(ctx context.Context, res *resource.Resource, att Attach
 }
 
 func (r Reconciler) attach(ctx context.Context, res *resource.Resource, att Attachment) error {
-	driver := r.binding().Driver
+	driver := r.binding().driver
 	if driver == nil {
 		return nil
 	}
@@ -235,7 +235,7 @@ func (r Reconciler) attach(ctx context.Context, res *resource.Resource, att Atta
 // whose carrier is going next, and adding one belongs to a measured defect,
 // not to a move.
 func (r Reconciler) Leave(ctx context.Context, res *resource.Resource, network string) {
-	driver := r.binding().Driver
+	driver := r.binding().driver
 	if driver == nil {
 		return
 	}
@@ -279,7 +279,7 @@ type BackingNetwork struct {
 // naming a network that does not exist, which the delete path then tries to
 // remove.
 func (b Binding) EnsureBackingNetwork(ctx context.Context, res *resource.Resource, spec BackingNetwork) error {
-	if b.Driver == nil {
+	if b.driver == nil {
 		return nil
 	}
 	name := NetworkName(NetworkPrefix, res.ID)
@@ -295,7 +295,7 @@ func (b Binding) EnsureBackingNetwork(ctx context.Context, res *resource.Resourc
 	if spec.Gateway {
 		network.Gateway = spec.CIDR.Masked().Addr().Next().String()
 	}
-	if err := b.Driver.EnsureNetwork(ctx, network); err != nil {
+	if err := b.driver.EnsureNetwork(ctx, network); err != nil {
 		return err
 	}
 	if res.Runtime == nil {
@@ -312,10 +312,10 @@ func (b Binding) EnsureBackingNetwork(ctx context.Context, res *resource.Resourc
 // client-visible surface, so the layer does not pick for them.
 func (b Binding) RemoveBackingNetwork(ctx context.Context, res *resource.Resource, key string) error {
 	name := res.Runtime[key]
-	if b.Driver == nil || name == "" {
+	if b.driver == nil || name == "" {
 		return nil
 	}
-	if err := b.Driver.RemoveNetwork(ctx, name); err != nil {
+	if err := b.driver.RemoveNetwork(ctx, name); err != nil {
 		return err
 	}
 	delete(res.Runtime, key)

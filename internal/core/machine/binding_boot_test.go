@@ -46,7 +46,7 @@ func (d *recordingDriver) RemoveNetwork(context.Context, string) error      { re
 
 func bootBinding(driver Driver) Binding {
 	return Binding{
-		Driver:       driver,
+		driver:       driver,
 		Provider:     "acme",
 		Prefix:       "feint-acme-",
 		User:         "root",

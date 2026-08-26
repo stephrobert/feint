@@ -30,10 +30,18 @@ type Env struct {
 	Store *store.Store
 	Now   func() time.Time
 	NewID func() string
-	// Machines backs powered-on servers with something that actually runs.
+	// machines backs powered-on servers with something that actually runs.
 	// Defaults to the metadata-only driver, so nothing ever starts unless the
 	// operator asked for it.
-	Machines machine.Driver
+	//
+	// Unexported since #511, and that is the point: it was the one value that
+	// put a machine.Driver in every pack's hand, and a pack holding one can
+	// call any driver verb — Start, Remove, RemoveNetwork — past the ownership
+	// checks and past the shared order. A pack now declares its binding and
+	// receives it back through Bind, and no expression in internal/providers
+	// can name a driver at all. Wiring and tests use UseMachines; readers of
+	// the runtime's identity use RuntimeName.
+	machines machine.Driver
 	// BootImages maps an opaque image identifier onto the operating system the
 	// operator declared it to be (FEINT_BOOT_IMAGES, parsed by
 	// machine.ParseDeclaredImages). Each pack hands it to its Binding, which
@@ -56,6 +64,38 @@ type Env struct {
 	Contracts map[string]*contract.Doc
 }
 
+// Bind completes a pack's machine binding with the runtime this emulator was
+// started with, and is how a pack obtains one (#511).
+//
+// The pack declares what only it knows — its prefix, its login, the key its
+// address is published under, its image table — and the environment supplies
+// the driver. It used to write `Driver: p.env.Machines` itself, which meant
+// every pack held a machine.Driver value and could call any of its verbs,
+// ownership checks and shared order included; machine.Binding's driver field
+// is unexported since, so this is the only way in and there is no way back
+// out. A pack naming this field again does not fail a test — it fails the
+// build, which is the strongest of the three ranks #514 lists; internal/cli's
+// TestNoPackReachesPastTheDeclaredDriverSurface holds what typing cannot,
+// starting with a pack that builds a driver of its own.
+func (e *Env) Bind(b machine.Binding) machine.Binding {
+	return b.WithDriver(e.machines)
+}
+
+// UseMachines points this environment at a machine runtime. It is how the CLI
+// wires the driver the operator asked for, and how a test injects a fake one;
+// nothing hands the value back out.
+func (e *Env) UseMachines(d machine.Driver) { e.machines = d }
+
+// RuntimeName identifies the runtime in logs, in `feint status` and on
+// /_feint/health — the one thing about the driver a caller outside this
+// package may read, because a name is not a handle.
+func (e *Env) RuntimeName() string {
+	if e.machines == nil {
+		return machine.Noop{}.Name()
+	}
+	return e.machines.Name()
+}
+
 // DefaultEnv returns an environment backed by a fresh store, the wall clock,
 // random UUIDs and no machine runtime.
 func DefaultEnv() *Env {
@@ -63,7 +103,7 @@ func DefaultEnv() *Env {
 		Store:    store.New(),
 		Now:      func() time.Time { return time.Now().UTC() },
 		NewID:    NewUUID,
-		Machines: machine.Noop{},
+		machines: machine.Noop{},
 		Log:      slog.Default(),
 	}
 }
@@ -579,12 +619,12 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	}
 	driver := "none"
 	var capabilities *machine.Capabilities
-	if s.env.Machines != nil {
-		driver = s.env.Machines.Name()
+	if s.env.machines != nil {
+		driver = s.env.machines.Name()
 		// Declared rather than CapabilitiesOf: null on the wire when the driver
 		// said nothing, so a reader can tell "no" from "nobody promised". Five
 		// falses cannot.
-		capabilities = machine.Declared(s.env.Machines)
+		capabilities = machine.Declared(s.env.machines)
 	}
 	// The capabilities are published because the difference between the runtime
 	// modes was recorded only in documentation — that is, nowhere at the moment

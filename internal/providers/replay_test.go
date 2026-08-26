@@ -116,15 +116,15 @@ func recorderEnv() (*emulator.Env, *machine.Recorder) {
 	rec := machine.NewRecorder()
 	n := 0
 	env := &emulator.Env{
-		Store:    store.New(),
-		Machines: rec,
-		Now:      func() time.Time { return time.Unix(1700000000, 0).UTC() },
+		Store: store.New(),
+		Now:   func() time.Time { return time.Unix(1700000000, 0).UTC() },
 		NewID: func() string {
 			n++
 			return fmt.Sprintf("00000000-0000-4000-8000-%012d", n)
 		},
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
+	env.UseMachines(rec)
 	return env, rec
 }
 

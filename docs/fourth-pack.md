@@ -79,6 +79,7 @@ generic loaders:
 | Coverage and baseline | `coverage/<name>-{coverage,baseline}.json`, generic reader/writer |
 | Shapes catalogue | `shapes/<name>.json`, generic `shape.Catalogue` |
 | Machine lifecycle | `machine.Binding` fields; the sequence is shared, the vocabulary is the pack's |
+| What the runtime offers a pack | `machine.PackSurface()` — the closed list, eight service families; a gesture missing from it is a service the driver gains, never a call written around it |
 | Probe | reads the contract, no provider code |
 | Transcript / proxy / trace | provider is a string field in the exchange |
 

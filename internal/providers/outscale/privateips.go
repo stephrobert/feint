@@ -350,10 +350,10 @@ func contains(list []string, want string) bool {
 // address allocation in this pack needs, so one link serialised the pack behind
 // one incus exec — the shape CLAUDE.md documents under *un effet de bord lent ne
 // tient pas dans le verrou*, written into the very function that denied it.
+// No "is a runtime configured" guard at the top since #511: Reconciler.Join
+// degrades to nothing without one, as does the firewall replay behind it, and
+// asking the question meant holding the driver.
 func (p *Pack) carrySecondary(ctx context.Context, nic *resource.Resource) {
-	if p.env.Machines == nil {
-		return
-	}
 	vmID := stringOf(nic.Attrs["LinkVmId"])
 	networkName := ""
 	if subnet, found := p.env.Store.Get(Name, kindSubnet, stringOf(nic.Attrs["SubnetId"])); found {

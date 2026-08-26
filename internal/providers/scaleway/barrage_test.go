@@ -37,13 +37,13 @@ func newBarrageServer(t *testing.T, drv machine.Driver) (*httptest.Server, *stor
 	seq.Store(1_000_000)
 	st := store.New()
 	env := &emulator.Env{
-		Store:    st,
-		Machines: drv,
-		Now:      func() time.Time { return time.Unix(1700000000, 0).UTC() },
+		Store: st,
+		Now:   func() time.Time { return time.Unix(1700000000, 0).UTC() },
 		NewID: func() string {
 			return fmt.Sprintf("00000000-0000-4000-8000-%012d", seq.Add(1))
 		},
 	}
+	env.UseMachines(drv)
 	srv, err := emulator.NewServer(env, scaleway.New(env))
 	if err != nil {
 		t.Fatalf("build emulator: %v", err)

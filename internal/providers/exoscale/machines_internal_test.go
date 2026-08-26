@@ -42,13 +42,14 @@ func (d *recordingDriver) Detach(_ context.Context, name, network string) error 
 func (d *recordingDriver) RemoveNetwork(context.Context, string) error { return nil }
 
 func runtimePack(driver machine.Driver) *Pack {
-	return New(&emulator.Env{
-		Store:    store.New(),
-		Machines: driver,
-		Now:      func() time.Time { return time.Unix(1700000000, 0).UTC() },
-		NewID:    func() string { return "00000000-0000-4000-8000-000000000001" },
-		Log:      slog.New(slog.NewTextHandler(io.Discard, nil)),
-	})
+	env := &emulator.Env{
+		Store: store.New(),
+		Now:   func() time.Time { return time.Unix(1700000000, 0).UTC() },
+		NewID: func() string { return "00000000-0000-4000-8000-000000000001" },
+		Log:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+	env.UseMachines(driver)
+	return New(env)
 }
 
 // One case per row of the template table: the boot and the login the template

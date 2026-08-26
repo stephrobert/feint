@@ -29,22 +29,11 @@ import (
 // Capabilities.Balancing, the OVN mode alone sets it, `Verify` clears it on a
 // host with no OVN, and a driver that says nothing is read as not balancing —
 // which is what makes the degraded path the default rather than the exception.
-
-// balancer returns the runtime's balancing half, or nil when it has none.
 //
-// Two questions, both asked: does the driver implement the interface, and does
-// it *declare* the capability. The second is not redundant — the Incus driver
-// implements Balancer in every mode and can only deliver it under OVN, and
-// `Verify` clears the claim on a host whose daemon has no northbound
-// connection. Asking only the first would drive a bridge-backed run into a
-// refusal on every register.
-func (p *Pack) balancer() machine.Balancer {
-	if p.env.Machines == nil || !machine.CapabilitiesOf(p.env.Machines).Balancing {
-		return nil
-	}
-	b, _ := p.env.Machines.(machine.Balancer)
-	return b
-}
+// The two questions that decide it — does the runtime implement the balancing
+// half, and does it *declare* the capability — moved into machine.Binding with
+// #511, beside the router and firewall assertions the packs used to write for
+// themselves. This file asks Balances() and knows nothing about a driver.
 
 // syncBalancer hands one balancer's current backend set to the runtime.
 //
@@ -57,8 +46,8 @@ func (p *Pack) balancer() machine.Balancer {
 // container does is worse than one that records the truth and says what it
 // could not do.
 func (p *Pack) syncBalancer(ctx context.Context, name string) {
-	b := p.balancer()
-	if b == nil {
+	b := p.binding()
+	if !b.Balances() {
 		return
 	}
 	res, found := p.env.Store.Get(Name, kindLoadBalancer, name)
@@ -156,8 +145,8 @@ func (p *Pack) EnforcesBalancing() bool { return true }
 
 // removeBalancer undoes it, on the way out.
 func (p *Pack) removeBalancer(ctx context.Context, res *resource.Resource) {
-	b := p.balancer()
-	if b == nil {
+	b := p.binding()
+	if !b.Balances() {
 		return
 	}
 	network, listen := p.balancerPlacement(res)

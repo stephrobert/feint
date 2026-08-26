@@ -41,13 +41,20 @@ func TestEveryPackThatWiresTheFirewallSaysSo(t *testing.T) {
 
 // The balancer is the same claim one capability over (#481), and it is held by
 // the same instrument because it drifted the same way: `capabilities.balancing`
-// was true under OVN while the Scaleway pack handed nothing to
-// `machine.Balancer`, so a suite told to key on the capability would have
-// asserted a distribution that pack never promised. `enforced.balancing` is
-// the per-pack answer, and this test is what keeps it from becoming a second
-// list somebody forgets.
+// was true under OVN while the Scaleway pack handed nothing to the runtime's
+// balancing half, so a suite told to key on the capability would have asserted
+// a distribution that pack never promised. `enforced.balancing` is the
+// per-pack answer, and this test is what keeps it from becoming a second list
+// somebody forgets.
+//
+// The marker was `machine.Balancer` until #511 took the driver's optional
+// halves out of the packs' vocabulary — the same re-point #509 forced on the
+// firewall's marker. `machine.BalancerSpec` replaces it and says the same
+// thing: the spec exists only to be handed over, Binding.EnsureBalancer being
+// its one consumer, so a pack that builds one wires the dataplane and a pack
+// that does not, does not.
 func TestEveryPackThatWiresTheBalancerSaysSo(t *testing.T) {
-	declarationMatchesSource(t, "machine.Balancer", "EnforcesBalancing",
+	declarationMatchesSource(t, "machine.BalancerSpec", "EnforcesBalancing",
 		func(p emulator.Pack) bool {
 			be, ok := p.(emulator.BalancingEnforcer)
 			return ok && be.EnforcesBalancing()
@@ -115,9 +122,9 @@ func declarationMatchesSource(t *testing.T, marker, method string, declared func
 }
 
 // referencesType reports whether any non-test Go file directly under dir names
-// the marker type — "machine.Firewaller", "machine.Balancer" — in code. Non-test
-// on purpose: a fake in a test file proves the pack can be tested, never that
-// it wires anything.
+// the marker type — "machine.GroupSync", "machine.BalancerSpec" — in code.
+// Non-test on purpose: a fake in a test file proves the pack can be tested,
+// never that it wires anything.
 //
 // The marker is resolved on the AST, exactly as the doc above promises, and not
 // by substring: the Exoscale pack discusses `machine.Balancer` in comments to

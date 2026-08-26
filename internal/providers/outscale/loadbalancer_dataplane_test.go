@@ -299,7 +299,7 @@ func (r *withholdingBalancer) EnsureBalancer(ctx context.Context, spec machine.B
 func newLoggedRuntimeServer(t *testing.T, drv machine.Driver, log *bytes.Buffer) *httptest.Server {
 	t.Helper()
 	env := emulator.DefaultEnv()
-	env.Machines = drv
+	env.UseMachines(drv)
 	env.Log = slog.New(slog.NewTextHandler(log, nil))
 	srv, err := emulator.NewServer(env, outscale.New(env))
 	if err != nil {

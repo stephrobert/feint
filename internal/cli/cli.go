@@ -936,7 +936,7 @@ func serve(args []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	env.Machines = driver
+	env.UseMachines(driver)
 	// The operator's own identifier declarations, the door through the boot
 	// refusal (#465). Read here in the composition root like the other
 	// deployment choices (FEINT_OUTSCALE_REGION), and only on the serve path:
@@ -1013,7 +1013,7 @@ func serve(args []string, stdout io.Writer) error {
 		for _, p := range srv.Packs() {
 			fmt.Fprintf(stdout, "  %-9s %d routes\n", p.Name(), len(p.Routes()))
 		}
-		fmt.Fprintf(stdout, "  machines  %s\n", env.Machines.Name())
+		fmt.Fprintf(stdout, "  machines  %s\n", env.RuntimeName())
 		if page {
 			fmt.Fprintf(stdout, "  page      http://%s/_feint/ui\n", *addr)
 		}

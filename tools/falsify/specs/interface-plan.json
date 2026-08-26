@@ -25,8 +25,8 @@
     {
       "label": "the backing network is recorded before the driver accepted it, the ordering two packs had (#510)",
       "file": "internal/core/machine/plan.go",
-      "find": "\tif err := b.Driver.EnsureNetwork(ctx, network); err != nil {\n\t\treturn err\n\t}\n\tif res.Runtime == nil {\n\t\tres.Runtime = map[string]string{}\n\t}\n\tres.Runtime[spec.Key] = name\n\treturn nil",
-      "replace": "\tif res.Runtime == nil {\n\t\tres.Runtime = map[string]string{}\n\t}\n\tres.Runtime[spec.Key] = name\n\tif err := b.Driver.EnsureNetwork(ctx, network); err != nil {\n\t\treturn err\n\t}\n\treturn nil",
+      "find": "\tif err := b.driver.EnsureNetwork(ctx, network); err != nil {\n\t\treturn err\n\t}\n\tif res.Runtime == nil {\n\t\tres.Runtime = map[string]string{}\n\t}\n\tres.Runtime[spec.Key] = name\n\treturn nil",
+      "replace": "\tif res.Runtime == nil {\n\t\tres.Runtime = map[string]string{}\n\t}\n\tres.Runtime[spec.Key] = name\n\tif err := b.driver.EnsureNetwork(ctx, network); err != nil {\n\t\treturn err\n\t}\n\treturn nil",
       "test": "TestEnsureBackingNetworkRecordsOnlyWhatTheDriverAccepted"
     },
     {

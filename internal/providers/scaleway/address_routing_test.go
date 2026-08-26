@@ -93,13 +93,13 @@ func newAddressTestServer(t testing.TB, drv machine.Driver) (*httptest.Server, *
 
 	var seq atomic.Int64
 	env := &emulator.Env{
-		Store:    store.New(),
-		Machines: drv,
-		Now:      func() time.Time { return time.Unix(1700000000, 0).UTC() },
+		Store: store.New(),
+		Now:   func() time.Time { return time.Unix(1700000000, 0).UTC() },
 		NewID: func() string {
 			return fmt.Sprintf("00000000-0000-4000-8000-%012d", seq.Add(1))
 		},
 	}
+	env.UseMachines(drv)
 	srv, err := emulator.NewServer(env, scaleway.New(env))
 	if err != nil {
 		t.Fatalf("build emulator: %v", err)

@@ -482,7 +482,7 @@ func (f *blockingRuntime) running() []string {
 func newRuntimeServer(t *testing.T, drv machine.Driver) *httptest.Server {
 	t.Helper()
 	env := emulator.DefaultEnv()
-	env.Machines = drv
+	env.UseMachines(drv)
 	srv, err := emulator.NewServer(env, outscale.New(env))
 	if err != nil {
 		t.Fatalf("build emulator: %v", err)

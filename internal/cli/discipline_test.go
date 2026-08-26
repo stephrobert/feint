@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/stephrobert/feint/internal/core/machine"
 )
 
 // The shared layer is enforced, not merely offered (#220).
@@ -217,15 +219,21 @@ func barrageCalls(t *testing.T, file string) map[string]int {
 // guard already paid for: the exemption maps above would otherwise let a pack out
 // with an empty string.
 func TestEveryBarrageExemptionSaysWhy(t *testing.T) {
-	for _, exemptions := range []map[string]string{ownExclusion, notInTheBarrage} {
+	for _, exemptions := range []map[string]string{ownExclusion, notInTheBarrage, notInTheDriverSurface} {
 		for key, reason := range exemptions {
-			if len(strings.Fields(reason)) < 5 {
+			if reasonIsThin(reason) {
 				t.Errorf("the exemption for %s says %q, which is not a reason a reviewer can weigh",
 					key, reason)
 			}
 		}
 	}
 }
+
+// reasonIsThin is what "says why" means here, in one place so the detector's
+// own positive control can exercise it: "not yet migrated" and "cannot be" are
+// different reasons and both are too short to be one. Five words is not a
+// quality bar, it is a floor under the empty string.
+func reasonIsThin(reason string) bool { return len(strings.Fields(reason)) < 5 }
 
 // `internal/core` carries no provider-named code, which is the testable half of
 // what adding a provider costs.
@@ -346,5 +354,93 @@ func TestTheDisciplineDetectorsFindWhatTheyLookFor(t *testing.T) {
 	}
 	if strings.Contains(source, "storetest.NoLostUpdate(") {
 		t.Error("the registration scan reports a call that is not there")
+	}
+
+	// The driver-surface detector (#511), against a pack that bypasses it.
+	//
+	// Two shapes, because they fail differently. Naming an implementation of
+	// the driver is the flat one. Calling a low-level Binding verb through a
+	// local variable is the one a scanner reading only `p.binding().Verb(…)`
+	// misses entirely — and that scanner existed, in this file, while the load
+	// balancer's three verbs went unseen. The accepting half is asserted too:
+	// PowerOff, which is in the surface, must not be reported, or a detector
+	// that refuses everything would pass this test and break the packs.
+	pack := filepath.Join(t.TempDir(), "provider")
+	if err := os.MkdirAll(pack, 0o750); err != nil {
+		t.Fatalf("make the fixture pack: %v", err)
+	}
+	bypass := `package provider
+
+import (
+	"context"
+
+	"github.com/stephrobert/feint/internal/core/machine"
+	"github.com/stephrobert/feint/internal/core/resource"
+)
+
+func binding() machine.Binding { return machine.Binding{} }
+
+func act(ctx context.Context, res *resource.Resource) {
+	b := binding()
+	b.PowerOff(ctx, res)
+	b.Stop(ctx, res.ID, "feint-xxx-1")
+	_ = machine.Noop{}
+}
+`
+	if err := os.WriteFile(filepath.Join(pack, "machines.go"), []byte(bypass), 0o600); err != nil {
+		t.Fatalf("write the fixture pack: %v", err)
+	}
+	surface := machine.PackSurface()
+	outside := map[string]bool{}
+	sawAllowed := false
+	for _, r := range driverSurfaceReaches(t, readMachinePackage(t), pack) {
+		if _, allowed := surface[r.key]; allowed {
+			if r.key == "Binding.PowerOff" {
+				sawAllowed = true
+			}
+			continue
+		}
+		outside[r.key] = true
+	}
+	for _, planted := range []string{"Binding.Stop", "Noop"} {
+		if !outside[planted] {
+			t.Errorf("the driver-surface detector did not report the planted %s: a discipline "+
+				"test that finds nothing reads exactly like a disciplined repository", planted)
+		}
+	}
+	if !sawAllowed {
+		t.Error("the driver-surface detector did not even see Binding.PowerOff in the fixture, " +
+			"so its silence about the rest proves nothing")
+	}
+	if len(outside) != 2 {
+		t.Errorf("the driver-surface detector reports %v outside the surface; PowerOff is in it, "+
+			"and a detector that refuses a declared verb would break every pack", outside)
+	}
+
+	// And the scanner's own precondition: it resolves machine.X by that one
+	// name, so it has to notice a file that renames the package rather than
+	// reading it as touching nothing.
+	aliased, err := parser.ParseFile(token.NewFileSet(), filepath.Join(pack, "machines.go"), []byte(
+		"package provider\n\nimport mach \"github.com/stephrobert/feint/internal/core/machine\"\n\nvar _ = mach.Noop{}\n"), 0)
+	if err != nil {
+		t.Fatalf("parse the aliased fixture: %v", err)
+	}
+	if got := aliasedMachineImport(aliased); got != "mach" {
+		t.Errorf("the scanner does not notice an aliased machine import, got %q: it would then "+
+			"read that file as reaching nothing at all", got)
+	}
+	plain, err := parser.ParseFile(token.NewFileSet(), filepath.Join(pack, "machines.go"), []byte(bypass), 0)
+	if err != nil {
+		t.Fatalf("parse the plain fixture: %v", err)
+	}
+	if got := aliasedMachineImport(plain); got != "" {
+		t.Errorf("the scanner calls a plain import an alias (%q), which would fail every pack", got)
+	}
+
+	if !reasonIsThin("not yet migrated") {
+		t.Error("the exemption check accepts a reason nobody can weigh")
+	}
+	if reasonIsThin(notInTheBarrage["exoscale/Orphans"]) {
+		t.Error("the exemption check rejects a reason that says why")
 	}
 }

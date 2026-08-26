@@ -227,7 +227,7 @@ func (r *recordingRuntime) user() string {
 func serveWith(t *testing.T, drv machine.Driver) http.Handler {
 	t.Helper()
 	env := emulator.DefaultEnv()
-	env.Machines = drv
+	env.UseMachines(drv)
 	srv, err := emulator.NewServer(env, exoscale.New(env))
 	if err != nil {
 		t.Fatalf("build the server: %v", err)

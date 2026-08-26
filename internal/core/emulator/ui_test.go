@@ -419,7 +419,7 @@ func (mute) Name() string { return "mute" }
 func TestAnUndeclaredDriverIsNotTheSameAsOneThatDeclaresNothing(t *testing.T) {
 	read := func(driver machine.Driver) map[string]any {
 		env := emulator.DefaultEnv()
-		env.Machines = driver
+		env.UseMachines(driver)
 		srv, err := emulator.NewServer(env)
 		if err != nil {
 			t.Fatalf("build emulator: %v", err)

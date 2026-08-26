@@ -95,6 +95,15 @@ fit — Exoscale declares its login *per template*, not per cloud — the
 abstraction widens (`Boot.User`); the pack never invents a value to fit the
 mould.
 
+And what a pack may ask of the runtime is a closed list rather than whatever it
+can reach: `machine.PackSurface()` names eight service families, and
+`internal/cli`'s `TestNoPackReachesPastTheDeclaredDriverSurface` holds the packs'
+own sources against it, naming the pack, the gesture and the line. The strongest
+half is not that test: a pack receives no `machine.Driver` value at all —
+`emulator.Env` keeps it unexported and hands back a finished `Binding` — so the
+call it would have written does not compile. A gesture the list lacks is added
+to it; the pack never works around it.
+
 ## A request, end to end
 
 1. `http.ServeMux` matches the pattern a pack registered, using Go 1.22 routing

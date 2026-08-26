@@ -28,9 +28,18 @@ import (
 // the packs, because those must differ — a client must not see the difference
 // from its own cloud, which is the whole point.
 type Binding struct {
-	// Driver is what actually runs machines. Nil means metadata only, which is
+	// driver is what actually runs machines. Nil means metadata only, which is
 	// the default: starting machines is a side effect on the operator's host.
-	Driver Driver
+	//
+	// Unexported, and that is the point of #511: a pack declares the fields
+	// below and receives the driver from the emulator through WithDriver, so
+	// no expression in a provider pack can name a driver method through the
+	// binding. The field was exported until then, and `p.binding().Driver.
+	// EnsureNetwork(…)` was a working sentence — a discipline test can only
+	// report such a line, while an unexported field means it does not compile.
+	// internal/cli's TestNoPackReachesPastTheDeclaredDriverSurface holds what
+	// typing cannot.
+	driver Driver
 	// Provider labels everything this binding creates, so a sweep can find its
 	// own work and an operator's machines are never touched.
 	Provider string
@@ -94,6 +103,18 @@ type Binding struct {
 	// must never break the control plane, which makes this the only place an
 	// operator can learn why nothing is running.
 	Log *slog.Logger
+}
+
+// WithDriver returns the binding bound to a runtime.
+//
+// This is the one door a driver goes through on its way into a binding, and it
+// is deliberately one-way: nothing hands it back out. The emulator calls it
+// (Env.Bind) while mounting a pack, which is why a pack declares the fields
+// above and never the driver — see the driver field for the sentence that used
+// to compile and no longer does.
+func (b Binding) WithDriver(d Driver) Binding {
+	b.driver = d
+	return b
 }
 
 // Name is the runtime name for a resource id.
@@ -189,7 +210,7 @@ type Started struct {
 // than one that only tracks state.
 func (b Binding) Start(ctx context.Context, boot Boot) Started {
 	name := b.Name(boot.ID)
-	if b.Driver == nil {
+	if b.driver == nil {
 		return Started{}
 	}
 	// An identifier no catalogue holds resolves to no image at all, and a real
@@ -208,7 +229,7 @@ func (b Binding) Start(ctx context.Context, boot Boot) Started {
 	//
 	// TestAnUnknownImageFailsTheBootInsteadOfSubstituting and
 	// TestADeclaredIdentifierBootsTheImageTheOperatorNamed fail without this.
-	if _, metadataOnly := b.Driver.(Noop); boot.Image == "" && !metadataOnly {
+	if _, metadataOnly := b.driver.(Noop); boot.Image == "" && !metadataOnly {
 		declared, ok := b.Declared[boot.Requested]
 		if !ok || boot.Requested == "" {
 			b.refuseUnknownImage(boot)
@@ -237,7 +258,7 @@ func (b Binding) Start(ctx context.Context, boot Boot) Started {
 	//
 	// TestAFailedImageBuildRefusesTheBootAndNamesTheSource fails without this.
 	if boot.Image != "" {
-		if _, err := EnsureImage(ctx, b.Driver, boot.Image, b.logger()); err != nil {
+		if _, err := EnsureImage(ctx, b.driver, boot.Image, b.logger()); err != nil {
 			spec, _ := SpecFor(boot.Image)
 			b.logger().Error("refusing to boot: the image this reference derives could not be built",
 				"provider", b.Provider, "resource", boot.ID, "image", boot.Image,
@@ -289,7 +310,7 @@ func (b Binding) Start(ctx context.Context, boot Boot) Started {
 	// of diagnosing a healthy-looking machine; the boot itself proceeds,
 	// because everything else about the machine works.
 	// TestAPackageStepWithNoRouteOutIsSaidOutLoud fails without this.
-	if _, metadataOnly := b.Driver.(Noop); !metadataOnly &&
+	if _, metadataOnly := b.driver.(Noop); !metadataOnly &&
 		boot.CloudInit != "" && len(boot.Attachments) == 0 && declaresPackageStep(boot.CloudInit) {
 		b.logger().Warn("this machine's user data declares a package step it cannot complete",
 			"provider", b.Provider, "resource", boot.ID, "machine", name,
@@ -301,7 +322,7 @@ func (b Binding) Start(ctx context.Context, boot Boot) Started {
 		labels[k] = v
 	}
 
-	m, err := b.Driver.Start(ctx, Spec{
+	m, err := b.driver.Start(ctx, Spec{
 		Name:            name,
 		Image:           boot.Image,
 		Labels:          labels,
@@ -379,11 +400,11 @@ func (b Binding) ours(id, machine string) string {
 // address it published: an address that answers nothing is the defect this
 // project exists to avoid.
 func (b Binding) Stop(ctx context.Context, id, machine string) {
-	if b.Driver == nil || machine == "" {
+	if b.driver == nil || machine == "" {
 		return
 	}
 	machine = b.ours(id, machine)
-	if err := b.Driver.Stop(ctx, machine); err != nil {
+	if err := b.driver.Stop(ctx, machine); err != nil {
 		b.logger().Error("could not stop the backing machine",
 			"provider", b.Provider, "resource", id, "machine", machine, "error", err)
 	}
@@ -393,7 +414,7 @@ func (b Binding) Stop(ctx context.Context, id, machine string) {
 // justified it. The name is derived when the caller has none, which is the case
 // for a resource that never started.
 func (b Binding) Remove(ctx context.Context, id, machine string) {
-	if b.Driver == nil {
+	if b.driver == nil {
 		return
 	}
 	if machine == "" {
@@ -401,7 +422,7 @@ func (b Binding) Remove(ctx context.Context, id, machine string) {
 	} else {
 		machine = b.ours(id, machine)
 	}
-	if err := b.Driver.Remove(ctx, machine); err != nil {
+	if err := b.driver.Remove(ctx, machine); err != nil {
 		b.logger().Error("could not remove the backing machine",
 			"provider", b.Provider, "resource", id, "machine", machine, "error", err)
 	}
@@ -413,13 +434,13 @@ func (b Binding) Remove(ctx context.Context, id, machine string) {
 // seconds later, once it has booted and DHCP has answered. Start therefore never
 // waits, and a pack calls this on the read a client is making anyway.
 func (b Binding) Address(ctx context.Context, id, machine string) (string, bool) {
-	if b.Driver == nil || machine == "" {
+	if b.driver == nil || machine == "" {
 		return "", false
 	}
 	// Read-only, but still checked: inspecting an arbitrary instance of the host
 	// would publish its address as if it were the emulated server's.
 	machine = b.ours(id, machine)
-	m, ok, err := b.Driver.Inspect(ctx, machine)
+	m, ok, err := b.driver.Inspect(ctx, machine)
 	if err != nil {
 		b.logger().Error("could not inspect the backing machine",
 			"provider", b.Provider, "resource", id, "machine", machine, "error", err)
@@ -453,7 +474,7 @@ func (b Binding) PowerOn(ctx context.Context, res *resource.Resource, boot Boot)
 	// mode: the control plane is the whole emulation, and a client driving the
 	// API sees a machine that runs. This is what keeps the conformance suites
 	// runnable in CI, where no runtime exists.
-	if b.Driver == nil {
+	if b.driver == nil {
 		res.State = b.RunningState
 		return true
 	}

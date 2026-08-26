@@ -136,7 +136,7 @@ func TestARefusedAttachStillResyncsTheFirewall(t *testing.T) {
 	b.group("g", "")
 	vm := b.machine("m", "10.0.0.5", "g")
 	r := reconcilerBench(b, Plan{})
-	r.Groups.Binding.Driver = refusingAttacher{b.rec}
+	r.Groups.Binding.driver = refusingAttacher{b.rec}
 
 	if err := r.Join(context.Background(), vm, Attachment{Network: "fnt-bench-net"}); err == nil {
 		t.Fatal("the refusal never reached the caller, so no pack can surface it on its resource")
@@ -193,7 +193,7 @@ func TestEnsureBackingNetworkRecordsOnlyWhatTheDriverAccepted(t *testing.T) {
 	}
 
 	refused := b.machine("net-2", "")
-	binding.Driver = refusingNetworker{b.rec}
+	binding.driver = refusingNetworker{b.rec}
 	if err := binding.EnsureBackingNetwork(context.Background(), refused, BackingNetwork{
 		Key: "network", CIDR: netip.MustParsePrefix("10.62.0.0/24"),
 	}); err == nil {
@@ -229,7 +229,7 @@ func TestRemoveBackingNetworkForgetsTheNameOnSuccessOnly(t *testing.T) {
 
 	held := b.machine("net-2", "")
 	held.Runtime["network"] = "fnt-bench-kept"
-	binding.Driver = refusingRemover{b.rec}
+	binding.driver = refusingRemover{b.rec}
 	if err := binding.RemoveBackingNetwork(context.Background(), held, "network"); err == nil {
 		t.Fatal("the refusal was swallowed")
 	}

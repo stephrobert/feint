@@ -1,0 +1,54 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "a pack reaches past the declared surface: it stops the machine through the binding's low-level verb, skipping the order the Reconciler holds (#511)",
+      "file": "internal/providers/scaleway/machines.go",
+      "find": "// binding is this pack's half of the shared machine lifecycle.",
+      "replace": "// The bypass the declared driver surface exists to refuse.\nfunc (p *Pack) bypassTheDeclaredSurface(ctx context.Context, id string) {\n\tp.binding().Stop(ctx, id, \"feint-scw-\"+id)\n}\n\n// binding is this pack's half of the shared machine lifecycle.",
+      "test": "TestNoPackReachesPastTheDeclaredDriverSurface"
+    },
+    {
+      "label": "the bypass hides one local variable deep, which is the shape a scanner reading only p.binding().Verb() never sees (#511)",
+      "file": "internal/providers/outscale/machines.go",
+      "find": "// DefaultUser is the login Outscale provisions on its images.",
+      "replace": "// The same bypass, through a local variable.\nfunc (p *Pack) bypassTheDeclaredSurface(ctx context.Context, id string) {\n\tb := p.binding()\n\tb.Remove(ctx, id, b.Name(id))\n}\n\n// DefaultUser is the login Outscale provisions on its images.",
+      "test": "TestNoPackReachesPastTheDeclaredDriverSurface"
+    },
+    {
+      "label": "the scanner stops following a value across assignments, so every bypass held in a local variable becomes invisible (#511)",
+      "file": "internal/cli/driver_surface_test.go",
+      "find": "\t\t\tif ident, ok := lhs.(*ast.Ident); ok {\n\t\t\t\tif typ := s.typeOf(stmt.Rhs[i]); typ != \"\" {\n\t\t\t\t\ts.locals[ident.Name] = typ",
+      "replace": "\t\t\tif ident, ok := lhs.(*ast.Ident); ok {\n\t\t\t\tif typ := s.typeOf(stmt.Rhs[i]); typ != \"\" && false {\n\t\t\t\t\ts.locals[ident.Name] = typ",
+      "test": "TestTheDisciplineDetectorsFindWhatTheyLookFor"
+    },
+    {
+      "label": "the declared surface admits the driver itself, which is the list authorising everything it was written to exclude (#511)",
+      "file": "internal/core/machine/surface.go",
+      "find": "\treturn map[string]string{\n\t\t// S1 — machine lifecycle.",
+      "replace": "\treturn map[string]string{\n\t\t\"Driver\": \"the runtime itself, which no pack may ever hold\",\n\t\t// S1 — machine lifecycle.",
+      "test": "TestTheDeclaredDriverSurfaceIsSmallerThanThePackage"
+    },
+    {
+      "label": "the declared surface names a member the package no longer has, so the contract goes on reading as a contract while meaning nothing (#511)",
+      "file": "internal/core/machine/surface.go",
+      "find": "\t\t\"Binding.Serialise\":        \"serialise two actions on one target",
+      "replace": "\t\t\"Binding.SerialiseRenamed\": \"serialise two actions on one target",
+      "test": "TestTheDeclaredDriverSurfaceIsSmallerThanThePackage"
+    },
+    {
+      "label": "a driver-surface exemption is granted with a reason nobody can weigh, the difference between \"not yet migrated\" and \"cannot be\" (#511)",
+      "file": "internal/cli/driver_surface_test.go",
+      "find": "var notInTheDriverSurface = map[string]string{}",
+      "replace": "var notInTheDriverSurface = map[string]string{\"scaleway/Driver\": \"legacy\"}",
+      "test": "TestEveryBarrageExemptionSaysWhy"
+    },
+    {
+      "label": "the scanner stops noticing a renamed import, so a pack that aliases the machine package reads as touching nothing (#511)",
+      "file": "internal/cli/driver_surface_test.go",
+      "find": "\t\tif spec.Name != nil && spec.Name.Name != machinePackageName {\n\t\t\treturn spec.Name.Name",
+      "replace": "\t\tif spec.Name != nil && spec.Name.Name != machinePackageName && false {\n\t\t\treturn spec.Name.Name",
+      "test": "TestTheDisciplineDetectorsFindWhatTheyLookFor"
+    }
+  ]
+}

@@ -111,6 +111,6 @@ func (p *Pack) isolationPass(ctx context.Context) {
 			Block:   stringOf(subnet.Attrs["IpRange"]),
 		}
 	}
-	machine.ReconcileIsolation(ctx, p.env.Machines, p.logger(), "subnet",
+	p.binding().ReconcileIsolation(ctx, "subnet",
 		members, func(from, to int) bool { return p.reachableFrom(all[from], all[to], peered) })
 }

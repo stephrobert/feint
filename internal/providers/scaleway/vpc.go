@@ -803,7 +803,7 @@ func (p *Pack) isolationPass(ctx context.Context) {
 			Block:   block,
 		}
 	}
-	native, applied := machine.ReconcileIsolation(ctx, p.env.Machines, p.logger(), "private_network",
+	native, applied := p.binding().ReconcileIsolation(ctx, "private_network",
 		members, func(from, to int) bool { return p.reachableFrom(all[from], all[to]) })
 	if native || !applied {
 		// No group resync under native isolation: the rule sets carry no

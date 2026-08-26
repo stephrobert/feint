@@ -22,8 +22,7 @@ import (
 
 // binding is this pack's half of the shared machine lifecycle.
 func (p *Pack) binding() machine.Binding {
-	return machine.Binding{
-		Driver:   p.env.Machines,
+	return p.env.Bind(machine.Binding{
 		Provider: Name,
 		Prefix:   "feint-exo-",
 		// No provider-wide login: Exoscale's template schema carries a
@@ -38,7 +37,7 @@ func (p *Pack) binding() machine.Binding {
 		// an entry matters most here, where the login belongs to the template.
 		Declared: p.env.BootImages,
 		Log:      p.env.Log,
-	}
+	})
 }
 
 // logger returns the environment logger, or the default one when a caller

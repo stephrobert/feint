@@ -21,8 +21,7 @@ import (
 // what tells an Outscale machine from a Scaleway one on a shared host, for the
 // sweep and for the event filter alike.
 func (p *Pack) binding() machine.Binding {
-	return machine.Binding{
-		Driver:   p.env.Machines,
+	return p.env.Bind(machine.Binding{
 		Provider: Name,
 		Prefix:   "feint-osc-",
 		User:     DefaultUser,
@@ -36,7 +35,7 @@ func (p *Pack) binding() machine.Binding {
 		// by the binding only when the catalogue above resolved nothing.
 		Declared: p.env.BootImages,
 		Log:      p.env.Log,
-	}
+	})
 }
 
 // DefaultUser is the login Outscale provisions on its images. Their own

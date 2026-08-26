@@ -68,10 +68,9 @@ func (d *failingDriver) Start(context.Context, machine.Spec) (machine.Machine, e
 func sequencedPack(driver machine.Driver) *Pack {
 	n := 0
 	var mu sync.Mutex
-	return New(&emulator.Env{
-		Store:    store.New(),
-		Machines: driver,
-		Now:      func() time.Time { return time.Unix(1700000000, 0).UTC() },
+	env := &emulator.Env{
+		Store: store.New(),
+		Now:   func() time.Time { return time.Unix(1700000000, 0).UTC() },
 		NewID: func() string {
 			mu.Lock()
 			defer mu.Unlock()
@@ -85,7 +84,9 @@ func sequencedPack(driver machine.Driver) *Pack {
 			return fmt.Sprintf("0000000f-0000-4000-8000-%012d", n)
 		},
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
-	})
+	}
+	env.UseMachines(driver)
+	return New(env)
 }
 
 // createOneInstance drives the real handler, which is where the allocation

@@ -140,6 +140,19 @@ func ReconcileIsolation(ctx context.Context, driver Driver, log *slog.Logger, no
 	return false, true
 }
 
+// ReconcileIsolation is the binding's door onto the pass above, and the only
+// one a provider pack has: the package-level form takes a Driver, which is
+// precisely the value #511 took out of every pack's reach, and it stays
+// exported for the core's own tests and for nothing else.
+//
+// The pack still owns what it alone knows — the noun for the log line, the
+// members, and the reachability predicate. The driver and the logger come from
+// the binding it already declared.
+func (b Binding) ReconcileIsolation(ctx context.Context, noun string,
+	members []IsolationMember, reachable func(from, to int) bool) (native, applied bool) {
+	return ReconcileIsolation(ctx, b.driver, b.logger(), noun, members, reachable)
+}
+
 // report says what a reconciliation could not do, and separates the two reasons
 // it can fail.
 //

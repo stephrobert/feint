@@ -88,7 +88,7 @@ func newSlowAttachServer(t *testing.T) (*httptest.Server, *slowAttach) {
 		release:  make(chan struct{}),
 	}
 	env := emulator.DefaultEnv()
-	env.Machines = rt
+	env.UseMachines(rt)
 	srv, err := emulator.NewServer(env, outscale.New(env))
 	if err != nil {
 		t.Fatalf("build emulator: %v", err)

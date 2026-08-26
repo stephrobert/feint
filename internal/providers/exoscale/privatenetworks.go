@@ -338,7 +338,7 @@ func (p *Pack) isolationPass(ctx context.Context) {
 			Block:   block,
 		}
 	}
-	machine.ReconcileIsolation(ctx, p.env.Machines, p.logger(), "private-network",
+	p.binding().ReconcileIsolation(ctx, "private-network",
 		members, func(int, int) bool { return false })
 }
 
@@ -531,7 +531,12 @@ func (p *Pack) updatePrivateNetwork(w http.ResponseWriter, r *http.Request) {
 	// A changed block needs a changed backing network. EnsureNetwork succeeds
 	// on an existing network without reshaping it, so the old one goes first —
 	// safe here because the refusal above proved nothing is attached.
-	if rangeChanged && p.env.Machines != nil {
+	//
+	// No "is a runtime configured" guard: both verbs below degrade to nothing
+	// without one (Binding.RemoveBackingNetwork and EnsureBackingNetwork both
+	// return on a nil driver), and asking the question meant holding the
+	// driver, which is what #511 took away.
+	if rangeChanged {
 		if err := p.binding().RemoveBackingNetwork(r.Context(), res, runtimeNetworkKey); err != nil {
 			p.logger().Error("could not remove the outgrown backing network",
 				"private-network", res.ID, "network", res.Runtime[runtimeNetworkKey], "error", err)

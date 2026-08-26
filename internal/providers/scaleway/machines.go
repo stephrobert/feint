@@ -35,8 +35,7 @@ const DefaultUser = "root"
 
 // binding is this pack's half of the shared machine lifecycle.
 func (p *Pack) binding() machine.Binding {
-	return machine.Binding{
-		Driver:     p.env.Machines,
+	return p.env.Bind(machine.Binding{
 		Provider:   Name,
 		Prefix:     "feint-scw-",
 		User:       DefaultUser,
@@ -53,7 +52,7 @@ func (p *Pack) binding() machine.Binding {
 		// by the binding only when the catalogue resolved nothing.
 		Declared: p.env.BootImages,
 		Log:      p.env.Log,
-	}
+	})
 }
 
 // imageFor resolves a Scaleway image label onto what stands in for it — image

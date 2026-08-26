@@ -11,8 +11,8 @@
     {
       "label": "a failed image build stops refusing the boot, so the runtime is asked to boot the very source the build could not fetch",
       "file": "internal/core/machine/binding.go",
-      "find": "\t\tif _, err := EnsureImage(ctx, b.Driver, boot.Image, b.logger()); err != nil {",
-      "replace": "\t\tif _, err := EnsureImage(ctx, b.Driver, boot.Image, b.logger()); err != nil && false {",
+      "find": "\t\tif _, err := EnsureImage(ctx, b.driver, boot.Image, b.logger()); err != nil {",
+      "replace": "\t\tif _, err := EnsureImage(ctx, b.driver, boot.Image, b.logger()); err != nil && false {",
       "test": "TestAFailedImageBuildRefusesTheBootAndNamesTheSource"
     },
     {

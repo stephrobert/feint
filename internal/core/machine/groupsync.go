@@ -77,7 +77,7 @@ type GroupSync struct {
 // which is what lets the enforcement test mark a wired pack by this type
 // instead of by machine.Firewaller.
 func (s GroupSync) enforcer() Firewaller {
-	fw, _ := s.Binding.Driver.(Firewaller)
+	fw, _ := s.Binding.driver.(Firewaller)
 	return fw
 }
 
@@ -85,7 +85,7 @@ func (s GroupSync) enforcer() Firewaller {
 // construction, in which case reject rules against foreign subnets are dead
 // weight: the blocks would name subnets the machine cannot reach anyway.
 func (s GroupSync) nativeIsolation() bool {
-	peerer, ok := s.Binding.Driver.(Peerer)
+	peerer, ok := s.Binding.driver.(Peerer)
 	return ok && peerer.NativeIsolation()
 }
 

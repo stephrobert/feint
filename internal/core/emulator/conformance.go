@@ -872,8 +872,8 @@ func (s *Server) handleConformance(w http.ResponseWriter, _ *http.Request) {
 	// The dataplane axis reads the driver's own declaration, never a mode
 	// name: Noop names itself "none", and that is the whole comparison.
 	machines := "none"
-	if s.env.Machines != nil {
-		machines = s.env.Machines.Name()
+	if s.env.machines != nil {
+		machines = s.env.machines.Name()
 	}
 	runtimeOn := machines != "none"
 

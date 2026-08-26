@@ -113,7 +113,7 @@ func newRoutedServer(t *testing.T) (*httptest.Server, *routedRuntime, *emulator.
 	t.Helper()
 	env := emulator.DefaultEnv()
 	rt := newRoutedRuntime()
-	env.Machines = rt
+	env.UseMachines(rt)
 	srv, err := emulator.NewServer(env, outscale.New(env))
 	if err != nil {
 		t.Fatalf("build emulator: %v", err)

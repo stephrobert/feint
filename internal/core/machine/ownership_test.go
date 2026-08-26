@@ -23,7 +23,7 @@ import (
 
 func quietBinding(driver Driver) Binding {
 	return Binding{
-		Driver:   driver,
+		driver:   driver,
 		Provider: "scaleway",
 		Prefix:   "feint-scw-",
 		Log:      slog.New(slog.NewTextHandler(io.Discard, nil)),

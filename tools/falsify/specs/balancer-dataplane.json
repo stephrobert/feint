@@ -51,10 +51,10 @@
       "test": "TestVerifyNarrowsBalancingWithIsolation"
     },
     {
-      "label": "the pack asks a runtime that never declared balancing, so every bridge-backed run meets a refusal",
-      "file": "internal/providers/outscale/loadbalancer_dataplane.go",
-      "find": "\tif p.env.Machines == nil || !machine.CapabilitiesOf(p.env.Machines).Balancing {",
-      "replace": "\tif p.env.Machines == nil || !machine.CapabilitiesOf(p.env.Machines).Balancing && false {",
+      "label": "the shared layer asks a runtime that never declared balancing, so every bridge-backed run meets a refusal",
+      "file": "internal/core/machine/balancer.go",
+      "find": "\tif b.driver == nil || !CapabilitiesOf(b.driver).Balancing {",
+      "replace": "\tif b.driver == nil || !CapabilitiesOf(b.driver).Balancing && false {",
       "test": "TestAnUndeclaredBalancingCapabilityIsNeverUsed",
       "package": "./internal/providers/outscale/"
     },

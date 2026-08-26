@@ -46,7 +46,7 @@ func newGroupSyncBench() *groupSyncBench {
 
 func (b *groupSyncBench) binding() Binding {
 	return Binding{
-		Driver:     b.rec,
+		driver:     b.rec,
 		Provider:   "bench",
 		Prefix:     "feint-bench-",
 		RuntimeKey: "machine",
@@ -358,7 +358,7 @@ func TestARefusedRuleSetDoesNotShrinkTheAttachmentList(t *testing.T) {
 	vm := b.machine("m", "10.42.0.5", "open", "closed")
 
 	s := b.sync()
-	s.Binding.Driver = refusingFirewaller{Recorder: b.rec, refuse: FirewallName("bench", "closed")}
+	s.Binding.driver = refusingFirewaller{Recorder: b.rec, refuse: FirewallName("bench", "closed")}
 	s.ApplyMachine(context.Background(), vm)
 
 	for _, e := range b.rec.Events() {
