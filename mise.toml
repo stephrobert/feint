@@ -260,41 +260,25 @@ run = [
 ]
 
 [tasks."conformance:exoscale-terraform"]
-description = "Apply the Exoscale stack through the patched provider fork. Needs the fork built — the script says how"
-# Outside `conformance` on purpose, on the same terms as conformance:ssh.
+description = "Suspended: no Terraform for Exoscale until upstream #573 — the script says why, and refuses"
+# The maintainer's decision of 2026-08-26, on #525's measurement: a `feint
+# down` on the Exoscale stack, run without the fork's dev_overrides, resolved
+# the published provider and sent five signed requests to
+# api-ch-*.exoscale.com. Since then no Terraform, the pinned fork included, is
+# pointed at the Exoscale pack; the exo CLI drives it (conformance:exo, and
+# the network, ssh and zones suites).
 #
-# The published Exoscale provider builds two clients and only one honours
-# EXOSCALE_API_ENDPOINT, so an apply splits between this emulator and a paying
-# account. The emulator refuses it by user agent; the four-line fix lives on the
-# fork pinned in docs/limits.md at 2e78b42.
+# This task used to start an emulator and apply the stack through the fork
+# pinned in docs/limits.md — sixteen resources, empty second plan, clean
+# destroy, 2026-08-24, and that history stays in the script's header and in
+# docs/limits.md. It never counted towards conformance: a client this project
+# patched is not the official client. The task keeps its name so the person
+# who reaches for it gets the refusal and its reasons, not "task not found";
+# it starts nothing, so it needs no trap and no port.
 #
-# Two reasons this is never a gate, and both are decisions rather than gaps:
-# no task here clones a third-party repository, which would put somebody else's
-# availability in this pipeline; and a client this project patched is not the
-# official client, so it could not count towards conformance anyway. What it is
-# worth is the other half — it drives the Exoscale pack through the client a
-# user actually reaches for, which no other suite does.
-#
-# FEINT_EXOSCALE_ALLOW_TERRAFORM lifts the refusal, named rather than hidden: a
-# guard with no way past it gets worked around by copying the emulator.
-#
-# One `run` string with a trap, not three steps. Measured the hard way on
-# 2026-08-24: as three steps, the script failed and mise stopped the chain, so
-# `feint stop` never ran and an emulator sat on the port for twenty-seven
-# minutes — until `evidence:update` refused to start beside it, which is the
-# doorstep #426 added doing its job on the person who wrote this task.
-#
-# The aggregate `conformance` task has armed a trap for exactly this reason
-# since it was written. A task that starts a process must own its death on
-# every path, not on the happy one.
-run = """
-set -o errexit
-./feint start --addr $FEINT_ADDR --contracts contracts --timeout 60s
-trap './feint stop --addr $FEINT_ADDR >/dev/null 2>&1 || true' EXIT
-tools/conformance/exoscale/terraform.sh http://$FEINT_ADDR
-"""
-depends = ["build"]
-env = { FEINT_ADDR = "127.0.0.1:4599", FEINT_EXOSCALE_ALLOW_TERRAFORM = "1" }
+# Terraform returns here the day exoscale/terraform-provider-exoscale#573 is
+# fixed in the published provider.
+run = "tools/conformance/exoscale/terraform.sh"
 
 [tasks."conformance:ssh"]
 description = "Register a key, boot a server, log into it — on every provider. Needs FEINT_VM=incus or incus-vm"
@@ -509,6 +493,11 @@ tools/conformance/outscale/terraform.sh "http://$FEINT_ADDR"
 # platform team writes Terraform rather than the way a fixture is written, and
 # they found two defects every other gate was blind to (#249, #250).
 tools/conformance/stacks.sh "http://$FEINT_ADDR"
+# The leg that is not here, named so its absence reads as the decision it is:
+# no Terraform for Exoscale until upstream #573 is fixed (#525 — five signed
+# requests left for api-ch-*.exoscale.com from a `feint down`). The exo legs
+# below and the network/ssh/zones suites are what drives that pack.
+echo "exoscale terraform: skipped — no Terraform for Exoscale until upstream #573 (#525); the exo CLI drives this pack"
 tools/conformance/exoscale/exo-cli.sh "http://$FEINT_ADDR"
 # The Exoscale zone is a datum (#278): a second emulator, on its own port and
 # configured for ch-gva-2, driven by the same real CLI. Two zones, two
