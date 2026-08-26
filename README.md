@@ -644,10 +644,14 @@ authorising a port afterwards opens it without restarting anything.
 
 Two measured bounds stand, and docs/limits.md carries both with their
 measurements: an interface the runtime declares unenforceable (a routed NIC,
-`capabilities.firewall_public_only: false`) stays unenforceable, and on a run
-with two or more subnets in OVN mode the isolation rule set still defeats a
-group's default-deny (#491). `/_feint/health` answers which packs deliver the
-handoff, so a program can ask rather than assume:
+`capabilities.firewall_public_only: false`) stays unenforceable, and between
+two machines of one subnet the sender's permissive egress still wins over the
+receiver's default-deny. The multi-subnet bound that used to sit here — the
+isolation set defeating a group's default-deny (#491) — is gone: a port no
+rule opens refuses from the station on the three example stacks under
+`feint up --runtime incus-ovn`, isolation attached, while two emulated
+networks stay mutually refused. `/_feint/health` answers which packs deliver
+the handoff, so a program can ask rather than assume:
 
 ```bash
 curl -s localhost:4599/_feint/health | jq '{capabilities, enforced}'

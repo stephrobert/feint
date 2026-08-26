@@ -964,9 +964,11 @@ answered by #475 the way the driver's own contract suggests: the runtime has
 no group selector, so the member reference is expanded into the addresses the
 member machines answer on, and re-expanded whenever a member boots or gains an
 interface. Outscale and Exoscale hand their groups to the runtime now, within
-the two measured bounds [limits.md](limits.md) states (a routed NIC enforces
-nothing by declaration, and #491 tracks the isolation set defeating a group's
-default-deny on multi-subnet OVN runs).
+the measured bounds [limits.md](limits.md) states (a routed NIC enforces
+nothing by declaration, and the same-subnet sender-egress divergence); the
+multi-subnet bound #491 tracked — the isolation set defeating a group's
+default-deny — was closed by removing the OVN isolation set's catch-all
+allow, proved on the three example stacks.
 
 **Evidence:** for what landed, the conformance suite as it runs now; for the
 remainder, the LB apply named in OSC-5.

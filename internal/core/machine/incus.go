@@ -1367,6 +1367,18 @@ func (d *Incus) afterNetworkDelete(ctx context.Context, name, block string) erro
 	if err := d.RemoveFirewall(ctx, isolationACL(name)); err != nil {
 		return fmt.Errorf("drop the isolation rule set of %s: %w", name, err)
 	}
+	// The permissive posture set belongs to no resource, so no resource's
+	// delete would ever drop it: a run that isolated a network once left
+	// exactly one ACL on the host after a full `feint down` (measured,
+	// 2026-08-26: `opn-fnt` at used_by=0 beside the operator's own acltest).
+	// Dropped opportunistically with each network: "in use" means machines
+	// elsewhere still wear it and is not an error, an absent set is the normal
+	// case, and a later need recreates it on demand.
+	// TestANetworkDeleteTakesTheUnusedPermissiveSetWithIt fails without this.
+	if err := d.RemoveFirewall(ctx, permissiveACL()); err != nil &&
+		!strings.Contains(strings.ToLower(err.Error()), "in use") {
+		return fmt.Errorf("drop the permissive posture set: %w", err)
+	}
 	return d.dropUplinkRouteOVN(ctx, block)
 }
 

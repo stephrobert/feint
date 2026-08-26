@@ -226,3 +226,135 @@ func TestAPoolMemberStartIsRecordedInTheStore(t *testing.T) {
 		t.Fatalf("runtime address %q, want the one the driver reported", got)
 	}
 }
+
+// attachRecordingDriver also records what Attach was called with, so a test
+// can assert a member's machine really joined a network rather than trust the
+// stored record.
+type attachRecordingDriver struct {
+	recordingDriver
+	mu       sync.Mutex
+	attached []string
+}
+
+func (d *attachRecordingDriver) Attach(_ context.Context, name string, att machine.Attachment) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.attached = append(d.attached, name+" "+att.Network+" "+att.Address)
+	return nil
+}
+
+// createManagedNetwork drives the real handler and returns the stored resource.
+func createManagedNetwork(t *testing.T, p *Pack, name string) *resource.Resource {
+	t.Helper()
+	r := httptest.NewRequest("POST", "/v2/private-network",
+		strings.NewReader(`{"name":"`+name+`","start-ip":"10.90.2.20","end-ip":"10.90.2.200","netmask":"255.255.255.0"}`))
+	p.createPrivateNetwork(httptest.NewRecorder(), r)
+	for _, pn := range p.env.Store.List(kindPrivateNetwork, resource.Tenant{Provider: Name}) {
+		if got, _ := pn.Attrs["name"].(string); got == name {
+			return pn
+		}
+	}
+	t.Fatalf("the private network %q was not stored", name)
+	return nil
+}
+
+func createPoolOnNetwork(p *Pack, size int, networkID string) {
+	body := fmt.Sprintf(`{"name":"app","size":%d,`+
+		`"template":{"id":"11111111-1111-4111-8111-111111111111"},`+
+		`"instance-type":{"id":"71004023-bb72-4a97-b1e9-bc66dfce9470"},`+
+		`"private-networks":[{"id":"%s"}]}`, size, networkID)
+	r := httptest.NewRequest("POST", "/v2/instance-pool", strings.NewReader(body))
+	p.createInstancePool(httptest.NewRecorder(), r)
+}
+
+// TestAPoolMemberJoinsThePoolsPrivateNetworks is #492. The pool stored its
+// `private-networks` list and nothing ever turned it into memberships: each
+// member booted with its routed public NIC alone, and the rule set of
+// examples/stacks/exoscale's app tier stayed at used_by=0 on the host —
+// nothing to attach to. Upstream the declaration means membership, measured on
+// the real API on 2026-08-26: a member of a pool declaring one network answers
+// `private-networks: [{id, mac-address}]` on get-instance.
+func TestAPoolMemberJoinsThePoolsPrivateNetworks(t *testing.T) {
+	driver := &attachRecordingDriver{}
+	p := sequencedPack(driver)
+	pn := createManagedNetwork(t, p, "back")
+
+	createPoolOnNetwork(p, 2, pn.ID)
+
+	members := p.env.Store.List(kindInstance, resource.Tenant{Provider: Name})
+	if len(members) != 2 {
+		t.Fatalf("%d members, want 2", len(members))
+	}
+	seen := map[string]bool{}
+	for _, member := range members {
+		atts := instanceAttachmentsOf(member)
+		if len(atts) != 1 || atts[0].NetworkID != pn.ID {
+			t.Fatalf("member %s memberships = %+v, want the pool's network", member.ID, atts)
+		}
+		if atts[0].IP == "" {
+			t.Fatalf("member %s joined the managed network without a lease", member.ID)
+		}
+		if seen[atts[0].IP] {
+			t.Fatalf("two members were handed one lease: %s", atts[0].IP)
+		}
+		seen[atts[0].IP] = true
+
+		// And the machine half: the boot replayed the membership onto the
+		// runtime, on the network the emulator backs the resource with.
+		want := member.Runtime["machine"] + " " + pn.Runtime[runtimeNetworkKey] + " " + atts[0].IP
+		found := false
+		for _, got := range driver.attached {
+			if got == want {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("no Attach carried %q; attaches: %v", want, driver.attached)
+		}
+	}
+	if leases := p.leasesOf(pn.ID); len(leases) != 2 {
+		t.Fatalf("%d leases on the network, want 2", len(leases))
+	}
+}
+
+// TestAScaleDownReleasesTheMembersLeases is the other half: a member removed
+// by a scale-down releases its lease like an ordinary detach, so the address
+// is free for whoever comes next.
+func TestAScaleDownReleasesTheMembersLeases(t *testing.T) {
+	driver := &attachRecordingDriver{}
+	p := sequencedPack(driver)
+	pn := createManagedNetwork(t, p, "back")
+	createPoolOnNetwork(p, 2, pn.ID)
+
+	pools := p.env.Store.List(kindPool, resource.Tenant{Provider: Name})
+	if len(pools) != 1 {
+		t.Fatalf("%d pools, want 1", len(pools))
+	}
+
+	r := httptest.NewRequest("PUT", "/v2/instance-pool/"+pools[0].ID+":scale",
+		strings.NewReader(`{"size":1}`))
+	r.SetPathValue("id", pools[0].ID)
+	p.scaleInstancePool(httptest.NewRecorder(), r)
+
+	if leases := p.leasesOf(pn.ID); len(leases) != 1 {
+		t.Fatalf("%d leases after the scale-down, want 1", len(leases))
+	}
+
+	// The freed address is genuinely free: growing back re-leases it instead
+	// of walking further into the range.
+	r = httptest.NewRequest("PUT", "/v2/instance-pool/"+pools[0].ID+":scale",
+		strings.NewReader(`{"size":2}`))
+	r.SetPathValue("id", pools[0].ID)
+	p.scaleInstancePool(httptest.NewRecorder(), r)
+
+	leases := p.leasesOf(pn.ID)
+	if len(leases) != 2 {
+		t.Fatalf("%d leases after growing back, want 2", len(leases))
+	}
+	for _, lease := range leases {
+		m, _ := lease.(map[string]any)
+		if ip, _ := m["ip"].(string); ip != "10.90.2.20" && ip != "10.90.2.21" {
+			t.Fatalf("lease %v walked past the freed address", m)
+		}
+	}
+}

@@ -1357,14 +1357,24 @@ network ACL attached to every interface of the machine. A port no rule opens
 refuses the connection, authorising one opens it without a restart, and revoking
 it closes it again. All four are checked end to end against a live daemon.
 
-**The bound a second subnet adds (#491).** The "port no rule opens refuses"
-half holds only while the machine's network carries no isolation rule set. On
-an OVN run with two or more emulated subnets, the isolation set's catch-all
-allow (rule priority 300) outranks the NIC's default action (100/111), and the
-closed port answers. Measured on 2026-08-26 with one variable: the same
-forbidden port flips from OPEN to CLOSED when the isolation set is detached
-from the network. The rules a group *does* state keep being enforced either
-way; it is the default-deny that #491 tracks.
+**The second subnet no longer defeats the default-deny (#491).** The
+isolation rule set used to end with a catch-all allow in both directions,
+which under OVN sat at rule priority 300 where a NIC's default action sits at
+100/111 — so on any multi-subnet OVN run, a port no rule opens answered
+anyway. The OVN isolation set now carries its foreign-block rejects (400) and
+nothing else: unmatched traffic falls to the NIC default, which is the group's
+default-deny, and the rejects outrank every allow a group can state (300), so
+the two properties hold at once. Measured on the three example stacks under
+`feint up --runtime incus-ovn` on 2026-08-26, listener proved from inside
+before each probe: the forbidden port refuses from the station while an
+allowed port opens in the same pass (Scaleway 443/9999, Outscale 443/9999 over
+the public l2proxy path, Exoscale 443/9999), and a machine of another emulated
+network is refused on a port whose group allows 0.0.0.0/0. A machine whose
+groups enforce nothing wears the shared permissive posture set (`opn-fnt`,
+catch-all allows at 300) on the NICs of an isolated network, so it stays open
+to everything but the foreign subnets; the bridge-mode isolation set keeps its
+catch-all, because there the network ACL filters at the bridge-host boundary
+and would otherwise reject the station itself.
 
 **What this requires.** `security.acls` on a bridged NIC exists from Incus
 **6.0.4** onwards. On 6.0.0, which Ubuntu 24.04 ships and will not move past, the
@@ -3008,15 +3018,17 @@ unenforceable stays unenforceable: a routed NIC accepts no security option
 interface of every Exoscale instance and of every Scaleway server whose only
 address is public — the pack hands the set over, the driver refuses with the
 typed error, and the log names the declaring capability instead of crying
-wolf. Second, on any run where at least two emulated subnets exist in OVN
-mode, the emulator's own isolation rule set defeats every NIC-level default
-deny: its catch-all allow sits at rule priority 300 where the NIC default sits
-at 100/111, so a port no rule opens **answers anyway** on machines whose
-network carries an isolation set. Measured both ways on 2026-08-26 — the
-forbidden port flips from OPEN to CLOSED the moment the isolation set is
-detached from the network, nothing else changed — and filed as #491 with the
-upstream constants. Until #491 lands: a group's *allows* are enforced, and its
-default-deny holds only on networks without the emulator's isolation set.
+wolf. Second, between two machines of one subnet the sender's permissive
+egress still wins over the receiver's ingress default (the single-pipeline
+divergence "Subnet isolation depends on the runtime mode" documents, measured
+again on the Exoscale stack's two pool members on 2026-08-26: a member reaches
+its neighbour's unopened port, the station does not). The bound this paragraph
+used to carry — the isolation set's catch-all allow at 300 defeating every
+NIC-level default deny on multi-subnet OVN runs — was #491, and it is gone:
+the OVN isolation set carries only rejects now, so a group's default-deny
+holds with the isolation attached, measured on the three example stacks under
+`feint up --runtime incus-ovn` (the section "The firewall enforces, within
+stated bounds" carries the runs).
 Group-sourced rules (the tiering statement, "tier 2 accepts tier 1") are
 expanded into the member machines' addresses, since the runtime has no group
 selector, and re-expanded whenever a member boots or gains an interface.

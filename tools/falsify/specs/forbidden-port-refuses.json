@@ -1,0 +1,92 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the catch-all allow comes back into the OVN isolation set, outranking every NIC default deny — the whole of #491",
+      "file": "internal/core/machine/incus_isolate.go",
+      "find": "\tif !d.OVN {\n\t\t// Everything else passes:",
+      "replace": "\tif !d.OVN || true {\n\t\t// Everything else passes:",
+      "test": "TestAnOVNIsolationSetCarriesNoCatchAllAllow"
+    },
+    {
+      "label": "the catch-all leaves the bridge path too, and the bridge-host boundary rejects the station",
+      "file": "internal/core/machine/incus_isolate.go",
+      "find": "\tif !d.OVN {\n\t\t// Everything else passes:",
+      "replace": "\tif !d.OVN && false {\n\t\t// Everything else passes:",
+      "test": "TestABridgeIsolationSetKeepsItsCatchAll"
+    },
+    {
+      "label": "the permissive set no longer spreads to the machines already on the network when it becomes isolated, closing every group-less machine",
+      "file": "internal/core/machine/incus_isolate.go",
+      "find": "\tif d.OVN {\n\t\td.spreadPermissive(ctx, network)\n\t}",
+      "replace": "\tif d.OVN && false {\n\t\td.spreadPermissive(ctx, network)\n\t}",
+      "test": "TestIsolatingANetworkSpreadsThePermissiveSetToSetlessNICs"
+    },
+    {
+      "label": "the sweep stops asking whose instance it is, and edits the devices of every container on the host",
+      "file": "internal/core/machine/incus_isolate.go",
+      "find": "\t\tif inst.Config[\"user.\"+LabelKey] == \"\" || !safeName.MatchString(inst.Name) {",
+      "replace": "\t\tif (inst.Config[\"user.\"+LabelKey] == \"\" && false) || !safeName.MatchString(inst.Name) {",
+      "test": "TestIsolatingANetworkSpreadsThePermissiveSetToSetlessNICs"
+    },
+    {
+      "label": "the permissive set is never taken back off, so a de-isolated network keeps a posture nothing explains",
+      "file": "internal/core/machine/incus_isolate.go",
+      "find": "\t\tif d.OVN {\n\t\t\td.withdrawPermissive(ctx, network)\n\t\t}",
+      "replace": "\t\tif d.OVN && false {\n\t\t\td.withdrawPermissive(ctx, network)\n\t\t}",
+      "test": "TestDeisolatingANetworkWithdrawsThePermissiveSet"
+    },
+    {
+      "label": "an empty binding goes back to the bare detach on an isolated network, and the reject default closes the machine entirely",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\t\t\tif joined == \"\" && networks[device.network].acls != \"\" {",
+      "replace": "\t\t\tif joined == \"\" && networks[device.network].acls != \"\" && false {",
+      "test": "TestAMachineWithoutAGroupStaysOpenOnAnIsolatedNetwork"
+    },
+    {
+      "label": "the permissive set attaches to every bare NIC whatever its network carries, handing its egress catch-all to the sender's side of the pipeline",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\t\t\tif joined == \"\" && networks[device.network].acls != \"\" {",
+      "replace": "\t\t\tif joined == \"\" && (networks[device.network].acls != \"\" || true) {",
+      "test": "TestAnEmptyBindingStillClearsANICOnAnUnisolatedNetwork"
+    },
+    {
+      "label": "a pool member stops joining the pool's private networks — the whole of #492",
+      "package": "./internal/providers/exoscale/",
+      "file": "internal/providers/exoscale/pools.go",
+      "find": "\tif atts := p.memberAttachments(pool); len(atts) > 0 {",
+      "replace": "\tif atts := p.memberAttachments(pool); len(atts) < 0 {",
+      "test": "TestAPoolMemberJoinsThePoolsPrivateNetworks"
+    },
+    {
+      "label": "the lease chooser stops reading what is already leased, and two members share one address",
+      "package": "./internal/providers/exoscale/",
+      "file": "internal/providers/exoscale/privatenetworks.go",
+      "find": "\t\tif !taken[candidate] && candidate != gateway {",
+      "replace": "\t\tif (!taken[candidate] || true) && candidate != gateway {",
+      "test": "TestAPoolMemberJoinsThePoolsPrivateNetworks"
+    },
+    {
+      "label": "a scale-down stops deleting the member records, and the leases they hold never free",
+      "package": "./internal/providers/exoscale/",
+      "file": "internal/providers/exoscale/pools.go",
+      "find": "\t\tremoved = members[*req.Size:]\n\t\tfor _, member := range removed {\n\t\t\tp.env.Store.Delete(Name, kindInstance, member.ID)\n\t\t}",
+      "replace": "\t\tremoved = members[*req.Size:]\n\t\tfor _, member := range removed {\n\t\t\tif false {\n\t\t\t\tp.env.Store.Delete(Name, kindInstance, member.ID)\n\t\t\t}\n\t\t}",
+      "test": "TestAScaleDownReleasesTheMembersLeases"
+    },
+    {
+      "label": "a network delete stops dropping the permissive set, and every run leaves one ACL on the host",
+      "file": "internal/core/machine/incus.go",
+      "find": "\tif err := d.RemoveFirewall(ctx, permissiveACL()); err != nil &&\n\t\t!strings.Contains(strings.ToLower(err.Error()), \"in use\") {",
+      "replace": "\tif err := d.RemoveFirewall(ctx, isolationACL(permissiveACL())); err != nil &&\n\t\t!strings.Contains(strings.ToLower(err.Error()), \"in use\") {",
+      "test": "TestANetworkDeleteTakesTheUnusedPermissiveSetWithIt"
+    },
+    {
+      "label": "a permissive set still worn elsewhere fails the network delete",
+      "file": "internal/core/machine/incus.go",
+      "find": "\tif err := d.RemoveFirewall(ctx, permissiveACL()); err != nil &&\n\t\t!strings.Contains(strings.ToLower(err.Error()), \"in use\") {",
+      "replace": "\tif err := d.RemoveFirewall(ctx, permissiveACL()); err != nil &&\n\t\t(!strings.Contains(strings.ToLower(err.Error()), \"in use\") || true) {",
+      "test": "TestAPermissiveSetStillInUseDoesNotFailANetworkDelete"
+    }
+  ]
+}

@@ -389,6 +389,39 @@ func (p *Pack) privateNetworkView(res *resource.Resource) map[string]any {
 	return out
 }
 
+// takenLeases is the set of addresses the network's leases already hold, for a
+// chooser that must not hand one out twice. Read under p.lockAddresses(), like
+// every other walk over the leases.
+func (p *Pack) takenLeases(networkID string) map[string]bool {
+	taken := map[string]bool{}
+	for _, lease := range p.leasesOf(networkID) {
+		m, _ := lease.(map[string]any)
+		if ip, _ := m["ip"].(string); ip != "" {
+			taken[ip] = true
+		}
+	}
+	return taken
+}
+
+// gatewayOf is the block's first host address, which belongs to the gateway
+// the backing network answers on, never to a lease.
+func gatewayOf(dhcp managedRange) string {
+	return dhcp.prefix.Masked().Addr().Next().String()
+}
+
+// firstFreeLease picks the lowest address of a managed range that no lease
+// holds and that is not the gateway, or "" when the range is exhausted.
+func firstFreeLease(dhcp managedRange, taken map[string]bool) string {
+	gateway := gatewayOf(dhcp)
+	for addr := dhcp.start; !dhcp.end.Less(addr); addr = addr.Next() {
+		candidate := addr.String()
+		if !taken[candidate] && candidate != gateway {
+			return candidate
+		}
+	}
+	return ""
+}
+
 // leasesOf computes the leases of a managed network from the instances that
 // hold them: {instance-id, ip}, ordered by address so two reads answer the
 // same bytes.
@@ -689,17 +722,7 @@ func (p *Pack) takeLease(w http.ResponseWriter, pn *resource.Resource, instanceI
 			"a static lease needs a managed private network, and this one declares no range")
 		return "", false
 	case managed:
-		taken := map[string]bool{}
-		for _, lease := range p.leasesOf(pn.ID) {
-			m, _ := lease.(map[string]any)
-			if ip, _ := m["ip"].(string); ip != "" {
-				taken[ip] = true
-			}
-		}
-		// The block's first host address belongs to the gateway the backing
-		// network answers on, never to a lease.
-		gateway := dhcp.prefix.Masked().Addr().Next().String()
-
+		taken := p.takenLeases(pn.ID)
 		if requested != "" {
 			addr, err := netip.ParseAddr(requested)
 			if err != nil || !addr.Is4() {
@@ -710,19 +733,13 @@ func (p *Pack) takeLease(w http.ResponseWriter, pn *resource.Resource, instanceI
 				writeError(w, http.StatusBadRequest, "ip is outside the network's range")
 				return "", false
 			}
-			if taken[requested] || requested == gateway {
+			if taken[requested] || requested == gatewayOf(dhcp) {
 				writeError(w, http.StatusBadRequest, "ip is already leased")
 				return "", false
 			}
 			leaseIP = requested
 		} else {
-			for addr := dhcp.start; !dhcp.end.Less(addr); addr = addr.Next() {
-				candidate := addr.String()
-				if !taken[candidate] && candidate != gateway {
-					leaseIP = candidate
-					break
-				}
-			}
+			leaseIP = firstFreeLease(dhcp, taken)
 			if leaseIP == "" {
 				writeError(w, http.StatusBadRequest, "no address left in the network's range")
 				return "", false

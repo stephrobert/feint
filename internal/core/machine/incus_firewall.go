@@ -43,7 +43,7 @@ const aclDescription = "feint security group"
 // A not-found error is returned as-is: whether an absent rule set is a problem is
 // the caller's decision, not this function's.
 func (d *Incus) mustOwnACL(ctx context.Context, name string) error {
-	if isolationOwned(name) {
+	if coreOwnedACL(name) {
 		return nil
 	}
 	out, err := d.run(ctx, "query", "/1.0/network-acls/"+name)
@@ -204,7 +204,8 @@ func (d *Incus) ApplyFirewall(ctx context.Context, machine string, binding Firew
 	}
 
 	joined := strings.Join(binding.Names, ",")
-	networkTypes := map[string]string{}
+	networks := map[string]networkACLInfo{}
+	permissiveEnsured := false
 	var unenforceable error
 	for _, device := range devices {
 		// A routed NIC takes no rule set at all (#337). Measured on Incus 7.2
@@ -242,7 +243,7 @@ func (d *Incus) ApplyFirewall(ctx context.Context, machine string, binding Firew
 		}
 		args := []string{"config", "device", verb, machine, device.name, "security.acls=" + joined}
 		switch {
-		case d.isOVNNetwork(ctx, device.network, networkTypes):
+		case d.isOVNNetwork(ctx, device.network, networks):
 			// Only security.acls: it is the one ACL key an OVN NIC updates in
 			// place (UpdatableFields in nic_ovn.go at v7.2.0). Any other key
 			// makes Incus remove and re-add the device, and the guest loses
@@ -251,6 +252,29 @@ func (d *Incus) ApplyFirewall(ctx context.Context, machine string, binding Firew
 			// the NIC's own default, reject; a permissive group states its
 			// openness as a catch-all allow rule inside the rule set, which
 			// EnsureFirewall replaces live.
+			//
+			// One case takes more than the joined list: no rule set to attach,
+			// on a network that carries the emulator's isolation set. That
+			// network ACL forces the reject default onto every NIC (a network's
+			// security.acls "apply to NICs connected to this network"), so a
+			// bare detach would close a machine whose groups enforce nothing —
+			// the exact opposite of what "enforces nothing" means. The NIC
+			// wears the permissive posture set instead, and the isolation's
+			// rejects at 400 still outrank its catch-all allows at 300, so the
+			// machine stays open to everything but the foreign subnets (#491).
+			//
+			// TestAMachineWithoutAGroupStaysOpenOnAnIsolatedNetwork fails
+			// without this; TestAnEmptyBindingStillClearsANICOnAnUnisolatedNetwork
+			// holds the other half.
+			if joined == "" && networks[device.network].acls != "" {
+				if !permissiveEnsured {
+					if err := d.EnsureFirewall(ctx, permissiveSpec()); err != nil {
+						return fmt.Errorf("apply firewall to %s/%s: %w", machine, device.name, err)
+					}
+					permissiveEnsured = true
+				}
+				args[len(args)-1] = "security.acls=" + permissiveACL()
+			}
 		case joined != "":
 			// The default actions only mean something while a rule set is
 			// attached, and Incus rejects them on a NIC that carries none.
@@ -265,27 +289,36 @@ func (d *Incus) ApplyFirewall(ctx context.Context, machine string, binding Firew
 	return unenforceable
 }
 
+// networkACLInfo is what one network lookup answers ApplyFirewall: its type,
+// and whether the network itself carries rule sets — which under OVN is what
+// decides the posture of a NIC that attaches none of its own.
+type networkACLInfo struct {
+	kind string
+	acls string
+}
+
 // isOVNNetwork reports whether a network is OVN-typed, caching the answer for
 // the duration of one call: a machine's NICs often share a network, and each
 // lookup is a runtime round trip.
-func (d *Incus) isOVNNetwork(ctx context.Context, network string, cache map[string]string) bool {
+func (d *Incus) isOVNNetwork(ctx context.Context, network string, cache map[string]networkACLInfo) bool {
 	if network == "" {
 		return false
 	}
-	kind, known := cache[network]
+	info, known := cache[network]
 	if !known {
 		out, err := d.run(ctx, "query", "/1.0/networks/"+network)
 		if err == nil {
 			var raw struct {
-				Type string `json:"type"`
+				Type   string            `json:"type"`
+				Config map[string]string `json:"config"`
 			}
 			if json.Unmarshal(out, &raw) == nil {
-				kind = raw.Type
+				info = networkACLInfo{kind: raw.Type, acls: raw.Config["security.acls"]}
 			}
 		}
-		cache[network] = kind
+		cache[network] = info
 	}
-	return kind == "ovn"
+	return info.kind == "ovn"
 }
 
 // orDrop keeps the runtime's own default when the caller says nothing, which is

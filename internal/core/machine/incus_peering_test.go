@@ -333,3 +333,43 @@ func TestPruneRefusesAPeeringHalfOnAStrangersNetworkNamedLikeOurs(t *testing.T) 
 			strings.Join(f.commands(), "\n"))
 	}
 }
+
+// The permissive posture set belongs to no resource, so nothing's delete ever
+// dropped it: one full `feint up`/`feint down` cycle left `opn-fnt` on the
+// host, used_by=0, beside the operator's own rule sets (measured 2026-08-26).
+// A network delete now drops it opportunistically — and "in use" is not an
+// error, because machines of another network may still wear it.
+func TestANetworkDeleteTakesTheUnusedPermissiveSetWithIt(t *testing.T) {
+	f := &fakeRuntime{
+		answers: map[string]string{
+			"network get fnt-aaaa ipv4.address": "10.2.4.1/24\n",
+		},
+	}
+	d := newFakeDriver(f)
+
+	if err := d.RemoveNetwork(context.Background(), "fnt-aaaa"); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if len(f.matching("network acl delete opn-fnt")) == 0 {
+		t.Fatalf("the permissive set was left behind; the driver ran:\n%s",
+			strings.Join(f.commands(), "\n"))
+	}
+}
+
+// The other half: a permissive set still worn by machines of another network
+// must not fail the delete of this one.
+func TestAPermissiveSetStillInUseDoesNotFailANetworkDelete(t *testing.T) {
+	f := &fakeRuntime{
+		answers: map[string]string{
+			"network get fnt-aaaa ipv4.address": "10.2.4.1/24\n",
+		},
+		fail: map[string]error{
+			"network acl delete opn-fnt": errors.New("Error: Cannot delete an ACL that is in use"),
+		},
+	}
+	d := newFakeDriver(f)
+
+	if err := d.RemoveNetwork(context.Background(), "fnt-aaaa"); err != nil {
+		t.Fatalf("a network delete failed on the permissive set another machine still wears: %v", err)
+	}
+}

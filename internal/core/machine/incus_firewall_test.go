@@ -835,3 +835,95 @@ func TestAFirewallWriteTheHostRefusesWithdrawsTheCapability(t *testing.T) {
 		t.Error("a refusal by this driver's own guard must not withdraw the host's capability")
 	}
 }
+
+// A machine whose groups enforce nothing attaches nothing — but on an OVN
+// network that carries the emulator's isolation set, "nothing" is not neutral:
+// the network ACL forces the reject default onto every NIC, so a bare detach
+// closes the machine entirely. The NIC wears the permissive posture set
+// instead, whose catch-all allows at 300 stay under the isolation's rejects at
+// 400: open to the station, closed to the foreign subnets, which is what a
+// group that filters nothing means there (#491).
+func TestAMachineWithoutAGroupStaysOpenOnAnIsolatedNetwork(t *testing.T) {
+	f := &fakeRuntime{answers: map[string]string{
+		"/1.0/instances/srv":     twoNICs,
+		"/1.0/networks/scw-abc":  `{"type": "ovn", "config": {"security.acls": "iso-fnt-abc"}}`,
+		"/1.0/networks/incusbr0": `{"type": "bridge"}`,
+	}}
+	d := newFakeDriver(f)
+	d.OVN = true
+
+	if err := d.ApplyFirewall(context.Background(), "srv", FirewallBinding{}); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+
+	ovn := f.matching(" eth1 security.acls=")
+	if len(ovn) != 1 || !strings.Contains(ovn[0], "security.acls=opn-fnt") {
+		t.Fatalf("the OVN interface of an isolated network must wear the permissive set, got %v", ovn)
+	}
+	if got := f.matching("/1.0/network-acls/opn-fnt"); len(got) == 0 {
+		t.Error("the permissive set was attached without being written first")
+	}
+	// The bridged interface keeps the plain detach: no network ACL forces a
+	// default onto it.
+	for _, cmd := range f.matching(" eth0 security.acls=") {
+		if strings.Contains(cmd, "opn-fnt") {
+			t.Errorf("a bridged interface has no business wearing the permissive set: %q", cmd)
+		}
+	}
+}
+
+// The other half of the invariant: on an OVN network that carries no ACL, an
+// empty binding still clears the interface, exactly as before — a NIC with no
+// rule set on a bare network filters nothing, and attaching the permissive set
+// there would hand its egress catch-all to the sender's side of the pipeline,
+// opening a restrictive same-subnet neighbour that today filters faithfully.
+func TestAnEmptyBindingStillClearsANICOnAnUnisolatedNetwork(t *testing.T) {
+	f := &fakeRuntime{answers: map[string]string{
+		"/1.0/instances/srv":     twoNICs,
+		"/1.0/networks/scw-abc":  `{"type": "ovn", "config": {}}`,
+		"/1.0/networks/incusbr0": `{"type": "bridge"}`,
+	}}
+	d := newFakeDriver(f)
+	d.OVN = true
+
+	if err := d.ApplyFirewall(context.Background(), "srv", FirewallBinding{}); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+
+	ovn := f.matching(" eth1 security.acls=")
+	if len(ovn) != 1 || strings.Contains(ovn[0], "opn-fnt") {
+		t.Fatalf("an empty binding on an unisolated network must clear the interface, got %v", ovn)
+	}
+	if got := f.matching("/1.0/network-acls/opn-fnt"); len(got) != 0 {
+		t.Errorf("the permissive set has no business existing here: %v", got)
+	}
+}
+
+// A restrictive binding is never replaced by the permissive set, isolation or
+// not: the groups' own rule sets are what the machine wears, and the reject
+// default the network ACL forces is exactly the group's default-deny.
+func TestARestrictiveBindingKeepsItsGroupsOnAnIsolatedNetwork(t *testing.T) {
+	f := &fakeRuntime{answers: map[string]string{
+		"/1.0/instances/srv":     twoNICs,
+		"/1.0/networks/scw-abc":  `{"type": "ovn", "config": {"security.acls": "iso-fnt-abc"}}`,
+		"/1.0/networks/incusbr0": `{"type": "bridge"}`,
+	}}
+	d := newFakeDriver(f)
+	d.OVN = true
+
+	if err := d.ApplyFirewall(context.Background(), "srv", FirewallBinding{
+		Names:          []string{"sg-one"},
+		DefaultIngress: "drop",
+		DefaultEgress:  "allow",
+	}); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+
+	ovn := f.matching(" eth1 security.acls=")
+	if len(ovn) != 1 || !strings.Contains(ovn[0], "security.acls=sg-one") {
+		t.Fatalf("the group must reach the interface unchanged, got %v", ovn)
+	}
+	if got := f.matching("opn-fnt"); len(got) != 0 {
+		t.Errorf("the permissive set has no business near a restrictive binding: %v", got)
+	}
+}

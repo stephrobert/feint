@@ -420,8 +420,53 @@ func (p *Pack) newPoolMember(pool *resource.Resource, index int64) *resource.Res
 	if keys, ok := pool.Attrs["ssh-keys"]; ok {
 		member.Attrs["ssh-keys"] = keys
 	}
+	// And the pool's private networks, which every member joins. Upstream this
+	// is what the pool's declaration means — measured on the real API on
+	// 2026-08-26: a member of a pool declaring one network answers
+	// `private-networks: [{id, mac-address}]` on get-instance — and it is what
+	// makes the membership real here: the boot replays these records onto the
+	// machine (reattachPrivateNetworks), and the firewall sync that follows
+	// finds an interface to attach the member's rule sets to. Before this the pool stored its list and nothing turned it
+	// into memberships: one routed NIC per member, and the app tier's rule set
+	// sat at used_by=0 on the host (#492).
+	//
+	// TestAPoolMemberJoinsThePoolsPrivateNetworks fails without it.
+	if atts := p.memberAttachments(pool); len(atts) > 0 {
+		member.Attrs[attrInstancePrivateNetworks] = attachmentsToAttr(atts)
+	}
 	member.Runtime = map[string]string{runtimePoolKey: pool.ID}
 	return member
+}
+
+// memberAttachments builds the memberships one new member takes: one per
+// private network the pool declares, with a lease from the range when the
+// network is managed — chosen exactly the way an instance-side ":attach"
+// chooses one. Called under p.lockAddresses(), held by growPool across the
+// choice and the Put, so two members cannot be handed one address (#484's
+// discipline). A network that no longer exists is skipped the way the
+// instance view drops it: the relation is computed against what is, and a
+// managed range with nothing left is a membership without a lease, logged
+// rather than silently absent.
+func (p *Pack) memberAttachments(pool *resource.Resource) []pnAttachment {
+	ids := poolRefIDs(pool.Attrs["private-networks"])
+	out := make([]pnAttachment, 0, len(ids))
+	for _, ref := range ids {
+		id, _ := ref.(string)
+		pn, found := p.env.Store.Get(Name, kindPrivateNetwork, id)
+		if !found {
+			continue
+		}
+		ip := ""
+		if dhcp, managed := rangeOf(pn); managed {
+			ip = firstFreeLease(dhcp, p.takenLeases(pn.ID))
+			if ip == "" {
+				p.logger().Warn("no address left in the private network's range for a pool member",
+					"pool", pool.ID, "private-network", pn.ID)
+			}
+		}
+		out = append(out, pnAttachment{NetworkID: id, IP: ip})
+	}
+	return out
 }
 
 // poolRefIDs reads the ids out of a stored list of {id: …} references,

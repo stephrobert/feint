@@ -2,6 +2,7 @@ package machine
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -100,4 +101,220 @@ func TestForeignBlocksKeepsPeersAndTheNetworkItself(t *testing.T) {
 			t.Error("a network was isolated from itself")
 		}
 	}
+}
+
+// The isolation set used to end with a catch-all allow in both directions.
+// Under OVN that allow sat at rule priority 300 in the single pipeline where a
+// NIC's default action sits at 100/111 (acl_ovn.go at v7.2.0), so it outranked
+// every security group's default deny on every NIC of the network: a port no
+// rule opens answered from the station on any multi-subnet run (#491), the
+// forbidden port flipping OPEN→CLOSED the moment the set was detached, nothing
+// else changed. The rejects stay at 400, above every allow a group can state —
+// which is what keeps the two properties at once: the foreign subnets stay out
+// whatever the groups say, and the groups' default deny holds again.
+func TestAnOVNIsolationSetCarriesNoCatchAllAllow(t *testing.T) {
+	f := isolationFake()
+	d := newFakeDriver(f)
+	d.OVN = true
+
+	if err := d.IsolateNetwork(context.Background(), "fnt-aaa", []string{"10.2.0.0/24"}); err != nil {
+		t.Fatalf("isolate: %v", err)
+	}
+
+	body := isolationBody(t, f, "iso-fnt-aaa")
+	for _, direction := range [][]aclRule{body.Ingress, body.Egress} {
+		for _, rule := range direction {
+			if rule.Action == "allow" || rule.Action == "allow-stateless" {
+				t.Fatalf("the OVN isolation set carries an allow rule, which outranks every NIC default deny: %+v", rule)
+			}
+		}
+	}
+	if len(body.Ingress) == 0 || len(body.Egress) == 0 {
+		t.Fatalf("the rejects are gone with the catch-all: %+v", body)
+	}
+	for _, rule := range body.Egress {
+		if rule.Action != "reject" || rule.Destination != "10.2.0.0/24" {
+			t.Errorf("egress rule does not reject the foreign block: %+v", rule)
+		}
+	}
+}
+
+// The bridge half keeps its catch-all: there a network ACL filters at the
+// bridge-host boundary, a separate mechanism from the NIC rule sets, and
+// without the allow the boundary would reject the station itself.
+func TestABridgeIsolationSetKeepsItsCatchAll(t *testing.T) {
+	f := isolationFake()
+	d := newFakeDriver(f)
+
+	if err := d.IsolateNetwork(context.Background(), "fnt-aaa", []string{"10.2.0.0/24"}); err != nil {
+		t.Fatalf("isolate: %v", err)
+	}
+
+	body := isolationBody(t, f, "iso-fnt-aaa")
+	allows := 0
+	for _, direction := range [][]aclRule{body.Ingress, body.Egress} {
+		for _, rule := range direction {
+			if rule.Action == "allow" && rule.Source == "" && rule.Destination == "" {
+				allows++
+			}
+		}
+	}
+	if allows != 2 {
+		t.Fatalf("the bridge isolation set must keep its catch-all allow in both directions, found %d:\n%+v", allows, body)
+	}
+}
+
+// Attaching an ACL to an OVN network is what makes the runtime add the reject
+// default to every NIC of the network. A machine applied before the network
+// became isolated, whose groups enforce nothing, carries no rule set — so the
+// isolation would close it. The sweep puts the permissive posture set on those
+// NICs, before the network attach so no machine passes through a closed
+// instant; it never touches a NIC that carries a rule set, and never an
+// instance the emulator did not create, because the instance list comes from
+// the host and editing a stranger's devices is the audit class ownership
+// checks exist for.
+func TestIsolatingANetworkSpreadsThePermissiveSetToSetlessNICs(t *testing.T) {
+	f := isolationFake()
+	d := newFakeDriver(f)
+	d.OVN = true
+
+	if err := d.IsolateNetwork(context.Background(), "fnt-aaa", []string{"10.2.0.0/24"}); err != nil {
+		t.Fatalf("isolate: %v", err)
+	}
+
+	spread := f.matching("config device set srv-bare eth1 security.acls=opn-fnt")
+	if len(spread) != 1 {
+		t.Fatalf("the set-less NIC did not receive the permissive set:\n%s", strings.Join(f.commands(), "\n"))
+	}
+	if got := f.matching("config device set srv-grouped"); len(got) != 0 {
+		t.Errorf("a NIC already carrying a rule set was edited: %v", got)
+	}
+	for _, cmd := range f.commands() {
+		if strings.Contains(cmd, "production-database") {
+			t.Fatalf("a command names an instance the emulator did not create: %q", cmd)
+		}
+	}
+	if got := f.matching("/1.0/network-acls/opn-fnt"); len(got) == 0 {
+		t.Error("the permissive set was attached without being written first")
+	}
+
+	// Before the network attach: after it, the NIC would already be closed.
+	spreadAt, attachAt := -1, -1
+	for i, cmd := range f.commands() {
+		switch {
+		case strings.Contains(cmd, "security.acls=opn-fnt"):
+			if spreadAt == -1 {
+				spreadAt = i
+			}
+		case strings.HasPrefix(cmd, "network set fnt-aaa security.acls"):
+			attachAt = i
+		}
+	}
+	if attachAt == -1 || spreadAt == -1 || spreadAt > attachAt {
+		t.Errorf("the permissive set must reach the NICs before the network attach (spread at %d, attach at %d)", spreadAt, attachAt)
+	}
+}
+
+// The exact undo: once the network's ACL is gone, a NIC carrying only the
+// permissive set goes back to carrying none, and everything else is left
+// alone.
+func TestDeisolatingANetworkWithdrawsThePermissiveSet(t *testing.T) {
+	f := &fakeRuntime{}
+	f.hook = func(_ int, args []string) ([]byte, error, bool) {
+		if strings.HasPrefix(strings.Join(args, " "), "query /1.0/instances?recursion=1") {
+			return []byte(`[
+				{"name":"srv-bare","config":{"user.feint.provider":"scaleway"},
+				 "expanded_devices":{"eth1":{"type":"nic","network":"fnt-aaa","security.acls":"opn-fnt"}},
+				 "devices":{"eth1":{"type":"nic","network":"fnt-aaa","security.acls":"opn-fnt"}}},
+				{"name":"srv-grouped","config":{"user.feint.provider":"scaleway"},
+				 "expanded_devices":{"eth1":{"type":"nic","network":"fnt-aaa","security.acls":"scw-abc"}},
+				 "devices":{"eth1":{"type":"nic","network":"fnt-aaa","security.acls":"scw-abc"}}}
+			]`), nil, true
+		}
+		return nil, nil, false
+	}
+	d := newFakeDriver(f)
+	d.OVN = true
+
+	if err := d.IsolateNetwork(context.Background(), "fnt-aaa", nil); err != nil {
+		t.Fatalf("de-isolate: %v", err)
+	}
+
+	cleared := f.matching("config device set srv-bare eth1 security.acls=")
+	if len(cleared) != 1 {
+		t.Fatalf("the permissive set was not withdrawn:\n%s", strings.Join(f.commands(), "\n"))
+	}
+	if got := f.matching("config device set srv-grouped"); len(got) != 0 {
+		t.Errorf("a NIC carrying a security group was edited on de-isolation: %v", got)
+	}
+
+	// After the network detach, for the same no-closed-instant reason in
+	// reverse: while the network still carries the ACL, a bare NIC is a closed
+	// NIC.
+	unsetAt, clearAt := -1, -1
+	for i, cmd := range f.commands() {
+		switch {
+		case strings.HasPrefix(cmd, "network unset fnt-aaa security.acls"):
+			unsetAt = i
+		case strings.Contains(cmd, "srv-bare eth1 security.acls="):
+			clearAt = i
+		}
+	}
+	if unsetAt == -1 || clearAt == -1 || clearAt < unsetAt {
+		t.Errorf("the withdrawal must follow the network detach (unset at %d, clear at %d)", unsetAt, clearAt)
+	}
+}
+
+// isolationFake answers what IsolateNetwork asks on the way to writing a rule
+// set: the network exists, no ACL exists yet, and the host runs three
+// instances — one of the emulator's with no rule set, one with a group, and
+// one that is somebody else's.
+func isolationFake() *fakeRuntime {
+	f := &fakeRuntime{}
+	f.hook = func(_ int, args []string) ([]byte, error, bool) {
+		joined := strings.Join(args, " ")
+		switch {
+		case strings.HasPrefix(joined, "network acl show iso-"):
+			return nil, errors.New("Error: Network ACL not found"), true
+		case strings.HasPrefix(joined, "query /1.0/instances?recursion=1"):
+			return []byte(`[
+				{"name":"srv-bare","config":{"user.feint.provider":"scaleway"},
+				 "expanded_devices":{"eth1":{"type":"nic","network":"fnt-aaa"}},
+				 "devices":{"eth1":{"type":"nic","network":"fnt-aaa"}}},
+				{"name":"srv-grouped","config":{"user.feint.provider":"scaleway"},
+				 "expanded_devices":{"eth1":{"type":"nic","network":"fnt-aaa","security.acls":"scw-abc"}},
+				 "devices":{"eth1":{"type":"nic","network":"fnt-aaa","security.acls":"scw-abc"}}},
+				{"name":"production-database","config":{},
+				 "expanded_devices":{"eth0":{"type":"nic","network":"fnt-aaa"}},
+				 "devices":{"eth0":{"type":"nic","network":"fnt-aaa"}}}
+			]`), nil, true
+		}
+		return nil, nil, false
+	}
+	return f
+}
+
+// isolationBody digs the JSON the driver PUT to the named rule set out of the
+// recorded calls.
+func isolationBody(t *testing.T, f *fakeRuntime, name string) aclBody {
+	t.Helper()
+	for _, call := range f.calls {
+		if len(call) < 2 || call[0] != "query" {
+			continue
+		}
+		if call[len(call)-1] != "/1.0/network-acls/"+name {
+			continue
+		}
+		for i, arg := range call {
+			if arg == "--data" && i+1 < len(call) {
+				var body aclBody
+				if err := json.Unmarshal([]byte(call[i+1]), &body); err != nil {
+					t.Fatalf("unreadable rule set body: %v", err)
+				}
+				return body
+			}
+		}
+	}
+	t.Fatalf("no rule set was written for %s:\n%s", name, strings.Join(f.commands(), "\n"))
+	return aclBody{}
 }

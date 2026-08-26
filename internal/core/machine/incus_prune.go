@@ -234,10 +234,10 @@ func (d *Incus) ownedACLs(ctx context.Context) []string {
 		// By description, plus the isolation names, which are the one case that
 		// can exist without one: the description is written by the PUT that
 		// follows the create, so an interrupted run leaves a rule set invisible
-		// to the description check. isolationOwned matches the emulator's own
-		// network prefix rather than a bare iso-, which used to claim an
-		// operator's rule sets too.
-		if strings.HasPrefix(acl.Description, aclDescription) || isolationOwned(acl.Name) {
+		// to the description check. coreOwnedACL matches the emulator's own
+		// network prefix (and the permissive posture set's fixed name) rather
+		// than a bare iso-, which used to claim an operator's rule sets too.
+		if strings.HasPrefix(acl.Description, aclDescription) || coreOwnedACL(acl.Name) {
 			names = append(names, acl.Name)
 		}
 	}
