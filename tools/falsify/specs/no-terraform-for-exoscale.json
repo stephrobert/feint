@@ -1,0 +1,43 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "up runs an engine the pack vetoes, and the published Exoscale provider splits the apply between the emulator and a paying account",
+      "file": "internal/cli/up.go",
+      "find": "\t\tif reason != \"\" {\n\t\t\treturn fmt.Errorf(\"`iac.engine: %s` is refused for `cloud.provider: %s`: %s\\n\\n%s\",",
+      "replace": "\t\tif reason != \"\" && false {\n\t\t\treturn fmt.Errorf(\"`iac.engine: %s` is refused for `cloud.provider: %s`: %s\\n\\n%s\",",
+      "test": "TestUpRefusesAVetoedEngineBeforeStartingAnything"
+    },
+    {
+      "label": "down runs the destroy the veto forbids, which is the exact verb #525 measured sending five signed requests to api-ch-*.exoscale.com",
+      "file": "internal/cli/up.go",
+      "find": "\t\tcase reason != \"\":",
+      "replace": "\t\tcase reason != \"\" && false:",
+      "test": "TestDownSkipsAVetoedEngineOutLoudAndNeverRunsIt"
+    },
+    {
+      "label": "the exoscale pack vetoes nothing, so the doorstep asks its question and every engine walks through",
+      "file": "internal/providers/exoscale/veto.go",
+      "find": "\tcase \"terraform\", \"opentofu\":",
+      "replace": "\tcase \"terraform-was-never-an-engine\", \"opentofu-was-never-an-engine\":",
+      "test": "TestTheVetoNamesTheDecisionTheIssueAndTheRemainingClient",
+      "package": "./internal/providers/exoscale/"
+    },
+    {
+      "label": "a stack declaration arms FEINT_EXOSCALE_ALLOW_TERRAFORM again, lifting the emulator's one refusal for whatever provider the engine resolved",
+      "file": "internal/environment/environment.go",
+      "find": "\tif name == \"FEINT_EXOSCALE_ALLOW_TERRAFORM\" {",
+      "replace": "\tif name == \"FEINT_EXOSCALE_ALLOW_TERRAFORM\" && false {",
+      "test": "TestTheDeclarationCannotArmTheExoscaleTerraformEscape",
+      "package": "./internal/environment/"
+    },
+    {
+      "label": "the caller's shell outranks the pack's public pair, so a run like #525's signs its escaped requests with real credentials",
+      "file": "internal/cli/up.go",
+      "find": "\tfor name, value := range decl.EngineVars() {\n\t\tout = append(out, \"TF_VAR_\"+name+\"=\"+value)\n\t}\n\treturn out, nil",
+      "replace": "\tfor name, value := range decl.EngineVars() {\n\t\tout = append(out, \"TF_VAR_\"+name+\"=\"+value)\n\t}\n\tout = append(out, os.Environ()...)\n\treturn out, nil",
+      "test": "TestThePacksOwnCredentialsOutrankTheCallersShell"
+    }
+  ],
+  "note": "No Terraform for Exoscale (#525): the maintainer's refusal, enforced where the incident proved it must be — on the client side, before a process starts. The first two mutations reopen the two verbs, the third silences the pack that owns the reason, the fourth lets a declaration arm the server-side escape again, and the fifth inverts the one property that stood between the incident and a real account. The fifth is deliberately an append after the pack's variables rather than a deletion: presence tests stay green under it, which is exactly why TestTheEngineGetsThePacksOwnEnvironmentAndTheDeclaredVariables was not enough."
+}
