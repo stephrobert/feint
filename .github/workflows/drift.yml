@@ -184,6 +184,18 @@ jobs:
       # the coverage diff alone, a contracts-only week made the download below fail
       # on a missing artifact and no issue was opened at all — in the one case
       # where the issue is the only vehicle, `propose` being skipped.
+      # The other thing that goes stale on a weekly clock (#558). It is a signal,
+      # never a proof: most citations of a closed issue are decisions whose limits
+      # hold. `continue-on-error` because a stale acknowledgement must not stop the
+      # upstream scan from opening its pull request — the two failures are
+      # unrelated, and the one that blocks a triage is the one people learn to
+      # ignore. The step's own conclusion is what a reader sees.
+      - name: Limits that cite a closed issue nobody has looked at since
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 tools/docs/limits-acks.py check
+
       - name: Upload the triage view
         if: steps.diff.outputs.changed == 'true' || steps.contracts.outputs.changed == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

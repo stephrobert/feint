@@ -468,6 +468,22 @@ depends = ["build"]
 # request runs.
 run = "tools/ui/screenshots.sh"
 
+[tasks."limits:check"]
+description = "Fail (exit 2) when a limits.md section cites an issue that closed after anyone last looked (#558)"
+# A limit that no longer holds is worse than an undocumented one: a reader
+# trusts it and does not try. The 2026-08-27 audit of all fifty sections found
+# three that had gone false unnoticed, one for a fortnight.
+#
+# Deliberately out of `prepush` and out of the pull-request path, in the weekly
+# drift workflow instead: a red that interrupts daily work over documentation
+# freshness is the gate people learn to bypass with --no-verify, which disarms
+# every other hook at once. The failure mode it hunts is measured in days.
+#
+# It is a signal, never a proof. Most citations of a closed issue are
+# legitimate — #202, #283 and #285 are closed decisions whose limits hold — so
+# it asks for a dated acknowledgement rather than a rewrite.
+run = "python3 tools/docs/limits-acks.py check"
+
 [tasks."docs:check"]
 description = "Fail (exit 2) when README.md's generated section is out of date"
 depends = ["build"]
