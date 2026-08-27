@@ -46,6 +46,40 @@ func (d *Incus) RouteAddress(ctx context.Context, spec AddressSpec) error {
 		}
 		return d.routeOntoRoutedNIC(ctx, spec.Machine, device, spec.Address)
 	}
+	// The machine already answers on this address through a routed NIC, and
+	// there is nothing left to install: the launch put the address in the
+	// device's ipv4.address list and the runtime created the host route with
+	// the device.
+	//
+	// Routing it a second time through the network the pack names is not a
+	// no-op, it is a collision. A Scaleway server is created before its private
+	// NIC exists, so its public address rides a routed NIC (#202); by the time
+	// the NIC is there, Plan.RouteVia names the private network, and the replay
+	// a poweron or a reboot runs sends the very same /32 at the OVN uplink —
+	// where the delegation meets the host route the routed NIC already owns.
+	// Measured on 2026-08-27, twice in one run, on a host that ended up
+	// perfectly correct:
+	//
+	//   ERROR could not route the public address to the machine address=203.0.113.4
+	//     error="set routes of uplink feint-uplink: incus network: Error: Failed
+	//     to add route {… Dst: 203.0.113.4/32 …}: file exists"
+	//
+	// An ERROR shouted over a correct host is exactly the noise that makes the
+	// next real one unreadable (#498). The replay is documented as idempotent;
+	// this is the door where it was not. The routed half already answered the
+	// same question for itself — routeOntoRoutedNIC returns nil for an address
+	// that rode the launch — and this is that answer, asked before the network
+	// the pack names decides which interface is edited.
+	//
+	// TestReRoutingAnAddressARoutedNICAlreadyCarriesTouchesNothing fails
+	// without this.
+	carried, err := d.routedNICCarries(ctx, spec.Machine, spec.Address)
+	if err != nil {
+		return err
+	}
+	if carried {
+		return nil
+	}
 	// OVN NICs take no live route edits, so the address travels as a network
 	// forward instead; see routeAddressOVN for the measurements behind it.
 	if d.OVN {
@@ -90,6 +124,35 @@ func addressAlreadyThere(err error) bool {
 	said := strings.ToLower(err.Error())
 	return strings.Contains(said, "file exists") ||
 		strings.Contains(said, "address already assigned")
+}
+
+// routedNICCarries reports whether one of the machine's own routed NICs already
+// delivers this address.
+//
+// ipv4.address and nothing else, because that is the key the launch writes and
+// the key the host route follows: routedDevice builds the device from the
+// addresses the pack promised, and Incus installs one host route per entry. A
+// route key would be the wrong question — ipv4.routes on a routed NIC is where
+// routeOntoRoutedNIC puts an address added after the launch, and that path is
+// already idempotent on its own terms.
+//
+// Devices the instance owns, never the expanded set: a NIC inherited from a
+// profile belongs to the profile, and an address on it is not one this emulator
+// promised.
+func (d *Incus) routedNICCarries(ctx context.Context, machine, address string) (bool, error) {
+	devices, err := d.instanceDevices(ctx, machine)
+	if err != nil {
+		return false, fmt.Errorf("inspect %s: %w", machine, err)
+	}
+	for _, cfg := range devices.own {
+		if cfg["type"] != "nic" || cfg["nictype"] != "routed" {
+			continue
+		}
+		if routeListContains(cfg["ipv4.address"], address) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // mustOwn refuses to touch a network the emulator did not create. The label is

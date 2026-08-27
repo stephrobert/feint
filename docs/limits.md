@@ -3355,7 +3355,7 @@ the noise that teaches ignoring the next true ERROR.
 The record above left the fault undecided between two candidates: the stop
 half not removing the route, or the re-install not tolerating `file exists`.
 The measurement that closed it (2026-08-27, #498, delivered with the
-#547/#549/#498 lifecycle batch, commit `29d4359`) answered *neither*. A
+#547/#549/#498 lifecycle batch, PR #561) answered *neither*. A
 Scaleway server is created before its private NIC exists, so its public
 address rides a routed NIC (#202) and the runtime installs the host route with
 the device; by the time the private NIC is there, `Plan.RouteVia` names the
