@@ -87,7 +87,18 @@ func (p *Pack) imageView(zone, id, label string) map[string]any {
 		"tags":               []string{},
 		"zone":               zone,
 		"extra_volumes":      map[string]any{},
-		"from_server":        nil,
+		// An empty STRING, never null (#367). The SDK types it as a value —
+		// `FromServer string` (instance_sdk.go:1375), not a pointer — so the
+		// wire form for an image built from no server is the zero value the
+		// SDK round-trips, and two recordings of a real fr-par account carry
+		// exactly that: corpus/scaleway/scw-instance.jsonl (2026-08-21) and
+		// corpus/scaleway/scw-billed-shapes.jsonl (2026-08-24), on GetImage and
+		// on the image every server answer embeds. clientImageView next door
+		// has always written the string; this view answered null, so the two
+		// image doors of one pack disagreed about the type of one field.
+		//
+		// TestTheCatalogueImageTypesFromServerLikeTheCloudDoes fails without this.
+		"from_server": "",
 		"root_volume": map[string]any{
 			"id":          "33333333-3333-4333-8333-333333333333",
 			"name":        label + "-root",

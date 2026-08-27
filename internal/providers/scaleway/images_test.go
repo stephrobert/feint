@@ -147,3 +147,44 @@ func TestACatalogueImageIsNotTheClientsToEdit(t *testing.T) {
 		t.Errorf("the catalogue image stopped resolving: get answered %d", status)
 	}
 }
+
+// image.from_server is an empty string on the wire, never null (#367).
+//
+// Two independent recordings of a real fr-par account carry it as "" — on
+// GetImage and on the image every server answer embeds — and the SDK types
+// Image.FromServer as a value rather than a pointer, so the zero value it
+// round-trips is a string. This emulator answered null on the catalogue view
+// while its own clientImageView answered the string, which is one pack
+// disagreeing with itself about the type of one field.
+//
+// The assertion is on the TYPE, because that is what `feint replay` grades and
+// what a client decoding into a string meets.
+func TestTheCatalogueImageTypesFromServerLikeTheCloudDoes(t *testing.T) {
+	ts := newTestServer(t)
+
+	// The catalogue door, which is where the CLI resolves an image before it
+	// creates anything.
+	const ubuntuJammy = "22222222-2222-4222-8222-222222222222"
+	status, body := do(t, ts, "GET", zoneURL+"/images/"+ubuntuJammy, "")
+	if status != http.StatusOK {
+		t.Fatalf("get the catalogue image: expected 200, got %d (%v)", status, body)
+	}
+	image, _ := body["image"].(map[string]any)
+	if _, isString := image["from_server"].(string); !isString {
+		t.Errorf("GetImage answers from_server as %T (%v); the SDK declares a string",
+			image["from_server"], image["from_server"])
+	}
+
+	// And the same image inside a server, which is the other three operations
+	// the corpus reported: CreateServer, GetServer, UpdateServer.
+	status, created := do(t, ts, "POST", zoneURL+"/servers", `{"name":"from-server","commercial_type":"DEV1-S"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("create: expected 201, got %d (%v)", status, created)
+	}
+	server, _ := created["server"].(map[string]any)
+	inline, _ := server["image"].(map[string]any)
+	if _, isString := inline["from_server"].(string); !isString {
+		t.Errorf("the server's inline image answers from_server as %T; the SDK declares a string",
+			inline["from_server"])
+	}
+}
