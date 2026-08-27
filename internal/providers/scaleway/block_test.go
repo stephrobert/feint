@@ -441,3 +441,72 @@ func TestBlockListsHonourThePageSize(t *testing.T) {
 		}
 	}
 }
+
+// A released block volume is `available`, and `scw` hangs for ever when it is not.
+//
+// The status of a block volume is its stored state, and nothing put it back
+// after the server that held it was deleted: `references` emptied correctly —
+// it is computed, and a gone server leaves none — while `status` stayed
+// `in_use` for the life of the emulator. That difference is not cosmetic.
+// `scw instance server delete` polls the volume the server's own answer named
+// until it settles, so the CLI never returned: measured on 2026-08-27 with scw
+// 2.56.3, rc=124 at a twenty-second timeout, five identical GETs of the volume
+// in the debug trace, and `status: in_use, references: 0` afterwards.
+//
+// It was reachable before anything in this commit: `volume_type = "sbs_volume"`
+// is honoured since #8, and every server created with it left this behind. What
+// made it invisible is that no default takes that path, and every suite that
+// deletes a server deletes one whose root volume is an instance/v1 one.
+//
+// Both doors to a gone server are asserted, because releaseServerResources has
+// twice been found disagreeing with itself between them.
+func TestABlockVolumeIsAvailableOnceItsServerIsGone(t *testing.T) {
+	for _, door := range []struct {
+		name   string
+		remove func(t *testing.T, ts *httptest.Server, id string)
+	}{
+		{"delete", func(t *testing.T, ts *httptest.Server, id string) {
+			t.Helper()
+			if status, body := do(t, ts, "DELETE", zoneURL+"/servers/"+id, ""); status != http.StatusNoContent {
+				t.Fatalf("delete the server: expected 204, got %d (%v)", status, body)
+			}
+		}},
+		{"terminate", func(t *testing.T, ts *httptest.Server, id string) {
+			t.Helper()
+			if status, body := do(t, ts, "POST", zoneURL+"/servers/"+id+"/action", `{"action":"terminate"}`); status != http.StatusAccepted {
+				t.Fatalf("terminate the server: expected 202, got %d (%v)", status, body)
+			}
+		}},
+	} {
+		t.Run(door.name, func(t *testing.T) {
+			ts := newTestServer(t)
+			_, server := serverWith(t, ts,
+				`{"name":"released","commercial_type":"DEV1-S","volumes":{"0":{"volume_type":"sbs_volume","size":20000000000}}}`)
+			id, _ := server["id"].(string)
+			volumes, _ := server["volumes"].(map[string]any)
+			root, _ := volumes["0"].(map[string]any)
+			volumeID, _ := root["id"].(string)
+
+			// The witness: it really is in_use while the server holds it, so a
+			// green run cannot be one that measured an already-available volume.
+			_, held := do(t, ts, "GET", blockURL+"/volumes/"+volumeID, "")
+			if held["status"] != "in_use" {
+				t.Fatalf("an attached block volume reads %v, want in_use", held["status"])
+			}
+
+			door.remove(t, ts, id)
+
+			status, got := do(t, ts, "GET", blockURL+"/volumes/"+volumeID, "")
+			if status != http.StatusOK {
+				t.Fatalf("the volume went with the server: get answered %d (%v)", status, got)
+			}
+			if got["status"] != "available" {
+				t.Errorf("the volume reads %v after its server was removed by %s; `scw instance server delete` polls this until it says available",
+					got["status"], door.name)
+			}
+			if refs, _ := got["references"].([]any); len(refs) != 0 {
+				t.Errorf("the volume still reports %d reference(s) to a server that is gone", len(refs))
+			}
+		})
+	}
+}

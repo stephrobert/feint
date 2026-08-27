@@ -808,6 +808,16 @@ func blockRootVolumeServerView(res *resource.Resource) map[string]any {
 	return out
 }
 
+// The two states a block volume of this emulator is ever in, named once because
+// three files write them and `scw` polls on the difference: `in_use` while a
+// server holds it, `available` the moment nothing does. Upstream declares more
+// (creating, snapshotting, error, deleting) and none of them is reachable here,
+// where every transition is immediate — docs/limits.md carries that decision.
+const (
+	blockVolumeInUse     = "in_use"
+	blockVolumeAvailable = "available"
+)
+
 // newBlockRootVolume materialises a server's root volume in block rather than in
 // instance, which is what `volume_type = "sbs_volume"` asks for.
 //
@@ -824,7 +834,7 @@ func (p *Pack) newBlockRootVolume(zone, project, name string, size uint64) *reso
 		ID:      p.env.NewID(),
 		Kind:    kindBlockVolume,
 		Tenant:  resource.Tenant{Provider: Name, Project: project, Zone: zone},
-		State:   "in_use",
+		State:   blockVolumeInUse,
 		Created: now,
 		Updated: now,
 		Attrs: map[string]any{

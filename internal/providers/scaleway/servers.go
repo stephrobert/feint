@@ -229,6 +229,20 @@ func (p *Pack) rootVolume(server *resource.Resource, name, project, organization
 	// is: the local ones stay overridden for the reason above, which is unchanged.
 	// The disk lands in block/v1 rather than instance/v1, which is where the
 	// Terraform provider goes to read it back.
+	//
+	// THE DEFAULT IS STILL INSTANCE/V1, AND #365 IS THE OPEN QUESTION ABOUT IT.
+	// The cloud gives a DEV1-S an SBS root volume — measured twice, 2026-08-21
+	// and 2026-08-24 — so `scw` follows the server's own volumes["0"].id into
+	// block/v1alpha1 and this emulator answers 404 there. Flipping this one
+	// condition to `wanted.VolumeType == "" || …` makes that read answer, and
+	// was tried on 2026-08-27: it moves EVERY server's root disk out of
+	// instance/v1, where this pack implements the whole server-volume
+	// relationship. attach-volume, the update's volume map, CreateSnapshot,
+	// GetVolume and DeleteVolume all resolve kindVolume alone, so a client's
+	// own root disk stops being reachable through any of them — and the
+	// ownership guard that keeps one server from stealing another's root volume
+	// stops covering the root volume at all. That is a decision about where a
+	// root disk lives, not a line here, and it is the maintainer's to take.
 	if wanted.VolumeType == "sbs_volume" {
 		vol := p.newBlockRootVolume(server.Tenant.Zone, project, volumeName, size)
 		// A volume this call just built: it can belong to nobody else, so the

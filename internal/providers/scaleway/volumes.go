@@ -294,19 +294,47 @@ func (p *Pack) detachStoredVolume(vol *resource.Resource) {
 	_ = p.env.Store.Update(vol.Tenant.Provider, vol.Kind, vol.ID, func(stored *resource.Resource) error {
 		delete(stored.Runtime, runtimeServerKey)
 		delete(stored.Attrs, "server_name")
+		// A block volume carries its attachment in its STATE as well as in its
+		// links: block/v1's `status` is res.State, and a volume that is no
+		// longer attached to anything is `available`. An instance volume has no
+		// such state — it is available whatever it is attached to — which is
+		// why this is the only asymmetry between the two products here.
+		//
+		// Without it a released volume answers `in_use` for ever, and that is
+		// not cosmetic: `scw instance server delete` polls the volume the
+		// server named until it settles, so the CLI never returns. Measured on
+		// 2026-08-27, on a server created with an explicit sbs_volume root,
+		// against a binary built before this change: rc=124 at twenty seconds,
+		// with five identical GETs of the volume in the debug trace and
+		// `status: in_use, references: 0` after the server was gone.
+		//
+		// TestABlockVolumeIsAvailableOnceItsServerIsGone fails without this.
+		if stored.Kind == kindBlockVolume {
+			stored.State = blockVolumeAvailable
+		}
 		stored.Updated = p.env.Now()
 		return nil
 	})
 	p.detachVolume(vol)
+	if vol.Kind == kindBlockVolume {
+		vol.State = blockVolumeAvailable
+	}
 }
 
-// volumesOf returns the volumes attached to a server.
+// volumesOf returns the volumes attached to a server, from BOTH products.
+//
+// One server's disks can live in two stores since #8 served sbs_volume, and
+// this walked instance/v1 alone — so everything built on it (releasing a
+// deleted server's disks, reconciling an update's volume map) silently skipped
+// a block root volume. #365 made that the default rather than an opt-in, which
+// is how it stopped being invisible.
 func (p *Pack) volumesOf(serverID string) []*resource.Resource {
-	all := p.env.Store.List(kindVolume, resource.Tenant{Provider: Name})
-	out := make([]*resource.Resource, 0, len(all))
-	for _, res := range all {
-		if res.Runtime[runtimeServerKey] == serverID {
-			out = append(out, res)
+	out := make([]*resource.Resource, 0, 2)
+	for _, kind := range []string{kindVolume, kindBlockVolume} {
+		for _, res := range p.env.Store.List(kind, resource.Tenant{Provider: Name}) {
+			if res.Runtime[runtimeServerKey] == serverID {
+				out = append(out, res)
+			}
 		}
 	}
 	return out
