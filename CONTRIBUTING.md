@@ -40,7 +40,51 @@ The `pre-push` hook runs `mise run prepush`: `check`, `docs:check`,
 Deterministic, offline, seconds. It is what a pull request will refuse without
 ever depending on a runner's weather.
 
-**It is not enough**, and what it misses depends on what you changed:
+**It is not enough**, and what it misses depends on what you changed. You do not
+have to remember which — ask:
+
+```bash
+mise run testplan          # what this diff has earned, cheapest run first
+```
+
+It reads the diff, prints the runs, and prints what they still **do not** prove.
+It runs nothing itself: the choice is the half a human has to be able to
+disagree with. `mise run prepush` calls it with `--check`, so every push says
+what to run next, and refuses a path no rule triages — "it matched nothing, so
+run nothing" is the cheap default, and an un-triaged path is an absence, not a
+decision (#564).
+
+The costs it orders by are measured, one pass each on 2026-08-27:
+
+| run | measured | what it carries |
+|---|--:|---|
+| `conformance:leg -- probe` | **0.7 s** | every mounted route driven from its own API description, no client |
+| `conformance:leg -- exo-cli` | 4.0 s | the real `exo` |
+| `conformance:leg -- scw-cli` | 7.1 s | the real `scw` |
+| `conformance:leg -- terraform` | 45.4 s | both Terraform fixtures, on either engine |
+| `conformance:leg -- octl` | 141.3 s | the real `octl` |
+| `conformance:leg -- fields` | 208.1 s | all four clients, faults, refusals — **the only leg where the omission gate judges** |
+| `conformance:leg -- runtime` | 590 s | the four suites that need real machines; refuses to run without `FEINT_VM` |
+| `mise run conformance` | 256 s | everything but the runtime suites, which skip themselves |
+| `FEINT_VM=incus-ovn mise run conformance` | **1331 s** | all of it |
+
+**One decision dominates every other**: does the change reach
+`internal/core/machine`. Answer it right and the work costs seconds; answer it
+wrong and it costs 590 s or 1331 s. The rest of that table is worth tens of
+seconds — `fields` at 208 s against the whole runtime-free pass at 256 s saves
+48 s, which is nothing. So `testplan` answers that one question by **reading the
+imports** of the files you changed rather than by consulting a list of directory
+names, which is the half of it a table would get wrong first.
+
+**The plan replaces the full pass locally. It never replaces the CI matrix.**
+Every other gate here adds proof; this one subtracts it, and that inverts the
+failure mode — a wrong rule is silent. With CI untouched, the worst case of a
+wrong rule is a red pull request, which is exactly what CI is for. What no test
+can catch is a rule that names a real directory and prescribes the wrong leg:
+the two mechanical rots are guarded in `tools/testplan/plan_test.go`, the
+semantic one is not, and it is written down rather than pretended away.
+
+The table it reads, in short form:
 
 | what your change touches | run as well | what that proves |
 |---|---|---|

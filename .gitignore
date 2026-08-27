@@ -213,6 +213,10 @@ pyrightconfig.json
 
 # Build output
 /feint
+# The tools that `go build ./tools/...` leaves at the root. Un-ignored, they
+# reach `mise run testplan` as untracked paths no rule triages, which is a red
+# with nothing behind it (#564).
+/testplan
 /dist/
 
 # Upstream SDK checkouts read by the drift scan (cloned by `mise run upstream:sync`)

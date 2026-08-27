@@ -49,6 +49,11 @@ conditional: if a block does not apply, write `N/A` rather than leaving it blank
 - [ ] Nothing in the diff could be written identically for another provider. If
       it could, it belongs in the core — that is the rule that stopped the same
       lifecycle bug being fixed once and surviving twice
+- [ ] `mise run testplan` was run, and what it printed was run — or this pull
+      request names the run it skipped and why. A run not played is **written
+      down**, never left blank: the reviewer cannot tell an omission that was
+      considered from one that was forgotten, and only one of the two is a
+      decision
 
 ### When a model wrote a substantive part of this — otherwise N/A
 

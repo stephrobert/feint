@@ -26,6 +26,29 @@ off, so a partial toolbox never turns into a false pass.
 
 ## Running only the part your change touches
 
+**Ask rather than remember**: `mise run testplan` reads the diff and prints the
+runs it has earned, cheapest first, along with what they still do not prove
+(#564). `mise run prepush` calls it with `--check`, so a path no rule triages
+refuses the push instead of quietly earning nothing.
+
+One pass each, measured on 2026-08-27, which is what the plan orders by:
+
+| run | measured |
+|---|--:|
+| `conformance:leg -- probe` | **0.7 s** |
+| `conformance:leg -- exo-cli` | 4.0 s |
+| `conformance:leg -- scw-cli` | 7.1 s |
+| `conformance:leg -- terraform` | 45.4 s |
+| `conformance:leg -- octl` | 141.3 s |
+| `conformance:leg -- fields` | 208.1 s |
+| `conformance:leg -- runtime` | 590 s |
+| `mise run conformance`, no runtime | 256 s |
+| `FEINT_VM=incus-ovn mise run conformance` | **1331 s** |
+
+The gap that matters is the last one against the first: whether a change reaches
+`internal/core/machine` decides between seconds and twenty-two minutes, and
+every other choice in that table is worth tens of seconds.
+
 `mise run conformance:leg -- <leg>` runs one leg. Seven of its names are the
 matrix entries of `.github/workflows/conformance.yml`, and
 `TestEveryMatrixLegCanBeReproducedLocally` holds the two lists together — a

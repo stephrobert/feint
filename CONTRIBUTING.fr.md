@@ -44,7 +44,52 @@ Déterministe, hors ligne, quelques secondes.
 C'est ce qu'une pull request refusera, sans jamais dépendre de la météo d'un
 runner.
 
-**Ce n'est pas suffisant**, et ce qui manque dépend de ce que vous avez changé :
+**Ce n'est pas suffisant**, et ce qui manque dépend de ce que vous avez changé.
+Vous n'avez pas à vous en souvenir — demandez :
+
+```bash
+mise run testplan          # ce que ce diff a mérité, du moins cher au plus cher
+```
+
+Il lit le diff, imprime les exécutions, et imprime ce qu'elles ne prouvent
+**pas**. Il ne lance rien lui-même : le choix est la moitié qu'un humain doit
+pouvoir contester. `mise run prepush` l'appelle avec `--check`, donc chaque
+poussée dit quoi jouer ensuite et refuse un chemin qu'aucune règle ne trie —
+« ça ne correspond à rien, donc on ne joue rien » est le défaut bon marché, et
+un chemin non trié est une absence, pas une décision (#564).
+
+Les coûts sur lesquels il ordonne sont mesurés, une passe chacun le 2026-08-27 :
+
+| exécution | mesure | ce qu'elle porte |
+|---|--:|---|
+| `conformance:leg -- probe` | **0,7 s** | chaque route montée pilotée depuis sa propre description d'API, sans client |
+| `conformance:leg -- exo-cli` | 4,0 s | le vrai `exo` |
+| `conformance:leg -- scw-cli` | 7,1 s | le vrai `scw` |
+| `conformance:leg -- terraform` | 45,4 s | les deux fixtures Terraform, sur l'un ou l'autre moteur |
+| `conformance:leg -- octl` | 141,3 s | le vrai `octl` |
+| `conformance:leg -- fields` | 208,1 s | les quatre clients, les fautes, les refus — **la seule jambe où le gate d'omission juge** |
+| `conformance:leg -- runtime` | 590 s | les quatre suites qui exigent de vraies machines ; refuse de tourner sans `FEINT_VM` |
+| `mise run conformance` | 256 s | tout sauf les suites runtime, qui se sautent elles-mêmes |
+| `FEINT_VM=incus-ovn mise run conformance` | **1331 s** | l'ensemble |
+
+**Une décision domine toutes les autres** : le changement atteint-il
+`internal/core/machine`. Répondez juste et le travail coûte des secondes ;
+répondez faux et il coûte 590 s ou 1331 s. Le reste du tableau vaut des dizaines
+de secondes — `fields` à 208 s contre la passe complète sans runtime à 256 s
+économise 48 s, c'est-à-dire rien. `testplan` répond donc à cette seule question
+en **lisant les imports** des fichiers modifiés, et non en consultant une liste
+de noms de répertoires, qui est la moitié qu'une table se tromperait en premier.
+
+**Le plan remplace la passe complète en local. Il ne remplace jamais la matrice
+CI.** Tous les autres gates d'ici ajoutent de la preuve ; celui-ci en retire, et
+cela inverse le mode de défaillance : une règle fausse est silencieuse. La CI
+inchangée, le pire cas d'une règle fausse est une pull request rouge, ce pour
+quoi la CI existe. Ce qu'aucun test n'attrape, c'est une règle qui nomme un vrai
+répertoire et prescrit la mauvaise jambe : les deux pourritures mécaniques sont
+gardées dans `tools/testplan/plan_test.go`, la sémantique ne l'est pas, et c'est
+écrit plutôt que dissimulé.
+
+La table qu'il lit, sous forme courte :
 
 | ce que votre changement touche | à lancer en plus | ce que cela prouve |
 |---|---|---|

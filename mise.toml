@@ -629,7 +629,7 @@ run = "python3 tools/falsify/falsify.py"
 
 [tasks.prepush]
 description = "Everything a pull request will fail on that costs seconds and needs no client"
-depends = ["check", "docs:check", "drift:check", "shapes:check", "corpus:check", "falsify:selftest", "falsify:lint", "release:surface"]
+depends = ["check", "docs:check", "drift:check", "shapes:check", "corpus:check", "falsify:selftest", "falsify:lint", "release:surface", "testplan:check"]
 # What this is, and what it deliberately is not.
 #
 # Each of these is deterministic, offline, and takes seconds: they can be a hook
@@ -641,8 +641,8 @@ depends = ["check", "docs:check", "drift:check", "shapes:check", "corpus:check",
 # by construction, because that task drives every suite against one emulator.
 # CI splits the clients across a matrix. `mise run conformance:leg -- <leg>`
 # reproduces one of those partial legs, and it is what to run when a change adds
-# or moves a gate. CLAUDE.md carries the decision table.
-run = "echo 'prepush passed - conformance and conformance:leg are the two it does not cover'"
+# or moves a gate. `mise run testplan` reads the diff and says which (#564).
+run = "echo 'prepush passed - run `mise run testplan` for what this does not cover'"
 
 [tasks."falsify:all"]
 description = "Replay every declared falsification, so a guard whose test stopped biting fails a run"
@@ -695,6 +695,35 @@ description = "Prove the falsification harness refuses the three mutations that 
 # of 2026-08-15 and against the three fixes. Both halves, because a rule that
 # refused every mutation would pass the first half and make the tool useless.
 run = "python3 tools/falsify/falsify.py --selftest"
+
+[tasks."testplan:check"]
+description = "Refuse a diff whose paths no rule triages, and print what this one has earned (#564)"
+# In prepush, and it belongs there for the reason `conformance` does not: it is
+# deterministic, offline, and takes a second. What it enforces is that the
+# routing table is complete for the paths in hand — the whole-tree version of
+# the same question is TestEveryTrackedPathIsTriagedBySomeRule, which `check`
+# already runs.
+#
+# The second half is why it is here rather than in a workflow: every `git push`
+# now prints which runs this change has earned, at the moment somebody can still
+# act on it.
+run = "go run ./tools/testplan --check"
+
+[tasks.testplan]
+description = "Which conformance runs this diff has earned — and which it has not (#564)"
+# The measured reason this exists, in one line: the `probe` leg is 0.7 s, the
+# whole pass under `incus-ovn` is 1331 s, and the only decision that separates
+# them is whether the change reaches the machine layer.
+#
+# --check exits 2 when a changed path is triaged by no rule. That is the point
+# of the tool rather than a flourish: "matched nothing, so run nothing" is the
+# cheap default it exists to refuse, and an un-triaged path is an absence, not a
+# decision.
+#
+# It never runs a suite. A tool that both chose the runs and performed them
+# would be believed about both, and the choice is the half a human has to be
+# able to disagree with.
+run = "go run ./tools/testplan {{arg(name='args', var=true, default='')}}"
 
 [tasks."conformance:leg"]
 description = "Reproduce one leg locally: mise run conformance:leg -- probe (or -- runtime, with FEINT_VM)"

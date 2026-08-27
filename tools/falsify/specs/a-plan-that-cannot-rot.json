@@ -1,0 +1,75 @@
+{
+  "package": "./tools/testplan/",
+  "mutations": [
+    {
+      "label": "a path no rule triages stops being reported, so `testplan` answers \"nothing to run\" for a directory nobody has thought about — the cheap default this tool exists to refuse (#564)",
+      "file": "tools/testplan/plan.go",
+      "find": "\t\tif !matched {\n\t\t\tp.Untriaged = append(p.Untriaged, path)\n\t\t}",
+      "replace": "\t\tif !matched && false {\n\t\t\tp.Untriaged = append(p.Untriaged, path)\n\t\t}",
+      "test": "TestAnUntriagedPathIsAFailureNotACheapDefault"
+    },
+    {
+      "label": "the un-triaged report stops being printed, so `--check` still exits 2 but the reader is never told which path caused it (#564)",
+      "file": "tools/testplan/plan.go",
+      "find": "\t\tfmt.Fprintf(&b, \"%d path(s) no rule triages:\\n\", len(p.Untriaged))",
+      "replace": "\t\tfmt.Fprintf(&b, \"%d path(s)\\n\", len(p.Untriaged))",
+      "test": "TestAnUntriagedPathIsAFailureNotACheapDefault"
+    },
+    {
+      "label": "a directory of this repository loses the rule that triages it, which is what a new package looks like on the day it is added (#564)",
+      "file": "tools/testplan/rules.go",
+      "find": "\t\tPath:     \"internal/shape/\",",
+      "replace": "\t\tPath:     \"internal/shapeless/\",",
+      "test": "TestEveryTrackedPathIsTriagedBySomeRule"
+    },
+    {
+      "label": "a rule keeps naming a directory that no longer exists, reading as coverage while covering nothing — the rot docs/limits.md suffered for a fortnight (#558, #564)",
+      "file": "tools/testplan/rules.go",
+      "find": "\t\tPath:     \"internal/trace/\",",
+      "replace": "\t\tPath:     \"internal/tracing/\",",
+      "test": "TestNoRuleMatchesNothing"
+    },
+    {
+      "label": "a rule prints a mise task that does not exist, so the reader pastes it, sees `no such task`, and stops trusting the whole output (#564)",
+      "file": "tools/testplan/rules.go",
+      "find": "\t\tRuns:     []string{\"shapes:check\"},\n\t\tUnproven: \"redaction is proved",
+      "replace": "\t\tRuns:     []string{\"shapes:verify\"},\n\t\tUnproven: \"redaction is proved",
+      "test": "TestEveryTaskTheRulesNameExistsInMiseToml"
+    },
+    {
+      "label": "a rule sends a reader to a conformance leg that leg.sh refuses, which is exactly how the workflow matrix and the script drifted apart once already (#460, #564)",
+      "file": "tools/testplan/rules.go",
+      "find": "\t\tRuns:     []string{\"conformance:leg -- exo-cli\", \"conformance:zones\"},",
+      "replace": "\t\tRuns:     []string{\"conformance:leg -- exoscale\", \"conformance:zones\"},",
+      "test": "TestEveryLegTheRulesNameIsALegTheScriptAccepts"
+    },
+    {
+      "label": "the machine layer stops being found by reading imports, so a pack file that starts containers on the operator's own station is judged by a client leg alone (#564)",
+      "file": "tools/testplan/plan.go",
+      "find": "\t\tif strings.Trim(imp.Path.Value, `\"`) == machineLayer {",
+      "replace": "\t\tif strings.Trim(imp.Path.Value, `\"`) == machineLayer && false {",
+      "test": "TestAFileThatImportsTheMachineLayerEarnsTheRuntimeLeg"
+    },
+    {
+      "label": "every file is treated as reaching the machine layer, which asks for the 590 s leg unconditionally — the most expensive possible way to be wrong, and the reason that test carries a control (#564)",
+      "file": "tools/testplan/plan.go",
+      "find": "\tfor _, imp := range f.Imports {",
+      "replace": "\tif true {\n\t\treturn true\n\t}\n\tfor _, imp := range f.Imports {",
+      "test": "TestAFileThatImportsTheMachineLayerEarnsTheRuntimeLeg"
+    },
+    {
+      "label": "the plan stops ordering the cheapest run first, so a reader spends 590 s before reaching the 0.7 s leg that would have gone red (#564)",
+      "file": "tools/testplan/plan.go",
+      "find": "\tsort.Slice(order, func(i, j int) bool { return cost(order[i]) < cost(order[j]) })",
+      "replace": "\tsort.Slice(order, func(i, j int) bool { return cost(order[i]) > cost(order[j]) })",
+      "test": "TestThePlanPutsTheCheapRunBeforeTheExpensiveOne"
+    },
+    {
+      "label": "a rule that runs several commands stops having to say what it leaves unproven, and the plan becomes a green describing a smaller world than its reader believes (#564)",
+      "file": "tools/testplan/rules.go",
+      "find": "\t\tUnproven: \"a change to the stored shape is proved across a restart by `mise run conformance:environment`\",",
+      "replace": "\t\tUnproven: prepushIsTheWholeGate,",
+      "test": "TestEveryRuleWithRunsSaysWhatItDoesNotProve"
+    }
+  ]
+}
