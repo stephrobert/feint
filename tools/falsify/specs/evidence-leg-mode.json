@@ -1,0 +1,47 @@
+{
+  "package": "./tools/evidence/",
+  "mutations": [
+    {
+      "label": "an exported FEINT_VM is ignored again, so the leg answers under a mode nobody asked for (#574)",
+      "file": "tools/evidence/mode.sh",
+      "find": "if [ -n \"$vm\" ]; then\n  mode=\"$vm\"",
+      "replace": "if [ -n \"$vm\" ] && false; then\n  mode=\"$vm\"",
+      "test": "TestTheRuntimeLegResolvesAndAnnouncesItsMode"
+    },
+    {
+      "label": "two variables naming two different runtimes are arbitrated instead of refused",
+      "file": "tools/evidence/mode.sh",
+      "find": "if [ -n \"$vm\" ] && [ -n \"$evidence_vm\" ] && [ \"$vm\" != \"$evidence_vm\" ]; then",
+      "replace": "if [ -n \"$vm\" ] && [ -n \"$evidence_vm\" ] && [ \"$vm\" != \"$evidence_vm\" ] && false; then",
+      "test": "TestTheRuntimeLegResolvesAndAnnouncesItsMode"
+    },
+    {
+      "label": "machines off is accepted for the runtime leg, and the record narrows without anyone asking",
+      "file": "tools/evidence/mode.sh",
+      "find": "if [ \"$mode\" = \"off\" ]; then",
+      "replace": "if [ \"$mode\" = \"off\" ] && false; then",
+      "test": "TestTheRuntimeLegResolvesAndAnnouncesItsMode"
+    },
+    {
+      "label": "the leg stops naming the mode it runs, which is the half that was missing entirely",
+      "file": "tools/evidence/mode.sh",
+      "find": "echo \"   the runtime leg runs under --vm $mode ($source)\" >&2",
+      "replace": "echo \"   the runtime leg runs\" >&2",
+      "test": "TestTheRuntimeLegResolvesAndAnnouncesItsMode"
+    },
+    {
+      "label": "the task goes back to pinning its own mode, so the resolver is a script nothing calls",
+      "file": "mise.toml",
+      "find": "  leg2_vm=\"$(tools/evidence/mode.sh)\"",
+      "replace": "  leg2_vm=\"${FEINT_EVIDENCE_VM:-incus}\" # instead of $(tools/evidence/mode.sh)",
+      "test": "TestTheEvidenceTaskAsksForItsModeRatherThanPinningIt"
+    },
+    {
+      "label": "the first leg stops saying its mode is fixed, so an override is silent one leg to the left",
+      "file": "mise.toml",
+      "find": "echo \"== leg 1/2: machines off, probe on (--vm off always: the probe walks every Create* route, and would boot a container per route)\"",
+      "replace": "echo \"== leg 1/2: machines off, probe on\"",
+      "test": "TestTheEvidenceTaskAsksForItsModeRatherThanPinningIt"
+    }
+  ]
+}

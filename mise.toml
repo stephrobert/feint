@@ -807,15 +807,33 @@ depends = ["build"]
 # than logging, and `feint clean --check` refusing at the doorstep on a host
 # that still holds a previous run's networks. Three consecutive stacks.sh runs
 # then left the host byte-identical to its inventory before them.
+#
+# MEASURED 2026-08-27 (#574). Leg 2 used to open with
+# `FEINT_VM="${FEINT_EVIDENCE_VM:-incus}"`, so an operator who exported
+# FEINT_VM=incus-ovn got the bridge and was never told. That line produced two
+# successive false attributions during an Exoscale diagnosis — "the
+# population", then "the branch" — and three 1300-second passes to unmake them.
+# A harness that answers under a mode nobody asked for does not measure its
+# subject. tools/evidence/mode.sh resolves the mode, refuses what it cannot
+# honour, and says which one it runs; its four outcomes are asserted by
+# tools/evidence/mode_test.go, and TestTheEvidenceTaskAsksForItsModeRatherThanPinningIt
+# holds the wiring.
 run = """
 set -e
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-echo "== leg 1/2: machines off, probe on"
-FEINT_VM=off FEINT_EVIDENCE_OUT="$tmp/off.json" mise run conformance
+# Both modes settled at second zero, before the twenty minutes: a mode this
+# task cannot honour must refuse now, not after leg 1 has been paid for. Same
+# discipline as the doorstep question in `conformance`.
+leg2_vm=""
 if command -v incus >/dev/null 2>&1; then
-  echo "== leg 2/2: machines on"
-  FEINT_VM="${FEINT_EVIDENCE_VM:-incus}" FEINT_EVIDENCE_OUT="$PWD/coverage/evidence.json" \
+  leg2_vm="$(tools/evidence/mode.sh)"
+fi
+echo "== leg 1/2: machines off, probe on (--vm off always: the probe walks every Create* route, and would boot a container per route)"
+FEINT_VM=off FEINT_EVIDENCE_OUT="$tmp/off.json" mise run conformance
+if [ -n "$leg2_vm" ]; then
+  echo "== leg 2/2: machines on, --vm $leg2_vm"
+  FEINT_VM="$leg2_vm" FEINT_EVIDENCE_OUT="$PWD/coverage/evidence.json" \
     FEINT_EVIDENCE_JOIN="$tmp/off.json" mise run conformance
 else
   echo "== no incus on this host: the runtime leg is skipped, the artefact says machines: none"
