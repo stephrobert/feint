@@ -65,6 +65,27 @@ type Attachment struct {
 	// while its API said it was gone, which is the shape of defect #202 exists
 	// to prevent — an address nothing publishes.
 	Secondary []string
+	// Unfiltered declares that this provider's security groups do not cover
+	// the interface this attachment creates, so no rule set is ever bound to
+	// it.
+	//
+	// Which interfaces a security group covers is a provider fact, like an
+	// address key or a login, and it is not the same fact on the three clouds
+	// (#574). Exoscale states it plainly — "Security group rules do not apply
+	// to traffic inside private networks" — while Scaleway and Outscale do
+	// filter their private interfaces, and their network suites assert it.
+	//
+	// So the zero value is "covered": a pack that says nothing keeps every
+	// interface filtered, which is the direction that cannot silently open a
+	// machine. A pack that sets it declares a divergence it would otherwise
+	// have shipped, and it is read once, by GroupSync, on its way to the
+	// binding the driver applies.
+	//
+	// internal/core/machine's TestNoRuleSetIsBoundToAnUnfilteredInterface and
+	// internal/providers/exoscale's
+	// TestALateNetworkAttachLeavesThePrivateInterfaceUnfiltered fail without
+	// it.
+	Unfiltered bool
 }
 
 // Spec describes the machine a provider pack wants.

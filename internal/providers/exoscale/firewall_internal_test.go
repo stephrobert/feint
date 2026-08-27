@@ -242,8 +242,14 @@ func (p *Pack) poolMembersOfOnlyPool(t *testing.T) []*resource.Resource {
 // TestALateNetworkAttachCarriesTheRuleSets covers the interface born after the
 // boot: the Terraform provider attaches private networks once the create has
 // answered, and a rule set applied at boot never reaches a NIC that does not
-// exist yet. The attach path must re-apply — idempotently, since ApplyFirewall
-// covers every NIC of the machine.
+// exist yet. The attach path must re-apply, so the machine's covered
+// interfaces hold what the API describes.
+//
+// "Since ApplyFirewall covers every NIC of the machine" was the second half of
+// this comment until 2026-08-27, and it was the defect: the interface this
+// attach creates is precisely the one the groups must *not* reach (#574).
+// TestALateNetworkAttachLeavesThePrivateInterfaceUnfiltered holds that half,
+// and this one keeps the resync itself from being dropped along with it.
 func TestALateNetworkAttachCarriesTheRuleSets(t *testing.T) {
 	driver := newFirewallDriver()
 	p := sequencedPack(driver)

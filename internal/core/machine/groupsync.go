@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/stephrobert/feint/internal/core/resource"
@@ -66,6 +67,24 @@ type GroupSync struct {
 
 	// Group resolves a worn identifier to its stored group.
 	Group func(id string) (*resource.Resource, bool)
+
+	// PlanOf, optional, is the machine's declared interface shape — the very
+	// function Reconciler.PlanOf carries, wired here rather than spelled a
+	// second way, so the scope below cannot drift from the plan that creates
+	// the interfaces.
+	//
+	// Exactly one thing is read from it: which of the machine's networks this
+	// provider's security groups do not cover (Attachment.Unfiltered, #574).
+	// Nil means every interface is covered, which is what two of the three
+	// providers do and what the emulator did for all three until an Exoscale
+	// private network was measured firewalled where the real cloud states it
+	// is not.
+	//
+	// It lives on the orchestrator rather than only on the Reconciler because
+	// the wearer replay reaches a machine without going through a boot: a
+	// group whose rules change re-applies onto every machine wearing it, and
+	// that path has no plan of its own to read.
+	PlanOf func(res *resource.Resource) Plan
 
 	// Referrers, optional, lists the groups one of whose rules names one of
 	// the given groups as a member source. Nil where the provider's rules
@@ -322,7 +341,36 @@ func (s GroupSync) applyMachine(ctx context.Context, res, fresh *resource.Resour
 		}
 		specs = append(specs, spec)
 	}
-	s.Binding.ApplyRuleSets(ctx, fw, res.Runtime[s.Binding.RuntimeKey], specs...)
+	s.Binding.ApplyRuleSets(ctx, fw, res.Runtime[s.Binding.RuntimeKey], s.unfiltered(res), specs...)
+}
+
+// unfiltered is the machine's networks this provider's security groups do not
+// cover, read off the plan the pack declares for that very machine (#574).
+//
+// Both halves of the plan are walked, not just the memberships: which half an
+// interface rides in is a fact about *when* it is created — with the launch or
+// after it — and says nothing about whether a group reaches it. A provider
+// whose boot interface is out of scope would be silently filtered by a reader
+// that only looked at Memberships, which is the same defect one interface to
+// the left.
+//
+// A network named twice is named once here: the plan may repeat one — a
+// membership re-declared after a boot — and the driver reads this as a set.
+//
+// TestTheUnfilteredScopeIsReadFromBothHalvesOfThePlan fails without the first
+// half.
+func (s GroupSync) unfiltered(res *resource.Resource) []string {
+	if s.PlanOf == nil || res == nil {
+		return nil
+	}
+	plan := s.PlanOf(res)
+	var out []string
+	for _, att := range slices.Concat(plan.Boot, plan.Memberships) {
+		if att.Unfiltered && att.Network != "" && !slices.Contains(out, att.Network) {
+			out = append(out, att.Network)
+		}
+	}
+	return out
 }
 
 // AfterBoot runs once a machine exists or first publishes an address: its own

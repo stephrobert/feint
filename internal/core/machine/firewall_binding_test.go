@@ -70,7 +70,7 @@ func TestAPermissiveGroupBindsNothingOnEveryRuntime(t *testing.T) {
 	fw := &fakeFirewaller{}
 	b := firewallBinding(&buf)
 
-	b.ApplyRuleSets(context.Background(), fw, "feint-test-a", permissive)
+	b.ApplyRuleSets(context.Background(), fw, "feint-test-a", nil, permissive)
 	if len(fw.applied) != 1 || len(fw.applied[0].Names) != 0 {
 		t.Fatalf("a group that filters nothing must attach nothing, got %+v", fw.applied)
 	}
@@ -78,7 +78,7 @@ func TestAPermissiveGroupBindsNothingOnEveryRuntime(t *testing.T) {
 	// The accepting half: a group that restricts something still attaches, and
 	// its defaults ride the binding.
 	fw.applied = nil
-	b.ApplyRuleSets(context.Background(), fw, "feint-test-a", restrictive)
+	b.ApplyRuleSets(context.Background(), fw, "feint-test-a", nil, restrictive)
 	if len(fw.applied) != 1 {
 		t.Fatalf("%d applications, want 1", len(fw.applied))
 	}
@@ -91,7 +91,7 @@ func TestAPermissiveGroupBindsNothingOnEveryRuntime(t *testing.T) {
 	// the default closed whatever a permissive one says, while the permissive
 	// one still attaches nothing.
 	fw.applied = nil
-	b.ApplyRuleSets(context.Background(), fw, "feint-test-a", permissive, restrictive)
+	b.ApplyRuleSets(context.Background(), fw, "feint-test-a", nil, permissive, restrictive)
 	got = fw.applied[0]
 	if len(got.Names) != 1 || got.DefaultIngress != "drop" {
 		t.Fatalf("stacked sets must combine deny-dominant, got %+v", got)
@@ -111,7 +111,7 @@ func TestAnUnenforceableGroupIsReportedAsTheDeclaredLimit(t *testing.T) {
 	fw := &fakeFirewaller{applyErr: fmt.Errorf("apply firewall to m/eth0: %w", ErrFirewallUnenforceable)}
 	b := firewallBinding(&buf)
 
-	b.ApplyRuleSets(context.Background(), fw, "feint-test-a", restrictive)
+	b.ApplyRuleSets(context.Background(), fw, "feint-test-a", nil, restrictive)
 	declared := buf.String()
 	if !strings.Contains(declared, "level=WARN") {
 		t.Fatalf("a declared limit must be a warning, got %q", declared)
@@ -122,7 +122,7 @@ func TestAnUnenforceableGroupIsReportedAsTheDeclaredLimit(t *testing.T) {
 
 	buf.Reset()
 	fw.applyErr = errors.New("the daemon went away")
-	b.ApplyRuleSets(context.Background(), fw, "feint-test-a", restrictive)
+	b.ApplyRuleSets(context.Background(), fw, "feint-test-a", nil, restrictive)
 	if failure := buf.String(); !strings.Contains(failure, "level=ERROR") {
 		t.Fatalf("an undeclared failure must stay an error, got %q", failure)
 	}
@@ -161,7 +161,7 @@ func TestTheUnenforceableWarningDoesNotCallTheMachinePublicOnly(t *testing.T) {
 		"apply firewall to m: a routed NIC accepts no security option, so what it carries "+
 			"is covered by nothing: eth0 (203.0.113.2): %w", ErrFirewallUnenforceable)}
 
-	firewallBinding(&buf).ApplyRuleSets(context.Background(), fw, "feint-test-a",
+	firewallBinding(&buf).ApplyRuleSets(context.Background(), fw, "feint-test-a", nil,
 		FirewallSpec{Name: "sg-r", DefaultIngress: "drop", DefaultEgress: "allow"})
 
 	said := buf.String()

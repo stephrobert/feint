@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"errors"
+	"slices"
 )
 
 // ErrFirewallUnenforceable reports an interface the runtime has no mechanism
@@ -84,6 +85,27 @@ type FirewallSpec struct {
 type FirewallBinding struct {
 	Names                         []string
 	DefaultIngress, DefaultEgress string
+	// Unfiltered names the networks whose interfaces carry no rule set at all,
+	// because the pack declared them outside what its security groups cover
+	// (Attachment.Unfiltered, #574). An interface on one of them is bound as
+	// if the machine wore no group: never the names above, never the default
+	// actions.
+	//
+	// Carried per network rather than per device because a pack declares
+	// networks and never sees a device name — the runtime picks those, and
+	// which ethN a membership lands on depends on what the launch already
+	// used.
+	Unfiltered []string
+}
+
+// covers reports whether the rule sets of this binding reach an interface
+// sitting on the named network.
+//
+// A device on no network — a routed NIC — is covered as far as this question
+// goes; what happens to it is ApplyFirewall's own refusal (#337), which is a
+// statement about the runtime rather than about the provider's model.
+func (b FirewallBinding) covers(network string) bool {
+	return network == "" || !slices.Contains(b.Unfiltered, network)
 }
 
 // Firewaller is the optional half of a Driver: a runtime that can enforce rules
@@ -98,8 +120,10 @@ type Firewaller interface {
 	// rather than patching is what makes a rule removed upstream disappear here
 	// instead of lingering.
 	EnsureFirewall(ctx context.Context, spec FirewallSpec) error
-	// ApplyFirewall attaches rule sets to every interface of a machine, and
-	// detaches everything when the binding names none.
+	// ApplyFirewall attaches rule sets to every interface of a machine the
+	// binding covers, and detaches everything when the binding names none. An
+	// interface on one of the binding's Unfiltered networks is treated as if
+	// the machine wore no group at all.
 	ApplyFirewall(ctx context.Context, machine string, binding FirewallBinding) error
 	// RemoveFirewall deletes the rule set. It must succeed when nothing is
 	// there, and it must fail when the set is still attached rather than

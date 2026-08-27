@@ -39,15 +39,15 @@
     {
       "label": "an empty binding goes back to the bare detach on an isolated network, and the reject default closes the machine entirely",
       "file": "internal/core/machine/incus_firewall.go",
-      "find": "\t\t\tif joined == \"\" && networks[device.network].acls != \"\" {",
-      "replace": "\t\t\tif joined == \"\" && networks[device.network].acls != \"\" && false {",
+      "find": "\t\t\tif attached == \"\" && networks[device.network].acls != \"\" {",
+      "replace": "\t\t\tif attached == \"\" && networks[device.network].acls != \"\" && false {",
       "test": "TestAMachineWithoutAGroupStaysOpenOnAnIsolatedNetwork"
     },
     {
       "label": "the permissive set attaches to every bare NIC whatever its network carries, handing its egress catch-all to the sender's side of the pipeline",
       "file": "internal/core/machine/incus_firewall.go",
-      "find": "\t\t\tif joined == \"\" && networks[device.network].acls != \"\" {",
-      "replace": "\t\t\tif joined == \"\" && (networks[device.network].acls != \"\" || true) {",
+      "find": "\t\t\tif attached == \"\" && networks[device.network].acls != \"\" {",
+      "replace": "\t\t\tif attached == \"\" && (networks[device.network].acls != \"\" || true) {",
       "test": "TestAnEmptyBindingStillClearsANICOnAnUnisolatedNetwork"
     },
     {

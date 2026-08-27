@@ -40,6 +40,15 @@ func (p *Pack) groupSync() machine.GroupSync {
 			return p.env.Store.Get(Name, kindSecurityGroup, id)
 		},
 		Referrers: p.groupsReferencing,
+		// Where this provider's groups apply, which on Exoscale is not every
+		// interface (#574): the same plan the Reconciler executes, read here
+		// for the one thing it says about scope — a private-network
+		// membership is declared Unfiltered, because upstream states that
+		// security group rules do not apply inside private networks. Wiring
+		// the same function twice rather than a second walk of the same
+		// attributes: a scope spelled apart from the plan is a scope that
+		// stops describing the interfaces the plan creates.
+		PlanOf: p.machinePlan,
 	}
 }
 

@@ -15,6 +15,49 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+### Fixed
+
+- **An Exoscale security group stops at the public interface, where the real
+  cloud stops it (#574).** Exoscale states it in one sentence: "Security group
+  rules do not apply to traffic inside private networks". Since `a344f8d`
+  (#494/#475) this emulator applied them there. The emulated `default` group
+  carries no ingress rule, so its rule set translates to a drop default, and
+  the driver wrote it onto the membership NIC: **two instances of one private
+  network could not reach each other**. Measured 2026-08-27 under `--vm incus`,
+  one network and two instances created with `--public-ip none`, whose only
+  interface is the membership one: `security.acls=exo-…` plus
+  `security.acls.default.ingress.action=drop` on the NIC, 0/10 probes
+  connected; with the fix, no `security.acls` key at all, 10/10. Under
+  `--vm incus-ovn` the same wrong rule set was written and did *not* bite,
+  because the sender's catch-all egress `allow` at priority 300 outranks the
+  receiver's NIC default deny at 100/111 (#491) — so every green that segment
+  produced under OVN rested on rule ordering, and the after-state is read off
+  the NIC rather than off a connection succeeding.
+
+  Where a security group applies is now a provider fact carried by the shared
+  layer, not a rule of the layer: the pack declares it per interface on
+  `machine.Attachment.Unfiltered`, `machine.GroupSync` reads it off the plan
+  the pack already declares, and it reaches the driver on
+  `FirewallBinding.Unfiltered`. Scaleway and Outscale declare nothing and keep
+  filtering their private NICs, which their own network suites assert.
+  Consequence a reader of the host will meet: an Exoscale instance with no
+  public address and only private memberships carries **no rule set on any
+  interface**, because it has no interface a group covers.
+
+- **The three instruments that hid it, repaired in the same change (#574).**
+  `.github/workflows/runtime-proof.yml` ran two of the three network suites and
+  not `tools/conformance/exoscale/network.sh`, on either leg, so nothing in CI
+  replayed it; `TestEveryNetworkSuiteIsReplayedByTheRuntimeProof` now derives
+  the list from the suites on disk rather than from a list somebody remembers.
+  `mise run evidence:update` overrode an exported `FEINT_VM` in silence on its
+  runtime leg (`FEINT_VM="${FEINT_EVIDENCE_VM:-incus}"`), which manufactured
+  two successive false attributions during the diagnosis; `tools/evidence/mode.sh`
+  now honours the caller, refuses a disagreement and `--vm off` by name, and
+  **announces the mode it runs** before anything starts. And the Exoscale
+  network suite's own header claimed the pack "does not yet sync its security
+  groups onto the machines" — true before `a344f8d`, read as a live fact for
+  months after, and what steered every reader away from the firewall.
+
 ## [0.11.0] - 2026-08-26
 
 The release where the emulator stopped taking its own word for it. Four defects

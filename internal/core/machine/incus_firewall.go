@@ -173,11 +173,18 @@ func (d *Incus) firewallRefused(err error) error {
 }
 
 // ApplyFirewall implements Firewaller. It sets the rule sets, and the default
-// actions, on every NIC of the machine.
+// actions, on every NIC of the machine the binding covers.
 //
 // A machine can carry NICs of both kinds at once — the runtime's default
 // profile hands out a bridged eth0 next to the OVN interfaces the pack
 // attached — so the split below is per NIC, not per driver mode.
+//
+// "Every NIC" was the whole sentence until 2026-08-27, and it was the defect
+// (#574): a pack whose security groups do not reach inside its private
+// networks got them written onto the membership NIC all the same, so two
+// machines of one segment could not reach each other. What a group covers is
+// declared per network by the pack (Attachment.Unfiltered) and arrives here on
+// FirewallBinding.Unfiltered.
 func (d *Incus) ApplyFirewall(ctx context.Context, machine string, binding FirewallBinding) error {
 	if !safeName.MatchString(machine) {
 		return fmt.Errorf("invalid machine name %q", machine)
@@ -209,6 +216,31 @@ func (d *Incus) ApplyFirewall(ctx context.Context, machine string, binding Firew
 	permissiveEnsured := false
 	var escaped []string
 	for _, device := range devices {
+		// What this interface is asked to wear, which is not always what the
+		// machine wears (#574). A pack declares the networks its security
+		// groups do not cover — Exoscale's private networks, where upstream
+		// says in as many words that "security group rules do not apply" —
+		// and an interface on one of them is bound as if the machine wore no
+		// group at all.
+		//
+		// Emptied rather than skipped, deliberately, and each half is
+		// measured. Skipping would leave a rule set a previous version of this
+		// code had already written standing on the NIC, so the defect would
+		// survive a restart of the very machine that fixes it. And the empty
+		// binding is not "write nothing": under OVN a network carrying the
+		// emulator's isolation set forces the reject default onto every NIC
+		// attached to it, so the branch below dresses a set-less NIC in the
+		// permissive posture instead — an unfiltered interface must end up
+		// open inside its own segment, which is the entire point.
+		//
+		// TestNoRuleSetIsBoundToAnUnfilteredInterface and
+		// TestAnUnfilteredInterfaceStaysOpenOnAnIsolatedNetwork fail without
+		// this; TestApplyFirewallCoversEveryInterface holds the accepting
+		// half.
+		attached := joined
+		if !binding.covers(device.network) {
+			attached = ""
+		}
 		// A routed NIC takes no rule set at all (#337). Measured on Incus 7.2
 		// and confirmed by the 7.3 wording of the same refusal: every security
 		// option is an invalid device option there — security.acls, its two
@@ -243,7 +275,7 @@ func (d *Incus) ApplyFirewall(ctx context.Context, machine string, binding Firew
 		// TestTheUnenforceableRefusalNamesTheAddressThatEscapes fails without
 		// the addresses.
 		if device.routed {
-			if joined != "" {
+			if attached != "" {
 				escaped = append(escaped, device.describe())
 			}
 			continue
@@ -256,7 +288,7 @@ func (d *Incus) ApplyFirewall(ctx context.Context, machine string, binding Firew
 		if device.inherited {
 			verb = "override"
 		}
-		args := []string{"config", "device", verb, machine, device.name, "security.acls=" + joined}
+		args := []string{"config", "device", verb, machine, device.name, "security.acls=" + attached}
 		switch {
 		case d.isOVNNetwork(ctx, device.network, networks):
 			// Only security.acls: it is the one ACL key an OVN NIC updates in
@@ -281,7 +313,7 @@ func (d *Incus) ApplyFirewall(ctx context.Context, machine string, binding Firew
 			// TestAMachineWithoutAGroupStaysOpenOnAnIsolatedNetwork fails
 			// without this; TestAnEmptyBindingStillClearsANICOnAnUnisolatedNetwork
 			// holds the other half.
-			if joined == "" && networks[device.network].acls != "" {
+			if attached == "" && networks[device.network].acls != "" {
 				if !permissiveEnsured {
 					if err := d.EnsureFirewall(ctx, permissiveSpec()); err != nil {
 						return fmt.Errorf("apply firewall to %s/%s: %w", machine, device.name, err)
@@ -290,7 +322,7 @@ func (d *Incus) ApplyFirewall(ctx context.Context, machine string, binding Firew
 				}
 				args[len(args)-1] = "security.acls=" + permissiveACL()
 			}
-		case joined != "":
+		case attached != "":
 			// The default actions only mean something while a rule set is
 			// attached, and Incus rejects them on a NIC that carries none.
 			args = append(args,

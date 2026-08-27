@@ -3194,7 +3194,9 @@ stayed open whatever the group said, and the API answered success on every
 rule. All three packs now hand their rules over through the shared layer
 (`machine.Binding`), and the witness is observable on the host: `incus network
 acl list` carries `scw-*`, `osc-*` and `exo-*` sets marked `feint security
-group`, attached to the machines that wear the groups (measured 2026-08-26 on
+group`, attached to the machines that wear the groups — on the interfaces each
+provider says its groups cover, which is not every interface (#574, below;
+measured 2026-08-26 on
 `examples/stacks/scaleway` — three `scw-*` sets, six interfaces between them —
 `examples/stacks/outscale` and `examples/stacks/exoscale`, each under
 `feint up --runtime incus-ovn`).
@@ -3306,6 +3308,56 @@ stated bounds" carries the runs).
 Group-sourced rules (the tiering statement, "tier 2 accepts tier 1") are
 expanded into the member machines' addresses, since the runtime has no group
 selector, and re-expanded whenever a member boots or gains an interface.
+
+**Which interfaces a group covers is the provider's answer, not this
+emulator's (#574).** Exoscale documents the difference in one sentence —
+"Security group rules do not apply to traffic inside private networks"
+([Private Network Overview](https://community.exoscale.com/product/networking/private-network/overview/))
+— and from `a344f8d` (#494/#475) to 2026-08-27 this emulator applied them
+there anyway. The emulated `default` group carries no ingress rule, so its
+rule set translates to a drop default, and the driver wrote it onto the
+membership NIC. Measured 2026-08-27, one private network and two instances
+created with `--public-ip none`, whose only interface is therefore the
+membership one:
+
+```console
+# --vm incus, before                     # --vm incus, after
+eth0:                                    eth0:
+  ipv4.address: 10.186.0.20                ipv4.address: 10.186.0.20
+  network: fnt-49f6b5af641                 network: fnt-378ef075b46
+  security.acls: exo-11e594f4819           type: nic
+  security.acls.default.ingress.action: drop
+  type: nic
+0/10 probes connected                    10/10 probes connected
+```
+
+Under `--vm incus-ovn` the same wrong rule set was written and did **not**
+bite: the sender's catch-all egress `allow` at priority 300 outranks the
+receiver NIC's default deny at 100/111, the ordering the paragraph above
+records as #491. Both runs are in the record because they say different
+things — every green this segment produced under OVN rested on that accident,
+so the after-state is read off the NIC (`incus config device get`) and never
+off a connection succeeding.
+
+The scope is declared per interface by the pack
+(`machine.Attachment.Unfiltered`) and reaches the driver on
+`FirewallBinding.Unfiltered`; Scaleway and Outscale declare nothing, keep
+filtering their private NICs, and their own network suites assert it. Two
+consequences for whoever reads the witness at the top of this section. An
+Exoscale instance with no public address and only private memberships now
+carries **no rule set on any interface** — it has no interface a security
+group covers, which is what upstream describes. And under OVN, a membership
+NIC on a network carrying the emulator's isolation set wears the permissive
+posture set (`opn-fnt…`) rather than nothing, because a network-level ACL
+forces the reject default onto every NIC attached to it: unfiltered has to
+mean open inside the segment, not closed by the network.
+
+Three instruments had to agree to hide this for as long as it lasted, and all
+three are repaired in the same change: `runtime-proof.yml` ran two of the
+three network suites and not the Exoscale one, `evidence:update`'s runtime leg
+overrode an exported `FEINT_VM` in silence, and this suite's own header
+claimed the pack "does not yet sync its security groups onto the machines" —
+true before `a344f8d`, read as a live fact for as long after.
 
 ## The station reaches an OVN private address only via the network's router, and the posted uplink routes do not go there (#496)
 

@@ -17,6 +17,54 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ## [Unreleased]
 
+### Corrigé
+
+- **Un groupe de sécurité Exoscale s'arrête à l'interface publique, là où le
+  vrai cloud l'arrête (#574).** Exoscale le dit en une phrase : « Security
+  group rules do not apply to traffic inside private networks ». Depuis
+  `a344f8d` (#494/#475), cet émulateur les appliquait quand même. Le groupe
+  `default` émulé ne porte aucune règle d'entrée, donc son jeu de règles se
+  traduit par un défaut `drop`, et le pilote l'écrivait sur la NIC de
+  rattachement : **deux instances d'un même réseau privé ne se joignaient
+  plus**. Mesuré le 2026-08-27 sous `--vm incus`, avec un réseau et deux
+  instances créées en `--public-ip none`, dont la seule interface est celle du
+  rattachement : `security.acls=exo-…` et
+  `security.acls.default.ingress.action=drop` sur la NIC, 0/10 sondes
+  connectées ; avec le correctif, plus aucune clé `security.acls`, 10/10. Sous
+  `--vm incus-ovn`, le même jeu de règles fautif était posé et ne mordait pas,
+  parce que le `allow` fourre-tout en sortie de l'émetteur, à la priorité 300,
+  surclasse le refus par défaut de la NIC réceptrice à 100/111 (#491). Tout
+  vert obtenu là reposait donc sur un ordre de règles, et l'état d'après se lit
+  sur la NIC, jamais sur une connexion qui passe.
+
+  Ce qu'un groupe couvre est désormais un fait provider porté par la couche
+  partagée, et non une règle de cette couche : le pack le déclare par interface
+  sur `machine.Attachment.Unfiltered`, `machine.GroupSync` le lit sur le plan
+  que le pack déclare déjà, et il arrive au pilote via
+  `FirewallBinding.Unfiltered`. Scaleway et Outscale ne déclarent rien et
+  continuent de filtrer leurs NIC privées, ce que leurs propres suites réseau
+  vérifient. Conséquence à connaître en lisant l'hôte : une instance Exoscale
+  sans adresse publique, rattachée seulement à des réseaux privés, ne porte
+  **aucun jeu de règles sur aucune interface**, faute d'interface qu'un groupe
+  couvre.
+
+- **Les trois instruments qui l'ont caché, réparés dans le même lot (#574).**
+  `.github/workflows/runtime-proof.yml` jouait deux des trois suites réseau et
+  pas `tools/conformance/exoscale/network.sh`, sur aucune de ses deux jambes :
+  rien en CI ne la rejouait. `TestEveryNetworkSuiteIsReplayedByTheRuntimeProof`
+  dérive maintenant la liste des suites présentes sur disque, au lieu d'une
+  liste que quelqu'un doit se rappeler. `mise run evidence:update` écrasait en
+  silence un `FEINT_VM` exporté sur sa jambe runtime
+  (`FEINT_VM="${FEINT_EVIDENCE_VM:-incus}"`), ce qui a produit deux
+  attributions fausses successives pendant le diagnostic ;
+  `tools/evidence/mode.sh` honore désormais l'appelant, refuse par leur nom un
+  désaccord entre les deux variables et le mode `off`, et **annonce le mode
+  qu'il exécute** avant que quoi que ce soit démarre. Enfin, l'en-tête de la
+  suite réseau Exoscale affirmait que le pack « ne synchronise pas encore ses
+  groupes de sécurité sur les machines » : vrai avant `a344f8d`, lu comme un
+  fait courant des mois après, et c'est lui qui détournait tous les lecteurs du
+  pare-feu.
+
 ## [0.11.0] - 2026-08-26
 
 La version où l'émulateur a cessé de se croire sur parole. Quatre défauts

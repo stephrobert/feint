@@ -95,11 +95,16 @@ func (b Binding) SyncRuleSet(ctx context.Context, fw Firewaller, spec FirewallSp
 // The combined default is deny-dominant: one set that drops what no rule
 // matches keeps dropping it whatever a more permissive neighbour says, which
 // is the semantics every provider here documents for stacked groups.
-func (b Binding) ApplyRuleSets(ctx context.Context, fw Firewaller, machine string, specs ...FirewallSpec) {
+//
+// unfiltered names the machine's networks this provider's groups do not cover
+// (#574). It travels beside the sets rather than being applied here, because
+// the decision is per interface and only the driver knows which interface sits
+// on which network.
+func (b Binding) ApplyRuleSets(ctx context.Context, fw Firewaller, machine string, unfiltered []string, specs ...FirewallSpec) {
 	if fw == nil || machine == "" {
 		return
 	}
-	binding := FirewallBinding{DefaultIngress: "allow", DefaultEgress: "allow"}
+	binding := FirewallBinding{DefaultIngress: "allow", DefaultEgress: "allow", Unfiltered: unfiltered}
 	for _, spec := range specs {
 		if spec.EnforcesNothing() {
 			continue
@@ -113,7 +118,13 @@ func (b Binding) ApplyRuleSets(ctx context.Context, fw Firewaller, machine strin
 		}
 	}
 	if len(binding.Names) == 0 {
-		binding = FirewallBinding{}
+		// The scope is a property of the machine, not of the sets it happens
+		// to wear, so the detach carries it too. Nothing in the driver turns
+		// on it here — an empty name list already leaves every interface bare
+		// — but a binding that dropped it would describe one machine two ways
+		// depending on how many groups it wore, and that difference would
+		// reach the recorder the packs are compared through.
+		binding = FirewallBinding{Unfiltered: unfiltered}
 	}
 	if err := fw.ApplyFirewall(ctx, machine, binding); err != nil {
 		b.reportFirewall(err, "machine", machine)

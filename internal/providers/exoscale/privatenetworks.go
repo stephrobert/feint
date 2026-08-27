@@ -684,13 +684,17 @@ func (p *Pack) attachInstanceToPrivateNetwork(w http.ResponseWriter, r *http.Req
 		writeError(w, http.StatusNotFound, "resource not found")
 		return
 	}
-	// Join attaches and then resyncs the firewall: the interface this attach
-	// just created carries the instance's rule sets like every other one — the
-	// Terraform provider attaches networks after the create returns, and a set
-	// applied at boot never reaches an interface born later (#475).
-	// ApplyFirewall covers every NIC of the machine, so re-applying is
-	// idempotent for the older ones; the groups naming this instance's groups
-	// re-expand with it, because the new lease is now part of what they mean.
+	// Join attaches and then resyncs the firewall: a set applied at boot never
+	// reaches an interface born later, and the Terraform provider attaches
+	// networks after the create returns (#475). Re-applying is idempotent for
+	// the interfaces that were already there; the groups naming this
+	// instance's groups re-expand with it, because the new lease is now part
+	// of what they mean.
+	//
+	// What the resync does *not* do, since 2026-08-27, is carry a rule set
+	// onto the interface it just created: membershipAttachment declares a
+	// private-network membership out of the groups' scope, which is upstream's
+	// own rule (#574).
 	p.joinPrivateNetwork(r.Context(), inst, pn, leaseIP)
 	p.writeOperation(w, p.operationReferring(nounPrivateNetwork, id))
 }
@@ -915,8 +919,29 @@ func (p *Pack) moveLease(w http.ResponseWriter, pn *resource.Resource, dhcp mana
 // runtime: the backing network, the leased address, and the range's mask when
 // the network is managed — configuring the interface inside the guest needs
 // both halves.
+//
+// Unfiltered is upstream's own sentence, and the whole of #574: "Security
+// group rules do not apply to traffic inside private networks" (Exoscale,
+// Private Network Overview). From a344f8d to 2026-08-27 this emulator applied
+// them anyway — the `default` group carries no ingress rule, so its rule set
+// translates to a drop default, and the driver wrote it onto the membership
+// NIC. Two instances of one private network then could not reach each other,
+// measured 0/10 with the rule set and 10/10 without it, under `--vm incus`.
+// Under `--vm incus-ovn` the same wrong rule was written and did not bite,
+// because the sender's catch-all egress allow at priority 300 outranks the
+// receiver's default deny at 100/111 — the ordering #491 records, an accident
+// no assertion may rest on.
+//
+// The two other packs do filter their private interfaces and their network
+// suites assert it, so this is a field and not a rule of the layer.
+//
+// TestALateNetworkAttachLeavesThePrivateInterfaceUnfiltered fails without it.
 func (p *Pack) membershipAttachment(pn *resource.Resource, ip string) machine.Attachment {
-	att := machine.Attachment{Network: pn.Runtime[runtimeNetworkKey], Address: ip}
+	att := machine.Attachment{
+		Network:    pn.Runtime[runtimeNetworkKey],
+		Address:    ip,
+		Unfiltered: true,
+	}
 	if dhcp, managed := rangeOf(pn); managed && ip != "" {
 		att.PrefixLen = dhcp.prefix.Bits()
 	}

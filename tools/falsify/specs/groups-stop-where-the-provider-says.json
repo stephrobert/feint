@@ -1,0 +1,42 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the rule sets go back onto every interface, whatever the pack declared — the whole of #574",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\t\tattached := joined\n\t\tif !binding.covers(device.network) {\n\t\t\tattached = \"\"\n\t\t}",
+      "replace": "\t\tattached := joined\n\t\tif !binding.covers(device.network) && false {\n\t\t\tattached = \"\"\n\t\t}",
+      "test": "TestNoRuleSetIsBoundToAnUnfilteredInterface"
+    },
+    {
+      "label": "every network is covered again, so an unfiltered NIC wears the group under OVN too — where the accident of rule ordering would hide it",
+      "file": "internal/core/machine/firewall.go",
+      "find": "\treturn network == \"\" || !slices.Contains(b.Unfiltered, network)",
+      "replace": "\treturn network == \"\" || !slices.Contains(b.Unfiltered, network) || true",
+      "test": "TestAnUnfilteredInterfaceStaysOpenOnAnIsolatedNetwork"
+    },
+    {
+      "label": "the scope is read from the memberships alone, so a boot interface a pack declares out of scope is filtered anyway",
+      "file": "internal/core/machine/groupsync.go",
+      "find": "\tfor _, att := range slices.Concat(plan.Boot, plan.Memberships) {",
+      "replace": "\tfor _, att := range slices.Concat(plan.Boot[:0], plan.Memberships) {",
+      "test": "TestTheUnfilteredScopeIsReadFromBothHalvesOfThePlan"
+    },
+    {
+      "label": "the orchestrator stops reading the pack's plan, so no pack can say where its groups stop",
+      "package": "./internal/providers/exoscale/",
+      "file": "internal/core/machine/groupsync.go",
+      "find": "\tif s.PlanOf == nil || res == nil {",
+      "replace": "\tif s.PlanOf != nil || res == nil {",
+      "test": "TestALateNetworkAttachLeavesThePrivateInterfaceUnfiltered"
+    },
+    {
+      "label": "the Exoscale pack stops declaring its private networks out of scope, which is the state a344f8d left the emulator in",
+      "package": "./internal/providers/exoscale/",
+      "file": "internal/providers/exoscale/privatenetworks.go",
+      "find": "\t\tUnfiltered: true,",
+      "replace": "\t\tUnfiltered: true && false,",
+      "test": "TestALateNetworkAttachLeavesThePrivateInterfaceUnfiltered"
+    }
+  ]
+}

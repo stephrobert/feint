@@ -51,6 +51,8 @@ package machine
 // package-level names and 297 members of them; the list below admitted 17 and
 // 41 that day. Re-counted on 2026-08-27 while #541 moved the address reader
 // into the layer: 17 and 43, Binding down to 13 of its 36 exported members.
+// Re-counted again on 2026-08-27 when #574 gave a pack a way to say where its
+// security groups apply: 17 and 45.
 // The middle figure had already drifted by one before that change, which is
 // what a number written in prose does — it is re-counted here rather than
 // left standing, and the count is a fact about the list, never a gate. What
@@ -123,6 +125,7 @@ func PackSurface() map[string]string {
 		"Plan.Memberships":            "the networks joined after boot, read back from the plan the pack built",
 		"Attachment":                  "one interface: a network, an address, the mask, the secondaries",
 		"Attachment.PrefixLen":        "the mask of an attachment the pack assembled",
+		"Attachment.Unfiltered":       "declare that this provider's security groups do not reach this interface",
 
 		// S3 — public addresses.
 		"Reconciler.Route":           "make one public address reach the machine, the hot half",
@@ -147,6 +150,7 @@ func PackSurface() map[string]string {
 		"GroupSync.ApplyMachine":              "write every set one resource wears and attach them in one call",
 		"GroupSync.SyncReferrers":             "re-expand the groups whose rules name the groups this resource wears",
 		"GroupSync.Drop":                      "remove a deleted group's rule set from the runtime",
+		"GroupSync.PlanOf":                    "declare the plan the scope of the groups is read from, the pack's own",
 		"FirewallSpec":                        "one rule set as the runtime takes it, translated by the pack",
 		"FirewallSpec.Rules":                  "the rules of a set the pack is assembling",
 		"FirewallSpec.DefaultEgress":          "the set's default egress action, which upstream models differ on",
