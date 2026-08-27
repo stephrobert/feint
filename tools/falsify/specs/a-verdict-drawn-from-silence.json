@@ -1,0 +1,26 @@
+{
+  "package": "./tools/conformance/",
+  "mutations": [
+    {
+      "label": "a reachability probe is added to the Scaleway suite without the control that says the target could ever have answered - the shape of both defects measured on 2026-08-27",
+      "file": "tools/conformance/scaleway/network.sh",
+      "find": "echo \"- a private network of the same VPC stays reachable\"",
+      "replace": "added_reach() { false; }\necho \"- a private network of the same VPC stays reachable\"",
+      "test": "TestEveryReachabilityProbeIsBackedByAPositiveControl"
+    },
+    {
+      "label": "the same omission in the Outscale suite, which already carried the control for one Net and not for the other",
+      "file": "tools/conformance/outscale/network.sh",
+      "find": "echo \"- a second Subnet of the same Net stays reachable\"",
+      "replace": "added_reach() { false; }\necho \"- a second Subnet of the same Net stays reachable\"",
+      "test": "TestEveryReachabilityProbeIsBackedByAPositiveControl"
+    },
+    {
+      "label": "two probes added to the Exoscale suite, whose slack the guard must not mistake for coverage",
+      "file": "tools/conformance/exoscale/network.sh",
+      "find": "echo \"- an instance of the same private network is reachable\"",
+      "replace": "first_reach() { false; }\nsecond_reach() { false; }\necho \"- an instance of the same private network is reachable\"",
+      "test": "TestEveryReachabilityProbeIsBackedByAPositiveControl"
+    }
+  ]
+}

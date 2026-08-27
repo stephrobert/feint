@@ -402,6 +402,14 @@ else
   same_vm="$(printf '%s' "$same_doc" | jq -r '.Vms[0].VmId')"
   same_ip="$(printf '%s' "$same_doc" | jq -r '.Vms[0].PrivateIp // empty')"
   wait_until 60 machine_carries "feint-osc-$same_vm" "$same_ip" || true
+  # The target answers its own address before anything concludes about the Net.
+  # Without this, a Vm whose stack was not up produced the same silence as a Net
+  # that separates too much, and the verdict below accused the second — the
+  # measurement that cost an `evidence:update` pass on 2026-08-27, in the
+  # Exoscale suite, where this line was also missing. `assert_answers_itself_within`
+  # is already used twenty lines above for the Vm of the *other* Net; the lesson
+  # had been learned once in this very file and not carried to the second verdict.
+  assert_answers_itself_within 30 "feint-osc-$same_vm" "$same_ip" "the Vm of the same Net"
   same_reach() { incus exec "feint-osc-$vm_a" -- ping -c 2 -W 3 "$same_ip" >/dev/null 2>&1; }
   if wait_until 30 same_reach; then
     ok "a machine of the same Net is reachable ($same_ip)"

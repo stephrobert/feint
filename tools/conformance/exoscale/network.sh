@@ -226,11 +226,26 @@ assert_only_published "$(machine "$guard_id")" $exo_public "$guard_ip"
 echo "- an instance of the same private network is reachable"
 incus exec "$(machine "$guard_id")" -- sh -c \
   'while true; do printf "ok\n" | nc -l -p 80 >/dev/null 2>&1; done' >/dev/null 2>&1 &
-# No separate wait for the responder: the verdict below is a REACH, so polling
-# it covers the listener coming up as well, and it probes once per attempt
-# instead of twice. Reachable within thirty seconds satisfies the property this
-# check states, where the fixed two seconds would have failed a segment that
-# took three.
+# The responder is proved to exist before anything concludes about the segment,
+# which is what shared/verdicts.sh exists for and what the sibling suite already
+# did (scaleway/network.sh, "the guard's own responder").
+#
+# The comment that stood here said the opposite, and it was measured wrong on
+# 2026-08-27: "no separate wait for the responder - the verdict below is a REACH,
+# so polling it covers the listener coming up as well". Polling the reach covers
+# the listener *only while the segment carries traffic*. When the reach fails the
+# two become indistinguishable, and this suite then printed "the segment is
+# broken" about a listener nobody had asked. That verdict cost a whole
+# `evidence:update` pass and it accused the product's own dataplane, on a tree
+# whose base had just been measured green on the same assertion.
+#
+# The order is the one CLAUDE.md states: listening proved from INSIDE first, then
+# the probe from elsewhere. This consumes one `nc -l`; the `while true` loop
+# re-binds and the poll below absorbs the race, which is the arrangement
+# scaleway/network.sh has run under since #219.
+assert_listening_within 30 "$(machine "$guard_id")" 80 "the guard's own responder"
+# Reachable within thirty seconds satisfies the property this check states, where
+# a fixed two seconds would have failed a segment that took three.
 near_reach() { incus exec "$(machine "$probe_id")" -- timeout 3 nc -z -w 2 "$guard_ip" 80 >/dev/null 2>&1; }
 if wait_until 30 near_reach; then
   ok "the probe reaches the guard on their shared network ($guard_ip)"
