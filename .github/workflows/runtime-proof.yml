@@ -314,6 +314,21 @@ jobs:
       - name: Outscale network suite
         run: sudo tools/conformance/outscale/network.sh http://127.0.0.1:4599
 
+      # The third one, and its absence is half of why #574 lived as long as it
+      # did. Two of the three network suites ran here and the Exoscale one ran
+      # nowhere: no leg, bridge or OVN, replayed it, local work happens under
+      # OVN where the defect was masked by rule ordering (#491), and the only
+      # routine that replayed it under the bridge was `evidence:update`'s
+      # second leg, which nobody had run since a344f8d. A suite no matrix
+      # carries is a suite whose verdict is a year old.
+      #
+      # On both legs, deliberately: the bridge is the poorer population here —
+      # it is where a rule set wrongly bound to a private NIC actually bites —
+      # and this repository's own rule is that a verdict about "this run" is
+      # tried on the poorest run that triggers it.
+      - name: Exoscale network suite
+        run: sudo tools/conformance/exoscale/network.sh http://127.0.0.1:4599
+
       # The end of the chain the emulator exists for: a key registered through
       # the API, a server booted by the official client, a real shell on the
       # provider's own default login — three providers, three logins.

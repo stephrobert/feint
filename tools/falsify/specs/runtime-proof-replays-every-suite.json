@@ -1,0 +1,19 @@
+{
+  "package": "./tools/conformance/",
+  "mutations": [
+    {
+      "label": "the workflow's third network step points at another pack's suite, so one suite is replayed nowhere again (#574)",
+      "file": ".github/workflows/runtime-proof.yml",
+      "find": "      - name: Exoscale network suite\n        run: sudo tools/conformance/exoscale/network.sh http://127.0.0.1:4599",
+      "replace": "      - name: Exoscale network suite\n        run: sudo tools/conformance/scaleway/network.sh http://127.0.0.1:4599 # not exoscale",
+      "test": "TestEveryNetworkSuiteIsReplayedByTheRuntimeProof"
+    },
+    {
+      "label": "the local reproduction stops carrying a suite the workflow runs, so an operator cannot reproduce a red leg",
+      "file": "tools/conformance/leg.sh",
+      "find": "    tools/conformance/exoscale/network.sh \"$endpoint\"",
+      "replace": "    tools/conformance/scaleway/network.sh \"$endpoint\" # not exoscale",
+      "test": "TestEveryNetworkSuiteIsReplayedByTheRuntimeProof"
+    }
+  ]
+}
