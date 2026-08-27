@@ -276,7 +276,7 @@ func (p *Pack) addressesWearing(barrierID string, fresh *resource.Resource) []st
 		if !worn {
 			continue
 		}
-		if address := p.binding().AddressOf(node); address != "" {
+		if address := p.reconciler().PrivateAddressOf(node); address != "" {
 			addresses = append(addresses, address)
 		}
 	}
@@ -463,8 +463,12 @@ func (p *Pack) ReadNode(ctx context.Context, id string) (*resource.Resource, err
 
 // AddressOfNode is the private address the machine answers on, empty when
 // nothing is running.
+//
+// Through the layer's kinded reader (#541): what the binding recorded is
+// whatever the runtime answered, and a field called "private" must not carry
+// an address this pack hands out as public.
 func (p *Pack) AddressOfNode(res *resource.Resource) string {
-	return p.binding().AddressOf(res)
+	return p.reconciler().PrivateAddressOf(res)
 }
 
 // image resolves the identifier the user sent through this pack's own

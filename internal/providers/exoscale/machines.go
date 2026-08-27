@@ -262,7 +262,20 @@ func (p *Pack) refresh(ctx context.Context, res *resource.Resource) bool {
 }
 
 // addressOf is what an instance publishes as public-ip, a field Exoscale's own
-// instance schema declares.
+// instance schema declares — and only when the address the machine answers on
+// is one this pack hands out as public.
+//
+// The kind is asked of the shared layer rather than assumed here (#541). The
+// binding records whatever the runtime answered, and for an instance created
+// with `public-ip-assignment: "none"` that is its private-network address:
+// measured on 2026-08-27 under `--vm incus-ovn`, `GET /v2/instance/{id}`
+// answered `"public-ip": "10.44.9.10"` on an instance whose host side was
+// exactly right. Their own schema calls the field "Instance public IPv4
+// address", and `none` means the instance has none, so the field is absent —
+// publishing a 10.x there tells `exo compute instance show` that an isolated
+// instance is publicly addressed.
+//
+// TestAnInstanceWithNoPublicIPPublishesNone fails without this.
 func (p *Pack) addressOf(res *resource.Resource) string {
-	return p.binding().AddressOf(res)
+	return p.reconciler().PublicAddressOf(res)
 }

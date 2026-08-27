@@ -131,3 +131,49 @@ func TestAServedTemplateBootsAsItsDefaultUser(t *testing.T) {
 		t.Fatalf("booted image=%q user=%q, want debian:12 as debian", got.Image, got.User)
 	}
 }
+
+// The address an instance publishes as public-ip carries a kind, and the kind
+// is checked (#541).
+//
+// Measured on 2026-08-27 under `--vm incus-ovn`, before the fix: an instance
+// created with `public-ip-assignment: "none"` and joined to a private network
+// answered `GET /v2/instance/{id}` with `"public-ip": "10.44.9.10"` — its
+// private-network address — while the machine itself carried exactly what was
+// asked, one NIC and nothing public. The fallback in view() had exactly one
+// live population, the instances that must publish no public address at all.
+//
+// Both halves here, because a guard that refuses everything passes every
+// attack test and breaks the product: an address of the emulated elastic block
+// is still published, and one outside it never is.
+func TestAnInstanceWithNoPublicIPPublishesNone(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		address string
+		want    string
+	}{
+		{"a private-network address is not a public one", "10.44.9.10", ""},
+		{"an address of the emulated elastic block is", "192.0.2.7", "192.0.2.7"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := runtimePack(&recordingDriver{})
+			res := &resource.Resource{
+				ID:    "00000000-0000-4000-8000-0000000000c1",
+				State: "running",
+				Attrs: map[string]any{
+					"name":                 "audit-541",
+					"public-ip-assignment": "none",
+				},
+				Runtime: map[string]string{
+					"machine": "feint-exo-00000000-0000-4000-8000-0000000000c1",
+					"address": tc.address,
+				},
+			}
+
+			published, _ := p.view(res)["public-ip"].(string)
+			if published != tc.want {
+				t.Fatalf("public-ip %q for a machine answering on %s, want %q",
+					published, tc.address, tc.want)
+			}
+		})
+	}
+}

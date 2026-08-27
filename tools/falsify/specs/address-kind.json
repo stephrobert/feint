@@ -1,0 +1,19 @@
+{
+  "package": "./internal/providers/...",
+  "mutations": [
+    {
+      "label": "an address the machine answers on is published as public without being one",
+      "file": "internal/core/machine/plan.go",
+      "find": "\taddress := r.binding().AddressOf(res)\n\tif !r.emulated(address) {\n\t\treturn \"\"\n\t}\n\treturn address",
+      "replace": "\taddress := r.binding().AddressOf(res)\n\tif !r.emulated(address) && false {\n\t\treturn \"\"\n\t}\n\treturn address",
+      "test": "TestAnInstanceWithNoPublicIPPublishesNone"
+    },
+    {
+      "label": "an emulated public address is published as the machine's private one",
+      "file": "internal/core/machine/plan.go",
+      "find": "\tif address == \"\" || r.emulated(address) {\n\t\treturn \"\"\n\t}\n\treturn address",
+      "replace": "\tif address == \"\" || (r.emulated(address) && false) {\n\t\treturn \"\"\n\t}\n\treturn address",
+      "test": "TestAVmPublishesNoPublicAddressAsItsPrivateOne"
+    }
+  ]
+}

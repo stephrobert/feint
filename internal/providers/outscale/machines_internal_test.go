@@ -158,3 +158,45 @@ func TestAServedOmiBootsWithItsLogin(t *testing.T) {
 		t.Fatalf("booted image=%q user=%q, want debian:12 as %s", got.Image, got.User, DefaultUser)
 	}
 }
+
+// The address a Vm publishes as PrivateIp carries a kind too, and it is the
+// mirror of #541's Exoscale half.
+//
+// A Vm's plan carries its promised public addresses onto the launch, so the
+// guest ends up holding two global addresses on one interface and Inspect
+// answers with whichever the runtime lists first. A boot that came back with
+// the public one used to be published as PrivateIp — and, through publicIPOf,
+// as PublicIp in the same view: one address, two contradictory fields. The
+// pin in rememberAddress hides it after the first boot, which is exactly why
+// the control belongs in the shared layer and not in a pack's memory.
+//
+// Both halves, so a guard that refuses everything cannot pass: an address of
+// the emulated public block is refused as private, one outside it is served.
+func TestAVmPublishesNoPublicAddressAsItsPrivateOne(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		address string
+		want    string
+	}{
+		{"a subnet address is a private one", "10.42.0.9", "10.42.0.9"},
+		{"an address of the emulated public block is not", "198.51.100.7", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := runtimePack(&recordingDriver{})
+			res := &resource.Resource{
+				ID:    "i-00000541",
+				State: stateRunning,
+				Attrs: map[string]any{"VmType": "tinav6.c1r1p2"},
+				Runtime: map[string]string{
+					"machine": "feint-osc-i-00000541",
+					"address": tc.address,
+				},
+			}
+
+			if got := p.addressOf(res); got != tc.want {
+				t.Fatalf("PrivateIp %q for a machine answering on %s, want %q",
+					got, tc.address, tc.want)
+			}
+		})
+	}
+}

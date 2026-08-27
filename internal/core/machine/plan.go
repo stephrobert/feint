@@ -255,6 +255,66 @@ func (r Reconciler) Unroute(ctx context.Context, machine, address string) {
 	}
 }
 
+// PublicAddressOf is what the machine answers on, when that address is one
+// this pack could have handed out as a public one — and nothing otherwise.
+//
+// The binding records one address per machine and gives it no kind: it is
+// whatever the runtime answered, read off the first interface in name order.
+// Each pack then republishes it under a field whose *name asserts a kind* —
+// Exoscale as `public-ip`, Outscale as `PrivateIp` — and neither asked whether
+// the recorded address was of that kind. Measured on 2026-08-27 under
+// `--vm incus-ovn`: an Exoscale instance created with `public-ip-assignment:
+// "none"` and joined to a private network published `"public-ip":
+// "10.44.9.10"`, its private-network address, while the machine itself was
+// right — one NIC, one address, nothing public (#541). `exo compute instance
+// show` prints that as the instance's IP, so an isolated instance reads as
+// publicly addressed.
+//
+// The only fact that settles the kind is the emulated public block, and the
+// layer already holds it for the three packs — PublicBlock, the guard every
+// address passes on its way to the driver. So the layer answers the question
+// too, once, instead of each pack writing half of it: a pack that publishes
+// an address as public asks here, and a pack that publishes one as private
+// asks PrivateAddressOf. Binding.AddressOf is out of PackSurface for that
+// reason — the layer no longer hands a pack an address with no kind on it.
+//
+// A pack that declares no PublicBlock gets nothing here, which is the safe
+// direction: no block means nothing can be shown to be public.
+//
+// internal/providers/exoscale's TestAnInstanceWithNoPublicIPPublishesNone
+// fails without this, and its TestAnInstanceIsGivenAPublicAddressAtCreation
+// holds the accepting half.
+func (r Reconciler) PublicAddressOf(res *resource.Resource) string {
+	address := r.binding().AddressOf(res)
+	if !r.emulated(address) {
+		return ""
+	}
+	return address
+}
+
+// PrivateAddressOf is the mirror: what the machine answers on, when that
+// address is *not* one this pack hands out as public.
+//
+// It exists because the defect PublicAddressOf closes is symmetric and the
+// other half was live too. An Outscale Vm publishes the recorded address as
+// PrivateIp, and its plan carries promised public addresses onto the launch:
+// the guest then holds two global addresses on one interface, and Inspect
+// answers with whichever the runtime lists first. A restart that came back
+// with the public one would have published 198.51.100.x as PrivateIp and as
+// PublicIp at once. Nothing measured that happening — the pin in
+// rememberAddress hides it after the first boot — which is exactly why the
+// control belongs in the layer rather than in a pack's memory.
+//
+// internal/providers/outscale's TestAVmPublishesNoPublicAddressAsItsPrivateOne
+// fails without this.
+func (r Reconciler) PrivateAddressOf(res *resource.Resource) string {
+	address := r.binding().AddressOf(res)
+	if address == "" || r.emulated(address) {
+		return ""
+	}
+	return address
+}
+
 // emulated reports whether an address is one this pack can have handed out:
 // inside PublicBlock. Well-formed is not authorised; this is the authorisation
 // half, held once for the three packs.

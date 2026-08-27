@@ -662,6 +662,15 @@ var mustStayOutside = []string{
 	// machine through the binding skips it.
 	"Binding.Start", "Binding.Stop", "Binding.Remove", "Binding.Address",
 	"Binding.Name", "Binding.PowerOn", "Binding.Refresh", "Binding.ForgetPlacements",
+	// The unkinded address reader (#541). It was in the surface until an
+	// Exoscale instance with no public IP published its private-network
+	// address as `public-ip`: the binding records whatever the runtime
+	// answered and says nothing about what kind of address it is, so every
+	// pack republishing it under a field whose name asserts one was asserting
+	// what nobody had checked. Reconciler.PublicAddressOf and
+	// PrivateAddressOf are the doors, and this line is what stops the old one
+	// from being quietly reopened.
+	"Binding.AddressOf",
 	"Binding.RouteAddress", "Binding.UnrouteAddress",
 	"Binding.SyncRuleSet", "Binding.ApplyRuleSets", "Binding.DropRuleSet",
 	"Binding.WithDriver",

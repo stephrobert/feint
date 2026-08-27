@@ -48,10 +48,14 @@ package machine
 //     runs it, last.
 //
 // Measured on 2026-08-26, the day the door closed: this package exports 97
-// package-level names and 297 members of them; the list below admits 17 and 41.
-// Binding alone offers 36 exported members and 14 are in — the other 22 are the
-// mechanics. What the three packs actually reach is 216 sites, every one of them
-// named here and none of them a driver.
+// package-level names and 297 members of them; the list below admitted 17 and
+// 41 that day. Re-counted on 2026-08-27 while #541 moved the address reader
+// into the layer: 17 and 43, Binding down to 13 of its 36 exported members.
+// The middle figure had already drifted by one before that change, which is
+// what a number written in prose does — it is re-counted here rather than
+// left standing, and the count is a fact about the list, never a gate. What
+// the three packs actually reach is 216 sites, every one of them named here
+// and none of them a driver.
 //
 // # The rule when something is missing
 //
@@ -96,7 +100,6 @@ func PackSurface() map[string]string {
 		"Binding.PowerOff":         "stop the machine behind a resource",
 		"Binding.Destroy":          "destroy the machine behind a resource",
 		"Binding.RefreshIfRunning": "re-read what the host holds for a machine the store calls running",
-		"Binding.AddressOf":        "the address the boot produced, as this pack publishes it",
 		"Binding.RuntimeKey":       "the pack's own Runtime key, to read the machine name it is about to hand to Unroute",
 		"Boot":                     "what to boot: image, login, keys, user data",
 		"Image":                    "one entry of the pack's image table, the runtime image and the login together",
@@ -105,13 +108,21 @@ func PackSurface() map[string]string {
 
 		// S2 — the interface plan. The pack declares the shape; the layer
 		// executes the one order.
-		"Reconciler":           "the orchestrator that executes a declared plan in the runtime's order",
-		"Reconciler.PowerOn":   "start a machine on its plan and replay the post-boot order",
-		"Reconciler.Reboot":    "take a machine down and bring it back on its plan",
-		"Plan":                 "the machine's declared interface shape",
-		"Plan.Memberships":     "the networks joined after boot, read back from the plan the pack built",
-		"Attachment":           "one interface: a network, an address, the mask, the secondaries",
-		"Attachment.PrefixLen": "the mask of an attachment the pack assembled",
+		"Reconciler":         "the orchestrator that executes a declared plan in the runtime's order",
+		"Reconciler.PowerOn": "start a machine on its plan and replay the post-boot order",
+		"Reconciler.Reboot":  "take a machine down and bring it back on its plan",
+		// The address the boot produced, with its kind on it. Binding.AddressOf
+		// used to be here and is not any more (#541): the binding records what
+		// the runtime answered and gives it no kind, and a pack republishing it
+		// under a field whose name asserts one — `public-ip`, `PrivateIp` — was
+		// asserting what nobody had checked. The block that settles the kind is
+		// the layer's, so the answer is too.
+		"Reconciler.PublicAddressOf":  "the address the machine answers on, when it is one this pack hands out as public",
+		"Reconciler.PrivateAddressOf": "the same address, when it is not",
+		"Plan":                        "the machine's declared interface shape",
+		"Plan.Memberships":            "the networks joined after boot, read back from the plan the pack built",
+		"Attachment":                  "one interface: a network, an address, the mask, the secondaries",
+		"Attachment.PrefixLen":        "the mask of an attachment the pack assembled",
 
 		// S3 — public addresses.
 		"Reconciler.Route":           "make one public address reach the machine, the hot half",

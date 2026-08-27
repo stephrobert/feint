@@ -214,9 +214,20 @@ func (p *Pack) refreshMachine(ctx context.Context, res *resource.Resource) bool 
 }
 
 // addressOf is what a Vm publishes as PrivateIp. Outscale's Vm schema declares
-// the field and a real one carries a value, so the emulator fills it in.
+// the field and a real one carries a value, so the emulator fills it in — but
+// only when the address the machine answers on is not one this pack hands out
+// as public.
+//
+// The kind is asked of the shared layer, the mirror of the Exoscale half of
+// #541. A Vm's plan carries its promised public addresses onto the launch, so
+// the guest holds two global addresses on one interface and Inspect answers
+// with whichever the runtime lists first; a boot that came back with the
+// public one would publish 198.51.100.x as PrivateIp — and, through
+// publicIPOf, as PublicIp in the same view.
+//
+// TestAVmPublishesNoPublicAddressAsItsPrivateOne fails without this.
 func (p *Pack) addressOf(res *resource.Resource) string {
-	return p.binding().AddressOf(res)
+	return p.reconciler().PrivateAddressOf(res)
 }
 
 // attachmentOf rebuilds the placement a Vm was created with, so a machine
