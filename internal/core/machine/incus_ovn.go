@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/stephrobert/feint/internal/core/serialise"
 )
@@ -994,6 +995,121 @@ func (d *Incus) networkGateway(ctx context.Context, network string) (netip.Prefi
 // wins, and a destination the router has no peering for dies at the router,
 // which is exactly where the isolation verdict belongs.
 var privateAggregates = []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}
+
+// guestRoutePoll and guestRouteWait bound the wait for a restarted guest to
+// have configured its interface again. A container's DHCP client answers in a
+// second or two, a virtual machine's in tens of them; past a minute and a half
+// the machine has a problem an operator should read about rather than wait
+// through.
+const (
+	guestRoutePoll = 2 * time.Second
+	guestRouteWait = 90 * time.Second
+)
+
+// restoreGuestRoutes puts back, inside a machine that has just been started
+// again, the routes towards the peered subnets that a boot does not restore.
+//
+// The measurement is #549, and it is the exact shape of "a machine the control
+// plane describes correctly and that does not work". A Scaleway server was
+// stopped and started through the API; it came back running, on its address,
+// answering on its own subnet — and no longer reaching the machine one subnet
+// away, while its identical neighbour, never restarted, kept reaching it in the
+// same pass. The three RFC 1918 aggregates installGuestPrivateRoutes lays were
+// gone from its table: the guest's network had been rebuilt by DHCP, which
+// knows nothing about the peerings, and the only two callers that laid them —
+// Attach, and the repair of an interface that bounced — are exactly the two a
+// poweron does not go through.
+//
+// So it belongs on the start path and in this layer: no pack can forget it,
+// and a fourth pack gets it without writing a line. What is restored is read
+// off the runtime rather than off the caller's Spec, because the machine's
+// interfaces are the runtime's own answer and a Spec built from a stale store
+// would restore the wrong thing — or nothing, which is what a Scaleway server
+// whose NICs ride the launch would have got.
+//
+// TestARestartedMachineGetsItsPeeredRoutesBack fails without this.
+func (d *Incus) restoreGuestRoutes(ctx context.Context, machine string) error {
+	if !d.OVN {
+		// The aggregates exist because an OVN network's peers are only
+		// reachable through its router. A managed bridge has no router of its
+		// own and no peerings, so there is nothing here to put back.
+		return nil
+	}
+	devices, err := d.instanceDevices(ctx, machine)
+	if err != nil {
+		return fmt.Errorf("inspect %s to restore its routes: %w", machine, err)
+	}
+	// Sorted, so a machine with several private NICs is repaired in the same
+	// order between two runs and a failure names the same device twice.
+	names := make([]string, 0, len(devices.own))
+	for device, cfg := range devices.own {
+		if cfg["type"] != "nic" || cfg["network"] == "" {
+			continue
+		}
+		// Ours only, and the question is asked of the name the emulator itself
+		// derives (NetworkName). This call reads a network's gateway and then
+		// writes a route inside the guest through it: a NIC an operator added
+		// by hand to one of our machines is theirs, and is left exactly as they
+		// configured it. TestRestoringRoutesLeavesAForeignNICAlone fails
+		// without this half.
+		if !ownedNetwork(cfg["network"]) {
+			continue
+		}
+		names = append(names, device)
+	}
+	slices.Sort(names)
+	for _, device := range names {
+		// The wait is the ordering, not politeness: `ip route add … via <gw>
+		// dev ethN` is refused while the interface carries no address of that
+		// subnet, and a route laid before DHCP finished is a route DHCP
+		// replaces.
+		if err := d.waitForGuestInterface(ctx, machine, device); err != nil {
+			return err
+		}
+		if err := d.installGuestPrivateRoutes(ctx, machine, devices.own[device]["network"], device); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// waitForGuestInterface blocks until the guest carries an IPv4 address on the
+// interface behind a device, which is what tells a boot that has finished
+// configuring the interface from one still doing it.
+func (d *Incus) waitForGuestInterface(ctx context.Context, machine, device string) error {
+	poll := d.routePoll
+	if poll <= 0 {
+		poll = guestRoutePoll
+	}
+	budget := d.routeBudget
+	if budget <= 0 {
+		budget = guestRouteWait
+	}
+	deadline := time.Now().Add(budget)
+	var last error
+	for {
+		iface, err := d.guestInterface(ctx, machine, device)
+		if err == nil {
+			var carried map[string]bool
+			carried, err = d.guestAddresses(ctx, machine, iface)
+			if err == nil && len(carried) > 0 {
+				return nil
+			}
+		}
+		last = err
+		if time.Now().After(deadline) {
+			if last == nil {
+				last = fmt.Errorf("it carries no IPv4 address")
+			}
+			return fmt.Errorf("wait for %s/%s to be configured inside the guest: %w", machine, device, last)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(poll):
+		}
+	}
+}
 
 // installGuestPrivateRoutes points the guest's private traffic at the OVN
 // router. "file exists" is a previous call's work still standing.

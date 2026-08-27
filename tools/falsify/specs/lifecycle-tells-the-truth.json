@@ -1,0 +1,35 @@
+{
+  "_comment": [
+    "A machine that comes back from a stop must come back whole (#549).",
+    "",
+    "Measured on 2026-08-27 on the Scaleway example stack under --vm",
+    "incus-ovn: platform-web-0 was stopped and started through the API, came",
+    "back running, on its address, reaching its own subnet — and no longer",
+    "reaching the app tier one subnet away, while platform-web-1, never",
+    "restarted, kept reaching it in the same pass."
+  ],
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "#549: a restarted guest stops being given back the routes to its peered subnets, so it comes back running, on its address, reaching its own subnet and nothing one router away",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tif !d.OVN {\n\t\t// The aggregates exist because an OVN network's peers are only",
+      "replace": "\tif !d.OVN || true {\n\t\t// The aggregates exist because an OVN network's peers are only",
+      "test": "TestARestartedMachineGetsItsPeeredRoutesBack"
+    },
+    {
+      "label": "#549, the ownership half: the repair stops asking whether the network is one the emulator created, and reads the gateway of an operator's own bridge to write a route inside a guest through it",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\t\tif !ownedNetwork(cfg[\"network\"]) {\n\t\t\tcontinue\n\t\t}\n\t\tnames = append(names, device)",
+      "replace": "\t\tif !ownedNetwork(cfg[\"network\"]) && false {\n\t\t\tcontinue\n\t\t}\n\t\tnames = append(names, device)",
+      "test": "TestRestoringRoutesLeavesAForeignNICAlone"
+    },
+    {
+      "label": "#549, the mode half: the bridge mode starts laying OVN aggregates, pointing a guest's private traffic at an address no router answers on",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\tif !d.OVN {\n\t\t// The aggregates exist because an OVN network's peers are only",
+      "replace": "\tif !d.OVN && false {\n\t\t// The aggregates exist because an OVN network's peers are only",
+      "test": "TestABridgeModeRestartLaysNoAggregates"
+    }
+  ]
+}

@@ -97,6 +97,13 @@ type Incus struct {
 	busyPoll   time.Duration
 	busyBudget time.Duration
 
+	// routePoll and routeBudget override how restoreGuestRoutes waits for a
+	// restarted guest to have configured its interface again. Only a test sets
+	// them, for the same reason busyPoll exists; zero means the defaults in
+	// waitForGuestInterface.
+	routePoll   time.Duration
+	routeBudget time.Duration
+
 	// leftoverScan replaces the host process scan behind networkCreateError,
 	// and is only ever set by a test: which processes a diagnostic may name is
 	// an argument-level fact, and the real scan reads the tester's own /proc.
@@ -414,6 +421,23 @@ func (d *Incus) Start(ctx context.Context, spec Spec) (Machine, error) {
 		if _, err := d.run(ctx, "start", spec.Name); err != nil &&
 			!strings.Contains(strings.ToLower(err.Error()), "already running") {
 			return Machine{}, fmt.Errorf("start instance %s: %w", spec.Name, err)
+		}
+		// A machine that comes back from a stop has a brand new guest network:
+		// the kernel booted again, DHCP configured the interface again, and
+		// nothing inside it remembers the routes this driver laid by hand the
+		// first time. Restoring them belongs here rather than in any pack,
+		// because it is a property of what starting a machine does, and every
+		// pack's poweron arrives through this one door (#549).
+		//
+		// Not fatal: the machine is up, and reporting a failed start would
+		// publish FailedState for a machine the runtime is running — the lie
+		// in the other direction. The log names what the machine cannot do,
+		// and tools/conformance/functional.sh asserts the reachability this
+		// restores.
+		if err := d.restoreGuestRoutes(ctx, spec.Name); err != nil {
+			d.logger().Error("a restarted machine did not get back its routes to the peered subnets",
+				"machine", spec.Name, "error", err,
+				"consequence", "the machine is running and reaches its own subnet, but not the subnets its network is peered with (#549)")
 		}
 		return d.inspectOrFail(ctx, spec.Name)
 	}
