@@ -208,3 +208,127 @@ func TestErrorShapes(t *testing.T) {
 		})
 	}
 }
+
+// bootscript and extra_networks are keys the cloud writes and the SDK no longer
+// declares (#366), and omitting a key is not the same answer as writing it
+// empty: a client reading server["bootscript"] finds a present null upstream
+// and nothing here.
+//
+// The assertion is on PRESENCE and not on truthiness, because that is the whole
+// difference the issue is about — `if _, present := ...` is the only form that
+// tells an absent key from a null one.
+//
+// The three operations are the three the two recordings cover, and they are
+// asserted separately rather than once on view(): a key added to one door and
+// not to another is exactly the class this repository keeps meeting.
+func TestAServerAnswersTheTwoKeysTheSDKNoLongerDeclares(t *testing.T) {
+	ts := newTestServer(t)
+
+	assert := func(t *testing.T, where string, server map[string]any) {
+		t.Helper()
+		value, present := server["bootscript"]
+		if !present {
+			t.Errorf("%s omits bootscript; the cloud writes the key with a null value", where)
+		} else if value != nil {
+			t.Errorf("%s answers bootscript as %v; the product is retired and the cloud writes null", where, value)
+		}
+		networks, present := server["extra_networks"]
+		if !present {
+			t.Errorf("%s omits extra_networks; the cloud writes an empty array", where)
+		} else if list, isList := networks.([]any); !isList || len(list) != 0 {
+			t.Errorf("%s answers extra_networks as %#v; the cloud writes []", where, networks)
+		}
+	}
+
+	status, created := do(t, ts, "POST", zoneURL+"/servers", `{"name":"two-keys","commercial_type":"DEV1-S"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("create: expected 201, got %d (%v)", status, created)
+	}
+	server, _ := created["server"].(map[string]any)
+	assert(t, "CreateServer", server)
+	id, _ := server["id"].(string)
+
+	_, got := do(t, ts, "GET", zoneURL+"/servers/"+id, "")
+	server, _ = got["server"].(map[string]any)
+	assert(t, "GetServer", server)
+
+	_, updated := do(t, ts, "PATCH", zoneURL+"/servers/"+id, `{"tags":["one"]}`)
+	server, _ = updated["server"].(map[string]any)
+	assert(t, "UpdateServer", server)
+}
+
+// An attached public address publishes a gateway and its own tags (#368).
+//
+// Both were missing from one function, serverIPView, which renders
+// Server.public_ip AND every element of Server.public_ips — so one omission
+// showed up as four in each of three operations. The address is reserved with a
+// tag and attached at create, which is the sequence the recording carries.
+func TestAnAttachedAddressPublishesItsGatewayAndItsOwnTags(t *testing.T) {
+	ts := newTestServer(t)
+
+	status, ip := do(t, ts, "POST", zoneURL+"/ips", `{"type":"routed_ipv4","tags":["feint-corpus"]}`)
+	if status != http.StatusCreated {
+		t.Fatalf("reserve an address: expected 201, got %d (%v)", status, ip)
+	}
+	reserved, _ := ip["ip"].(map[string]any)
+	ipID, _ := reserved["id"].(string)
+
+	assert := func(t *testing.T, where string, server map[string]any) {
+		t.Helper()
+		singular, _ := server["public_ip"].(map[string]any)
+		list, _ := server["public_ips"].([]any)
+		if len(list) != 1 {
+			t.Fatalf("%s answers %d address(es), want the one that was attached", where, len(list))
+		}
+		first, _ := list[0].(map[string]any)
+		for name, address := range map[string]map[string]any{
+			where + " public_ip":     singular,
+			where + " public_ips[0]": first,
+		} {
+			gateway, isString := address["gateway"].(string)
+			if !isString || gateway == "" {
+				t.Errorf("%s answers gateway as %#v; a routed address routes off-link through one", name, address["gateway"])
+			}
+			tags, _ := address["tags"].([]any)
+			if len(tags) != 1 || tags[0] != "feint-corpus" {
+				t.Errorf("%s answers tags as %#v; the address carries its own", name, address["tags"])
+			}
+		}
+	}
+
+	status, created := do(t, ts, "POST", zoneURL+"/servers",
+		`{"name":"tagged-address","commercial_type":"DEV1-S","public_ips":["`+ipID+`"]}`)
+	if status != http.StatusCreated {
+		t.Fatalf("create: expected 201, got %d (%v)", status, created)
+	}
+	server, _ := created["server"].(map[string]any)
+	assert(t, "CreateServer", server)
+	id, _ := server["id"].(string)
+
+	_, got := do(t, ts, "GET", zoneURL+"/servers/"+id, "")
+	server, _ = got["server"].(map[string]any)
+	assert(t, "GetServer", server)
+
+	_, updated := do(t, ts, "PATCH", zoneURL+"/servers/"+id, `{"tags":["one"]}`)
+	server, _ = updated["server"].(map[string]any)
+	assert(t, "UpdateServer", server)
+
+	// The gateway is the one address the allocator can never hand out, so it can
+	// never collide with an address a client holds. Asserted rather than
+	// asserted-by-construction: the two live in different files.
+	_, listed := do(t, ts, "GET", zoneURL+"/servers/"+id, "")
+	server, _ = listed["server"].(map[string]any)
+	addresses, _ := server["public_ips"].([]any)
+	first, _ := addresses[0].(map[string]any)
+	if first["gateway"] == first["address"] {
+		t.Errorf("the gateway is the address itself (%v)", first["gateway"])
+	}
+
+	// The tags being a COPY of the stored slice is not assertable from here and
+	// this test deliberately does not pretend to: a live create stores
+	// []string, so the []any a view builds from it is a new slice whatever the
+	// code does, and mutating the answer would leave the store intact with an
+	// alias just as with a copy. The branch where it can fail is the one a
+	// restored snapshot produces, and TestTagValuesCopiesTheStoredSlice
+	// (tags_internal_test.go) is where it is exercised.
+}

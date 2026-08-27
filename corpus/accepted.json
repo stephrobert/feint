@@ -87,14 +87,24 @@
     "  - #366, two keys the cloud writes and this emulator omits: bootscript",
     "    (null) and extra_networks ([]). Untriaged, which is the point of the",
     "    issue: they are either served or declared in DeclinedFields(), and a",
-    "    corpus exemption is neither.",
+    "    corpus exemption is neither. TRIAGED AND SERVED ON 2026-08-27, and its",
+    "    twelve entries are gone. The answer the issue asked for was `serve`:",
+    "    the SDK declares neither field on Server any more, so the recording is",
+    "    the only source for what is on the wire, and a field whose whole",
+    "    content is a constant that recording states is not a field this",
+    "    emulator cannot answer -- which is what DeclinedFields() is for.",
     "  - #367, image.from_server is an empty string on the wire and null here.",
-    "    FIXED ON 2026-08-27, and its seven entries are gone — the catalogue",
+    "    FIXED ON 2026-08-27, and its seven entries are gone \u2014 the catalogue",
     "    image view now types the field the way the SDK declares it (a value,",
     "    not a pointer) and the way both recordings carry it, which is also the",
     "    way this pack's OWN clientImageView had always answered it.",
     "  - #368, an attached public IP publishes no gateway and drops its own tags,",
-    "    in public_ip and in every element of public_ips.",
+    "    in public_ip and in every element of public_ips. FIXED ON 2026-08-27,",
+    "    and its eighteen entries are gone. One function rendered all four",
+    "    places, which is why the issue refused to be split and why one edit",
+    "    retired eighteen entries: the gateway is the first usable address of",
+    "    the pack's own flexible block, the one the allocator already reserves,",
+    "    and the tags are a copy of the address's own.",
     "  - #369, createServer honours a project the request names and listServers",
     "    scopes an unfiltered list to the default project, so the list answers",
     "    zero where the cloud answered one. The create and the list disagree",
@@ -349,155 +359,11 @@
     },
     {
       "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.CreateServer",
-      "kind": "absent",
-      "path": "server.bootscript",
-      "reason": "the cloud still writes the retired bootscript key as null and this emulator omits the key, which is a different answer from writing it empty",
-      "issue": "#366"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.CreateServer",
-      "kind": "absent",
-      "path": "server.extra_networks",
-      "reason": "the cloud answers extra_networks as an empty array and this emulator writes no such key, which a client reading the field distinguishes",
-      "issue": "#366"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.CreateServer",
-      "kind": "type",
-      "path": "server.public_ip.gateway",
-      "reason": "the cloud publishes the gateway address of a routed public IP and this emulator publishes null, so a guest reading its own route off the answer finds nothing",
-      "issue": "#368"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.CreateServer",
-      "kind": "absent",
-      "path": "server.public_ip.tags[]",
-      "reason": "the tags sent on CreateIP reach the cloud's view of the attached address and this emulator answers an empty list, so the element the recording carries has no counterpart",
-      "issue": "#368"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.CreateServer",
-      "kind": "type",
-      "path": "server.public_ips[].gateway",
-      "reason": "every element of public_ips carries the same null gateway the singular public_ip carries, because the list and the field render through one function",
-      "issue": "#368"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.CreateServer",
-      "kind": "absent",
-      "path": "server.public_ips[].tags[]",
-      "reason": "every element of public_ips drops the address tags the cloud propagates, because the list and the singular field render through one function",
-      "issue": "#368"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.GetServer",
-      "kind": "absent",
-      "path": "server.bootscript",
-      "reason": "the read agrees with the create it follows, so it carries the same omission of the retired bootscript key the cloud writes as null",
-      "issue": "#366"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.GetServer",
-      "kind": "absent",
-      "path": "server.extra_networks",
-      "reason": "the read carries the same omission of extra_networks as the create, because both render one server view",
-      "issue": "#366"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.GetServer",
-      "kind": "type",
-      "path": "server.public_ip.gateway",
-      "reason": "the read publishes the same null gateway as the create, because both render one address view",
-      "issue": "#368"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.GetServer",
-      "kind": "absent",
-      "path": "server.public_ip.tags[]",
-      "reason": "the read drops the address tags exactly as the create does, because both render one address view",
-      "issue": "#368"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.GetServer",
-      "kind": "type",
-      "path": "server.public_ips[].gateway",
-      "reason": "every element of public_ips carries the same null gateway the singular public_ip carries, because the list and the field render through one function",
-      "issue": "#368"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.GetServer",
-      "kind": "absent",
-      "path": "server.public_ips[].tags[]",
-      "reason": "every element of public_ips drops the address tags the cloud propagates, because the list and the singular field render through one function",
-      "issue": "#368"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
       "operation": "instance/v1/API.ListServers",
       "kind": "absent",
       "path": "servers[]",
       "reason": "the create honours the project the request named and the unfiltered list is scoped to the default project, so the server the cloud listed is invisible to the list that follows it here",
       "issue": "#369"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.UpdateServer",
-      "kind": "absent",
-      "path": "server.bootscript",
-      "reason": "the update answers the same server view as the create and the read, so it omits the retired bootscript key the cloud writes as null",
-      "issue": "#366"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.UpdateServer",
-      "kind": "absent",
-      "path": "server.extra_networks",
-      "reason": "the update carries the same omission of extra_networks as the create, because both render one server view",
-      "issue": "#366"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.UpdateServer",
-      "kind": "type",
-      "path": "server.public_ip.gateway",
-      "reason": "the update publishes the same null gateway as the create, because both render one address view",
-      "issue": "#368"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.UpdateServer",
-      "kind": "absent",
-      "path": "server.public_ip.tags[]",
-      "reason": "the update drops the address tags exactly as the create does, because both render one address view",
-      "issue": "#368"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.UpdateServer",
-      "kind": "type",
-      "path": "server.public_ips[].gateway",
-      "reason": "every element of public_ips carries the same null gateway the singular public_ip carries, because the list and the field render through one function",
-      "issue": "#368"
-    },
-    {
-      "file": "scaleway/scw-instance.jsonl",
-      "operation": "instance/v1/API.UpdateServer",
-      "kind": "absent",
-      "path": "server.public_ips[].tags[]",
-      "reason": "every element of public_ips drops the address tags the cloud propagates, because the list and the singular field render through one function",
-      "issue": "#368"
     },
     {
       "file": "exoscale/exo-refusals.jsonl",
@@ -994,102 +860,6 @@
       "reason": "The recorded BookIP names a project and the recorded ListIPs names none, so the cloud answered one address and this emulator answers an empty list. MEASURED RATHER THAN ASSUMED, and the first hypothesis was wrong: this is not an artefact of the sanitiser. Asked directly, the emulator's ListIPs?project_id=<the booking project> answers the address correctly, and only the UNFILTERED list is empty -- it scopes to the default project while the create honoured the project the request named. That is exactly the cause #369 already classifies for instance/v1 createServer and listServers, one product out. It is recorded here against ipam/v1 rather than folded into #369's Scaleway entries because the key must name the operation it excuses. Recorded 2026-08-24 against a real fr-par account (#427).",
       "issue": "https://github.com/stephrobert/feint/issues/369",
       "file": "scaleway/scw-free-shapes.jsonl"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "instance/v1/API.CreateServer",
-      "kind": "absent",
-      "path": "server.extra_networks",
-      "reason": "Two keys the cloud writes and this emulator omits on a server: bootscript (null) and extra_networks ([]). Untriaged, which is the point of the issue: they are either served or declared in DeclinedFields(), and a corpus exemption is neither. Re-measured on a second recording 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/366"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "instance/v1/API.CreateServer",
-      "kind": "absent",
-      "path": "server.public_ips[].tags[]",
-      "reason": "An attached public IP publishes no gateway and drops its own tags, in public_ip and in every element of public_ips. Re-measured on a second recording 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/368"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "instance/v1/API.CreateServer",
-      "kind": "absent",
-      "path": "server.public_ip.tags[]",
-      "reason": "An attached public IP publishes no gateway and drops its own tags, in public_ip and in every element of public_ips. Re-measured on a second recording 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/368"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "instance/v1/API.CreateServer",
-      "kind": "absent",
-      "path": "server.bootscript",
-      "reason": "Two keys the cloud writes and this emulator omits on a server: bootscript (null) and extra_networks ([]). Untriaged, which is the point of the issue: they are either served or declared in DeclinedFields(), and a corpus exemption is neither. Re-measured on a second recording 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/366"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "instance/v1/API.CreateServer",
-      "kind": "type",
-      "path": "server.public_ip.gateway",
-      "reason": "An attached public IP publishes no gateway and drops its own tags, in public_ip and in every element of public_ips. Re-measured on a second recording 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/368"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "instance/v1/API.CreateServer",
-      "kind": "type",
-      "path": "server.public_ips[].gateway",
-      "reason": "An attached public IP publishes no gateway and drops its own tags, in public_ip and in every element of public_ips. Re-measured on a second recording 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/368"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "instance/v1/API.GetServer",
-      "kind": "absent",
-      "path": "server.extra_networks",
-      "reason": "Two keys the cloud writes and this emulator omits on a server: bootscript (null) and extra_networks ([]). Untriaged, which is the point of the issue: they are either served or declared in DeclinedFields(), and a corpus exemption is neither. Re-measured on a second recording 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/366"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "instance/v1/API.GetServer",
-      "kind": "absent",
-      "path": "server.public_ips[].tags[]",
-      "reason": "An attached public IP publishes no gateway and drops its own tags, in public_ip and in every element of public_ips. Re-measured on a second recording 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/368"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "instance/v1/API.GetServer",
-      "kind": "absent",
-      "path": "server.public_ip.tags[]",
-      "reason": "An attached public IP publishes no gateway and drops its own tags, in public_ip and in every element of public_ips. Re-measured on a second recording 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/368"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "instance/v1/API.GetServer",
-      "kind": "absent",
-      "path": "server.bootscript",
-      "reason": "Two keys the cloud writes and this emulator omits on a server: bootscript (null) and extra_networks ([]). Untriaged, which is the point of the issue: they are either served or declared in DeclinedFields(), and a corpus exemption is neither. Re-measured on a second recording 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/366"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "instance/v1/API.GetServer",
-      "kind": "type",
-      "path": "server.public_ip.gateway",
-      "reason": "An attached public IP publishes no gateway and drops its own tags, in public_ip and in every element of public_ips. Re-measured on a second recording 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/368"
-    },
-    {
-      "file": "scaleway/scw-billed-shapes.jsonl",
-      "operation": "instance/v1/API.GetServer",
-      "kind": "type",
-      "path": "server.public_ips[].gateway",
-      "reason": "An attached public IP publishes no gateway and drops its own tags, in public_ip and in every element of public_ips. Re-measured on a second recording 2026-08-24 (#427).",
-      "issue": "https://github.com/stephrobert/feint/issues/368"
     },
     {
       "file": "scaleway/scw-billed-shapes.jsonl",

@@ -1001,6 +1001,30 @@ func (p *Pack) view(res *resource.Resource) map[string]any {
 	out["mac_address"] = serverMAC(res.ID)
 	out["end_of_service"] = false
 	out["filesystems"] = []any{}
+	// Two keys the cloud writes and the SDK no longer declares (#366), and the
+	// decision that issue asked for: SERVED, with the values two recordings of a
+	// real fr-par account carry on every CreateServer, GetServer and
+	// UpdateServer — corpus/scaleway/scw-instance.jsonl (2026-08-21) and
+	// corpus/scaleway/scw-billed-shapes.jsonl (2026-08-24).
+	//
+	// Served rather than declined, because omitting a key is not the same answer
+	// as writing it empty: a client reading server["bootscript"] finds a present
+	// null on the cloud and nothing here, and DeclinedFields() is for a field
+	// this emulator cannot answer truthfully, not for one whose whole content is
+	// a constant the recording states.
+	//
+	// The SDK is not the source here and cannot be: type Server declares
+	// neither field any more (instance_sdk.go, read 2026-08-27). That is the
+	// case clientImageView already documents on the image — "here because a
+	// recording said so, not because the SDK did" — and a recording of the wire
+	// outranks the SDK on what is ON the wire.
+	//
+	// bootscript is null because the product is retired upstream and the key
+	// survived it; extra_networks is an empty array on every answer recorded.
+	//
+	// TestAServerAnswersTheTwoKeysTheSDKNoLongerDeclares fails without this.
+	out["bootscript"] = nil
+	out["extra_networks"] = []any{}
 	// Deprecated upstream and always null in routed IP mode, which is this
 	// emulator's default; the real API still serves the key.
 	out["ipv6"] = nil
@@ -1063,10 +1087,12 @@ func (p *Pack) publicIPsOf(server *resource.Resource) []any {
 	out := make([]any, 0, 1)
 	for _, ip := range p.attachedIPsOf(server.ID, server.Tenant.Zone) {
 		address, _ := ip.Attrs["address"].(string)
-		out = append(out, serverIPView(ip.ID, address, false))
+		out = append(out, serverIPView(ip.ID, address, false, tagValues(ip.Attrs["tags"])))
 	}
 	if address := server.Runtime[runtimeDynamicIPKey]; address != "" {
-		out = append(out, serverIPView(server.Runtime[runtimeDynamicIPIDKey], address, true))
+		// A dynamic address is not a flexible IP upstream and never appears in
+		// /ips, so it has no record and therefore no tags of its own.
+		out = append(out, serverIPView(server.Runtime[runtimeDynamicIPIDKey], address, true, []any{}))
 	}
 	return out
 }
@@ -1148,11 +1174,31 @@ func (p *Pack) setServerIPs(ctx context.Context, server *resource.Resource, ids 
 // serverIPView is one ServerIP entry. routed_ip_enabled is this emulator's
 // default, so the machine carries the address itself rather than being NATed
 // to it, flexible and dynamic alike.
-func serverIPView(id, address string, dynamic bool) map[string]any {
+//
+// This one function renders BOTH Server.public_ip and every element of
+// Server.public_ips, which is why #368 is one defect and not two: the gateway
+// and the tags were missing from four places in three operations, all of them
+// this map.
+//
+// TestAnAttachedAddressPublishesItsGatewayAndItsOwnTags fails without this.
+func serverIPView(id, address string, dynamic bool, tags []any) map[string]any {
 	return map[string]any{
-		"id":                id,
-		"address":           address,
-		"gateway":           nil,
+		"id":      id,
+		"address": address,
+		// A STRING, never null (#368). A routed address is a /32 and still
+		// routes off-link through a gateway: the cloud publishes one on every
+		// element of public_ips, and a guest reading its own route off the
+		// answer found nothing here.
+		//
+		// The value is this pack's own address plan rather than an invented
+		// constant. flexibleBlock is 203.0.113.0/24 and allocateFlexibleAddress
+		// reserves its first two addresses — the network address and one more,
+		// because "the runtime answers on the first usable address" — so
+		// 203.0.113.1 is the address no flexible IP can ever be handed and the
+		// one a machine on this block would route through. One block, one
+		// gateway, stable between two reads, which is what anything that stores
+		// it needs.
+		"gateway":           flexibleGateway,
 		"netmask":           "32",
 		"family":            "inet",
 		"dynamic":           dynamic,
@@ -1165,7 +1211,43 @@ func serverIPView(id, address string, dynamic bool) map[string]any {
 		// identifier, not a second inventory.
 		"ipam_id": id,
 		"state":   "attached",
-		"tags":    []any{},
+		// The address's OWN tags (#368), not an empty list: the tags a client
+		// sends on CreateIP reach the cloud's view of the attached address, and
+		// this view answered [] for a recording whose address carried one. A
+		// copy rather than the stored slice, because the response map outlives
+		// this call and nothing may hand a caller a window onto the store —
+		// TestTagValuesCopiesTheStoredSlice fails without the copy, and it is an
+		// internal test because only a restored snapshot reaches the branch
+		// where an alias is possible.
+		"tags": tags,
+	}
+}
+
+// flexibleGateway is the gateway every emulated public address routes through.
+//
+// Derived from flexibleBlock rather than written twice: the first usable
+// address of the block the allocator hands out from, which is the one
+// allocateFlexibleAddress reserves and can therefore never give to an IP.
+var flexibleGateway = flexiblePrefix.Addr().Next().String()
+
+// tagValues copies a stored tag list into the shape a response carries.
+//
+// Both stored shapes are read for the reason hasEveryTag states: a live create
+// stores []string and a JSON snapshot restores []any, so a restored session
+// must answer like the session that produced it. The copy is what keeps a
+// response from aliasing the store.
+func tagValues(stored any) []any {
+	switch tags := stored.(type) {
+	case []string:
+		out := make([]any, 0, len(tags))
+		for _, t := range tags {
+			out = append(out, t)
+		}
+		return out
+	case []any:
+		return append([]any{}, tags...)
+	default:
+		return []any{}
 	}
 }
 
