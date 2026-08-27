@@ -62,6 +62,19 @@ provider "scaleway" {
   zone            = "fr-par-1"
 }
 
+# The data source every third-party VPC stack evaluates before any resource, and the wall of #372:
+# it answered 501 here, so the two published modules that walk the VPC surface died in two exchanges
+# without reaching a single VPC path. It is first in this file because that is where it runs — a
+# data source with no dependency is evaluated ahead of the graph, which is exactly what made one
+# unserved route unreachable for a whole category of stack.
+#
+# The provider's own read (DataSourceAccountProjectRead) calls ListProjects when a name is given and
+# then always GetProject on the id it resolved, so this one block drives both routes.
+data "scaleway_account_project" "conformance" {
+  name            = "default"
+  organization_id = "11111111-1111-1111-1111-111111111111"
+}
+
 # Inline rules are how the provider models a security group: it sends the whole list through
 # SetSecurityGroupRules on every change, so the emulator must answer with the resulting state and
 # not with what it was asked. A rule that comes back in another order, or without the id it was
@@ -402,6 +415,16 @@ output "block_volume_id_by_name" {
 
 output "block_snapshot_id_by_name" {
   value = data.scaleway_block_snapshot.by_name.id
+}
+
+# The project the data source resolved by name, so the suite asserts on what the
+# two account/v3 routes answered rather than on the state agreeing with itself.
+output "account_project_id" {
+  value = data.scaleway_account_project.conformance.project_id
+}
+
+output "account_project_name" {
+  value = data.scaleway_account_project.conformance.name
 }
 
 # The Load Balancer chain (#282), in the shape the surveyed stacks wrote it:

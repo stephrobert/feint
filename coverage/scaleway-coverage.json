@@ -1,11 +1,27 @@
 {
   "provider": "scaleway",
-  "total": 486,
-  "implemented": 174,
-  "declined": 312,
+  "total": 498,
+  "implemented": 176,
+  "declined": 322,
   "unknown": 0,
   "orphans": null,
   "products": [
+    {
+      "product": "account",
+      "total": 12,
+      "implemented": 2,
+      "declined": 10,
+      "unknown": 0,
+      "versions": [
+        {
+          "version": "v3",
+          "total": 12,
+          "implemented": 2,
+          "declined": 10,
+          "unknown": 0
+        }
+      ]
+    },
     {
       "product": "block",
       "total": 27,
@@ -165,6 +181,13 @@
   ],
   "groups": [
     {
+      "group": "account",
+      "total": 12,
+      "implemented": 2,
+      "declined": 10,
+      "unknown": 0
+    },
+    {
       "group": "block",
       "total": 27,
       "implemented": 22,
@@ -222,6 +245,88 @@
     }
   ],
   "entries": [
+    {
+      "operation": "account/v3/ContractAPI.CheckContractSignature",
+      "product": "account",
+      "reason": "a contract signature is a legal act on a paying account — this emulator has no subscription to sign, no signatory and no document to hand back, and a signature recorded here would be a consent nobody gave",
+      "version": "v3",
+      "status": "declined"
+    },
+    {
+      "operation": "account/v3/ContractAPI.CreateContractSignature",
+      "product": "account",
+      "reason": "a contract signature is a legal act on a paying account — this emulator has no subscription to sign, no signatory and no document to hand back, and a signature recorded here would be a consent nobody gave",
+      "version": "v3",
+      "status": "declined"
+    },
+    {
+      "operation": "account/v3/ContractAPI.DownloadContractSignature",
+      "product": "account",
+      "reason": "a contract signature is a legal act on a paying account — this emulator has no subscription to sign, no signatory and no document to hand back, and a signature recorded here would be a consent nobody gave",
+      "version": "v3",
+      "status": "declined"
+    },
+    {
+      "operation": "account/v3/ContractAPI.ListContractSignatures",
+      "product": "account",
+      "reason": "a contract signature is a legal act on a paying account — this emulator has no subscription to sign, no signatory and no document to hand back, and a signature recorded here would be a consent nobody gave",
+      "version": "v3",
+      "status": "declined"
+    },
+    {
+      "operation": "account/v3/ContractAPI.ValidateContractSignature",
+      "product": "account",
+      "reason": "a contract signature is a legal act on a paying account — this emulator has no subscription to sign, no signatory and no document to hand back, and a signature recorded here would be a consent nobody gave",
+      "version": "v3",
+      "status": "declined"
+    },
+    {
+      "operation": "account/v3/ProjectAPI.CreateProject",
+      "product": "account",
+      "reason": "this emulator hosts one project and files every resource under whatever project a request names (projectOf, scopeOf), so a project is not a record here: a created one would be an entry nothing consults, a deleted one would not stop the resources filed under it, and a renamed one would move a name no other answer of this pack carries",
+      "version": "v3",
+      "status": "declined"
+    },
+    {
+      "operation": "account/v3/ProjectAPI.DeleteProject",
+      "product": "account",
+      "reason": "this emulator hosts one project and files every resource under whatever project a request names (projectOf, scopeOf), so a project is not a record here: a created one would be an entry nothing consults, a deleted one would not stop the resources filed under it, and a renamed one would move a name no other answer of this pack carries",
+      "version": "v3",
+      "status": "declined"
+    },
+    {
+      "operation": "account/v3/ProjectAPI.DeleteProjectWithResources",
+      "product": "account",
+      "reason": "this emulator hosts one project and files every resource under whatever project a request names (projectOf, scopeOf), so a project is not a record here: a created one would be an entry nothing consults, a deleted one would not stop the resources filed under it, and a renamed one would move a name no other answer of this pack carries",
+      "version": "v3",
+      "status": "declined"
+    },
+    {
+      "operation": "account/v3/ProjectAPI.GetProject",
+      "product": "account",
+      "version": "v3",
+      "status": "implemented"
+    },
+    {
+      "operation": "account/v3/ProjectAPI.ListProjects",
+      "product": "account",
+      "version": "v3",
+      "status": "implemented"
+    },
+    {
+      "operation": "account/v3/ProjectAPI.SetProjectQualification",
+      "product": "account",
+      "reason": "a project's qualification is the use case declared to Scaleway for commercial and compliance purposes, and nothing here reads it back into any behaviour: recording one would be a declaration made to nobody",
+      "version": "v3",
+      "status": "declined"
+    },
+    {
+      "operation": "account/v3/ProjectAPI.UpdateProject",
+      "product": "account",
+      "reason": "this emulator hosts one project and files every resource under whatever project a request names (projectOf, scopeOf), so a project is not a record here: a created one would be an entry nothing consults, a deleted one would not stop the resources filed under it, and a renamed one would move a name no other answer of this pack carries",
+      "version": "v3",
+      "status": "declined"
+    },
     {
       "operation": "block/v1/API.CreateSnapshot",
       "product": "block",

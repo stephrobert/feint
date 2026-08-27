@@ -218,6 +218,17 @@ echo "- the same objects are findable by name"
   || fail "the snapshot found by name is not the one that was created"
 ok "found by name, and the same"
 
+# The data source that stood in front of every third-party VPC stack (#372).
+# Asserted on the answer rather than on the apply succeeding: a project resolved
+# under another name, or under an id the provider then cannot read, is what the
+# two published modules of that issue would have met one call later.
+echo "- the account project resolves by name and reads back by id"
+[ "$("$TF" output -raw account_project_name)" = "default" ] \
+  || fail "the data source resolved a project that is not the default one"
+[ -n "$("$TF" output -raw account_project_id)" ] \
+  || fail "the data source resolved no project id"
+ok "resolved by name, read back by id"
+
 # The edit path, which create-and-destroy never walks. One changed tag makes the
 # provider PATCH every resource that supports it rather than replace it, and the
 # assertion is on what the emulator serves afterwards: an update that answers 200

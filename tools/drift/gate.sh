@@ -28,7 +28,11 @@ OUTSCALE_SDK="${FEINT_SDK_OUTSCALE:-.upstream/osc-sdk-go}"
 # asking it to account for all 1700 upstream operations would fail forever and
 # teach everyone to ignore it. Adding a product here is what puts it under the
 # gate — in both callers at once.
-SCALEWAY_PRODUCTS="${FEINT_PRODUCTS:-instance,vpc,ipam,iam,marketplace,block,lb,vpcgw}"
+# account joined on 2026-08-27 with #372: `data "scaleway_account_project"` is
+# the first call every third-party VPC stack makes, so the product stopped being
+# one nobody reaches. Adding it here is what puts its twelve operations in front
+# of the triage — two served, ten declined with a reason.
+SCALEWAY_PRODUCTS="${FEINT_PRODUCTS:-instance,vpc,ipam,iam,marketplace,block,lb,vpcgw,account}"
 
 [ -x "$FEINT" ] || { echo "no feint binary at $FEINT (build it: mise run build)" >&2; exit 1; }
 

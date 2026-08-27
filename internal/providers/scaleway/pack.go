@@ -455,6 +455,16 @@ func (p *Pack) Routes() []emulator.Route {
 		{Method: "GET", Path: "/iam/v1alpha1/ssh-keys/{id}", Operation: "iam/v1alpha1/API.GetSSHKey", Handler: p.getSSHKey},
 		{Method: "PATCH", Path: "/iam/v1alpha1/ssh-keys/{id}", Operation: "iam/v1alpha1/API.UpdateSSHKey", Handler: p.updateSSHKey},
 		{Method: "DELETE", Path: "/iam/v1alpha1/ssh-keys/{id}", Operation: "iam/v1alpha1/API.DeleteSSHKey", Handler: p.deleteSSHKey},
+
+		// The Account product's projects (#372). Not a resource a stack makes:
+		// the thing every other resource is filed under, and therefore the
+		// first call a third-party VPC stack issues — `data
+		// "scaleway_account_project"` is evaluated before any resource, so a
+		// 501 here makes the whole graph unreachable. Both are mounted because
+		// the provider's data source calls both; projects.go carries the
+		// measurement and the two rules the answers follow.
+		{Method: "GET", Path: "/account/v3/projects", Operation: "account/v3/ProjectAPI.ListProjects", Handler: p.listProjects},
+		{Method: "GET", Path: "/account/v3/projects/{id}", Operation: "account/v3/ProjectAPI.GetProject", Handler: p.getProject},
 	}
 }
 
@@ -1183,6 +1193,30 @@ func (p *Pack) Declined() []emulator.Decline {
 			"instance/v2alpha1/API.UpdateSecurityGroupRule",
 			"instance/v2alpha1/API.UpdateServer",
 			"instance/v2alpha1/API.UpdateTemplate"),
+
+		// ---- account/v3, the product #372 brought under the gate ------------
+		//
+		// The two read operations of the ProjectAPI are served (projects.go).
+		// These ten are the rest of the product, and the gate now demands an
+		// answer for each: adding `account` to tools/drift/gate.sh is what puts
+		// a whole product's operations in front of a triage that used to be
+		// able to ignore them.
+
+		emulator.Because("this emulator hosts one project and files every resource under whatever project a request names (projectOf, scopeOf), so a project is not a record here: a created one would be an entry nothing consults, a deleted one would not stop the resources filed under it, and a renamed one would move a name no other answer of this pack carries",
+			"account/v3/ProjectAPI.CreateProject",
+			"account/v3/ProjectAPI.DeleteProject",
+			"account/v3/ProjectAPI.DeleteProjectWithResources",
+			"account/v3/ProjectAPI.UpdateProject"),
+
+		emulator.Because("a project's qualification is the use case declared to Scaleway for commercial and compliance purposes, and nothing here reads it back into any behaviour: recording one would be a declaration made to nobody",
+			"account/v3/ProjectAPI.SetProjectQualification"),
+
+		emulator.Because("a contract signature is a legal act on a paying account — this emulator has no subscription to sign, no signatory and no document to hand back, and a signature recorded here would be a consent nobody gave",
+			"account/v3/ContractAPI.CheckContractSignature",
+			"account/v3/ContractAPI.CreateContractSignature",
+			"account/v3/ContractAPI.DownloadContractSignature",
+			"account/v3/ContractAPI.ListContractSignatures",
+			"account/v3/ContractAPI.ValidateContractSignature"),
 	)
 }
 

@@ -595,6 +595,26 @@ turns out to be the wrong one, the place to change it is `resolveImage` in
 `internal/providers/scaleway/images.go`, and the change must come with a way to
 keep hardcoded production ids working.
 
+**A project identifier is the same trade, taken again for the same reason
+(#372).** `GET /account/v3/projects/{id}` answers for any identifier, echoing
+it, because the Terraform provider's `data "scaleway_account_project"` always
+ends on that call — with the id a name resolved to, or with the one the provider
+block configures. Refusing an id this emulator never minted would put a wall one
+call after the wall #372 removed, and a project id is the value a stack is most
+likely to carry over from production.
+
+The **list** does not do this: `GET /account/v3/projects` answers exactly one
+project, named `default` — the name Scaleway's own published document gives the
+initial project of an organization — and a `name` or `project_ids` filter that
+names something else answers an empty list. A filter is a question about what
+exists, and emptiness is a truthful answer to it; a read that answers 404 is a
+wall. **So a stack whose `project_name` is not `default` will fail here**, on
+`FindExact`, and the fix is to point it at `default` rather than at its
+production project's name. The organization is never compared at all, for the
+reason `listSSHKeys` records: `scw` names its own configured organization on
+every list, and comparing told the CLI that the key it had just created did not
+exist.
+
 **What an unknown identifier can no longer do is boot a substitute.** Measured
 in #83, on all three packs: with a runtime configured (`--vm incus`, `incus-vm`,
 `incus-ovn`), an image identifier no catalogue held was silently replaced at
@@ -2301,7 +2321,7 @@ proof.
 |---|---|--:|---|
 | Exoscale | `2.0.0` | 473 | *assumed* by this emulator |
 | Outscale | `1.42.0` | 655 | **declared** by the provider |
-| Scaleway | `instance/v1, instance/v2alpha1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2, block/v1, block/v1alpha1, lb/v1, vpcgw/v2` | 604 | **declared** by the provider |
+| Scaleway | `instance/v1, instance/v2alpha1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2, block/v1, block/v1alpha1, lb/v1, vpcgw/v2, account/v3` | 632 | **declared** by the provider |
 <!-- contracts:end -->
 
 **Declared** means the provider wrote `additionalProperties: false` themselves:

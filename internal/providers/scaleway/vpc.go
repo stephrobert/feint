@@ -168,7 +168,7 @@ func (p *Pack) listVPCs(w http.ResponseWriter, r *http.Request) {
 	}
 	// No VPC here integrates with Object Storage — the product is not emulated
 	// (docs/limits.md) — so true truthfully matches nothing.
-	if wantS3, present := queryBool(q, "s3_integration_enabled"); present && wantS3 {
+	if wantS3, present := objectStorageFilter(q); present && wantS3 {
 		all = all[:0]
 	}
 	if !orderResources(w, r, "order_by", "created_at_asc", map[string]resourceCmp{
@@ -343,7 +343,7 @@ func (p *Pack) listPrivateNetworks(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	// Same answer as ListVPCs: no Object Storage integration exists here.
-	if wantS3, present := queryBool(q, "s3_integration_enabled"); present && wantS3 {
+	if wantS3, present := objectStorageFilter(q); present && wantS3 {
 		all = all[:0]
 	}
 	if !orderResources(w, r, "order_by", "created_at_asc", map[string]resourceCmp{

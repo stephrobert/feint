@@ -45,20 +45,14 @@ func cmpName(a, b *resource.Resource) int {
 // The sort is stable, so equal keys keep store order and two reads answer
 // identically — anything a client stores must read back the same.
 func orderResources(w http.ResponseWriter, r *http.Request, param, fallback string, fields map[string]resourceCmp, items []*resource.Resource) bool {
-	value := r.URL.Query().Get(param)
-	if value == "" {
-		value = fallback
-	}
-	base, descending := orderSpelling(value)
-	cmp, known := fields[base]
-	if !known {
-		writeInvalidArguments(w, ArgumentError{
-			ArgumentName: param,
-			Reason:       "constraint",
-			HelpMessage:  "unknown " + param + " " + value,
-		})
+	base, descending, ok := orderAsked(w, r, param, fallback, func(field string) bool {
+		_, known := fields[field]
+		return known
+	})
+	if !ok {
 		return false
 	}
+	cmp := fields[base]
 	sort.SliceStable(items, func(i, j int) bool {
 		c := cmp(items[i], items[j])
 		if descending {
@@ -67,6 +61,32 @@ func orderResources(w http.ResponseWriter, r *http.Request, param, fallback stri
 		return c < 0
 	})
 	return true
+}
+
+// orderAsked reads and validates the ordering the client asked for, and writes
+// the refusal itself when the value is outside the operation's declared enum.
+//
+// Split out of orderResources for the lists this pack answers without a store
+// behind them: account/v3's projects are a fixed inventory, like the catalogue,
+// so there is no []*resource.Resource to sort — and a handler that simply
+// ignored order_by would be dropping a declared parameter, which is the class
+// #277 measured and internal/core/emulator's
+// TestNoDeclaredQueryParameterIsDroppedByItsHandler holds.
+func orderAsked(w http.ResponseWriter, r *http.Request, param, fallback string, known func(string) bool) (field string, descending, ok bool) {
+	value := r.URL.Query().Get(param)
+	if value == "" {
+		value = fallback
+	}
+	base, descending := orderSpelling(value)
+	if !known(base) {
+		writeInvalidArguments(w, ArgumentError{
+			ArgumentName: param,
+			Reason:       "constraint",
+			HelpMessage:  "unknown " + param + " " + value,
+		})
+		return "", false, false
+	}
+	return base, descending, true
 }
 
 // orderSpelling splits created_at_desc into its field and its direction. A
@@ -90,6 +110,31 @@ func queryBool(q url.Values, key string) (value, present bool) {
 		return false, false
 	}
 	return raw == "true", true
+}
+
+// objectStorageFilter reads the "only VPCs (or Private Networks) whose Object
+// Storage private access is on" filter, under both names it has had.
+//
+// Scaleway renamed the whole family on 2026-08-25 — the five S3-endpoint
+// operations became *ObjectStoragePrivateAccess (triaged in pack.go the same
+// day) and the query parameter went with them: the SDK now emits
+// `object_storage_private_access_enabled` (vpc_sdk.go:1978 and :2179) and the
+// portal's document declares only that spelling. The old one is what every
+// client built before the rename still sends, and dropping it would silently
+// widen a filter that used to narrow.
+//
+// Both, first one present wins, which is exactly the per_page/page_size idiom
+// parsePage already carries and for the same reason: reading one spelling only
+// answers a filtered list with everything.
+//
+// TestBothSpellingsOfTheObjectStorageFilterNarrow fails without this.
+func objectStorageFilter(q url.Values) (value, present bool) {
+	for _, key := range []string{"object_storage_private_access_enabled", "s3_integration_enabled"} {
+		if v, ok := queryBool(q, key); ok {
+			return v, true
+		}
+	}
+	return false, false
 }
 
 // idSet turns the repeated values of an identifier filter into a lookup —

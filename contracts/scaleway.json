@@ -1,11 +1,83 @@
 {
  "provider": "scaleway",
  "source": "https://www.scaleway.com/en/developers/api/<product>/schema.yml",
- "apiVersion": "instance/v1, instance/v2alpha1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2, block/v1, block/v1alpha1, lb/v1, vpcgw/v2",
+ "apiVersion": "instance/v1, instance/v2alpha1, vpc/v2, ipam/v1, iam/v1alpha1, marketplace/v2, block/v1, block/v1alpha1, lb/v1, vpcgw/v2, account/v3",
  "pathPrefix": "",
  "closedPolicy": "declared",
  "errorSchema": "scw.ResponseError",
  "operations": {
+  "account/v3.CreateProject": {
+   "path": "/account/v3/projects",
+   "method": "POST",
+   "group": "Projects",
+   "request": "account/v3.CreateProject.Request",
+   "response": "account/v3.scaleway.account.v3.Project"
+  },
+  "account/v3.DeleteProject": {
+   "path": "/account/v3/projects/{project_id}",
+   "method": "DELETE",
+   "group": "Projects",
+   "noContent": 204
+  },
+  "account/v3.DeleteProjectWithResources": {
+   "path": "/account/v3/projects/{project_id}/delete-with-resources",
+   "method": "POST",
+   "group": "Projects",
+   "response": "account/v3.scaleway.account.v3.Project",
+   "query": {
+    "project_name": {
+     "type": "string"
+    }
+   }
+  },
+  "account/v3.GetProject": {
+   "path": "/account/v3/projects/{project_id}",
+   "method": "GET",
+   "group": "Projects",
+   "response": "account/v3.scaleway.account.v3.Project"
+  },
+  "account/v3.ListProjects": {
+   "path": "/account/v3/projects",
+   "method": "GET",
+   "group": "Projects",
+   "response": "account/v3.scaleway.account.v3.ListProjectsResponse",
+   "query": {
+    "organization_id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "page": {
+     "type": "integer"
+    },
+    "page_size": {
+     "type": "integer"
+    },
+    "order_by": {
+     "ref": "account/v3.scaleway.account.v3.ListProjectsRequest.OrderBy"
+    },
+    "project_ids": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "account/v3.SetProjectQualification": {
+   "path": "/account/v3/projects/{project_id}/project-qualification",
+   "method": "POST",
+   "request": "account/v3.SetProjectQualification.Request",
+   "response": "account/v3.scaleway.account.v3.ProjectQualification"
+  },
+  "account/v3.UpdateProject": {
+   "path": "/account/v3/projects/{project_id}",
+   "method": "PATCH",
+   "group": "Projects",
+   "request": "account/v3.UpdateProject.Request",
+   "response": "account/v3.scaleway.account.v3.Project"
+  },
   "block/v1.CreateSnapshot": {
    "path": "/block/v1/zones/{zone}/snapshots",
    "method": "POST",
@@ -3212,12 +3284,12 @@
     }
    }
   },
-  "vpc/v2.AddPrivateNetworkS3Endpoint": {
-   "path": "/vpc/v2/regions/{region}/s3-integration/{vpc_id}/private-networks",
+  "vpc/v2.AddPrivateNetworkObjectStoragePrivateAccess": {
+   "path": "/vpc/v2/regions/{region}/object-storage-private-access/{vpc_id}/private-networks",
    "method": "POST",
-   "group": "S3 integration",
-   "request": "vpc/v2.AddPrivateNetworkS3Endpoint.Request",
-   "response": "vpc/v2.scaleway.vpc.v2.AddPrivateNetworkS3EndpointResponse"
+   "group": "Object Storage private access",
+   "request": "vpc/v2.AddPrivateNetworkObjectStoragePrivateAccess.Request",
+   "response": "vpc/v2.scaleway.vpc.v2.AddPrivateNetworkObjectStoragePrivateAccessResponse"
   },
   "vpc/v2.CreateIngressRule": {
    "path": "/vpc/v2/regions/{region}/ingress-rules",
@@ -3266,10 +3338,10 @@
    "group": "Private Networks",
    "noContent": 204
   },
-  "vpc/v2.DeletePrivateNetworkS3Endpoint": {
-   "path": "/vpc/v2/regions/{region}/s3-integration/{vpc_id}/private-networks/{private_network_id}",
+  "vpc/v2.DeletePrivateNetworkObjectStoragePrivateAccess": {
+   "path": "/vpc/v2/regions/{region}/object-storage-private-access/{vpc_id}/private-networks/{private_network_id}",
    "method": "DELETE",
-   "group": "S3 integration",
+   "group": "Object Storage private access",
    "noContent": 204
   },
   "vpc/v2.DeleteRoute": {
@@ -3290,10 +3362,10 @@
    "group": "VPC Connectors",
    "noContent": 204
   },
-  "vpc/v2.DisableS3Endpoint": {
-   "path": "/vpc/v2/regions/{region}/s3-integration/{vpc_id}/disable",
+  "vpc/v2.DisableObjectStoragePrivateAccess": {
+   "path": "/vpc/v2/regions/{region}/object-storage-private-access/{vpc_id}/disable",
    "method": "POST",
-   "group": "S3 integration",
+   "group": "Object Storage private access",
    "response": "vpc/v2.scaleway.vpc.v2.VPC"
   },
   "vpc/v2.EnableDHCP": {
@@ -3302,16 +3374,10 @@
    "group": "Private Networks",
    "response": "vpc/v2.scaleway.vpc.v2.PrivateNetwork"
   },
-  "vpc/v2.EnableRouting": {
-   "path": "/vpc/v2/regions/{region}/vpcs/{vpc_id}/enable-routing",
+  "vpc/v2.EnableObjectStoragePrivateAccess": {
+   "path": "/vpc/v2/regions/{region}/object-storage-private-access/{vpc_id}/enable",
    "method": "POST",
-   "group": "VPCs",
-   "response": "vpc/v2.scaleway.vpc.v2.VPC"
-  },
-  "vpc/v2.EnableS3Endpoint": {
-   "path": "/vpc/v2/regions/{region}/s3-integration/{vpc_id}/enable",
-   "method": "POST",
-   "group": "S3 integration",
+   "group": "Object Storage private access",
    "response": "vpc/v2.scaleway.vpc.v2.VPC",
    "query": {
     "private_network_ids": {
@@ -3321,6 +3387,12 @@
      }
     }
    }
+  },
+  "vpc/v2.EnableRouting": {
+   "path": "/vpc/v2/regions/{region}/vpcs/{vpc_id}/enable-routing",
+   "method": "POST",
+   "group": "VPCs",
+   "response": "vpc/v2.scaleway.vpc.v2.VPC"
   },
   "vpc/v2.GetAcl": {
    "path": "/vpc/v2/regions/{region}/vpcs/{vpc_id}/acl-rules",
@@ -3446,7 +3518,7 @@
     "dhcp_enabled": {
      "type": "boolean"
     },
-    "s3_integration_enabled": {
+    "object_storage_private_access_enabled": {
      "type": "boolean"
     }
    }
@@ -3577,7 +3649,7 @@
     "routing_enabled": {
      "type": "boolean"
     },
-    "s3_integration_enabled": {
+    "object_storage_private_access_enabled": {
      "type": "boolean"
     }
    }
@@ -3589,12 +3661,12 @@
    "request": "vpc/v2.SetAcl.Request",
    "response": "vpc/v2.scaleway.vpc.v2.SetAclResponse"
   },
-  "vpc/v2.SetPrivateNetworksS3Endpoint": {
-   "path": "/vpc/v2/regions/{region}/s3-integration/{vpc_id}/private-networks",
+  "vpc/v2.SetPrivateNetworksObjectStoragePrivateAccess": {
+   "path": "/vpc/v2/regions/{region}/object-storage-private-access/{vpc_id}/private-networks",
    "method": "PUT",
-   "group": "S3 integration",
-   "request": "vpc/v2.SetPrivateNetworksS3Endpoint.Request",
-   "response": "vpc/v2.scaleway.vpc.v2.SetPrivateNetworksS3EndpointResponse"
+   "group": "Object Storage private access",
+   "request": "vpc/v2.SetPrivateNetworksObjectStoragePrivateAccess.Request",
+   "response": "vpc/v2.scaleway.vpc.v2.SetPrivateNetworksObjectStoragePrivateAccessResponse"
   },
   "vpc/v2.UpdateIngressRule": {
    "path": "/vpc/v2/regions/{region}/ingress-rules/{rule_id}",
@@ -3946,6 +4018,303 @@
   }
  },
  "schemas": {
+  "account/v3.CreateProject.Request": {
+   "closed": false,
+   "properties": {
+    "description": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "organization_id": {
+     "type": "string"
+    }
+   }
+  },
+  "account/v3.SetProjectQualification.Request": {
+   "closed": false,
+   "properties": {
+    "qualification": {
+     "ref": "account/v3.scaleway.account.v3.Qualification"
+    }
+   }
+  },
+  "account/v3.UpdateProject.Request": {
+   "closed": false,
+   "properties": {
+    "description": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    }
+   }
+  },
+  "account/v3.scaleway.account.v3.ListProjectsRequest.OrderBy": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "created_at_asc",
+    "created_at_desc",
+    "name_asc",
+    "name_desc"
+   ]
+  },
+  "account/v3.scaleway.account.v3.ListProjectsResponse": {
+   "closed": false,
+   "properties": {
+    "projects": {
+     "type": "array",
+     "items": {
+      "ref": "account/v3.scaleway.account.v3.Project"
+     }
+    },
+    "total_count": {
+     "type": "integer"
+    }
+   }
+  },
+  "account/v3.scaleway.account.v3.Project": {
+   "closed": false,
+   "properties": {
+    "created_at": {
+     "type": "string"
+    },
+    "description": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "organization_id": {
+     "type": "string"
+    },
+    "qualification": {
+     "ref": "account/v3.scaleway.account.v3.Qualification"
+    },
+    "status": {
+     "ref": "account/v3.scaleway.account.v3.Project.Status"
+    },
+    "updated_at": {
+     "type": "string"
+    }
+   }
+  },
+  "account/v3.scaleway.account.v3.Project.Status": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_status",
+    "active",
+    "deleting"
+   ]
+  },
+  "account/v3.scaleway.account.v3.ProjectQualification": {
+   "closed": false,
+   "properties": {
+    "project_id": {
+     "type": "string"
+    },
+    "qualification": {
+     "ref": "account/v3.scaleway.account.v3.Qualification"
+    }
+   }
+  },
+  "account/v3.scaleway.account.v3.Qualification": {
+   "closed": false,
+   "properties": {
+    "ai_machine": {
+     "ref": "account/v3.scaleway.account.v3.Qualification.AiMachine"
+    },
+    "architecture_type": {
+     "ref": "account/v3.scaleway.account.v3.Qualification.ArchitectureType"
+    },
+    "archive_data": {
+     "ref": "account/v3.scaleway.account.v3.Qualification.ArchiveData"
+    },
+    "container": {
+     "ref": "account/v3.scaleway.account.v3.Qualification.Container"
+    },
+    "deploy_software": {
+     "ref": "account/v3.scaleway.account.v3.Qualification.DeploySoftware"
+    },
+    "host_application": {
+     "ref": "account/v3.scaleway.account.v3.Qualification.HostApplication"
+    },
+    "host_website": {
+     "ref": "account/v3.scaleway.account.v3.Qualification.HostWebsite"
+    },
+    "other_use_case": {
+     "ref": "account/v3.scaleway.account.v3.Qualification.OtherUseCase"
+    },
+    "set_scaleway_environment": {
+     "ref": "account/v3.scaleway.account.v3.Qualification.SetScalewayEnvironment"
+    },
+    "share_data": {
+     "ref": "account/v3.scaleway.account.v3.Qualification.ShareData"
+    }
+   }
+  },
+  "account/v3.scaleway.account.v3.Qualification.AiMachine": {
+   "closed": false,
+   "properties": {
+    "sub_use_case": {
+     "ref": "account/v3.scaleway.account.v3.Qualification.AiMachine.SubUseCase"
+    }
+   }
+  },
+  "account/v3.scaleway.account.v3.Qualification.AiMachine.SubUseCase": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_sub_use_case"
+   ]
+  },
+  "account/v3.scaleway.account.v3.Qualification.ArchitectureType": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_architecture_type",
+    "object_storage",
+    "web_hosting",
+    "instance",
+    "elastic",
+    "kubernetes",
+    "serverless",
+    "dedicated_server",
+    "other_architecture_type"
+   ]
+  },
+  "account/v3.scaleway.account.v3.Qualification.ArchiveData": {
+   "closed": false,
+   "properties": {
+    "sub_use_case": {
+     "ref": "account/v3.scaleway.account.v3.Qualification.ArchiveData.SubUseCase"
+    }
+   }
+  },
+  "account/v3.scaleway.account.v3.Qualification.ArchiveData.SubUseCase": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_sub_use_case"
+   ]
+  },
+  "account/v3.scaleway.account.v3.Qualification.Container": {
+   "closed": false,
+   "properties": {
+    "sub_use_case": {
+     "ref": "account/v3.scaleway.account.v3.Qualification.Container.SubUseCase"
+    }
+   }
+  },
+  "account/v3.scaleway.account.v3.Qualification.Container.SubUseCase": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_sub_use_case"
+   ]
+  },
+  "account/v3.scaleway.account.v3.Qualification.DeploySoftware": {
+   "closed": false,
+   "properties": {
+    "sub_use_case": {
+     "ref": "account/v3.scaleway.account.v3.Qualification.DeploySoftware.SubUseCase"
+    }
+   }
+  },
+  "account/v3.scaleway.account.v3.Qualification.DeploySoftware.SubUseCase": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_sub_use_case"
+   ]
+  },
+  "account/v3.scaleway.account.v3.Qualification.HostApplication": {
+   "closed": false,
+   "properties": {
+    "sub_use_case": {
+     "ref": "account/v3.scaleway.account.v3.Qualification.HostApplication.SubUseCase"
+    }
+   }
+  },
+  "account/v3.scaleway.account.v3.Qualification.HostApplication.SubUseCase": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_sub_use_case",
+    "saas_app",
+    "government_app"
+   ]
+  },
+  "account/v3.scaleway.account.v3.Qualification.HostWebsite": {
+   "closed": false,
+   "properties": {
+    "sub_use_case": {
+     "ref": "account/v3.scaleway.account.v3.Qualification.HostWebsite.SubUseCase"
+    }
+   }
+  },
+  "account/v3.scaleway.account.v3.Qualification.HostWebsite.SubUseCase": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_sub_use_case",
+    "information_website",
+    "ecommerce_website",
+    "high_website",
+    "other_sub_use_case"
+   ]
+  },
+  "account/v3.scaleway.account.v3.Qualification.OtherUseCase": {
+   "closed": false,
+   "properties": {
+    "sub_use_case": {
+     "ref": "account/v3.scaleway.account.v3.Qualification.OtherUseCase.SubUseCase"
+    }
+   }
+  },
+  "account/v3.scaleway.account.v3.Qualification.OtherUseCase.SubUseCase": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_sub_use_case"
+   ]
+  },
+  "account/v3.scaleway.account.v3.Qualification.SetScalewayEnvironment": {
+   "closed": false,
+   "properties": {
+    "sub_use_case": {
+     "ref": "account/v3.scaleway.account.v3.Qualification.SetScalewayEnvironment.SubUseCase"
+    }
+   }
+  },
+  "account/v3.scaleway.account.v3.Qualification.SetScalewayEnvironment.SubUseCase": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_sub_use_case"
+   ]
+  },
+  "account/v3.scaleway.account.v3.Qualification.ShareData": {
+   "closed": false,
+   "properties": {
+    "sub_use_case": {
+     "ref": "account/v3.scaleway.account.v3.Qualification.ShareData.SubUseCase"
+    }
+   }
+  },
+  "account/v3.scaleway.account.v3.Qualification.ShareData.SubUseCase": {
+   "closed": false,
+   "type": "string",
+   "enum": [
+    "unknown_sub_use_case"
+   ]
+  },
   "block/v1.CreateSnapshot.Request": {
    "closed": false,
    "properties": {
@@ -4224,6 +4593,9 @@
      "type": "string"
     },
     "id": {
+     "type": "string"
+    },
+    "kms_key_id": {
      "type": "string"
     },
     "name": {
@@ -13430,7 +13802,7 @@
     }
    }
   },
-  "vpc/v2.AddPrivateNetworkS3Endpoint.Request": {
+  "vpc/v2.AddPrivateNetworkObjectStoragePrivateAccess.Request": {
    "closed": false,
    "required": [
     "private_network_id"
@@ -13607,7 +13979,7 @@
     }
    }
   },
-  "vpc/v2.SetPrivateNetworksS3Endpoint.Request": {
+  "vpc/v2.SetPrivateNetworksObjectStoragePrivateAccess.Request": {
    "closed": false,
    "required": [
     "private_network_ids"
@@ -13762,7 +14134,7 @@
     "drop"
    ]
   },
-  "vpc/v2.scaleway.vpc.v2.AddPrivateNetworkS3EndpointResponse": {
+  "vpc/v2.scaleway.vpc.v2.AddPrivateNetworkObjectStoragePrivateAccessResponse": {
    "closed": false,
    "properties": {
     "private_network_ids": {
@@ -14010,7 +14382,7 @@
     "dhcp_enabled": {
      "type": "boolean"
     },
-    "has_s3_integration": {
+    "has_object_storage_private_access": {
      "type": "boolean"
     },
     "id": {
@@ -14121,7 +14493,7 @@
     }
    }
   },
-  "vpc/v2.scaleway.vpc.v2.SetPrivateNetworksS3EndpointResponse": {
+  "vpc/v2.scaleway.vpc.v2.SetPrivateNetworksObjectStoragePrivateAccessResponse": {
    "closed": false,
    "properties": {
     "private_network_ids": {
@@ -14182,6 +14554,9 @@
     "name": {
      "type": "string"
     },
+    "object_storage_private_access_enabled": {
+     "type": "boolean"
+    },
     "organization_id": {
      "type": "string"
     },
@@ -14195,9 +14570,6 @@
      "type": "string"
     },
     "routing_enabled": {
-     "type": "boolean"
-    },
-    "s3_integration_enabled": {
      "type": "boolean"
     },
     "tags": {

@@ -48,3 +48,13 @@ load-balancer/zoned/v1 lb/v1
 # more (measured 2026-08-19, /en/developers/api/public-gateway offers v2
 # alone), which is why the whole vpcgw/v1 family is declined in the pack.
 public-gateway/v2 vpcgw/v2
+# The Account product's Project API (#372). The portal splits `account/v3` into
+# two documents and neither is reachable at the SDK's own spelling: measured
+# 2026-08-27, /en/developers/api/account/v3/schema.yml answers 404 while
+# /en/developers/api/account/project/v3/schema.yml and
+# /en/developers/api/account/contract/v3/schema.yml answer 200. Only the
+# Project half is downloaded, because it is the half a client reaches: every
+# third-party VPC stack evaluates `data "scaleway_account_project"` before any
+# resource, and the ContractAPI signs subscription contracts, which is declined
+# in the pack.
+account/project/v3 account/v3

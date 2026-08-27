@@ -358,6 +358,54 @@ func TestVPCListsHonourTheDeclaredFilters(t *testing.T) {
 	}
 }
 
+// The Object Storage filter has had two names, and both must narrow.
+//
+// Scaleway renamed the family on 2026-08-25 — the five S3-endpoint operations
+// became *ObjectStoragePrivateAccess and the query parameter went with them.
+// The SDK emits object_storage_private_access_enabled today and the portal's
+// document declares only that spelling; every client built before the rename
+// still sends the old one. A handler reading one spelling answers a filtered
+// list with everything, which is the #277 class seen from a rename rather than
+// from an omission.
+func TestBothSpellingsOfTheObjectStorageFilterNarrow(t *testing.T) {
+	ts := newTickingTestServer(t)
+	const region = "/vpc/v2/regions/fr-par"
+
+	if status, out := do(t, ts, "POST", region+"/vpcs", `{"name":"team"}`); status != http.StatusOK {
+		t.Fatalf("create vpc: status %d (%v)", status, out)
+	}
+	if status, out := do(t, ts, "POST", region+"/private-networks", `{"name":"pn-a"}`); status != http.StatusOK {
+		t.Fatalf("create pn-a: status %d (%v)", status, out)
+	}
+
+	for _, spelling := range []string{"object_storage_private_access_enabled", "s3_integration_enabled"} {
+		status, body := do(t, ts, "GET", region+"/vpcs?"+spelling+"=true", "")
+		if status != http.StatusOK {
+			t.Fatalf("vpcs?%s=true: status %d", spelling, status)
+		}
+		if vpcs, _ := body["vpcs"].([]any); len(vpcs) != 0 {
+			t.Errorf("vpcs?%s=true answered %d VPC(s); nothing here has Object Storage private access", spelling, len(vpcs))
+		}
+
+		status, body = do(t, ts, "GET", region+"/private-networks?"+spelling+"=true", "")
+		if status != http.StatusOK {
+			t.Fatalf("private-networks?%s=true: status %d", spelling, status)
+		}
+		if pns, _ := body["private_networks"].([]any); len(pns) != 0 {
+			t.Errorf("private-networks?%s=true answered %d network(s)", spelling, len(pns))
+		}
+
+		// The narrowing must be the filter's doing and not an empty store.
+		status, body = do(t, ts, "GET", region+"/vpcs?"+spelling+"=false", "")
+		if status != http.StatusOK {
+			t.Fatalf("vpcs?%s=false: status %d", spelling, status)
+		}
+		if vpcs, _ := body["vpcs"].([]any); len(vpcs) == 0 {
+			t.Errorf("vpcs?%s=false answered nothing, so the =true case proves nothing", spelling)
+		}
+	}
+}
+
 // TestIPAMListHonoursOrderAndResourceFilters covers ipam/v1's order_by —
 // including the numeric ip_address order and the attached_at refusal — and
 // the resource_ids, resource_types and resource_name filters.

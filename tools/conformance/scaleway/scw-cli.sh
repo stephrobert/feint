@@ -648,6 +648,44 @@ prove_end "$neg"
 prove_end "$span"
 ok "created, listed, read, renamed, removed"
 
+# The Account product's projects (#372). Not scenery: this is the pair every
+# third-party VPC stack walks before it reaches a VPC path, because
+# `data "scaleway_account_project"` is evaluated ahead of every resource — the
+# module of #372 died here, on a 501, in two exchanges.
+#
+# The list is filtered by name and the read follows the id it answered, which is
+# the sequence terraform-provider-scaleway's DataSourceAccountProjectRead walks.
+# NO SPAN, and the emulator is what settled that: a project here is fixed
+# inventory, like the catalogue and the default rule set above, so this block
+# creates nothing and refuses nothing. A `behaviour` span was tried and the
+# emulator refused to close it — "the span declared a lifecycle and the store
+# observed no resource created and then destroyed inside it" — and so was a
+# `negative` one, refused because an empty list is a 200 rather than a refusal.
+# Both refusals were right, and both are the reason this signal is worth
+# anything: the axes are raised by what the emulator observes, never by what a
+# suite claims. The `driven` axis needs no span; the request itself is what
+# raises it.
+echo "- the account's project is listed by name and read back by id"
+projects="$(scw account project list name=default -o json 2>&1)" \
+  || fail "project list rejected: $projects"
+project_id="$(printf '%s' "$projects" | jq -r '.[0].id // empty')"
+[ -n "$project_id" ] || fail "the list carries no project: $projects"
+printf '%s' "$projects" | jq -e '.[0].name == "default"' >/dev/null \
+  || fail "the project the list names is not the default one: $projects"
+scw account project get project-id="$project_id" -o json \
+  | jq -e --arg i "$project_id" '.id == $i and (.organization_id | length) > 0' >/dev/null \
+  || fail "get did not read back the project the list named"
+# NOT a negative span, and the distinction is the axis's whole meaning: an empty
+# list is a 200, not a refusal. The negative axis is raised by a client meeting a
+# 4xx, and demanding one here made the span fail with "the span demanded a
+# refusal and the emulator answered no client with a 4xx inside it" — which was
+# the harness being right about a filter that filters. A name this emulator does
+# not carry answers nothing, and that is an answer.
+if scw account project list name=a-project-this-emulator-never-named -o json | jq -e 'length > 0' >/dev/null; then
+  fail "a name nothing carries answered a project"
+fi
+ok "listed by name, read by id, and a foreign name answers nothing"
+
 # User data, the three operations the YAML-injection work hardened and that no
 # client had ever driven (#174). The hardened route is the one a client's
 # cloud-init actually takes, so leaving it unproven was the gap that mattered

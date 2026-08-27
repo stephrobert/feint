@@ -104,7 +104,7 @@ cette affirmation s'arrête.
 ```bash
 feint serve
 #  feint dev listening on 127.0.0.1:4599
-#    scaleway  174 routes
+#    scaleway  176 routes
 #    outscale  93 routes
 #    exoscale  104 routes
 #    machines  none
