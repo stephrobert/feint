@@ -306,6 +306,28 @@ depends = ["build"]
 # conformance:ssh and the environment suite.
 run = "tools/conformance/witness.sh"
 
+[tasks."conformance:functional"]
+description = "What each example stack must prove (#503): a live service, a firewall pair, the network, the balancer. Needs incus-ovn"
+depends = ["build"]
+# The other half of the witness gate above, and the division of labour matters:
+# witness.sh asks whether the OBJECT is on the runtime, this asks whether a
+# PACKET arrives. An object can be perfectly present and carry nothing, which is
+# exactly what #483 was.
+#
+# Each stack declares what its machines must do in examples/stacks/<name>/proof.json,
+# and a family it cannot offer is skipped by name with exit 0 — a check that
+# skips in silence is worse than an absent one. Every probe leaves another
+# machine or the station and travels the address the API published; `incus exec`
+# is the console that originates it, never a way to ask the target whether it is
+# well. A harness that reached the machine through the host would have found
+# none of #475, #481, #483 or #484.
+#
+# Not in the `conformance` aggregate, and on its own port: it boots machines and
+# starts emulators of its own. Same terms as conformance:ssh, the environment
+# suite and conformance:witness — here by hand, and on the incus-ovn leg of
+# .github/workflows/runtime-proof.yml, which #504 wires.
+run = "tools/conformance/functional.sh"
+
 [tasks."conformance:parity"]
 description = "The same request, on the three clouds: assert the machines match, by reading the host. Needs FEINT_VM=incus or incus-ovn"
 # Deliberately NOT in the `conformance` aggregate, and the reason is a

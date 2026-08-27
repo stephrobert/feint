@@ -85,6 +85,23 @@ resource "scaleway_iam_ssh_key" "platform" {
 resource "scaleway_vpc" "workload" {
   name = "platform-workload"
   tags = ["platform", "workload"]
+
+  # Written out although the real cloud answers `true` for a VPC created
+  # without the field, and #497 is why: this emulator stores the Go zero, so
+  # the same configuration gets `routing_enabled: false` here and `true` on a
+  # real fr-par account (that issue carries the `scw vpc vpc create` run that
+  # settled it). The consequence is not cosmetic under `--vm incus-ovn`, and it
+  # was measured again on 2026-08-27: no `incus network peer` between the web
+  # and app networks, their isolation sets rejecting each other, and
+  # web → app:8080 refused by that rejection rather than by any group.
+  #
+  # So `scaleway_vpc_route` and the app group's "accept 8080 from the web
+  # block" described a path no packet could take. This line makes the emulated
+  # VPC behave the way the real one already does, and
+  # tools/conformance/functional.sh asserts the pair it unblocks: remove it and
+  # the firewall check goes red naming the port it could not reach. The day
+  # #497 is fixed the line becomes redundant, and it stays true.
+  enable_routing = true
 }
 
 resource "scaleway_vpc" "management" {
@@ -360,16 +377,45 @@ resource "scaleway_instance_server" "web" {
 
   # No `packages:` for the same reason as the bastion (#507): no route out on a
   # routed NIC, so `nginx` could never install. The web tier still gets a real
-  # listener on 80 — python3 is guaranteed wherever cloud-init runs, since
-  # cloud-init is python.
+  # listener — python3 is guaranteed wherever cloud-init runs, since cloud-init
+  # is python.
+  #
+  # Two things changed here on 2026-08-27 (#503), and both are load-bearing for
+  # tools/conformance/functional.sh:
+  #
+  #   - the listener moved from 80 to 443, which is the port this tier's own
+  #     security group opens. It used to serve the one port no rule named, so
+  #     the group and the service documented two different machines;
+  #   - `systemd-run` became an installed, enabled unit. A transient unit dies
+  #     with the machine: measured on 2026-08-27, a poweroff/poweron cycle
+  #     through the API left `platform-web` inactive and the port silent, on a
+  #     stack whose apply, second plan and destroy were all clean. "A service
+  #     is installed and active" and "a process happens to be running" are not
+  #     the same claim, and only the second one survived a restart.
+  #
+  # The page is the machine's own hostname, which under a runtime is the name
+  # the emulator recorded in `Runtime.machine`: an answer therefore says which
+  # machine served it, which is what a balancer assertion needs and what a
+  # fixed string cannot give.
   cloud_init = <<-EOT
     #cloud-config
     write_files:
-      - path: /var/www/html/index.html
+      - path: /etc/systemd/system/platform-web.service
         content: |
-          <h1>platform web</h1>
+          [Unit]
+          Description=platform web tier
+          After=network-online.target
+          [Service]
+          WorkingDirectory=/var/www/html
+          ExecStart=/usr/bin/python3 -m http.server 443
+          Restart=always
+          [Install]
+          WantedBy=multi-user.target
     runcmd:
-      - [systemd-run, --unit=platform-web, --working-directory=/var/www/html, python3, -m, http.server, "80"]
+      - [mkdir, -p, /var/www/html]
+      - [sh, -c, "hostname > /var/www/html/index.html"]
+      - [systemctl, daemon-reload]
+      - [systemctl, enable, --now, platform-web.service]
   EOT
 }
 
@@ -507,6 +553,50 @@ resource "scaleway_instance_server" "app" {
   placement_group_id = scaleway_instance_placement_group.app.id
 
   # No ip_id at all: this tier is unreachable from outside, which is the point.
+
+  # Two listeners, and the pair is the whole reason this tier gained a user
+  # data (#503): 8080 is the port `scaleway_instance_security_group.app` opens
+  # to the web block, 9090 is a metrics port no rule names. A firewall check
+  # needs both in one pass — a closed port measured alone cannot be told from a
+  # dead service, and an open port measured alone cannot be told from a
+  # firewall that filters nothing. Here the two ports live on the same machine,
+  # behind the same group, probed from the same web machine, so the only thing
+  # that differs between them is the rule.
+  #
+  # Installed units rather than `systemd-run`, for the reason the web tier's
+  # comment gives: a transient unit does not survive the machine.
+  cloud_init = <<-EOT
+    #cloud-config
+    write_files:
+      - path: /etc/systemd/system/platform-app.service
+        content: |
+          [Unit]
+          Description=platform application tier
+          After=network-online.target
+          [Service]
+          WorkingDirectory=/var/www/html
+          ExecStart=/usr/bin/python3 -m http.server 8080
+          Restart=always
+          [Install]
+          WantedBy=multi-user.target
+      - path: /etc/systemd/system/platform-app-metrics.service
+        content: |
+          [Unit]
+          Description=platform application metrics, private to the tier
+          After=network-online.target
+          [Service]
+          WorkingDirectory=/var/www/html
+          ExecStart=/usr/bin/python3 -m http.server 9090
+          Restart=always
+          [Install]
+          WantedBy=multi-user.target
+    runcmd:
+      - [mkdir, -p, /var/www/html]
+      - [sh, -c, "hostname > /var/www/html/index.html"]
+      - [systemctl, daemon-reload]
+      - [systemctl, enable, --now, platform-app.service]
+      - [systemctl, enable, --now, platform-app-metrics.service]
+  EOT
 }
 
 resource "scaleway_instance_private_nic" "app" {

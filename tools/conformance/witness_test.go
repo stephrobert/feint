@@ -1,9 +1,7 @@
 package conformance
 
 import (
-	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -325,26 +323,9 @@ func runWitness(t *testing.T, files map[string]string, script string) (int, stri
 	if _, err := os.Stat(lib); err != nil {
 		t.Fatalf("witnesslib.sh is not where this test looks (%s): %v", lib, err)
 	}
-
-	cmd := exec.Command("bash", "-c", //nolint:gosec // fixed library, test-controlled script
-		`set -uo pipefail
-fail() { echo "FAIL: $*" >&2; exit 1; }
-ok() { echo "  ok: $*"; }
-skip() { echo "  SKIP: $*" >&2; }
-DIR="$1"
-. "$2"
-`+script,
-		"bash", dir, lib)
-	out, err := cmd.CombinedOutput()
-	code := 0
-	if err != nil {
-		var exit *exec.ExitError
-		if !errors.As(err, &exit) {
-			t.Fatalf("run the witness script: %v\n%s", err, out)
-		}
-		code = exit.ExitCode()
-	}
-	return code, string(out)
+	// runShell lives in functional_test.go: the same block ran both suites'
+	// libraries, and a block written twice is a block fixed in one of them.
+	return runShell(t, dir, lib, script)
 }
 
 func shellQuote(s string) string {

@@ -1376,6 +1376,29 @@ to everything but the foreign subnets; the bridge-mode isolation set keeps its
 catch-all, because there the network ACL filters at the bridge-host boundary
 and would otherwise reject the station itself.
 
+**One leg of that pass does not hold, and it is the Scaleway one from the
+station (#548).** Re-measured on 2026-08-27, on the same stack under the same
+runtime: the `platform-web` group opens 443 and 22-from-10.40.1.0/24 and names
+no port 80, a service was proved listening on 80 inside the machine, and the
+station reached `203.0.113.3:80` and `203.0.113.2:80`. The negative control is
+in the same pass — the bastion, the same shape of machine, refuses 80 because
+nothing listens there — so those two are completed connections rather than a
+misread probe. The cause is #548's routed NIC, which carries the published
+address and no rule set.
+
+Measured: the three probes and the device dump in #548. Deduced, and worth
+stating as a deduction: `9999` is a port nothing listens on, so its refusal
+cannot be told from an absent listener, which is the failure this page warns
+about under "The group covers a flexible IP" — the 08-26 pair's negative half
+was therefore not in a position to see this. The Outscale and Exoscale legs of
+that sentence were **not** re-measured here and are left standing.
+
+What still holds from the 08-26 pass, and is re-measured on 2026-08-27 by
+`tools/conformance/functional.sh`, is the same pair on the **emulated
+network**, across two subnets: `platform-web-0` reaches `platform-app-worker-a`
+on 8080, which its group opens to the web block, and is refused on 9090, which
+no rule names, with both ports proved listening inside the target first.
+
 **What this requires.** `security.acls` on a bridged NIC exists from Incus
 **6.0.4** onwards. On 6.0.0, which Ubuntu 24.04 ships and will not move past, the
 option is rejected outright and nothing is enforced. An ACL attached to a
@@ -1421,10 +1444,37 @@ nothing upstream — binds nothing anywhere, which is the faithful translation
 of "filters nothing" and why an ordinary `scw instance server create` raises
 no alarm at all.
 
-A server *with* a private network keeps the full claim: its NICs are on
-managed networks, the group attaches to every one of them, and a flexible IP —
-routed through the filtered NIC — stays covered, as the paragraph below
-measures.
+A server *with* a private network keeps the claim **on its emulated
+interfaces**, and whether its public address is covered depends on the order
+in which the two arrived. That sentence used to read "keeps the full claim …
+and a flexible IP, routed through the filtered NIC, stays covered", and a
+measurement on 2026-08-27 contradicted it for the order the example stack
+produces (#548):
+
+| order | what the machine carries | the public address |
+|---|---|---|
+| private NIC first, address attached afterwards | one managed NIC, the address on its `ipv4.routes` | **covered** — the paragraph below measures it, fifteen runs both ways |
+| address at creation, private NIC afterwards | `eth0` `nictype=routed` **and** `eth1` on a managed network | **not covered**: `eth0` accepts no security option at all (#337), so it carries no rule set |
+
+The second row is what `examples/stacks/scaleway` builds, since a server
+created with an `ip_id` boots carrying only its public address:
+
+```console
+$ incus query /1.0/instances/feint-scw-936e816e-… | jq -c '.expanded_devices | with_entries(select(.value.type=="nic"))'
+{"eth0":{"ipv4.address":"203.0.113.3","ipv4.host_address":"169.254.0.1","nictype":"routed","type":"nic"},
+ "eth1":{"ipv4.address":"10.30.1.10","network":"fnt-0fa112b2861","security.acls":"scw-ff5a3e3cbd3","type":"nic"}}
+
+# the group opens 443 and 22-from-10.40.1.0/24, and names no port 80
+  platform-web-1 203.0.113.2:80  OPEN
+  platform-web-0 203.0.113.3:80  OPEN
+  platform-bastion 203.0.113.4:80 closed     # nothing listens: the negative control
+```
+
+So `capabilities.firewall_public_only: false` is broader than the sentence it
+was written for: it is not only the server whose *only* interface is routed,
+it is any address living on a routed NIC. `tools/conformance/functional.sh`
+keys its skip on that capability for exactly this reason and probes the
+firewall pair on the emulated network instead.
 
 The group covers a **flexible IP**. The address is routed through the NIC
 device's `ipv4.routes` (`nic_bridged.go` at v7.2.0 lists it among the device's
@@ -3154,10 +3204,17 @@ mean the same thing to whoever is about to open a socket.
 **The two bounds, both measured.** First, an interface the runtime declares
 unenforceable stays unenforceable: a routed NIC accepts no security option
 (#337, `capabilities.firewall_public_only: false`), and that is the *primary*
-interface of every Exoscale instance and of every Scaleway server whose only
-address is public — the pack hands the set over, the driver refuses with the
-typed error, and the log names the declaring capability instead of crying
-wolf. Second, between two machines of one subnet the sender's permissive
+interface of every Exoscale instance, of every Scaleway server whose only
+address is public, **and of every Scaleway server created with its address,
+whose private NIC arrives afterwards and does not take the address with it**
+(#548, measured 2026-08-27 on `examples/stacks/scaleway`: `eth0` routed and
+bare beside `eth1` on a managed network carrying the rule set). The pack hands
+the set over, the driver refuses with the typed error, and the log names the
+declaring capability instead of crying wolf. The capability is therefore
+broader than the machine it was written for: it is about the *interface*, not
+about a machine with only one.
+
+Second, between two machines of one subnet the sender's permissive
 egress still wins over the receiver's ingress default (the single-pipeline
 divergence "Subnet isolation depends on the runtime mode" documents, measured
 again on the Exoscale stack's two pool members on 2026-08-26: a member reaches

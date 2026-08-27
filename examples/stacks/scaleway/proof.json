@@ -1,0 +1,104 @@
+{
+  "_comment": [
+    "What this stack's machines must DO, declared by the stack (#503).",
+    "",
+    "tools/conformance/functional.sh reads this file and nothing else decides",
+    "what it asserts: an assertion table living in the harness would be 'what",
+    "somebody thought to check', which is the criticism examples/stacks exists",
+    "to answer for the configurations themselves.",
+    "",
+    "Every one of the four families must appear. A family this stack cannot",
+    "offer is written as {\"skip\": \"<reason>\"} and the run stays exit 0 while",
+    "naming the bound out loud — a check that skips in silence is worse than",
+    "an absent one. A family that is simply missing is a FAIL, because 'this",
+    "stack declares nothing about its firewall' is a finding, not a default.",
+    "",
+    "Machine names are the names the provider's own API publishes, resolved",
+    "through /_feint/state to the machine the runtime holds. Ports are the",
+    "ports the stack's own security groups name: every value here is readable",
+    "in main.tf beside the rule that makes it true."
+  ],
+
+  "provider": "scaleway",
+  "machine_kind": "instance/server",
+  "expect_machines": 6,
+
+  "_running_state": [
+    "What this provider calls a machine that is up, which is machine.Binding's",
+    "RunningState and a per-pack fact rather than a shared word: the three packs",
+    "spell the failed one 'stopped', 'stopped' and 'error'. Declared here so a",
+    "fourth pack states its own instead of inheriting a guess."
+  ],
+  "running_state": "running",
+
+  "service": {
+    "_why": [
+      "The web tier serves 443, which is the port scaleway_instance_security_group.web",
+      "opens, from an installed systemd unit rather than a transient one.",
+      "",
+      "restart names the machine the harness stops and starts again through the",
+      "provider's API. It is poweroff+poweron and not the reboot action, and that",
+      "is a measurement rather than a preference: on 2026-08-27 a reboot answered",
+      "success, left the container's pid and uptime untouched and a transient",
+      "marker unit still active: nothing restarted, so an assertion resting on it",
+      "would be a control that cannot fail. Filed as #547."
+    ],
+    "unit": "platform-web.service",
+    "port": 443,
+    "machines": ["platform-web-0", "platform-web-1"],
+    "restart": "platform-web-0"
+  },
+
+  "firewall": {
+    "_why": [
+      "Both halves on one machine, in one pass: the app tier listens on 8080 and",
+      "on 9090, its group opens 8080 to the web block and names 9090 nowhere, and",
+      "both probes leave the same web machine. So the only thing that differs",
+      "between the two verdicts is the rule.",
+      "",
+      "Across two subnets on purpose. Within one subnet the sender's permissive",
+      "egress outranks the receiver's ingress default (docs/limits.md, measured",
+      "again here on 2026-08-27: web-0 reached web-1 on a port no rule opens, and",
+      "so did app-worker-b), so a closure probed from a neighbour would measure",
+      "nothing. Traffic entering through the router port carries no sender rule,",
+      "and the receiver's policy holds.",
+      "",
+      "The liveness of both ports is proved from inside the target before either",
+      "verdict is drawn, which is what tells a refusal from a dead service."
+    ],
+    "source": "platform-web-0",
+    "target": "platform-app-worker-a",
+    "open_port": 8080,
+    "closed_port": 9090,
+    "control_source": {
+      "skip": "no machine of this stack sits outside 10.30.1.0/24 and on a network peered with the app tier's. The bastion is in the management VPC, so a refusal from it would be isolation rather than the rule, and an app worker is the target's own neighbour, which the documented same-subnet bound lets through whatever the group says (measured 2026-08-27: app-worker-b reached app-worker-a on 8080). The source restriction is measured on the Outscale stack instead, whose two public subnets give a source the rule does not name."
+    }
+  },
+
+  "network": {
+    "_why": [
+      "reaches: two machines of one private network, on the port their shared",
+      "group opens.",
+      "",
+      "isolated: platform-admin belongs to the management VPC and the web network",
+      "to the workload one, so nothing peers them. The port is 22, which the",
+      "bastion's group opens to 0.0.0.0/0 — a refusal there cannot be the rule.",
+      "Gated on capabilities.isolation: the bridge mode does not deliver it and",
+      "says so, and the harness skips rather than asserting what nobody promised."
+    ],
+    "reaches": {
+      "source": "platform-web-0",
+      "target": "platform-web-1",
+      "port": 443
+    },
+    "isolated": {
+      "source": "platform-web-0",
+      "target": "platform-bastion",
+      "port": 22
+    }
+  },
+
+  "balancer": {
+    "skip": "the Scaleway pack does not hand its load balancers to the runtime: enforced.balancing names outscale alone (#481), and a balancer here records its configuration and forwards nothing (docs/limits.md). The harness re-reads that declaration at run time rather than trusting this line, so the day the pack wires it, this skip stops being taken."
+  }
+}

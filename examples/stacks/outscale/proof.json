@@ -1,0 +1,85 @@
+{
+  "_comment": [
+    "What this stack's machines must DO, declared by the stack (#503).",
+    "",
+    "The shape and the rules are documented once, in",
+    "examples/stacks/scaleway/proof.json. What follows is only what differs on",
+    "this cloud."
+  ],
+
+  "provider": "outscale",
+  "machine_kind": "vm",
+  "expect_machines": 3,
+  "running_state": "running",
+
+  "service": {
+    "_why": [
+      "80 rather than 443: it is the port outscale_security_group_rule.web_http",
+      "opens, the port the balancer's listener carries and the port its health",
+      "check names. One port, named three times in main.tf, and until #503 no",
+      "machine of this stack listened on any of them."
+    ],
+    "unit": "platform-web.service",
+    "port": 80,
+    "machines": ["platform-web-a", "platform-web-b"],
+    "restart": "platform-web-a"
+  },
+
+  "firewall": {
+    "_why": [
+      "outscale_security_group_rule.app_from_web opens 8080 to 10.50.1.0/24,",
+      "which is public-a, where platform-web-a lives. 9090 is named by no rule.",
+      "Both probes leave platform-web-a and both cross the Net's router, so the",
+      "receiver's policy is what decides.",
+      "",
+      "control_source is the second negative control, and it is the one the",
+      "Scaleway stack cannot offer: platform-web-b sits in public-b, a block the",
+      "rule does not name, so its 8080 must be refused where platform-web-a's is",
+      "not. Same port, same target, two sources: the only difference between the",
+      "two verdicts is whose address the rule names. Measured 2026-08-27, both",
+      "halves. Liveness is proved separately, from inside the target, before any",
+      "refusal is read as a firewall verdict."
+    ],
+    "source": "platform-web-a",
+    "target": "platform-app",
+    "open_port": 8080,
+    "closed_port": 9090,
+    "control_source": {
+      "source": "platform-web-b"
+    }
+  },
+
+  "network": {
+    "reaches": {
+      "_why": "Two subnets of one Net, on the port their shared group opens to 0.0.0.0/0. A Net that routes between its own subnets is what upstream does and what the peering resources below it assume.",
+      "source": "platform-web-a",
+      "target": "platform-web-b",
+      "port": 80
+    },
+    "isolated": {
+      "skip": "this stack declares no unpeered pair with a machine on each side: outscale_net_peering joins the workload and services Nets on purpose, and the services Net carries an interface (outscale_nic.app_services) rather than a machine of its own. The cross-VPC separation is asserted by the Scaleway stack and by tools/conformance/outscale/network.sh, which builds two unpeered Nets for exactly this."
+    }
+  },
+
+  "balancer": {
+    "_why": [
+      "The stack's balancer spans two subnets on purpose (the ztiac shape that",
+      "found #457 then #483), and under OVN the runtime distributes only to",
+      "backends of the balancer's own subnet. So this declaration does not name",
+      "an expected backend count: the harness reads the pack's own delivery",
+      "record (`balancer-distributed` / `balancer-undistributed` in Runtime),",
+      "requires every reply to name a distributed backend, requires no reply",
+      "ever to name a withheld one, and says how many were distributed. It",
+      "therefore strengthens by itself the day the bound moves, instead of",
+      "carrying a number that would then be wrong.",
+      "",
+      "client is the machine the probes leave, and it must sit in the balancer's",
+      "own subnet: the public face of an internet-facing balancer answers for",
+      "two minutes and goes dark (#315), so asserting it would assert a defect."
+    ],
+    "name": "platform-front",
+    "port": 80,
+    "client": "platform-web-a",
+    "probes": 6
+  }
+}

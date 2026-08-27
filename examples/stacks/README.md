@@ -114,6 +114,39 @@ writes, and the difference was measured rather than argued — twice:
 to a stack**, so the next run keeps checking it. That is what keeps these
 tests rather than demonstrations, and it is why they grow.
 
+### And what those three questions do not ask (#503)
+
+On 2026-08-26 four defects passed all three: [#475], [#481], [#483] and
+[#484]. Apply exit 0, second plan empty, clean destroy, and three of them
+without a single ERROR line. A public address handed to two machines, two
+packs applying no firewall, a load balancer distributing nothing. Nothing
+failed, so nothing could catch them except a person who opened a session on
+the host and looked.
+
+So each stack now also declares what its machines must **do**, in a
+`proof.json` beside its `main.tf`, and `mise run conformance:functional`
+verifies it under `--vm incus-ovn`:
+
+| family | what is asserted |
+|---|---|
+| service | a service listens inside the machine (`/proc/net/tcp`, state `0A`), answers over the address the API publishes, and survives a stop and start through that API |
+| firewall | a port a rule opens answers **and** a port no rule opens refuses, in one pass, both proved listening inside first |
+| network | two machines of one network reach each other, and two networks nothing peers do not |
+| balancer | the balancer serves only the backends the pack recorded as delivered, never one it recorded as withheld, and unregistering one is visible from outside |
+
+Two things about that file are the point rather than housekeeping. The
+declaration lives with the stack, because an assertion table living in the
+harness would again be "what somebody thought to check". And a family a stack
+cannot offer is written `{"skip": "<reason>"}` and said out loud with exit 0,
+while a family simply **absent** fails the run: "this stack declares nothing
+about its firewall" is a finding, not a default.
+
+The harness never reaches a machine through the host. `incus exec` appears
+only as the console that originates a probe from inside one; the probe itself
+travels the emulated network or the published address, because a harness that
+asked the target over the host would have found none of the four defects
+above. Running it found three more, filed as [#547], [#548] and [#549].
+
 ## What CI runs them against, and why not the published tag
 
 Every pull request applies the Scaleway and Outscale stacks twice: against
@@ -263,3 +296,11 @@ on a mode name.
 [#325]: https://github.com/stephrobert/feint/issues/325
 [#326]: https://github.com/stephrobert/feint/issues/326
 [#327]: https://github.com/stephrobert/feint/issues/327
+[#475]: https://github.com/stephrobert/feint/issues/475
+[#481]: https://github.com/stephrobert/feint/issues/481
+[#483]: https://github.com/stephrobert/feint/issues/483
+[#484]: https://github.com/stephrobert/feint/issues/484
+[#503]: https://github.com/stephrobert/feint/issues/503
+[#547]: https://github.com/stephrobert/feint/issues/547
+[#548]: https://github.com/stephrobert/feint/issues/548
+[#549]: https://github.com/stephrobert/feint/issues/549

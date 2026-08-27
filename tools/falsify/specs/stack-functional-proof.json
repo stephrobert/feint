@@ -1,0 +1,223 @@
+{
+  "package": "./tools/conformance/",
+  "mutations": [
+    {
+      "label": "a machine the apply left stopped passes, which is the green apply #503 was opened about: exit 0, empty second plan, clean destroy, and a machine that never started",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t\tif [ \"$state\" != \"$running\" ]; then",
+      "replace": "\t\tif [ \"$state\" != \"$running\" ] && false; then",
+      "test": "TestAStackWhoseMachineDidNotStartFailsAlthoughApplyReturnedZero"
+    },
+    {
+      "label": "a resource the API calls running with no runtime machine recorded passes: #484's published state with nothing behind it",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t\tif [ -z \"$machine\" ]; then",
+      "replace": "\t\tif [ -z \"$machine\" ] && false; then",
+      "test": "TestARunningMachineWithNoRuntimeMachineFails"
+    },
+    {
+      "label": "a machine the host holds Stopped answers for a resource the API calls running",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t\tif [ \"$status\" != \"Running\" ]; then",
+      "replace": "\t\tif [ \"$status\" != \"Running\" ] && false; then",
+      "test": "TestAMachineTheHostHoldsStoppedFails"
+    },
+    {
+      "label": "a reader that found fewer machines than the stack declares stops accusing itself, and an empty read passes as an empty cloud",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\tif [ \"${count:-0}\" -lt \"$floor\" ]; then",
+      "replace": "\tif [ \"${count:-0}\" -lt \"$floor\" ] && false; then",
+      "test": "TestAMachineReaderBelowTheDeclaredFloorAccusesItself"
+    },
+    {
+      "label": "the listen proof stops biting, so a service that is not running reads as one that is and every refusal measured afterwards measures the dead service",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\tif ! fnl_listens \"$port\" \"$listen\"; then",
+      "replace": "\tif ! fnl_listens \"$port\" \"$listen\" && false; then",
+      "test": "TestAServiceThatDoesNotListenFailsNamingMachineAndPort"
+    },
+    {
+      "label": "a published address that answers nothing passes, on a service proved alive inside: the address the API publishes reaches nowhere and nobody is told",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\tif [ -z \"$body\" ]; then",
+      "replace": "\tif [ -z \"$body\" ] && false; then",
+      "test": "TestAPublishedAddressThatAnswersNothingFails"
+    },
+    {
+      "label": "one machine's published address answering from another passes, which is #484's duplicate address seen from the client side",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\tif [ \"$body\" != \"$machine\" ]; then",
+      "replace": "\tif [ \"$body\" != \"$machine\" ] && false; then",
+      "test": "TestAPublishedAddressThatReachesAnotherMachineFails"
+    },
+    {
+      "label": "the firewall pair draws its negative verdict without proving the port is served, so a dead service reads as a closed one: #219 in the family it was built for",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\tfnl_listens \"$closed\" \"$listen\" \\",
+      "replace": "\ttrue || fnl_listens \"$closed\" \"$listen\" \\",
+      "test": "TestTheFirewallPairRefusesToJudgeAPortNothingListensOn"
+    },
+    {
+      "label": "the positive half stops biting: a port the group opens refuses and the pass goes on to report a firewall doing its job, which is a firewall check with no positive control",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t1) fail \"$stack: a rule of $target's group opens $open",
+      "replace": "\t1) [ 1 = 1 ] || fail \"$stack: a rule of $target's group opens $open",
+      "test": "TestAnOpenPortThatRefusesFailsNamingIt"
+    },
+    {
+      "label": "a port no rule opens answers and passes, which is #475 waved through by the gate built to stop it",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t0) fail \"$stack: no rule of $target's group opens $closed",
+      "replace": "\t0) [ 1 = 1 ] || fail \"$stack: no rule of $target's group opens $closed",
+      "test": "TestAClosedPortThatAnswersFailsNamingIt"
+    },
+    {
+      "label": "a probe that could not be made at all reads as a refusal: three outcomes collapsed into two, the reader that reported a live account empty for forty minutes, on the firewall",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t2) fail \"cannot look: the probe from $source ($from) towards $address:$closed",
+      "replace": "\t2) [ 1 = 1 ] || fail \"cannot look: the probe from $source ($from) towards $address:$closed",
+      "test": "TestAProbeThatCouldNotBeMadeIsNotARefusal"
+    },
+    {
+      "label": "reachability is reported on a port nothing listens on, so the network verdict measures the listener rather than the network",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\tfnl_listens \"$port\" \"$listen\" \\\n\t\t|| fail \"$stack: $target does not listen on $port inside the machine (listening: $(tr '\\n' ' ' <\"$listen\")); 'reachable' would be measuring the listener, not the network\"",
+      "replace": "\ttrue || fnl_listens \"$port\" \"$listen\" \\\n\t\t|| fail \"$stack: $target does not listen on $port inside the machine (listening: $(tr '\\n' ' ' <\"$listen\")); 'reachable' would be measuring the listener, not the network\"",
+      "test": "TestReachesRefusesToJudgeADeadListener"
+    },
+    {
+      "label": "two machines of one network that cannot reach each other pass, so an emulated network that carries nothing between its own machines is green",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t1) fail \"$stack: $source does not reach $target at $address:$port",
+      "replace": "\t1) [ 1 = 1 ] || fail \"$stack: $source does not reach $target at $address:$port",
+      "test": "TestANeighbourThatCannotBeReachedFails"
+    },
+    {
+      "label": "isolation is reported from a machine that was never listening, which is #219 on the assertion that carries the product's strongest claim",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\tfnl_listens \"$port\" \"$listen\" \\\n\t\t|| fail \"$stack: $target does not listen on $port inside the machine (listening: $(tr '\\n' ' ' <\"$listen\")); 'unreachable' would be measuring a dead machine rather than isolation\"",
+      "replace": "\ttrue || fnl_listens \"$port\" \"$listen\" \\\n\t\t|| fail \"$stack: $target does not listen on $port inside the machine (listening: $(tr '\\n' ' ' <\"$listen\")); 'unreachable' would be measuring a dead machine rather than isolation\"",
+      "test": "TestIsolationRefusesToJudgeADeadMachine"
+    },
+    {
+      "label": "a machine of another VPC is reachable and the run stays green: the separation the product is sold on, unasserted",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t0) fail \"$stack: $source reached $target at $address:$port across two networks nothing peers",
+      "replace": "\t0) [ 1 = 1 ] || fail \"$stack: $source reached $target at $address:$port across two networks nothing peers",
+      "test": "TestAnIsolationBreachFailsNamingTheAddress"
+    },
+    {
+      "label": "a backend the runtime recorded as withheld serves connections and passes, so the emulator's own account of what it delivered is never held against the host",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t\t*\" $hit \"*) fail \"$stack: $name answered from $hit, a backend the runtime recorded as withheld",
+      "replace": "\t\t*\" $hit \"*) [ 1 = 1 ] || fail \"$stack: $name answered from $hit, a backend the runtime recorded as withheld",
+      "test": "TestABalancerAnsweringFromAWithheldBackendFails"
+    },
+    {
+      "label": "something that is no backend at all serves the balancer's address and passes",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t\t*) fail \"$stack: $name answered from $hit, which is none of the backends",
+      "replace": "\t\t*) [ 1 = 1 ] || fail \"$stack: $name answered from $hit, which is none of the backends",
+      "test": "TestABalancerAnsweringFromAnUnknownMachineFails"
+    },
+    {
+      "label": "a balancer that drops a third of its connections passes as distributing them",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t[ \"$answered\" = \"$probes\" ] \\",
+      "replace": "\t[ \"$answered\" = \"$probes\" ] || true \\",
+      "test": "TestABalancerThatDropsProbesFails"
+    },
+    {
+      "label": "a backend the pack recorded as delivered receives nothing and passes, which is #483 one size smaller: registered, not delivered",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t\t*) fail \"$stack: $name never sent a connection to $machine",
+      "replace": "\t\t*) [ 1 = 1 ] || fail \"$stack: $name never sent a connection to $machine",
+      "test": "TestADistributedBackendThatNeverAnswersFails"
+    },
+    {
+      "label": "a balancer registered with a listener and a backend, delivering to nobody, passes: #483 itself",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t[ -n \"$want\" ] \\",
+      "replace": "\t[ -n \"$want\" ] || true \\",
+      "test": "TestABalancerWithNoDeliveredBackendFails"
+    },
+    {
+      "label": "the pack records a delivered address no machine on the host carries, and the disagreement between the record and the runtime goes unreported",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t\t[ -n \"$machine\" ] \\",
+      "replace": "\t\t[ -n \"$machine\" ] || true \\",
+      "test": "TestADeliveredBackendNoMachineCarriesFails"
+    },
+    {
+      "label": "a backend the API unregistered goes on receiving connections and passes: the runtime not following the control plane, unseen",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t\t[ \"$hit\" != \"$withdrawn\" ] \\",
+      "replace": "\t\t[ \"$hit\" != \"$withdrawn\" ] || true \\",
+      "test": "TestAWithdrawnBackendStillAnsweringFails"
+    },
+    {
+      "label": "unregistering one backend takes the whole balancer down and passes, so a withdrawal that is far too wide reads as a withdrawal that worked",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t\t[ \"$answered\" -gt 0 ] \\",
+      "replace": "\t\t[ \"$answered\" -gt 0 ] || true \\",
+      "test": "TestAWithdrawalThatSilencedEveryRemainingBackendFails"
+    },
+    {
+      "label": "a balancer answers with no backend registered and passes, so something the control plane does not describe may serve that address",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t[ \"$answered\" = 0 ] \\",
+      "replace": "\t[ \"$answered\" = 0 ] || true \\",
+      "test": "TestAWithdrawalWithNothingLeftMustSilenceTheBalancer"
+    },
+    {
+      "label": "the listen reader counts every socket rather than the listening ones, so a machine that merely dialled a port reads as serving it",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\tawk '$4 == \"0A\" { split($2, a, \":\"); print a[2] }' \\",
+      "replace": "\tawk '$4 != \"\" { split($2, a, \":\"); print a[2] }' \\",
+      "test": "TestTheListenReaderReadsProcNetTcp"
+    },
+    {
+      "label": "the name reader matches by prefix, so platform-app-2 answers for platform-app and a neighbouring machine is measured instead of the one under test",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t\t  | select(((.Attrs.name // ((.Attrs.Tags // []) | map(select(.Key == \"Name\") | .Value) | first)) // \"\") == $n)",
+      "replace": "\t\t  | select(((.Attrs.name // ((.Attrs.Tags // []) | map(select(.Key == \"Name\") | .Value) | first)) // \"\") | startswith($n))",
+      "test": "TestTheNameReaderResolvesBothNamingShapes"
+    },
+    {
+      "label": "the delivery reader keeps the withheld record's prose, so a backend is accused or excused by a word of English rather than by an address",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "split($i, part, \" \")",
+      "replace": "split($i, part, \"\\t\")",
+      "test": "TestTheDeliveryReaderReadsNoProseAsAnAddress"
+    },
+    {
+      "label": "the gate stops running its reader controls before it judges, so a broken reader files false absences again — the shape that very nearly published a false #475",
+      "file": "tools/conformance/functional.sh",
+      "find": "fnl_listen_reader_control\nfnl_name_reader_control\nfnl_delivery_reader_control",
+      "replace": "true || fnl_listen_reader_control\ntrue || fnl_name_reader_control\ntrue || fnl_delivery_reader_control",
+      "test": "TestTheGateRunsItsReaderControlsBeforeAnyVerdict"
+    },
+    {
+      "label": "the restart goes back through the reboot action, which #547 measured leaving the container's pid and uptime untouched: the service would be asserted to survive a restart that never happened",
+      "file": "tools/conformance/functional.sh",
+      "find": "\t\taction=poweroff\n\t\t[ \"$3\" = on ] && action=poweron",
+      "replace": "\t\taction=poweroff\n\t\t[ \"$3\" = on ] && action=poweron\n\t\taction=reboot",
+      "test": "TestTheRestartGoesThroughPowerAndNeverThroughReboot"
+    },
+    {
+      "label": "a stack stops declaring what its balancer must do, and the gate measures it against nothing while reading like a register of proofs",
+      "file": "examples/stacks/outscale/proof.json",
+      "find": "  \"balancer\": {",
+      "replace": "  \"balancer_later\": {",
+      "test": "TestEveryStackTheGateNamesDeclaresWhatItMustProve"
+    },
+    {
+      "label": "a family is excused with an empty reason, and « non trié » starts passing for « hors périmètre » — the shape CLAUDE.md names as the most expensive defect measured here",
+      "file": "examples/stacks/outscale/proof.json",
+      "find": "      \"skip\": \"this stack declares no unpeered pair with a machine on each side",
+      "replace": "      \"skip\": \"\", \"was\": \"this stack declares no unpeered pair with a machine on each side",
+      "test": "TestEveryStackTheGateNamesDeclaresWhatItMustProve"
+    }
+  ],
+  "note": "The subject is #503. On 2026-08-26 four defects were found by hand on the example stacks (#475, #481, #483, #484) and all four were green: apply exit 0, second plan empty, clean destroy, three of them without a single ERROR line. What found them was a person reading the host, so this gate is that reading, and every mutation here plants the defect one verdict names. Three of them are about the instrument rather than the cloud, and they are the ones worth reading twice: the listen reader counting established connections as listeners, the name reader matching by prefix, and the delivery reader reading a withheld backend's English reason as an address. Each was reachable by one character. The gate's own first run under --vm incus-ovn made the same class of mistake in the opposite direction and was caught by its own third outcome: `incus exec … -- command -v bash` fails on every machine because `command` is a shell builtin, and the probe answered « nobody could look » instead of reporting a firewall verdict it had not measured."
+}

@@ -354,6 +354,42 @@ resource "outscale_vm" "web" {
   placement_subregion_name = each.value.subregion
   placement_tenancy        = "default"
 
+  # The tier serves the port its own group opens and its balancer listens on:
+  # 80, with the health check pointed at it. Before #503 this stack booted two
+  # machines that ran nothing at all, so "the load balancer distributes" could
+  # only ever be read off the emulator's own record — asking the emulator
+  # whether the emulator is right, which is the failure #486 exists to remove.
+  #
+  # An installed unit, not `systemd-run`: a transient unit does not survive the
+  # machine, measured on the Scaleway stack on 2026-08-27 (its web tier's
+  # comment carries the run). The page is the machine's own hostname, so a
+  # reply says which backend served it — which is exactly what a distribution
+  # assertion has to read.
+  #
+  # No `packages:`: the same #507 bound the Scaleway stack documents. python3
+  # is guaranteed wherever cloud-init runs, since cloud-init is python.
+  user_data = base64encode(<<-EOT
+    #cloud-config
+    write_files:
+      - path: /etc/systemd/system/platform-web.service
+        content: |
+          [Unit]
+          Description=platform web tier
+          After=network-online.target
+          [Service]
+          WorkingDirectory=/var/www/html
+          ExecStart=/usr/bin/python3 -m http.server 80
+          Restart=always
+          [Install]
+          WantedBy=multi-user.target
+    runcmd:
+      - [mkdir, -p, /var/www/html]
+      - [sh, -c, "hostname > /var/www/html/index.html"]
+      - [systemctl, daemon-reload]
+      - [systemctl, enable, --now, platform-web.service]
+  EOT
+  )
+
   tags {
     key   = "Name"
     value = "platform-web-${each.key}"
@@ -459,6 +495,45 @@ resource "outscale_vm" "app" {
   keypair_name       = outscale_keypair.platform.keypair_name
   subnet_id          = module.workload.subnet_ids["private"]
   security_group_ids = [outscale_security_group.app.security_group_id]
+
+  # The firewall pair, on one machine (#503): 8080 is what
+  # `outscale_security_group_rule.app_from_web` opens to the public-a block,
+  # 9090 is a metrics port no rule names. Both listening, both probed from the
+  # same web machine in the same pass — so the only difference between the
+  # verdicts is the rule, never the liveness of a service.
+  user_data = base64encode(<<-EOT
+    #cloud-config
+    write_files:
+      - path: /etc/systemd/system/platform-app.service
+        content: |
+          [Unit]
+          Description=platform application tier
+          After=network-online.target
+          [Service]
+          WorkingDirectory=/var/www/html
+          ExecStart=/usr/bin/python3 -m http.server 8080
+          Restart=always
+          [Install]
+          WantedBy=multi-user.target
+      - path: /etc/systemd/system/platform-app-metrics.service
+        content: |
+          [Unit]
+          Description=platform application metrics, private to the tier
+          After=network-online.target
+          [Service]
+          WorkingDirectory=/var/www/html
+          ExecStart=/usr/bin/python3 -m http.server 9090
+          Restart=always
+          [Install]
+          WantedBy=multi-user.target
+    runcmd:
+      - [mkdir, -p, /var/www/html]
+      - [sh, -c, "hostname > /var/www/html/index.html"]
+      - [systemctl, daemon-reload]
+      - [systemctl, enable, --now, platform-app.service]
+      - [systemctl, enable, --now, platform-app-metrics.service]
+  EOT
+  )
 
   tags {
     key   = "Name"
