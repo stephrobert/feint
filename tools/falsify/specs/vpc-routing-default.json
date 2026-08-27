@@ -1,0 +1,12 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the request's absent enable_routing becomes the Go zero again, and a VPC created without it stops routing",
+      "file": "internal/providers/scaleway/vpc.go",
+      "find": "\tif req.EnableRouting != nil {\n\t\tres.Attrs[\"routing_enabled\"] = *req.EnableRouting\n\t}",
+      "replace": "\tif req.EnableRouting != nil || true {\n\t\tres.Attrs[\"routing_enabled\"] = req.EnableRouting != nil && *req.EnableRouting\n\t}",
+      "test": "TestAVPCCreatedWithoutEnableRoutingRoutes"
+    }
+  ]
+}

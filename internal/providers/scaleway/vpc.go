@@ -94,10 +94,13 @@ const reservedPerSubnet = 2
 const vpcCreateStatus = http.StatusOK
 
 type createVPCRequest struct {
-	Name          string   `json:"name"`
-	ProjectID     string   `json:"project_id"`
-	Tags          []string `json:"tags"`
-	EnableRouting bool     `json:"enable_routing"`
+	Name      string   `json:"name"`
+	ProjectID string   `json:"project_id"`
+	Tags      []string `json:"tags"`
+	// A pointer because the absent field and the explicit false are two
+	// different requests here, and the Go zero conflated them (#497). See the
+	// create for the measurement on the real cloud.
+	EnableRouting *bool `json:"enable_routing"`
 	// Sent by the Terraform provider on every CreateVPC since it grew the
 	// enable_transitivity attribute. The unread-field gate caught it on the
 	// first conformance run of SW-4: honoured as the stored flag the SDK's
@@ -204,7 +207,32 @@ func (p *Pack) createVPC(w http.ResponseWriter, r *http.Request) {
 	project, _ := projectOf(req.ProjectID)
 	res := p.newVPC(region, project, req.Name, false)
 	res.Attrs["tags"] = orEmpty(req.Tags)
-	res.Attrs["routing_enabled"] = req.EnableRouting
+	// A VPC created without the field routes, which is what the real cloud
+	// answers (#497). Measured on a real account on 2026-08-26, the test VPC
+	// deleted afterwards:
+	//
+	//	$ scw vpc vpc create name=feint-premise-routing   # no enable_routing
+	//	RoutingEnabled                  true
+	//
+	// This line used to store the request field as-is, so the Go zero became
+	// the default — the inverse of upstream. That is not a cosmetic
+	// difference: reachableFrom keys on it, so the web and app Private
+	// Networks of one workload VPC were left unpeered and `app→web:443` read
+	// `connect_ex=111` while the web group accepted 0.0.0.0/0, which is what
+	// the audit measured on examples/stacks/scaleway. That stack has written
+	// `enable_routing = true` out on its workload VPC since #503 for exactly
+	// this reason; its management VPC still says nothing, and read back false
+	// until here. newVPC already carried true for the lazily provisioned
+	// default VPC; only the client-created path disagreed with it.
+	//
+	// An explicit value is still the client's, in either direction: the
+	// measurement above covers the absent field and nothing else, and
+	// inventing an answer for `enable_routing: false` would be the guess this
+	// repository refuses. TestAVPCCreatedWithoutEnableRoutingRoutes fails
+	// without this, in both directions.
+	if req.EnableRouting != nil {
+		res.Attrs["routing_enabled"] = *req.EnableRouting
+	}
 	res.Attrs["transitivity_enabled"] = req.EnableTransitivity
 	p.env.Store.Put(res)
 

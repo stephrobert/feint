@@ -254,3 +254,67 @@ func TestEnableDHCPReadsBackEnabled(t *testing.T) {
 		t.Fatalf("dhcp did not read back enabled: %v", pn)
 	}
 }
+
+// A VPC created without enable_routing routes, like the real cloud's (#497),
+// and its Private Networks reach each other because of it.
+//
+// The premise was measured on a real account on 2026-08-26 before anything
+// was changed here, the test VPC deleted afterwards:
+//
+//	$ scw vpc vpc create name=feint-premise-routing   # no enable_routing
+//	RoutingEnabled                  true
+//
+// The emulator stored the request field as-is, so the Go zero became the
+// default and both VPCs of examples/stacks/scaleway read back false — with the
+// consequence measured on the host under `--vm incus-ovn`: the workload VPC's
+// two networks were never peered and `app→web:443` answered `connect_ex=111`
+// while the web group accepted 0.0.0.0/0.
+//
+// The assertion is on the peering and not only on the flag, because the flag
+// is not a record here: reachableFrom reads it, and a default corrected in the
+// view alone would leave the host exactly as it was.
+//
+// The explicit half is asserted too, in the other direction: a client that
+// says false is answered false. The real-cloud measurement above covers the
+// absent field and nothing else, so nothing here invents an answer for a field
+// that was sent.
+func TestAVPCCreatedWithoutEnableRoutingRoutes(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		body    string
+		routing bool
+	}{
+		{"without the field", `{"name":"audit-497"}`, true},
+		{"with an explicit false", `{"name":"audit-497-off","enable_routing":false}`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rt := newPeeringRuntime()
+			ts, _ := newAddressTestServer(t, rt)
+
+			vpc := createVPC(t, ts, tc.body)
+			vpcID, _ := vpc["id"].(string)
+			if flag, _ := vpc["routing_enabled"].(bool); flag != tc.routing {
+				t.Fatalf("routing_enabled=%v for %s, want %v", flag, tc.body, tc.routing)
+			}
+
+			networks := make([]string, 0, 2)
+			for i, block := range []string{"10.83.0.0/24", "10.83.1.0/24"} {
+				status, pn := do(t, ts, "POST", vpcRegion+"/private-networks",
+					fmt.Sprintf(`{"name":"member-%d","vpc_id":%q,"subnets":[%q]}`, i, vpcID, block))
+				if status != http.StatusOK {
+					t.Fatalf("create pn %d: status %d (%v)", i, status, pn)
+				}
+				id, _ := pn["id"].(string)
+				networks = append(networks, id)
+			}
+
+			first := machine.NetworkName(machine.NetworkPrefix, networks[0])
+			second := machine.NetworkName(machine.NetworkPrefix, networks[1])
+			peered := contains(rt.peersOf(first), second) && contains(rt.peersOf(second), first)
+			if peered != tc.routing {
+				t.Fatalf("the two networks of a VPC created %s are peered=%v, want %v (peers: %v, %v)",
+					tc.name, peered, tc.routing, rt.peersOf(first), rt.peersOf(second))
+			}
+		})
+	}
+}

@@ -86,21 +86,23 @@ resource "scaleway_vpc" "workload" {
   name = "platform-workload"
   tags = ["platform", "workload"]
 
-  # Written out although the real cloud answers `true` for a VPC created
-  # without the field, and #497 is why: this emulator stores the Go zero, so
-  # the same configuration gets `routing_enabled: false` here and `true` on a
-  # real fr-par account (that issue carries the `scw vpc vpc create` run that
-  # settled it). The consequence is not cosmetic under `--vm incus-ovn`, and it
-  # was measured again on 2026-08-27: no `incus network peer` between the web
-  # and app networks, their isolation sets rejecting each other, and
-  # web → app:8080 refused by that rejection rather than by any group.
+  # Redundant since #497 was fixed on 2026-08-27, and kept because it is true:
+  # the real cloud answers `routing_enabled: true` for a VPC created without
+  # the field, and this emulator now does the same — a VPC created without
+  # `enable_routing` routes, and its Private Networks are peered on the host.
   #
-  # So `scaleway_vpc_route` and the app group's "accept 8080 from the web
-  # block" described a path no packet could take. This line makes the emulated
-  # VPC behave the way the real one already does, and
-  # tools/conformance/functional.sh asserts the pair it unblocks: remove it and
-  # the firewall check goes red naming the port it could not reach. The day
-  # #497 is fixed the line becomes redundant, and it stays true.
+  # It was load-bearing when it was written, which is why the record stays.
+  # The emulator stored the Go zero, so the same configuration read `false`
+  # here and `true` on a real fr-par account, and under `--vm incus-ovn` the
+  # consequence was not cosmetic: no `incus network peer` between the web and
+  # app networks, their isolation sets rejecting each other, and
+  # web → app:8080 refused by that rejection rather than by any group — so
+  # `scaleway_vpc_route` and the app group's "accept 8080 from the web block"
+  # described a path no packet could take. tools/conformance/functional.sh
+  # asserts the pair that unblocks.
+  #
+  # The management VPC below still says nothing, deliberately: it is the half
+  # of this stack that exercises the emulator's own default.
   enable_routing = true
 }
 

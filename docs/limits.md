@@ -3299,7 +3299,7 @@ would lift it: posting the subnet route `via` the network's router address
 instead of `dev`-only, which is what #496 asks and what the manual
 `ip route replace` above demonstrated.
 
-## A VPC created without `enable_routing` answers `routing_enabled=false` where the real cloud answers `true` (#497)
+## A VPC created without `enable_routing` answered `routing_enabled=false` where the real cloud answers `true` (#497, lifted 2026-08-27)
 
 The premise was verified on the real cloud before anything else (real account,
 2026-08-26, the test VPC deleted afterwards):
@@ -3309,11 +3309,13 @@ $ scw vpc vpc create name=feint-premise-routing        # no enable_routing
 RoutingEnabled                  true
 ```
 
-This emulator stores the request field as-is
-(`internal/providers/scaleway/vpc.go:207`,
+This emulator stored the request field as-is
+(`internal/providers/scaleway/vpc.go`,
 `res.Attrs["routing_enabled"] = req.EnableRouting`), so the Go zero value
-becomes the default — the inverse of upstream. The Scaleway example stack
-creates its two VPCs without the field, and both read back `false`:
+became the default — the inverse of upstream. The Scaleway example stack
+created its two VPCs without the field, and both read back `false` (its
+workload VPC has written `enable_routing = true` out since #503, for this
+reason; its management VPC still says nothing):
 
 ```console
 $ curl -s …/vpc/v2/regions/fr-par/vpcs | jq '.vpcs[] | {name, routing_enabled}'
@@ -3328,12 +3330,31 @@ the web group's rule accepts `0.0.0.0/0`. On the real cloud, two Private
 Networks of one routed VPC reach each other. Measured: the three blocks above.
 Deduced: nothing.
 
-What to do with it: declare `enable_routing = true` explicitly (Terraform) or
-`enable_routing` on the create. The stored value is the request's, so an
-explicit `true` is stored as `true`, and two networks of a routing VPC are
-joined the runtime's own way ("Subnet isolation depends on the runtime mode"
-carries that measurement). What would lift it: matching upstream's default at
-create, at the line named above.
+**The limit is gone; this section stays as its dated record.** The create no
+longer stores the Go zero of an absent field: `createVPCRequest.EnableRouting`
+is a pointer, and only a value the client actually sent overwrites the `true`
+`newVPC` already carried for the lazily provisioned default VPC. An explicit
+`false` is still stored as `false`, in either direction — the real-cloud
+measurement above covers the *absent* field and nothing else, and inventing an
+answer for a field that was sent is the guess this repository refuses.
+
+Re-measured after the fix, same runtime, 2026-08-27:
+
+```console
+$ curl -sH 'Content-Type: application/json' \
+    …/vpc/v2/regions/fr-par/vpcs -d '{"name":"audit-497"}' | jq .routing_enabled
+true
+$ incus network peer list fnt-e5ba51ab1fa          # two Private Networks of that VPC
+| fnt-aac94982924 | default/fnt-aac94982924 | local | CREATED |
+```
+
+The peering is the half that matters and the one the flag was never only about:
+`reachableFrom` reads it, so a default corrected in the view alone would have
+left the host exactly as it was — which is why
+`TestAVPCCreatedWithoutEnableRoutingRoutes` asserts on the peer list and not on
+the field, in both directions, and why
+`tools/falsify/specs/vpc-routing-default.json` replays it with the Go zero put
+back.
 
 ## An API reboot used to log `Failed to add route: file exists` for its own public /32 (#498, lifted 2026-08-27)
 

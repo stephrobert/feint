@@ -268,7 +268,11 @@ func TestVPCListsHonourTheDeclaredFilters(t *testing.T) {
 	ts := newTickingTestServer(t)
 	const region = "/vpc/v2/regions/fr-par"
 
-	status, out := do(t, ts, "POST", region+"/vpcs", `{"name":"team"}`)
+	// enable_routing is spelled out here, and false on purpose: since #497 a
+	// VPC created without the field routes like the real cloud's, so an
+	// omitted field would put both VPCs on the same side of the filter below
+	// and the routing_enabled cases would stop separating anything.
+	status, out := do(t, ts, "POST", region+"/vpcs", `{"name":"team","enable_routing":false}`)
 	if status != http.StatusOK {
 		t.Fatalf("create vpc: status %d (%v)", status, out)
 	}
@@ -293,8 +297,9 @@ func TestVPCListsHonourTheDeclaredFilters(t *testing.T) {
 		{"?is_default=true", []string{"default"}},
 		{"?is_default=false", []string{"team"}},
 		{"?name=tea", []string{"team"}},
-		// "team" was created without enable_routing; the lazily provisioned
-		// default VPC routes, like upstream's.
+		// "team" asked for enable_routing:false; the lazily provisioned
+		// default VPC routes, like upstream's — and so does every VPC created
+		// without the field (#497).
 		{"?routing_enabled=false", []string{"team"}},
 		{"?routing_enabled=true", []string{"default"}},
 		{"?s3_integration_enabled=true", []string{}},
