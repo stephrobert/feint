@@ -99,10 +99,18 @@ And what a pack may ask of the runtime is a closed list rather than whatever it
 can reach: `machine.PackSurface()` names eight service families, and
 `internal/cli`'s `TestNoPackReachesPastTheDeclaredDriverSurface` holds the packs'
 own sources against it, naming the pack, the gesture and the line. The strongest
-half is not that test: a pack receives no `machine.Driver` value at all —
-`emulator.Env` keeps it unexported and hands back a finished `Binding` — so the
-call it would have written does not compile. A gesture the list lacks is added
-to it; the pack never works around it.
+half is not that test, and it took two steps. #511 closed the way to *obtain*
+a driver: `emulator.Env` keeps it unexported and hands back a finished
+`Binding`, so `p.binding().Driver.EnsureNetwork(…)` stopped compiling. #514
+closed the way to *name* one, because until it `var _ machine.Driver` in a pack
+still compiled — measured on `154c204`, `go build ./internal/providers/scaleway/`
+exited 0 — which left the surface held by a convention plus a scan. The driver
+interface and its five pack-facing halves are unexported now, and what leaves
+the package is `machine.Runtime`, a struct rather than a narrowed interface
+because a type assertion needs no name. `internal/cli`'s
+`TestThePacksCannotNameTheDriver` compiles the forbidden sentence and requires
+the failure. A gesture the list lacks is added to it; the pack never works
+around it.
 
 ## A request, end to end
 

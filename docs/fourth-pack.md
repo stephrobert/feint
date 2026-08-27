@@ -281,8 +281,10 @@ spreaders — which drives the whole runtime dataplane through the shared
 contract alone: it boots a machine, declares a network and joins it at boot and
 after boot, publishes and withdraws a public address, hands a rule set over and
 re-expands it, asks for a balancer, and keeps two subnets apart. It names no
-runtime, and it could not name `machine.Driver` if it tried: since #511
-`emulator.Env` hands out no driver value.
+runtime, and it could not name the driver if it tried: since #511
+`emulator.Env` hands out no driver value, and since #514 there is no exported
+name for one — `var _ machine.Driver` in a pack fails the build, which it did
+not until then.
 
 Three things it is deliberately not:
 

@@ -1110,7 +1110,7 @@ are never chosen by the emulator.
 
 Three things changed, and the third is the one that generalises:
 
-- `machine.Driver.Detach`, required rather than optional, asking both ownership
+- the driver's `Detach`, required rather than optional, asking both ownership
   questions and removing only a device the instance itself carries. Both packs
   that attach now detach; the Exoscale handler had documented the gap as
   unclosable ("the driver deliberately has no hot-unplug"), which is how one
@@ -3037,7 +3037,7 @@ its wording differs; the verdict does not.
 
 So `capabilities.balancing` is irrelevant to this family: the pack never asks
 the runtime at all, because the only call it could make is one whose refusal is
-guaranteed. `machine.Balancer` needed no provider-shaped concession to reach
+guaranteed. The runtime's balancing half needed no provider-shaped concession to reach
 that answer, and `internal/core` gained no Exoscale knowledge — what is missing
 is an address upstream does not publish, and no field of an interface can supply
 one.
