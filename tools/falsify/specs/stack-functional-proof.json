@@ -198,11 +198,11 @@
       "test": "TestTheGateRunsItsReaderControlsBeforeAnyVerdict"
     },
     {
-      "label": "the restart goes back through the reboot action, which #547 measured leaving the container's pid and uptime untouched: the service would be asserted to survive a restart that never happened",
+      "label": "the gate stops driving the provider's own reboot verb and restarts only through stop-and-start, which is the state it was in while #547 was open: the path that answered success and restarted nothing was measured by nothing at all",
       "file": "tools/conformance/functional.sh",
-      "find": "\t\taction=poweroff\n\t\t[ \"$3\" = on ] && action=poweron",
-      "replace": "\t\taction=poweroff\n\t\t[ \"$3\" = on ] && action=poweron\n\t\taction=reboot",
-      "test": "TestTheRestartGoesThroughPowerAndNeverThroughReboot"
+      "find": "\t\t[ \"$3\" = reboot ] && action=reboot\n",
+      "replace": "\t\t[ \"$3\" = reboot ] && action=never_reboot\n",
+      "test": "TestTheRestartGoesThroughBothDoors"
     },
     {
       "label": "a stack stops declaring what its balancer must do, and the gate measures it against nothing while reading like a register of proofs",
@@ -217,6 +217,83 @@
       "find": "      \"skip\": \"this stack declares no unpeered pair with a machine on each side",
       "replace": "      \"skip\": \"\", \"was\": \"this stack declares no unpeered pair with a machine on each side",
       "test": "TestEveryStackTheGateNamesDeclaresWhatItMustProve"
+    },
+    {
+      "label": "the reboot verdict stops comparing the runtime process, so a reboot that answered success and restarted nothing passes — #547 verbatim",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t[ \"$before\" != \"$after\" ] \\",
+      "replace": "\t[ \"$before\" != \"$after\" ] || true \\",
+      "test": "TestARebootThatLeavesTheSameProcessFails"
+    },
+    {
+      "label": "the reboot verdict reads a runtime that could not be asked as a machine that restarted: no measurement reported as a pass",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t{ [ -n \"$before\" ] && [ -n \"$after\" ]; } \\",
+      "replace": "\t{ [ -n \"$before\" ] && [ -n \"$after\" ]; } || true \\",
+      "test": "TestARebootNobodyCouldLookAtIsNotAPass"
+    },
+    {
+      "label": "the restart verdict stops requiring its listen proof, so a target that died reads exactly like a restart that lost its routes",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\tfnl_listens \"$port\" \"$listen\" \\\n\t\t|| fail \"$stack: $target does not listen on $port inside the machine (listening: $(tr '\\n' ' ' <\"$listen\")); 'no longer reachable' would be measuring a dead service rather than a restart\"",
+      "replace": "\tfnl_listens \"$port\" \"$listen\" || true \\\n\t\t|| fail \"$stack: $target does not listen on $port inside the machine (listening: $(tr '\\n' ' ' <\"$listen\")); 'no longer reachable' would be measuring a dead service rather than a restart\"",
+      "test": "TestARestartVerdictRefusesToJudgeADeadListener"
+    },
+    {
+      "label": "the restart verdict stops requiring the pair to have held before the restart, so a stack whose machines never reached each other is filed as #549",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t[ \"$before\" = 0 ] \\",
+      "replace": "\t[ \"$before\" = 0 ] || true \\",
+      "test": "TestARestartVerdictRefusesAPairThatNeverHeld"
+    },
+    {
+      "label": "the restart verdict stops reading the after-probe, so a machine that came back without its routes to the peered subnets passes: #549 with the gate watching",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\tif [ \"$after\" != 0 ]; then",
+      "replace": "\tif [ \"$after\" != 0 ] && false; then",
+      "test": "TestAMachineThatStopsReachingAfterARestartFailsNamingItsNeighbour"
+    },
+    {
+      "label": "a probe nobody could make after the restart reads as a lost route, which files #549 against an instrument failure",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t[ \"$after\" != 2 ] \\\n\t\t|| fail \"cannot look: the probe from $restarted towards $address:$port could not be made at all after the restart\"",
+      "replace": "\t[ \"$after\" != 2 ] || true \\\n\t\t|| fail \"cannot look: the probe from $restarted towards $address:$port could not be made at all after the restart\"",
+      "test": "TestARestartProbeThatCouldNotBeMadeIsNotALostRoute"
+    },
+    {
+      "label": "the restart verdict stops asking the unrestarted control, so a target or a network that went away is reported as a restart defect: the wrong subject, which is this repository's most expensive failure",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t\tif [ -n \"$control\" ] && [ \"$control_after\" != 0 ]; then",
+      "replace": "\t\tif [ -n \"$control\" ] && [ \"$control_after\" != 0 ] && false; then",
+      "test": "TestARestartVerdictWithABrokenControlBlamesTheNetworkNotTheRestart"
+    },
+    {
+      "label": "the rule-set count stops holding the number of sets, so a rule set nothing declares appears on the host and no gate says so",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t[ \"$sets\" = \"$want_sets\" ] \\",
+      "replace": "\t[ \"$sets\" = \"$want_sets\" ] || true \\",
+      "test": "TestARuleSetThatAppearedFails"
+    },
+    {
+      "label": "the rule-set count stops holding the references, so a machine that came back from a restart without its group is described as filtered by an API the host does not follow",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t[ \"$refs\" = \"$want_refs\" ] \\",
+      "replace": "\t[ \"$refs\" = \"$want_refs\" ] || true \\",
+      "test": "TestARuleSetCountThatMovedFails"
+    },
+    {
+      "label": "a run that read no machine's rule sets at all passes as a stack whose numbers match: nobody could look, reported as no defect",
+      "file": "tools/conformance/functionallib.sh",
+      "find": "\t[ -s \"$file\" ] \\",
+      "replace": "\t[ -s \"$file\" ] || true \\",
+      "test": "TestAnEmptyRuleSetReadingIsAnInstrumentFailure"
+    },
+    {
+      "label": "the gate goes back to naming reachability after a restart instead of measuring it, which was honest exactly once — while #549 was open — and hides a working assertion now",
+      "file": "tools/conformance/functional.sh",
+      "find": "\t\tassert_restart \"$RESTART_NAME\" \"$RESTART_UNIT\" \"$RESTART_PORT\"\n",
+      "replace": "\t\tassert_restart \"$RESTART_NAME\" \"$RESTART_UNIT\" \"$RESTART_PORT\"\n\t\tskip \"$name: what this run does not assert after a restart is reachability to another subnet\"\n",
+      "test": "TestTheGateNoLongerExcusesReachabilityAfterARestart"
     }
   ],
   "note": "The subject is #503. On 2026-08-26 four defects were found by hand on the example stacks (#475, #481, #483, #484) and all four were green: apply exit 0, second plan empty, clean destroy, three of them without a single ERROR line. What found them was a person reading the host, so this gate is that reading, and every mutation here plants the defect one verdict names. Three of them are about the instrument rather than the cloud, and they are the ones worth reading twice: the listen reader counting established connections as listeners, the name reader matching by prefix, and the delivery reader reading a withheld backend's English reason as an address. Each was reachable by one character. The gate's own first run under --vm incus-ovn made the same class of mistake in the opposite direction and was caught by its own third outcome: `incus exec … -- command -v bash` fails on every machine because `command` is a shell builtin, and the probe answered « nobody could look » instead of reporting a firewall verdict it had not measured."

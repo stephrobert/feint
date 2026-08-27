@@ -107,6 +107,7 @@ func PackSurface() map[string]string {
 		// executes the one order.
 		"Reconciler":           "the orchestrator that executes a declared plan in the runtime's order",
 		"Reconciler.PowerOn":   "start a machine on its plan and replay the post-boot order",
+		"Reconciler.Reboot":    "take a machine down and bring it back on its plan",
 		"Plan":                 "the machine's declared interface shape",
 		"Plan.Memberships":     "the networks joined after boot, read back from the plan the pack built",
 		"Attachment":           "one interface: a network, an address, the mask, the secondaries",

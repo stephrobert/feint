@@ -82,11 +82,12 @@ func (p *Pack) stopInstance(w http.ResponseWriter, r *http.Request) {
 	p.writeOperation(w, p.operationReferring(nounInstance, id))
 }
 
-// rebootInstance is a stop then a start, under one hold of the target.
+// rebootInstance is a stop then a start, under one hold of the target. The
+// sequence is the shared layer's since #547: it was written here, in Outscale,
+// and half-written in Scaleway, whose copy had lost its stop.
 func (p *Pack) rebootInstance(w http.ResponseWriter, r *http.Request) {
 	id, ok := p.transitionInstance(w, r, func(res *resource.Resource) {
-		p.binding().PowerOff(r.Context(), res)
-		p.start(r.Context(), res)
+		p.reboot(r.Context(), res)
 	})
 	if !ok {
 		return

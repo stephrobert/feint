@@ -57,6 +57,17 @@ got="$(scw instance server get "$id" zone="$ZONE" -o json)" || fail "get rejecte
 printf '%s' "$got" | jq -e --arg id "$id" '.id == $id' >/dev/null || fail "get returned another server"
 ok "read back identical"
 
+# The reboot verb, driven by the client that owns it (#547). It answered `success` on an
+# action the emulator did not perform until the sequence moved into the shared layer, and
+# the state a client reads afterwards is the whole of what this suite can see from here —
+# that the machine really restarted is asserted from the host by
+# tools/conformance/functional.sh, which compares the runtime process across the call.
+echo "- reboot"
+scw instance server reboot "$id" zone="$ZONE" >/dev/null || fail "reboot rejected"
+state="$(scw instance server get "$id" zone="$ZONE" -o json | jq -r '.state')"
+[ "$state" = "running" ] || fail "expected the server to be running after a reboot, got '$state'"
+ok "rebooted, and still running"
+
 # The CLI starts the server right after creating it, and the API refuses to delete a running
 # server. Powering off first is what a real user does, so the suite does it too.
 echo "- stop"

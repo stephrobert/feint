@@ -93,6 +93,28 @@ var intents = []intent{
 			{"four", replayFourLinkedAfterBoot},
 		},
 	},
+	{
+		// The same machine, restarted through each cloud's own reboot verb.
+		//
+		// This intent is here because the answer diverged and nothing said so
+		// (#547). Outscale's RebootVms and Exoscale's reboot-instance both did
+		// a stop then a start; Scaleway's action filed reboot with poweron and
+		// called the start alone, so the runtime — which refuses to relaunch a
+		// name it has already served — did nothing at all, while the API
+		// answered `success` and reported `running`. Measured on 2026-08-27:
+		// same container pid, uptime still climbing, a transient marker unit
+		// still alive after the call.
+		//
+		// A reboot is one thing on every cloud, so no pack is excused from it.
+		name:     "the machine is restarted through the provider's own reboot verb",
+		excluded: map[string]string{},
+		replays: []packReplay{
+			{"scaleway", replayScalewayRebooted},
+			{"outscale", replayOutscaleRebooted},
+			{"exoscale", replayExoscaleRebooted},
+			{"four", replayFourRebooted},
+		},
+	},
 }
 
 // allReplays flattens the corpus for the properties that hold per replay.
@@ -243,6 +265,25 @@ func replayExoscaleJoinsAfterBoot(t *testing.T) *machine.Recorder {
 // nothing else; the flexible IP is attached afterwards.
 func replayScalewayLinkedAfterBoot(t *testing.T) *machine.Recorder {
 	t.Helper()
+	rec, _, _ := scalewayLinked(t)
+	return rec
+}
+
+// replayScalewayRebooted: the same machine, restarted through the action
+// endpoint. Before #547 this replay recorded no Stop at all.
+func replayScalewayRebooted(t *testing.T) *machine.Recorder {
+	t.Helper()
+	rec, h, serverID := scalewayLinked(t)
+	request(t, h, "POST", "/instance/v1/zones/fr-par-1/servers/"+serverID+"/action",
+		`{"action":"reboot"}`)
+	return rec
+}
+
+// scalewayLinked is the prologue two intents share: a server wearing a group
+// with a rule, powered on, its flexible IP linked afterwards. It hands back the
+// handler and the id so an intent can go on acting on the same machine.
+func scalewayLinked(t *testing.T) (*machine.Recorder, http.Handler, string) {
+	t.Helper()
 	env, rec := recorderEnv()
 	srv, err := emulator.NewServer(env, scaleway.New(env))
 	if err != nil {
@@ -259,7 +300,7 @@ func replayScalewayLinkedAfterBoot(t *testing.T) *machine.Recorder {
 
 	ip := request(t, h, "POST", zone+"/ips", `{}`)
 	request(t, h, "PATCH", zone+"/ips/"+id(t, ip, "ip", "id"), `{"server":"`+serverID+`"}`)
-	return rec
+	return rec, h, serverID
 }
 
 // replayOutscaleLinkedAfterBoot: the Vm lives outside any Net — Outscale's
@@ -267,6 +308,20 @@ func replayScalewayLinkedAfterBoot(t *testing.T) *machine.Recorder {
 // launch — wearing its group; the public IP is linked afterwards, which is the
 // only moment its dialect can link one.
 func replayOutscaleLinkedAfterBoot(t *testing.T) *machine.Recorder {
+	t.Helper()
+	rec, _, _ := outscaleLinked(t)
+	return rec
+}
+
+// replayOutscaleRebooted: the same Vm, restarted through RebootVms.
+func replayOutscaleRebooted(t *testing.T) *machine.Recorder {
+	t.Helper()
+	rec, h, vmID := outscaleLinked(t)
+	request(t, h, "POST", "/api/v1/RebootVms", `{"VmIds":["`+vmID+`"]}`)
+	return rec
+}
+
+func outscaleLinked(t *testing.T) (*machine.Recorder, http.Handler, string) {
 	t.Helper()
 	env, rec := recorderEnv()
 	srv, err := emulator.NewServer(env, outscale.New(env))
@@ -296,13 +351,27 @@ func replayOutscaleLinkedAfterBoot(t *testing.T) *machine.Recorder {
 	vmID := id(t, map[string]any{"Vm": list[0]}, "Vm", "VmId")
 
 	post("LinkPublicIp", `{"PublicIpId":"`+ipID+`","VmId":"`+vmID+`"}`)
-	return rec
+	return rec, h, vmID
 }
 
 // replayExoscaleLinkedAfterBoot: the instance declares public-ip-assignment
 // none — a real upstream setting — so nothing rides the boot but the group;
 // the elastic IP is attached afterwards.
 func replayExoscaleLinkedAfterBoot(t *testing.T) *machine.Recorder {
+	t.Helper()
+	rec, _, _ := exoscaleLinked(t)
+	return rec
+}
+
+// replayExoscaleRebooted: the same instance, restarted through :reboot.
+func replayExoscaleRebooted(t *testing.T) *machine.Recorder {
+	t.Helper()
+	rec, h, instanceID := exoscaleLinked(t)
+	request(t, h, "PUT", "/v2/instance/"+instanceID+":reboot", `{}`)
+	return rec
+}
+
+func exoscaleLinked(t *testing.T) (*machine.Recorder, http.Handler, string) {
 	t.Helper()
 	env, rec := recorderEnv()
 	srv, err := emulator.NewServer(env, exoscale.New(env))
@@ -317,7 +386,7 @@ func replayExoscaleLinkedAfterBoot(t *testing.T) *machine.Recorder {
 	eip := request(t, h, "POST", "/v2/elastic-ip", `{}`)
 	request(t, h, "PUT", "/v2/elastic-ip/"+id(t, eip, "reference", "id")+":attach",
 		`{"instance":{"id":"`+instanceID+`"}}`)
-	return rec
+	return rec, h, instanceID
 }
 
 // ---- The fourth pack, which has no dialect ----------------------------------
@@ -380,6 +449,23 @@ func replayFourJoinsAfterBoot(t *testing.T) *machine.Recorder {
 // attached once it is up.
 func replayFourLinkedAfterBoot(t *testing.T) *machine.Recorder {
 	t.Helper()
+	rec, _, _, _ := fourLinked(t)
+	return rec
+}
+
+// replayFourRebooted: the same node, restarted through the pack that was never
+// told what a reboot is. It asks the layer, so it gets the whole sequence.
+func replayFourRebooted(t *testing.T) *machine.Recorder {
+	t.Helper()
+	rec, ctx, pack, nodeID := fourLinked(t)
+	if err := pack.RebootNode(ctx, nodeID); err != nil {
+		t.Fatalf("reboot the node: %v", err)
+	}
+	return rec
+}
+
+func fourLinked(t *testing.T) (*machine.Recorder, context.Context, *providerfour.Pack, string) {
+	t.Helper()
 	ctx := t.Context()
 	env, rec := recorderEnv()
 	pack := providerfour.New(env)
@@ -404,7 +490,7 @@ func replayFourLinkedAfterBoot(t *testing.T) *machine.Recorder {
 	if err := pack.AttachAnchor(ctx, anchor.ID, node.ID); err != nil {
 		t.Fatalf("attach the anchor: %v", err)
 	}
-	return rec
+	return rec, ctx, pack, node.ID
 }
 
 func fourBarrierWithRule(t *testing.T, ctx context.Context, pack *providerfour.Pack) string {

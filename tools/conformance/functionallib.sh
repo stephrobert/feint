@@ -436,3 +436,157 @@ fnl_backend_withdrawn() { # stack name withdrawn hits_file remaining
 		|| fail "$stack: $name answered $answered of $probes probes with no backend left registered — something is serving that address which the control plane does not describe"
 	ok "$stack: $name answers nothing once its last backend is unregistered, which is the withdrawal seen from outside"
 }
+
+# ---- the lifecycle: what a machine must still be after a restart ------------
+#
+# Every family above starts its machines once and measures afterwards. None of
+# them restarted one, so the gap between "launched" and "relaunched" was
+# measured nowhere — and three defects lived in it (#547, #549, #498), all found
+# by hand on 2026-08-27. The three verdicts below are that gap, written down.
+
+# fnl_restart_replaced_the_machine: the provider's own reboot verb really
+# restarted the machine.
+#
+# The witness is the runtime's process for the instance, read from the host the
+# way witness.sh reads an instance's status — never from inside the target,
+# which this file only ever uses as the console that originates a probe. A
+# reboot that leaves the same process leaves the same kernel, the same uptime
+# and the same transient units: that is #547, where the action answered
+# "success", the API answered "running", and nothing had happened.
+#
+# Empty on either side is "nobody could look", never "it did not restart": the
+# whole point of the third outcome.
+fnl_restart_replaced_the_machine() { # stack name machine before after
+	local stack="$1" name="$2" machine="$3" before="$4" after="$5"
+	{ [ -n "$before" ] && [ -n "$after" ]; } \
+		|| fail "cannot look: the runtime did not say which process holds $machine before ('$before') and after ('$after') the reboot; no measurement is not a measurement"
+	[ "$before" != "$after" ] \
+		|| fail "$stack: $name ($machine) came out of a reboot through the provider's own API on the same runtime process ($after) — the action was accepted and the machine never restarted (#547)"
+	ok "$stack: $name really restarts on the provider's own reboot verb (process $before then $after)"
+}
+
+# fnl_restart_keeps_reaching: a machine restarted through the provider's API
+# still reaches the machine one subnet away that it reached before it went down.
+#
+# This is #549, and its shape is the reason it needs four probes rather than
+# one. The defect is not "unreachable": it is "reachable, then not, while an
+# identical neighbour that was not restarted goes on reaching it in the same
+# pass". So the before-probe is the positive control of the after-probe, and the
+# control machine is the positive control of the whole pass — without them, a
+# target that simply died reads exactly like a restart that lost its routes.
+#
+# before, after and control_after are probe codes the caller captured: 0 the
+# port answers, 1 refused or timed out, 2 nobody could look. control is the
+# unrestarted machine's declared name, empty when the stack wrote a reason it
+# has none.
+fnl_restart_keeps_reaching() { # stack restarted target address port listen_file before after control control_after
+	local stack="$1" restarted="$2" target="$3" address="$4" port="$5" listen="$6"
+	local before="$7" after="$8" control="$9" control_after="${10}"
+
+	fnl_listens "$port" "$listen" \
+		|| fail "$stack: $target does not listen on $port inside the machine (listening: $(tr '\n' ' ' <"$listen")); 'no longer reachable' would be measuring a dead service rather than a restart"
+
+	[ "$before" != 2 ] \
+		|| fail "cannot look: the probe from $restarted towards $address:$port could not be made at all before the restart"
+	[ "$before" = 0 ] \
+		|| fail "$stack: $restarted does not reach $target at $address:$port BEFORE any restart, on a port $target is listening on — this run cannot say what a restart cost, and the pair the stack declares does not hold in the first place"
+
+	[ "$after" != 2 ] \
+		|| fail "cannot look: the probe from $restarted towards $address:$port could not be made at all after the restart"
+
+	if [ "$after" != 0 ]; then
+		# Which of the two findings this is, said rather than left to the
+		# reader: the neighbour is what separates "the restart lost its routes"
+		# from "the target or the network went away". Blaming the restart in the
+		# second case would be reporting the wrong subject, which is the failure
+		# this repository has paid for most often.
+		if [ -n "$control" ] && [ "$control_after" = 2 ]; then
+			fail "cannot look: the control probe from $control towards $address:$port could not be made at all, so what $restarted lost cannot be attributed"
+		fi
+		if [ -n "$control" ] && [ "$control_after" != 0 ]; then
+			fail "$stack: neither $restarted, which was restarted, nor $control, which was not, reaches $target at $address:$port — and $restarted reached it before. The target or the network went away between the two probes, so this pass says nothing about the restart"
+		fi
+		if [ -n "$control" ]; then
+			fail "$stack: $restarted reached $target at $address:$port before being restarted through the API and does not afterwards, while $control — the same subnet, the same group, never restarted — still reaches it in the same pass (#549)"
+		fi
+		fail "$stack: $restarted reached $target at $address:$port before being restarted through the API and does not afterwards (#549)"
+	fi
+
+	if [ -n "$control" ]; then
+		[ "$control_after" != 2 ] \
+			|| fail "cannot look: the control probe from $control towards $address:$port could not be made at all"
+		[ "$control_after" = 0 ] \
+			|| fail "$stack: $restarted reaches $target at $address:$port and $control, which was never restarted, does not — this pass is measuring something other than the restart, and reading it either way would be reading an instrument"
+		ok "$stack: $restarted still reaches $target at $address:$port after a restart, and so does $control, which was not restarted"
+		return
+	fi
+	ok "$stack: $restarted still reaches $target at $address:$port after a restart"
+}
+
+# fnl_rule_sets: the rule sets the runtime holds for this stack's machines, in
+# the two numbers the stack declares.
+#
+# It runs after the restarts on purpose. A rule set lives on a NIC, a restart
+# re-plugs NICs, and a machine that came back without its set is a machine the
+# API describes as filtered and the host does not filter — the same family of
+# defect as #549, one layer up. The counts are the stack's own declaration
+# rather than a table here, so a stack that grows a tier changes one file.
+#
+# sets_file: `<machine>\t<comma-separated rule sets>`, one line per machine, the
+# whole set the runtime reports; the prefix is what selects this pack's own.
+fnl_rule_sets() { # stack prefix sets_file want_sets want_references
+	local stack="$1" prefix="$2" file="$3" want_sets="$4" want_refs="$5"
+	local machine acls acl seen="" sets=0 refs=0 machines=0
+
+	[ -s "$file" ] \
+		|| fail "cannot look: no machine of $stack was read for its rule sets; every count this run would report is an instrument failure"
+	while IFS=$'\t' read -r machine acls; do
+		[ -n "$machine" ] || continue
+		machines=$((machines + 1))
+		for acl in $(printf '%s' "$acls" | tr ',' ' '); do
+			case "$acl" in
+			"$prefix"*) ;;
+			*) continue ;;
+			esac
+			refs=$((refs + 1))
+			case " $seen " in
+			*" $acl "*) ;;
+			*)
+				seen="$seen $acl"
+				sets=$((sets + 1))
+				;;
+			esac
+		done
+	done <"$file"
+
+	[ "$sets" = "$want_sets" ] \
+		|| fail "$stack: the runtime holds $sets rule set(s) named $prefix* across its $machines machine(s), where the stack declares $want_sets ($(echo "$seen" | tr -s ' ')) — a count that moved is a group that stopped being applied or one that was applied twice, and either is a finding"
+	[ "$refs" = "$want_refs" ] \
+		|| fail "$stack: the $sets rule set(s) named $prefix* are referenced $refs time(s) across its $machines machine(s), where the stack declares $want_refs — a machine lost or gained a group without the control plane saying so"
+	ok "$stack: $sets rule set(s) $prefix*, $refs reference(s) across $machines machine(s), as declared"
+}
+
+# The rule-set reader proves it can find before it judges, and that it refuses a
+# near miss: another pack's sets on the same host must not be counted as this
+# one's, which is exactly what a run of two stacks would otherwise do.
+fnl_rule_set_reader_control() {
+	local dir out code
+	dir="$(mktemp -d)"
+	printf '%s\t%s\n' \
+		"feint-scw-1" "scw-aaa" \
+		"feint-scw-2" "scw-aaa,scw-bbb" \
+		"feint-osc-1" "osc-zzz" >"$dir/sets"
+	out="$(fnl_rule_sets control scw- "$dir/sets" 2 3 2>&1)"
+	code=$?
+	[ "$code" = 0 ] \
+		|| { rm -rf "$dir"; fail "the rule-set reader cannot count two planted sets and three references: $out"; }
+	# The near miss, and it is the one a two-stack run would hit: the osc- line
+	# is on the same host and must not be counted here. Declaring three sets
+	# must therefore go red, or the reader is counting somebody else's.
+	out="$(fnl_rule_sets control scw- "$dir/sets" 3 4 2>&1)"
+	code=$?
+	rm -rf "$dir"
+	[ "$code" != 0 ] \
+		|| fail "the rule-set reader accepted a count that includes another pack's sets: $out"
+	ok "the rule-set reader counts a pack's own sets and references, and no other pack's"
+}

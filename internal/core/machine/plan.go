@@ -120,6 +120,41 @@ func (r Reconciler) PowerOn(ctx context.Context, res *resource.Resource, boot Bo
 	return true
 }
 
+// Reboot takes the machine down and brings it back up on its declared plan.
+//
+// It exists because the sequence was written three times and one copy forgot
+// half of it. Outscale's RebootVms and Exoscale's reboot-instance both said "a
+// reboot is a stop then a start"; Scaleway's action filed reboot with poweron
+// and called the start alone, under a comment stating that the reboot case was
+// handled — the exact shape CLAUDE.md names, a comment standing where a control
+// belongs. The runtime refuses to relaunch a name it has already served, so the
+// measured outcome on 2026-08-27 was an action answered `success`, an API
+// reporting `running`, and a machine with the same container pid, an uptime
+// still climbing and a transient marker unit still alive (#547).
+//
+// Worse than the usage cost was the testing one: any assertion of the form
+// "the service survives a restart" wired through that action could not fail.
+//
+// What it publishes is what the effect produced, never what the request asked
+// for: PowerOn writes FailedState when the runtime did not deliver, so a reboot
+// the runtime refuses leaves a server a client can read as down, in that
+// provider's own vocabulary. That is #484's form, kept rather than reinvented.
+//
+// TestARebootStopsTheMachineBeforeStartingIt fails without this, and so does
+// internal/providers' TestSameIntentSameRuntimeSequenceAcrossPacks, where the
+// reboot intent is now one of the compared ones: the three packs must ask the
+// runtime for the same gestures, and before this they did not.
+func (r Reconciler) Reboot(ctx context.Context, res *resource.Resource, boot Boot) bool {
+	// A machine that is not up has nothing to take down, and asking the runtime
+	// to stop a stopped instance logs a failure for an ordinary case. Which
+	// word means "up" is the pack's, held once here rather than compared to a
+	// literal in three places.
+	if res.State == r.binding().RunningState {
+		r.binding().PowerOff(ctx, res)
+	}
+	return r.PowerOn(ctx, res, boot)
+}
+
 // ReplayAddresses re-routes every promised address of a machine that just
 // proved reachable — the late-address door: a virtual machine's agent answers
 // long after poweron returned, and the guest half of its routes can only land

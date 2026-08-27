@@ -363,15 +363,36 @@ func (p *Pack) CreateNode(ctx context.Context, req NodeRequest) (*resource.Resou
 // declaring its interface shape in two places.
 func (p *Pack) StartNode(ctx context.Context, id string) error {
 	return p.binding().Transition(p.env.Store, p.env.Now, KindNode, id, func(res *resource.Resource) {
-		image, requested := p.image(res)
-		p.reconciler().PowerOn(ctx, res, machine.Boot{
-			Image:     image.Ref,
-			Requested: requested,
-			User:      image.User,
-			Hostname:  attrString(res, "name"),
-			CloudInit: attrString(res, "user_data"),
-			Labels:    map[string]string{"feint.node": res.ID},
-		})
+		p.reconciler().PowerOn(ctx, res, p.bootOf(res))
+	})
+}
+
+// bootOf is what this pack asks the runtime for when a node comes up. One
+// function for both doors that boot a machine, because a boot described twice
+// is a boot that differs on one of them.
+func (p *Pack) bootOf(res *resource.Resource) machine.Boot {
+	image, requested := p.image(res)
+	return machine.Boot{
+		Image:     image.Ref,
+		Requested: requested,
+		User:      image.User,
+		Hostname:  attrString(res, "name"),
+		CloudInit: attrString(res, "user_data"),
+		Labels:    map[string]string{"feint.node": res.ID},
+	}
+}
+
+// RebootNode takes the machine down and brings it back.
+//
+// The pack says what a boot is and nothing else: the sequence — stop, then
+// start, then the whole post-boot order again — is Reconciler.Reboot's, which
+// is the point of this pack existing. Three real packs wrote that sentence
+// themselves and one of them wrote only half of it, answering `success` on an
+// action that restarted nothing (#547). Provider Four was never told; it gets
+// the whole sequence because it asks the layer for it.
+func (p *Pack) RebootNode(ctx context.Context, id string) error {
+	return p.binding().Transition(p.env.Store, p.env.Now, KindNode, id, func(res *resource.Resource) {
+		p.reconciler().Reboot(ctx, res, p.bootOf(res))
 	})
 }
 

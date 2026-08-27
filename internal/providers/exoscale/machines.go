@@ -132,6 +132,21 @@ func templateFor(id string) (machine.Image, bool) {
 // started: with no runtime the instance still reaches running, which is what a
 // client waits for, and the log says nothing is behind it.
 func (p *Pack) start(ctx context.Context, res *resource.Resource) {
+	p.reconciler().PowerOn(ctx, res, p.bootOf(res))
+}
+
+// reboot takes the instance down and brings it back, through the shared
+// sequence (#547). The stop-then-start was written here, in Outscale, and
+// half-written in Scaleway, whose copy called the start alone.
+func (p *Pack) reboot(ctx context.Context, res *resource.Resource) {
+	p.reconciler().Reboot(ctx, res, p.bootOf(res))
+}
+
+// bootOf is what this pack asks the runtime for when an instance comes up. One
+// function for the two doors that boot a machine — start-instance and
+// reboot-instance — because a boot described twice is a boot that differs on
+// one of them.
+func (p *Pack) bootOf(res *resource.Resource) machine.Boot {
 	templateID := ""
 	if t, ok := res.Attrs["template"].(map[string]any); ok {
 		templateID, _ = t["id"].(string)
@@ -147,7 +162,7 @@ func (p *Pack) start(ctx context.Context, res *resource.Resource) {
 	// pack used to keep as a comment — a membership must never become the
 	// primary the way a Boot.Attachment would — is the layer's law now:
 	// Plan.Memberships never ride the launch.
-	p.reconciler().PowerOn(ctx, res, machine.Boot{
+	return machine.Boot{
 		Image:     img.Ref,
 		Requested: templateID,
 		Hostname:  name,
@@ -169,7 +184,7 @@ func (p *Pack) start(ctx context.Context, res *resource.Resource) {
 		// so that is what a read gives back and what cloud-init must not see.
 		CloudInit: cloudinit.Decode(userData),
 		Labels:    map[string]string{"feint.instance": res.ID},
-	})
+	}
 }
 
 // reconciler is this pack's half of the shared interface choreography (#510):

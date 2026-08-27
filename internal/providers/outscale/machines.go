@@ -95,6 +95,21 @@ func (p *Pack) bootRefusalReason(imageID string) string {
 // reported running while nothing exists is the defect this project is built to
 // avoid, not a rounding of it.
 func (p *Pack) powerOn(ctx context.Context, res *resource.Resource) {
+	p.reconciler().PowerOn(ctx, res, p.bootOf(res))
+}
+
+// reboot takes the Vm down and brings it back, through the shared sequence
+// (#547). RebootVms wrote its own stop-then-start, and so did Exoscale's; the
+// third pack's copy of that sentence had lost its stop, which is the
+// duplication the layer removes rather than the defect it patches.
+func (p *Pack) reboot(ctx context.Context, res *resource.Resource) {
+	p.reconciler().Reboot(ctx, res, p.bootOf(res))
+}
+
+// bootOf is what this pack asks the runtime for when a Vm comes up. One
+// function for the two doors that boot a machine — RunVms/StartVms and
+// RebootVms — because a boot described twice is a boot that differs on one.
+func (p *Pack) bootOf(res *resource.Resource) machine.Boot {
 	imageID, _ := res.Attrs["ImageId"].(string)
 	keypair, _ := res.Attrs["KeypairName"].(string)
 	userData, _ := res.Attrs["UserData"].(string)
@@ -109,7 +124,7 @@ func (p *Pack) powerOn(ctx context.Context, res *resource.Resource) {
 	// is declared to the shared Reconciler, which executes the one post-boot
 	// order: addresses, then memberships, the firewall last (#510). Written
 	// here as a comment three ways before that; held by a test now.
-	p.reconciler().PowerOn(ctx, res, machine.Boot{
+	return machine.Boot{
 		Image:          img.Ref,
 		User:           img.User,
 		Requested:      imageID,
@@ -121,7 +136,7 @@ func (p *Pack) powerOn(ctx context.Context, res *resource.Resource) {
 		// cloud-init must never receive.
 		CloudInit: cloudinit.Decode(userData),
 		Labels:    map[string]string{"feint.vm": res.ID},
-	})
+	}
 }
 
 // reconciler is this pack's half of the shared interface choreography (#510):

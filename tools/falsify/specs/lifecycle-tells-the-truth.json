@@ -1,14 +1,37 @@
 {
   "_comment": [
-    "A machine that comes back from a stop must come back whole (#549), and",
-    "the replay that brings it back must be idempotent (#498).",
+    "The three lies the lifecycle of a machine told, each guard neutralised",
+    "and each matching test required to go red (#547, #549, #498).",
     "",
-    "Both measured on 2026-08-27 on the Scaleway example stack under --vm",
-    "incus-ovn, and they are one spec because they are one path: the address",
-    "replay a restart runs is what shouted the ERROR."
+    "They were measured together on 2026-08-27, on the Scaleway example stack",
+    "under --vm incus-ovn, and they are one spec because they are one path: a",
+    "reboot that restarted nothing hid a restart that lost its routes, and",
+    "both ran the address replay whose ERROR was the third."
   ],
   "package": "./internal/core/machine/",
   "mutations": [
+    {
+      "label": "#547: a reboot stops taking the machine down, so the action answers success and the runtime — which refuses to relaunch a name it has already served — does nothing at all",
+      "file": "internal/core/machine/plan.go",
+      "find": "\tif res.State == r.binding().RunningState {\n\t\tr.binding().PowerOff(ctx, res)\n\t}",
+      "replace": "\tif res.State == r.binding().RunningState && false {\n\t\tr.binding().PowerOff(ctx, res)\n\t}",
+      "test": "TestARebootStopsTheMachineBeforeStartingIt"
+    },
+    {
+      "label": "#547, the accepting half: a reboot stops asking whether the machine was up, so a stopped one is stopped again and the runtime is told to stop what it already stopped",
+      "file": "internal/core/machine/plan.go",
+      "find": "\tif res.State == r.binding().RunningState {\n\t\tr.binding().PowerOff(ctx, res)\n\t}",
+      "replace": "\tif res.State == r.binding().RunningState || true {\n\t\tr.binding().PowerOff(ctx, res)\n\t}",
+      "test": "TestARebootOfAStoppedMachineDoesNotStopItAgain"
+    },
+    {
+      "label": "#547 across the packs: Scaleway's reboot calls the start alone again, which is the defect verbatim — the three other packs go on asking the runtime for a stop and the sequences diverge",
+      "file": "internal/providers/scaleway/servers.go",
+      "package": "./internal/providers/",
+      "find": "\t\tp.rebootMachine(r.Context(), res)",
+      "replace": "\t\tp.startMachine(r.Context(), res)\n\t\t_ = p.rebootMachine",
+      "test": "TestSameIntentSameRuntimeSequenceAcrossPacks"
+    },
     {
       "label": "#549: a restarted guest stops being given back the routes to its peered subnets, so it comes back running, on its address, reaching its own subnet and nothing one router away",
       "file": "internal/core/machine/incus_ovn.go",
@@ -29,6 +52,13 @@
       "find": "\tif !d.OVN {\n\t\t// The aggregates exist because an OVN network's peers are only",
       "replace": "\tif !d.OVN && false {\n\t\t// The aggregates exist because an OVN network's peers are only",
       "test": "TestABridgeModeRestartLaysNoAggregates"
+    },
+    {
+      "label": "#549, the diagnosis: a guest that never finishes configuring its interface is no longer reported by the wait, so the failure an operator reads names the network rather than the machine and the device that could not be repaired",
+      "file": "internal/core/machine/incus_ovn.go",
+      "find": "\t\tif err := d.waitForGuestInterface(ctx, machine, device); err != nil {\n\t\t\treturn err\n\t\t}",
+      "replace": "\t\tif err := d.waitForGuestInterface(ctx, machine, device); err != nil && false {\n\t\t\treturn err\n\t\t}",
+      "test": "TestAGuestThatNeverConfiguresItsInterfaceIsReported"
     },
     {
       "label": "#498: the replay stops noticing that a routed NIC already delivers the address, so it delegates the same /32 to the uplink where the routed NIC's own host route already sits, and shouts an ERROR over a correct host",

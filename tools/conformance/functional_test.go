@@ -495,6 +495,7 @@ type stackProof struct {
 	Firewall    json.RawMessage `json:"firewall"`
 	Network     json.RawMessage `json:"network"`
 	Balancer    json.RawMessage `json:"balancer"`
+	RuleSets    json.RawMessage `json:"rule_sets"`
 }
 
 // TestEveryStackTheGateNamesDeclaresWhatItMustProve is the structural half of
@@ -539,15 +540,57 @@ func TestEveryStackTheGateNamesDeclaresWhatItMustProve(t *testing.T) {
 		if proof.Provider == "" || proof.MachineKind == "" || proof.Running == "" || proof.Expect <= 0 {
 			t.Errorf("%s: proof.json must name provider, machine_kind, running_state and a non-zero expect_machines; without the floor a reader that found nothing reads as a cloud that holds nothing", stack)
 		}
+		assertRestartIsDeclared(t, stack, proof.Service)
 		for name, family := range map[string]json.RawMessage{
 			"service": proof.Service, "firewall": proof.Firewall,
 			"network": proof.Network, "balancer": proof.Balancer,
+			"rule_sets": proof.RuleSets,
 		} {
 			if len(family) == 0 {
 				t.Errorf("%s: proof.json declares nothing about its %s; a stack that says nothing about what its machines must do is the silence #503 was opened about", stack, name)
 				continue
 			}
 			assertReasoned(t, stack, name, family)
+		}
+	}
+}
+
+// assertRestartIsDeclared: a stack that restarts a machine must say what that
+// restart may not cost it, and name the unrestarted machine that proves the
+// pass — or write why there is none.
+//
+// The silence this closes is where #549 lived for as long as the gate existed:
+// the restart was asserted to leave the service listening and answering, and
+// the machine came back doing exactly that while no longer reaching the subnet
+// one router away.
+func assertRestartIsDeclared(t *testing.T, stack string, service json.RawMessage) {
+	t.Helper()
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal(service, &doc); err != nil {
+		return
+	}
+	if _, excused := doc["skip"]; excused {
+		return
+	}
+	if _, restarts := doc["restart"]; !restarts {
+		return
+	}
+	reaches, declared := doc["restart_reaches"]
+	if !declared {
+		t.Errorf("%s: the service family restarts a machine and declares no restart_reaches; a machine that comes back listening and answering can still have lost every route past its own subnet, which is #549", stack)
+		return
+	}
+	var pair map[string]json.RawMessage
+	if err := json.Unmarshal(reaches, &pair); err != nil {
+		t.Errorf("%s: service.restart_reaches is not an object", stack)
+		return
+	}
+	if _, excused := pair["skip"]; excused {
+		return
+	}
+	for _, key := range []string{"target", "port", "control"} {
+		if _, ok := pair[key]; !ok {
+			t.Errorf("%s: service.restart_reaches declares no %s; without the control, a target that died reads exactly like a restart that lost its routes", stack, key)
 		}
 	}
 }
@@ -587,6 +630,7 @@ func TestTheGateRunsItsReaderControlsBeforeAnyVerdict(t *testing.T) {
 		"fnl_listen_reader_control",
 		"fnl_name_reader_control",
 		"fnl_delivery_reader_control",
+		"fnl_rule_set_reader_control",
 	} {
 		called := false
 		for _, line := range strings.Split(gate, "\n") {
@@ -601,25 +645,217 @@ func TestTheGateRunsItsReaderControlsBeforeAnyVerdict(t *testing.T) {
 	}
 }
 
-// TestTheRestartGoesThroughPowerAndNeverThroughReboot is #547 written as a
-// control on this gate rather than on the emulator.
+// TestTheRestartGoesThroughBothDoors replaces the control that used to forbid
+// the reboot verb here, and the replacement is the point.
 //
-// A reboot through the API leaves the container's pid and uptime untouched
-// (measured 2026-08-27), so a restart assertion sent through it cannot fail —
-// and a control that cannot fail is a demonstration. The day #547 is fixed this
-// test is what has to be revisited on purpose, rather than the gate silently
-// going back to measuring nothing.
-func TestTheRestartGoesThroughPowerAndNeverThroughReboot(t *testing.T) {
+// Until #547 this gate was forbidden to drive a reboot: the action answered
+// success and left the container's pid, its uptime and a transient marker unit
+// untouched (measured 2026-08-27), so a restart assertion sent through it could
+// not fail. That test said, in as many words, that the day #547 was fixed it
+// had to be revisited on purpose rather than let the gate silently go back to
+// measuring nothing. This is that revision: the verb is driven, and what it
+// must produce is asserted — a different runtime process, which is the witness
+// the issue was filed on.
+//
+// Both doors, not one: the reboot verb and the full stop-and-start. They are
+// two paths through the pack and #549 was measured on the second.
+func TestTheRestartGoesThroughBothDoors(t *testing.T) {
 	gate := readGate(t)
-	for _, forbidden := range []string{"action=reboot", "RebootVms"} {
-		if strings.Contains(gate, forbidden) {
-			t.Errorf("functional.sh carries %q; #547 measured a reboot leaving the container's pid and uptime untouched, so the service would be asserted to survive a restart that never happened", forbidden)
+	for _, want := range []string{
+		"action=reboot", "action=RebootVms",
+		"action=poweroff", "action=poweron",
+		"action=StopVms", "action=StartVms",
+	} {
+		if !strings.Contains(gate, want) {
+			t.Errorf("functional.sh does not carry %q; the restart must be driven through both doors on every provider it drives", want)
 		}
 	}
-	for _, want := range []string{`action=poweroff`, `action=poweron`, `action=StopVms`, `action=StartVms`} {
-		if !strings.Contains(gate, want) {
-			t.Errorf("functional.sh does not carry %q; the restart must be a real stop and start on every provider it drives", want)
+	// And the reboot leg must draw a verdict, not merely make the call: an
+	// action that is issued and never checked is exactly what let #547 live.
+	if !strings.Contains(gate, "fnl_restart_replaced_the_machine") {
+		t.Error("functional.sh drives a reboot and never asserts the machine was replaced; the action answering success is what #547 measured as sufficient to prove nothing")
+	}
+	if !strings.Contains(gate, "fnl_restart_keeps_reaching") {
+		t.Error("functional.sh restarts a machine and never asserts what the restart cost it (#549)")
+	}
+}
+
+// The gate must not carry the skip it used to write in place of the assertion:
+// a run that names a defect instead of measuring it is honest exactly once, and
+// stops being so the day the defect is fixed.
+func TestTheGateNoLongerExcusesReachabilityAfterARestart(t *testing.T) {
+	gate := readGate(t)
+	if strings.Contains(gate, "what this run does not assert after a restart") {
+		t.Error("functional.sh still excuses reachability after a restart; #549 is fixed and the excuse now hides a working assertion")
+	}
+}
+
+// ---- the lifecycle verdicts -------------------------------------------------
+
+const webListens = "22\n443\n8080\n"
+
+func TestARebootThatLeavesTheSameProcessFails(t *testing.T) {
+	code, output := runFunctional(t, nil,
+		`fnl_restart_replaced_the_machine scaleway platform-web-0 feint-scw-1 1188677 1188677`)
+	if code == 0 {
+		t.Fatalf("a reboot that restarted nothing passed, which is #547 exactly:\n%s", output)
+	}
+	for _, want := range []string{"FAIL:", "platform-web-0", "feint-scw-1", "1188677", "#547"} {
+		if !strings.Contains(output, want) {
+			t.Errorf("the failure does not carry %q:\n%s", want, output)
 		}
+	}
+}
+
+func TestARebootNobodyCouldLookAtIsNotAPass(t *testing.T) {
+	code, output := runFunctional(t, nil,
+		`fnl_restart_replaced_the_machine scaleway platform-web-0 feint-scw-1 1188677 ""`)
+	if code == 0 {
+		t.Fatalf("an unreadable runtime process passed as a restart:\n%s", output)
+	}
+	if !strings.Contains(output, "cannot look") {
+		t.Errorf("an instrument failure was reported as a defect of the stack:\n%s", output)
+	}
+}
+
+func TestARealRebootPasses(t *testing.T) {
+	code, output := runFunctional(t, nil,
+		`fnl_restart_replaced_the_machine scaleway platform-web-0 feint-scw-1 1188677 1711198`)
+	if code != 0 {
+		t.Fatalf("a machine that really restarted was reported as one that did not:\n%s", output)
+	}
+}
+
+// #549 itself: the witness the issue carries, replayed as arguments.
+func TestAMachineThatStopsReachingAfterARestartFailsNamingItsNeighbour(t *testing.T) {
+	code, output := runFunctional(t, map[string]string{"listen": webListens},
+		`fnl_restart_keeps_reaching scaleway platform-web-0 platform-app-worker-a 10.30.2.10 8080 "$DIR/listen" 0 1 platform-web-1 0`)
+	if code == 0 {
+		t.Fatalf("a machine that lost its route to the peered subnet passed:\n%s", output)
+	}
+	for _, want := range []string{
+		"FAIL:", "platform-web-0", "platform-app-worker-a", "10.30.2.10", "8080",
+		"platform-web-1", "never restarted", "#549",
+	} {
+		if !strings.Contains(output, want) {
+			t.Errorf("the failure does not carry %q; a red that names neither the machine nor its control teaches nothing:\n%s", want, output)
+		}
+	}
+}
+
+// The pair that never held is a finding about the declaration or the stack, and
+// must not be reported as a restart cost: that would be #549 filed against a
+// stack that never reached anything.
+func TestARestartVerdictRefusesAPairThatNeverHeld(t *testing.T) {
+	code, output := runFunctional(t, map[string]string{"listen": webListens},
+		`fnl_restart_keeps_reaching scaleway platform-web-0 platform-app-worker-a 10.30.2.10 8080 "$DIR/listen" 1 1 platform-web-1 0`)
+	if code == 0 {
+		t.Fatalf("a pair that did not hold before the restart passed:\n%s", output)
+	}
+	if !strings.Contains(output, "BEFORE any restart") {
+		t.Errorf("the failure blames the restart for a pair that never held:\n%s", output)
+	}
+	if strings.Contains(output, "#549") {
+		t.Errorf("a pair that never held was filed as #549:\n%s", output)
+	}
+}
+
+// Neither reaching is the target or the network, not the restart. Reporting the
+// wrong subject is the failure this repository has paid for most often.
+func TestARestartVerdictWithABrokenControlBlamesTheNetworkNotTheRestart(t *testing.T) {
+	code, output := runFunctional(t, map[string]string{"listen": webListens},
+		`fnl_restart_keeps_reaching scaleway platform-web-0 platform-app-worker-a 10.30.2.10 8080 "$DIR/listen" 0 1 platform-web-1 1`)
+	if code == 0 {
+		t.Fatalf("a pass where nothing reaches the target passed:\n%s", output)
+	}
+	if !strings.Contains(output, "says nothing about the restart") {
+		t.Errorf("a target that went away was reported as a restart defect:\n%s", output)
+	}
+}
+
+func TestARestartVerdictRefusesToJudgeADeadListener(t *testing.T) {
+	code, output := runFunctional(t, map[string]string{"listen": "22\n"},
+		`fnl_restart_keeps_reaching scaleway platform-web-0 platform-app-worker-a 10.30.2.10 8080 "$DIR/listen" 0 1 platform-web-1 0`)
+	if code == 0 {
+		t.Fatalf("a target that listens on nothing was judged:\n%s", output)
+	}
+	if !strings.Contains(output, "dead service") {
+		t.Errorf("the failure does not say the service is what was measured:\n%s", output)
+	}
+}
+
+func TestARestartProbeThatCouldNotBeMadeIsNotALostRoute(t *testing.T) {
+	code, output := runFunctional(t, map[string]string{"listen": webListens},
+		`fnl_restart_keeps_reaching scaleway platform-web-0 platform-app-worker-a 10.30.2.10 8080 "$DIR/listen" 0 2 platform-web-1 0`)
+	if code == 0 {
+		t.Fatalf("a probe that could not be made passed:\n%s", output)
+	}
+	if !strings.Contains(output, "cannot look") {
+		t.Errorf("an instrument failure was reported as #549:\n%s", output)
+	}
+}
+
+// The accepting half, twice: with a control and with a written reason there is
+// none. A verdict that refused the second would break the Outscale stack, whose
+// rule refuses every machine that could have been the control.
+func TestAHealthyRestartReachabilityPasses(t *testing.T) {
+	code, output := runFunctional(t, map[string]string{"listen": webListens},
+		`fnl_restart_keeps_reaching scaleway platform-web-0 platform-app-worker-a 10.30.2.10 8080 "$DIR/listen" 0 0 platform-web-1 0`)
+	if code != 0 {
+		t.Fatalf("a machine that kept reaching after a restart was failed:\n%s", output)
+	}
+	code, output = runFunctional(t, map[string]string{"listen": webListens},
+		`fnl_restart_keeps_reaching outscale platform-web-a platform-app 10.50.2.10 8080 "$DIR/listen" 0 0 "" 1`)
+	if code != 0 {
+		t.Fatalf("a stack with a written reason for having no control was failed:\n%s", output)
+	}
+}
+
+// ---- the rule sets ----------------------------------------------------------
+
+const scalewaySets = "feint-scw-1\tscw-web\nfeint-scw-2\tscw-web\nfeint-scw-3\tscw-web\nfeint-scw-4\tscw-app\nfeint-scw-5\tscw-app\nfeint-scw-6\tscw-bastion\n"
+
+func TestARuleSetCountThatMovedFails(t *testing.T) {
+	code, output := runFunctional(t, map[string]string{"sets": scalewaySets},
+		`fnl_rule_sets scaleway scw- "$DIR/sets" 3 6`)
+	if code != 0 {
+		t.Fatalf("the measured counts were rejected:\n%s", output)
+	}
+	// One machine came back without its group, which is what a restart that
+	// dropped a NIC's rule set looks like from the host.
+	fewer := strings.Replace(scalewaySets, "feint-scw-2\tscw-web\n", "feint-scw-2\t\n", 1)
+	code, output = runFunctional(t, map[string]string{"sets": fewer},
+		`fnl_rule_sets scaleway scw- "$DIR/sets" 3 6`)
+	if code == 0 {
+		t.Fatalf("a machine that lost its rule set passed:\n%s", output)
+	}
+	for _, want := range []string{"FAIL:", "scaleway", "5", "6"} {
+		if !strings.Contains(output, want) {
+			t.Errorf("the failure does not carry %q:\n%s", want, output)
+		}
+	}
+}
+
+func TestARuleSetThatAppearedFails(t *testing.T) {
+	more := scalewaySets + "feint-scw-7\tscw-ghost\n"
+	code, output := runFunctional(t, map[string]string{"sets": more},
+		`fnl_rule_sets scaleway scw- "$DIR/sets" 3 6`)
+	if code == 0 {
+		t.Fatalf("a rule set nothing declares passed:\n%s", output)
+	}
+	if !strings.Contains(output, "scw-ghost") {
+		t.Errorf("the failure does not name the set that appeared:\n%s", output)
+	}
+}
+
+func TestAnEmptyRuleSetReadingIsAnInstrumentFailure(t *testing.T) {
+	code, output := runFunctional(t, map[string]string{"sets": ""},
+		`fnl_rule_sets scaleway scw- "$DIR/sets" 3 6`)
+	if code == 0 {
+		t.Fatalf("a run that read no machine at all passed:\n%s", output)
+	}
+	if !strings.Contains(output, "cannot look") {
+		t.Errorf("reading nothing was reported as a cloud holding nothing:\n%s", output)
 	}
 }
 

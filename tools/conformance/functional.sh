@@ -17,7 +17,10 @@
 #
 #   service    a service listens inside the machine, answers over the address
 #              the provider's own API publishes, and survives a restart of the
-#              machine through that same API
+#              machine through that same API — both doors of it, and the machine
+#              still reaches the subnet it reached before (service.restart_reaches)
+#   rule_sets  the runtime holds, after those restarts, exactly the rule sets and
+#              the references the stack declares
 #   firewall   a port a rule opens answers and a port no rule opens refuses,
 #              both in the same pass, both proved listening inside first
 #   network    two machines of one network reach each other, and two networks
@@ -46,18 +49,22 @@
 # Three decisions taken from measurement rather than preference, all 2026-08-27
 # under `--vm incus-ovn`, and each one found by this file going red:
 #
-#   The restart is poweroff + poweron, not the reboot action. A reboot answered
-#   success and restarted nothing: same container pid, uptime still climbing, a
-#   transient marker unit still active. An assertion resting on it could not
-#   fail, which is the definition of a demonstration. Filed as #547.
+#   The restart is BOTH doors, in order: the provider's own reboot verb first,
+#   then poweroff + poweron. The reboot verb used to be excluded here, because
+#   it answered success and restarted nothing — same container pid, uptime still
+#   climbing, a transient marker unit still active (#547). It is asserted now
+#   rather than avoided: the runtime process must differ across the call, which
+#   is the witness that filed the issue, read from the host.
 #
-#   The restart runs LAST, after every other family. A machine that comes back
-#   from a poweroff/poweron has lost the guest routes to its peered subnets, so
-#   anything probed after one measures that loss rather than the property it
+#   The restart runs LAST, after every other family. A machine that came back
+#   from a restart used to have lost the guest routes to its peered subnets, so
+#   anything probed after one measured that loss rather than the property it
 #   names. The first ordering restarted a web machine before the firewall pair,
 #   the pair went red on its positive half, and the control in the same pass —
-#   the neighbour nobody restarted, still reaching — named the cause. Filed as
-#   #549, and the skip beside the restart says what is therefore not asserted.
+#   the neighbour nobody restarted, still reaching — named the cause (#549).
+#   The order stays, and what used to be a skip beside it is now the assertion:
+#   the restarted machine must still reach the other subnet it reached before,
+#   with that same unrestarted neighbour as the control of the pass.
 #
 #   The firewall pair runs between two subnets, never between neighbours. Within
 #   one subnet the sender's permissive egress outranks the receiver's ingress
@@ -151,6 +158,7 @@ echo "- the readers find their planted witnesses"
 fnl_listen_reader_control
 fnl_name_reader_control
 fnl_delivery_reader_control
+fnl_rule_set_reader_control
 
 # ---- live transports --------------------------------------------------------
 #
@@ -198,6 +206,24 @@ live_fetch() { # machine address port
 # station_fetch is the same trip from where the operator stands.
 station_fetch() { # address port
 	curl -sf --max-time 8 "http://$1:$2/" 2>/dev/null | tr -d '\r\n'
+}
+
+# live_machine_pid answers the runtime process holding a machine, empty when
+# nobody could look. It is the witness #547 was filed on: a reboot that leaves
+# the same process leaves the same kernel and the same uptime. Read from the
+# host, like witness.sh reads an instance's status — never from inside the
+# target, which this gate only uses as the console that originates a probe.
+live_machine_pid() { # machine
+	incus query "/1.0/instances/$1/state" 2>/dev/null | jq -r '.pid // empty'
+}
+
+# live_machine_acls answers the rule sets a machine's interfaces carry, comma
+# separated, non-zero when the instance could not be read at all. The reading of
+# the document is witnesslib's, not a second one written here.
+live_machine_acls() { # machine
+	local doc
+	doc="$(incus query "/1.0/instances/$1" 2>/dev/null)" || return 1
+	printf '%s' "$doc" | witness_instance_acls | paste -sd, -
 }
 
 # private_address answers the address a machine carries on an emulated network,
@@ -252,17 +278,19 @@ resource_state() { # provider id
 	esac
 }
 
-power() { # provider id off|on
+power() { # provider id off|on|reboot
 	local action
 	case "$1" in
 	scaleway)
 		action=poweroff
 		[ "$3" = on ] && action=poweron
+		[ "$3" = reboot ] && action=reboot
 		curl -sf -X POST -H 'Content-Type: application/json' -d "{\"action\":\"$action\"}" \
 			"$ENDPOINT/instance/v1/zones/$ZONE/servers/$2/action" >/dev/null ;;
 	outscale)
 		action=StopVms
 		[ "$3" = on ] && action=StartVms
+		[ "$3" = reboot ] && action=RebootVms
 		osc "$action" "{\"VmIds\":[\"$2\"]}" >/dev/null ;;
 	*) return 3 ;;
 	esac
@@ -411,9 +439,15 @@ run_stack() { # name
 	# run, after every other family, and the order is a measurement rather than
 	# a taste: #549 measured a machine coming back from a poweroff/poweron
 	# without the routes to its peered subnets, so anything probed after a
-	# restart measures that loss instead of the property it names. The first
+	# restart measured that loss instead of the property it names. The first
 	# version of this file restarted a web machine before the firewall pair and
 	# went red on the pair's positive half, which is how #549 was found.
+	#
+	# The order stays now that #549 is fixed, and it is not superstition: every
+	# family above states a property of a machine as the stack built it, and a
+	# restarted machine is a different measurement. That measurement is made
+	# here, deliberately and by itself, with its own before-probe and its own
+	# unrestarted control.
 	assert_restart() { # declared_name unit port
 		local restart="$1" unit="$2" port="$3" body address
 		echo "- $name: the service survives a restart of the machine"
@@ -421,9 +455,71 @@ run_stack() { # name
 		local rmachine="$MACHINE" id state waited status
 		id="$(id_of "$restart")"
 		[ -n "$id" ] || fail "$name: no resource id for $restart"
-		# poweroff + poweron, never the reboot action: #547 measured a
-		# reboot leaving the container's pid and uptime untouched, so an
-		# assertion resting on it could not fail.
+
+		# What must still be reachable afterwards, measured BEFORE anything is
+		# restarted: the after-probe alone cannot tell a restart that lost its
+		# routes from a pair that never held (#549).
+		local reaches rtarget rport rcontrol rmachine_t raddr rbefore rafter rcontrol_after rcmachine
+		reaches="$(printf '%s' "$service" | jq -c 'if has("restart_reaches") then .restart_reaches else "MISSING" end')"
+		[ "$reaches" != '"MISSING"' ] \
+			|| fail "$name: the service family declares a restart and nothing about what must still be reachable after it — that silence is where #549 lived, a machine coming back running, on its address, reaching its own subnet and nothing beyond it"
+		rtarget=""
+		reason="$(skip_reason "$reaches")"
+		if [ -n "$reason" ]; then
+			skip "$name service.restart_reaches: $reason"
+		else
+			rtarget="$(printf '%s' "$reaches" | jq -r '.target')"
+			rport="$(printf '%s' "$reaches" | jq -r '.port')"
+			# The control is the unrestarted machine that must go on reaching
+			# the same target in the same pass — the half that told #549 apart
+			# from a target that simply died. A stack with no such machine
+			# writes the reason; absent, it is the silence this gate removes.
+			local control
+			control="$(printf '%s' "$reaches" | jq -c 'if has("control") then .control else "MISSING" end')"
+			[ "$control" != '"MISSING"' ] \
+				|| fail "$name: service.restart_reaches declares no control; a machine that stops reaching after a restart is told from a target that died by a neighbour that did not restart, or by a written reason there is none"
+			rcontrol=""
+			rcmachine=""
+			reason="$(skip_reason "$control")"
+			if [ -n "$reason" ]; then
+				skip "$name service.restart_reaches.control: $reason"
+			else
+				rcontrol="$(printf '%s' "$control" | jq -r '.source')"
+			fi
+			need_machine "$rtarget"
+			rmachine_t="$MACHINE"
+			address_of "$rtarget" "$rmachine_t"
+			raddr="$ADDRESS"
+			listen_of "$rmachine_t"
+			live_probe "$rmachine" "$raddr" "$rport"
+			rbefore=$?
+			if [ -n "$rcontrol" ]; then
+				need_machine "$rcontrol"
+				rcmachine="$MACHINE"
+			fi
+		fi
+
+		# ---- the provider's own reboot verb, which used to restart nothing ---
+		echo "- $name: the provider's own reboot verb restarts the machine"
+		local pid_before pid_after
+		pid_before="$(live_machine_pid "$rmachine")"
+		power "$provider" "$id" reboot || fail "$name: $provider refused the reboot of $restart"
+		waited=0
+		while [ "$waited" -lt 240 ]; do
+			state="$(resource_state "$provider" "$id")" || fail "cannot look: $provider's API did not answer the state of $restart"
+			if [ "$state" = "$running" ] && incus exec "$rmachine" -- true >/dev/null 2>&1; then
+				pid_after="$(live_machine_pid "$rmachine")"
+				[ -n "$pid_after" ] && [ "$pid_after" != "$pid_before" ] && break
+			fi
+			sleep 4
+			waited=$((waited + 4))
+		done
+		[ "$state" = "$running" ] \
+			|| fail "$name: $restart came back '$state' ${waited}s after the API was asked to reboot it"
+		pid_after="$(live_machine_pid "$rmachine")"
+		fnl_restart_replaced_the_machine "$name" "$restart" "$rmachine" "$pid_before" "$pid_after"
+
+		# ---- and the whole cycle through the other door ----------------------
 		power "$provider" "$id" off || fail "$name: $provider refused the stop of $restart"
 		waited=0
 		state="$running"
@@ -470,6 +566,22 @@ run_stack() { # name
 		if [ -n "$address" ]; then
 			body="$(station_fetch "$address" "$port")"
 			fnl_service_answers "$name" "$restart (after a restart)" "$rmachine" "$address" "$port" "$body"
+		fi
+
+		# ---- what the restarts must not have cost (#549) ---------------------
+		if [ -n "$rtarget" ]; then
+			echo "- $name: the restarted machine still reaches the subnet it reached before"
+			rm -f "$WORK/listen-$rmachine_t.txt"
+			listen_of "$rmachine_t"
+			live_probe "$rmachine" "$raddr" "$rport"
+			rafter=$?
+			rcontrol_after=1
+			if [ -n "$rcmachine" ]; then
+				live_probe "$rcmachine" "$raddr" "$rport"
+				rcontrol_after=$?
+			fi
+			fnl_restart_keeps_reaching "$name" "$restart" "$rtarget" "$raddr" "$rport" \
+				"$LISTEN" "$rbefore" "$rafter" "$rcontrol" "$rcontrol_after"
 		fi
 	}
 
@@ -681,7 +793,33 @@ run_stack() { # name
 	# ---- the restart, last ---------------------------------------------------
 	if [ -n "${RESTART_NAME:-}" ]; then
 		assert_restart "$RESTART_NAME" "$RESTART_UNIT" "$RESTART_PORT"
-		skip "$name: what this run does not assert after a restart is reachability to another subnet, which #549 measured a restarted machine losing while its unrestarted neighbour keeps it. Naming it here rather than probing it keeps the gate green on a known defect instead of silent about one."
+	fi
+
+	# ---- the rule sets, after the restarts -----------------------------------
+	#
+	# After, and that is the measurement: a rule set lives on a NIC, a restart
+	# re-plugs NICs, and a machine that came back without its set is a machine
+	# the API describes as filtered and the host does not filter. The counts are
+	# the stack's own, so a number that moves fails a gate instead of waiting to
+	# be noticed by somebody reading `incus network acl list`.
+	local rulesets prefix wantsets wantrefs aclmachine
+	declare_or_fail "$name" "$proof" rule_sets
+	rulesets="$DECLARED"
+	reason="$(skip_reason "$rulesets")"
+	echo "- $name: the runtime holds the rule sets this stack declares"
+	if [ -n "$reason" ]; then
+		skip "$name rule_sets: $reason"
+	else
+		prefix="$(printf '%s' "$rulesets" | jq -r '.prefix')"
+		wantsets="$(printf '%s' "$rulesets" | jq -r '.sets')"
+		wantrefs="$(printf '%s' "$rulesets" | jq -r '.references')"
+		: >"$WORK/rulesets.tsv"
+		while IFS=$'\t' read -r _ _ _ aclmachine; do
+			[ -n "$aclmachine" ] || continue
+			printf '%s\t%s\n' "$aclmachine" "$(live_machine_acls "$aclmachine")" >>"$WORK/rulesets.tsv" \
+				|| fail "cannot look: reading the rule sets of $aclmachine off the runtime failed"
+		done <"$WORK/machines.tsv"
+		fnl_rule_sets "$name" "$prefix" "$WORK/rulesets.tsv" "$wantsets" "$wantrefs"
 	fi
 
 	# ---- down ---------------------------------------------------------------

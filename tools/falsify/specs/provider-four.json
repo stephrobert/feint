@@ -32,8 +32,8 @@
     {
       "label": "the fourth pack publishes the state its request asked for rather than the one the host produced, which is the lie this emulator exists to avoid (#484, #517)",
       "file": "internal/cli/testdata/provider-four/intents.go",
-      "find": "\t\t\tLabels:    map[string]string{\"feint.node\": res.ID},\n\t\t})\n\t})",
-      "replace": "\t\t\tLabels:    map[string]string{\"feint.node\": res.ID},\n\t\t})\n\t\tres.State = StateUp\n\t})",
+      "find": "\t\tp.reconciler().PowerOn(ctx, res, p.bootOf(res))\n\t})",
+      "replace": "\t\tp.reconciler().PowerOn(ctx, res, p.bootOf(res))\n\t\tres.State = StateUp\n\t})",
       "test": "TestTheFourthPackPublishesTheStateTheEffectProduced"
     },
     {

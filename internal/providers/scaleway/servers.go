@@ -766,15 +766,14 @@ func (p *Pack) serverAction(w http.ResponseWriter, r *http.Request) {
 func (p *Pack) applyServerAction(w http.ResponseWriter, r *http.Request, req serverActionRequest,
 	res *resource.Resource, id, zone string, now time.Time, reply *func()) bool {
 	switch req.Action {
-	case "poweron", "reboot":
+	case "poweron":
 		// A poweron on a server that is already running is not a second launch.
 		// The runtime refuses a name it has already handed out, so relaunching
 		// reported a failed start on a machine that was running perfectly well:
 		// the same lie as the race above, arriving through the other door. It is
 		// also what the real API does, which lists poweron only for a server
-		// that is not up. reboot is deliberately not covered: acting on a
-		// running machine is its whole purpose.
-		if req.Action == "reboot" || res.State != "running" {
+		// that is not up.
+		if res.State != "running" {
 			// The ephemeral address dynamic_ip_required asks for, allocated
 			// before the boot so it rides the launch like an attached flexible
 			// IP does.
@@ -791,6 +790,25 @@ func (p *Pack) applyServerAction(w http.ResponseWriter, r *http.Request, req ser
 			// Reconciler in the one order every pack follows (#510).
 			p.startMachine(r.Context(), res)
 		}
+		res.Attrs["allowed_actions"] = allowedActions(res.State, protectedServer(res))
+	case "reboot":
+		// A reboot is a stop then a start, which is what the two other packs
+		// already asked of the runtime and what this one did not. Filed with
+		// poweron under a comment saying the case was handled, it called the
+		// start alone: the runtime refuses to relaunch a name it has already
+		// served, so the action answered `success`, the API said `running`, and
+		// the machine had the same container pid, an uptime still climbing and
+		// a transient marker unit still alive (#547, measured 2026-08-27).
+		//
+		// The dynamic address is not released here, and that is the whole
+		// difference with poweroff: upstream releases it on a stop, never on a
+		// reboot, so a client's ephemeral address survives its own restart.
+		p.ensureDynamicAddress(res)
+		// A reboot of a server that is not up is a start: the SDK lists reboot
+		// for a running server only, but nothing here leans on that list, and
+		// inventing a refusal upstream may not answer would be a divergence
+		// nobody measured. Reconciler.Reboot skips the stop for it.
+		p.rebootMachine(r.Context(), res)
 		res.Attrs["allowed_actions"] = allowedActions(res.State, protectedServer(res))
 	case "poweroff", "stop_in_place":
 		// Two actions, two states, and the difference is not cosmetic: the SDK

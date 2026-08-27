@@ -759,10 +759,11 @@ func (p *Pack) rebootVms(w http.ResponseWriter, r *http.Request) {
 	for _, id := range req.VMIDs {
 		// A reboot is a stop then a start, which is the longest window of the
 		// three: another action landing between them would act on a VM that has
-		// no machine yet and write its own state over this one's.
+		// no machine yet and write its own state over this one's. The sequence
+		// itself is the shared layer's since #547 — it was written here, in
+		// Exoscale, and half-written in Scaleway.
 		p.transitionOne(id, func(res *resource.Resource) string {
-			p.powerOff(r.Context(), res)
-			p.powerOn(r.Context(), res)
+			p.reboot(r.Context(), res)
 			return res.State
 		})
 	}

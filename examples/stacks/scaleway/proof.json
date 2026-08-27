@@ -7,7 +7,8 @@
     "somebody thought to check', which is the criticism examples/stacks exists",
     "to answer for the configurations themselves.",
     "",
-    "Every one of the four families must appear. A family this stack cannot",
+    "Every one of the families must appear — service, firewall, network,",
+    "balancer, rule_sets. A family this stack cannot",
     "offer is written as {\"skip\": \"<reason>\"} and the run stays exit 0 while",
     "naming the bound out loud — a check that skips in silence is worse than",
     "an absent one. A family that is simply missing is a FAIL, because 'this",
@@ -36,17 +37,35 @@
       "The web tier serves 443, which is the port scaleway_instance_security_group.web",
       "opens, from an installed systemd unit rather than a transient one.",
       "",
-      "restart names the machine the harness stops and starts again through the",
-      "provider's API. It is poweroff+poweron and not the reboot action, and that",
-      "is a measurement rather than a preference: on 2026-08-27 a reboot answered",
-      "success, left the container's pid and uptime untouched and a transient",
-      "marker unit still active: nothing restarted, so an assertion resting on it",
-      "would be a control that cannot fail. Filed as #547."
+      "restart names the machine the harness restarts through the provider's API,",
+      "by both doors: the reboot action, then poweroff+poweron. The reboot action",
+      "used to be excluded here, and that was a measurement rather than a",
+      "preference: on 2026-08-27 it answered success, left the container's pid and",
+      "uptime untouched and a transient marker unit still active, so an assertion",
+      "resting on it could not fail (#547). It is asserted now, on the witness that",
+      "filed the issue: the runtime process must differ across the call.",
+      "",
+      "restart_reaches is what the restart must not have cost. #549 measured this",
+      "very machine coming back running, on its address, reaching its own subnet",
+      "and no longer reaching the app tier one subnet away — while platform-web-1,",
+      "the same subnet, the same group, never restarted, kept reaching it in the",
+      "same pass. That neighbour is the control here, for the same reason it named",
+      "the cause then: without it, a target that simply died reads exactly like a",
+      "restart that lost its routes. The pair is the firewall family's own, 8080",
+      "across the peered VPC, so the port is one a rule opens and a refusal cannot",
+      "be the group."
     ],
     "unit": "platform-web.service",
     "port": 443,
     "machines": ["platform-web-0", "platform-web-1"],
-    "restart": "platform-web-0"
+    "restart": "platform-web-0",
+    "restart_reaches": {
+      "target": "platform-app-worker-a",
+      "port": 8080,
+      "control": {
+        "source": "platform-web-1"
+      }
+    }
   },
 
   "firewall": {
@@ -100,5 +119,24 @@
 
   "balancer": {
     "skip": "the Scaleway pack does not hand its load balancers to the runtime: enforced.balancing names outscale alone (#481), and a balancer here records its configuration and forwards nothing (docs/limits.md). The harness re-reads that declaration at run time rather than trusting this line, so the day the pack wires it, this skip stops being taken."
+  },
+
+  "rule_sets": {
+    "_why": [
+      "What the runtime must hold once the restarts are done, in two numbers.",
+      "",
+      "Measured rather than chosen, on 2026-08-27, by reading the rule sets every",
+      "machine of this stack carries. A rule set lives on a NIC and a restart",
+      "re-plugs NICs, so a count that moved is a machine that came back without",
+      "its group: the API describing a filtered machine the host does not filter.",
+      "Asserted here so a number that moves fails a gate rather than waiting to be",
+      "noticed by somebody reading `incus network acl list`.",
+      "",
+      "prefix is what tells this pack's sets from another pack's on a shared",
+      "host: two stacks run against one station in the default population."
+    ],
+    "prefix": "scw-",
+    "sets": 3,
+    "references": 6
   }
 }

@@ -22,7 +22,25 @@
     "unit": "platform-web.service",
     "port": 80,
     "machines": ["platform-web-a", "platform-web-b"],
-    "restart": "platform-web-a"
+    "restart": "platform-web-a",
+    "restart_reaches": {
+      "_why": [
+        "platform-app sits in another Subnet of the same Net, and 8080 is what",
+        "outscale_security_group_rule.app_from_web opens to public-a, where the",
+        "restarted machine lives. So the pair crosses the Net's router, which is",
+        "the path #549 measured a restart losing on the other cloud.",
+        "",
+        "control is a skip and not a machine, for the same reason platform-web-b",
+        "is the firewall family's control_source here: the rule names",
+        "10.50.1.0/24 alone, so web-b is refused on 8080 by design, and a machine",
+        "that must be refused cannot be the control of a reachability pass."
+      ],
+      "target": "platform-app",
+      "port": 8080,
+      "control": {
+        "skip": "no second machine of this stack reaches platform-app on 8080: outscale_security_group_rule.app_from_web names 10.50.1.0/24, and platform-web-b sits in public-b, which is exactly why it serves as the firewall family's control_source. An unrestarted machine the rule refuses would prove nothing about a restart, so the before-probe of the restarted machine carries the pass alone here. The Scaleway stack's platform-web-1 is the neighbour control."
+      }
+    }
   },
 
   "firewall": {
@@ -81,5 +99,16 @@
     "port": 80,
     "client": "platform-web-a",
     "probes": 6
+  },
+
+  "rule_sets": {
+    "_why": [
+      "Measured on 2026-08-27 by reading what every machine of this stack",
+      "carries. See the Scaleway stack's declaration for why this is asserted",
+      "after the restarts and what a moved number means."
+    ],
+    "prefix": "osc-",
+    "sets": 2,
+    "references": 3
   }
 }

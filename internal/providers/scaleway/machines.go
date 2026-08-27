@@ -97,9 +97,10 @@ func requestedImageOf(res *resource.Resource, label string) string {
 	return id
 }
 
-// startMachine powers the server on: the boot, the address replay and the
-// firewall, in the shared Reconciler's one order.
-func (p *Pack) startMachine(ctx context.Context, res *resource.Resource) {
+// bootOf is what this pack asks the runtime for when a server comes up. One
+// function for the two doors that boot a machine — poweron and reboot — because
+// a boot described twice is a boot that differs on one of them.
+func (p *Pack) bootOf(res *resource.Resource) machine.Boot {
 	label, _ := res.Attrs["image_label"].(string)
 	hostname, _ := res.Attrs["hostname"].(string)
 	img, _ := imageFor(label)
@@ -108,7 +109,7 @@ func (p *Pack) startMachine(ctx context.Context, res *resource.Resource) {
 	// hands the "cloud-init" user data key to cloud-init at boot. The
 	// consequence is stated in docs/limits.md: with a custom cloud-init, the
 	// project's SSH keys are only installed if the script installs them.
-	p.reconciler().PowerOn(ctx, res, machine.Boot{
+	return machine.Boot{
 		Image:          img.Ref,
 		User:           img.User,
 		Requested:      requestedImageOf(res, label),
@@ -119,7 +120,19 @@ func (p *Pack) startMachine(ctx context.Context, res *resource.Resource) {
 			"feint.server": res.ID,
 			"feint.zone":   res.Tenant.Zone,
 		},
-	})
+	}
+}
+
+// startMachine powers the server on: the boot, the address replay and the
+// firewall, in the shared Reconciler's one order.
+func (p *Pack) startMachine(ctx context.Context, res *resource.Resource) {
+	p.reconciler().PowerOn(ctx, res, p.bootOf(res))
+}
+
+// rebootMachine takes the server down and brings it back, which is the shared
+// sequence the two other packs already asked for and this one did not (#547).
+func (p *Pack) rebootMachine(ctx context.Context, res *resource.Resource) {
+	p.reconciler().Reboot(ctx, res, p.bootOf(res))
 }
 
 // reconciler is this pack's half of the shared interface choreography (#510):
