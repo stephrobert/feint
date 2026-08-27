@@ -6,11 +6,29 @@
     "none"
   ],
   "generated_from": {
-    "contracts": "888ba9fc893edbcf",
+    "contracts": "b1c322d461683911",
     "shapes": "cac046c206cc9fc8",
-    "suites": "68c2428f794babb9"
+    "suites": "7173c18ec5d565d9"
   },
   "operations": {
+    "account/v3/ProjectAPI.GetProject": {
+      "driven": true,
+      "probed": "response",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
+    "account/v3/ProjectAPI.ListProjects": {
+      "driven": true,
+      "probed": "refusal",
+      "contract": "clean",
+      "dataplane": true,
+      "shape": "unobserved",
+      "behaviour": false,
+      "negative": false
+    },
     "block/v1/API.CreateSnapshot": {
       "driven": true,
       "probed": "response",
@@ -2213,7 +2231,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
-      "behaviour": false,
+      "behaviour": true,
       "negative": true
     },
     "osc/Client.CreateDhcpOptions": {
@@ -2474,7 +2492,7 @@
       "contract": "clean",
       "dataplane": true,
       "shape": "observed",
-      "behaviour": false,
+      "behaviour": true,
       "negative": true
     },
     "osc/Client.DeleteNic": {

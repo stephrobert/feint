@@ -26,7 +26,7 @@
 > [!IMPORTANT]
 > **Ce qu'on peut pointer vers cet émulateur, et ce qu'on ne peut pas.**
 >
-> **Prouvé** : 348 des 371 opérations montées sont pilotées par un vrai client, à chaque pull request. `scw`, `octl`, `exo`, Terraform et OpenTofu tournent contre l'émulateur en CI, et les machines démarrent réellement : connexion ssh sur le compte par défaut de chaque provider, subnets isolés, pare-feu qui filtre. La chaîne complète est décrite dans [docs/conformance.md](docs/conformance.md).
+> **Prouvé** : 350 des 373 opérations montées sont pilotées par un vrai client, à chaque pull request. `scw`, `octl`, `exo`, Terraform et OpenTofu tournent contre l'émulateur en CI, et les machines démarrent réellement : connexion ssh sur le compte par défaut de chaque provider, subnets isolés, pare-feu qui filtre. La chaîne complète est décrite dans [docs/conformance.md](docs/conformance.md).
 >
 > **Pas prouvé** : quotas, prix, capacité réelle, validation des identifiants, authentification, cohérence à terme. Les 50 sections de [docs/limits.md](docs/limits.md) disent chacune ce qu'elle coûte. Un émulateur avec un seul compte implicite et aucune grille tarifaire devrait inventer ces chiffres, et quelqu'un agirait dessus.
 >

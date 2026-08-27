@@ -27,7 +27,7 @@
 > [!IMPORTANT]
 > **What is safe to point at this emulator, and what is not.**
 >
-> **Proven**: 348 of the 371 mounted operations are driven by a real client, on every pull request. `scw`, `octl`, `exo`, Terraform and OpenTofu run against the emulator in CI, and machines really boot: an ssh login on each provider's own default account, isolated subnets, a firewall that filters. The whole chain is described in [docs/conformance.md](docs/conformance.md).
+> **Proven**: 350 of the 373 mounted operations are driven by a real client, on every pull request. `scw`, `octl`, `exo`, Terraform and OpenTofu run against the emulator in CI, and machines really boot: an ssh login on each provider's own default account, isolated subnets, a firewall that filters. The whole chain is described in [docs/conformance.md](docs/conformance.md).
 >
 > **Not proven**: quotas, prices, real capacity, identifier validation, authentication, eventual consistency. The 50 sections of [docs/limits.md](docs/limits.md) each say what one costs. An emulator with a single implicit account and no price list would have to invent those figures, and somebody would act on them.
 >
