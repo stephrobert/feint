@@ -1,0 +1,96 @@
+{
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the catalogue image answers from_server as null again, so the type a client decodes into a string is the one the cloud never sends (#367)",
+      "file": "internal/providers/scaleway/images.go",
+      "find": "\t\t\"from_server\": \"\",",
+      "replace": "\t\t\"from_server\": nil,",
+      "test": "TestTheCatalogueImageTypesFromServerLikeTheCloudDoes"
+    },
+    {
+      "label": "the server answer drops the bootscript key again, which reads to a client as a field that does not exist rather than one the cloud writes null (#366)",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\tout[\"bootscript\"] = nil",
+      "replace": "\tout[\"bootscript-not-answered\"] = nil",
+      "test": "TestAServerAnswersTheTwoKeysTheSDKNoLongerDeclares"
+    },
+    {
+      "label": "the server answer drops extra_networks again, the other half of the same omission (#366)",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\tout[\"extra_networks\"] = []any{}",
+      "replace": "\tout[\"extra_networks-not-answered\"] = []any{}",
+      "test": "TestAServerAnswersTheTwoKeysTheSDKNoLongerDeclares"
+    },
+    {
+      "label": "an attached address publishes an empty gateway again, so a guest reading its own route off the answer finds nothing (#368)",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\t\t\"gateway\":           flexibleGateway,",
+      "replace": "\t\t\"gateway\":           flexibleGateway[:0],",
+      "test": "TestAnAttachedAddressPublishesItsGatewayAndItsOwnTags"
+    },
+    {
+      "label": "an attached address drops the tags it carries again, in public_ip and in every element of public_ips at once (#368)",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\t\t\"tags\": tags,",
+      "replace": "\t\t\"tags\": tags[:0],",
+      "test": "TestAnAttachedAddressPublishesItsGatewayAndItsOwnTags"
+    },
+    {
+      "label": "tagValues hands back the stored slice itself, so a caller mutating a response reaches the store — the branch a restored snapshot takes (#368)",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\t\treturn append([]any{}, tags...)",
+      "replace": "\t\treturn append(tags[:len(tags)], tags[:0]...)",
+      "test": "TestTagValuesCopiesTheStoredSlice"
+    },
+    {
+      "label": "a released block volume keeps reading in_use, and `scw instance server delete` polls it for ever (#365)",
+      "file": "internal/providers/scaleway/volumes.go",
+      "find": "\t\tif stored.Kind == kindBlockVolume {\n\t\t\tstored.State = blockVolumeAvailable\n\t\t}",
+      "replace": "\t\tif stored.Kind == kindBlockVolume && false {\n\t\t\tstored.State = blockVolumeAvailable\n\t\t}",
+      "test": "TestABlockVolumeIsAvailableOnceItsServerIsGone"
+    },
+    {
+      "label": "volumesOf walks instance/v1 alone again, so a gone server never releases the block volume it held (#365)",
+      "file": "internal/providers/scaleway/volumes.go",
+      "find": "\tfor _, kind := range []string{kindVolume, kindBlockVolume} {",
+      "replace": "\tfor _, kind := range []string{kindVolume, kindBlockVolume}[:1] {",
+      "test": "TestABlockVolumeIsAvailableOnceItsServerIsGone"
+    },
+    {
+      "label": "ListProjects accepts a call naming no organization, which the document declares required (#372)",
+      "file": "internal/providers/scaleway/projects.go",
+      "find": "\tif q.Get(\"organization_id\") == \"\" {",
+      "replace": "\tif q.Get(\"organization_id\") == \"\" && false {",
+      "test": "TestListProjectsRefusesACallWithNoOrganization"
+    },
+    {
+      "label": "GetProject resolves only the identifier this emulator minted, which is the wall #372 removes put back one call later",
+      "file": "internal/providers/scaleway/projects.go",
+      "find": "\tif id == \"\" {\n\t\twriteNotFound(w, \"project\", id)\n\t\treturn\n\t}",
+      "replace": "\tif id != defaultProject {\n\t\twriteNotFound(w, \"project\", id)\n\t\treturn\n\t}",
+      "test": "TestGetProjectAnswersAnIdentifierItNeverMinted"
+    },
+    {
+      "label": "the name filter stops filtering, so every name a client asks for answers the one project this emulator has (#372)",
+      "file": "internal/providers/scaleway/projects.go",
+      "find": "\tif name := q.Get(\"name\"); name != \"\" && name != defaultProjectName {",
+      "replace": "\tif name := q.Get(\"name\"); name != \"\" && name != defaultProjectName && false {",
+      "test": "TestListProjectsFiltersRatherThanInvents"
+    },
+    {
+      "label": "every order_by is inside the enum, so a value the document does not declare is served under created_at_asc instead of refused by name (#277's class, on the new list)",
+      "file": "internal/providers/scaleway/projects.go",
+      "find": "\t\treturn field == \"created_at\" || field == \"name\"",
+      "replace": "\t\treturn field == \"created_at\" || field == \"name\" || true",
+      "test": "TestListProjectsRefusesAnUnknownOrder"
+    },
+    {
+      "label": "only the new spelling of the Object Storage filter narrows, so every client built before the 2026-08-25 rename gets an unfiltered list with a 200",
+      "file": "internal/providers/scaleway/listquery.go",
+      "find": "\tfor _, key := range []string{\"object_storage_private_access_enabled\", \"s3_integration_enabled\"} {",
+      "replace": "\tfor _, key := range []string{\"object_storage_private_access_enabled\", \"s3_integration_enabled\"}[:1] {",
+      "test": "TestBothSpellingsOfTheObjectStorageFilterNarrow"
+    }
+  ]
+}
