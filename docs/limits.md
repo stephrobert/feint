@@ -3347,14 +3347,59 @@ answers. One counter-witness is on record and stays on record: #491's probe of
 station→private measurement that worked at least once in a configuration this
 finding does not explain. Both observations are written here as they were made.
 
+Re-measured on 2026-08-27 on fresh networks (`10.181.7.0/24`, one machine,
+zero ACL relevance to the result), with the capture this time rather than
+beside it:
+
+```console
+$ ip route show 10.181.7.0/24
+10.181.7.0/24 dev feint-uplink proto static scope link
+$ sudo tcpdump -ni feint-uplink 'host 10.181.7.2 or arp'
+ARP, Request who-has 10.181.7.2 tell 10.209.83.1   (x3, no answer)
+  10.181.7.2:22 connect_ex=11    10.181.7.2:80 connect_ex=113
+
+$ sudo ip route replace 10.181.7.0/24 via 10.209.83.128 dev feint-uplink
+  10.181.7.2:22 connect_ex=111   10.181.7.2:80 connect_ex=111
+```
+
+The flip's *new* fact is the value it flips to. With the `via` route the two
+ports stop being unreachable (11, 113) and become **refused** (111) — the
+receiving NIC's own rule set answering, since the group under test opened
+neither. So the router does forward for the subnet when it is addressed
+directly; what fails is the scope-link form's ARP, exactly as the capture
+shows.
+
+**Why it will not lift here, measured.** The earlier wording said the fix was
+to post the route `via` the network's router instead of `dev`-only, as if the
+emulator were choosing the form. It is not: the emulator never writes a host
+route. Its only host binary is `incus` — every `ip` in `internal/core/machine`
+runs as `incus exec <machine> -- ip …`, inside a guest — and the host route
+above is Incus's own materialisation of the uplink bridge's `ipv4.routes`,
+which an OVN network's subnet must sit inside or the network is refused
+("Uplink network doesn't contain … in its routes"). That key takes CIDRs and
+nothing else, measured on a scratch bridge on 2026-08-27:
+
+```console
+$ incus network set probe496br ipv4.routes=10.223.0.0/24
+$ ip route show 10.223.0.0/24
+10.223.0.0/24 dev probe496br proto static scope link
+$ incus network set probe496br ipv4.routes="10.224.0.0/24 via 10.222.222.2"
+Error: Invalid value for network "probe496br" option "ipv4.routes":
+  Item "10.224.0.0/24 via 10.222.222.2": invalid CIDR address
+```
+
+So lifting this means the emulator running `ip route` as root on the operator's
+host, which is a different program from the one this repository ships: the
+machine driver's whole blast radius is what `incus` will do for the user who
+started it. The remedy stays where it belongs, with whoever wants the path —
+one `ip route replace … via <volatile.network.ipv4.address>` per subnet, which
+the block above is the recipe for.
+
 Who this touches: any harness that probes a private address from the station,
 firewall proofs first. Machines between themselves are not concerned. The
 capability already says it — `capabilities.private_from_host` is `false` under
 OVN — so a consumer asks `/_feint/health` instead of probing blind (see "A
-public address is the provider's value, made to answer on the host"). What
-would lift it: posting the subnet route `via` the network's router address
-instead of `dev`-only, which is what #496 asks and what the manual
-`ip route replace` above demonstrated.
+public address is the provider's value, made to answer on the host").
 
 ## A VPC created without `enable_routing` answered `routing_enabled=false` where the real cloud answers `true` (#497, lifted 2026-08-27)
 
