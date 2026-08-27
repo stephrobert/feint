@@ -422,3 +422,82 @@ func TestAMarkdownFileIsDocumentationWhereverItLives(t *testing.T) {
 		t.Fatal("a harness script earned nothing; the documentation rule has swallowed the directory")
 	}
 }
+
+// A file compiled into tests alone cannot change a served answer, so it earns no
+// conformance leg — the same argument that makes prose prose wherever it lives.
+// It is still triaged: a `_test.go` in a package no rule names must redden.
+func TestAFileCompiledOnlyIntoTestsEarnsNoConformanceRun(t *testing.T) {
+	for _, path := range []string{
+		"internal/core/machine/incus_test.go",
+		"internal/providers/scaleway/testdata/servers.json",
+	} {
+		got := build(t.TempDir(), []string{path})
+		for _, r := range got.Runs {
+			if strings.Contains(r.Command, "conformance") {
+				t.Errorf("%s earned %q; nothing compiled into tests alone reaches a client", path, r.Command)
+			}
+		}
+		if len(got.Untriaged) > 0 {
+			t.Errorf("%s was reported un-triaged; the exemption must not swallow the triage", path)
+		}
+	}
+	// The control: the production file beside it must still earn its leg,
+	// otherwise this test would pass over an exemption that swallowed the
+	// whole directory.
+	got := build(t.TempDir(), []string{"internal/core/machine/incus.go"})
+	if len(got.Runs) == 0 {
+		t.Fatal("a production file in the machine layer earned nothing")
+	}
+	// And a test file in a package no rule names is still an absence.
+	if orphan := build(t.TempDir(), []string{"quantum/teleporter_test.go"}); len(orphan.Untriaged) != 1 {
+		t.Fatalf("an un-triaged test file was excused rather than reported: %+v", orphan.Untriaged)
+	}
+}
+
+// The falsifications a diff has earned, read off the specs. This is the
+// discipline every batch here has followed by hand and stated in its own pull
+// request, which means it has also been forgotten by hand.
+func TestAChangedFileEarnsTheSpecsThatMutateIt(t *testing.T) {
+	dir := t.TempDir()
+	specs := filepath.Join(dir, "tools", "falsify", "specs")
+	if err := os.MkdirAll(specs, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, body string) {
+		if err := os.WriteFile(filepath.Join(specs, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("names-it.json", `{"mutations":[{"file":"internal/core/store/store.go","find":"a","replace":"b","test":"T"}]}`)
+	write("names-another.json", `{"mutations":[{"file":"internal/probe/probe.go","find":"a","replace":"b","test":"T"}]}`)
+
+	got := build(dir, []string{"internal/core/store/store.go"})
+	want := "mise run falsify -- tools/falsify/specs/names-it.json"
+	if !hasRun(got, want) {
+		t.Fatalf("a changed file did not earn the spec that mutates it; the plan was:\n%s", got)
+	}
+	// The control, and it is what stops this passing over a build() that
+	// prints every spec it can find: the spec naming another file must not
+	// appear.
+	if hasRun(got, "mise run falsify -- tools/falsify/specs/names-another.json") {
+		t.Fatal("a spec naming an untouched file was earned; the mapping is not read, it is emitted")
+	}
+}
+
+// The real corpus, not a fixture: the mapping is only worth having if it is
+// exact against what this repository actually declares.
+func TestTheRealSpecsAreReadAndOnlyTheMatchingOnesAreEarned(t *testing.T) {
+	dir := root(t)
+	got := falsifications(dir, []string{"internal/core/machine/incus_ovn.go"})
+	if len(got) == 0 {
+		t.Fatal("no spec earned for a file 20 mutations name; the specs are not being read")
+	}
+	for _, cmd := range got {
+		if !strings.HasPrefix(cmd, "mise run falsify -- tools/falsify/specs/") {
+			t.Errorf("earned command is not runnable as printed: %q", cmd)
+		}
+	}
+	if none := falsifications(dir, []string{"quantum/teleporter.go"}); len(none) != 0 {
+		t.Errorf("a file no spec names earned %v", none)
+	}
+}

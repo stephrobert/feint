@@ -54,6 +54,17 @@ what to run next, and refuses a path no rule triages — "it matched nothing, so
 run nothing" is the cheap default, and an un-triaged path is an absence, not a
 decision (#564).
 
+It also prints **the falsifications the diff has earned**, read off
+`tools/falsify/specs/` rather than remembered: 128 specs name 186 distinct files,
+and a spec that mutates a file you touched is the subset of `falsify:all` your
+change can have stopped biting. Every batch here has followed that discipline by
+hand and said so in its pull request, which means it has also been forgotten by
+hand — `mise run check` cannot see a guard whose test still passes over nothing.
+
+A `_test.go` file or a `testdata/` tree earns no conformance leg at all, for the
+same reason prose does not: nothing compiled into tests alone reaches a client.
+It is still triaged, so a test file in a package no rule names still reddens.
+
 The costs it orders by are measured, one pass each on 2026-08-27:
 
 | run | measured | what it carries |

@@ -31,6 +31,10 @@ runs it has earned, cheapest first, along with what they still do not prove
 (#564). `mise run prepush` calls it with `--check`, so a path no rule triages
 refuses the push instead of quietly earning nothing.
 
+It also names the specs under `tools/falsify/` that mutate a file the diff
+touches — the subset of `falsify:all` a change can have stopped biting, read
+off the specs rather than remembered.
+
 One pass each, measured on 2026-08-27, which is what the plan orders by:
 
 | run | measured |

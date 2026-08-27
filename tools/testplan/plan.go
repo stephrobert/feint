@@ -140,7 +140,12 @@ func build(root string, paths []string) plan {
 
 	for _, path := range paths {
 		r, matched := governing(path)
-		if matched {
+		// A test file is still triaged — a `_test.go` in a package no rule
+		// names is exactly as un-triaged as its neighbour — but it earns no
+		// conformance run, because nothing compiled into tests alone can
+		// change an answer a real client reads. What judges it is `check`,
+		// and the falsifications below.
+		if matched && !testOnly(path) {
 			for _, cmd := range r.Runs {
 				add(normalise(cmd), r.Why)
 			}
@@ -157,6 +162,11 @@ func build(root string, paths []string) plan {
 		if !matched {
 			p.Untriaged = append(p.Untriaged, path)
 		}
+	}
+
+	for _, spec := range falsifications(root, paths) {
+		add(spec, "this spec mutates a file the diff touches, so it is the subset of "+
+			"`falsify:all` that can have stopped biting")
 	}
 
 	sort.Slice(order, func(i, j int) bool { return cost(order[i]) < cost(order[j]) })
@@ -198,6 +208,9 @@ func cost(cmd string) int {
 		if strings.Contains(cmd, leg) {
 			return seconds
 		}
+	}
+	if strings.Contains(cmd, "falsify --") || strings.Contains(cmd, "falsify -- ") {
+		return 30
 	}
 	if strings.Contains(cmd, "conformance:functional") {
 		return 600

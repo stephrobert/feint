@@ -70,6 +70,34 @@
       "find": "\t\tUnproven: \"a change to the stored shape is proved across a restart by `mise run conformance:environment`\",",
       "replace": "\t\tUnproven: prepushIsTheWholeGate,",
       "test": "TestEveryRuleWithRunsSaysWhatItDoesNotProve"
+    },
+    {
+      "label": "a file compiled into tests alone starts earning conformance legs again, so a diff of pure _test.go files pays for runs that cannot judge it (#564)",
+      "file": "tools/testplan/plan.go",
+      "find": "\t\tif matched && !testOnly(path) {",
+      "replace": "\t\tif matched && (!testOnly(path) || true) {",
+      "test": "TestAFileCompiledOnlyIntoTestsEarnsNoConformanceRun"
+    },
+    {
+      "label": "the test-file exemption swallows the triage too, so a _test.go in a package no rule names stops being reported as the absence it is (#564)",
+      "file": "tools/testplan/plan.go",
+      "find": "\t\tif !matched {\n\t\t\tp.Untriaged = append(p.Untriaged, path)\n\t\t}",
+      "replace": "\t\tif !matched && !testOnly(path) {\n\t\t\tp.Untriaged = append(p.Untriaged, path)\n\t\t}",
+      "test": "TestAFileCompiledOnlyIntoTestsEarnsNoConformanceRun"
+    },
+    {
+      "label": "the falsifications a diff earned stop being read off the specs, so the discipline every batch here states in its pull request goes back to being remembered by hand (#564)",
+      "file": "tools/testplan/plan.go",
+      "find": "\tfor _, spec := range falsifications(root, paths) {",
+      "replace": "\tfor _, spec := range falsifications(root, paths)[:0] {",
+      "test": "TestAChangedFileEarnsTheSpecsThatMutateIt"
+    },
+    {
+      "label": "every spec is earned rather than the ones naming a changed file, which reads as thoroughness and is noise nobody runs twice (#564)",
+      "file": "tools/testplan/specs.go",
+      "find": "\t\t\tif changed[m.File] {",
+      "replace": "\t\t\tif changed[m.File] || true {",
+      "test": "TestAChangedFileEarnsTheSpecsThatMutateIt"
     }
   ]
 }

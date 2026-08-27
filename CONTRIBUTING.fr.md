@@ -58,6 +58,19 @@ poussée dit quoi jouer ensuite et refuse un chemin qu'aucune règle ne trie —
 « ça ne correspond à rien, donc on ne joue rien » est le défaut bon marché, et
 un chemin non trié est une absence, pas une décision (#564).
 
+Il imprime aussi **les falsifications que le diff a méritées**, lues dans
+`tools/falsify/specs/` plutôt que retenues : 128 specs nomment 186 fichiers
+distincts, et une spec qui mute un fichier que vous avez touché est le
+sous-ensemble de `falsify:all` que votre changement peut avoir empêché de mordre.
+Chaque lot d'ici a suivi cette discipline à la main et l'a écrit dans sa pull
+request, ce qui veut dire qu'il l'a aussi oubliée à la main — `mise run check`
+ne voit pas une garde dont le test passe encore, au-dessus de rien.
+
+Un fichier `_test.go` ou un répertoire `testdata/` ne mérite aucune jambe de
+conformance, pour la raison qui vaut pour la prose : rien de compilé dans les
+seuls tests n'atteint un client. Il reste trié, donc un fichier de test dans un
+paquet qu'aucune règle ne nomme rougit toujours.
+
 Les coûts sur lesquels il ordonne sont mesurés, une passe chacun le 2026-08-27 :
 
 | exécution | mesure | ce qu'elle porte |
