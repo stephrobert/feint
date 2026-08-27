@@ -51,7 +51,7 @@ import (
 // reportingEnv is fourthEnv with a logger a test can read, because "reports
 // rather than panics" is an assertion about what was said, and a discarded log
 // makes it an assertion that nothing crashed.
-func reportingEnv(t *testing.T, runtime machine.Driver) (*emulator.Env, *bytes.Buffer) {
+func reportingEnv(t *testing.T, runtime machine.Runtime) (*emulator.Env, *bytes.Buffer) {
 	t.Helper()
 	var log bytes.Buffer
 	n := 0
@@ -103,7 +103,7 @@ func aNode(env *emulator.Env) *resource.Resource {
 // — the one only `--vm incus` and `--vm incus-ovn` used to reach — without
 // needing a host.
 func TestABootUnderAnEnforcingRuntimeReportsAnUnwiredGroupSync(t *testing.T) {
-	env, log := reportingEnv(t, machine.NewRecorder())
+	env, log := reportingEnv(t, machine.Use(machine.NewRecorder()))
 	res := aNode(env)
 
 	// A panic here fails the test by crashing it, which is the honest form: a
@@ -142,10 +142,10 @@ func TestABootUnderAnEnforcingRuntimeReportsAnUnwiredGroupSync(t *testing.T) {
 func TestAnUnwiredGroupSyncIsReportedUnderEveryRuntime(t *testing.T) {
 	for _, tc := range []struct {
 		mode    string
-		runtime machine.Driver
+		runtime machine.Runtime
 	}{
-		{"an enforcing runtime, what --vm incus-ovn gives", machine.NewRecorder()},
-		{"machine.Noop, the --vm off default and what CI runs", machine.Noop{}},
+		{"an enforcing runtime, what --vm incus-ovn gives", machine.Use(machine.NewRecorder())},
+		{"machine.Noop, the --vm off default and what CI runs", machine.Use(machine.Noop{})},
 	} {
 		t.Run(tc.mode, func(t *testing.T) {
 			env, log := reportingEnv(t, tc.runtime)
@@ -217,7 +217,7 @@ func TestAPackThatWiredNoGroupSyncIsToldWhichFieldIsMissing(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			env, log := reportingEnv(t, machine.NewRecorder())
+			env, log := reportingEnv(t, machine.Use(machine.NewRecorder()))
 			res := aNode(env)
 			rec := machine.Reconciler{
 				Groups: tc.build(env),
@@ -270,10 +270,10 @@ func TestAPackThatWiredNoGroupSyncIsToldWhichFieldIsMissing(t *testing.T) {
 func TestABootWithNoDeclaredPlanIsRefusedRatherThanPanicking(t *testing.T) {
 	for _, tc := range []struct {
 		mode    string
-		runtime machine.Driver
+		runtime machine.Runtime
 	}{
-		{"an enforcing runtime", machine.NewRecorder()},
-		{"machine.Noop, the --vm off default", machine.Noop{}},
+		{"an enforcing runtime", machine.Use(machine.NewRecorder())},
+		{"machine.Noop, the --vm off default", machine.Use(machine.Noop{})},
 	} {
 		t.Run(tc.mode, func(t *testing.T) {
 			env, log := reportingEnv(t, tc.runtime)

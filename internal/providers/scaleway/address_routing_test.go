@@ -88,7 +88,7 @@ func (r *addressRuntime) withdrawn() []string {
 
 // newAddressTestServer is newRuntimeTestServer with the env kept in reach, so a
 // test can poison the store the way a restored snapshot would.
-func newAddressTestServer(t testing.TB, drv machine.Driver) (*httptest.Server, *emulator.Env) {
+func newAddressTestServer(t testing.TB, drv machine.Runtime) (*httptest.Server, *emulator.Env) {
 	t.Helper()
 
 	var seq atomic.Int64
@@ -127,7 +127,7 @@ func contains(list []string, want string) bool {
 // the replay hands the guest its address.
 func TestPowerOnRoutesAnAddressAttachedBeforeBoot(t *testing.T) {
 	rt := newAddressRuntime()
-	ts, _ := newAddressTestServer(t, rt)
+	ts, _ := newAddressTestServer(t, machine.Use(rt))
 
 	_, out := do(t, ts, "POST", zone+"/ips", `{}`)
 	ip, _ := out["ip"].(map[string]any)
@@ -160,7 +160,7 @@ func TestPowerOnRoutesAnAddressAttachedBeforeBoot(t *testing.T) {
 // decoded, echoed back, and read by nobody.
 func TestADynamicAddressFollowsThePowerCycle(t *testing.T) {
 	rt := newAddressRuntime()
-	ts, _ := newAddressTestServer(t, rt)
+	ts, _ := newAddressTestServer(t, machine.Use(rt))
 
 	_, out := do(t, ts, "POST", zone+"/servers",
 		`{"name":"ephemeral","commercial_type":"DEV1-S","image":"ubuntu_jammy","dynamic_ip_required":true}`)
@@ -229,7 +229,7 @@ func TestADynamicAddressFollowsThePowerCycle(t *testing.T) {
 // authorisation half, and this holds it on both stored paths.
 func TestAPoisonedStoredAddressIsNeverRouted(t *testing.T) {
 	rt := newAddressRuntime()
-	ts, env := newAddressTestServer(t, rt)
+	ts, env := newAddressTestServer(t, machine.Use(rt))
 
 	const poison = "10.76.154.1" // a host bridge gateway, well-formed and not ours
 

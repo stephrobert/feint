@@ -200,28 +200,29 @@ type runtimeScan struct {
 }
 
 // driverImplementations names the exported types of internal/core/machine that
-// implement machine.Driver, derived from the package's own declarations.
+// implement its driver interface, derived from the package's own declarations.
 //
 // Derived rather than listed, and for the reason #511 wrote down after three
 // wrong counts of the same surface: a list somebody remembered is a list that
 // stops being true. A fourth runtime — the remote or libvirt driver #514 leaves
 // the door open for — becomes forbidden vocabulary the day it compiles, with
 // nobody having to remember this file exists.
+//
+// The method set is read off the *unexported* interface since #514, which is
+// where it lives now. That is not a detail of this reader: a derivation still
+// looking for an exported "Driver" would find nothing, call every type an
+// implementation or none, and report a disciplined repository — which is what
+// it did for one commit while this change was being made.
 func driverImplementations(t *testing.T, pkg machinePackage) []string {
 	t.Helper()
-	var methods []string
-	for key := range pkg.members {
-		if typ, method, ok := strings.Cut(key, "."); ok && typ == "Driver" {
-			methods = append(methods, method)
-		}
-	}
+	methods := pkg.hidden["driver"]
 	if len(methods) < 5 {
-		t.Fatalf("machine.Driver reads as %d method(s): the derivation is broken, and a broken "+
-			"derivation names every type an implementation or none", len(methods))
+		t.Fatalf("the machine package's driver interface reads as %d method(s): the derivation is "+
+			"broken, and a broken derivation names every type an implementation or none", len(methods))
 	}
 	var impls []string
 	for name, kind := range pkg.names {
-		if kind != "type" || name == "Driver" {
+		if kind != "type" {
 			continue
 		}
 		complete := true
@@ -240,8 +241,8 @@ func driverImplementations(t *testing.T, pkg machinePackage) []string {
 	// is the only runtime. A derivation that found one found the interface and
 	// missed the types.
 	if len(impls) < 2 {
-		t.Fatalf("only %v implement machine.Driver: the derivation is broken, and its silence "+
-			"about the rest would read as a pack naming no runtime", impls)
+		t.Fatalf("only %v implement the machine package's driver: the derivation is broken, and "+
+			"its silence about the rest would read as a pack naming no runtime", impls)
 	}
 	return impls
 }
@@ -257,8 +258,9 @@ func runtimeTells(impls []string) []runtimeTell {
 			// are all the same knowledge, and only the first would survive a
 			// word boundary.
 			match: regexp.MustCompile(`(?i)` + regexp.QuoteMeta(impl)),
-			why: "machine." + impl + " implements machine.Driver: it is one of the runtimes behind " +
-				"--vm, and which one is running is the operator's business and never the pack's",
+			why: "machine." + impl + " implements the machine package's driver: it is one of the " +
+				"runtimes behind --vm, and which one is running is the operator's business and " +
+				"never the pack's",
 		})
 	}
 	return append(tells, declaredRuntimeTells...)

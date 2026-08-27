@@ -21,7 +21,7 @@ import (
 //
 // Every case here fails if its guard is removed. That is the point of the file.
 
-func quietBinding(driver Driver) Binding {
+func quietBinding(driver driver) Binding {
 	return Binding{
 		driver:   driver,
 		Provider: "scaleway",

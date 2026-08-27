@@ -160,13 +160,13 @@ func TestTheDisciplineDetectorsReadTheFourthPack(t *testing.T) {
 func fourthPack(t *testing.T) (*providerfour.Pack, *machine.Recorder, *emulator.Env) {
 	t.Helper()
 	rec := machine.NewRecorder()
-	env := fourthEnv(t, rec)
+	env := fourthEnv(t, machine.Use(rec))
 	return providerfour.New(env), rec, env
 }
 
 // fourthEnv is fourthPack's environment half, for the tests that need a
 // runtime other than a plain recorder.
-func fourthEnv(t *testing.T, runtime machine.Driver) *emulator.Env {
+func fourthEnv(t *testing.T, runtime machine.Runtime) *emulator.Env {
 	t.Helper()
 	machine.Binding{Provider: providerfour.Name}.ForgetPlacements()
 	n := 0
@@ -593,7 +593,7 @@ func (refusingRuntime) Start(context.Context, machine.Spec) (machine.Machine, er
 // for an address that never comes, on a machine that does not exist.
 func TestTheFourthPackPublishesTheStateTheEffectProduced(t *testing.T) {
 	ctx := context.Background()
-	env := fourthEnv(t, refusingRuntime{machine.NewRecorder()})
+	env := fourthEnv(t, machine.Use(refusingRuntime{machine.NewRecorder()}))
 	pack := providerfour.New(env)
 
 	node, err := pack.CreateNode(ctx, providerfour.NodeRequest{Name: "web-1", Image: "four-linux"})
@@ -756,7 +756,7 @@ func TestTheFourthPacksSegmentsReachEachOtherOnlyInTheSameRealm(t *testing.T) {
 	// the pack says nothing about which.
 	joined := machine.NewRecorder()
 	joined.Joined = true
-	env := fourthEnv(t, joined)
+	env := fourthEnv(t, machine.Use(joined))
 	other := providerfour.New(env)
 	first, err := other.CreateSegment(ctx, "green-1", "10.40.0.0/24", "green")
 	must(t, err)
@@ -814,7 +814,7 @@ func TestTheFourthPacksSpreaderRecordsTheDeliveryAndNotTheIntent(t *testing.T) {
 	// A runtime that cannot balance: the pack leaves its family a record and
 	// asks the host for nothing, rather than reporting nothing distributed
 	// with no reason beside it.
-	silent := fourthEnv(t, machine.Noop{})
+	silent := fourthEnv(t, machine.Use(machine.Noop{}))
 	quiet := providerfour.New(silent)
 	other, err := quiet.CreateSegment(ctx, "front", "10.40.0.0/24", "green")
 	must(t, err)
@@ -874,7 +874,7 @@ func TestTheFourthPacksSpreaderKeepsItsPortAcrossASnapshot(t *testing.T) {
 	}
 
 	rec := machine.NewRecorder()
-	next := fourthEnv(t, rec)
+	next := fourthEnv(t, machine.Use(rec))
 	next.Store = restored
 	revived := providerfour.New(next)
 	must(t, revived.RegisterBackend(ctx, spreader.ID, node.ID))

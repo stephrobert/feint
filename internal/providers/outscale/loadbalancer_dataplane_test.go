@@ -124,7 +124,7 @@ func aBalancedStack(t *testing.T, ts *httptest.Server) (vmA, vmB, vip string) {
 func TestAnUndeclaredBalancingCapabilityIsNeverUsed(t *testing.T) {
 	runtime := newRecordingBalancer(false)
 	close(runtime.release)
-	ts := newRuntimeServer(t, runtime)
+	ts := newRuntimeServer(t, machine.Use(runtime))
 
 	aBalancedStack(t, ts)
 
@@ -144,7 +144,7 @@ func TestAnUndeclaredBalancingCapabilityIsNeverUsed(t *testing.T) {
 func TestTheBalancerSpecIsWhatTheApiDescribes(t *testing.T) {
 	runtime := newRecordingBalancer(true)
 	close(runtime.release)
-	ts := newRuntimeServer(t, runtime)
+	ts := newRuntimeServer(t, machine.Use(runtime))
 
 	_, _, vip := aBalancedStack(t, ts)
 
@@ -182,7 +182,7 @@ func TestTheBalancerSpecIsWhatTheApiDescribes(t *testing.T) {
 func TestUnlinkingAndDeletingReachTheRuntime(t *testing.T) {
 	runtime := newRecordingBalancer(true)
 	close(runtime.release)
-	ts := newRuntimeServer(t, runtime)
+	ts := newRuntimeServer(t, machine.Use(runtime))
 
 	vmA, _, vip := aBalancedStack(t, ts)
 
@@ -221,7 +221,7 @@ func TestUnlinkingAndDeletingReachTheRuntime(t *testing.T) {
 func TestEmptyingTheListenersRemovesTheBalancerFromTheRuntime(t *testing.T) {
 	runtime := newRecordingBalancer(true)
 	close(runtime.release)
-	ts := newRuntimeServer(t, runtime)
+	ts := newRuntimeServer(t, machine.Use(runtime))
 
 	_, _, vip := aBalancedStack(t, ts)
 	if len(runtime.specs()) == 0 {
@@ -296,7 +296,7 @@ func (r *withholdingBalancer) EnsureBalancer(ctx context.Context, spec machine.B
 
 // newLoggedRuntimeServer is newRuntimeServer with somewhere to read the log,
 // because the level a line carries is the subject here.
-func newLoggedRuntimeServer(t *testing.T, drv machine.Driver, log *bytes.Buffer) *httptest.Server {
+func newLoggedRuntimeServer(t *testing.T, drv machine.Runtime, log *bytes.Buffer) *httptest.Server {
 	t.Helper()
 	env := emulator.DefaultEnv()
 	env.UseMachines(drv)
@@ -328,7 +328,7 @@ func TestAnUndistributableShapeIsNotLoggedAsAnError(t *testing.T) {
 			"outside that network's own block 10.188.3.0/24", machine.ErrBalancerNotDistributed),
 	}
 	close(runtime.release)
-	ts := newLoggedRuntimeServer(t, runtime, &log)
+	ts := newLoggedRuntimeServer(t, machine.Use(runtime), &log)
 
 	aBalancedStack(t, ts)
 	if len(runtime.specs()) == 0 {
@@ -352,7 +352,7 @@ func TestAnUndistributableShapeIsNotLoggedAsAnError(t *testing.T) {
 		err:               errors.New("incus query: Error: Failed creating load balancer: something new"),
 	}
 	close(failing.release)
-	aBalancedStack(t, newLoggedRuntimeServer(t, failing, &broken))
+	aBalancedStack(t, newLoggedRuntimeServer(t, machine.Use(failing), &broken))
 	if !strings.Contains(broken.String(), "level=ERROR") {
 		t.Errorf("a runtime failure must stay an error: %q", broken.String())
 	}
@@ -406,7 +406,7 @@ func TestAPartialDeliveryIsRecordedAndSaidAtWarn(t *testing.T) {
 	var log bytes.Buffer
 	runtime := &withholdingBalancer{recordingBalancer: newRecordingBalancer(true), withheld: map[string]string{}}
 	close(runtime.release)
-	ts := newLoggedRuntimeServer(t, runtime, &log)
+	ts := newLoggedRuntimeServer(t, machine.Use(runtime), &log)
 
 	doc := contractDoc(t)
 	out := call(t, ts, doc, "CreateNet", `{"IpRange":"10.188.0.0/16"}`)

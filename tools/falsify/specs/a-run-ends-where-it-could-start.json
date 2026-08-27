@@ -33,8 +33,8 @@
     {
       "label": "serve stops asking the driver on its way out, so the uplink outlives every graceful stop again and the next run's doorstep refuses the host",
       "file": "internal/cli/cli.go",
-      "find": "\tif releaser, ok := driver.(machine.UplinkReleaser); ok {",
-      "replace": "\tif releaser, ok := driver.(machine.UplinkReleaser); ok && false {",
+      "find": "\tif released, asked, err := rt.ReleaseUplink(context.Background()); asked {",
+      "replace": "\tif released, asked, err := rt.ReleaseUplink(context.Background()); asked && false {",
       "test": "TestAGracefulExitReleasesTheUplink",
       "package": "./internal/cli/"
     },

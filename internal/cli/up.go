@@ -316,7 +316,7 @@ func preflight(decl *environment.File, skipIaC bool, stdout io.Writer) error {
 	// This is the same check `serve` makes at startup (#181) — a mode the host
 	// cannot deliver is refused naming the missing half — moved ahead of
 	// everything so that nothing has started when it fires.
-	driver, err := resolveRuntime(decl.Runtime.Mode, stdout)
+	rt, err := resolveRuntime(decl.Runtime.Mode, stdout)
 	if err != nil {
 		// A guard with no way past it gets worked around by copying the
 		// emulator, which teaches nobody anything — the reasoning that named
@@ -328,11 +328,11 @@ func preflight(decl *environment.File, skipIaC bool, stdout io.Writer) error {
 	if len(decl.Runtime.Images) == 0 {
 		return nil
 	}
-	if _, isNoop := driver.(machine.Noop); isNoop {
+	if !rt.Runs() {
 		fmt.Fprintf(stdout, "  runtime.images: not checked, nothing boots under `%s`\n", decl.Runtime.Mode)
 		return nil
 	}
-	return checkDeclaredImages(decl, driver, stdout)
+	return checkDeclaredImages(decl, rt, stdout)
 }
 
 // resolveRuntime is machineDriver, behind a name a test can replace.
@@ -436,14 +436,14 @@ func waysPastTheRuntimeRefusal(decl *environment.File) string {
 //
 // TestADeclaredImageTheStationLacksIsRefusedWithTheCommandThatBuildsIt fails
 // without the refusal, and its sibling holds the accepting half.
-func checkDeclaredImages(decl *environment.File, driver machine.Driver, stdout io.Writer) error {
+func checkDeclaredImages(decl *environment.File, rt machine.Runtime, stdout io.Writer) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	inventory, err := machine.ImageInventory(ctx, driver)
+	inventory, err := rt.Inventory(ctx)
 	if err != nil {
 		return fmt.Errorf("reading the machine images: %w", err)
 	}
-	derived, err := machine.DerivedImages(ctx, driver)
+	derived, err := rt.DerivedInventory(ctx)
 	if err != nil {
 		return fmt.Errorf("reading the images this station derived: %w", err)
 	}

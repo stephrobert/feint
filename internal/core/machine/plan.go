@@ -110,9 +110,9 @@ func (r Reconciler) plan(res *resource.Resource) (Plan, bool) {
 
 // router is the runtime's routing half, nil when it has none — the assertion
 // every pack wrote for itself, now inside the layer.
-func (r Reconciler) router() Router {
-	router, _ := r.binding().driver.(Router)
-	return router
+func (r Reconciler) router() router {
+	rt, _ := r.binding().driver.(router)
+	return rt
 }
 
 // PowerOn starts the machine on its declared plan and replays the post-boot

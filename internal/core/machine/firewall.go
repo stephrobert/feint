@@ -108,14 +108,14 @@ func (b FirewallBinding) covers(network string) bool {
 	return network == "" || !slices.Contains(b.Unfiltered, network)
 }
 
-// Firewaller is the optional half of a Driver: a runtime that can enforce rules
-// implements it, one that cannot does not, and the pack degrades to serving the
-// rules as metadata.
+// firewaller is the optional half of a driver: a runtime that can enforce
+// rules implements it, one that cannot does not, and the pack degrades to
+// serving the rules as metadata.
 //
-// Kept separate from Driver on purpose. Enforcement is the one capability whose
-// absence a user has to be told about, and a separate interface makes that
-// absence a compile-time fact rather than a silent no-op.
-type Firewaller interface {
+// Kept separate from the driver on purpose. Enforcement is the one capability
+// whose absence a user has to be told about, and a separate interface makes
+// that absence a compile-time fact rather than a silent no-op.
+type firewaller interface {
 	// EnsureFirewall creates or replaces the rule set as a whole. Replacing
 	// rather than patching is what makes a rule removed upstream disappear here
 	// instead of lingering.

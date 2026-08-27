@@ -50,21 +50,20 @@ const whyTrapped = "beyond-an-ordinary-command"
 // Distinguishes three outcomes rather than two, like every other reader here: a
 // runtime that cannot be asked is not a clean one, and it says so instead of
 // answering zero.
-func reportRuntimeTraps(out io.Writer, led *ledger, driver machine.Driver) (int, error) {
-	repairer, ok := driver.(machine.Repairer)
-	if !ok {
-		led.prose("the %s runtime cannot be asked what holds it, so nothing was asked\n", driver.Name())
-		return 0, nil
-	}
+func reportRuntimeTraps(out io.Writer, led *ledger, rt machine.Runtime) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	traps, err := repairer.Traps(ctx)
+	traps, asked, err := rt.Traps(ctx)
+	if !asked {
+		led.prose("the %s runtime cannot be asked what holds it, so nothing was asked\n", rt.Name())
+		return 0, nil
+	}
 	if err != nil {
-		led.record(leftoverRecord{Kind: "survey", Name: driver.Name(), Attribution: "none",
+		led.record(leftoverRecord{Kind: "survey", Name: rt.Name(), Attribution: "none",
 			Stage: stageDoorstep, Why: whyUnreadable, Action: actionNone})
 		return 0, fmt.Errorf("could not look at what holds the %s runtime, so this host cannot be called clean: %w",
-			driver.Name(), err)
+			rt.Name(), err)
 	}
 	if len(traps) == 0 {
 		led.prose("nothing on this runtime is beyond an ordinary sweep\n")
@@ -88,21 +87,20 @@ func reportRuntimeTraps(out io.Writer, led *ledger, driver machine.Driver) (int,
 // The announcement is not politeness. What this touches is the runtime's own
 // database, so the row is printed whole before it goes and again as it goes,
 // and an operator who disagrees has everything needed to put it back.
-func clearRuntimeTraps(out io.Writer, led *ledger, driver machine.Driver) error {
-	repairer, ok := driver.(machine.Repairer)
-	if !ok {
-		return fmt.Errorf("--force has nothing to reach on the %s runtime: it cannot be asked what holds it",
-			driver.Name())
-	}
+func clearRuntimeTraps(out io.Writer, led *ledger, rt machine.Runtime) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	traps, err := repairer.Traps(ctx)
+	traps, asked, err := rt.Traps(ctx)
+	if !asked {
+		return fmt.Errorf("--force has nothing to reach on the %s runtime: it cannot be asked what holds it",
+			rt.Name())
+	}
 	if err != nil {
-		led.record(leftoverRecord{Kind: "survey", Name: driver.Name(), Attribution: "none",
+		led.record(leftoverRecord{Kind: "survey", Name: rt.Name(), Attribution: "none",
 			Stage: stageSweep, Why: whyUnreadable, Action: actionNone})
 		return fmt.Errorf("could not look at what holds the %s runtime, so nothing was forced: %w",
-			driver.Name(), err)
+			rt.Name(), err)
 	}
 	var repairable []machine.Trap
 	for _, trap := range traps {
@@ -125,7 +123,7 @@ func clearRuntimeTraps(out io.Writer, led *ledger, driver machine.Driver) error 
 		led.prose("  %s %s: %s\n    %s\n", trap.Kind, trap.Name, trap.Why, trap.Row)
 	}
 
-	cleared, repairErr := repairer.Repair(ctx)
+	cleared, _, repairErr := rt.Repair(ctx)
 	for _, trap := range cleared {
 		led.record(trapRecord(trap, stageSweep, actionRemoved))
 		led.prose("removed %s %s\n", trap.Kind, trap.Name)

@@ -31,9 +31,9 @@ var ErrNetworkGone = errors.New("the network was removed while its isolation was
 // The Incus halves of both are in incus_isolate.go, with the measurements that
 // made the OVN mode necessary.
 
-// Isolator is the optional half of a Driver whose networks are born joined, and
-// that can keep them apart with rules.
-type Isolator interface {
+// isolator is the optional half of a driver whose networks are born joined,
+// and that can keep them apart with rules.
+type isolator interface {
 	// IsolateNetwork rejects traffic from the network towards each foreign
 	// block, and leaves everything else alone. Called again with a different
 	// list, it replaces the previous one: blocks appear and disappear as
@@ -41,12 +41,12 @@ type Isolator interface {
 	IsolateNetwork(ctx context.Context, network string, foreign []string) error
 }
 
-// Peerer is the optional half of a Driver whose networks are born separate
-// and joined on request — the exact inverse of Isolator. A pack asks
-// NativeIsolation to know which of the two it is talking to: with a Peerer that
-// answers true, reject rules against foreign blocks are dead weight, and
+// peerer is the optional half of a driver whose networks are born separate
+// and joined on request — the exact inverse of the isolator. The layer asks
+// NativeIsolation to know which of the two it is talking to: with a peerer
+// that answers true, reject rules against foreign blocks are dead weight, and
 // reachability is granted by peering instead.
-type Peerer interface {
+type peerer interface {
 	// NativeIsolation reports whether two networks of this driver are
 	// unreachable from each other unless peered.
 	NativeIsolation() bool
@@ -89,13 +89,13 @@ type IsolationMember struct {
 // says what happened — native peering, rule-set isolation, or nothing, when
 // the driver has neither capability — because at least one pack does extra
 // work (a security-group resync) only in the rule-set case.
-func ReconcileIsolation(ctx context.Context, driver Driver, log *slog.Logger, noun string,
+func ReconcileIsolation(ctx context.Context, d driver, log *slog.Logger, noun string,
 	members []IsolationMember, reachable func(from, to int) bool) (native, applied bool) {
 	if log == nil {
 		log = slog.Default()
 	}
 
-	if peerer, ok := driver.(Peerer); ok && peerer.NativeIsolation() {
+	if peer, ok := d.(peerer); ok && peer.NativeIsolation() {
 		for i, m := range members {
 			if m.Network == "" {
 				continue
@@ -109,14 +109,14 @@ func ReconcileIsolation(ctx context.Context, driver Driver, log *slog.Logger, no
 					peers = append(peers, other.Network)
 				}
 			}
-			if err := peerer.PeerNetworks(ctx, m.Network, peers); err != nil {
+			if err := peer.PeerNetworks(ctx, m.Network, peers); err != nil {
 				report(log, noun, m, err, "peer")
 			}
 		}
 		return true, true
 	}
 
-	isolator, ok := driver.(Isolator)
+	iso, ok := d.(isolator)
 	if !ok {
 		return false, false
 	}
@@ -133,7 +133,7 @@ func ReconcileIsolation(ctx context.Context, driver Driver, log *slog.Logger, no
 				foreign = append(foreign, other.Block)
 			}
 		}
-		if err := isolator.IsolateNetwork(ctx, m.Network, foreign); err != nil {
+		if err := iso.IsolateNetwork(ctx, m.Network, foreign); err != nil {
 			report(log, noun, m, err, "isolate")
 		}
 	}
@@ -141,7 +141,7 @@ func ReconcileIsolation(ctx context.Context, driver Driver, log *slog.Logger, no
 }
 
 // ReconcileIsolation is the binding's door onto the pass above, and the only
-// one a provider pack has: the package-level form takes a Driver, which is
+// one a provider pack has: the package-level form takes a driver, which is
 // precisely the value #511 took out of every pack's reach, and it stays
 // exported for the core's own tests and for nothing else.
 //

@@ -45,7 +45,7 @@ func swapLeftoverSeams(t *testing.T, find func() ([]machine.DHCPLeftover, error)
 	// afterwards; withDriver in clean_ledger_test.go is that override, and it
 	// works because a later swap wins.
 	savedSurvey := surveyRuntime
-	surveyRuntime = func(context.Context, machine.Driver) (machine.Leftovers, bool, error) {
+	surveyRuntime = func(context.Context, machine.Runtime) (machine.Leftovers, bool, error) {
 		return machine.Leftovers{}, false, nil
 	}
 	t.Cleanup(func() { surveyRuntime = savedSurvey })

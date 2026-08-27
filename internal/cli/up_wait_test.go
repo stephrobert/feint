@@ -307,12 +307,12 @@ func TestUpRefusesADeclaredRuntimeTheHostCannotDeliver(t *testing.T) {
 
 	asked := ""
 	restore := resolveRuntime
-	resolveRuntime = func(mode string, _ io.Writer) (machine.Driver, error) {
+	resolveRuntime = func(mode string, _ io.Writer) (machine.Runtime, error) {
 		asked = mode
 		if mode == "off" {
-			return machine.Noop{}, nil
+			return machine.Use(machine.Noop{}), nil
 		}
-		return nil, fmt.Errorf("--vm %s requested but this host cannot deliver it:\n"+
+		return machine.Runtime{}, fmt.Errorf("--vm %s requested but this host cannot deliver it:\n"+
 			"  isolation: the daemon did not answer for network.ovn.northbound", mode)
 	}
 	t.Cleanup(func() { resolveRuntime = restore })
@@ -355,7 +355,7 @@ func TestUpRefusesADeclaredRuntimeTheHostCannotDeliver(t *testing.T) {
 // every mode would pass the test above and serve nobody.
 func TestUpAcceptsARuntimeTheHostDoesDeliver(t *testing.T) {
 	restore := resolveRuntime
-	resolveRuntime = func(_ string, _ io.Writer) (machine.Driver, error) { return machine.Noop{}, nil }
+	resolveRuntime = func(_ string, _ io.Writer) (machine.Runtime, error) { return machine.Use(machine.Noop{}), nil }
 	t.Cleanup(func() { resolveRuntime = restore })
 
 	decl, err := environment.Parse("version: 1\nruntime:\n  mode: incus-ovn\n")
@@ -387,7 +387,7 @@ func TestADeclaredImageTheStationLacksIsRefusedWithTheCommandThatBuildsIt(t *tes
 		t.Fatalf("parse: %v", err)
 	}
 	var buf bytes.Buffer
-	err = checkDeclaredImages(decl, emptyStation{}, &buf)
+	err = checkDeclaredImages(decl, machine.Use(emptyStation{}), &buf)
 	if err == nil {
 		t.Fatalf("a station holding no image accepted a declaration that needs %s", want)
 	}
@@ -408,7 +408,7 @@ func TestAnImageOutsideTheWarmUpSetIsAnnouncedAndNeverRefused(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 	var out bytes.Buffer
-	if err := checkDeclaredImages(decl, emptyStation{}, &out); err != nil {
+	if err := checkDeclaredImages(decl, machine.Use(emptyStation{}), &out); err != nil {
 		t.Fatalf("an image the boot path can derive was refused: %v", err)
 	}
 	if !strings.Contains(out.String(), "nixos/25.05") || !strings.Contains(out.String(), "derives one") {

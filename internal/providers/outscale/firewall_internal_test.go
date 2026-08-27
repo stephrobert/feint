@@ -61,7 +61,7 @@ func (d *firewallDriver) RemoveFirewall(_ context.Context, name string) error {
 
 // firewallPack is runtimePack with unique identifiers, which several stored
 // groups need.
-func firewallPack(driver machine.Driver) *Pack {
+func firewallPack(driver machine.Runtime) *Pack {
 	n := 0
 	env := &emulator.Env{
 		Store: store.New(),
@@ -111,7 +111,7 @@ func storedVM(p *Pack, groupIDs ...string) *resource.Resource {
 // directions, which is what the API describes and the host never received.
 func TestAnOutscaleGroupReachesTheHostWhenItsVmBoots(t *testing.T) {
 	driver := newFirewallDriver()
-	p := firewallPack(driver)
+	p := firewallPack(machine.Use(driver))
 	group := storedGroup(p, "witness-osc", []any{map[string]any{
 		"FromPortRange": 22, "ToPortRange": 22, "IpProtocol": "tcp",
 		"IpRanges": []any{"0.0.0.0/0"},
@@ -142,7 +142,7 @@ func TestAnOutscaleGroupReachesTheHostWhenItsVmBoots(t *testing.T) {
 // member boots.
 func TestAMemberSourcedRuleExpandsToTheMembersAddresses(t *testing.T) {
 	driver := newFirewallDriver()
-	p := firewallPack(driver)
+	p := firewallPack(machine.Use(driver))
 	web := storedGroup(p, "web", nil)
 	data := storedGroup(p, "data", []any{map[string]any{
 		"FromPortRange": 5432, "ToPortRange": 5432, "IpProtocol": "tcp",
@@ -181,7 +181,7 @@ func TestAMemberSourcedRuleExpandsToTheMembersAddresses(t *testing.T) {
 // holds.
 func TestARevokedRuleLeavesTheRuleSet(t *testing.T) {
 	driver := newFirewallDriver()
-	p := firewallPack(driver)
+	p := firewallPack(machine.Use(driver))
 	group := storedGroup(p, "witness-osc", []any{map[string]any{
 		"FromPortRange": 22, "ToPortRange": 22, "IpProtocol": "tcp",
 		"IpRanges": []any{"0.0.0.0/0"}, "SecurityGroupRuleId": "sgr-1",

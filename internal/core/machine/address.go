@@ -27,10 +27,10 @@ type AddressSpec struct {
 	Network string
 }
 
-// Router is the optional half of a Driver that can give a machine a public
-// address. Separate from Driver so a runtime without the capability is a
+// router is the optional half of a driver that can give a machine a public
+// address. Separate from the driver so a runtime without the capability is a
 // compile-time fact rather than a silent no-op.
-type Router interface {
+type router interface {
 	// RouteAddress makes the address reach the machine, and the machine carry
 	// it. Calling it twice with the same pair is harmless.
 	RouteAddress(ctx context.Context, spec AddressSpec) error

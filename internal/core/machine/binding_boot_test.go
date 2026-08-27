@@ -44,9 +44,9 @@ func (d *recordingDriver) Attach(context.Context, string, Attachment) error { re
 func (d *recordingDriver) Detach(context.Context, string, string) error     { return nil }
 func (d *recordingDriver) RemoveNetwork(context.Context, string) error      { return nil }
 
-func bootBinding(driver Driver) Binding {
+func bootBinding(d driver) Binding {
 	return Binding{
-		driver:       driver,
+		driver:       d,
 		Provider:     "acme",
 		Prefix:       "feint-acme-",
 		User:         "root",
@@ -78,7 +78,7 @@ func TestAnUnknownImageStaysMetadataOnlyWithoutARuntime(t *testing.T) {
 	// Noop boots nothing, so there is nothing to substitute: the control plane
 	// must keep accepting — docs/limits.md promises hardcoded production
 	// identifiers keep working, and CI runs the conformance suites this way.
-	for name, driver := range map[string]Driver{"noop": Noop{}, "nil": nil} {
+	for name, driver := range map[string]driver{"noop": Noop{}, "nil": nil} {
 		b := bootBinding(driver)
 		res := &resource.Resource{ID: "srv-1", State: "stopped"}
 		if !b.PowerOn(context.Background(), res, Boot{Requested: "totalement-inconnue"}) {

@@ -134,9 +134,14 @@ type Machine struct {
 	Running bool
 }
 
-// Driver runs machines and the networks they sit on. Implementations must be
+// driver runs machines and the networks they sit on. Implementations must be
 // safe for concurrent use.
-type Driver interface {
+//
+// Unexported since #514, and that is the point: a pack could not obtain one
+// after #511 and could still name one, so `var _ machine.Driver` compiled in
+// internal/providers/scaleway on 154c204. What leaves this package is Runtime
+// (runtime.go), which carries a driver and offers none of its verbs.
+type driver interface {
 	// Name identifies the driver in logs and in the health endpoint.
 	Name() string
 	// Available reports whether the driver can actually run anything. The
@@ -171,7 +176,7 @@ type Driver interface {
 	RemoveNetwork(ctx context.Context, name string) error
 }
 
-// Waiter is the optional half of a Driver that can tell when a machine is
+// Waiter is the optional half of a driver that can tell when a machine is
 // ready. Start never waits, because an API call must not block for the tens of
 // seconds a virtual machine takes to boot; a caller that needs to reach the
 // machine asks here instead.
@@ -185,36 +190,36 @@ type Waiter interface {
 // on a machine runtime being present.
 type Noop struct{}
 
-// Name implements Driver.
+// Name implements driver.
 func (Noop) Name() string { return "none" }
 
-// Available implements Driver.
+// Available implements driver.
 func (Noop) Available(context.Context) bool { return true }
 
-// Start implements Driver.
+// Start implements driver.
 func (Noop) Start(_ context.Context, spec Spec) (Machine, error) {
 	return Machine{ID: "", Name: spec.Name, Running: true}, nil
 }
 
-// Stop implements Driver.
+// Stop implements driver.
 func (Noop) Stop(context.Context, string) error { return nil }
 
-// Remove implements Driver.
+// Remove implements driver.
 func (Noop) Remove(context.Context, string) error { return nil }
 
-// Inspect implements Driver.
+// Inspect implements driver.
 func (Noop) Inspect(_ context.Context, name string) (Machine, bool, error) {
 	return Machine{Name: name}, false, nil
 }
 
-// EnsureNetwork implements Driver.
+// EnsureNetwork implements driver.
 func (Noop) EnsureNetwork(context.Context, NetworkSpec) error { return nil }
 
-// Attach implements Driver.
+// Attach implements driver.
 func (Noop) Attach(context.Context, string, Attachment) error { return nil }
 
-// Detach implements Driver.
+// Detach implements driver.
 func (Noop) Detach(context.Context, string, string) error { return nil }
 
-// RemoveNetwork implements Driver.
+// RemoveNetwork implements driver.
 func (Noop) RemoveNetwork(context.Context, string) error { return nil }

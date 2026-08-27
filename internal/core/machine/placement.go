@@ -49,20 +49,20 @@ func placementKey(provider, address string) string { return provider + "|" + add
 // A failure to unroute the previous holder is returned rather than swallowed. The
 // caller wanted the address moved, and a move whose first half failed has left
 // the address where it was.
-func (b Binding) RouteAddress(ctx context.Context, router Router, spec AddressSpec) error {
-	if router == nil || spec.Address == "" || spec.Machine == "" {
+func (b Binding) RouteAddress(ctx context.Context, rt router, spec AddressSpec) error {
+	if rt == nil || spec.Address == "" || spec.Machine == "" {
 		return nil
 	}
 	key := placementKey(b.Provider, spec.Address)
 
 	if held, ok := placements.Load(key); ok {
 		if previous, _ := held.(string); previous != "" && previous != spec.Machine {
-			if err := router.UnrouteAddress(ctx, previous, spec.Address); err != nil {
+			if err := rt.UnrouteAddress(ctx, previous, spec.Address); err != nil {
 				return err
 			}
 		}
 	}
-	if err := router.RouteAddress(ctx, spec); err != nil {
+	if err := rt.RouteAddress(ctx, spec); err != nil {
 		return err
 	}
 	placements.Store(key, spec.Machine)
@@ -76,11 +76,11 @@ func (b Binding) RouteAddress(ctx context.Context, router Router, spec AddressSp
 // — and forgetting the placement then would leave the current holder unknown, so
 // the next move would not take it back from anybody. Only a call naming the
 // recorded holder clears the record.
-func (b Binding) UnrouteAddress(ctx context.Context, router Router, machine, address string) error {
-	if router == nil || address == "" {
+func (b Binding) UnrouteAddress(ctx context.Context, rt router, machine, address string) error {
+	if rt == nil || address == "" {
 		return nil
 	}
-	err := router.UnrouteAddress(ctx, machine, address)
+	err := rt.UnrouteAddress(ctx, machine, address)
 
 	key := placementKey(b.Provider, address)
 	if held, ok := placements.Load(key); ok {

@@ -16,12 +16,12 @@ import (
 // contractInterfaces is the surface the vocabulary must cover: Driver and its
 // optional halves, exactly the set NewRecorder implements.
 var contractInterfaces = map[string]reflect.Type{
-	"Driver":     reflect.TypeOf((*Driver)(nil)).Elem(),
-	"Router":     reflect.TypeOf((*Router)(nil)).Elem(),
-	"Firewaller": reflect.TypeOf((*Firewaller)(nil)).Elem(),
-	"Peerer":     reflect.TypeOf((*Peerer)(nil)).Elem(),
-	"Isolator":   reflect.TypeOf((*Isolator)(nil)).Elem(),
-	"Balancer":   reflect.TypeOf((*Balancer)(nil)).Elem(),
+	"Driver":     reflect.TypeOf((*driver)(nil)).Elem(),
+	"Router":     reflect.TypeOf((*router)(nil)).Elem(),
+	"Firewaller": reflect.TypeOf((*firewaller)(nil)).Elem(),
+	"Peerer":     reflect.TypeOf((*peerer)(nil)).Elem(),
+	"Isolator":   reflect.TypeOf((*isolator)(nil)).Elem(),
+	"Balancer":   reflect.TypeOf((*balancer)(nil)).Elem(),
 	"Capable":    reflect.TypeOf((*Capable)(nil)).Elem(),
 }
 

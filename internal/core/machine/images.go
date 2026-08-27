@@ -283,7 +283,7 @@ func ParseDeclaredImages(s string) (map[string]Image, error) {
 	return out, nil
 }
 
-// ImageBuilder is the optional half of a Driver that can build the images
+// ImageBuilder is the optional half of a driver that can build the images
 // RequiredImages names.
 //
 // It is the seam `feint images` drives, named here so EnsureImage can drive the
@@ -331,16 +331,16 @@ func imageBuildLock(alias string) *sync.Mutex {
 // alias somebody may be booting from.
 //
 // TestOneBuilderPerImageAndPerProcess fails without this.
-func BuildIfMissing(ctx context.Context, driver Driver, spec ImageSpec, progress io.Writer) (bool, error) {
-	builder, canBuild := driver.(ImageBuilder)
+func BuildIfMissing(ctx context.Context, d driver, spec ImageSpec, progress io.Writer) (bool, error) {
+	builder, canBuild := d.(ImageBuilder)
 	if !canBuild {
-		return false, fmt.Errorf("the %s runtime cannot build images", driver.Name())
+		return false, fmt.Errorf("the %s runtime cannot build images", d.Name())
 	}
 	mu := imageBuildLock(spec.Alias())
 	mu.Lock()
 	defer mu.Unlock()
 
-	if lister, canAsk := driver.(ImageLister); canAsk {
+	if lister, canAsk := d.(ImageLister); canAsk {
 		held, err := lister.LocalImages(ctx)
 		// A station that cannot be asked is not a station that holds nothing:
 		// the build goes ahead, because the caller asked for this image and
@@ -378,7 +378,7 @@ func BuildIfMissing(ctx context.Context, driver Driver, spec ImageSpec, progress
 //
 // TestAFailedImageBuildRefusesTheBootAndNamesTheSource and
 // TestABootDerivesAndBuildsTheImageItNames fail without this.
-func EnsureImage(ctx context.Context, driver Driver, ref string, log *slog.Logger) (bool, error) {
+func EnsureImage(ctx context.Context, d driver, ref string, log *slog.Logger) (bool, error) {
 	if log == nil {
 		log = slog.Default()
 	}
@@ -386,14 +386,14 @@ func EnsureImage(ctx context.Context, driver Driver, ref string, log *slog.Logge
 	if !ours {
 		return false, nil
 	}
-	lister, canAsk := driver.(ImageLister)
-	_, canBuild := driver.(ImageBuilder)
+	lister, canAsk := d.(ImageLister)
+	_, canBuild := d.(ImageBuilder)
 	if !canAsk || !canBuild {
 		// An undeclared capability counts as absent, so this says "nobody could
 		// look" rather than "the image is there": the boot goes on, and the
 		// driver's own fallback warning is what the operator reads next.
 		log.Debug("this runtime cannot be asked about base images, so none is built",
-			"image", ref, "runtime", driver.Name())
+			"image", ref, "runtime", d.Name())
 		return false, nil
 	}
 	held, err := lister.LocalImages(ctx)
@@ -419,7 +419,7 @@ func EnsureImage(ctx context.Context, driver Driver, ref string, log *slog.Logge
 	buildCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), imageBuildTimeout)
 	defer cancel()
 	started := time.Now()
-	built, err := BuildIfMissing(buildCtx, driver, spec, nil)
+	built, err := BuildIfMissing(buildCtx, d, spec, nil)
 	if err != nil {
 		// Said here with the duration; the caller owns the refusal and its
 		// message, because only it knows the resource and the provider.
@@ -475,12 +475,12 @@ type ImageLister interface {
 // never as present: an undeclared property counts as absent, which is the same
 // rule CapabilitiesOf applies. Reporting "nothing is missing" because nobody
 // could look is the failure this project exists to remove.
-func ImageInventory(ctx context.Context, driver Driver) ([]ImageStatus, error) {
+func ImageInventory(ctx context.Context, d driver) ([]ImageStatus, error) {
 	specs := RequiredImages()
 	sort.Slice(specs, func(i, j int) bool { return specs[i].Name < specs[j].Name })
 
 	held := map[string]string{}
-	if lister, ok := driver.(ImageLister); ok {
+	if lister, ok := d.(ImageLister); ok {
 		var err error
 		held, err = lister.LocalImages(ctx)
 		if err != nil {
@@ -514,8 +514,8 @@ func ImageInventory(ctx context.Context, driver Driver) ([]ImageStatus, error) {
 // control, and the report names the removal gesture beside each derived row.
 //
 // TestDerivedImagesAreNamedBesideTheWarmupSet fails without this.
-func DerivedImages(ctx context.Context, driver Driver) ([]ImageStatus, error) {
-	lister, ok := driver.(ImageLister)
+func DerivedImages(ctx context.Context, d driver) ([]ImageStatus, error) {
+	lister, ok := d.(ImageLister)
 	if !ok {
 		return nil, nil
 	}

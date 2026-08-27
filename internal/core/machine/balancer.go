@@ -204,13 +204,13 @@ func RecordBalancerDelivery(st *store.Store, res *resource.Resource, now time.Ti
 	st.Commit(base, res, now)
 }
 
-// Balancer is the optional half of a Driver that can distribute packets.
+// balancer is the optional half of a driver that can distribute packets.
 //
-// Optional for the same reason Firewaller is: absence has to be a compile-time
-// fact and a declared capability, never a silent no-op. A pack whose driver is
-// not a Balancer serves the load-balancer family exactly as before — the
-// configuration round-trips, nothing forwards — and says so.
-type Balancer interface {
+// Optional for the same reason the firewalling half is: absence has to be a
+// compile-time fact and a declared capability, never a silent no-op. A pack
+// whose driver does not balance serves the load-balancer family exactly as
+// before — the configuration round-trips, nothing forwards — and says so.
+type balancer interface {
 	// EnsureBalancer creates or replaces the balancer as a whole. It must
 	// succeed when called again with the same specification, and its delivery
 	// reports what the host now holds: the targets distributed, and the ones
@@ -231,12 +231,12 @@ type Balancer interface {
 // Verify clears the claim on a host whose daemon has no northbound connection.
 // Asking only whether the interface is implemented would drive a
 // bridge-backed run into a refusal on every register.
-func (b Binding) balancer() Balancer {
+func (b Binding) balancer() balancer {
 	if b.driver == nil || !CapabilitiesOf(b.driver).Balancing {
 		return nil
 	}
-	balancer, _ := b.driver.(Balancer)
-	return balancer
+	bal, _ := b.driver.(balancer)
+	return bal
 }
 
 // Balances reports whether this runtime both implements and declares
@@ -255,22 +255,22 @@ func (b Binding) Balances() bool { return b.balancer() != nil }
 // through, so the caller would record "nothing distributed" with no reason
 // beside it. Three outcomes, never two.
 func (b Binding) EnsureBalancer(ctx context.Context, spec BalancerSpec) (BalancerDelivery, error) {
-	balancer := b.balancer()
-	if balancer == nil {
+	bal := b.balancer()
+	if bal == nil {
 		return BalancerDelivery{}, ErrBalancerNotDistributed
 	}
-	return balancer.EnsureBalancer(ctx, spec)
+	return bal.EnsureBalancer(ctx, spec)
 }
 
 // RemoveBalancer withdraws it. It succeeds when nothing is there, which is the
 // normal path: a delete runs after an emptied listener set that may never have
 // reached the host. A runtime that does not balance holds nothing to withdraw,
 // so this is a no-op rather than an error — the asymmetry with EnsureBalancer
-// is deliberate, and it is the same one Driver.Remove documents.
+// is deliberate, and it is the same one the driver's Remove documents.
 func (b Binding) RemoveBalancer(ctx context.Context, network, listen string) error {
-	balancer := b.balancer()
-	if balancer == nil {
+	bal := b.balancer()
+	if bal == nil {
 		return nil
 	}
-	return balancer.RemoveBalancer(ctx, network, listen)
+	return bal.RemoveBalancer(ctx, network, listen)
 }

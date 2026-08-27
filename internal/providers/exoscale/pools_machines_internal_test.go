@@ -65,7 +65,7 @@ func (d *failingDriver) Start(context.Context, machine.Spec) (machine.Machine, e
 
 // sequencedPack is runtimePack with unique identifiers, which address
 // allocation needs: two resources under one constant id are one resource.
-func sequencedPack(driver machine.Driver) *Pack {
+func sequencedPack(driver machine.Runtime) *Pack {
 	n := 0
 	var mu sync.Mutex
 	env := &emulator.Env{
@@ -128,7 +128,7 @@ func publicIPs(p *Pack) (byAddress map[string][]string, total int) {
 // machines carry one /32.
 func TestAPoolMemberAndAStandaloneInstanceNeverShareAnAddress(t *testing.T) {
 	driver := &gatedDriver{gate: make(chan struct{}), started: make(chan string, 8)}
-	p := sequencedPack(driver)
+	p := sequencedPack(machine.Use(driver))
 
 	done := make(chan struct{})
 	go func() {
@@ -185,7 +185,7 @@ func TestAPoolMemberAndAStandaloneInstanceNeverShareAnAddress(t *testing.T) {
 // the runtime refused must answer "error" — the state Exoscale's own
 // instance-state enum declares — and record no machine, because none exists.
 func TestAFailedPoolMemberStartIsPublishedAsError(t *testing.T) {
-	p := sequencedPack(&failingDriver{})
+	p := sequencedPack(machine.Use(&failingDriver{}))
 	createOnePool(p, 1)
 
 	members := p.env.Store.List(kindInstance, resource.Tenant{Provider: Name})
@@ -209,7 +209,7 @@ func TestAFailedPoolMemberStartIsPublishedAsError(t *testing.T) {
 // kept "no machine" for the member's whole life.
 func TestAPoolMemberStartIsRecordedInTheStore(t *testing.T) {
 	driver := &recordingDriver{}
-	p := sequencedPack(driver)
+	p := sequencedPack(machine.Use(driver))
 	createOnePool(p, 1)
 
 	members := p.env.Store.List(kindInstance, resource.Tenant{Provider: Name})
@@ -277,7 +277,7 @@ func createPoolOnNetwork(p *Pack, size int, networkID string) {
 // `private-networks: [{id, mac-address}]` on get-instance.
 func TestAPoolMemberJoinsThePoolsPrivateNetworks(t *testing.T) {
 	driver := &attachRecordingDriver{}
-	p := sequencedPack(driver)
+	p := sequencedPack(machine.Use(driver))
 	pn := createManagedNetwork(t, p, "back")
 
 	createPoolOnNetwork(p, 2, pn.ID)
@@ -323,7 +323,7 @@ func TestAPoolMemberJoinsThePoolsPrivateNetworks(t *testing.T) {
 // is free for whoever comes next.
 func TestAScaleDownReleasesTheMembersLeases(t *testing.T) {
 	driver := &attachRecordingDriver{}
-	p := sequencedPack(driver)
+	p := sequencedPack(machine.Use(driver))
 	pn := createManagedNetwork(t, p, "back")
 	createPoolOnNetwork(p, 2, pn.ID)
 

@@ -37,7 +37,7 @@ func (d *recordingDriver) Attach(context.Context, string, machine.Attachment) er
 func (d *recordingDriver) Detach(context.Context, string, string) error             { return nil }
 func (d *recordingDriver) RemoveNetwork(context.Context, string) error              { return nil }
 
-func runtimePack(driver machine.Driver) *Pack {
+func runtimePack(driver machine.Runtime) *Pack {
 	env := &emulator.Env{
 		Store: store.New(),
 		Now:   func() time.Time { return time.Unix(1700000000, 0).UTC() },
@@ -81,7 +81,7 @@ func TestOutscaleImageResolutionIsExact(t *testing.T) {
 // and the runtime is never asked for anything.
 func TestAnUnknownOmiDoesNotBootASubstitute(t *testing.T) {
 	driver := &recordingDriver{}
-	p := runtimePack(driver)
+	p := runtimePack(machine.Use(driver))
 	res := &resource.Resource{
 		ID:    "i-00000001",
 		State: stateStopped,
@@ -107,7 +107,7 @@ func TestAnUnknownOmiDoesNotBootASubstitute(t *testing.T) {
 func TestARegisteredImageRefusesToBootAndSaysWhy(t *testing.T) {
 	driver := &recordingDriver{}
 	var log bytes.Buffer
-	p := runtimePack(driver)
+	p := runtimePack(machine.Use(driver))
 	p.env.Log = slog.New(slog.NewTextHandler(&log, nil))
 	p.env.Store.Put(&resource.Resource{
 		ID:     "ami-0000cafe",
@@ -139,7 +139,7 @@ func TestARegisteredImageRefusesToBootAndSaysWhy(t *testing.T) {
 // provisions on its images.
 func TestAServedOmiBootsWithItsLogin(t *testing.T) {
 	driver := &recordingDriver{}
-	p := runtimePack(driver)
+	p := runtimePack(machine.Use(driver))
 	res := &resource.Resource{
 		ID:    "i-00000001",
 		State: stateStopped,
@@ -182,7 +182,7 @@ func TestAVmPublishesNoPublicAddressAsItsPrivateOne(t *testing.T) {
 		{"an address of the emulated public block is not", "198.51.100.7", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := runtimePack(&recordingDriver{})
+			p := runtimePack(machine.Use(&recordingDriver{}))
 			res := &resource.Resource{
 				ID:    "i-00000541",
 				State: stateRunning,

@@ -59,7 +59,7 @@ func clean(args []string, stdout io.Writer) error {
 		return err
 	}
 
-	driver, err := resolveDriver(*vm, stdout)
+	rt, err := resolveDriver(*vm, stdout)
 	if err != nil {
 		return err
 	}
@@ -70,13 +70,12 @@ func clean(args []string, stdout io.Writer) error {
 	// and the delete itself — so sweeping first would report the same five
 	// objects the issue's reproduction reports and change nothing (#455).
 	if *force {
-		if err := clearRuntimeTraps(stdout, led, driver); err != nil {
+		if err := clearRuntimeTraps(stdout, led, rt); err != nil {
 			return err
 		}
 	}
 
-	pruner, ok := driver.(machine.Pruner)
-	if !ok {
+	if !rt.Sweeps() {
 		// --vm off has no runtime, so there is nothing to sweep and that is not a
 		// failure. It became worth distinguishing when this command started
 		// collecting instance records as well: an operator with no machine
@@ -85,7 +84,7 @@ func clean(args []string, stdout io.Writer) error {
 		// the ambiguity this project refuses everywhere else.
 		//
 		// TestCleanSucceedsWithNoRuntimeToSweep fails without this.
-		if _, noRuntime := driver.(machine.Noop); noRuntime {
+		if !rt.Runs() {
 			// The same sentence as the swept case, because it is just as true
 			// with no runtime and network.sh asserts on it. An early return that
 			// stayed silent would make the line depend on the mode, and a caller
@@ -95,7 +94,7 @@ func clean(args []string, stdout io.Writer) error {
 			// it is findable and endable with no runtime answering at all.
 			return sweepLeftoverDHCP(stdout, led, *vm)
 		}
-		return fmt.Errorf("the %s runtime cannot be swept", driver.Name())
+		return fmt.Errorf("the %s runtime cannot be swept", rt.Name())
 	}
 
 	// Read before, so the sweep can be judged on the host rather than on its own
@@ -103,16 +102,16 @@ func clean(args []string, stdout io.Writer) error {
 	// the object standing is invisible to every count the remover produces, and
 	// that is the shape this repository has now met twice.
 	ctx := context.Background()
-	before, surveyable, surveyErr := surveyRuntime(ctx, driver)
+	before, surveyable, surveyErr := surveyRuntime(ctx, rt)
 	if surveyErr != nil {
 		// Never an empty list on a failed read. "I could not look" and "there is
 		// nothing" are different facts, and reporting the first as the second is
 		// how an inventory once called a live account empty.
-		led.record(leftoverRecord{Kind: "survey", Name: driver.Name(), Attribution: "none",
+		led.record(leftoverRecord{Kind: "survey", Name: rt.Name(), Attribution: "none",
 			Stage: stageSweep, Why: whyUnreadable, Action: actionNone})
 	}
 
-	pruned, err := pruner.Prune(ctx)
+	pruned, _, err := rt.Prune(ctx)
 	// Reported either way: a partial sweep still removed something, and saying
 	// what went is what tells the operator whether to look further.
 	led.prose("removed %d machine(s), %d network(s), %d rule set(s)\n",
@@ -125,10 +124,10 @@ func clean(args []string, stdout io.Writer) error {
 	// is still there: the case no return code reveals.
 	// TestTheSweepNamesWhatSurvivedItsOwnSuccessfulDelete fails without this.
 	if surveyable && surveyErr == nil {
-		after, _, afterErr := surveyRuntime(ctx, driver)
+		after, _, afterErr := surveyRuntime(ctx, rt)
 		switch {
 		case afterErr != nil:
-			led.record(leftoverRecord{Kind: "survey", Name: driver.Name(), Attribution: "none",
+			led.record(leftoverRecord{Kind: "survey", Name: rt.Name(), Attribution: "none",
 				Stage: stageSweep, Why: whyUnreadable, Action: actionNone})
 		default:
 			led.recordAll(survivors(before, after), stageSweep, whySurvived, actionNone)
@@ -247,7 +246,7 @@ func reportStuckLeftovers(stdout io.Writer, led *ledger, vm string, doorstep boo
 	// A runtime that will not resolve is not a clean host and the caller must
 	// not read it as one, so this fails rather than skipping: the same position
 	// refuseRuntimeLeftovers already took for the doorstep.
-	driver, err := resolveDriver(vm, stdout)
+	rt, err := resolveDriver(vm, stdout)
 	if err != nil {
 		led.record(leftoverRecord{Kind: "survey", Name: vm, Attribution: "none",
 			Stage: stageDoorstep, Why: whyUnreadable, Action: actionNone})
@@ -255,7 +254,7 @@ func reportStuckLeftovers(stdout io.Writer, led *ledger, vm string, doorstep boo
 	}
 
 	if doorstep {
-		if err := refuseRuntimeLeftovers(stdout, led, vm, driver); err != nil {
+		if err := refuseRuntimeLeftovers(stdout, led, vm, rt); err != nil {
 			return err
 		}
 	}
@@ -275,7 +274,7 @@ func reportStuckLeftovers(stdout io.Writer, led *ledger, vm string, doorstep boo
 	// and TestCleanCheckReportsARuleSetHeldByATrappedNetwork fail without it;
 	// TestCleanCheckStaysQuietOnARuntimeNothingHoldsBeyondItsSweep is the
 	// accepting half, and it is the one that keeps this usable mid-run.
-	trapped, err := reportRuntimeTraps(stdout, led, driver)
+	trapped, err := reportRuntimeTraps(stdout, led, rt)
 	if err != nil {
 		return err
 	}

@@ -187,7 +187,7 @@ func (namedDriver) Available(context.Context) bool { return true }
 
 func TestEvidenceDataplaneFollowsTheDriversOwnDeclaration(t *testing.T) {
 	env := contractEnv(t)
-	env.UseMachines(namedDriver{})
+	env.UseMachines(machine.Use(namedDriver{}))
 	srv := evidenceServer(t, env, `{"ok": true}`)
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()

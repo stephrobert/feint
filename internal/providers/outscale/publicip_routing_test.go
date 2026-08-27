@@ -113,7 +113,7 @@ func newRoutedServer(t *testing.T) (*httptest.Server, *routedRuntime, *emulator.
 	t.Helper()
 	env := emulator.DefaultEnv()
 	rt := newRoutedRuntime()
-	env.UseMachines(rt)
+	env.UseMachines(machine.Use(rt))
 	srv, err := emulator.NewServer(env, outscale.New(env))
 	if err != nil {
 		t.Fatalf("build emulator: %v", err)
@@ -229,5 +229,5 @@ func TestAPoisonedPublicIpIsNeverRouted(t *testing.T) {
 	}
 }
 
-// Detach implements machine.Driver; *routedRuntime needs no behaviour here.
+// Detach completes the machine package's driver contract; *routedRuntime needs no behaviour here.
 func (r *routedRuntime) Detach(context.Context, string, string) error { return nil }

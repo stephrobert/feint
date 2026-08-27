@@ -67,7 +67,7 @@ func nicOnRunningServer(t *testing.T, ts *httptest.Server, subnet string) (pnID,
 func TestDeletingAPrivateNICDetachesItFromTheRuntime(t *testing.T) {
 	rt := newFakeRuntime()
 	close(rt.release)
-	ts := newRuntimeTestServer(t, rt)
+	ts := newRuntimeTestServer(t, machine.Use(rt))
 
 	_, serverID, nicID := nicOnRunningServer(t, ts, "10.71.0.0/24")
 
@@ -110,7 +110,7 @@ func TestDeletingAPrivateNICDetachesItFromTheRuntime(t *testing.T) {
 func TestAPrivateNetworkTheRuntimeKeptIsNotReportedDeleted(t *testing.T) {
 	rt := &keepingRuntime{fakeRuntime: newFakeRuntime()}
 	close(rt.release)
-	ts := newRuntimeTestServer(t, rt)
+	ts := newRuntimeTestServer(t, machine.Use(rt))
 
 	status, pn := do(t, ts, "POST", "/vpc/v2/regions/fr-par/private-networks",
 		`{"name":"kept","subnets":["10.72.0.0/24"]}`)

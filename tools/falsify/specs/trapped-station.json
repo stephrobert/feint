@@ -103,8 +103,8 @@
     {
       "label": "the check stops asking the runtime what holds it, the exact shape it was in when it answered 0 on a station nothing could clean",
       "file": "internal/cli/clean.go",
-      "find": "\ttrapped, err := reportRuntimeTraps(stdout, led, driver)\n\tif err != nil {\n\t\treturn err\n\t}",
-      "replace": "\ttrapped, err := reportRuntimeTraps(stdout, led, driver)\n\ttrapped = 0\n\tif err != nil {\n\t\treturn err\n\t}",
+      "find": "\ttrapped, err := reportRuntimeTraps(stdout, led, rt)\n\tif err != nil {\n\t\treturn err\n\t}",
+      "replace": "\ttrapped, err := reportRuntimeTraps(stdout, led, rt)\n\ttrapped = 0\n\tif err != nil {\n\t\treturn err\n\t}",
       "test": "TestCleanCheckReportsAStrippedUplink",
       "package": "./internal/cli/"
     }

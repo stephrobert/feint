@@ -30,7 +30,7 @@ import (
 // the sweep report the harness rather than the pack. Measured, not assumed —
 // this repository's most expensive recurring defect is the instrument, not the
 // subject.
-func newBarrageServer(t *testing.T, drv machine.Driver) (*httptest.Server, *store.Store) {
+func newBarrageServer(t *testing.T, drv machine.Runtime) (*httptest.Server, *store.Store) {
 	t.Helper()
 
 	var seq atomic.Int64
@@ -184,7 +184,7 @@ const (
 // allocator's own lock.
 func TestABarrageLeavesTheStoreCoherent(t *testing.T) {
 	runtime := newBarrageRuntime()
-	ts, st := newBarrageServer(t, runtime)
+	ts, st := newBarrageServer(t, machine.Use(runtime))
 
 	var wg sync.WaitGroup
 	// Errors are collected rather than reported from the goroutines: t.Fatalf
@@ -363,7 +363,7 @@ func firstFew(all []string, n int) []string {
 // reference another that the other world deleted.
 func TestARestoreDuringTrafficLandsInOneWorld(t *testing.T) {
 	runtime := newBarrageRuntime()
-	ts, st := newBarrageServer(t, runtime)
+	ts, st := newBarrageServer(t, machine.Use(runtime))
 
 	// A world worth restoring, captured before the traffic starts.
 	_, before := doRaw(ts, "POST", zoneURL+"/ips", `{}`)
@@ -444,7 +444,7 @@ func TestARestoreDuringTrafficLandsInOneWorld(t *testing.T) {
 // of ipam/v1 that nothing exercised: book, attach through a NIC, release.
 func TestASharedNetworkUnderBarrageNeverHandsOutOneAddressTwice(t *testing.T) {
 	runtime := newBarrageRuntime()
-	ts, st := newBarrageServer(t, runtime)
+	ts, st := newBarrageServer(t, machine.Use(runtime))
 
 	// One network for everybody. A /24 leaves 250-odd addresses, so exhaustion
 	// is not what this measures.
@@ -531,5 +531,5 @@ func TestASharedNetworkUnderBarrageNeverHandsOutOneAddressTwice(t *testing.T) {
 	}
 }
 
-// Detach implements machine.Driver; *barrageRuntime needs no behaviour here.
+// Detach completes the machine package's driver contract; *barrageRuntime needs no behaviour here.
 func (b *barrageRuntime) Detach(context.Context, string, string) error { return nil }

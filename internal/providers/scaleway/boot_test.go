@@ -3,6 +3,8 @@ package scaleway_test
 import (
 	"net/http"
 	"testing"
+
+	"github.com/stephrobert/feint/internal/core/machine"
 )
 
 // The measurement of #83, replayed against the pack the way the issue took it:
@@ -13,7 +15,7 @@ import (
 func TestAnUnknownImageDoesNotBootASubstitute(t *testing.T) {
 	rt := newFakeRuntime()
 	close(rt.release) // nothing here needs to hold a start open
-	ts := newRuntimeTestServer(t, rt)
+	ts := newRuntimeTestServer(t, machine.Use(rt))
 	const zone = "/instance/v1/zones/fr-par-1"
 
 	status, out := do(t, ts, "POST", zone+"/servers",
@@ -43,7 +45,7 @@ func TestAnUnknownImageDoesNotBootASubstitute(t *testing.T) {
 func TestTheMarketplaceAnswersOneImagePerLabel(t *testing.T) {
 	rt := newFakeRuntime()
 	close(rt.release)
-	ts := newRuntimeTestServer(t, rt)
+	ts := newRuntimeTestServer(t, machine.Use(rt))
 
 	idOf := func(label string) string {
 		_, out := do(t, ts, "GET", "/marketplace/v2/local-images?image_label="+label, "")
@@ -71,7 +73,7 @@ func TestTheMarketplaceAnswersOneImagePerLabel(t *testing.T) {
 func TestAKnownImageBootsWhatItNamesWithItsLogin(t *testing.T) {
 	rt := newFakeRuntime()
 	close(rt.release)
-	ts := newRuntimeTestServer(t, rt)
+	ts := newRuntimeTestServer(t, machine.Use(rt))
 	const zone = "/instance/v1/zones/fr-par-1"
 
 	status, out := do(t, ts, "POST", zone+"/servers",

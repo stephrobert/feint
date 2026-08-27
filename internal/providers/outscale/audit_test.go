@@ -362,7 +362,7 @@ func TestASubnetDoesNotDeleteUnderARace(t *testing.T) {
 // that boots.
 func TestACreateWhoseResourceVanishesLeavesNoMachineBehind(t *testing.T) {
 	runtime := newBlockingRuntime()
-	ts := newRuntimeServer(t, runtime)
+	ts := newRuntimeServer(t, machine.Use(runtime))
 	_, subnetID := netAndSubnet(t, ts, "10.51.0.0/16", "10.51.1.0/24")
 
 	done := make(chan struct{})
@@ -479,7 +479,7 @@ func (f *blockingRuntime) running() []string {
 	return out
 }
 
-func newRuntimeServer(t *testing.T, drv machine.Driver) *httptest.Server {
+func newRuntimeServer(t *testing.T, drv machine.Runtime) *httptest.Server {
 	t.Helper()
 	env := emulator.DefaultEnv()
 	env.UseMachines(drv)
@@ -502,7 +502,7 @@ func newRuntimeServer(t *testing.T, drv machine.Driver) *httptest.Server {
 func TestTwoConcurrentStartsReachTheRuntimeOnce(t *testing.T) {
 	runtime := newCountingRuntime()
 	runtime.blockStarts = make(chan struct{})
-	ts := newRuntimeServer(t, runtime)
+	ts := newRuntimeServer(t, machine.Use(runtime))
 	_, subnetID := netAndSubnet(t, ts, "10.52.0.0/16", "10.52.1.0/24")
 
 	_, out := post(t, ts, "CreateVms",
@@ -590,7 +590,7 @@ func TestUpdateVmValidatesWhatCreateValidates(t *testing.T) {
 func TestANetDoesNotDeleteUnderASubnetBeingCreated(t *testing.T) {
 	runtime := newCountingRuntime()
 	runtime.blockNetworks = make(chan struct{})
-	ts := newRuntimeServer(t, runtime)
+	ts := newRuntimeServer(t, machine.Use(runtime))
 
 	_, out := post(t, ts, "CreateNet", `{"IpRange":"10.54.0.0/16"}`)
 	n, _ := out["Net"].(map[string]any)
@@ -635,7 +635,7 @@ func TestANetDoesNotDeleteUnderASubnetBeingCreated(t *testing.T) {
 func TestSubnetCreateDoesNotHoldTheAddressingLockAcrossTheRuntime(t *testing.T) {
 	runtime := newCountingRuntime()
 	runtime.blockNetworks = make(chan struct{})
-	ts := newRuntimeServer(t, runtime)
+	ts := newRuntimeServer(t, machine.Use(runtime))
 
 	_, out := post(t, ts, "CreateNet", `{"IpRange":"10.55.0.0/16"}`)
 	n, _ := out["Net"].(map[string]any)
@@ -760,7 +760,7 @@ func (f *countingRuntime) starts(id string) int {
 func TestUpdateVmAndStartVmsDoNotOverwriteEachOther(t *testing.T) {
 	runtime := newCountingRuntime()
 	runtime.blockStarts = make(chan struct{})
-	ts := newRuntimeServer(t, runtime)
+	ts := newRuntimeServer(t, machine.Use(runtime))
 	_, subnetID := netAndSubnet(t, ts, "10.57.0.0/16", "10.57.1.0/24")
 
 	_, out := post(t, ts, "CreateVms",
@@ -1045,7 +1045,7 @@ func outscaleContract(t *testing.T) *contract.Doc {
 // keeps the address until the machine is terminated.
 func TestAStoppedVmKeepsItsPrivateAddress(t *testing.T) {
 	runtime := newCountingRuntime()
-	ts := newRuntimeServer(t, runtime)
+	ts := newRuntimeServer(t, machine.Use(runtime))
 
 	// No Subnet: this is the case that had the address only in the binding.
 	_, out := post(t, ts, "CreateVms", `{"ImageId":"ami-00000001"}`)
@@ -1441,8 +1441,8 @@ func TestReadVmsStateAnswersRunningByDefault(t *testing.T) {
 	}
 }
 
-// Detach implements machine.Driver; *blockingRuntime needs no behaviour here.
+// Detach completes the machine package's driver contract; *blockingRuntime needs no behaviour here.
 func (f *blockingRuntime) Detach(context.Context, string, string) error { return nil }
 
-// Detach implements machine.Driver; *countingRuntime needs no behaviour here.
+// Detach completes the machine package's driver contract; *countingRuntime needs no behaviour here.
 func (f *countingRuntime) Detach(context.Context, string, string) error { return nil }

@@ -36,7 +36,7 @@ func TestAGracefulExitReleasesTheUplink(t *testing.T) {
 	var buf bytes.Buffer
 	driver := &releasingDriver{released: true}
 
-	shutdownSweep(driver, false, &buf)
+	shutdownSweep(machine.Use(driver), false, &buf)
 
 	if !driver.asked {
 		t.Fatal("the exit never asked the driver to release the uplink; the next run's doorstep refuses what stays (#521)")
@@ -53,7 +53,7 @@ func TestAnExitSaysNothingWhenTheUplinkIsNotItsToRelease(t *testing.T) {
 	var buf bytes.Buffer
 	driver := &releasingDriver{released: false}
 
-	shutdownSweep(driver, false, &buf)
+	shutdownSweep(machine.Use(driver), false, &buf)
 
 	if !driver.asked {
 		t.Fatal("the exit never asked the driver")
@@ -68,7 +68,7 @@ func TestAnExitSaysNothingWhenTheUplinkIsNotItsToRelease(t *testing.T) {
 func TestAnExitWithoutAReleaserStaysAnExit(t *testing.T) {
 	var buf bytes.Buffer
 
-	shutdownSweep(machine.Noop{}, false, &buf)
+	shutdownSweep(machine.Use(machine.Noop{}), false, &buf)
 
 	if buf.Len() != 0 {
 		t.Errorf("a driver with no uplink produced output:\n%s", buf.String())

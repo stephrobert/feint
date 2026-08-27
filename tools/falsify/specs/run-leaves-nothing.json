@@ -44,8 +44,8 @@
     {
       "label": "the doorstep finds the previous run's networks and lets the run start anyway, which is the state that fails thirty steps later on a message naming only the block",
       "file": "internal/cli/clean.go",
-      "find": "\tif err := refuseRuntimeLeftovers(stdout, led, vm, driver); err != nil {",
-      "replace": "\tif err := refuseRuntimeLeftovers(stdout, led, vm, driver); err != nil && false {",
+      "find": "\t\tif err := refuseRuntimeLeftovers(stdout, led, vm, rt); err != nil {",
+      "replace": "\t\tif err := refuseRuntimeLeftovers(stdout, led, vm, rt); err != nil && false {",
       "test": "TestTheDoorstepRefusesAHostHoldingAPreviousRunsNetwork",
       "package": "./internal/cli/"
     },
@@ -60,8 +60,8 @@
     {
       "label": "a survey that could not be taken is reported as a clean host, which is two outcomes where three are owed",
       "file": "internal/cli/clean_ledger.go",
-      "find": "\t\treturn fmt.Errorf(\"could not look at what the %s runtime holds, so this host cannot be called clean: %w\",\n\t\t\tdriver.Name(), err)",
-      "replace": "\t\t_ = fmt.Errorf(\"could not look at what the %s runtime holds, so this host cannot be called clean: %w\",\n\t\t\tdriver.Name(), err)\n\t\treturn nil",
+      "find": "\t\treturn fmt.Errorf(\"could not look at what the %s runtime holds, so this host cannot be called clean: %w\",\n\t\t\trt.Name(), err)",
+      "replace": "\t\t_ = fmt.Errorf(\"could not look at what the %s runtime holds, so this host cannot be called clean: %w\",\n\t\t\trt.Name(), err)\n\t\treturn nil",
       "test": "TestTheDoorstepSaysItCouldNotLookRatherThanCallingTheHostClean",
       "package": "./internal/cli/"
     },
@@ -76,8 +76,8 @@
     {
       "label": "the doorstep question is asked at every moment, so a run is refused for owning the machines and networks it just created",
       "file": "internal/cli/clean.go",
-      "find": "\tif doorstep {\n\t\tif err := refuseRuntimeLeftovers(stdout, led, vm, driver); err != nil {",
-      "replace": "\tif doorstep || true {\n\t\tif err := refuseRuntimeLeftovers(stdout, led, vm, driver); err != nil {",
+      "find": "\tif doorstep {\n\t\tif err := refuseRuntimeLeftovers(stdout, led, vm, rt); err != nil {",
+      "replace": "\tif doorstep || true {\n\t\tif err := refuseRuntimeLeftovers(stdout, led, vm, rt); err != nil {",
       "test": "TestTheLeftoverCheckMidRunIgnoresTheRunsOwnObjects",
       "package": "./internal/cli/"
     },

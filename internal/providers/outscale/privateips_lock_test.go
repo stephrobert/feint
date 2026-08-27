@@ -88,7 +88,7 @@ func newSlowAttachServer(t *testing.T) (*httptest.Server, *slowAttach) {
 		release:  make(chan struct{}),
 	}
 	env := emulator.DefaultEnv()
-	env.UseMachines(rt)
+	env.UseMachines(machine.Use(rt))
 	srv, err := emulator.NewServer(env, outscale.New(env))
 	if err != nil {
 		t.Fatalf("build emulator: %v", err)
@@ -189,5 +189,5 @@ func netOf(t *testing.T, ts *httptest.Server, subnetID string) string {
 	return netID
 }
 
-// Detach implements machine.Driver; *slowAttach needs no behaviour here.
+// Detach completes the machine package's driver contract; *slowAttach needs no behaviour here.
 func (s *slowAttach) Detach(context.Context, string, string) error { return nil }

@@ -14,10 +14,10 @@ import (
 // connection on work that then succeeds: the client's retry meets its own
 // subnet as a conflict (#473, links 2 and 3).
 func TestTheWriteDeadlineFollowsTheRuntime(t *testing.T) {
-	if got := writeTimeoutFor(machine.Noop{}); got != 60*time.Second {
+	if got := writeTimeoutFor(machine.Use(machine.Noop{})); got != 60*time.Second {
 		t.Errorf("with no runtime the deadline is %v; sixty seconds is the measured figure for small local responses", got)
 	}
-	withRuntime := writeTimeoutFor(machine.NewIncusOVN())
+	withRuntime := writeTimeoutFor(machine.Use(machine.NewIncusOVN()))
 	if withRuntime <= 60*time.Second {
 		t.Errorf("under a machine runtime the deadline is %v; anything at or under a minute cuts a fifteen-subnet apply (#473)", withRuntime)
 	}

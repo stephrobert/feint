@@ -39,6 +39,14 @@ type machinePackage struct {
 	// results maps a member to every type it returns, positionally, for the
 	// `a, b := x.M()` form.
 	results map[string][]string
+	// hidden maps an *unexported* interface of the package to its method
+	// names. Since #514 that is where the driver and its five pack-facing
+	// halves live, so two things need reading out of them: the method set the
+	// runtime-blindness derivation compares implementations against, and the
+	// fact that they are unexported at all — which is what
+	// TestThePacksCannotNameTheDriver's companion asserts here rather than
+	// leaving to a build that would simply stop failing.
+	hidden map[string][]string
 }
 
 // readMachinePackage parses internal/core/machine and reports what it exports.
@@ -64,6 +72,7 @@ func readMachinePackage(t *testing.T) machinePackage {
 		members: map[string]bool{},
 		yields:  map[string]string{},
 		results: map[string][]string{},
+		hidden:  map[string][]string{},
 	}
 	parsed := 0
 	for _, file := range files {
@@ -120,6 +129,13 @@ func readMachineGenDecl(pkg machinePackage, d *ast.GenDecl) {
 		switch s := spec.(type) {
 		case *ast.TypeSpec:
 			if !s.Name.IsExported() {
+				if t, ok := s.Type.(*ast.InterfaceType); ok {
+					for _, m := range t.Methods.List {
+						for _, name := range m.Names {
+							pkg.hidden[s.Name.Name] = append(pkg.hidden[s.Name.Name], name.Name)
+						}
+					}
+				}
 				continue
 			}
 			pkg.names[s.Name.Name] = "type"
@@ -625,26 +641,69 @@ func (s *surfaceScanner) add(key string, node ast.Node, how string) {
 // differently here; there is neither today.
 var notInTheDriverSurface = map[string]string{}
 
+// mustNotBeNameable names what internal/core/machine must not export at all.
+//
+// This list is the inversion of the one below, and the inversion is the point
+// of #514. Everything here used to be exported and excluded from PackSurface,
+// which held it by an AST scan over the packs' sources — a convention. On
+// 154c204 a pack could still write `var _ machine.Driver` and
+// `go build ./internal/providers/scaleway/` exited 0, measured. Since #514 the
+// six are unexported, so the sentence fails the build instead, and what this
+// list holds is the *return*: re-exporting any of them, under any spelling,
+// reopens the door in one edit and nothing else in the repository would say
+// so. internal/core/machine's own package documentation (runtime.go) carries
+// the reasoning; TestThePacksCannotNameTheDriver compiles the sentence and
+// requires the failure.
+//
+// Each entry must still exist as an unexported interface of the package, so a
+// deletion or a rename is a failure too: an exclusion naming nothing
+// constrains nothing, which is exactly what the sibling list below asserts the
+// other way round.
+var mustNotBeNameable = []string{
+	// The runtime itself. A pack holding one calls Start, Remove or
+	// RemoveNetwork past Binding.ours and past the driver's mustOwn — the hole
+	// a crafted snapshot walked through.
+	"driver",
+	// Its five pack-facing halves. Reaching one by assertion bypasses the
+	// shared layer exactly as surely as calling a method does, which is the
+	// correction that took #511's count from eleven sites to twenty-nine.
+	"router", "firewaller", "peerer", "isolator", "balancer",
+}
+
 // mustStayOutside names what the declared surface may never admit.
 //
 // It is the answer to the trap #511 names first: a surface that authorises
 // everything a pack reaches today documents the state of affairs instead of
 // constraining it. So what is excluded is asserted, not merely absent — the
-// raw driver and its optional halves, the driver's own argument vocabulary,
-// and the low-level Binding verbs the two orchestrators exist to sequence.
-// Every entry below is exported by internal/core/machine and therefore
-// nameable; none may appear in PackSurface.
+// driver's implementations, its operator-facing halves, its argument
+// vocabulary, and the low-level Binding verbs the two orchestrators exist to
+// sequence. Every entry below is exported by internal/core/machine and
+// therefore nameable; none may appear in PackSurface.
+//
+// The driver interface and its five pack-facing halves left this list for
+// mustNotBeNameable above, and that is a promotion rather than a removal: a
+// name the compiler refuses needs no scan behind it, and a name the scan still
+// has to catch is a name somebody can still write.
 var mustStayOutside = []string{
-	// The runtime itself, and every implementation of it. A pack holding one
-	// calls Start, Remove or RemoveNetwork past Binding.ours and past the
-	// driver's mustOwn — the hole a crafted snapshot walked through.
-	"Driver", "Noop", "Incus", "Recorder",
-	// Its optional halves. Reaching one by assertion bypasses the shared layer
-	// exactly as surely as calling a method does, which is the correction that
-	// took #511's count from eleven sites to twenty-nine.
-	"Router", "Firewaller", "Peerer", "Isolator", "Balancer", "Capable", "Waiter",
+	// Every implementation of the runtime. These stay exported — Noop is the
+	// metadata-only default the emulator and forty tests build on, Recorder is
+	// the shared contract recorder of #515, Incus is the runtime itself — so
+	// the scan is what keeps them out of a pack, and the residue is written
+	// down rather than implied: `machine.Noop{}.Remove(ctx, name)` still
+	// compiles in a pack, and is caught here rather than by the build.
+	"Noop", "Incus", "Recorder",
+	// The operator-facing halves. internal/cli reaches these through
+	// machine.Runtime's own methods, so no pack needs them; they are excluded
+	// by the scan rather than by the compiler because `feint clean`, `feint
+	// doctor` and `feint images` are not packs and the handle answers for
+	// them.
+	"Capable", "Waiter",
 	"ImageBuilder", "ImageLister", "Pruner", "Repairer", "Surveyor", "Watcher",
 	"UplinkReleaser",
+	// The handle itself, and its door. It is the emulator's and the CLI's
+	// spelling of a runtime; a pack that names it has gone looking for the
+	// value #511 took out of its reach.
+	"Runtime", "Use",
 	// The driver's own argument vocabulary: what the shared layer builds from
 	// what a pack declares. A pack assembling one of these is a pack writing
 	// the call the layer exists to write.
@@ -673,7 +732,7 @@ var mustStayOutside = []string{
 	"Binding.AddressOf",
 	"Binding.RouteAddress", "Binding.UnrouteAddress",
 	"Binding.SyncRuleSet", "Binding.ApplyRuleSets", "Binding.DropRuleSet",
-	"Binding.WithDriver",
+	"Binding.WithRuntime",
 	// The firewall step of the boot replay. The Reconciler runs it, last, and
 	// a pack running it itself puts the expansion before the interfaces it is
 	// supposed to see.
@@ -749,15 +808,33 @@ func TestNoPackReachesPastTheDeclaredDriverSurface(t *testing.T) {
 
 // The declared surface says something, and still means what it says.
 //
-// Two halves, and each answers one way the list could become decoration. It
+// Three halves, and each answers one way the list could become decoration. It
 // must resolve: every entry names something internal/core/machine really
 // exports, so a rename makes this fail instead of silently emptying the
-// contract. And it must exclude: mustStayOutside is asserted absent, because a
+// contract. It must exclude: mustStayOutside is asserted absent, because a
 // list that admits everything a pack reaches today is an inventory, not a
-// boundary — #511 names that trap first and this is what answers it.
+// boundary — #511 names that trap first and this is what answers it. And the
+// six names of mustNotBeNameable must not come back as exported names at all,
+// which is #514's half: the compiler holds them today, and a single edit
+// re-exporting one would put them back behind a scan without anything saying
+// so.
 func TestTheDeclaredDriverSurfaceIsSmallerThanThePackage(t *testing.T) {
 	pkg := readMachinePackage(t)
 	surface := machine.PackSurface()
+
+	for _, key := range mustNotBeNameable {
+		exported := strings.ToUpper(key[:1]) + key[1:]
+		if kind, back := pkg.names[exported]; back {
+			t.Errorf("internal/core/machine exports %s again (as a %s): #514 unexported it so that "+
+				"`var _ machine.%s` in a pack fails the build, and an exported spelling puts the "+
+				"boundary back behind a scan somebody can widen", exported, kind, exported)
+		}
+		if len(pkg.hidden[key]) == 0 {
+			t.Errorf("internal/core/machine has no unexported interface %q any more: an exclusion "+
+				"naming nothing constrains nothing, and the driver contract cannot have lost its "+
+				"verbs", key)
+		}
+	}
 
 	for key, why := range surface {
 		if len(strings.Fields(why)) < 4 {

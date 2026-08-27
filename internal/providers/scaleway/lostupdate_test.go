@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stephrobert/feint/internal/core/machine"
 	"github.com/stephrobert/feint/internal/core/store/storetest"
 )
 
@@ -127,7 +128,7 @@ const nicBarrageTrials = 12
 
 func TestAttachingANICDoesNotResurrectADeletedServer(t *testing.T) {
 	runtime := newBarrageRuntime()
-	ts, st := newBarrageServer(t, runtime)
+	ts, st := newBarrageServer(t, machine.Use(runtime))
 	const zone = "/instance/v1/zones/fr-par-1"
 	const region = "/vpc/v2/regions/fr-par"
 

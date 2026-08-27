@@ -30,7 +30,7 @@ func (d surveyingDriver) Survey(context.Context) (machine.Leftovers, error) {
 	return d.left, d.err
 }
 
-func noticed(t *testing.T, driver machine.Driver) string {
+func noticed(t *testing.T, driver machine.Runtime) string {
 	t.Helper()
 	var buf bytes.Buffer
 	reportLeftovers(driver, slog.New(slog.NewTextHandler(&buf, nil)))
@@ -38,10 +38,10 @@ func noticed(t *testing.T, driver machine.Driver) string {
 }
 
 func TestStartupNamesTheLeftoversItDidNotAdopt(t *testing.T) {
-	out := noticed(t, surveyingDriver{left: machine.Leftovers{
+	out := noticed(t, machine.Use(surveyingDriver{left: machine.Leftovers{
 		Machines: []string{"feint-scw-79e3ef40", "feint-osc-i-21519d57"},
 		Networks: []string{"fnt-default"},
-	}})
+	}}))
 
 	// The line must name the machines: "2 machines exist" sends the operator
 	// to the runtime to find out which, and the whole point is that the
@@ -65,7 +65,7 @@ func TestStartupNamesTheLeftoversItDidNotAdopt(t *testing.T) {
 }
 
 func TestStartupStaysSilentWhenTheRuntimeIsClean(t *testing.T) {
-	if out := noticed(t, surveyingDriver{}); out != "" {
+	if out := noticed(t, machine.Use(surveyingDriver{})); out != "" {
 		t.Errorf("a clean runtime produced a notice:\n%s", out)
 	}
 }
@@ -75,10 +75,10 @@ func TestStartupStaysSilentOverPlumbingAlone(t *testing.T) {
 	// bridge is reused under its name on the next boot, and the OVN uplink is
 	// kept across runs by design. A notice that fired on every restart would
 	// be read by nobody, which is worse than none.
-	out := noticed(t, surveyingDriver{left: machine.Leftovers{
+	out := noticed(t, machine.Use(surveyingDriver{left: machine.Leftovers{
 		Networks:  []string{"feint-uplink", "fnt-default"},
 		Firewalls: []string{"scw-bbbb"},
-	}})
+	}}))
 	if out != "" {
 		t.Errorf("plumbing without machines produced a notice:\n%s", out)
 	}
@@ -87,7 +87,7 @@ func TestStartupStaysSilentOverPlumbingAlone(t *testing.T) {
 func TestStartupSaysWhenItCouldNotLook(t *testing.T) {
 	// Silence on error would be the exact defect the notice removes: the
 	// operator must at least learn that nobody looked.
-	out := noticed(t, surveyingDriver{err: errors.New("incus: connection refused")})
+	out := noticed(t, machine.Use(surveyingDriver{err: errors.New("incus: connection refused")}))
 	if !strings.Contains(out, "could not look") || !strings.Contains(out, "connection refused") {
 		t.Errorf("a failed survey must be said, got:\n%s", out)
 	}
@@ -96,7 +96,7 @@ func TestStartupSaysWhenItCouldNotLook(t *testing.T) {
 func TestStartupAsksNothingOfADriverThatCannotAnswer(t *testing.T) {
 	// Noop backs --vm off: no runtime, nothing to survey, and the notice must
 	// not manufacture one.
-	if out := noticed(t, machine.Noop{}); out != "" {
+	if out := noticed(t, machine.Use(machine.Noop{})); out != "" {
 		t.Errorf("a driver without Survey produced a notice:\n%s", out)
 	}
 }

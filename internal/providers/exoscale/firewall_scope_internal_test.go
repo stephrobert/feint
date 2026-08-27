@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stephrobert/feint/internal/core/machine"
 	"github.com/stephrobert/feint/internal/core/resource"
 )
 
@@ -26,7 +27,7 @@ import (
 // NICs, so this is a field on the attachment, not a rule of the layer.
 func TestALateNetworkAttachLeavesThePrivateInterfaceUnfiltered(t *testing.T) {
 	driver := newFirewallDriver()
-	p := sequencedPack(driver)
+	p := sequencedPack(machine.Use(driver))
 	group := storedSecurityGroup(p, "web", []any{map[string]any{
 		"id": "r1", "flow-direction": "ingress", "protocol": "tcp",
 		"network": "0.0.0.0/0", "start-port": 443, "end-port": 443,

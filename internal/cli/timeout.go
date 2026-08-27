@@ -26,8 +26,8 @@ import (
 // stays; without one, the original figure keeps its measured justification.
 //
 // TestTheWriteDeadlineFollowsTheRuntime fails if either mode loses its value.
-func writeTimeoutFor(driver machine.Driver) time.Duration {
-	if _, none := driver.(machine.Noop); none {
+func writeTimeoutFor(rt machine.Runtime) time.Duration {
+	if !rt.Runs() {
 		return 60 * time.Second
 	}
 	return 10 * time.Minute

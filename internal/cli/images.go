@@ -53,19 +53,19 @@ func images(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	driver, err := machineDriver(*vm, stderr)
+	rt, err := machineDriver(*vm, stderr)
 	if err != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", err)
 		return 1
 	}
-	if _, isNoop := driver.(machine.Noop); isNoop {
+	if !rt.Runs() {
 		fmt.Fprintln(stderr, "feint: no machine runtime answers, so there is nowhere to build an image")
 		fmt.Fprintln(stderr, "       `feint doctor --vm incus` says what is missing")
 		return 1
 	}
 
 	ctx := context.Background()
-	inventory, err := machine.ImageInventory(ctx, driver)
+	inventory, err := rt.Inventory(ctx)
 	if err != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", err)
 		return 1
@@ -74,7 +74,7 @@ func images(args []string, stdout, stderr io.Writer) int {
 	// derived an image put it under the prefix without any warm-up row naming
 	// it, and an inventory that only answered the list would leave it
 	// invisible on the operator's own machine.
-	derived, err := machine.DerivedImages(ctx, driver)
+	derived, err := rt.DerivedInventory(ctx)
 	if err != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", err)
 		return 1
@@ -88,7 +88,7 @@ func images(args []string, stdout, stderr io.Writer) int {
 	// first image rather than in the middle of the set. The build itself goes
 	// through machine.BuildIfMissing below, which is the seam the boot
 	// path (machine.EnsureImage) drives too.
-	if _, ok := driver.(machine.ImageBuilder); !ok {
+	if !rt.BuildsImages() {
 		fmt.Fprintln(stderr, "feint: this runtime cannot build images")
 		return 1
 	}
@@ -110,7 +110,7 @@ func images(args []string, stdout, stderr io.Writer) int {
 		// callers, one lock, written once. Measured on 2026-08-25: two builds
 		// that met on the old fixed-name builder killed each other, one on
 		// `apt-get update … 137`, the other on a publish whose rootfs moved.
-		made, err := machine.BuildIfMissing(ctx, driver, status.Spec, stdout)
+		made, err := rt.BuildImage(ctx, status.Spec, stdout)
 		if err != nil {
 			fmt.Fprintf(stderr, "feint: %s: %v\n", status.Spec.Name, err)
 			return 1
@@ -138,7 +138,7 @@ func images(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 		fmt.Fprintf(stdout, "== %s (outside the warm-up set, derived from the family table)\n", spec.Alias())
-		made, err := machine.BuildIfMissing(ctx, driver, spec, stdout)
+		made, err := rt.BuildImage(ctx, spec, stdout)
 		if err != nil {
 			fmt.Fprintf(stderr, "feint: %s: %v\n", spec.Name, err)
 			return 1
@@ -219,24 +219,19 @@ func imagesRemove(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	driver, err := machineDriver(*vm, stderr)
+	rt, err := machineDriver(*vm, stderr)
 	if err != nil {
 		fmt.Fprintf(stderr, "feint: %v\n", err)
 		return 1
 	}
-	remover, ok := driver.(interface {
-		RemoveImage(context.Context, string) error
-	})
-	if !ok {
+	if !rt.RemovesImages() {
 		fmt.Fprintln(stderr, "feint: this runtime holds no images to remove")
 		return 1
 	}
 	ctx := context.Background()
 	held := map[string]string{}
-	if lister, canAsk := driver.(machine.ImageLister); canAsk {
-		if listed, err := lister.LocalImages(ctx); err == nil {
-			held = listed
-		}
+	if listed, _, err := rt.LocalImages(ctx); err == nil {
+		held = listed
 	}
 
 	for _, name := range names {
@@ -249,7 +244,7 @@ func imagesRemove(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 		fmt.Fprintf(stdout, "removing %s (%s)\n", alias, short(fingerprint))
-		if err := remover.RemoveImage(ctx, name); err != nil {
+		if _, err := rt.RemoveImage(ctx, name); err != nil {
 			fmt.Fprintf(stderr, "feint: %v\n", err)
 			return 1
 		}

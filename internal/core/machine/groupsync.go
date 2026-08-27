@@ -220,9 +220,9 @@ func (s GroupSync) wired() bool {
 // enforcer is the runtime's firewall half, nil when it has none — the
 // assertion every pack wrote for itself, now out of their vocabulary entirely,
 // which is what lets the enforcement test mark a wired pack by this type
-// instead of by machine.Firewaller.
-func (s GroupSync) enforcer() Firewaller {
-	fw, _ := s.Binding.driver.(Firewaller)
+// instead of by the driver's firewalling half.
+func (s GroupSync) enforcer() firewaller {
+	fw, _ := s.Binding.driver.(firewaller)
 	return fw
 }
 
@@ -230,8 +230,8 @@ func (s GroupSync) enforcer() Firewaller {
 // construction, in which case reject rules against foreign subnets are dead
 // weight: the blocks would name subnets the machine cannot reach anyway.
 func (s GroupSync) nativeIsolation() bool {
-	peerer, ok := s.Binding.driver.(Peerer)
-	return ok && peerer.NativeIsolation()
+	peer, ok := s.Binding.driver.(peerer)
+	return ok && peer.NativeIsolation()
 }
 
 // spec assembles the rule set of one group: the pack's translation, with the

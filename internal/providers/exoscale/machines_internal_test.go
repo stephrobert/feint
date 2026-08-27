@@ -41,7 +41,7 @@ func (d *recordingDriver) Detach(_ context.Context, name, network string) error 
 }
 func (d *recordingDriver) RemoveNetwork(context.Context, string) error { return nil }
 
-func runtimePack(driver machine.Driver) *Pack {
+func runtimePack(driver machine.Runtime) *Pack {
 	env := &emulator.Env{
 		Store: store.New(),
 		Now:   func() time.Time { return time.Unix(1700000000, 0).UTC() },
@@ -86,7 +86,7 @@ func TestExoscaleTemplateResolutionIsExact(t *testing.T) {
 // and the runtime is never asked for anything.
 func TestAnUnknownTemplateDoesNotBootASubstitute(t *testing.T) {
 	driver := &recordingDriver{}
-	p := runtimePack(driver)
+	p := runtimePack(machine.Use(driver))
 	res := &resource.Resource{
 		ID:    "00000000-0000-4000-8000-0000000000aa",
 		State: "stopped",
@@ -109,7 +109,7 @@ func TestAnUnknownTemplateDoesNotBootASubstitute(t *testing.T) {
 // The accepting half: a served template still boots, as its own default-user.
 func TestAServedTemplateBootsAsItsDefaultUser(t *testing.T) {
 	driver := &recordingDriver{}
-	p := runtimePack(driver)
+	p := runtimePack(machine.Use(driver))
 	res := &resource.Resource{
 		ID:    "00000000-0000-4000-8000-0000000000ab",
 		State: "stopped",
@@ -155,7 +155,7 @@ func TestAnInstanceWithNoPublicIPPublishesNone(t *testing.T) {
 		{"an address of the emulated elastic block is", "192.0.2.7", "192.0.2.7"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := runtimePack(&recordingDriver{})
+			p := runtimePack(machine.Use(&recordingDriver{}))
 			res := &resource.Resource{
 				ID:    "00000000-0000-4000-8000-0000000000c1",
 				State: "running",

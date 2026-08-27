@@ -155,11 +155,11 @@ func checkRuntime(ctx context.Context, mode string) []check {
 		}}
 	}
 
-	driver, err := machineDriver(mode, io.Discard)
+	rt, err := machineDriver(mode, io.Discard)
 	if err != nil {
 		return []check{{title: "the --vm mode is not one this binary knows", state: verdictFail, detail: err.Error()}}
 	}
-	if _, isNoop := driver.(machine.Noop); isNoop {
+	if !rt.Runs() {
 		return []check{{
 			title:  "no machine runtime is available",
 			state:  verdictWarn,
@@ -168,9 +168,9 @@ func checkRuntime(ctx context.Context, mode string) []check {
 		}}
 	}
 
-	caps := machine.CapabilitiesOf(driver)
+	caps := rt.Capabilities()
 	out := []check{{
-		title:  "machine runtime: " + driver.Name(),
+		title:  "machine runtime: " + rt.Name(),
 		state:  verdictOK,
 		detail: fmt.Sprintf("addresses %v, firewall %v, isolation %v, own kernel %v", caps.Addresses, caps.Firewall, caps.Isolation, caps.OwnKernel),
 	}}
@@ -194,7 +194,7 @@ func checkRuntime(ctx context.Context, mode string) []check {
 		})
 	}
 	out = append(out, checkIncusVersion(ctx))
-	out = append(out, checkImages(ctx, driver))
+	out = append(out, checkImages(ctx, rt))
 	return out
 }
 
@@ -212,8 +212,8 @@ func checkRuntime(ctx context.Context, mode string) []check {
 // to tell "checked and fine" from "never looked".
 //
 // TestDoctorNamesTheMissingImagesAndHowToBuildThem fails without this.
-func checkImages(ctx context.Context, driver machine.Driver) check {
-	inventory, err := machine.ImageInventory(ctx, driver)
+func checkImages(ctx context.Context, rt machine.Runtime) check {
+	inventory, err := rt.Inventory(ctx)
 	if err != nil {
 		return check{
 			title:  "could not read the machine images",

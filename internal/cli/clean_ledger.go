@@ -168,16 +168,12 @@ var surveyRuntime = surveyLeftovers
 // surveyLeftovers reads what the runtime holds, and distinguishes the three
 // outcomes rather than two. A driver that cannot survey is not an empty host:
 // it is a host nobody looked at, and it says so.
-func surveyLeftovers(ctx context.Context, driver machine.Driver) (machine.Leftovers, bool, error) {
-	surveyor, ok := driver.(machine.Surveyor)
-	if !ok {
-		return machine.Leftovers{}, false, nil
-	}
-	left, err := surveyor.Survey(ctx)
+func surveyLeftovers(ctx context.Context, rt machine.Runtime) (machine.Leftovers, bool, error) {
+	left, asked, err := rt.Survey(ctx)
 	if err != nil {
-		return machine.Leftovers{}, true, err
+		return machine.Leftovers{}, asked, err
 	}
-	return left, true, nil
+	return left, asked, nil
 }
 
 // recordAll writes one line per object of a survey, sorted so two runs of the
@@ -228,11 +224,11 @@ func (l *ledger) recordAll(left machine.Leftovers, stage, why, action string) {
 // The driver is resolved by the caller and passed in, since the check now asks
 // this runtime two questions rather than one and resolving it twice would let
 // them disagree about which host they are talking about.
-func refuseRuntimeLeftovers(out io.Writer, led *ledger, vm string, driver machine.Driver) error {
+func refuseRuntimeLeftovers(out io.Writer, led *ledger, vm string, rt machine.Runtime) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	left, surveyable, err := surveyRuntime(ctx, driver)
+	left, surveyable, err := surveyRuntime(ctx, rt)
 	if !surveyable {
 		// --vm off, and every driver that cannot be asked. Said out loud rather
 		// than returned in silence: a precondition that passes quietly on the
@@ -241,10 +237,10 @@ func refuseRuntimeLeftovers(out io.Writer, led *ledger, vm string, driver machin
 		return nil
 	}
 	if err != nil {
-		led.record(leftoverRecord{Kind: "survey", Name: driver.Name(), Attribution: "none",
+		led.record(leftoverRecord{Kind: "survey", Name: rt.Name(), Attribution: "none",
 			Stage: stageDoorstep, Why: whyUnreadable, Action: actionNone})
 		return fmt.Errorf("could not look at what the %s runtime holds, so this host cannot be called clean: %w",
-			driver.Name(), err)
+			rt.Name(), err)
 	}
 	if len(left.Machines) == 0 && len(left.Networks) == 0 {
 		led.prose("no machine or network of an earlier run is left on this runtime\n")

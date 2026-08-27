@@ -24,7 +24,7 @@ import (
 // default group from the store without removing its rule set from the host.
 func TestDeleteNetDropsTheDefaultGroupsRuleSet(t *testing.T) {
 	driver := newFirewallDriver()
-	p := firewallPack(driver)
+	p := firewallPack(machine.Use(driver))
 
 	w := httptest.NewRecorder()
 	p.createNet(w, httptest.NewRequest(http.MethodPost, "/api/v1/CreateNet",

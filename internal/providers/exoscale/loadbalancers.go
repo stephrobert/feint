@@ -82,8 +82,8 @@ import (
 // So the interface is not the obstacle — an in-block address is accepted and
 // created — and neither is a provider-shaped gap in it: the runtime refuses
 // this pack's address on its own, before any guard of ours is consulted. What
-// is missing is an address, and no field of `machine.Balancer` could supply
-// one that upstream does not publish.
+// is missing is an address, and no field of the runtime's balancing half
+// could supply one that upstream does not publish.
 //
 // Hence: this pack never calls the runtime, and it does not call it and swallow
 // the error either. A call whose refusal is guaranteed is noise, and the honest

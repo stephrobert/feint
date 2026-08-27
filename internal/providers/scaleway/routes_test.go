@@ -99,7 +99,7 @@ func (r *peeringRuntime) peersOf(network string) []string {
 // VPC's networks, which the machine driver enforces, reconciles when it flips.
 func TestEnableRoutingReconcilesThePeering(t *testing.T) {
 	rt := newPeeringRuntime()
-	ts, _ := newAddressTestServer(t, rt)
+	ts, _ := newAddressTestServer(t, machine.Use(rt))
 
 	vpc := createVPC(t, ts, `{"name":"routed","enable_routing":false}`)
 	vpcID, _ := vpc["id"].(string)
@@ -289,7 +289,7 @@ func TestAVPCCreatedWithoutEnableRoutingRoutes(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rt := newPeeringRuntime()
-			ts, _ := newAddressTestServer(t, rt)
+			ts, _ := newAddressTestServer(t, machine.Use(rt))
 
 			vpc := createVPC(t, ts, tc.body)
 			vpcID, _ := vpc["id"].(string)

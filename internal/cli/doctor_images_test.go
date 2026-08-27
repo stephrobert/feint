@@ -48,7 +48,7 @@ func TestDoctorNamesTheMissingImagesAndHowToBuildThem(t *testing.T) {
 
 	// One built, the rest missing: the ordinary state of a station where
 	// somebody ran `feint images` before the table grew.
-	got := checkImages(context.Background(), hostWith(all[0].Alias()))
+	got := checkImages(context.Background(), machine.Use(hostWith(all[0].Alias())))
 	if got.state != verdictWarn {
 		t.Errorf("missing images reported as %v, want a warning", got.state)
 	}
@@ -71,7 +71,7 @@ func TestDoctorNamesTheMissingImagesAndHowToBuildThem(t *testing.T) {
 	for _, spec := range all {
 		every = append(every, spec.Alias())
 	}
-	got = checkImages(context.Background(), hostWith(every...))
+	got = checkImages(context.Background(), machine.Use(hostWith(every...)))
 	if got.state != verdictOK {
 		t.Errorf("a complete image set reported as %v, want ok (detail %q)", got.state, got.detail)
 	}
@@ -83,7 +83,7 @@ func TestDoctorNamesTheMissingImagesAndHowToBuildThem(t *testing.T) {
 // "every image is present" because nobody could look is the shape of claim this
 // project exists to remove.
 func TestDoctorDoesNotReadSilenceAsACompleteImageSet(t *testing.T) {
-	got := checkImages(context.Background(), machine.Noop{})
+	got := checkImages(context.Background(), machine.Use(machine.Noop{}))
 	if got.state == verdictOK {
 		t.Errorf("a driver that lists nothing reported an ok: %q / %q", got.title, got.detail)
 	}

@@ -29,7 +29,7 @@ type Event struct {
 	Message string
 }
 
-// Watcher is the optional half of a Driver that can report what its runtime is
+// Watcher is the optional half of a driver that can report what its runtime is
 // doing. A driver without one leaves the operator reading the runtime's log by
 // hand, which is what this exists to avoid.
 type Watcher interface {

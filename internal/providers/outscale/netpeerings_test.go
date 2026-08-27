@@ -392,7 +392,7 @@ func (r *peererRuntime) peersOf(network string) []string {
 func TestAnAcceptedPeeringPeersTheBackingNetworks(t *testing.T) {
 	env := emulator.DefaultEnv()
 	rt := newPeererRuntime()
-	env.UseMachines(rt)
+	env.UseMachines(machine.Use(rt))
 	srv, err := emulator.NewServer(env, outscale.New(env))
 	if err != nil {
 		t.Fatalf("build emulator: %v", err)
@@ -445,7 +445,7 @@ func TestAnAcceptedPeeringPeersTheBackingNetworks(t *testing.T) {
 func TestACreateSubnetDoesNotSeverAnActivePeering(t *testing.T) {
 	env := emulator.DefaultEnv()
 	rt := newPeererRuntime()
-	env.UseMachines(rt)
+	env.UseMachines(machine.Use(rt))
 	srv, err := emulator.NewServer(env, outscale.New(env))
 	if err != nil {
 		t.Fatalf("build emulator: %v", err)

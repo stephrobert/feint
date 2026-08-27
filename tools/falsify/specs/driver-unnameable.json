@@ -1,0 +1,47 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "the driver interface is exported again, so `var _ machine.Driver` in a pack compiles and the boundary is back to a convention an AST scan enforces (#514)",
+      "file": "internal/core/machine/machine.go",
+      "find": "type driver interface {",
+      "replace": "type Driver = driver\n\ntype driver interface {",
+      "test": "TestThePacksCannotNameTheDriver"
+    },
+    {
+      "label": "the balancing half is exported again, and one of the five type assertions #511 counted becomes writable in a pack once more (#514)",
+      "file": "internal/core/machine/balancer.go",
+      "find": "type balancer interface {",
+      "replace": "type Balancer = balancer\n\ntype balancer interface {",
+      "test": "TestThePacksCannotNameTheDriver"
+    },
+    {
+      "label": "the routing half comes back as an exported name and only the ratchet says so: the surface list still excludes it, and excluding a nameable type is the state #514 replaced (#514)",
+      "file": "internal/core/machine/address.go",
+      "find": "type router interface {",
+      "replace": "type Router = router\n\ntype router interface {",
+      "test": "TestTheDeclaredDriverSurfaceIsSmallerThanThePackage"
+    },
+    {
+      "label": "the environment publishes its runtime again, which is the field that put a driver in every pack's hand before #511 (#514)",
+      "file": "internal/core/emulator/emulator.go",
+      "find": "\tmachines machine.Runtime\n",
+      "replace": "\tMachines machine.Runtime\n\tmachines machine.Runtime\n",
+      "test": "TestThePacksCannotNameTheDriver"
+    },
+    {
+      "label": "the binding publishes its driver again, and `p.binding().Driver.EnsureNetwork(…)` — the sentence surface.go cites by name — compiles once more (#514)",
+      "file": "internal/core/machine/binding.go",
+      "find": "\tdriver driver\n",
+      "replace": "\tDriver driver\n\tdriver driver\n",
+      "test": "TestThePacksCannotNameTheDriver"
+    },
+    {
+      "label": "the probe harness compiles a package that is not there, so every refusal is a refusal about nothing — and the positive control is what has to notice (#514)",
+      "file": "internal/cli/driver_unnameable_test.go",
+      "find": "\t\t\"./internal/cli/testdata/bypass/\"+dir+\"/\")",
+      "replace": "\t\t\"./internal/cli/testdata/bypass/\"+dir+\"/nowhere/\")",
+      "test": "TestThePacksCannotNameTheDriver"
+    }
+  ]
+}

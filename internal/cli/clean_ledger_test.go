@@ -57,10 +57,10 @@ func (d *sweptDriver) Prune(context.Context) (machine.Pruned, error) {
 }
 
 // withDriver points the doorstep and the sweep at a runtime a test controls.
-func withDriver(t *testing.T, d machine.Driver) {
+func withDriver(t *testing.T, d machine.Runtime) {
 	t.Helper()
 	previous := resolveDriver
-	resolveDriver = func(string, io.Writer) (machine.Driver, error) { return d, nil }
+	resolveDriver = func(string, io.Writer) (machine.Runtime, error) { return d, nil }
 	t.Cleanup(func() { resolveDriver = previous })
 	// And the real host read back on top of whatever quietDHCP silenced: this
 	// runtime is a fake holding known objects, so reading it is the point.
@@ -79,7 +79,7 @@ func withDriver(t *testing.T, d machine.Driver) {
 // DHCP services says it is not about runtime objects.
 func noRuntime(t *testing.T) {
 	t.Helper()
-	withDriver(t, machine.Noop{})
+	withDriver(t, machine.Use(machine.Noop{}))
 }
 
 // quietDHCP silences the real /proc scan: these tests are about runtime
@@ -105,7 +105,7 @@ func TestTheDoorstepRefusesAHostHoldingAPreviousRunsNetwork(t *testing.T) {
 		Networks:  []string{"fnt-5df8d7080c7"},
 		Firewalls: []string{"iso-fnt-5df8d7080c7"},
 	}}
-	withDriver(t, held)
+	withDriver(t, machine.Use(held))
 
 	var out bytes.Buffer
 	err := reportStuckLeftovers(&out, newLedger(&out, false, time.Now()), "incus", true)
@@ -124,7 +124,7 @@ func TestTheDoorstepRefusesAHostHoldingAPreviousRunsNetwork(t *testing.T) {
 	}
 
 	// The accepting half, on the same path.
-	withDriver(t, &sweptDriver{})
+	withDriver(t, machine.Use(&sweptDriver{}))
 	var clean bytes.Buffer
 	if err := reportStuckLeftovers(&clean, newLedger(&clean, false, time.Now()), "incus", true); err != nil {
 		t.Fatalf("the doorstep refused a runtime holding nothing: %v (%q)", err, clean.String())
@@ -138,7 +138,7 @@ func TestTheDoorstepRefusesAHostHoldingAPreviousRunsNetwork(t *testing.T) {
 // forty minutes.
 func TestTheDoorstepSaysItCouldNotLookRatherThanCallingTheHostClean(t *testing.T) {
 	quietDHCP(t)
-	withDriver(t, &sweptDriver{blind: true})
+	withDriver(t, machine.Use(&sweptDriver{blind: true}))
 
 	var out bytes.Buffer
 	led := newLedger(&out, true, time.Now())
@@ -163,10 +163,10 @@ func TestTheSweepNamesWhatSurvivedItsOwnSuccessfulDelete(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 	t.Setenv("XDG_STATE_HOME", "")
 
-	withDriver(t, &sweptDriver{
+	withDriver(t, machine.Use(&sweptDriver{
 		keeps: true,
 		left:  machine.Leftovers{Networks: []string{"fnt-5df8d7080c7"}},
-	})
+	}))
 
 	var out bytes.Buffer
 	if err := clean([]string{"--vm", "incus", "--format", "json"}, &out); err != nil {
@@ -201,7 +201,7 @@ func TestTheSweepNamesWhatSurvivedItsOwnSuccessfulDelete(t *testing.T) {
 	// The witness: the same sweep against a runtime that really removes must
 	// record no survivor. Without it this test would pass on code that labels
 	// every object a survivor.
-	withDriver(t, &sweptDriver{left: machine.Leftovers{Networks: []string{"fnt-5df8d7080c7"}}})
+	withDriver(t, machine.Use(&sweptDriver{left: machine.Leftovers{Networks: []string{"fnt-5df8d7080c7"}}}))
 	var honest bytes.Buffer
 	if err := clean([]string{"--vm", "incus", "--format", "json"}, &honest); err != nil {
 		t.Fatalf("clean on a runtime that removes: %v", err)
@@ -221,14 +221,14 @@ func TestTheLedgerAnswersWhichMechanismProducesTheWaste(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 	t.Setenv("XDG_STATE_HOME", "")
 
-	withDriver(t, &sweptDriver{
+	withDriver(t, machine.Use(&sweptDriver{
 		keeps: true,
 		left: machine.Leftovers{
 			Machines:  []string{"feint-scw-a"},
 			Networks:  []string{"fnt-a", "fnt-b"},
 			Firewalls: []string{"iso-fnt-a"},
 		},
-	})
+	}))
 
 	var out bytes.Buffer
 	if err := clean([]string{"--vm", "incus", "--format", "json"}, &out); err != nil {
@@ -293,10 +293,10 @@ func TestTheLedgerIsParseableEndToEnd(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 	t.Setenv("XDG_STATE_HOME", "")
 
-	withDriver(t, &sweptDriver{keeps: true, left: machine.Leftovers{
+	withDriver(t, machine.Use(&sweptDriver{keeps: true, left: machine.Leftovers{
 		Machines: []string{"feint-scw-a"},
 		Networks: []string{"fnt-a"},
-	}})
+	}}))
 
 	var out bytes.Buffer
 	if err := clean([]string{"--vm", "incus", "--format", "json"}, &out); err != nil {
@@ -319,7 +319,7 @@ func TestTheLedgerIsParseableEndToEnd(t *testing.T) {
 
 	// The text half, unchanged: network.sh decides the runtime is clean on this
 	// exact sentence.
-	withDriver(t, &sweptDriver{})
+	withDriver(t, machine.Use(&sweptDriver{}))
 	var text bytes.Buffer
 	if err := clean([]string{"--vm", "incus"}, &text); err != nil {
 		t.Fatalf("clean in text mode: %v", err)
@@ -355,7 +355,7 @@ func TestTheLeftoverCheckMidRunIgnoresTheRunsOwnObjects(t *testing.T) {
 		Networks:  []string{"fnt-default", "fnt-feba907ed4e"},
 		Firewalls: []string{"scw-31a308684ad"},
 	}}
-	withDriver(t, live)
+	withDriver(t, machine.Use(live))
 
 	var out bytes.Buffer
 	if err := reportStuckLeftovers(&out, newLedger(&out, false, time.Now()), "incus", false); err != nil {

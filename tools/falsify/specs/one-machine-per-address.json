@@ -11,8 +11,8 @@
     {
       "label": "a move whose withdrawal failed carries on and routes the address anyway",
       "file": "internal/core/machine/placement.go",
-      "find": "\t\t\tif err := router.UnrouteAddress(ctx, previous, spec.Address); err != nil {\n\t\t\t\treturn err\n\t\t\t}",
-      "replace": "\t\t\tif err := router.UnrouteAddress(ctx, previous, spec.Address); err != nil && false {\n\t\t\t\treturn err\n\t\t\t}",
+      "find": "\t\t\tif err := rt.UnrouteAddress(ctx, previous, spec.Address); err != nil {\n\t\t\t\treturn err\n\t\t\t}",
+      "replace": "\t\t\tif err := rt.UnrouteAddress(ctx, previous, spec.Address); err != nil && false {\n\t\t\t\treturn err\n\t\t\t}",
       "test": "TestRouteAddressReportsAFailedWithdrawalInsteadOfMovingAnyway"
     },
     {

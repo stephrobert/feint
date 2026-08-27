@@ -110,8 +110,9 @@ type Capabilities struct {
 }
 
 // Capable is implemented by a driver that declares what it delivers. It is an
-// optional interface, like Firewaller and Pruner: a driver that does not
-// implement it is read through CapabilitiesOf below, which assumes nothing.
+// optional interface, like the firewalling half and Pruner: a driver that does
+// not implement it is read through CapabilitiesOf below, which assumes
+// nothing.
 type Capable interface {
 	Capabilities() Capabilities
 }
@@ -123,7 +124,7 @@ type Capable interface {
 // so a suite gating on one skips rather than asserting something nobody
 // promised. A driver that gains a capability declares it; nothing here guesses
 // from a type name.
-func CapabilitiesOf(d Driver) Capabilities {
+func CapabilitiesOf(d driver) Capabilities {
 	if c := Declared(d); c != nil {
 		return *c
 	}
@@ -144,7 +145,7 @@ func CapabilitiesOf(d Driver) Capabilities {
 // declared, and the page prints "not declared".
 // TestAnUndeclaredDriverIsNotTheSameAsOneThatDeclaresNothing in
 // internal/core/emulator fails without this.
-func Declared(d Driver) *Capabilities {
+func Declared(d driver) *Capabilities {
 	c, ok := d.(Capable)
 	if !ok {
 		return nil

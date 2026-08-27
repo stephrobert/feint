@@ -72,7 +72,7 @@ func TestBridgeModeRejectsForeignSubnetsThroughTheGroup(t *testing.T) {
 	rec := machine.NewRecorder()
 	rec.Joined = true // the bridge shape: networks reach each other unless rejected
 	env := emulator.DefaultEnv()
-	env.UseMachines(rec)
+	env.UseMachines(machine.Use(rec))
 	p := New(env)
 
 	tenant := resource.Tenant{Provider: Name, Project: defaultProject, Zone: "fr-par-1"}

@@ -18,7 +18,8 @@ import (
 	"github.com/stephrobert/feint/internal/providers/scaleway"
 )
 
-// fakeRuntime is a machine.Driver that records what it was asked to do and
+// fakeRuntime satisfies the machine package's driver contract, records what
+// it was asked to do and
 // refuses a name it has already given out, the way Incus refuses to launch an
 // instance whose name exists. That refusal is the whole point: it is what turned
 // a second poweron into a "stopped" server with a container still running.
@@ -132,7 +133,7 @@ func (f *fakeRuntime) running() []string {
 // newRuntimeTestServer is newTestServer with a machine runtime behind it, and an
 // id generator that is safe to call from two requests at once — the sequential
 // one races under -race the moment a test issues concurrent calls.
-func newRuntimeTestServer(t testing.TB, drv machine.Driver) *httptest.Server {
+func newRuntimeTestServer(t testing.TB, drv machine.Runtime) *httptest.Server {
 	t.Helper()
 
 	var seq atomic.Int64
@@ -183,7 +184,7 @@ func call(ts *httptest.Server, method, path, body string) (int, error) {
 // this project exists not to give.
 func TestConcurrentPowerOnStartsTheMachineOnce(t *testing.T) {
 	rt := newFakeRuntime()
-	ts := newRuntimeTestServer(t, rt)
+	ts := newRuntimeTestServer(t, machine.Use(rt))
 	const zone = "/instance/v1/zones/fr-par-1"
 
 	status, out := do(t, ts, "POST", zone+"/servers", `{"name":"demo","commercial_type":"DEV1-S"}`)
@@ -263,7 +264,7 @@ func TestConcurrentPowerOnStartsTheMachineOnce(t *testing.T) {
 func TestPowerOnIsIdempotentOnARunningServer(t *testing.T) {
 	rt := newFakeRuntime()
 	close(rt.release) // nothing to hold: this test is sequential
-	ts := newRuntimeTestServer(t, rt)
+	ts := newRuntimeTestServer(t, machine.Use(rt))
 	const zone = "/instance/v1/zones/fr-par-1"
 
 	status, out := do(t, ts, "POST", zone+"/servers", `{"name":"demo","commercial_type":"DEV1-S"}`)

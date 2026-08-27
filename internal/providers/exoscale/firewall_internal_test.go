@@ -88,7 +88,7 @@ func storedInstance(p *Pack, publicIP string, groupIDs ...any) *resource.Resourc
 // forbidden until a rule allows it.
 func TestAnExoscaleGroupReachesTheHostWhenAnInstanceBoots(t *testing.T) {
 	driver := newFirewallDriver()
-	p := sequencedPack(driver)
+	p := sequencedPack(machine.Use(driver))
 	group := storedSecurityGroup(p, "platform-web", []any{map[string]any{
 		"id": "r1", "flow-direction": "ingress", "protocol": "tcp",
 		"network": "0.0.0.0/0", "start-port": 443, "end-port": 443,
@@ -116,7 +116,7 @@ func TestAnExoscaleGroupReachesTheHostWhenAnInstanceBoots(t *testing.T) {
 // OVN NIC's own default is deny — until the group defines one outbound rule,
 // after which only the defined outbound rules pass.
 func TestAnEgressRuleFlipsTheEgressDefault(t *testing.T) {
-	p := sequencedPack(&recordingDriver{})
+	p := sequencedPack(machine.Use(&recordingDriver{}))
 	open := storedSecurityGroup(p, "no-egress", []any{map[string]any{
 		"id": "r1", "flow-direction": "ingress", "protocol": "tcp",
 		"network": "0.0.0.0/0", "start-port": 22, "end-port": 22,
@@ -157,7 +157,7 @@ func TestAnEgressRuleFlipsTheEgressDefault(t *testing.T) {
 // arrive expanded into the member machines' addresses — and the group's
 // external sources, which upstream defines as extending that membership.
 func TestAGroupSourcedRuleExpandsToTheMembersAddresses(t *testing.T) {
-	p := sequencedPack(&recordingDriver{})
+	p := sequencedPack(machine.Use(&recordingDriver{}))
 	web := storedSecurityGroup(p, "web", nil)
 	_ = p.env.Store.Update(Name, kindSecurityGroup, web.ID, func(stored *resource.Resource) error {
 		stored.Attrs["external-sources"] = []any{"203.0.113.0/24"}
@@ -190,7 +190,7 @@ func TestAGroupSourcedRuleExpandsToTheMembersAddresses(t *testing.T) {
 // member that does not inherit them is a machine the group never reaches.
 func TestAPoolMemberWearsItsPoolsGroups(t *testing.T) {
 	driver := newFirewallDriver()
-	p := sequencedPack(driver)
+	p := sequencedPack(machine.Use(driver))
 	group := storedSecurityGroup(p, "platform-app", []any{map[string]any{
 		"id": "r1", "flow-direction": "ingress", "protocol": "tcp",
 		"network": "0.0.0.0/0", "start-port": 8080, "end-port": 8080,
@@ -252,7 +252,7 @@ func (p *Pack) poolMembersOfOnlyPool(t *testing.T) []*resource.Resource {
 // and this one keeps the resync itself from being dropped along with it.
 func TestALateNetworkAttachCarriesTheRuleSets(t *testing.T) {
 	driver := newFirewallDriver()
-	p := sequencedPack(driver)
+	p := sequencedPack(machine.Use(driver))
 	group := storedSecurityGroup(p, "web", []any{map[string]any{
 		"id": "r1", "flow-direction": "ingress", "protocol": "tcp",
 		"network": "0.0.0.0/0", "start-port": 443, "end-port": 443,

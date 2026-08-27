@@ -32,14 +32,18 @@ type Binding struct {
 	// the default: starting machines is a side effect on the operator's host.
 	//
 	// Unexported, and that is the point of #511: a pack declares the fields
-	// below and receives the driver from the emulator through WithDriver, so
+	// below and receives the runtime from the emulator through WithRuntime, so
 	// no expression in a provider pack can name a driver method through the
 	// binding. The field was exported until then, and `p.binding().Driver.
 	// EnsureNetwork(…)` was a working sentence — a discipline test can only
 	// report such a line, while an unexported field means it does not compile.
+	//
+	// Its *type* is unexported too since #514: the field being private closed
+	// the way to obtain a driver, and left the way to name one open, so
+	// `var _ machine.Driver` in a pack still compiled. See Runtime.
 	// internal/cli's TestNoPackReachesPastTheDeclaredDriverSurface holds what
 	// typing cannot.
-	driver Driver
+	driver driver
 	// Provider labels everything this binding creates, so a sweep can find its
 	// own work and an operator's machines are never touched.
 	Provider string
@@ -105,15 +109,19 @@ type Binding struct {
 	Log *slog.Logger
 }
 
-// WithDriver returns the binding bound to a runtime.
+// WithRuntime returns the binding bound to a runtime.
 //
 // This is the one door a driver goes through on its way into a binding, and it
 // is deliberately one-way: nothing hands it back out. The emulator calls it
 // (Env.Bind) while mounting a pack, which is why a pack declares the fields
 // above and never the driver — see the driver field for the sentence that used
 // to compile and no longer does.
-func (b Binding) WithDriver(d Driver) Binding {
-	b.driver = d
+//
+// It takes a Runtime rather than a driver since #514: the handle is the only
+// spelling of a runtime that exists outside this package, so emulator.Env can
+// carry one and hand it over without ever naming what is inside it.
+func (b Binding) WithRuntime(r Runtime) Binding {
+	b.driver = r.d
 	return b
 }
 

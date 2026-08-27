@@ -31,7 +31,7 @@ import (
 // the natural name and is already taken by the watcher's type in watch.go;
 // gesture is the word #514 uses for exactly this.)
 type Gesture struct {
-	// Kind names the gesture: the Driver (or optional-half) method that was
+	// Kind names the gesture: the driver (or optional-half) method that was
 	// called. It must be a key of the contract vocabulary.
 	Kind string
 	// Resource is what the gesture acted on — the machine, network, rule set
@@ -43,7 +43,7 @@ type Gesture struct {
 }
 
 // contractGestures is the closed vocabulary of the driver contract: every
-// method of Driver and its optional halves (Router, Firewaller, Peerer,
+// method of the driver and its optional halves (routing, rule sets, peering,
 // Isolator, Balancer, Capable), and nothing else. The value says whether the
 // gesture changes the host: true is a gesture the Recorder records, false is a
 // read, deliberately left out of the recording — a read changes nothing on the
@@ -90,7 +90,7 @@ func KnownGesture(kind string) bool {
 	return known
 }
 
-// Recorder is the shared fake runtime: it implements Driver and every optional
+// Recorder is the shared fake runtime: it implements the driver and every optional
 // half, runs machines instantly, and records each host-changing gesture as a
 // typed Gesture, in call order.
 //
@@ -165,13 +165,13 @@ func (r *Recorder) OutsideContract() []Gesture {
 	return out
 }
 
-// Name implements Driver.
+// Name implements driver.
 func (r *Recorder) Name() string { return "recorder" }
 
-// Available implements Driver.
+// Available implements driver.
 func (r *Recorder) Available(context.Context) bool { return true }
 
-// Start implements Driver: the machine runs at once, on the address its first
+// Start implements driver: the machine runs at once, on the address its first
 // attachment fixes, or on a stable placeholder when the pack fixed none.
 func (r *Recorder) Start(_ context.Context, spec Spec) (Machine, error) {
 	ip := "10.230.0.10"
@@ -185,7 +185,7 @@ func (r *Recorder) Start(_ context.Context, spec Spec) (Machine, error) {
 	return Machine{Name: spec.Name, IP: ip, Running: true}, nil
 }
 
-// Stop implements Driver.
+// Stop implements driver.
 func (r *Recorder) Stop(_ context.Context, name string) error {
 	r.mu.Lock()
 	if m, found := r.machines[name]; found {
@@ -197,7 +197,7 @@ func (r *Recorder) Stop(_ context.Context, name string) error {
 	return nil
 }
 
-// Remove implements Driver. It succeeds when nothing is there, as the contract
+// Remove implements driver. It succeeds when nothing is there, as the contract
 // requires.
 func (r *Recorder) Remove(_ context.Context, name string) error {
 	r.mu.Lock()
@@ -207,7 +207,7 @@ func (r *Recorder) Remove(_ context.Context, name string) error {
 	return nil
 }
 
-// Inspect implements Driver. A read, so it is not recorded.
+// Inspect implements driver. A read, so it is not recorded.
 func (r *Recorder) Inspect(_ context.Context, name string) (Machine, bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -218,25 +218,25 @@ func (r *Recorder) Inspect(_ context.Context, name string) (Machine, bool, error
 	return Machine{Name: name, IP: m.ip, Running: m.running}, true, nil
 }
 
-// EnsureNetwork implements Driver.
+// EnsureNetwork implements driver.
 func (r *Recorder) EnsureNetwork(_ context.Context, spec NetworkSpec) error {
 	r.Record(Gesture{Kind: "EnsureNetwork", Resource: spec.Name, Args: spec})
 	return nil
 }
 
-// Attach implements Driver.
+// Attach implements driver.
 func (r *Recorder) Attach(_ context.Context, name string, att Attachment) error {
 	r.Record(Gesture{Kind: "Attach", Resource: name, Args: att})
 	return nil
 }
 
-// Detach implements Driver.
+// Detach implements driver.
 func (r *Recorder) Detach(_ context.Context, name, network string) error {
 	r.Record(Gesture{Kind: "Detach", Resource: name, Args: network})
 	return nil
 }
 
-// RemoveNetwork implements Driver.
+// RemoveNetwork implements driver.
 func (r *Recorder) RemoveNetwork(_ context.Context, name string) error {
 	r.Record(Gesture{Kind: "RemoveNetwork", Resource: name})
 	return nil

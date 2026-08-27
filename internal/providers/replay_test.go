@@ -150,7 +150,7 @@ func recorderEnv() (*emulator.Env, *machine.Recorder) {
 		},
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
-	env.UseMachines(rec)
+	env.UseMachines(machine.Use(rec))
 	return env, rec
 }
 

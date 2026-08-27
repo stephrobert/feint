@@ -219,7 +219,7 @@ func TestTerminateReleasesWhatDeleteReleases(t *testing.T) {
 func TestCreatingAServerDoesNotStealALiveAddress(t *testing.T) {
 	runtime := &routingRuntime{fakeRuntime: newFakeRuntime()}
 	close(runtime.release) // nothing here needs to block
-	ts := newRuntimeTestServer(t, runtime)
+	ts := newRuntimeTestServer(t, machine.Use(runtime))
 
 	_, out := do(t, ts, "POST", zone+"/ips", `{}`)
 	ip, _ := out["ip"].(map[string]any)
@@ -425,7 +425,7 @@ func TestAnAddressIsAValidIPReference(t *testing.T) {
 func TestARefusedAttachmentIsVisibleOnTheNIC(t *testing.T) {
 	refusing := &refusingRuntime{fakeRuntime: newFakeRuntime()}
 	close(refusing.release)
-	ts := newRuntimeTestServer(t, refusing)
+	ts := newRuntimeTestServer(t, machine.Use(refusing))
 
 	srvID := aServer(t, ts, "vm-host")
 	if status, _ := do(t, ts, "POST", zone+"/servers/"+srvID+"/action",
@@ -468,7 +468,7 @@ func TestARefusedAttachmentIsVisibleOnTheNIC(t *testing.T) {
 func TestARefusedAttachmentIsVisibleOnTheV2alpha1View(t *testing.T) {
 	refusing := &refusingRuntime{fakeRuntime: newFakeRuntime()}
 	close(refusing.release)
-	ts := newRuntimeTestServer(t, refusing)
+	ts := newRuntimeTestServer(t, machine.Use(refusing))
 
 	srvID := aServer(t, ts, "vm-host")
 	if status, _ := do(t, ts, "POST", zone+"/servers/"+srvID+"/action",
@@ -510,5 +510,5 @@ func (r *refusingRuntime) Attach(context.Context, string, machine.Attachment) er
 	return errors.New(`Failed to start device "eth1": PCI: slot 0 function 0 not available`)
 }
 
-// Detach implements machine.Driver; *refusingRuntime needs no behaviour here.
+// Detach completes the machine package's driver contract; *refusingRuntime needs no behaviour here.
 func (r *refusingRuntime) Detach(context.Context, string, string) error { return nil }

@@ -68,7 +68,7 @@ func routedServe(t *testing.T) (http.Handler, *routedRuntime, *emulator.Env) {
 	t.Helper()
 	env := emulator.DefaultEnv()
 	rt := &routedRuntime{}
-	env.UseMachines(rt)
+	env.UseMachines(machine.Use(rt))
 	srv, err := emulator.NewServer(env, exoscale.New(env))
 	if err != nil {
 		t.Fatalf("build the server: %v", err)

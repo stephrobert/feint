@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stephrobert/feint/internal/core/machine"
 	"github.com/stephrobert/feint/internal/core/resource"
 )
 
@@ -26,7 +27,7 @@ import (
 // operation was already correct while nothing at all was sent.
 func TestDetachingAnInstanceTakesTheDeviceOffTheRuntime(t *testing.T) {
 	driver := &recordingDriver{}
-	p := runtimePack(driver)
+	p := runtimePack(machine.Use(driver))
 
 	const instanceID = "11111111-1111-4111-8111-111111111111"
 	const networkID = "22222222-2222-4222-8222-222222222222"

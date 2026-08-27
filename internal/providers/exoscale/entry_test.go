@@ -152,7 +152,7 @@ func TestExoscaleNeverPublishesKeyMaterial(t *testing.T) {
 // dead code on the only pack that motivated it.
 func TestAnExoscaleKeyReachesTheMachine(t *testing.T) {
 	driver := &recordingRuntime{}
-	h := serveWith(t, driver)
+	h := serveWith(t, machine.Use(driver))
 
 	call(t, h, "POST", "/v2/ssh-key", `{"name":"mine","public-key":"`+realKey+`"}`)
 	call(t, h, "POST", "/v2/instance", `{
@@ -224,7 +224,7 @@ func (r *recordingRuntime) user() string {
 	return r.specs[0].User
 }
 
-func serveWith(t *testing.T, drv machine.Driver) http.Handler {
+func serveWith(t *testing.T, drv machine.Runtime) http.Handler {
 	t.Helper()
 	env := emulator.DefaultEnv()
 	env.UseMachines(drv)
@@ -371,5 +371,5 @@ func TestExoscaleAnswersTheCloudsStatusForAKeyItCannotRead(t *testing.T) {
 	}
 }
 
-// Detach implements machine.Driver; *recordingRuntime needs no behaviour here.
+// Detach completes the machine package's driver contract; *recordingRuntime needs no behaviour here.
 func (r *recordingRuntime) Detach(context.Context, string, string) error { return nil }

@@ -53,7 +53,7 @@ func (d *trappedDriver) Repair(context.Context) ([]machine.Trap, error) {
 }
 
 // checkAgainst runs `feint clean --check` against a runtime a test controls.
-func checkAgainst(t *testing.T, driver machine.Driver) (string, error) {
+func checkAgainst(t *testing.T, driver machine.Runtime) (string, error) {
 	t.Helper()
 	quietDHCP(t)
 	withDriver(t, driver)
@@ -67,13 +67,13 @@ func checkAgainst(t *testing.T, driver machine.Driver) (string, error) {
 // because this reports them: before the fix all three answered 0.
 
 func TestCleanCheckReportsADanglingPeerRow(t *testing.T) {
-	report, err := checkAgainst(t, &trappedDriver{traps: []machine.Trap{{
+	report, err := checkAgainst(t, machine.Use(&trappedDriver{traps: []machine.Trap{{
 		Kind:       machine.TrapDanglingPeer,
 		Name:       "fnt-c10fedc7f6c/fnt-e41278b8c3a",
 		Why:        "its peering names network 2617, which no longer exists",
 		Repairable: true,
 		Row:        `{"id":401}`,
-	}}})
+	}}}))
 	if err == nil {
 		t.Fatal("a host holding a peering row no command can remove was reported as ready")
 	}
@@ -88,11 +88,11 @@ func TestCleanCheckReportsADanglingPeerRow(t *testing.T) {
 }
 
 func TestCleanCheckReportsAStrippedUplink(t *testing.T) {
-	report, err := checkAgainst(t, &trappedDriver{traps: []machine.Trap{{
+	report, err := checkAgainst(t, machine.Use(&trappedDriver{traps: []machine.Trap{{
 		Kind: machine.TrapStrippedUplink,
 		Name: "fnt-ad48c26e025",
 		Why:  "its block 10.2.2.0/24 is no longer delegated to the uplink feint-uplink",
-	}}})
+	}}}))
 	if err == nil {
 		t.Fatal("a host whose uplink lost the block of a network still standing was reported as ready")
 	}
@@ -102,11 +102,11 @@ func TestCleanCheckReportsAStrippedUplink(t *testing.T) {
 }
 
 func TestCleanCheckReportsARuleSetHeldByATrappedNetwork(t *testing.T) {
-	report, err := checkAgainst(t, &trappedDriver{traps: []machine.Trap{{
+	report, err := checkAgainst(t, machine.Use(&trappedDriver{traps: []machine.Trap{{
 		Kind: machine.TrapHeldFirewall,
 		Name: "iso-fnt-c10fedc7f6c",
 		Why:  "it is attached to fnt-c10fedc7f6c, which is trapped",
-	}}})
+	}}}))
 	if err == nil {
 		t.Fatal("a rule set neither the network nor the sweep can release was reported as ready")
 	}
@@ -126,7 +126,7 @@ func TestCleanCheckReportsARuleSetHeldByATrappedNetwork(t *testing.T) {
 // say so out loud, because "checked and fine" and "never looked" must not read
 // the same.
 func TestCleanCheckStaysQuietOnARuntimeNothingHoldsBeyondItsSweep(t *testing.T) {
-	report, err := checkAgainst(t, &trappedDriver{})
+	report, err := checkAgainst(t, machine.Use(&trappedDriver{}))
 	if err != nil {
 		t.Fatalf("a runtime holding nothing beyond its sweep was refused: %v\n%s", err, report)
 	}
@@ -137,7 +137,7 @@ func TestCleanCheckStaysQuietOnARuntimeNothingHoldsBeyondItsSweep(t *testing.T) 
 
 // A runtime that cannot be asked is not an empty one. Three outcomes, never two.
 func TestCleanCheckRefusesARuntimeItCannotAsk(t *testing.T) {
-	report, err := checkAgainst(t, &trappedDriver{blind: true})
+	report, err := checkAgainst(t, machine.Use(&trappedDriver{blind: true}))
 	if err == nil {
 		t.Fatalf("a runtime that answered nothing was reported as a clean host:\n%s", report)
 	}
@@ -159,10 +159,10 @@ func TestForceNamesEveryRowBeforeItRemovesIt(t *testing.T) {
 			Why: "its block is no longer delegated",
 		},
 	}}
-	withDriver(t, driver)
+	withDriver(t, machine.Use(driver))
 
 	var out bytes.Buffer
-	if err := clearRuntimeTraps(&out, newLedger(&out, false, time.Now()), driver); err != nil {
+	if err := clearRuntimeTraps(&out, newLedger(&out, false, time.Now()), machine.Use(driver)); err != nil {
 		t.Fatalf("--force: %v\n%s", err, out.String())
 	}
 	report := out.String()

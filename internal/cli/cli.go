@@ -621,7 +621,7 @@ Every one of these is also a mise task: run "mise tasks" to list them.
 // creates nothing, so a probe that fails costs one call and falls through to the
 // bridge. What is chosen is printed, because a runtime selected in silence is a
 // runtime nobody can reason about.
-func machineDriver(mode string, stdout io.Writer) (machine.Driver, error) {
+func machineDriver(mode string, stdout io.Writer) (machine.Runtime, error) {
 	ctx := context.Background()
 
 	// verify asks the host what it delivers, once, before anything is published.
@@ -634,46 +634,40 @@ func machineDriver(mode string, stdout io.Writer) (machine.Driver, error) {
 	//
 	// The narrowing is announced rather than silent, because a capability that
 	// quietly drops is how a suite starts skipping what it used to assert.
-	verify := func(d machine.Driver) []string {
-		v, ok := d.(interface {
-			Verify(context.Context) (machine.Capabilities, []string)
-		})
-		if !ok {
-			return nil
-		}
-		_, unmet := v.Verify(ctx)
+	verify := func(rt machine.Runtime) []string {
+		_, unmet := rt.Verify(ctx)
 		return unmet
 	}
 
-	requested := func(d machine.Driver) (machine.Driver, error) {
-		if !d.Available(ctx) {
-			return nil, fmt.Errorf("--vm %s requested but the Incus daemon does not answer", mode)
+	requested := func(rt machine.Runtime) (machine.Runtime, error) {
+		if !rt.Available(ctx) {
+			return machine.Runtime{}, fmt.Errorf("--vm %s requested but the Incus daemon does not answer", mode)
 		}
 		// Asked for by name, and the host cannot serve it: refuse at startup
 		// naming the missing half, the same shape as the line above. Accepting
 		// it would publish a capability the first create disproves, and blame
 		// the client for it.
-		if unmet := verify(d); len(unmet) > 0 {
-			return nil, fmt.Errorf("--vm %s requested but this host cannot deliver it:\n  %s",
+		if unmet := verify(rt); len(unmet) > 0 {
+			return machine.Runtime{}, fmt.Errorf("--vm %s requested but this host cannot deliver it:\n  %s",
 				mode, strings.Join(unmet, "\n  "))
 		}
-		return d, nil
+		return rt, nil
 	}
 
 	switch mode {
 	case "off", "none", "":
-		return machine.Noop{}, nil
+		return machine.Use(machine.Noop{}), nil
 	case "incus":
-		return requested(machine.NewIncus())
+		return requested(machine.Use(machine.NewIncus()))
 	case "incus-vm", "kvm":
-		return requested(machine.NewIncusVM())
+		return requested(machine.Use(machine.NewIncusVM()))
 	case "incus-ovn", "ovn":
-		return requested(machine.NewIncusOVN())
+		return requested(machine.Use(machine.NewIncusOVN()))
 	case "auto":
 		// Most capable first. Never incus-vm: a virtual machine costs tens of
 		// seconds to boot where a container costs seconds, and that is a trade
 		// an operator makes on purpose rather than one auto makes for them.
-		for _, d := range []machine.Driver{machine.NewIncusOVN(), machine.NewIncus()} {
+		for _, d := range []machine.Runtime{machine.Use(machine.NewIncusOVN()), machine.Use(machine.NewIncus())} {
 			if !d.Available(ctx) {
 				continue
 			}
@@ -682,9 +676,9 @@ func machineDriver(mode string, stdout io.Writer) (machine.Driver, error) {
 			// a mode whose defining capability the host cannot deliver is passed
 			// over, so the ordinary host that never installed OVN lands on the
 			// bridge that works instead of on a promise that does not.
-			declared := machine.CapabilitiesOf(d)
+			declared := d.Capabilities()
 			unmet := verify(d)
-			caps := machine.CapabilitiesOf(d)
+			caps := d.Capabilities()
 			if declared.Isolation && !caps.Isolation {
 				// Isolation is the only reason this mode is tried first, so a
 				// host that cannot deliver it gets the next mode rather than
@@ -705,9 +699,9 @@ func machineDriver(mode string, stdout io.Writer) (machine.Driver, error) {
 			return d, nil
 		}
 		fmt.Fprintln(stdout, "no machine runtime available, falling back to metadata-only machines")
-		return machine.Noop{}, nil
+		return machine.Use(machine.Noop{}), nil
 	default:
-		return nil, fmt.Errorf("unknown --vm mode %q (off, incus, incus-vm, incus-ovn, auto)", mode)
+		return machine.Runtime{}, fmt.Errorf("unknown --vm mode %q (off, incus, incus-vm, incus-ovn, auto)", mode)
 	}
 }
 
@@ -932,11 +926,11 @@ func serve(args []string, stdout io.Writer) error {
 		}
 	}
 
-	driver, err := machineDriver(*vm, stdout)
+	rt, err := machineDriver(*vm, stdout)
 	if err != nil {
 		return err
 	}
-	env.UseMachines(driver)
+	env.UseMachines(rt)
 	// The operator's own identifier declarations, the door through the boot
 	// refusal (#465). Read here in the composition root like the other
 	// deployment choices (FEINT_OUTSCALE_REGION), and only on the serve path:
@@ -959,12 +953,12 @@ func serve(args []string, stdout io.Writer) error {
 	// exactly the step nobody thinks of taking.
 	// What a previous life left on the runtime, said before this one serves
 	// beside it. The policy and its boundaries live in leftovers.go.
-	reportLeftovers(driver, env.Log)
+	reportLeftovers(rt, env.Log)
 
 	watchCtx, stopWatching := context.WithCancel(context.Background())
 	defer stopWatching()
-	if watcher, ok := driver.(machine.Watcher); ok {
-		if events, err := watcher.Watch(watchCtx); err == nil {
+	if events, asked, err := rt.Watch(watchCtx); asked {
+		if err == nil {
 			go reportRuntimeEvents(events, env.Log, srv)
 		} else {
 			env.Log.Warn("could not watch the machine runtime", "error", err)
@@ -993,7 +987,7 @@ func serve(args []string, stdout io.Writer) error {
 		// caller asked for against what this process is bound to.
 		Handler:           emulator.GuardRebinding(srv.Handler(), *addr),
 		ReadHeaderTimeout: 10 * time.Second,
-		WriteTimeout:      writeTimeoutFor(driver),
+		WriteTimeout:      writeTimeoutFor(rt),
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -1036,7 +1030,7 @@ func serve(args []string, stdout io.Writer) error {
 
 	// Swept before the state is written: what the runtime no longer holds must
 	// not be described as running in a snapshot the next run restores.
-	shutdownSweep(driver, *cleanup, stdout)
+	shutdownSweep(rt, *cleanup, stdout)
 
 	if *state != "" {
 		f, err := os.OpenFile(*state, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600) //nolint:gosec // operator-supplied path, by design
@@ -1069,10 +1063,9 @@ func serve(args []string, stdout io.Writer) error {
 // not a measurement of anything, it is a leftover by construction — the one
 // that made two green conformance runs fail their successor's doorstep.
 // TestAGracefulExitReleasesTheUplink fails without the call.
-func shutdownSweep(driver machine.Driver, cleanup bool, stdout io.Writer) {
+func shutdownSweep(rt machine.Runtime, cleanup bool, stdout io.Writer) {
 	if cleanup {
-		if pruner, ok := driver.(machine.Pruner); ok {
-			pruned, err := pruner.Prune(context.Background())
+		if pruned, asked, err := rt.Prune(context.Background()); asked {
 			fmt.Fprintf(stdout, "cleanup: removed %d machine(s), %d network(s), %d rule set(s)\n",
 				pruned.Machines, pruned.Networks, pruned.Firewalls)
 			if err != nil {
@@ -1080,8 +1073,7 @@ func shutdownSweep(driver machine.Driver, cleanup bool, stdout io.Writer) {
 			}
 		}
 	}
-	if releaser, ok := driver.(machine.UplinkReleaser); ok {
-		released, err := releaser.ReleaseUplink(context.Background())
+	if released, asked, err := rt.ReleaseUplink(context.Background()); asked {
 		switch {
 		case err != nil:
 			// Said rather than swallowed: an uplink this exit could not judge

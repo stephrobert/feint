@@ -1,6 +1,7 @@
 package emulator_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -396,15 +397,32 @@ func TestThePageCarriesEveryOperationBehindTheCounts(t *testing.T) {
 // the fourth one will, and it must not be read as refusing five capabilities it
 // was never asked about.
 //
-// It embeds the Driver interface rather than the no-op driver, and that is the
-// whole trick: embedding Noop would inherit Noop's own Capabilities method and
-// make this driver a declaring one, which is the opposite of what it is for. A
-// nil embedded interface satisfies Driver at compile time and panics if anything
-// calls through it — nothing here does, because the health endpoint asks for the
-// name and for a type assertion, and both are answered above.
-type mute struct{ machine.Driver }
+// It spells out the ten verbs rather than embedding machine.Noop, and that is
+// the whole trick: Noop carries its own Capabilities method, so embedding it
+// would make this driver a declaring one, which is the opposite of what it is
+// for. It used to embed the driver interface as a nil field, which satisfied
+// the interface and panicked on any call; since #514 that type is unnameable
+// outside internal/core/machine, and writing the methods out is the better
+// answer anyway — a runtime nothing can call is a runtime this test cannot
+// grow into.
+type mute struct{}
 
-func (mute) Name() string { return "mute" }
+func (mute) Name() string                                             { return "mute" }
+func (mute) Available(context.Context) bool                           { return true }
+func (mute) Stop(context.Context, string) error                       { return nil }
+func (mute) Remove(context.Context, string) error                     { return nil }
+func (mute) EnsureNetwork(context.Context, machine.NetworkSpec) error { return nil }
+func (mute) Attach(context.Context, string, machine.Attachment) error { return nil }
+func (mute) Detach(context.Context, string, string) error             { return nil }
+func (mute) RemoveNetwork(context.Context, string) error              { return nil }
+
+func (mute) Start(_ context.Context, spec machine.Spec) (machine.Machine, error) {
+	return machine.Machine{Name: spec.Name, Running: true}, nil
+}
+
+func (mute) Inspect(_ context.Context, name string) (machine.Machine, bool, error) {
+	return machine.Machine{Name: name}, false, nil
+}
 
 // A driver that declared nothing is not a driver that refused everything.
 //
@@ -417,9 +435,9 @@ func (mute) Name() string { return "mute" }
 // made on the wire rather than in the page: a second driver, a second reader, or
 // a script with jq would each have to reinvent it otherwise.
 func TestAnUndeclaredDriverIsNotTheSameAsOneThatDeclaresNothing(t *testing.T) {
-	read := func(driver machine.Driver) map[string]any {
+	read := func(rt machine.Runtime) map[string]any {
 		env := emulator.DefaultEnv()
-		env.UseMachines(driver)
+		env.UseMachines(rt)
 		srv, err := emulator.NewServer(env)
 		if err != nil {
 			t.Fatalf("build emulator: %v", err)
@@ -432,7 +450,7 @@ func TestAnUndeclaredDriverIsNotTheSameAsOneThatDeclaresNothing(t *testing.T) {
 	}
 
 	// The no-op driver declares: it runs nothing and says so, which is a claim.
-	silentButDeclaring := read(machine.Noop{})
+	silentButDeclaring := read(machine.Use(machine.Noop{}))
 	caps, ok := silentButDeclaring["capabilities"].(map[string]any)
 	if !ok {
 		t.Fatalf("a driver that declares got no capability object: %v", silentButDeclaring["capabilities"])
@@ -443,7 +461,7 @@ func TestAnUndeclaredDriverIsNotTheSameAsOneThatDeclaresNothing(t *testing.T) {
 
 	// A driver that never implemented Capable declares nothing, and the payload
 	// has to be able to say so.
-	undeclared := read(mute{})
+	undeclared := read(machine.Use(mute{}))
 	if undeclared["capabilities"] != nil {
 		t.Errorf("a driver that declares nothing published %v; "+
 			"absent and refused would then read the same", undeclared["capabilities"])

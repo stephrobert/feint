@@ -222,7 +222,7 @@ func (d *Incus) logger() *slog.Logger {
 	return slog.Default()
 }
 
-// Name implements Driver.
+// Name implements driver.
 func (d *Incus) Name() string {
 	switch {
 	case d.OVN && d.VM:
@@ -236,7 +236,7 @@ func (d *Incus) Name() string {
 	}
 }
 
-// Available implements Driver: it queries the daemon, since an installed client
+// Available implements driver: it queries the daemon, since an installed client
 // with no reachable server is the common broken case.
 func (d *Incus) Available(ctx context.Context) bool {
 	_, err := d.run(ctx, "list", "--format", "json")
@@ -403,7 +403,7 @@ func (d *Incus) publicRouteKey() string {
 	return "ipv4.routes"
 }
 
-// Start implements Driver.
+// Start implements driver.
 //
 // The instance is initialised cold, its devices configured, then started —
 // rather than launched in one step — because every device key must be in place
@@ -681,7 +681,7 @@ func (d *Incus) attachExtra(ctx context.Context, spec Spec) error {
 	return nil
 }
 
-// Attach implements Driver.
+// Attach implements driver.
 //
 // Two steps, and the second is the one that is easy to miss. Adding the device
 // reserves the address on the managed bridge, which is all `ipv4.address` does:
@@ -806,9 +806,9 @@ func (d *Incus) Attach(ctx context.Context, name string, att Attachment) error {
 	return d.reconcileSecondary(ctx, name, device, att)
 }
 
-// Detach implements Driver.
+// Detach implements driver.
 //
-// The measurement it exists for (#426). Before it, the Driver had Attach and no
+// The measurement it exists for (#426). Before it, the driver had Attach and no
 // counterpart, so a pack deleting a private NIC could only forget it in the
 // store: the `eth1` stayed on the container, DeletePrivateNetwork then ran
 // RemoveNetwork, Incus answered "The network is currently in use", the pack
@@ -1244,7 +1244,7 @@ func (d *Incus) lockNetworks(names []string) func() {
 	}
 }
 
-// EnsureNetwork implements Driver. It creates a managed bridge carrying the
+// EnsureNetwork implements driver. It creates a managed bridge carrying the
 // block the pack computed — or an OVN network in OVN mode — and succeeds when
 // the network is already there.
 //
@@ -1421,7 +1421,7 @@ func leftoverHolds(leftover DHCPLeftover, block netip.Prefix) bool {
 	return false
 }
 
-// RemoveNetwork implements Driver. Incus refuses to delete a network still in
+// RemoveNetwork implements driver. Incus refuses to delete a network still in
 // use, and that refusal is propagated rather than forced: a subnet whose
 // machines are still running must not be deletable, which is what the client
 // expects and what a DependencyViolation is for.
@@ -1597,7 +1597,7 @@ func gatewayAddress(cidr, gateway string) (string, error) {
 	return fmt.Sprintf("%s/%d", addr, prefix.Bits()), nil
 }
 
-// Stop implements Driver.
+// Stop implements driver.
 func (d *Incus) Stop(ctx context.Context, name string) error {
 	if !safeName.MatchString(name) {
 		return fmt.Errorf("refusing to stop %q: not a name this emulator creates", name)
@@ -1684,7 +1684,7 @@ func (d *Incus) runUntilFree(ctx context.Context, args ...string) ([]byte, error
 	}
 }
 
-// Remove implements Driver.
+// Remove implements driver.
 //
 // Stopped first, then deleted, so a machine still initialising is torn down in
 // order rather than deleted under its own init. This does not prevent the
@@ -1759,7 +1759,7 @@ func (d *Incus) WaitRunning(ctx context.Context, name string) (Machine, error) {
 	}
 }
 
-// Inspect implements Driver. An instance that is running but has not obtained an
+// Inspect implements driver. An instance that is running but has not obtained an
 // address yet reports an empty IP rather than an error: a booting VM is a normal
 // state, not a failure.
 func (d *Incus) Inspect(ctx context.Context, name string) (Machine, bool, error) {

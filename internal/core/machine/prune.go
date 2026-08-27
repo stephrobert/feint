@@ -27,7 +27,7 @@ type Pruned struct {
 // Total reports whether anything was found at all.
 func (p Pruned) Total() int { return p.Machines + p.Networks + p.Firewalls }
 
-// Pruner is the optional half of a Driver that can find and remove everything
+// Pruner is the optional half of a driver that can find and remove everything
 // the emulator created through it.
 type Pruner interface {
 	// Prune removes the machines, networks and rule sets carrying the label,
@@ -47,7 +47,7 @@ type Leftovers struct {
 // Total reports whether anything was found at all.
 func (l Leftovers) Total() int { return len(l.Machines) + len(l.Networks) + len(l.Firewalls) }
 
-// Surveyor is the optional half of a Driver that can name the emulator's
+// Surveyor is the optional half of a driver that can name the emulator's
 // labelled work without acting on it. A restart uses it to notice what a
 // previous life left behind; adoption is deliberately not on offer, because
 // the store that gave those objects meaning died with the process that
@@ -59,7 +59,7 @@ type Surveyor interface {
 	Survey(ctx context.Context) (Leftovers, error)
 }
 
-// UplinkReleaser is the optional half of a Driver whose networks share one
+// UplinkReleaser is the optional half of a driver whose networks share one
 // piece of host plumbing no resource delete will ever remove: the uplink.
 // Every emulated resource goes when a client deletes it, so a run whose
 // clients cleaned up after themselves still leaves exactly one labelled
@@ -124,7 +124,7 @@ type Trap struct {
 	Row string
 }
 
-// Repairer is the optional half of a Driver that can name the states its own
+// Repairer is the optional half of a driver that can name the states its own
 // sweep cannot get out of, and clear the ones no ordinary command reaches.
 //
 // The split matters. Traps is a read and is always safe to run; Repair reaches

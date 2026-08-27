@@ -28,14 +28,14 @@ package machine
 // TestTheDeclaredDriverSurfaceIsSmallerThanThePackage asserts the exclusions
 // by name rather than leaving them to absence:
 //
-//   - Driver itself and every implementation of it. A pack holding one calls
+//   - The driver and every implementation of it. A pack holding one calls
 //     Start, Remove or RemoveNetwork past Binding.ours and past the driver's
 //     mustOwn — the path a crafted snapshot walked through, and the reason
 //     Resource.Runtime is untrusted input.
-//   - Its optional halves — Router, Firewaller, Peerer, Isolator, Balancer.
-//     Reaching one by type assertion bypasses the shared layer as surely as
-//     calling a method does; that correction is what took the measurement of
-//     this defect from eleven sites to twenty-nine.
+//   - Its five pack-facing halves — the routing, rule-set, peering, isolation
+//     and balancing ones. Reaching one by type assertion bypasses the shared
+//     layer as surely as calling a method does; that correction is what took
+//     the measurement of this defect from eleven sites to twenty-nine.
 //   - The driver's own argument vocabulary — Spec, NetworkSpec, AddressSpec,
 //     FirewallBinding — which the layer builds from what a pack declares.
 //   - Thirteen of Binding's own verbs, including Start, Stop, RouteAddress and
@@ -47,17 +47,27 @@ package machine
 //   - GroupSync.AfterBoot, for the same reason one level up: the Reconciler
 //     runs it, last.
 //
+// The first two bullets are not on this list at all any more, and that is
+// #514: the driver and its five pack-facing halves are unexported since, so a
+// pack cannot write their names and no list has to keep them out. What
+// internal/cli's mustStayOutside still asserts is what a pack could otherwise
+// write — Noop, Incus, Recorder, the operator-side halves, the Runtime handle
+// — and its sibling mustNotBeNameable asserts that the six have not come back.
+//
 // Measured on 2026-08-26, the day the door closed: this package exports 97
 // package-level names and 297 members of them; the list below admitted 17 and
 // 41 that day. Re-counted on 2026-08-27 while #541 moved the address reader
 // into the layer: 17 and 43, Binding down to 13 of its 36 exported members.
 // Re-counted again on 2026-08-27 when #574 gave a pack a way to say where its
-// security groups apply: 17 and 45.
+// security groups apply: 17 and 45. Re-counted on 2026-08-28, when #514 took
+// the driver and its five pack-facing halves out of the exported set and put
+// the Runtime handle in: 93 package-level names and 304 members, the list
+// below still 17 and 45, Binding still 13 of its 36.
 // The middle figure had already drifted by one before that change, which is
 // what a number written in prose does — it is re-counted here rather than
 // left standing, and the count is a fact about the list, never a gate. What
-// the three packs actually reach is 216 sites, every one of them named here
-// and none of them a driver.
+// the three packs actually reach is 221 sites, 293 with the fourth, every one
+// of them named here and none of them a driver.
 //
 // # The rule when something is missing
 //
@@ -76,10 +86,24 @@ package machine
 // caught too. Its exemption ledger is empty today, and an exemption without a
 // written reason is refused by TestEveryBarrageExemptionSaysWhy.
 //
-// The compiler holds the rest and holds it harder: emulator.Env carries no
-// Driver a pack can read, and Binding's driver field is unexported behind
-// WithDriver, so `p.binding().Driver.EnsureNetwork(…)` — a sentence that
-// compiled before this change — no longer does.
+// The compiler holds the rest and holds it harder, in two steps that are
+// worth telling apart because the first was taken for the second for a while.
+//
+// #511 closed the way to *obtain* a driver: emulator.Env carries no field a
+// pack can read, and Binding's driver field is unexported behind WithRuntime,
+// so `p.binding().Driver.EnsureNetwork(…)` — a sentence that compiled before
+// that change — no longer does.
+//
+// #514 closed the way to *name* one. Until it, `var _ machine.Driver` in a
+// pack compiled and `go build ./internal/providers/scaleway/` exited 0,
+// measured on 154c204, so the surface was still held by a convention plus an
+// AST scan. The driver interface and the five halves above are unexported
+// since; what leaves this package is machine.Runtime, a struct whose driver
+// field is private — a struct rather than a narrowed interface, because an
+// assertion needs no name and
+// `rt.(interface{ Remove(context.Context, string) error })` would have undone
+// the whole thing in one line. internal/cli's TestThePacksCannotNameTheDriver
+// compiles the forbidden sentence and requires the failure.
 
 // PackSurface is the closed list of what a provider pack may name in this
 // package: package-level names as they are written (machine.Attachment), and

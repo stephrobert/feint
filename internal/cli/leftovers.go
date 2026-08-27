@@ -44,16 +44,15 @@ import (
 
 // reportLeftovers names the labelled machines a previous run left on the
 // runtime. TestStartupNamesTheLeftoversItDidNotAdopt fails without it.
-func reportLeftovers(driver machine.Driver, log *slog.Logger) {
-	surveyor, ok := driver.(machine.Surveyor)
-	if !ok {
-		return
-	}
+func reportLeftovers(rt machine.Runtime, log *slog.Logger) {
 	// Bounded: a hung runtime must delay the listener by seconds, not hold it.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	left, err := surveyor.Survey(ctx)
+	left, asked, err := rt.Survey(ctx)
+	if !asked {
+		return
+	}
 	if err != nil {
 		// Silence on error would be the defect this file exists to remove: an
 		// operator who cannot be told "there are leftovers" must at least be

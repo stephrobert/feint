@@ -73,7 +73,7 @@ func (s FirewallSpec) WithPermissiveCatchAll(allow string) FirewallSpec {
 // now be applied. A failure is logged and never fails the control plane: the
 // API still serves the group, which is the honest degraded state, and this log
 // is the only place an operator learns the rules exist nowhere.
-func (b Binding) SyncRuleSet(ctx context.Context, fw Firewaller, spec FirewallSpec) bool {
+func (b Binding) SyncRuleSet(ctx context.Context, fw firewaller, spec FirewallSpec) bool {
 	if fw == nil {
 		return false
 	}
@@ -100,7 +100,7 @@ func (b Binding) SyncRuleSet(ctx context.Context, fw Firewaller, spec FirewallSp
 // (#574). It travels beside the sets rather than being applied here, because
 // the decision is per interface and only the driver knows which interface sits
 // on which network.
-func (b Binding) ApplyRuleSets(ctx context.Context, fw Firewaller, machine string, unfiltered []string, specs ...FirewallSpec) {
+func (b Binding) ApplyRuleSets(ctx context.Context, fw firewaller, machine string, unfiltered []string, specs ...FirewallSpec) {
 	if fw == nil || machine == "" {
 		return
 	}
@@ -166,7 +166,7 @@ func (b Binding) reportFirewall(err error, keyvals ...any) {
 // rather than fatal: the group is already gone from the control plane, and
 // refusing the delete afterwards would leave the client with a resource it
 // cannot remove.
-func (b Binding) DropRuleSet(ctx context.Context, fw Firewaller, name string) {
+func (b Binding) DropRuleSet(ctx context.Context, fw firewaller, name string) {
 	if fw == nil {
 		return
 	}

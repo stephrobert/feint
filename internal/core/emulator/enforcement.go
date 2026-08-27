@@ -46,7 +46,8 @@ type FirewallEnforcer interface {
 // It exists because the firewall's history repeated itself on the balancer,
 // measured on 2026-08-25: `capabilities.balancing` was true under OVN — the
 // runtime really can distribute — while a Scaleway stack's load balancer left
-// no trace on the host, because that pack hands nothing to `machine.Balancer`.
+// no trace on the host, because that pack hands nothing to the runtime's
+// balancing half.
 // Both statements were true, and a suite following this repository's own advice
 // ("key on the declared capability, never on a mode name") would have asserted
 // distribution on a cloud that never promised it. The vocabulary was one word
