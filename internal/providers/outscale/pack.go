@@ -347,11 +347,23 @@ func (p *Pack) Routes() []emulator.Route {
 		// the SDK's NetPeeringStateName enum; netpeerings.go names what
 		// mono-tenancy makes indistinguishable.
 		p.route("CreateNetPeering", p.createNetPeering),
-		unearnable(p.route("AcceptNetPeering", p.acceptNetPeering),
-			keptSubjectBehaviour("a Net peering", "a deleted peering stays readable in the deleted state, which the SDK's own StateNames filter enumerates")),
+		// Accept and Delete carried the same declaration as the two below, and
+		// the record falsified it on 2026-08-27: `mise run evidence:update`
+		// moved both to `behaviour: true`, because #460/#462 taught
+		// outscale/octl.sh to drive them through their states. A reason that
+		// outlived its cause reads as a decision, and internal/cli's
+		// TestAnUnearnableAxisIsNotAlreadyEarned refuses to let it stand — it
+		// named these two by hand before this line was written.
+		p.route("AcceptNetPeering", p.acceptNetPeering),
+		p.route("DeleteNetPeering", p.deleteNetPeering),
+		// Reject and Read keep it, and that is a narrower claim than it looks.
+		// The record has not contradicted them, which is not the same as the
+		// reason holding: no client drives either one yet, so their axis is
+		// **unearned** and this says **unearnable**. The two are different, the
+		// gate above cannot tell them apart, and the honest move is to leave
+		// the declaration where nothing has falsified it and to say here that
+		// it is now suspect for a reason its neighbours just demonstrated.
 		unearnable(p.route("RejectNetPeering", p.rejectNetPeering),
-			keptSubjectBehaviour("a Net peering", "a deleted peering stays readable in the deleted state, which the SDK's own StateNames filter enumerates")),
-		unearnable(p.route("DeleteNetPeering", p.deleteNetPeering),
 			keptSubjectBehaviour("a Net peering", "a deleted peering stays readable in the deleted state, which the SDK's own StateNames filter enumerates")),
 		unearnable(p.route("ReadNetPeerings", p.readNetPeerings),
 			keptSubjectBehaviour("a Net peering", "a deleted peering stays readable in the deleted state, which the SDK's own StateNames filter enumerates")),
