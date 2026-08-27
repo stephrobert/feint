@@ -237,14 +237,16 @@ func (r Runtime) RemovesImages() bool {
 	return ok
 }
 
-// RemoveImage deletes one image this emulator published. asked is false for a
-// runtime that holds no images to remove.
-func (r Runtime) RemoveImage(ctx context.Context, alias string) (asked bool, err error) {
+// RemoveImage deletes one image this emulator published, named the way the
+// operator types it — "<family>/<version>", without the emulator's own prefix,
+// which the driver adds. asked is false for a runtime that holds no images to
+// remove.
+func (r Runtime) RemoveImage(ctx context.Context, name string) (asked bool, err error) {
 	rm, ok := r.backing().(imageRemover)
 	if !ok {
 		return false, nil
 	}
-	return true, rm.RemoveImage(ctx, alias)
+	return true, rm.RemoveImage(ctx, name)
 }
 
 // imageRemover is the optional half `feint images remove` drives. It was an
