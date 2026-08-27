@@ -139,3 +139,38 @@ func TestDropRuleSetHandsTheNameToTheRuntime(t *testing.T) {
 		t.Fatalf("removed %v, want [scw-abc]", fw.removed)
 	}
 }
+
+// TestTheUnenforceableWarningDoesNotCallTheMachinePublicOnly is the subject
+// half of #548: a declaration whose subject is wrong is worse than none,
+// because it reads like proof.
+//
+// The line said "this machine's public-only interface", and the shape it fires
+// on most is not a public-only machine at all: a Scaleway server created with
+// its flexible IP carries a routed eth0 *and* a private eth1 on a managed
+// network wearing the rule set. Measured on 2026-08-27 under `--vm incus-ovn`,
+// that exact warning was emitted for feint-scw-675132c2… while `incus query`
+// showed two NICs. An operator reading it concluded the machine was one of the
+// public-only ones and that theirs was covered.
+//
+// What the runtime cannot filter is the interface, and the operator's next
+// gesture needs the address: the log carries the driver's error, which names
+// both.
+func TestTheUnenforceableWarningDoesNotCallTheMachinePublicOnly(t *testing.T) {
+	var buf bytes.Buffer
+	fw := &fakeFirewaller{applyErr: fmt.Errorf(
+		"apply firewall to m: a routed NIC accepts no security option, so what it carries "+
+			"is covered by nothing: eth0 (203.0.113.2): %w", ErrFirewallUnenforceable)}
+
+	firewallBinding(&buf).ApplyRuleSets(context.Background(), fw, "feint-test-a",
+		FirewallSpec{Name: "sg-r", DefaultIngress: "drop", DefaultEgress: "allow"})
+
+	said := buf.String()
+	if strings.Contains(said, "public-only interface") {
+		t.Errorf("the warning still describes the machine as public-only, which #548 measured false: %q", said)
+	}
+	for _, want := range []string{"eth0", "203.0.113.2", "firewall_public_only"} {
+		if !strings.Contains(said, want) {
+			t.Errorf("the warning does not carry %q, so it cannot be acted on: %q", want, said)
+		}
+	}
+}

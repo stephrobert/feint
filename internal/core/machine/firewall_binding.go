@@ -121,19 +121,30 @@ func (b Binding) ApplyRuleSets(ctx context.Context, fw Firewaller, machine strin
 }
 
 // reportFirewall logs a failed application at the level it deserves. A rule
-// set the runtime has no mechanism for — a routed NIC, the interface of a
-// server with only a public address (#337) — is a declared limit, not an
-// operational failure: /_feint/health publishes it as
+// set the runtime has no mechanism for — a routed NIC (#337) — is a declared
+// limit, not an operational failure: /_feint/health publishes it as
 // capabilities.firewall_public_only=false and docs/limits.md carries the
 // measurement, so the warning names the declaration instead of crying wolf.
 // Anything else stays an error, because nothing declared it.
+//
+// The sentence used to say "this machine's public-only interface", and #548
+// measured that as false on the shape it fires on most: a Scaleway server
+// created with its flexible IP has a routed eth0 *and* a private eth1 on a
+// managed network carrying the rule set, so the machine is not public-only and
+// an operator reading the line concluded the wrong machine was concerned. What
+// the runtime cannot filter is the *interface*, whatever else the machine
+// carries; the error the driver raises names it and the addresses it delivers.
+//
 // TestAnUnenforceableGroupIsReportedAsTheDeclaredLimit fails without the
-// distinction.
+// distinction, and TestTheUnenforceableWarningDoesNotCallTheMachinePublicOnly
+// fails without the subject.
 func (b Binding) reportFirewall(err error, keyvals ...any) {
 	keyvals = append(keyvals, "provider", b.Provider, "error", err)
 	if errors.Is(err, ErrFirewallUnenforceable) {
-		b.logger().Warn("the security group is not enforced on this machine's public-only interface, "+
-			"which the runtime declares (capabilities.firewall_public_only=false, docs/limits.md)",
+		b.logger().Warn("the security group is not enforced on this machine's routed interface, "+
+			"which carries a published address and takes no rule set — the runtime declares it "+
+			"(capabilities.firewall_public_only=false, docs/limits.md); the error names the "+
+			"interface and the address that answers uncovered",
 			keyvals...)
 		return
 	}

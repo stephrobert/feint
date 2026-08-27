@@ -3233,7 +3233,64 @@ bare beside `eth1` on a managed network carrying the rule set). The pack hands
 the set over, the driver refuses with the typed error, and the log names the
 declaring capability instead of crying wolf. The capability is therefore
 broader than the machine it was written for: it is about the *interface*, not
-about a machine with only one.
+about a machine with only one — and `machine.Capabilities.FirewallPublicOnly`
+says so in its own words since #548, because a declaration whose subject is
+wrong reads like proof.
+
+Reproduced from the API alone on 2026-08-27, without the stack, under
+`--vm incus-ovn`: a group whose inbound default is `drop` with one rule
+allowing 443, a server created with its flexible IP, its private NIC attached
+afterwards. The escape and its negative control are in the same probe.
+
+```console
+$ incus query /1.0/instances/feint-scw-d3eaa40c-… | jq -c '.expanded_devices | …'
+{"eth0":{"ipv4.address":"203.0.113.2","nictype":"routed","type":"nic"},
+ "eth1":{"ipv4.address":"10.181.7.2","network":"fnt-c9b63dbeff0","security.acls":"scw-3bab95b997b","type":"nic"}}
+
+  203.0.113.2:22   connect_ex=0    OPEN      # no rule opens 22: the group is not on eth0
+  203.0.113.2:80   connect_ex=111  refused   # reached the machine, nothing listening
+  10.181.7.2:80    connect_ex=113  no route  # the private side, where the policy holds
+```
+
+`connect_ex=111` on a port the group never opened is the decisive line: the
+packet reached the guest and was refused by it, where a covered interface
+would have dropped it.
+
+**The migration was tried, and it is refused.** #548 left one thing untried —
+whether the driver could move the address onto the managed NIC once that one
+arrives, which is the shape the other creation order already produces and the
+one the rule set covers. It was attempted by hand on 2026-08-27, on the very
+machine above, and stopped on two measured facts:
+
+```console
+$ incus network set feint-uplink ipv4.routes "…,203.0.113.2/32"
+Error: Failed to add route {… Dst: 203.0.113.2/32 …}: file exists
+$ incus config device remove feint-scw-d3eaa40c-… eth0
+$ incus query /1.0/instances/feint-scw-d3eaa40c-… | jq -c '…'
+{"eth0":{"network":"incusbr0","type":"nic"}, "eth1":{…}}
+```
+
+The uplink cannot be given the `/32` while the routed NIC still owns the host
+route for it — the collision #498 documents, met from the other side — so the
+address would have to leave the routed NIC first, and there is no ordering
+where it is delivered throughout. And removing the routed device unmasks the
+profile's `eth0` on `incusbr0`, the operator's own default bridge: the machine
+lands on a bridge this emulator refuses to put anything on. A sequence that
+gets there exists on paper (mask `eth0` with a `none` device, then delegate,
+then set `ipv4.routes.external`, then repair the guest) and it costs a
+reconfiguration of the public interface on every private-NIC attach, which
+Terraform performs on every apply. That trade was not taken; this paragraph is
+the record of the measurement rather than a plan.
+
+What #548 delivered instead is the naming: the refusal now carries every
+routed interface that escapes *and the addresses it delivers*
+(`eth0 (203.0.113.2)`), read from both `ipv4.address` and `ipv4.routes` so an
+address attached after the boot is named too, and the warning no longer calls
+the machine public-only.
+`TestTheUnenforceableRefusalNamesTheAddressThatEscapes`,
+`TestTheUnenforceableRefusalNamesAnAddressRoutedAfterTheLaunch` and
+`TestTheUnenforceableWarningDoesNotCallTheMachinePublicOnly` fail without it,
+and `tools/falsify/specs/uncovered-interface.json` replays all three.
 
 Second, between two machines of one subnet the sender's permissive
 egress still wins over the receiver's ingress default (the single-pipeline

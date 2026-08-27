@@ -1,0 +1,26 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the escaping interface is named without the address it carries",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\tif len(n.addresses) == 0 {\n\t\treturn n.name\n\t}",
+      "replace": "\tif len(n.addresses) == 0 || true {\n\t\treturn n.name\n\t}",
+      "test": "TestTheUnenforceableRefusalNamesTheAddressThatEscapes"
+    },
+    {
+      "label": "only the launch addresses are read, so an address routed afterwards escapes unnamed",
+      "file": "internal/core/machine/incus_firewall.go",
+      "find": "\tfor _, key := range []string{\"ipv4.address\", \"ipv4.routes\"} {\n\t\tfor _, entry := range splitList(device[key]) {",
+      "replace": "\tfor _, key := range []string{\"ipv4.address\", \"ipv4.routes\"} {\n\t\tif key == \"ipv4.routes\" {\n\t\t\tcontinue\n\t\t}\n\t\tfor _, entry := range splitList(device[key]) {",
+      "test": "TestTheUnenforceableRefusalNamesAnAddressRoutedAfterTheLaunch"
+    },
+    {
+      "label": "the warning goes back to calling the machine public-only, which #548 measured false",
+      "file": "internal/core/machine/firewall_binding.go",
+      "find": "\t\tb.logger().Warn(\"the security group is not enforced on this machine's routed interface, \"+\n\t\t\t\"which carries a published address and takes no rule set — the runtime declares it \"+\n\t\t\t\"(capabilities.firewall_public_only=false, docs/limits.md); the error names the \"+\n\t\t\t\"interface and the address that answers uncovered\",\n\t\t\tkeyvals...)",
+      "replace": "\t\tb.logger().Warn(\"the security group is not enforced on this machine's public-only interface, \"+\n\t\t\t\"which the runtime declares (capabilities.firewall_public_only=false, docs/limits.md)\",\n\t\t\tkeyvals...)",
+      "test": "TestTheUnenforceableWarningDoesNotCallTheMachinePublicOnly"
+    }
+  ]
+}

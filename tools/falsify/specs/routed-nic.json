@@ -46,8 +46,8 @@
     {
       "label": "a rule set on a routed NIC is silently skipped instead of refused",
       "file": "internal/core/machine/incus_firewall.go",
-      "find": "\t\tif device.routed {\n\t\t\tif joined != \"\" && unenforceable == nil {",
-      "replace": "\t\tif device.routed {\n\t\t\tif false && joined != \"\" && unenforceable == nil {",
+      "find": "\t\tif device.routed {\n\t\t\tif joined != \"\" {",
+      "replace": "\t\tif device.routed {\n\t\t\tif joined != \"\" && false {",
       "test": "TestApplyFirewallRefusesAGroupOnARoutedNIC"
     },
     {

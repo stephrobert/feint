@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -206,7 +207,7 @@ func (d *Incus) ApplyFirewall(ctx context.Context, machine string, binding Firew
 	joined := strings.Join(binding.Names, ",")
 	networks := map[string]networkACLInfo{}
 	permissiveEnsured := false
-	var unenforceable error
+	var escaped []string
 	for _, device := range devices {
 		// A routed NIC takes no rule set at all (#337). Measured on Incus 7.2
 		// and confirmed by the 7.3 wording of the same refusal: every security
@@ -224,12 +225,26 @@ func (d *Incus) ApplyFirewall(ctx context.Context, machine string, binding Firew
 		// machine with a private NIC beside its routed one keeps its private
 		// plane covered.
 		//
+		// Every escaping interface is named, with the addresses it carries,
+		// and that is #548 rather than tidiness. The refusal used to keep the
+		// first one and drop the rest, and to name the device alone — so an
+		// operator reading the log learned that "eth0" was uncovered on a
+		// machine whose interfaces they cannot see, when what they needed was
+		// *which published address answers with no rule set on it*. Measured
+		// on 2026-08-27 under `--vm incus-ovn`, on the shape
+		// examples/stacks/scaleway produces and reproduced from the API alone:
+		// a server created with its flexible IP keeps a routed eth0 carrying
+		// 203.0.113.2 beside a filtered eth1, and port 22 — which the group's
+		// drop default never opened — answered from the station while the
+		// same port on the private address was refused.
+		//
 		// TestApplyFirewallRefusesAGroupOnARoutedNIC and
-		// TestApplyFirewallDetachIgnoresARoutedNIC fail without this.
+		// TestApplyFirewallDetachIgnoresARoutedNIC fail without this, and
+		// TestTheUnenforceableRefusalNamesTheAddressThatEscapes fails without
+		// the addresses.
 		if device.routed {
-			if joined != "" && unenforceable == nil {
-				unenforceable = fmt.Errorf("apply firewall to %s/%s: a routed NIC accepts no security option: %w",
-					machine, device.name, ErrFirewallUnenforceable)
+			if joined != "" {
+				escaped = append(escaped, device.describe())
 			}
 			continue
 		}
@@ -295,7 +310,13 @@ func (d *Incus) ApplyFirewall(ctx context.Context, machine string, binding Firew
 			return fmt.Errorf("apply firewall to %s/%s: %w", machine, device.name, err)
 		}
 	}
-	return unenforceable
+	if len(escaped) > 0 {
+		slices.Sort(escaped)
+		return fmt.Errorf("apply firewall to %s: a routed NIC accepts no security option, "+
+			"so what it carries is covered by nothing: %s: %w",
+			machine, strings.Join(escaped, ", "), ErrFirewallUnenforceable)
+	}
+	return nil
 }
 
 // networkACLInfo is what one network lookup answers ApplyFirewall: its type,
@@ -376,13 +397,31 @@ func FirewallName(prefix, id string) string {
 }
 
 // nicDevice is one interface of a machine: its name, the network it sits on,
-// whether it comes from a profile, and whether it is a routed NIC — the one
-// kind that sits on no network and takes no security option.
+// whether it comes from a profile, whether it is a routed NIC — the one kind
+// that sits on no network and takes no security option — and the addresses it
+// delivers.
 type nicDevice struct {
 	name      string
 	network   string
 	inherited bool
 	routed    bool
+	// addresses are what this interface makes the machine answer on: the ones
+	// the launch pinned (ipv4.address) and the ones routed onto it afterwards
+	// (ipv4.routes). Read only to be *named*, never to decide anything — a
+	// refusal that says "eth0" tells an operator nothing they can check, and a
+	// refusal that says "eth0 (203.0.113.2)" names the address a client is
+	// about to connect to (#548).
+	addresses []string
+}
+
+// describe is how one escaping interface is named in a refusal: the device,
+// and what it makes the machine answer on. An interface with no address is
+// named alone rather than with an empty pair of brackets.
+func (n nicDevice) describe() string {
+	if len(n.addresses) == 0 {
+		return n.name
+	}
+	return n.name + " (" + strings.Join(n.addresses, ", ") + ")"
 }
 
 // networkDevices lists every NIC of a machine, its own and the ones it inherits.
@@ -417,9 +456,31 @@ func (d *Incus) networkDevices(ctx context.Context, machine string) ([]nicDevice
 			network:   device["network"],
 			inherited: !own,
 			routed:    device["nictype"] == "routed",
+			addresses: carriedAddresses(device),
 		})
 	}
 	return devices, nil
+}
+
+// carriedAddresses is what one device makes the machine answer on: the pinned
+// addresses of the launch and the routes added onto it afterwards, the mask
+// dropped so the value reads as an address a client would dial.
+//
+// Both keys, because a public address reaches a machine through either — the
+// launch writes ipv4.address on a routed NIC, routeOntoRoutedNIC writes
+// ipv4.routes on the same one — and a refusal that named only half of them
+// would be silent about exactly the addresses attached after the boot.
+func carriedAddresses(device map[string]string) []string {
+	out := make([]string, 0, 2)
+	for _, key := range []string{"ipv4.address", "ipv4.routes"} {
+		for _, entry := range splitList(device[key]) {
+			address, _, _ := strings.Cut(entry, "/")
+			if address != "" && !slices.Contains(out, address) {
+				out = append(out, address)
+			}
+		}
+	}
+	return out
 }
 
 // toACLRules converts one emulated rule into the rules the runtime can express.

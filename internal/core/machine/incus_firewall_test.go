@@ -927,3 +927,80 @@ func TestARestrictiveBindingKeepsItsGroupsOnAnIsolatedNetwork(t *testing.T) {
 		t.Errorf("the permissive set has no business near a restrictive binding: %v", got)
 	}
 }
+
+// TestTheUnenforceableRefusalNamesTheAddressThatEscapes is #548. The machine
+// under test is the one the Scaleway stack produces when the flexible IP is
+// attached at creation: a routed eth0 carrying the published address, and a
+// private eth1 on a managed network that takes the rule set. Measured on
+// 2026-08-27 under `--vm incus-ovn`, port 22 answered on 203.0.113.2 from the
+// station while the group's inbound default was drop and only 443 was allowed
+// — and the same port on the private address was refused, which is the
+// negative control that tells the two interfaces apart.
+//
+// The refusal already existed; what it did not do was say *what* escapes. An
+// operator reading "eth0" learns nothing they can check, because they cannot
+// see the machine's devices from the API. The address is the fact they can
+// act on: it is the one a client is about to connect to.
+//
+// Three halves, so a guard that refuses everything cannot pass here: the
+// enforceable interface still receives its rule set, no security key is ever
+// sent to the routed one, and the refusal carries both the interface and the
+// address.
+func TestTheUnenforceableRefusalNamesTheAddressThatEscapes(t *testing.T) {
+	f := &fakeRuntime{answers: map[string]string{
+		"/1.0/instances/srv": mixedNICs,
+		"/1.0/networks/":     `{"type": "bridge"}`,
+	}}
+	d := newFakeDriver(f)
+
+	err := d.ApplyFirewall(context.Background(), "srv", FirewallBinding{
+		Names:          []string{"sg-one"},
+		DefaultIngress: "drop",
+		DefaultEgress:  "allow",
+	})
+	if !errors.Is(err, ErrFirewallUnenforceable) {
+		t.Fatalf("a rule set on a routed NIC must be refused with the typed error, got %v", err)
+	}
+	for _, want := range []string{"eth0", "203.0.113.7"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the refusal does not name %q, so nobody can check it: %v", want, err)
+		}
+	}
+	if strings.Contains(err.Error(), "eth1") {
+		t.Errorf("the refusal names the interface that *is* covered: %v", err)
+	}
+	if got := f.matching("config device set srv eth1 security.acls=sg-one"); len(got) != 1 {
+		t.Errorf("the enforceable interface must still get its rule set, got:\n%s",
+			strings.Join(f.commands(), "\n"))
+	}
+}
+
+// TestTheUnenforceableRefusalNamesAnAddressRoutedAfterTheLaunch holds the half
+// carriedAddresses exists for: a public address attached to a running machine
+// lands in the routed NIC's ipv4.routes, not in the ipv4.address list the
+// launch wrote. A refusal reading only the launch key would be silent about
+// exactly the addresses a client adds afterwards.
+func TestTheUnenforceableRefusalNamesAnAddressRoutedAfterTheLaunch(t *testing.T) {
+	const lateAddress = `{
+  "expanded_devices": {
+    "eth0": {"type": "nic", "nictype": "routed", "ipv4.address": "203.0.113.7", "ipv4.routes": "203.0.113.9/32"}
+  },
+  "devices": {
+    "eth0": {"type": "nic", "nictype": "routed", "ipv4.address": "203.0.113.7", "ipv4.routes": "203.0.113.9/32"}
+  }
+}`
+	f := &fakeRuntime{answers: map[string]string{"/1.0/instances/srv": lateAddress}}
+	d := newFakeDriver(f)
+
+	err := d.ApplyFirewall(context.Background(), "srv", FirewallBinding{
+		Names:          []string{"sg-one"},
+		DefaultIngress: "drop",
+		DefaultEgress:  "allow",
+	})
+	if !errors.Is(err, ErrFirewallUnenforceable) {
+		t.Fatalf("a rule set on a routed NIC must be refused with the typed error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "203.0.113.9") {
+		t.Fatalf("the address routed after the launch escapes unnamed: %v", err)
+	}
+}

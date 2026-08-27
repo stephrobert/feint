@@ -25,17 +25,31 @@ type Capabilities struct {
 	// Firewall: a security group's rules are enforced on the machine's
 	// interface, and a change applies without restarting it.
 	Firewall bool `json:"firewall"`
-	// FirewallPublicOnly: the rules are enforced even on a machine that joins
-	// no emulated network — a server whose only interface is a routed NIC
-	// carrying the public addresses its API publishes (#202).
+	// FirewallPublicOnly: the rules are enforced on an address that lives on a
+	// routed NIC — the interface a machine gets when it joins no emulated
+	// network (#202), and the one a machine keeps beside its private NIC when
+	// the address came first (#548).
+	//
+	// The subject is the *interface*, and saying so is #548. This field read
+	// "a machine that joins no emulated network" until then, which is where it
+	// was first measured, and a consumer holding both fields concluded that a
+	// machine with a private network was covered whole. It is not: a Scaleway
+	// server created with its flexible IP boots carrying only that address, so
+	// the driver gives it a routed NIC, and the private NIC that arrives
+	// afterwards becomes eth1 and does not take the address with it. Measured
+	// on 2026-08-27 on examples/stacks/scaleway under `--vm incus-ovn`: eth0
+	// routed and bare beside eth1 wearing the rule set, and port 22 answering
+	// from the station under a group whose inbound default is drop. The order
+	// decides: with the private NIC first, the flexible IP is routed *through*
+	// the filtered NIC and is covered — fifteen runs both ways, in
+	// docs/limits.md.
 	//
 	// Declared apart from Firewall because the two were measured apart (#337).
-	// On Incus, the same group that closes a port for real on a machine with
-	// an emulated network under it — public address included, since a flexible
-	// IP is routed through the filtered NIC — attaches to nothing on a routed
-	// NIC: every security option is an invalid device option there, on 7.2 and
-	// 7.3 alike. A suite probing the ports of a public-only machine gates on
-	// this claim, never on capabilities.firewall.
+	// On Incus, the same group that closes a port for real on a managed NIC
+	// attaches to nothing on a routed one: every security option is an invalid
+	// device option there, on 7.2 and 7.3 alike. A suite probing a port on an
+	// address published over a routed NIC gates on this claim, never on
+	// capabilities.firewall.
 	FirewallPublicOnly bool `json:"firewall_public_only"`
 	// Isolation: two networks of two different VPCs cannot reach each other.
 	//
