@@ -49,6 +49,11 @@ skip() { echo "  SKIP: $*" >&2; }
 . "$(dirname "$0")/../shared/addresses.sh"
 # shellcheck source=/dev/null
 . "$(dirname "$0")/../shared/verdicts.sh"
+# Waiting for a condition instead of for a duration (#459). The file states the
+# one rule that decides where these may stand, and why the waits still written
+# `sleep` below cannot become polls.
+# shellcheck source=/dev/null
+. "$(dirname "$0")/../shared/waiting.sh"
 
 command -v exo >/dev/null 2>&1 || { echo "FAIL: exo is not installed" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is not installed" >&2; exit 1; }
@@ -176,9 +181,10 @@ if ! command -v incus >/dev/null 2>&1; then
   skip "incus client not available; cannot verify what the machines carry"
   exit 0
 fi
-sleep 3
-
 echo "- the machine carries the lease the API published"
+# Asked until the lease is on the interface rather than after a guess at how
+# long a container takes to configure one. The verdict below is unchanged.
+wait_until 60 machine_carries "$(machine "$guard_id")" "$guard_ip" || true
 carried="$(incus query "/1.0/instances/$(machine "$guard_id")/state" 2>/dev/null \
            | jq -r '[.network[]?.addresses[]? | select(.family=="inet") | .address] | join(" ")')"
 case " $carried " in
@@ -204,8 +210,13 @@ assert_only_published "$(machine "$guard_id")" $exo_public "$guard_ip"
 echo "- an instance of the same private network is reachable"
 incus exec "$(machine "$guard_id")" -- sh -c \
   'while true; do printf "ok\n" | nc -l -p 80 >/dev/null 2>&1; done' >/dev/null 2>&1 &
-sleep 2
-if incus exec "$(machine "$probe_id")" -- timeout 3 nc -z -w 2 "$guard_ip" 80 >/dev/null 2>&1; then
+# No separate wait for the responder: the verdict below is a REACH, so polling
+# it covers the listener coming up as well, and it probes once per attempt
+# instead of twice. Reachable within thirty seconds satisfies the property this
+# check states, where the fixed two seconds would have failed a segment that
+# took three.
+near_reach() { incus exec "$(machine "$probe_id")" -- timeout 3 nc -z -w 2 "$guard_ip" 80 >/dev/null 2>&1; }
+if wait_until 30 near_reach; then
   ok "the probe reaches the guard on their shared network ($guard_ip)"
 else
   fail "$guard_ip is unreachable inside one private network; the segment is broken, not isolated"
@@ -221,11 +232,13 @@ exo compute instance private-network attach conformance-far-worker conformance-f
 far_ip="$(exo -O json compute private-network show conformance-far \
           | jq -r '.leases[] | select(.instance == "conformance-far-worker") | .ip_address')"
 [ -n "$far_ip" ] || fail "the far attach produced no lease"
-sleep 3
+# The attach has to reach the machine before a responder started in it means
+# anything, and both are questions: the machine answers `incus exec`, then the
+# responder is bound. The positive control below is the verdict either way.
+wait_until 60 incus exec "$(machine "$far_id")" -- true || true
 
 incus exec "$(machine "$far_id")" -- sh -c \
   'while true; do printf "ok\n" | nc -l -p 80 >/dev/null 2>&1; done' >/dev/null 2>&1 &
-sleep 2
 
 # Upstream, every private network is its own VXLAN segment, so this assertion
 # has no same-VPC exception the way Scaleway's does. On a runtime that declares
@@ -235,7 +248,7 @@ sleep 2
 # The positive control, before the negative verdict: see the Scaleway suite and
 # #219. A listener that never started refuses a connection exactly as isolation
 # does, so it is proved live on its own loopback first.
-assert_listening "$(machine "$far_id")" 80 "the instance of the other private network"
+assert_listening_within 30 "$(machine "$far_id")" 80 "the instance of the other private network"
 
 if incus exec "$(machine "$probe_id")" -- timeout 3 nc -z -w 2 "$far_ip" 80 >/dev/null 2>&1; then
   if [ "$ISOLATION" = "true" ]; then
@@ -278,7 +291,13 @@ for id in $(exo -O json compute instance list \
             | jq -r '.[] | select(.name | startswith("conformance-pool-")) | .id'); do
   cleanup_add "$id"
 done
-sleep 5
+# The count is the condition, so the count is what is waited on. Every verdict
+# below is unchanged and still fails on a pool whose machines never appear or
+# never go; what goes is the four fixed waits that paid the worst case on every
+# run. `pool_machines` costs two `exo` calls per member, which is why the
+# question is asked through one function rather than inlined.
+pool_holds() { [ "$(pool_machines)" = "$1" ]; }
+wait_until 60 pool_holds 2 || true
 [ "$(pool_machines)" = "2" ] \
   || fail "a pool of size 2 is backed by $(pool_machines) machine(s): the control plane promised what the runtime does not hold"
 ok "two members, two machines"
@@ -288,19 +307,19 @@ for id in $(exo -O json compute instance list \
             | jq -r '.[] | select(.name | startswith("conformance-pool-")) | .id'); do
   cleanup_add "$id"
 done
-sleep 5
+wait_until 60 pool_holds 3 || true
 [ "$(pool_machines)" = "3" ] \
   || fail "after scaling to 3 the runtime holds $(pool_machines) machine(s)"
 ok "scaled up, and the third machine really started"
 
 exo -Q compute instance-pool scale conformance-pool 1 --force >/dev/null || fail "scale down rejected"
-sleep 5
+wait_until 60 pool_holds 1 || true
 [ "$(pool_machines)" = "1" ] \
   || fail "after scaling to 1 the runtime still holds $(pool_machines) machine(s): a scale down that leaves containers behind is a bill nobody asked for"
 ok "scaled down, and the machines went with the members"
 
 exo -Q compute instance-pool delete conformance-pool --force >/dev/null || fail "pool delete rejected"
-sleep 3
+wait_until 60 pool_holds 0 || true
 [ "$(pool_machines)" = "0" ] || fail "the deleted pool left $(pool_machines) machine(s) running"
 ok "deleted, and the runtime holds nothing of it"
 

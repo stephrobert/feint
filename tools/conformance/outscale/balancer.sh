@@ -42,6 +42,12 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 ok()   { echo "  ok: $*"; }
 skip() { echo "  SKIP: $*" >&2; }
 
+# Waiting for a condition instead of for a duration (#459). The file states the
+# one rule that decides where these may stand, and why the two waits still
+# written `sleep` below cannot become polls.
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/../shared/waiting.sh"
+
 echo "conformance: outscale load balancer dataplane against $ENDPOINT"
 
 health="$(curl -sf "$ENDPOINT/_feint/health")" || fail "the emulator does not answer /_feint/health"
@@ -101,6 +107,9 @@ cleanup() {
   for vm in "$vm_a" "$vm_b" "$vm_c"; do
     [ -n "$vm" ] && osc DeleteVms --VmIds "$vm" >/dev/null 2>&1
   done
+  # waits on silence: the Subnet cannot go while a machine still sits on it, and
+  # this is a trap handler — the ids may be empty and the deletes may have been
+  # refused, so there is no single object whose disappearance to wait for.
   sleep 2
   [ -n "$sub_id" ] && osc DeleteSubnet --SubnetId "$sub_id" >/dev/null 2>&1
   [ -n "$net_id" ] && osc DeleteNet --NetId "$net_id" >/dev/null 2>&1
@@ -136,23 +145,28 @@ serve() {
     >/dev/null 2>&1
 }
 booted=""
-for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
-  if incus exec "feint-osc-$vm_a" -- true >/dev/null 2>&1 &&
-     incus exec "feint-osc-$vm_b" -- true >/dev/null 2>&1 &&
-     incus exec "feint-osc-$vm_c" -- true >/dev/null 2>&1; then booted="yes"; break; fi
-  sleep 2
-done
+all_up() {
+  incus exec "feint-osc-$vm_a" -- true >/dev/null 2>&1 &&
+    incus exec "feint-osc-$vm_b" -- true >/dev/null 2>&1 &&
+    incus exec "feint-osc-$vm_c" -- true >/dev/null 2>&1
+}
+if wait_until 24 all_up; then booted="yes"; fi
 [ -n "$booted" ] || fail "the machines never came up; nothing can be measured"
 serve "$vm_a"
 serve "$vm_b"
-sleep 3
 
 # The positive control, before any verdict is drawn from silence: each backend
 # answers on its own address. A machine whose responder never started refuses a
 # connection exactly as a balancer that forwards nothing does (#219).
+#
+# The three seconds this replaces were waiting for the two responders to bind,
+# and that is exactly what the control below asks. Polling it first leaves both
+# verdicts as they were: a responder that never binds still fails the suite.
 from_client() { incus exec "feint-osc-$vm_c" -- wget -q -T 4 -O - "http://$1/" 2>/dev/null; }
-[ "$(from_client "$ip_a")" = "$vm_a" ] || fail "the first backend does not answer on its own address"
-[ "$(from_client "$ip_b")" = "$vm_b" ] || fail "the second backend does not answer on its own address"
+a_answers() { [ "$(from_client "$ip_a")" = "$vm_a" ]; }
+b_answers() { [ "$(from_client "$ip_b")" = "$vm_b" ]; }
+wait_until 30 a_answers || fail "the first backend does not answer on its own address"
+wait_until 30 b_answers || fail "the second backend does not answer on its own address"
 ok "both backends answer directly"
 
 echo "- an internal load balancer, its two machines registered"
@@ -172,7 +186,10 @@ osc RegisterVmsInLoadBalancer --LoadBalancerName "$lb_name" --BackendVmIds "$vm_
   || fail "RegisterVmsInLoadBalancer rejected the first machine"
 osc RegisterVmsInLoadBalancer --LoadBalancerName "$lb_name" --BackendVmIds "$vm_b" >/dev/null \
   || fail "RegisterVmsInLoadBalancer rejected the second machine"
-sleep 2
+# The VIP answering is the condition, and every verdict below rests on it, so it
+# is asked rather than assumed after two seconds.
+vip_answers() { [ -n "$(from_client "$vip")" ]; }
+wait_until 30 vip_answers || true
 ok "$lb_name answers on $vip"
 
 # probe: N connections from the client machine, printed as the names that
@@ -201,6 +218,13 @@ ok "6/6 answered, over both machines:$hits"
 # Sixty seconds is short of the three minutes at which the other one died, and
 # it is what a conformance run can afford; the full curve is in docs/limits.md.
 echo "- and it is still there a minute later"
+# waits on silence: this sixty seconds IS the measurement, not a wait for
+# something to become true. #315 measured an address the runtime has to announce
+# outside the network answering for two minutes and then going dark; the claim
+# here is that an address of the network's OWN block does not. There is no
+# condition to poll: the property is that nothing changes, and the only way to
+# observe nothing changing is to let time pass. Shortening it shortens the
+# claim. docs/limits.md carries the full curve.
 sleep 60
 hits="$(probe 6)"
 case "$hits" in
@@ -213,6 +237,11 @@ ok "6/6 answered again:$hits"
 echo "- an unlinked machine stops receiving connections"
 osc UnlinkLoadBalancerBackendMachines --LoadBalancerName "$lb_name" --BackendVmIds "$vm_a" >/dev/null \
   || fail "UnlinkLoadBalancerBackendMachines rejected"
+# waits on silence: the verdict below is that $vm_a NEVER answers again across
+# six connections. Nothing announces an unlink reaching the runtime, and the
+# only poll available — "six probes that avoided $vm_a" — is satisfied by luck
+# one run in sixty-four with the unlink not applied at all. That is #559's
+# defect with a different number, so this wait stays fixed.
 sleep 2
 hits="$(probe 6)"
 case "$hits" in
@@ -238,17 +267,17 @@ osc CreateLoadBalancerListeners --LoadBalancerName "$lb_name" \
   --Listeners.0.LoadBalancerPort 8080 --Listeners.0.LoadBalancerProtocol TCP \
   --Listeners.0.BackendPort 80 --Listeners.0.BackendProtocol TCP >/dev/null \
   || fail "CreateLoadBalancerListeners rejected"
-sleep 3
 
 # The new port answers, from the same client machine, over the machine still
 # registered. Asserted first, because it is the positive half: a suite that only
 # checked the old port going quiet would pass on a balancer that was simply gone.
+#
+# The three seconds that stood here were redundant: the loop below already
+# polled the same condition, so they were paid before the first look at it every
+# single run.
 moved=""
-for _ in 1 2 3 4 5; do
-  moved="$(from_client "$vip:8080" || true)"
-  [ -n "$moved" ] && break
-  sleep 2
-done
+moved_answers() { moved="$(from_client "$vip:8080" || true)"; [ -n "$moved" ]; }
+wait_until 10 moved_answers || true
 [ "$moved" = "$vm_b" ] || fail "the balancer does not answer on its new port 8080: got '${moved:-nothing}'"
 ok "8080 answers, served by $vm_b"
 
@@ -268,8 +297,13 @@ incus network load-balancer list "$network" -f csv 2>/dev/null | grep -q "$vip" 
   || fail "the runtime holds no balancer on $vip, so the probes above measured something else"
 osc DeleteLoadBalancer --LoadBalancerName "$lb_name" >/dev/null || fail "DeleteLoadBalancer rejected"
 lb_made=""
-sleep 2
-if incus network load-balancer list "$network" -f csv 2>/dev/null | grep -q "$vip"; then
+# A disappearance, which is the one negative a poll may end on: a balancer the
+# runtime has deleted does not come back, so the first observation of its
+# absence is the verdict the sleep would have reached. The verdict below is
+# unchanged and still fails if it never goes.
+host_holds_balancer() { incus network load-balancer list "$network" -f csv 2>/dev/null | grep -q "$vip"; }
+wait_gone 30 host_holds_balancer || true
+if host_holds_balancer; then
   fail "the balancer on $vip outlived the load balancer it belongs to"
 fi
 ok "the host holds no balancer on $vip"

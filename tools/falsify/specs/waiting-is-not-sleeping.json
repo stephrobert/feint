@@ -1,0 +1,26 @@
+{
+  "package": "./tools/conformance/",
+  "mutations": [
+    {
+      "label": "the wait's timeout answers success, so every assertion placed after a wait_until passes on a machine that never came up (#459)",
+      "file": "tools/conformance/shared/waiting.sh",
+      "find": "      return 1 # the budget ran out and the condition never held",
+      "replace": "      return 0 # the budget ran out and the condition never held",
+      "test": "TestAConditionThatNeverComesTrueFailsTheWait"
+    },
+    {
+      "label": "the disappearance wait's timeout answers success, so a machine or a network left behind reads as a clean teardown (#459)",
+      "file": "tools/conformance/shared/waiting.sh",
+      "find": "      return 1 # the budget ran out and the object is still there",
+      "replace": "      return 0 # the budget ran out and the object is still there",
+      "test": "TestAnObjectThatNeverGoesFailsTheWait"
+    },
+    {
+      "label": "a kept fixed wait loses the marker that says what it waits for, which is how the next reader turns it into a poll and the dataplane verdict into a race (#459, #559)",
+      "file": "tools/conformance/scaleway/network.sh",
+      "find": "# waits on silence: the verdict below is drawn from a connection that does NOT",
+      "replace": "# it waits on the silence, and the verdict below is drawn from a connection that does NOT",
+      "test": "TestEveryFixedSleepInARuntimeSuiteSaysWhatItWaitsFor"
+    }
+  ]
+}

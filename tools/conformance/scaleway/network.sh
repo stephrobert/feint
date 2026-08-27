@@ -46,6 +46,11 @@ skip() { echo "  SKIP: $*" >&2; }
 . "$(dirname "$0")/../shared/addresses.sh"
 # shellcheck source=/dev/null
 . "$(dirname "$0")/../shared/verdicts.sh"
+# Waiting for a condition instead of for a duration (#459). The file states the
+# one rule that decides where these may stand, and why the waits still written
+# `sleep` below cannot become polls.
+# shellcheck source=/dev/null
+. "$(dirname "$0")/../shared/waiting.sh"
 
 api() { curl -sf -H 'Content-Type: application/json' "$@"; }
 
@@ -198,9 +203,12 @@ machine() { echo "feint-scw-$1"; }
 if ! command -v incus >/dev/null 2>&1; then
   stop_here "$LINENO" "incus client not available; cannot verify what the machines carry"
 fi
-sleep 3
-
 echo "- the machine carries the address the API published"
+# A container gets its address a second or two after it starts, so the question
+# is asked until it holds rather than after a guess at how long that takes. The
+# verdict below is unchanged: a machine that never takes the address still
+# fails, having been asked sixty seconds instead of assumed after three.
+wait_until 60 machine_carries "$(machine "$guard_id")" "$guard_ip" || true
 carried="$(incus query "/1.0/instances/$(machine "$guard_id")/state" 2>/dev/null \
            | jq -r '[.network[]?.addresses[]? | select(.family=="inet") | .address] | join(" ")')"
 case " $carried " in
@@ -240,7 +248,12 @@ assert_only_published "$(machine "$guard_id")" $published "$guard_ip"
 echo "- the group's drop policy closes a port, for real"
 incus exec "$(machine "$guard_id")" -- sh -c \
   'while true; do printf "ok\n" | nc -l -p 80 >/dev/null 2>&1; done' >/dev/null 2>&1 &
-sleep 2
+# The positive control this verdict was missing (#219), and the reason the fixed
+# wait could go: what the two seconds were for was the listener binding, and
+# that is a question the guard can be asked. Without it, "port 80 refused" is
+# the same observation on a machine whose responder never started — and the
+# Exoscale suite has had this control since #219 while this one did not.
+assert_listening_within 30 "$(machine "$guard_id")" 80 "the guard's own responder"
 reach() { incus exec "$(machine "$probe_id")" -- timeout 3 nc -z -w 2 "$guard_ip" 80 >/dev/null 2>&1; }
 
 if reach; then
@@ -252,12 +265,20 @@ echo "- authorising it opens it, with no restart"
 rule_id="$(api -X POST "$ENDPOINT/instance/v1/zones/$ZONE/security_groups/$sg_id/rules" \
             -d "{\"protocol\":\"TCP\",\"direction\":\"inbound\",\"action\":\"accept\",\"ip_range\":\"$BLOCK\",\"dest_port_from\":80}" \
           | jq -r '.rule.id')"
-sleep 3
-reach || fail "port 80 is still refused after the rule was authorised"
+# One probe at the end rather than a poll and then a repeat: the responder is
+# `nc -l` in a loop, so a connection consumes it and the next needs the loop to
+# come back round. Asking twice would introduce a race this change is meant to
+# remove.
+wait_until 30 reach || fail "port 80 is still refused after the rule was authorised"
 ok "port 80 reachable"
 
 echo "- revoking it closes it again"
 api -X DELETE "$ENDPOINT/instance/v1/zones/$ZONE/security_groups/$sg_id/rules/$rule_id" >/dev/null
+# waits on silence: the verdict below is drawn from a connection that does NOT
+# open, and nothing announces a revoked rule reaching the NIC. Polling until the
+# port closes would end at the first failed connection, which is what a port
+# that has not opened yet also looks like — the verdict would then be a race
+# won by luck (#559). This wait stays fixed on purpose.
 sleep 3
 if reach; then fail "port 80 is still open after the rule was revoked"; fi
 ok "port 80 refused again"
@@ -281,6 +302,10 @@ ok "$public does not answer while detached"
 
 api -X PATCH "$ENDPOINT/instance/v1/zones/$ZONE/ips/$ip_id" -d "{\"server\":\"$guard_id\"}" >/dev/null \
   || fail "attaching the address was refused"
+# waits on silence: what follows asserts that the address stays CLOSED while the
+# group drops inbound, and an address whose route is not laid yet is closed for
+# the wrong reason. There is no positive observation to poll here — the only one
+# available is the connection succeeding, which is exactly what must not happen.
 sleep 2
 
 # The verdict is the exit code, never the probe's text. A connection dropped by
@@ -301,8 +326,8 @@ echo "- authorising the port opens the public address"
 pub_rule="$(api -X POST "$ENDPOINT/instance/v1/zones/$ZONE/security_groups/$sg_id/rules" \
              -d '{"protocol":"TCP","direction":"inbound","action":"accept","ip_range":"0.0.0.0/0","dest_port_from":80}' \
            | jq -r '.rule.id')"
-sleep 3
-timeout 3 bash -c "echo > /dev/tcp/$public/80" >/dev/null 2>&1 \
+public_open() { timeout 3 bash -c "echo > /dev/tcp/$public/80" >/dev/null 2>&1; }
+wait_until 30 public_open \
   || fail "$public still closed with port 80 authorised; nothing routes it to the machine"
 ok "$public reaches the machine once authorised"
 api -X DELETE "$ENDPOINT/instance/v1/zones/$ZONE/security_groups/$sg_id/rules/$pub_rule" >/dev/null
@@ -343,11 +368,13 @@ far_ipam="$(echo "$far_nic" | jq -r '.private_nic.ipam_ip_ids[0] // empty')"
 [ -n "$far_ipam" ] || fail "the far NIC names no IPAM address"
 far_ip="$(api "$ENDPOINT/ipam/v1/regions/$REGION/ips/$far_ipam" | jq -r '.address' | cut -d/ -f1)"
 api -X POST "$ENDPOINT/instance/v1/zones/$ZONE/servers/$far_id/action" -d '{"action":"poweron"}' >/dev/null
-sleep 5
+# The machine must answer `incus exec` before a responder can be started in it.
+# That is a question, so it is asked rather than slept over; the positive
+# control below is the verdict either way.
+wait_until 90 incus exec "$(machine "$far_id")" -- true || true
 
 incus exec "$(machine "$far_id")" -- sh -c \
   'while true; do printf "ok\n" | nc -l -p 80 >/dev/null 2>&1; done' >/dev/null 2>&1 &
-sleep 2
 
 # On OVN the assertion is hard: two OVN networks reach each other only when
 # peered, and another VPC's network must not be. On bridges it stays a skip,
@@ -359,7 +386,7 @@ sleep 2
 # a machine correctly isolated are the same observation, and the suite read the
 # first as a pass — on the assertion that carries the product's strongest claim
 # (#219).
-assert_listening "$(machine "$far_id")" 80 "the server of the other VPC"
+assert_listening_within 30 "$(machine "$far_id")" 80 "the server of the other VPC"
 
 if incus exec "$(machine "$probe_id")" -- timeout 3 nc -z -w 2 "$far_ip" 80 >/dev/null 2>&1; then
   # A runtime that declares isolation and does not deliver it is a hard failure:
@@ -384,13 +411,18 @@ near_nic="$(api -X POST "$ENDPOINT/instance/v1/zones/$ZONE/servers/$near_id/priv
 near_ipam="$(echo "$near_nic" | jq -r '.private_nic.ipam_ip_ids[0] // empty')"
 near_ip="$(api "$ENDPOINT/ipam/v1/regions/$REGION/ips/$near_ipam" | jq -r '.address' | cut -d/ -f1)"
 api -X POST "$ENDPOINT/instance/v1/zones/$ZONE/servers/$near_id/action" -d '{"action":"poweron"}' >/dev/null
-sleep 5
+wait_until 90 incus exec "$(machine "$near_id")" -- true || true
 
 incus exec "$(machine "$near_id")" -- sh -c \
   'while true; do printf "ok\n" | nc -l -p 80 >/dev/null 2>&1; done' >/dev/null 2>&1 &
-sleep 2
+# No separate wait for the responder here: the verdict below is a REACH, not a
+# silence, so polling the verdict itself covers the listener coming up as well —
+# and it probes once per attempt instead of twice. A machine of the same VPC
+# that becomes reachable in four seconds satisfies the property this check
+# states, and the fixed two-second wait would have failed it.
+near_reach() { incus exec "$(machine "$probe_id")" -- timeout 3 nc -z -w 2 "$near_ip" 80 >/dev/null 2>&1; }
 
-if incus exec "$(machine "$probe_id")" -- timeout 3 nc -z -w 2 "$near_ip" 80 >/dev/null 2>&1; then
+if wait_until 30 near_reach; then
   ok "a server of the same VPC is reachable ($near_ip)"
 else
   fail "$near_ip is unreachable within one VPC; isolation is separating too much"

@@ -36,10 +36,39 @@ machine_carries() { # machine address
 # Asked on the target itself, because the point is precisely that nothing else
 # can reach it: if the listener answers on its own loopback, then a refusal seen
 # from elsewhere is isolation rather than absence.
+#
+# Split in two since #459: `is_listening` is the question, `assert_listening` is
+# the verdict. The suites wait on the question — `wait_until 30 is_listening …`,
+# see shared/waiting.sh — where they used to sleep a fixed two or three seconds
+# hoping the listener had come up, and then draw the same verdict. The verdict
+# is unchanged: a listener that never binds still fails, having been asked
+# rather than assumed.
+is_listening() { # machine port
+  incus exec "$1" -- timeout 3 nc -z -w 2 127.0.0.1 "$2" >/dev/null 2>&1
+}
+
 assert_listening() { # machine port what
   local machine=$1 port=$2 what=$3
-  if ! incus exec "$machine" -- timeout 3 nc -z -w 2 127.0.0.1 "$port" >/dev/null 2>&1; then
+  if ! is_listening "$machine" "$port"; then
     fail "$what is not listening on port $port, so 'unreachable' would measure a dead machine rather than isolation"
+  fi
+}
+
+# assert_listening_within is the form the suites call, and it exists so that
+# they probe ONCE.
+#
+# The responder these suites start is `nc -l` inside a `while true` loop, so a
+# probe CONSUMES it and the next one races the loop's re-bind. A fixed sleep
+# followed by one assertion probed once; a poll followed by the same assertion
+# would probe twice, which would trade the slowness for a race — the exact
+# swap this whole change exists to avoid. One call, one probe sequence, one
+# verdict, and the verdict is the same one assert_listening draws.
+#
+# Requires shared/waiting.sh, which every caller of this file sources beside it.
+assert_listening_within() { # seconds machine port what
+  local budget=$1 machine=$2 port=$3 what=$4
+  if ! wait_until "$budget" is_listening "$machine" "$port"; then
+    fail "$what is not listening on port $port after ${budget}s, so 'unreachable' would measure a dead machine rather than isolation"
   fi
 }
 
@@ -49,9 +78,24 @@ assert_listening() { # machine port what
 # Same argument: a machine whose stack is not up refuses a ping exactly as
 # isolation does. Asked of the machine about its own address, which proves the
 # address is live on it without needing anything else to reach it.
+#
+# Split into question and verdict for the reason is_listening is (#459).
+answers_itself() { # machine address
+  incus exec "$1" -- ping -c 1 -W 2 "$2" >/dev/null 2>&1
+}
+
 assert_answers_itself() { # machine address what
-  if ! incus exec "$1" -- ping -c 1 -W 2 "$2" >/dev/null 2>&1; then
+  if ! answers_itself "$1" "$2"; then
     fail "$3 does not answer on $2 from itself, so 'unreachable' would measure a dead stack rather than isolation"
+  fi
+}
+
+# The same, with a budget, and the same reason: one call, one probe, one
+# verdict. Requires shared/waiting.sh.
+assert_answers_itself_within() { # seconds machine address what
+  local budget=$1 machine=$2 address=$3 what=$4
+  if ! wait_until "$budget" answers_itself "$machine" "$address"; then
+    fail "$what does not answer on $address from itself after ${budget}s, so 'unreachable' would measure a dead stack rather than isolation"
   fi
 }
 

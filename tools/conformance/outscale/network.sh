@@ -41,6 +41,11 @@ skip() { echo "  SKIP: $*" >&2; }
 . "$(dirname "$0")/../shared/addresses.sh"
 # shellcheck source=/dev/null
 . "$(dirname "$0")/../shared/verdicts.sh"
+# Waiting for a condition instead of for a duration (#459). The file states the
+# one rule that decides where these may stand, and why the waits still written
+# `sleep` below cannot become polls.
+# shellcheck source=/dev/null
+. "$(dirname "$0")/../shared/waiting.sh"
 
 echo "conformance: outscale network against $ENDPOINT"
 
@@ -126,6 +131,9 @@ cleanup() {
   [ -n "$vm_a" ] && osc DeleteVms --VmIds "$vm_a" >/dev/null 2>&1
   [ -n "$vm_b" ] && osc DeleteVms --VmIds "$vm_b" >/dev/null 2>&1
   [ -n "$born_vm" ] && osc DeleteVms --VmIds "$born_vm" >/dev/null 2>&1
+  # waits on silence: a subnet cannot be deleted while a machine still sits on
+  # it, and this is a trap handler — the ids may be empty, the deletes may have
+  # been refused, so there is no single object whose disappearance to wait for.
   sleep 2
   [ -n "$sub_id" ] && osc DeleteSubnet --SubnetId "$sub_id" >/dev/null 2>&1
   [ -n "$sub_a" ] && osc DeleteSubnet --SubnetId "$sub_a" >/dev/null 2>&1
@@ -188,16 +196,11 @@ case "$private_ip" in
   *) fail "PrivateIp $private_ip is outside the Subnet $SUBBLOCK" ;;
 esac
 
-# The address must be on the machine, not only in the answer. Waiting because a
-# container gets its address a few seconds after it starts.
+# The address must be on the machine, not only in the answer. Asked until it
+# holds rather than every two seconds: the same budget, a quarter-second
+# granularity, and the verdict below unchanged.
 carried=""
-for _ in 1 2 3 4 5 6 7 8 9 10; do
-  if machine_carries "feint-osc-$vm_id" "$private_ip"; then
-    carried="yes"
-    break
-  fi
-  sleep 2
-done
+if wait_until 20 machine_carries "feint-osc-$vm_id" "$private_ip"; then carried="yes"; fi
 [ -n "$carried" ] || fail "feint-osc-$vm_id does not carry $private_ip: the address is a number in a store"
 ok "$vm_id carries $private_ip, on $found"
 
@@ -211,13 +214,22 @@ osc_published="$(osc ReadVms --Filters.VmIds "$vm_id" \
 assert_only_published "feint-osc-$vm_id" $osc_published
 
 osc DeleteVms --VmIds "$vm_id" >/dev/null || fail "DeleteVms rejected"
-sleep 2
+# The delete of the Subnet below is refused while a machine still sits on it, so
+# what the two seconds were for is the machine being gone — an object whose
+# disappearance can be asked for rather than waited out.
+machine_exists() { incus info "$1" >/dev/null 2>&1; }
+wait_gone 30 machine_exists "feint-osc-$vm_id" || true
 
 echo "- the network goes when the Subnet goes"
 osc DeleteSubnet --SubnetId "$sub_id" >/dev/null || fail "DeleteSubnet rejected"
 sub_id=""
-sleep 1
-if incus network list -f csv 2>/dev/null | grep -q "^$found,"; then
+# A disappearance is the one negative a poll may end on: a network the runtime
+# has deleted does not come back, so the first observation of its absence is the
+# same verdict a fixed sleep would have reached, only sooner. The verdict below
+# is unchanged and still fails if it never goes.
+host_lists_network() { incus network list -f csv 2>/dev/null | grep -q "^$1,"; }
+wait_gone 30 host_lists_network "$found" || true
+if host_lists_network "$found"; then
   fail "the host network $found outlived its Subnet"
 fi
 ok "deleted, and the host is as it was"
@@ -268,12 +280,8 @@ ip_b="$(printf '%s' "$vm_b_doc" | jq -r '.Vms[0].PrivateIp // empty')"
 # The machine must be up and carrying its address before absence of reach can
 # mean isolation rather than a machine still booting.
 booted=""
-for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
-  if machine_carries "feint-osc-$vm_b" "$ip_b"; then booted="yes"; break; fi
-  sleep 2
-done
+if wait_until 24 machine_carries "feint-osc-$vm_b" "$ip_b"; then booted="yes"; fi
 [ -n "$booted" ] || fail "feint-osc-$vm_b does not carry $ip_b; cannot measure reachability"
-sleep 2
 
 # reach: from the machine in Net A towards the address in Net B. The names are
 # the binding's, prefix feint-osc-.
@@ -295,13 +303,19 @@ sg_b="$(osc ReadSecurityGroups --Filters.NetIds "$net_b" --Filters.SecurityGroup
 osc CreateSecurityGroupRule --Flow Inbound --SecurityGroupId "$sg_b" \
     --IpProtocol icmp --IpRange "$PEER_BLOCK_A" >/dev/null \
   || fail "CreateSecurityGroupRule rejected on $sg_b"
+# waits on silence: the allow above must have reached the NIC before the four
+# refusals below are attributed to isolation. Nothing announces that it has, and
+# the only observable consequence of the rule landing is a ping SUCCEEDING
+# across the peering — which is precisely what must not happen yet. An allow
+# that has not landed makes each of those refusals true for a weaker reason
+# than the one this block claims, so this wait stays fixed.
 sleep 2
 
 # The positive control, before four negative verdicts in a row: the target answers
 # on its own address. A machine whose stack never came up refuses a ping exactly
 # as an unpeered Net does, and this suite draws its strongest conclusion from that
 # refusal (#219).
-assert_answers_itself "feint-osc-$vm_b" "$ip_b" "the Vm of the second Net"
+assert_answers_itself_within 30 "feint-osc-$vm_b" "$ip_b" "the Vm of the second Net"
 
 echo "- before any peering, the Nets do not reach each other"
 if reach; then
@@ -320,8 +334,7 @@ ok "still unreachable while pending-acceptance"
 
 echo "- an accepted peering carries traffic, both ends knowing it"
 osc AcceptNetPeering --NetPeeringId "$pcx_id" >/dev/null || fail "AcceptNetPeering rejected"
-sleep 2
-reach || fail "the peering is active and $vm_a still cannot reach $ip_b"
+wait_until 30 reach || fail "the peering is active and $vm_a still cannot reach $ip_b"
 ok "$vm_a reaches $ip_b through the active peering"
 
 # The regression #508 measured, held in the same pass as the lifecycle above:
@@ -336,8 +349,8 @@ ok "$vm_a reaches $ip_b through the active peering"
 echo "- a Subnet created while the peering is active does not sever it (#508)"
 born_sub="$(osc CreateSubnet --NetId "$net_a" --IpRange "${PEER_BLOCK_A%.0.0/16}.3.0/24" | jq -r '.Subnet.SubnetId')"
 [ -n "$born_sub" ] || fail "CreateSubnet was refused while the peering is active"
-sleep 2
-reach || fail "an ordinary CreateSubnet in $net_a severed the active peering: $vm_a no longer reaches $ip_b (#508)"
+wait_until 30 reach \
+  || fail "an ordinary CreateSubnet in $net_a severed the active peering: $vm_a no longer reaches $ip_b (#508)"
 ok "the existing machine still reaches $ip_b after the create"
 
 echo "- a machine born in that Subnet joins the active peering (#508)"
@@ -347,18 +360,19 @@ born_vm="$(printf '%s' "$born_doc" | jq -r '.Vms[0].VmId')"
 born_ip="$(printf '%s' "$born_doc" | jq -r '.Vms[0].PrivateIp // empty')"
 [ -n "$born_ip" ] || fail "the newborn Vm came back without a PrivateIp"
 born_up=""
-for _ in $(seq 1 12); do
-  if machine_carries "feint-osc-$born_vm" "$born_ip"; then born_up="yes"; break; fi
-  sleep 2
-done
+if wait_until 24 machine_carries "feint-osc-$born_vm" "$born_ip"; then born_up="yes"; fi
 [ -n "$born_up" ] || fail "feint-osc-$born_vm does not carry $born_ip; cannot measure the newborn's reachability"
-sleep 2
-incus exec "feint-osc-$born_vm" -- ping -c 2 -W 3 "$ip_b" >/dev/null 2>&1 \
+born_reach() { incus exec "feint-osc-$born_vm" -- ping -c 2 -W 3 "$ip_b" >/dev/null 2>&1; }
+wait_until 30 born_reach \
   || fail "the newborn Subnet's machine never joined the active peering: $born_vm cannot reach $ip_b (#508)"
 ok "$born_vm reaches $ip_b through the peering it was born into"
 
 echo "- a deleted peering separates them again"
 osc DeleteNetPeering --NetPeeringId "$pcx_id" >/dev/null || fail "DeleteNetPeering rejected"
+# waits on silence: both verdicts below are drawn from a ping that does NOT come
+# back, and nothing announces a withdrawn peering reaching the runtime. A poll
+# ending at the first failed ping would end on the ping that failed because the
+# route was still being torn down, which is a pass drawn from a race (#559).
 sleep 2
 if reach; then
   fail "the peering is deleted and the Nets still reach each other"
@@ -368,8 +382,12 @@ if incus exec "feint-osc-$born_vm" -- ping -c 2 -W 2 "$ip_b" >/dev/null 2>&1; th
 fi
 ok "unreachable again, the newborn included"
 
+# The id is kept before the variable is cleared: the wait is on THIS machine
+# going, and `feint-osc-` with nothing after it is a name incus never held, so
+# the wait would end at once having asked about nothing.
+gone_vm="$born_vm"
 osc DeleteVms --VmIds "$born_vm" >/dev/null 2>&1 && born_vm=""
-sleep 3
+wait_gone 30 machine_exists "feint-osc-$gone_vm" || true
 osc DeleteSubnet --SubnetId "$born_sub" >/dev/null 2>&1 && born_sub=""
 
 # And the accepting half, which the peering lifecycle above does not cover: a
@@ -383,24 +401,24 @@ else
   same_doc="$(osc CreateVms --ImageId ami-00000003 --VmType tinav6.c1r1p2 --SubnetId "$same_sub")"
   same_vm="$(printf '%s' "$same_doc" | jq -r '.Vms[0].VmId')"
   same_ip="$(printf '%s' "$same_doc" | jq -r '.Vms[0].PrivateIp // empty')"
-  for _ in $(seq 1 30); do
-    machine_carries "feint-osc-$same_vm" "$same_ip" && break
-    sleep 2
-  done
-  sleep 3
-  if incus exec "feint-osc-$vm_a" -- ping -c 2 -W 3 "$same_ip" >/dev/null 2>&1; then
+  wait_until 60 machine_carries "feint-osc-$same_vm" "$same_ip" || true
+  same_reach() { incus exec "feint-osc-$vm_a" -- ping -c 2 -W 3 "$same_ip" >/dev/null 2>&1; }
+  if wait_until 30 same_reach; then
     ok "a machine of the same Net is reachable ($same_ip)"
   else
     fail "$same_ip is unreachable inside one Net; the isolation separates too much"
   fi
   osc DeleteVms --VmIds "$same_vm" >/dev/null 2>&1
-  sleep 3
+  wait_gone 30 machine_exists "feint-osc-$same_vm" || true
   osc DeleteSubnet --SubnetId "$same_sub" >/dev/null 2>&1
 fi
 
+gone_a="$vm_a"
+gone_b="$vm_b"
 osc DeleteVms --VmIds "$vm_a" >/dev/null && vm_a=""
 osc DeleteVms --VmIds "$vm_b" >/dev/null && vm_b=""
-sleep 2
+wait_gone 30 machine_exists "feint-osc-$gone_a" || true
+wait_gone 30 machine_exists "feint-osc-$gone_b" || true
 osc DeleteSubnet --SubnetId "$sub_a" >/dev/null && sub_a=""
 osc DeleteSubnet --SubnetId "$sub_b" >/dev/null && sub_b=""
 osc DeleteNet --NetId "$net_a" >/dev/null && net_a=""
