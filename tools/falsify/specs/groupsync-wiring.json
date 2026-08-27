@@ -1,0 +1,55 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "the firewall step asks about the runtime before it asks about the pack, which is the order that made a missing field invisible under --vm off and a panic under --vm incus-ovn (#543)",
+      "file": "internal/core/machine/groupsync.go",
+      "find": "\tif err := s.check(); err != nil {\n\t\ts.Binding.logger().Error(\"the firewall step is skipped: this pack's security groups reach no machine\",",
+      "replace": "\tif err := s.check(); err != nil && s.enforcer() == nil {\n\t\ts.Binding.logger().Error(\"the firewall step is skipped: this pack's security groups reach no machine\",",
+      "test": "TestABootUnderAnEnforcingRuntimeReportsAnUnwiredGroupSync"
+    },
+    {
+      "label": "the same order, judged on the mode that never could see it: with the runtime asked first, --vm off is the only mode that reports and the asymmetry is back (#543)",
+      "file": "internal/core/machine/groupsync.go",
+      "find": "\tif err := s.check(); err != nil {\n\t\ts.Binding.logger().Error(\"the firewall step is skipped: this pack's security groups reach no machine\",",
+      "replace": "\tif err := s.check(); err != nil && s.enforcer() != nil {\n\t\ts.Binding.logger().Error(\"the firewall step is skipped: this pack's security groups reach no machine\",",
+      "test": "TestAnUnwiredGroupSyncIsReportedUnderEveryRuntime"
+    },
+    {
+      "label": "the check finds no missing field, so the orchestration runs on the nil funcs themselves: applyMachine calls WornIDs on one (#543)",
+      "file": "internal/core/machine/groupsync.go",
+      "find": "\tvar missing []string\n\tfor _, field := range s.required() {\n\t\tif !field.set {\n\t\t\tmissing = append(missing, field.name)\n\t\t}\n\t}",
+      "replace": "\tvar missing []string\n\tfor _, field := range s.required() {\n\t\tif !field.set && false {\n\t\t\tmissing = append(missing, field.name)\n\t\t}\n\t}",
+      "test": "TestABootUnderAnEnforcingRuntimeReportsAnUnwiredGroupSync"
+    },
+    {
+      "label": "the report names every field rather than the missing ones, so a pack that forgot one is sent to the four lines it wrote correctly (#543)",
+      "file": "internal/core/machine/groupsync.go",
+      "find": "\tfor _, field := range s.required() {\n\t\tif !field.set {\n\t\t\tmissing = append(missing, field.name)\n\t\t}\n\t}",
+      "replace": "\tfor _, field := range s.required() {\n\t\tif !field.set || true {\n\t\t\tmissing = append(missing, field.name)\n\t\t}\n\t}",
+      "test": "TestAPackThatWiredNoGroupSyncIsToldWhichFieldIsMissing"
+    },
+    {
+      "label": "the declaration stops being honoured, so a pack that said it enforces nothing is reported as having forgotten four fields — a refusal nobody can satisfy (#543)",
+      "file": "internal/core/machine/groupsync.go",
+      "find": "\tif s.EnforcesNothing {\n\t\treturn false\n\t}\n\tif err := s.check(); err != nil {",
+      "replace": "\tif s.EnforcesNothing && false {\n\t\treturn false\n\t}\n\tif err := s.check(); err != nil {",
+      "test": "TestAPackThatWiredNoGroupSyncIsToldWhichFieldIsMissing"
+    },
+    {
+      "label": "the boot dereferences a plan the pack never declared, which panics in every mode rather than naming the pack and PlanOf (#543)",
+      "file": "internal/core/machine/plan.go",
+      "find": "func (r Reconciler) plan(res *resource.Resource) (Plan, bool) {\n\tif r.PlanOf == nil {",
+      "replace": "func (r Reconciler) plan(res *resource.Resource) (Plan, bool) {\n\tif r.PlanOf == nil && false {",
+      "test": "TestABootWithNoDeclaredPlanIsRefusedRatherThanPanicking"
+    },
+    {
+      "label": "the boot starts a machine on a plan nobody declared and reports success, so the API describes as running a machine on no network (#484, #543)",
+      "file": "internal/core/machine/plan.go",
+      "find": "\tplan, declared := r.plan(res)\n\tif !declared {\n\t\treturn false\n\t}\n\tboot.Attachments = plan.Boot",
+      "replace": "\tplan, declared := r.plan(res)\n\tif !declared && false {\n\t\treturn false\n\t}\n\tboot.Attachments = plan.Boot",
+      "test": "TestABootWithNoDeclaredPlanIsRefusedRatherThanPanicking"
+    }
+  ],
+  "note": "#543 is not about a panic, and these mutations are arranged to say so. The panic was the symptom under one runtime; the finding is that the guard deciding between the two outcomes asked about the runtime first, so `--vm off` — the default, what CI runs, what every conformance leg runs — skipped the whole firewall step before anything could touch a nil field. A pack that had wired nothing was therefore green in every population anybody measures, and red on the first poweron of the first operator to attach a real one. Mutations one and two are the same rewrite judged from the two sides: with the runtime asked first, the enforcing mode stops reporting and the default mode is the only one that speaks — which is the mirror image of what was there before and equally wrong, and it is why the second test exists at all. Mutation three is the dereference itself, and it is the one that reads as proof most easily: it fails by crashing. Its first form did not, and the harness is the reason this note can say so: it targeted a second wiring guard inside applyMachine and reported STILL GREEN, because the entry gate covered for it. The guard was redundant, so it was deleted rather than excused — a guard whose removal leaves every test passing is a comment. Four and five hold what the report says rather than that it happened — a message naming four fields for one omission sends its reader to the wrong lines, and a declaration that does not actually stop the orchestration is a control nobody can satisfy. Six and seven are Reconciler.PlanOf, the other required func field, which #543 recorded as untested: measured on 2026-08-27 it panics under machine.Noop exactly as under an enforcing runtime, so it is not mode-dependent — the correction there is the sentence and the refusal, not the timing, and seven is the half that matters, because a boot reported as successful over an empty plan is #484's lie rather than a crash."
+}

@@ -77,6 +77,37 @@ type Reconciler struct {
 
 func (r Reconciler) binding() Binding { return r.Groups.Binding }
 
+// plan asks the pack for the machine's declared interface shape, and reports
+// the pack rather than dereferencing a nil field (#543).
+//
+// PlanOf is required and has no honest empty meaning: a pack with no networks
+// at all still declares that, as `Plan{}`, in one line. So this refuses where
+// GroupSync degrades, and the asymmetry is deliberate. A missing firewall
+// translation costs the rules; a missing plan costs the boot's first two steps
+// — the promised addresses and the memberships — and a machine started without
+// them is a machine on no network that the API would describe as running. That
+// is the lie #484 named. Refusing publishes FailedState through the pack's own
+// vocabulary instead.
+//
+// Unlike GroupSync's omission this one is not mode-dependent: measured on
+// 2026-08-27, a nil PlanOf panics under machine.Noop exactly as it does under
+// an enforcing runtime, because nothing gates the call. A pack that forgets it
+// therefore fails its own first unit test, which is why the sentence matters
+// more than the timing here.
+//
+// internal/cli's TestABootWithNoDeclaredPlanIsRefusedRatherThanPanicking fails
+// without this.
+func (r Reconciler) plan(res *resource.Resource) (Plan, bool) {
+	if r.PlanOf == nil {
+		r.binding().logger().Error("this pack declares no interface plan, so nothing can be started for it",
+			"provider", r.binding().Provider, "resource", res.ID,
+			"error", "the pack builds a machine.Reconciler without PlanOf: every pack declares the "+
+				"shape of its machines' interfaces, and a pack with none declares that as an empty Plan")
+		return Plan{}, false
+	}
+	return r.PlanOf(res), true
+}
+
 // router is the runtime's routing half, nil when it has none — the assertion
 // every pack wrote for itself, now inside the layer.
 func (r Reconciler) router() Router {
@@ -89,7 +120,10 @@ func (r Reconciler) router() Router {
 // reports what PowerOn reported; a machine that did not start is not replayed
 // onto, and the state the pack publishes is the one the effect produced.
 func (r Reconciler) PowerOn(ctx context.Context, res *resource.Resource, boot Boot) bool {
-	plan := r.PlanOf(res)
+	plan, declared := r.plan(res)
+	if !declared {
+		return false
+	}
 	boot.Attachments = plan.Boot
 	boot.PublicAddresses = plan.Publics
 	if !r.binding().PowerOn(ctx, res, boot) {
@@ -160,7 +194,10 @@ func (r Reconciler) Reboot(ctx context.Context, res *resource.Resource, boot Boo
 // long after poweron returned, and the guest half of its routes can only land
 // then. Idempotent for a machine already served.
 func (r Reconciler) ReplayAddresses(ctx context.Context, res *resource.Resource) {
-	plan := r.PlanOf(res)
+	plan, declared := r.plan(res)
+	if !declared {
+		return
+	}
 	for _, address := range plan.Publics {
 		r.route(ctx, res, plan, address)
 	}
@@ -172,7 +209,11 @@ func (r Reconciler) ReplayAddresses(ctx context.Context, res *resource.Resource)
 // control plane, and the runtime carries it on at most one machine either way
 // (Binding.RouteAddress says why).
 func (r Reconciler) Route(ctx context.Context, res *resource.Resource, address string) {
-	r.route(ctx, res, r.PlanOf(res), address)
+	plan, declared := r.plan(res)
+	if !declared {
+		return
+	}
+	r.route(ctx, res, plan, address)
 }
 
 func (r Reconciler) route(ctx context.Context, res *resource.Resource, plan Plan, address string) {

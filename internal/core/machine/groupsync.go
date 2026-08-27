@@ -2,6 +2,8 @@ package machine
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/stephrobert/feint/internal/core/resource"
 )
@@ -70,6 +72,130 @@ type GroupSync struct {
 	// cannot name a group at all (Scaleway), in which case the re-expansion
 	// half of AfterBoot is honestly empty rather than emptily looped.
 	Referrers func(named map[string]bool) []*resource.Resource
+
+	// EnforcesNothing declares a pack that hands no rules to the runtime at
+	// all, so its empty translation is a statement rather than an omission.
+	//
+	// The zero value is the loud one, and that is the whole design (#543). A
+	// pack that forgot to wire the four fields above and a pack that means to
+	// enforce nothing are indistinguishable from here, and the one that must
+	// not be silent is the one that forgot: it used to compile, pass every
+	// unit test and every conformance leg under `--vm off`, and then panic on
+	// the operator's first poweron under a real runtime. So enforcing is
+	// assumed and not-enforcing is declared — the GroupSync half of the
+	// sentence emulator.FirewallEnforcer already asks a pack to say out loud.
+	EnforcesNothing bool
+}
+
+// required names the fields the orchestration dereferences, in the order a
+// pack reads them off the struct.
+//
+// Referrers and ForeignBlocks are absent because they are documented optional
+// and nil-checked at their call sites: a provider whose rules cannot name a
+// group has nothing for the first, and a runtime that keeps networks apart by
+// construction has nothing for the second.
+func (s GroupSync) required() []struct {
+	name string
+	set  bool
+} {
+	return []struct {
+		name string
+		set  bool
+	}{
+		{"SpecOf", s.SpecOf != nil},
+		{"Wearers", s.Wearers != nil},
+		{"WornIDs", s.WornIDs != nil},
+		{"Group", s.Group != nil},
+	}
+}
+
+// check reports the required fields this orchestrator does not carry, naming
+// the pack and every one of them.
+//
+// It says nothing about EnforcesNothing: wired() asks that first, because a
+// pack that hands over nothing has no field to be missing, and folding the two
+// questions into one answer made the predicate impossible to falsify — a
+// mutation removing either half left the other covering for it, which is a
+// guard no test can kill.
+//
+// Why an error rather than a nil check at each call site: the four fields are
+// dereferenced from five places, two of them inside a loop, so a nil check per
+// site is five chances to miss one and a stack trace when somebody does. What
+// an operator needs is the pack and the field, in one sentence, the first time
+// the pack is asked to do anything.
+//
+// internal/cli's TestAPackThatWiredNoGroupSyncIsToldWhichFieldIsMissing fails
+// without this.
+func (s GroupSync) check() error {
+	var missing []string
+	for _, field := range s.required() {
+		if !field.set {
+			missing = append(missing, field.name)
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	provider := s.Binding.Provider
+	if provider == "" {
+		provider = "an unnamed"
+	}
+	return fmt.Errorf("the %s pack builds a machine.GroupSync without %s: "+
+		"a pack that hands its groups to the runtime wires all of %s, and a pack that hands over "+
+		"nothing says so with EnforcesNothing",
+		provider, strings.Join(missing, ", "), strings.Join(fieldNames(s.required()), ", "))
+}
+
+func fieldNames(fields []struct {
+	name string
+	set  bool
+},
+) []string {
+	out := make([]string, 0, len(fields))
+	for _, field := range fields {
+		out = append(out, field.name)
+	}
+	return out
+}
+
+// wired reports whether the firewall step can run at all, and says why not
+// when it cannot.
+//
+// The order of the two questions is the correction #543 asks for, and it is
+// the whole of it. Asking `enforcer() == nil` first is what the layer used to
+// do, and it made the omission mode-dependent: under `--vm off` — the default,
+// and what every conformance leg and `mise run check` run — the firewall step
+// returned before it could touch a nil field, so a pack that had wired nothing
+// was green everywhere; under `--vm incus-ovn` the first poweron dereferenced
+// a nil func. The population that would have caught it is the one nobody runs
+// by default, which is CLAUDE.md's own rule pointing the wrong way.
+//
+// Asking check() first makes the omission report itself in both modes, at the
+// same moment, in the same words. What the runtime changes is only whether
+// there is anything to enforce afterwards.
+//
+// It degrades rather than refusing, because a machine runtime failing must
+// never break the control plane: the machine boots, its rules do not reach the
+// host, and the operator is told why. Reconciler.PlanOf is the deliberate
+// opposite — plan.go says why.
+//
+// internal/cli's TestABootUnderAnEnforcingRuntimeReportsAnUnwiredGroupSync and
+// TestAnUnwiredGroupSyncIsReportedUnderEveryRuntime fail without this.
+func (s GroupSync) wired() bool {
+	// The declaration first, and silently: a pack that says it enforces
+	// nothing has nothing missing, and reporting it would be a refusal nobody
+	// can satisfy — which is the shape somebody works around rather than
+	// answers. A pack that declares this and wires the fields anyway still
+	// enforces nothing; the declaration is the pack speaking about itself.
+	if s.EnforcesNothing {
+		return false
+	}
+	if err := s.check(); err != nil {
+		s.Binding.logger().Error("the firewall step is skipped: this pack's security groups reach no machine",
+			"provider", s.Binding.Provider, "error", err)
+		return false
+	}
+	return s.enforcer() != nil
 }
 
 // enforcer is the runtime's firewall half, nil when it has none — the
@@ -119,10 +245,10 @@ func (s GroupSync) spec(group, fresh *resource.Resource) FirewallSpec {
 // fresh, when non-nil, wins over the store's copy of the same resource, in the
 // wearer replay as in the expansion — SpecOf says why.
 func (s GroupSync) SyncGroup(ctx context.Context, group, fresh *resource.Resource) {
-	fw := s.enforcer()
-	if fw == nil {
+	if !s.wired() {
 		return
 	}
+	fw := s.enforcer()
 	if !s.Binding.SyncRuleSet(ctx, fw, s.spec(group, fresh)) {
 		return
 	}
@@ -151,6 +277,9 @@ func (s GroupSync) SyncGroup(ctx context.Context, group, fresh *resource.Resourc
 // in the log (SyncRuleSet). Two packs of three attached the remainder; the
 // conservative form is the one that cannot lie in the permissive direction.
 func (s GroupSync) ApplyMachine(ctx context.Context, res *resource.Resource) {
+	if !s.wired() {
+		return
+	}
 	s.applyMachine(ctx, res, res)
 }
 
@@ -166,6 +295,15 @@ func (s GroupSync) ApplyMachine(ctx context.Context, res *resource.Resource) {
 // TestTheWearerReplayKeepsTheFreshExpansion fails without the threading.
 func (s GroupSync) applyMachine(ctx context.Context, res, fresh *resource.Resource) {
 	fw := s.enforcer()
+	// No second wiring guard here, and that absence is deliberate rather than
+	// an oversight. Every caller — SyncGroup, ApplyMachine, AfterBoot — gates
+	// on wired() first, so a repeat would be a guard no mutation can redden:
+	// the falsification for #543 planted exactly that one and reported STILL
+	// GREEN, because the entry gate covered for it. A guard whose removal
+	// leaves every test passing is a comment. What holds a future caller
+	// instead is the entry points being the only doors, which
+	// internal/cli's TestNoPackReachesPastTheDeclaredDriverSurface already
+	// keeps closed.
 	if fw == nil {
 		return
 	}
@@ -194,10 +332,14 @@ func (s GroupSync) applyMachine(ctx context.Context, res, fresh *resource.Resour
 // writes — tier 2 accepts tier 1 and nobody else — never contains the machines
 // it talks about (#475).
 func (s GroupSync) AfterBoot(ctx context.Context, res *resource.Resource) {
-	if s.enforcer() == nil {
+	// wired() rather than `enforcer() == nil`, and that swap is #543: this
+	// line is the guard that made a missing field visible under one runtime
+	// and invisible under the other, because it returned before anything could
+	// dereference one. It now reports first and asks about the runtime second.
+	if !s.wired() {
 		return
 	}
-	s.ApplyMachine(ctx, res)
+	s.applyMachine(ctx, res, res)
 	s.SyncReferrers(ctx, s.WornIDs(res), res)
 }
 
@@ -205,7 +347,7 @@ func (s GroupSync) AfterBoot(ctx context.Context, res *resource.Resource) {
 // groups as a member source. fresh carries the resource whose addresses
 // changed, ahead of its own commit — SpecOf says why the store is not enough.
 func (s GroupSync) SyncReferrers(ctx context.Context, groupIDs []string, fresh *resource.Resource) {
-	if s.Referrers == nil || len(groupIDs) == 0 || s.enforcer() == nil {
+	if s.Referrers == nil || len(groupIDs) == 0 || !s.wired() {
 		return
 	}
 	named := make(map[string]bool, len(groupIDs))
