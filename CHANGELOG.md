@@ -15,6 +15,27 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ## [Unreleased]
 
+### Added
+
+- **The Account product's projects, so a third-party VPC stack reaches a VPC
+  path at all: `account/v3/ProjectAPI.ListProjects` and
+  `account/v3/ProjectAPI.GetProject` (#372).** `data "scaleway_account_project"`
+  is evaluated ahead of every resource in a Terraform graph, and it answered
+  501: two published modules that walk the VPC surface died in two exchanges
+  each, before a single VPC, ACL, private network, gateway or IPAM address was
+  attempted. Both routes are mounted because the provider's own read calls both
+  — ListProjects when the configuration names the project, then always
+  GetProject on the id it resolved. The whole `account` product joined the drift
+  gate with them: twelve operations, two served, ten declined with a reason.
+
+  The list answers one project, named `default`, and filters `name` and
+  `project_ids` honestly — a name this emulator does not carry answers an empty
+  list. The read echoes **any** identifier, which is
+  [limits.md](docs/limits.md)'s "identifiers are not checked against anything"
+  applied to the value a stack most often carries over from production. The cost
+  is stated there too: a stack whose `project_name` is not `default` fails on
+  the provider's own `FindExact`.
+
 ### Fixed
 
 - **An Exoscale security group stops at the public interface, where the real
@@ -57,6 +78,24 @@ what this project is judged on: **a response shape a client can observe**, and
   network suite's own header claimed the pack "does not yet sync its security
   groups onto the machines" — true before `a344f8d`, read as a live fact for
   months after, and what steered every reader away from the firewall.
+
+- **A server answer carries `bootscript` and `extra_networks` (#366), a
+  catalogue image types `from_server` as a string (#367), and an attached public
+  address publishes its gateway and its own tags (#368).** Four response shapes
+  a client can observe, all four measured against a real fr-par account on
+  2026-08-21 and again on 2026-08-24 and all four recorded in
+  `corpus/accepted.json` until now: omitting a key is not the same answer as
+  writing it null, and `feint corpus --check` went from 497 knowingly-accepted
+  divergences to 425 with the thirty-seven exemptions these retire.
+
+- **A block volume goes back to `available` when the server holding it goes, so
+  `scw instance server delete` returns (#365).** Reachable since `sbs_volume`
+  was honoured: the CLI polls the volume the server's own answer named until it
+  settles, and nothing ever put the status back — measured at rc=124, never
+  returning, with five identical polls in the client's trace. #365 itself stays
+  open: making that volume the DEV1-S **default**, which is what the cloud does,
+  moves every root disk out of `instance/v1` where the whole server-volume
+  relationship is implemented, and that is a decision rather than a line.
 
 ## [0.11.0] - 2026-08-26
 
