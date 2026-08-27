@@ -219,7 +219,9 @@ func barrageCalls(t *testing.T, file string) map[string]int {
 // guard already paid for: the exemption maps above would otherwise let a pack out
 // with an empty string.
 func TestEveryBarrageExemptionSaysWhy(t *testing.T) {
-	for _, exemptions := range []map[string]string{ownExclusion, notInTheBarrage, notInTheDriverSurface} {
+	for _, exemptions := range []map[string]string{
+		ownExclusion, notInTheBarrage, notInTheDriverSurface, runtimeKnowledgeExemptions,
+	} {
 		for key, reason := range exemptions {
 			if reasonIsThin(reason) {
 				t.Errorf("the exemption for %s says %q, which is not a reason a reviewer can weigh",
@@ -435,6 +437,107 @@ func act(ctx context.Context, res *resource.Resource) {
 	}
 	if got := aliasedMachineImport(plain); got != "" {
 		t.Errorf("the scanner calls a plain import an alias (%q), which would fail every pack", got)
+	}
+
+	// The runtime-blindness detector (#516), against a pack that knows what is
+	// behind --vm.
+	//
+	// Every shape at once, because #516 is a ratchet on an already-clean tree:
+	// the test passing over internal/providers proves only that it can pass.
+	// What it must prove is that it can find — the implementation type and the
+	// constructor built from it, a configuration key of the runtime, its REST
+	// root, a host device name, a mode comparison, and the import that reaches
+	// the host without naming any of them.
+	//
+	// And the two halves that would make it useless in opposite directions.
+	// The comment in the fixture is the only place `--vm kvm` and `ipv4.routes`
+	// appear: a detector that reported them would fail against the packs' own
+	// prose, which cites a measured OVN behaviour dozens of times and is the
+	// provenance of every limit here. The exact-set assertion is the other
+	// half: machine.Binding, "the method returns an Ethernet frame" and the
+	// four ordinary command words are in the fixture on purpose, and a detector
+	// that reported any of them would refuse the vocabulary all three packs
+	// legitimately write.
+	blind := readMachinePackage(t)
+	impls := driverImplementations(t, blind)
+	named := map[string]bool{}
+	for _, impl := range impls {
+		named[impl] = true
+	}
+	if !named["Incus"] || !named["Noop"] {
+		t.Errorf("the driver implementations derive to %v, which does not include the runtime and "+
+			"the default: the vocabulary would then forbid nothing", impls)
+	}
+
+	knowing := filepath.Join(t.TempDir(), "provider")
+	if err := os.MkdirAll(knowing, 0o750); err != nil {
+		t.Fatalf("make the fixture pack: %v", err)
+	}
+	leaky := `package provider
+
+import (
+	"os/exec"
+
+	"github.com/stephrobert/feint/internal/core/machine"
+)
+
+// Measured under --vm kvm: the runtime writes ipv4.routes onto the NIC and a
+// live edit re-plugs it. That is the provenance of a limit, not a branch, and
+// the detector must report no word of it.
+func mechanics(mode string, b machine.Binding) {
+	if mode == "incus-ovn" {
+		_, _ = exec.Command("incus", "network", "get", "n", "security.acls").Output()
+	}
+	_ = machine.Incus{}
+	_ = machine.NewIncusOVN()
+	_ = b
+	_ = "the method returns an Ethernet frame"
+	_ = "/1.0/instances?recursion=1"
+	_ = "eth1"
+}
+`
+	if err := os.WriteFile(filepath.Join(knowing, "machines.go"), []byte(leaky), 0o600); err != nil {
+		t.Fatalf("write the fixture pack: %v", err)
+	}
+	scan := runtimeKnowledgeLeaks(t, knowing, runtimeTells(impls), named)
+	if scan.files != 1 || scan.literals < 8 {
+		t.Fatalf("the runtime-knowledge scan read %d file(s) and %d literal(s) of a fixture that "+
+			"has one and nine: its silence would prove nothing", scan.files, scan.literals)
+	}
+	told := map[string]bool{}
+	for _, leak := range scan.leaks {
+		told[leak.tell] = true
+	}
+	planted := []string{
+		"os/exec", "incus", "ovn", "security.acls", "runtime API path", "host device name",
+	}
+	for _, tell := range planted {
+		if !told[tell] {
+			t.Errorf("the runtime-blindness detector did not report the planted %q: a discipline "+
+				"test that finds nothing reads exactly like a runtime-blind repository", tell)
+		}
+	}
+	for _, prose := range []string{"kvm", "ipv4.routes"} {
+		if told[prose] {
+			t.Errorf("the runtime-blindness detector reported %q, which the fixture writes only in "+
+				"a comment: it would then fail against every measurement the packs cite, and the "+
+				"provenance of a limit is worth keeping", prose)
+		}
+	}
+	// The accepting half, and it is an exact set rather than a floor: a
+	// detector that also reported machine.Binding, the sentence about an
+	// Ethernet frame, or the words "network" and "get" would pass every
+	// assertion above and fail every pack in the repository.
+	expected := map[string]bool{}
+	for _, tell := range planted {
+		expected[tell] = true
+	}
+	for tell := range told {
+		if !expected[tell] {
+			t.Errorf("the runtime-blindness detector reports %q in a fixture that plants six tells: "+
+				"a detector that refuses more than the runtime's own vocabulary breaks the packs "+
+				"instead of holding them", tell)
+		}
 	}
 
 	if !reasonIsThin("not yet migrated") {
