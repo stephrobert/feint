@@ -47,7 +47,7 @@ ever depending on a runner's weather.
 | a route, a response shape, an error | `mise run conformance` | that a real client still passes |
 | a gate, a score, a verdict about a run | `mise run conformance:leg -- <leg>` | that it holds on a **partial** run |
 | a guard, a validation, a refusal | `mise run falsify -- <spec.json>`, then declare it in `tools/falsify/specs/` | that the test fails without it, on every later day too |
-| `internal/core/machine`, a network, a firewall | `FEINT_VM=incus-ovn mise run conformance` | that the runtime accepts what the driver sends |
+| `internal/core/machine`, a network, a firewall | `FEINT_VM=incus-ovn mise run conformance:leg -- runtime` while you work, `FEINT_VM=incus-ovn mise run conformance` once before you push | that the runtime accepts what the driver sends |
 | an artefact under `coverage/` | `mise run evidence:update` | that the record did not narrow |
 
 **The second row is the one that cost two red pull requests.**
@@ -61,6 +61,24 @@ client at all, and the `terraform` leg drives no `octl`.
 `mise run conformance:leg -- probe` reproduces one of those legs locally, and
 the reproduction is proved rather than assumed: put back the guard that was
 missing and the leg names, locally, the same fields the failing CI job listed.
+`TestEveryMatrixLegCanBeReproducedLocally` now holds the two lists together, so
+a leg the matrix renames cannot stay unreproducible.
+
+**The fourth row's leg is `runtime`, and it is not a matrix entry.** The four
+suites that need real machines belong to `runtime-proof.yml`, not to the
+conformance matrix, and until #459 nothing reproduced them but the whole
+`FEINT_VM=incus-ovn mise run conformance` — 1331 s measured on 2026-08-27, of
+which those four suites are 675 s and the client suites in front of them 656 s
+that a change to the machine layer never needed. The leg itself measured 590 s
+on the same station, doorstep to doorstep:
+
+```bash
+FEINT_VM=incus-ovn mise run conformance:leg -- runtime
+```
+
+It refuses to run with no runtime rather than letting its suites skip
+themselves: a leg asked for by name that measures nothing must not report
+success.
 
 The general form, worth carrying elsewhere: **a check whose verdict is about
 "this run" must be exercised on the poorest run that will trigger it, never on

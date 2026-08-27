@@ -1,0 +1,19 @@
+{
+  "package": "./tools/conformance/",
+  "mutations": [
+    {
+      "label": "the runtime leg stops refusing a run with no machine runtime, so its four suites each skip themselves and the leg reports success on nothing (#459)",
+      "file": "tools/conformance/leg.sh",
+      "find": "if [ \"$leg\" = \"runtime\" ] && [ \"$vm\" = \"off\" ]; then",
+      "replace": "if [ \"$leg\" = \"runtime\" ] && [ \"$vm\" = \"off\" ] && false; then",
+      "test": "TestTheRuntimeLegRefusesToMeasureNothing"
+    },
+    {
+      "label": "a leg of the conformance matrix stops being reproducible locally, which is what a renamed matrix job did to this script before anything held the two lists together (#459, #460)",
+      "file": "tools/conformance/leg.sh",
+      "find": "  scw-cli|terraform|opentofu|octl|exo-cli|probe|fields|runtime) ;;",
+      "replace": "  scw-cli|terraform|opentofu|exo-cli|probe|fields|runtime) ;; # octl",
+      "test": "TestEveryMatrixLegCanBeReproducedLocally"
+    }
+  ]
+}

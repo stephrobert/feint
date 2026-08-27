@@ -24,11 +24,30 @@
 #
 # `fields` is the whole-run leg, the only one where FEINT_FIELD_GATE is set,
 # and it is what `mise run conformance` already approximates.
+#
+# THE LEG THAT WAS MISSING, AND WHAT ITS ABSENCE COST (#459)
+#
+# Every leg above runs with no machine runtime, because the conformance matrix
+# does. The suites that need one live in `.github/workflows/runtime-proof.yml`,
+# and until this script grew a `runtime` leg nothing reproduced them but
+# `FEINT_VM=incus-ovn mise run conformance` — measured at 1331 s on 2026-08-27,
+# of which the four dataplane suites are 675 s and every client suite before
+# them is 656 s that a change to `internal/core/machine` did not need. Agents
+# working on the lifecycle re-ran the whole thing per attempt.
+#
+#     FEINT_VM=incus-ovn mise run conformance:leg -- runtime
+#
+# It refuses to run with no runtime rather than letting its four suites skip
+# themselves: a leg that measures nothing must not report success.
 set -euo pipefail
 
 leg="${1:-}"
 endpoint="${2:-http://${FEINT_ADDR:-127.0.0.1:4599}}"
 addr="${endpoint#http://}"
+# Read from the environment, exactly as `serve` and `conformance` read it, so
+# one habit covers all three. Off by default: starting machines on the
+# operator's host is a side effect and it gets asked for.
+vm="${FEINT_VM:-off}"
 
 usage() {
   cat >&2 <<'EOF'
@@ -41,23 +60,50 @@ usage: mise run conformance:leg -- <leg>
   exo-cli     the Exoscale CLI alone
   probe       the contract-driven probe alone, no client at all
   fields      every client against one emulator, with the whole-run gate on
+  runtime     the four dataplane suites, and nothing else; needs FEINT_VM
 
-The leg names are the matrix entries of .github/workflows/conformance.yml. A
-name that is not one of them is refused rather than guessed: a leg that silently
-ran something else would measure the wrong thing and report success.
+The first seven names are the matrix entries of
+.github/workflows/conformance.yml. A name that is not one of them is refused
+rather than guessed: a leg that silently ran something else would measure the
+wrong thing and report success.
+
+`runtime` is not one of them: it reproduces the network and balancer steps of
+.github/workflows/runtime-proof.yml, which the conformance matrix does not
+carry because those need real machines.
+
+    FEINT_VM=incus-ovn mise run conformance:leg -- runtime
 EOF
   exit 2
 }
 
 case "$leg" in
-  scw-cli|terraform|opentofu|octl|exo-cli|probe|fields) ;;
+  scw-cli|terraform|opentofu|octl|exo-cli|probe|fields|runtime) ;;
   *) usage ;;
 esac
+
+# The four suites of the `runtime` leg all begin by asking the emulator whether
+# a machine runtime is configured, and skip themselves when none is. Skipping is
+# right inside `mise run conformance`, which must stay runnable in CI; it is
+# wrong here, where the leg was asked for by name. A run that measured nothing
+# and exited 0 is the verdict this repository refuses everywhere else.
+if [ "$leg" = "runtime" ] && [ "$vm" = "off" ]; then
+  echo "conformance:leg runtime: no machine runtime configured." >&2
+  echo "  Its four suites would each skip themselves and the leg would report success" >&2
+  echo "  having measured nothing. Ask for a runtime:" >&2
+  echo "    FEINT_VM=incus-ovn mise run conformance:leg -- runtime" >&2
+  exit 2
+fi
+
+# The doorstep (#375, #521), on the same terms as `mise run conformance`: the
+# question is asked at second zero rather than after every suite has run, and
+# again once the emulator is gone, so a leg that leaks fails the leg that
+# leaked. With no runtime it says so and asks nothing.
+tools/conformance/guard.sh leftovers "$vm"
 
 # --shapes is not passed: it is a `serve` flag whose default is already `shapes`,
 # and `start` spawns serve. Passing it here fails on an unknown flag, which is
 # how this line was found.
-./feint start --addr "$addr" --vm off --contracts contracts --timeout 60s
+./feint start --addr "$addr" --vm "$vm" --contracts contracts --timeout 60s
 trap './feint stop --addr '"$addr"' >/dev/null 2>&1 || true' EXIT
 
 case "$leg" in
@@ -96,6 +142,15 @@ case "$leg" in
     # unless every exchange of it is a 4xx.
     tools/conformance/refusals.sh "$endpoint"
     ;;
+  runtime)
+    # The order runtime-proof.yml uses, and the balancer last because it is the
+    # only one whose verdict depends on a declared capability rather than on
+    # the mode's name (#315): under a bridge it skips itself and says so.
+    tools/conformance/scaleway/network.sh "$endpoint"
+    tools/conformance/outscale/network.sh "$endpoint"
+    tools/conformance/exoscale/network.sh "$endpoint"
+    tools/conformance/outscale/balancer.sh "$endpoint"
+    ;;
 esac
 
 # The same score step CI runs, with the same rule about the field gate: set only
@@ -106,3 +161,9 @@ if [ "$leg" = "fields" ]; then
 else
   FEINT_FIELD_GATE=0 tools/conformance/score.sh "$endpoint"
 fi
+
+# The other half of the doorstep: asked again once the emulator is gone, so the
+# leg that left a machine or a network behind is the leg that fails. The trap
+# above stays the safety net for a leg that dies mid-flight.
+./feint stop --addr "$addr"
+tools/conformance/guard.sh leftovers "$vm"

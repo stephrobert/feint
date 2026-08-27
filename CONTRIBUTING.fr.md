@@ -51,7 +51,7 @@ runner.
 | une route, une forme de réponse, une erreur | `mise run conformance` | qu'un vrai client passe encore |
 | un gate, un score, un verdict sur une exécution | `mise run conformance:leg -- <jambe>` | qu'il tient sur une exécution **partielle** |
 | une garde, une validation, un refus | `mise run falsify -- <spec.json>`, puis la déclarer dans `tools/falsify/specs/` | que le test échoue sans elle, les jours suivants aussi |
-| `internal/core/machine`, un réseau, un pare-feu | `FEINT_VM=incus-ovn mise run conformance` | que le runtime accepte ce que le pilote envoie |
+| `internal/core/machine`, un réseau, un pare-feu | `FEINT_VM=incus-ovn mise run conformance:leg -- runtime` pendant le travail, `FEINT_VM=incus-ovn mise run conformance` une fois avant de pousser | que le runtime accepte ce que le pilote envoie |
 | un artefact de `coverage/` | `mise run evidence:update` | que le registre n'a pas rétréci |
 
 **La deuxième ligne est celle qui a coûté deux pull requests rouges.**
@@ -66,7 +66,26 @@ client, et la jambe `terraform` ne pilote pas `octl`.
 `mise run conformance:leg -- probe` reproduit une de ces jambes en local, et la
 reproduction est prouvée plutôt que supposée : en remettant la garde qui
 manquait, la jambe nomme localement les mêmes champs que le job en échec avait
-listés.
+listés. `TestEveryMatrixLegCanBeReproducedLocally` tient désormais les deux
+listes ensemble, de sorte qu'une jambe renommée dans la matrice ne peut pas
+rester irreproductible.
+
+**La jambe de la quatrième ligne s'appelle `runtime`, et ce n'est pas une entrée
+de la matrice.** Les quatre suites qui exigent de vraies machines appartiennent à
+`runtime-proof.yml`, pas à la matrice de conformance, et jusqu'à #459 rien ne les
+reproduisait sinon `FEINT_VM=incus-ovn mise run conformance` en entier : 1331 s
+mesurées le 2026-08-27, dont 675 s pour ces quatre suites et 656 s de suites
+clientes devant elles dont un changement de la couche machine n'avait aucun
+besoin. La jambe elle-même a mesuré 590 s sur la même station, d'un portillon à
+l'autre.
+
+```bash
+FEINT_VM=incus-ovn mise run conformance:leg -- runtime
+```
+
+Elle refuse de tourner sans runtime plutôt que de laisser ses suites se sauter
+elles-mêmes : une jambe demandée par son nom qui ne mesure rien ne doit pas
+rendre un succès.
 
 La forme générale, qui vaut ailleurs : **un contrôle dont le verdict porte sur
 « cette exécution » doit être éprouvé sur l'exécution la plus pauvre qui le

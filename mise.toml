@@ -697,13 +697,24 @@ description = "Prove the falsification harness refuses the three mutations that 
 run = "python3 tools/falsify/falsify.py --selftest"
 
 [tasks."conformance:leg"]
-description = "Reproduce one leg of the CI matrix locally: mise run conformance:leg -- probe"
+description = "Reproduce one leg locally: mise run conformance:leg -- probe (or -- runtime, with FEINT_VM)"
 depends = ["build"]
 # The task above drives every suite against one emulator, so a gate whose
 # verdict is about "this run" is green there by construction. CI splits the
 # clients across a matrix and every leg but `fields` is a partial run. That
 # difference cost two red pull requests on #88, neither reproducible locally
 # until this existed. tools/conformance/leg.sh carries the detail.
+#
+# The eighth leg, `runtime`, is not a conformance-matrix entry: it reproduces
+# the network and balancer steps of runtime-proof.yml, and it is the answer to
+# the other half of #459. `FEINT_VM=incus-ovn mise run conformance` was 1331 s
+# on 2026-08-27, of which those four suites are 675 s; every client suite in
+# front of them is 656 s a change to internal/core/machine never needed. The
+# leg itself measured 590 s, doorstep to doorstep. It refuses to run with no
+# runtime rather than letting its suites skip themselves and reporting success
+# on nothing.
+#
+#     FEINT_VM=incus-ovn mise run conformance:leg -- runtime
 run = "tools/conformance/leg.sh"
 
 [tasks."image:build"]

@@ -24,6 +24,32 @@ silence, so you find out at once — but the list is worth having up front:
 what CI does. The suites that need one skip themselves at exit 0 when `--vm` is
 off, so a partial toolbox never turns into a false pass.
 
+## Running only the part your change touches
+
+`mise run conformance:leg -- <leg>` runs one leg. Seven of its names are the
+matrix entries of `.github/workflows/conformance.yml`, and
+`TestEveryMatrixLegCanBeReproducedLocally` holds the two lists together — a
+renamed matrix leg used to leave this script refusing the name that now exists.
+
+The eighth is `runtime`, and it is the one worth knowing about here:
+
+```bash
+FEINT_VM=incus-ovn mise run conformance:leg -- runtime
+```
+
+It runs the four suites that need real machines — the three `network.sh` and
+`outscale/balancer.sh` — and nothing else. That is the part of
+`FEINT_VM=incus-ovn mise run conformance` a change to `internal/core/machine`
+or to a firewall actually exercises: measured on 2026-08-27, the whole run was
+1331 s and those four suites were 675 s of it, so the client suites in front of
+them were 656 s that such a change never needed. **The leg itself measured
+590 s** on the same station, doorstep to doorstep. It refuses to run with no
+runtime configured rather than letting its four suites skip themselves and
+reporting success on nothing.
+
+`FEINT_VM` is honoured by every leg, so any of them can be replayed with real
+machines; the CI matrix itself runs with none, which is the default here too.
+
 **The images are a prerequisite and not a convenience** (#335). No upstream
 image carries an ssh daemon, and since #202 a machine holds exactly the one
 address its provider publishes, on a routed NIC with no NAT — so an emulator
