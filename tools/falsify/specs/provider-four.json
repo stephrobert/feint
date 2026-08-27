@@ -1,0 +1,97 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "the fourth pack adds a rule its host never hears about, which is #475 verbatim on a pack that did not exist when #475 was measured (#517)",
+      "file": "internal/cli/testdata/provider-four/intents.go",
+      "find": "\tp.groups().SyncGroup(ctx, res, nil)\n\treturn nil",
+      "replace": "\tif false {\n\t\tp.groups().SyncGroup(ctx, res, nil)\n\t}\n\treturn nil",
+      "test": "TestTheFourthPacksRuleChangeReachesTheRuntime"
+    },
+    {
+      "label": "the fourth pack deletes a node and leaves every barrier that named it accepting an address nothing answers on (#517)",
+      "file": "internal/cli/testdata/provider-four/intents.go",
+      "find": "\tp.groups().SyncReferrers(ctx, worn, nil)\n\treturn nil",
+      "replace": "\tif false {\n\t\tp.groups().SyncReferrers(ctx, worn, nil)\n\t}\n\treturn nil",
+      "test": "TestTheFourthPacksDeleteReExpandsTheBarriersThatNameIt"
+    },
+    {
+      "label": "the fourth pack promises no address on its plan, so the boot order loses its first step and the sequence stops matching the three real packs (#510, #517)",
+      "file": "internal/cli/testdata/provider-four/pack.go",
+      "find": "\t\tPublics: p.anchorsOf(res.ID),",
+      "replace": "\t\tPublics: p.anchorsOf(res.ID)[:0],",
+      "test": "TestTheFourthPacksBootRoutesThenJoinsThenAppliesTheFirewall"
+    },
+    {
+      "label": "the fourth pack declares its home segment as a membership rather than a boot interface, so an attachment the launch could have carried is added to a live machine instead (#510, #517)",
+      "file": "internal/cli/testdata/provider-four/pack.go",
+      "find": "\t\tBoot:    p.bootAttachments(res),",
+      "replace": "\t\tBoot:        nil,\n\t\tMemberships: p.bootAttachments(res),",
+      "test": "TestTheFourthPacksBootAttachmentRidesTheLaunchAndItsMembershipsDoNot"
+    },
+    {
+      "label": "the fourth pack publishes the state its request asked for rather than the one the host produced, which is the lie this emulator exists to avoid (#484, #517)",
+      "file": "internal/cli/testdata/provider-four/intents.go",
+      "find": "\t\t\tLabels:    map[string]string{\"feint.node\": res.ID},\n\t\t})\n\t})",
+      "replace": "\t\t\tLabels:    map[string]string{\"feint.node\": res.ID},\n\t\t})\n\t\tres.State = StateUp\n\t})",
+      "test": "TestTheFourthPackPublishesTheStateTheEffectProduced"
+    },
+    {
+      "label": "the fourth pack declares a public block wide enough to cover the operator's own network, and the shared guard then routes whatever a restored snapshot named (#517)",
+      "file": "internal/cli/testdata/provider-four/pack.go",
+      "find": "var publicBlock = netip.MustParsePrefix(\"198.18.0.0/24\")",
+      "replace": "var publicBlock = netip.MustParsePrefix(\"0.0.0.0/0\")",
+      "test": "TestTheFourthPackRefusesToRouteAnAddressOutsideItsOwnBlock"
+    },
+    {
+      "label": "the fourth pack's isolation predicate lets every segment reach every other, which is the one thing about isolation only a provider knows (#517)",
+      "file": "internal/cli/testdata/provider-four/intents.go",
+      "find": "\t\treturn attrString(segments[from], \"realm\") == attrString(segments[to], \"realm\")",
+      "replace": "\t\treturn attrString(segments[from], \"realm\") == attrString(segments[to], \"realm\") || true",
+      "test": "TestTheFourthPacksSegmentsReachEachOtherOnlyInTheSameRealm"
+    },
+    {
+      "label": "the fourth pack hands a balancer over and records nothing, so its API describes backends the host may never have taken (#483, #517)",
+      "file": "internal/cli/testdata/provider-four/intents.go",
+      "find": "\tmachine.RecordBalancerDelivery(p.env.Store, res, p.env.Now(), distributed, undistributed)",
+      "replace": "\tif false {\n\t\tmachine.RecordBalancerDelivery(p.env.Store, res, p.env.Now(), distributed, undistributed)\n\t}",
+      "test": "TestTheFourthPacksSpreaderRecordsTheDeliveryAndNotTheIntent"
+    },
+    {
+      "label": "the fourth pack writes a segment address into the map the store still shares, outside the lock and outside the conditional write-back (#295, #517)",
+      "file": "internal/cli/testdata/provider-four/intents.go",
+      "find": "\tout := make(map[string]string, len(addresses)+1)\n\tfor key, value := range addresses {\n\t\tout[key] = value\n\t}\n\tout[segmentID] = address\n\treturn out\n}",
+      "replace": "\tout := make(map[string]string, len(addresses)+1)\n\tfor key, value := range addresses {\n\t\tout[key] = value\n\t}\n\taddresses[segmentID] = address\n\treturn addresses\n}",
+      "test": "TestTheFourthPacksNestedAttributesAreNeverWrittenThroughTheStore"
+    },
+    {
+      "label": "the fourth pack reads its stored port with a plain int assertion, so a restored snapshot leaves a balancer listening on port 0 while the API still describes 443 (#517)",
+      "file": "internal/cli/testdata/provider-four/intents.go",
+      "find": "\tcase float64:\n\t\treturn int(n)\n\t}\n\treturn 0\n}\n\nfunc backendsOf",
+      "replace": "\tcase float64:\n\t\treturn int(n) * 0\n\t}\n\treturn 0\n}\n\nfunc backendsOf",
+      "test": "TestTheFourthPacksSpreaderKeepsItsPortAcrossASnapshot"
+    },
+    {
+      "label": "the fourth pack builds a runtime of its own, the shape #511's surface excludes by name and the compiler cannot see because it needs no driver value (#511, #517)",
+      "file": "internal/cli/testdata/provider-four/pack.go",
+      "find": "// Pack is Provider Four's control plane.",
+      "replace": "// The runtime, built by the pack that exists to prove nobody needs to.\nfunc plantedRuntime() machine.Noop { return machine.Noop{} }\n\n// Pack is Provider Four's control plane.",
+      "test": "TestNoPackReachesPastTheDeclaredDriverSurface"
+    },
+    {
+      "label": "the fourth pack branches on which runtime is behind --vm, which every facade of #511 allows and only #516 can see (#516, #517)",
+      "file": "internal/cli/testdata/provider-four/pack.go",
+      "find": "const segmentMarker = \"feint.segment\"",
+      "replace": "// The mode comparison capabilities exist so no pack ever needs.\nfunc plantedMode(mode string) bool { return mode == \"incus-ovn\" }\n\nconst segmentMarker = \"feint.segment\"",
+      "test": "TestNoPackKnowsWhichRuntimeIsBehindTheDriver"
+    },
+    {
+      "label": "the fourth pack drops out of the population the two discipline detectors judge, and both go on passing over three packs that were cleaned up (#517)",
+      "file": "internal/cli/provider_four_test.go",
+      "find": "\treturn append(packDirs(t), fourthPackDir(t))",
+      "replace": "\treturn append(packDirs(t), fourthPackDir(t))[:len(packDirs(t))]",
+      "test": "TestTheDisciplineDetectorsReadTheFourthPack"
+    }
+  ],
+  "note": "#517 makes the milestone's promise — a fourth provider must not be able to forget — executable, and a fake pack written by reading the contract until it compiles proves only that its author read the contract. So every property is planted here. The first two are the residue #514 names honestly: nothing in the contract can force a pack to call SyncGroup when its rules change or SyncReferrers when a node goes, because the pack is the only party that knows either happened, and mutation one is #475 word for word on a pack that did not exist when #475 was measured. The next three plant the acquis a pack receives without writing them — the boot order, the boot-versus-membership split, the published state being the effect's — and each is red because the fourth pack never wrote them and would notice their loss. Mutations six to nine plant what stays the pack's own and therefore stays forgettable: the width of its public block, its isolation predicate, the record of what a balancer hand-off delivered, and the copy-before-write on a value resource.Clone shares with the store. One mutation stands apart because the fake pack committed its defect before this file caught it: reading a stored port with a plain int assertion, which the map[string]any decoding of Attrs turns into zero across a snapshot. It is a rediscovery — exoscale/privatenetworks.go carries the same helper with the same sentence and two of the three real packs do not — and it is the clearest thing #517 produced, because it is a lesson a fourth pack has no way to inherit. The last three are the instruments rather than the subject: a pack building its own runtime, a pack naming the mode, and — the one that catches every other mutation here silently stopping to mean anything — the fourth pack quietly leaving the population both detectors read."
+}

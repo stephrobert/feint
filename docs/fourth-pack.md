@@ -266,3 +266,99 @@ new audit: the eleven-file, forty-three-line figure for the shared surface. It
 requires judging, file by file, whether a fourth pack would have to edit it, and
 the answer moved when `packsFor`, the shapes gate and the docs banner started
 deriving their lists from the mounted packs. Re-measure it before quoting it.
+
+## The fourth pack now compiles
+
+Added **2026-08-27** (#517). Everything above is paper, and this document says
+so about itself in two places: the walkthrough of what a fourth pack provides,
+and the honest note that no fourth signature has ever been measured. Paper
+rots. What changed is that the *dataplane* half of the walkthrough no longer
+can.
+
+`internal/cli/testdata/provider-four/` is a fourth provider that does not
+exist — an imaginary minimal cloud with nodes, segments, barriers, anchors and
+spreaders — which drives the whole runtime dataplane through the shared
+contract alone: it boots a machine, declares a network and joins it at boot and
+after boot, publishes and withdraws a public address, hands a rule set over and
+re-expands it, asks for a balancer, and keeps two subnets apart. It names no
+runtime, and it could not name `machine.Driver` if it tried: since #511
+`emulator.Env` hands out no driver value.
+
+Three things it is deliberately not:
+
+- **Not OVHcloud.** OVH is the intended fourth pack and nothing of its API has
+  been measured in this repository, so a fake shaped like OVH would be
+  measuring a belief. This one depends on no trait of any real cloud; when the
+  OVH pack starts, this is the recipe it reads and never the model it copies.
+- **Not a served pack.** It has no routes and no wire dialect, is never
+  mounted, and proves the contract's shape rather than wire fidelity. The polar
+  star stays with `scw`, the `exo` CLI and Terraform.
+- **Not counted by any instrument.** It lives under `testdata/`, which Go's
+  `./...` patterns skip — measured, not assumed: `go build ./...` does not
+  build it and `go list ./...` does not name it, so no coverage, evidence or
+  drift artefact can ever carry a fourth provider that has no upstream SDK.
+  An explicit import still resolves, which is how it compiles at all.
+
+**What it is judged by, with no exemption of its own:**
+`TestNoPackReachesPastTheDeclaredDriverSurface` (#511) and
+`TestNoPackKnowsWhichRuntimeIsBehindTheDriver` (#516) read it beside the three
+real packs, and `TestSameIntentSameRuntimeSequenceAcrossPacks` (#510, #515)
+compares the sequence it asks of the runtime against theirs, on both intents of
+the corpus — identical. That comparison is the one worth the lot: the three
+real packs were *migrated* onto the shared order, so each of them knows what it
+used to write by hand; Provider Four never wrote one, and still produces the
+same sequence.
+
+**What it had to supply**, and therefore what a real fourth pack will: its
+binding fields, its plan, its firewall translation and the four enumerators
+around it, its isolation predicate, its balancer's shape, its own address
+planning — the runtime contract has no opinion on that last one at all — and
+every call site, because the contract can refuse a gesture and never require
+one.
+
+**What it received without writing a line:** the machine's host-side name and
+the ownership check on it, the boot order (addresses, then memberships, the
+firewall last), the published state being the one the effect produced, the
+refusal to route an address outside its own block, the conditional write-back a
+delete racing a launch cannot lose, the re-expansion of every rule set a booted
+machine's groups are named by, the network name recorded only once the runtime
+accepted it, and the report of what a balancer hand-off actually delivered.
+
+**What it can still forget**, stated rather than hidden — and each held by a
+named test with a planted red in `tools/falsify/specs/provider-four.json`
+rather than by this paragraph:
+
+| forgettable | why nothing can force it | held by |
+|---|---|---|
+| handing a changed rule set to the host (#475) | only the pack knows its rules changed | `TestTheFourthPacksRuleChangeReachesTheRuntime` |
+| re-expanding the rule sets that named a deleted machine | only the pack knows a machine's groups are gone | `TestTheFourthPacksDeleteReExpandsTheBarriersThatNameIt` |
+| declaring a public block wide enough to cover the host's own network | the guard enforces the block the pack declared | `TestTheFourthPackRefusesToRouteAnAddressOutsideItsOwnBlock` |
+| a wrong isolation predicate | what "may reach" means is upstream knowledge | `TestTheFourthPacksSegmentsReachEachOtherOnlyInTheSameRealm` |
+| copying a nested `Attrs` value before writing it | `resource.Clone` shares it with the store | `TestTheFourthPacksNestedAttributesAreNeverWrittenThroughTheStore` |
+| reading a stored number back with a plain `.(int)` | `Attrs` is `map[string]any`, so a restore yields `float64` | `TestTheFourthPacksSpreaderKeepsItsPortAcrossASnapshot` |
+
+The first two are #514's named residue, and they are the honest answer to the
+milestone's own question: forgetting is not made impossible, it is made visible
+in more than one place.
+
+**The last row is the one the list did not predict, and it is the most useful
+thing the exercise produced**, because the fake pack did not merely risk it —
+it committed it. `res.Attrs["port"].(int)` is what anybody writes, and after a
+`feint snapshot load` it yields zero: a balancer listening on port 0 while the
+API still describes 443. It is a *re*discovery. `exoscale/privatenetworks.go`
+carries `intOf` with the sentence "tolerating the float64 a snapshot restore
+produces", and the two other real packs do not — `outscale/volumes.go` and
+`outscale/snapshots.go` read `Attrs["Size"].(int)` at three sites, where it
+costs a shrink refusal that no longer fires, a volume that publishes no size,
+and a snapshot recording `VolumeSize: 0` (#542). A lesson living in one pack of
+three is a lesson a fourth pack cannot inherit, which is #475's shape one
+storey below the runtime contract.
+
+A second one came out the same way: a pack that declares `GroupSync` without
+wiring its fields panics on the first boot, and only under a runtime — so
+`--vm off`, which is the default and the whole CI matrix, is exactly the mode
+that cannot see it (#543).
+
+The rest of this document — the surface, the wire vocabulary, the drift reader
+and the versioned baseline a fourth provider also owes — is untouched by #517
+and stays paper.

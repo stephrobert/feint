@@ -698,7 +698,13 @@ func TestNoPackReachesPastTheDeclaredDriverSurface(t *testing.T) {
 
 	var offences []string
 	total := 0
-	for _, dir := range packDirs(t) {
+	// The fourth pack is in the population, not beside it (#517). The three
+	// real packs were migrated onto this boundary, so each of them knows what
+	// it used to do by hand; testdata/provider-four never did, and it is the
+	// only member of this scan that can answer whether the declared surface
+	// suffices rather than whether three authors remembered it. It carries no
+	// exemption of its own, which is the whole claim.
+	for _, dir := range disciplinedPackDirs(t) {
 		reaches := driverSurfaceReaches(t, pkg, dir)
 		total += len(reaches)
 		for _, r := range reaches {

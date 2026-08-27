@@ -449,7 +449,11 @@ func TestNoPackKnowsWhichRuntimeIsBehindTheDriver(t *testing.T) {
 
 	var offences []string
 	files, literals := 0, 0
-	for _, dir := range packDirs(t) {
+	// The fourth pack is read here too (#517), and for the same reason the
+	// surface test reads it: a rule ratified on three packs that were cleaned
+	// up is a rule nobody has yet asked a newcomer to obey. It carries no
+	// exemption, where the three real packs carry three.
+	for _, dir := range disciplinedPackDirs(t) {
 		scan := runtimeKnowledgeLeaks(t, dir, tells, named)
 		files += scan.files
 		literals += scan.literals

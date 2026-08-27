@@ -9,6 +9,7 @@
 package providers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	providerfour "github.com/stephrobert/feint/internal/cli/testdata/provider-four"
 	"github.com/stephrobert/feint/internal/core/emulator"
 	"github.com/stephrobert/feint/internal/core/machine"
 	"github.com/stephrobert/feint/internal/core/store"
@@ -73,6 +75,7 @@ var intents = []intent{
 		replays: []packReplay{
 			{"scaleway", replayScalewayJoinsAfterBoot},
 			{"exoscale", replayExoscaleJoinsAfterBoot},
+			{"four", replayFourJoinsAfterBoot},
 		},
 	},
 	{
@@ -87,6 +90,7 @@ var intents = []intent{
 			{"scaleway", replayScalewayLinkedAfterBoot},
 			{"outscale", replayOutscaleLinkedAfterBoot},
 			{"exoscale", replayExoscaleLinkedAfterBoot},
+			{"four", replayFourLinkedAfterBoot},
 		},
 	},
 }
@@ -110,7 +114,7 @@ func allReplays() []packReplay {
 // UnrouteAddress the first never did: the determinism property would then be
 // measuring this suite's own residue, not the pack.
 func recorderEnv() (*emulator.Env, *machine.Recorder) {
-	for _, provider := range []string{scaleway.Name, outscale.Name, exoscale.Name} {
+	for _, provider := range []string{scaleway.Name, outscale.Name, exoscale.Name, providerfour.Name} {
 		machine.Binding{Provider: provider}.ForgetPlacements()
 	}
 	rec := machine.NewRecorder()
@@ -316,6 +320,110 @@ func replayExoscaleLinkedAfterBoot(t *testing.T) *machine.Recorder {
 	return rec
 }
 
+// ---- The fourth pack, which has no dialect ----------------------------------
+
+// The two replays below drive testdata/provider-four (#517), the pack that
+// does not exist.
+//
+// It joins this corpus for the property the corpus is for, and the property is
+// stronger with it in: the three real packs were migrated onto the Reconciler,
+// so each of them knows the order it used to write by hand. Provider Four
+// never wrote one. If the sequence still matches, the order is a property of
+// the runtime and not of three authors who were told about it — which is
+// #510's sentence, said about a pack that was not in the room.
+//
+// It is driven by Go calls where the three others are driven over HTTP,
+// because it has no wire dialect at all and inventing one would put this
+// suite's own JSON between the intent and the contract. What is compared is
+// never the dialect: it is the sequence of contract gestures.
+func replayFourJoinsAfterBoot(t *testing.T) *machine.Recorder {
+	t.Helper()
+	ctx := t.Context()
+	env, rec := recorderEnv()
+	pack := providerfour.New(env)
+
+	segment, err := pack.CreateSegment(ctx, "intent-net", "10.61.0.0/24", "intent")
+	if err != nil {
+		t.Fatalf("create the segment: %v", err)
+	}
+	barrier := fourBarrierWithRule(t, ctx, pack)
+
+	// Born public — Provider Four allocates the anchor at create, so the
+	// address rides the launch — and bare, so its segment is joined hot.
+	node, err := pack.CreateNode(ctx, providerfour.NodeRequest{
+		Name:     "intent-machine",
+		Image:    "four-linux",
+		Barriers: []string{barrier},
+		Public:   true,
+	})
+	if err != nil {
+		t.Fatalf("create the node: %v", err)
+	}
+	if err := pack.StartNode(ctx, node.ID); err != nil {
+		t.Fatalf("start the node: %v", err)
+	}
+	if err := pack.JoinSegment(ctx, node.ID, segment.ID); err != nil {
+		t.Fatalf("join the segment: %v", err)
+	}
+
+	anchor, err := pack.CreateAnchor()
+	if err != nil {
+		t.Fatalf("create the anchor: %v", err)
+	}
+	if err := pack.AttachAnchor(ctx, anchor.ID, node.ID); err != nil {
+		t.Fatalf("attach the anchor: %v", err)
+	}
+	return rec
+}
+
+// replayFourLinkedAfterBoot: a node born bare, wearing its barrier, its anchor
+// attached once it is up.
+func replayFourLinkedAfterBoot(t *testing.T) *machine.Recorder {
+	t.Helper()
+	ctx := t.Context()
+	env, rec := recorderEnv()
+	pack := providerfour.New(env)
+
+	barrier := fourBarrierWithRule(t, ctx, pack)
+	node, err := pack.CreateNode(ctx, providerfour.NodeRequest{
+		Name:     "intent-machine",
+		Image:    "four-linux",
+		Barriers: []string{barrier},
+	})
+	if err != nil {
+		t.Fatalf("create the node: %v", err)
+	}
+	if err := pack.StartNode(ctx, node.ID); err != nil {
+		t.Fatalf("start the node: %v", err)
+	}
+
+	anchor, err := pack.CreateAnchor()
+	if err != nil {
+		t.Fatalf("create the anchor: %v", err)
+	}
+	if err := pack.AttachAnchor(ctx, anchor.ID, node.ID); err != nil {
+		t.Fatalf("attach the anchor: %v", err)
+	}
+	return rec
+}
+
+func fourBarrierWithRule(t *testing.T, ctx context.Context, pack *providerfour.Pack) string {
+	t.Helper()
+	barrier := pack.CreateBarrier("intent-group")
+	err := pack.AddRule(ctx, barrier.ID, providerfour.Rule{
+		Direction: "ingress",
+		Action:    "allow",
+		Protocol:  "tcp",
+		Source:    "0.0.0.0/0",
+		PortFrom:  22,
+		PortTo:    22,
+	})
+	if err != nil {
+		t.Fatalf("add the barrier's rule: %v", err)
+	}
+	return barrier.ID
+}
+
 // ---- Dialect helpers shared by the intents ----------------------------------
 
 func scalewayGroupWithRule(t *testing.T, h http.Handler) string {
@@ -455,7 +563,7 @@ func TestAShuffledReplayIsToldFromItsOriginal(t *testing.T) {
 // intent, a missing reason, or a gesture kind gone from the whole corpus all
 // fail here — the ways a comparison quietly relaxes, each one closed.
 func TestSameIntentSameRuntimeSequenceAcrossPacks(t *testing.T) {
-	packs := map[string]bool{"scaleway": false, "outscale": false, "exoscale": false}
+	packs := map[string]bool{"scaleway": false, "outscale": false, "exoscale": false, "four": false}
 	recorded := map[string]bool{}
 
 	for _, in := range intents {
