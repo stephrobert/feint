@@ -65,10 +65,10 @@
       "test": "TestTheFourthPacksNestedAttributesAreNeverWrittenThroughTheStore"
     },
     {
-      "label": "the fourth pack reads its stored port with a plain int assertion, so a restored snapshot leaves a balancer listening on port 0 while the API still describes 443 (#517)",
+      "label": "the fourth pack reads its stored port with a plain int assertion again, so a restored snapshot leaves a balancer listening on port 0 while the API still describes 443 (#517, #542)",
       "file": "internal/cli/testdata/provider-four/intents.go",
-      "find": "\tcase float64:\n\t\treturn int(n)\n\t}\n\treturn 0\n}\n\nfunc backendsOf",
-      "replace": "\tcase float64:\n\t\treturn int(n) * 0\n\t}\n\treturn 0\n}\n\nfunc backendsOf",
+      "find": "func portOf(res *resource.Resource) int {\n\treturn resource.Int(res, \"port\")\n}",
+      "replace": "func portOf(res *resource.Resource) int {\n\tn, _ := res.Attrs[\"port\"].(int)\n\treturn n + resource.Int(res, \"port\")*0\n}",
       "test": "TestTheFourthPacksSpreaderKeepsItsPortAcrossASnapshot"
     },
     {

@@ -1,7 +1,6 @@
 package outscale
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -581,7 +580,7 @@ func sameRule(a, b any) bool {
 		return false
 	}
 	for _, key := range []string{"FromPortRange", "ToPortRange"} {
-		if numOf(am[key]) != numOf(bm[key]) {
+		if resource.Number(am[key]) != resource.Number(bm[key]) {
 			return false
 		}
 	}
@@ -601,22 +600,6 @@ func membersOf(rule map[string]any) string {
 	}
 	sort.Strings(ids)
 	return strings.Join(ids, ",")
-}
-
-// numOf reads a number that may have crossed JSON (float64), a snapshot
-// (json.Number) or the pack's own literals (int).
-func numOf(v any) float64 {
-	switch n := v.(type) {
-	case int:
-		return float64(n)
-	case float64:
-		return n
-	case json.Number:
-		f, _ := n.Float64()
-		return f
-	default:
-		return 0
-	}
 }
 
 // securityGroupByRef resolves a group by id first, then by name — the two ways

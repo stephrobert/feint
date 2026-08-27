@@ -120,7 +120,7 @@ func listenerPorts(res *resource.Resource) []int {
 	ports := make([]int, 0, len(listeners))
 	for _, raw := range listeners {
 		listener, _ := raw.(map[string]any)
-		ports = append(ports, int(numOf(listener["LoadBalancerPort"])))
+		ports = append(ports, int(resource.Number(listener["LoadBalancerPort"])))
 	}
 	return ports
 }
@@ -212,7 +212,7 @@ func (p *Pack) deleteLoadBalancerListeners(w http.ResponseWriter, r *http.Reques
 		kept := make([]any, 0, len(listeners))
 		for _, raw := range listeners {
 			listener, _ := raw.(map[string]any)
-			if slices.Contains(req.LoadBalancerPorts, int(numOf(listener["LoadBalancerPort"]))) {
+			if slices.Contains(req.LoadBalancerPorts, int(resource.Number(listener["LoadBalancerPort"]))) {
 				continue
 			}
 			kept = append(kept, raw)

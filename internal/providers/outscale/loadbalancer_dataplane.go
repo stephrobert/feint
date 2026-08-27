@@ -204,8 +204,8 @@ func (p *Pack) balancerSpecOf(res *resource.Resource) (machine.BalancerSpec, boo
 		// numOf, because a listener that has crossed a snapshot carries
 		// json.Number where the handler stored an int — the same reason
 		// stringsOf exists beside it.
-		front := int(numOf(listener["LoadBalancerPort"]))
-		back := int(numOf(listener["BackendPort"]))
+		front := int(resource.Number(listener["LoadBalancerPort"]))
+		back := int(resource.Number(listener["BackendPort"]))
 		if front == 0 {
 			continue
 		}

@@ -91,7 +91,7 @@ func (p *Pack) createImage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		size := snapshotSize(snapshot)
-		if asked := int(numOf(bsu["VolumeSize"])); asked > 0 {
+		if asked := int(resource.Number(bsu["VolumeSize"])); asked > 0 {
 			size = asked
 		}
 		// Iops is refused rather than stored, and the reason is a measurement
@@ -121,7 +121,7 @@ func (p *Pack) createImage(w http.ResponseWriter, r *http.Request) {
 		// so the decline is true for both kinds and cannot rot into fiction.
 		//
 		// TestCreateImageRefusesAnIopsItCannotHonour fails without this.
-		if numOf(bsu["Iops"]) > 0 {
+		if resource.Number(bsu["Iops"]) > 0 {
 			p.badRequest(w, "Iops names a provisioned-IOPS volume, and an image's root device is "+
 				defaultVolumeType+" here: this emulator models no provisioned-IOPS storage")
 			return

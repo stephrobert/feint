@@ -259,25 +259,13 @@ func (p *Pack) createPrivateNetwork(w http.ResponseWriter, r *http.Request) {
 func (p *Pack) freeVNI() int {
 	used := map[int]bool{}
 	for _, res := range p.env.Store.List(kindPrivateNetwork, resource.Tenant{Provider: Name}) {
-		used[intOf(res.Attrs["vni"])] = true
+		used[resource.Int(res, "vni")] = true
 	}
 	for vni := 1; ; vni++ {
 		if !used[vni] {
 			return vni
 		}
 	}
-}
-
-// intOf reads a stored integer back, tolerating the float64 a snapshot restore
-// produces.
-func intOf(v any) int {
-	switch n := v.(type) {
-	case int:
-		return n
-	case float64:
-		return int(n)
-	}
-	return 0
 }
 
 func stringOf(v *string) string {

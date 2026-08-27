@@ -911,7 +911,6 @@ func isProjectDefault(res *resource.Resource) bool {
 // Positions are 1-based, and the cap keeps the conversion from wrapping whatever
 // a caller passes.
 func nextPosition(count int) uint32 {
-	const maxPosition = 1 << 20
 	if count < 0 {
 		return 1
 	}
@@ -921,17 +920,29 @@ func nextPosition(count int) uint32 {
 	return uint32(count + 1) //nolint:gosec // bounded by maxPosition above
 }
 
+// maxPosition caps both the position handed to a new rule and the one read back
+// off a stored one. Shared between the two because a restored snapshot is
+// untrusted input: the value comes back through JSON as a float64, and a stored
+// number nobody bounded would reach the conversion below from a crafted state
+// file rather than from nextPosition.
+const maxPosition = 1 << 20
+
+// positionOf reads a rule's order back.
+//
+// Through the shared reader (#542): a restored snapshot comes back through
+// JSON, where every number is a float64, and an assertion on uint32 alone
+// would lose the order on restart. The bound is what a conversion from float64
+// needs and a type switch did not have — NaN, a negative and 1e30 all reach
+// uint32(v) as something nobody wrote.
 func positionOf(res *resource.Resource) uint32 {
-	switch v := res.Attrs["position"].(type) {
-	case uint32:
-		return v
-	// A restored snapshot comes back through JSON, where every number is a
-	// float64. Without this case the order is lost on restart.
-	case float64:
-		return uint32(v)
-	default:
+	n := resource.Number(res.Attrs["position"])
+	if !(n >= 1) { // false for NaN too, which is why it is written this way
 		return 0
 	}
+	if n > maxPosition {
+		return maxPosition
+	}
+	return uint32(n) //nolint:gosec // bounded by maxPosition above
 }
 
 // portOrNil maps an unset or zero port onto null, which is what the API returns

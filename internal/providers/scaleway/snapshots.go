@@ -95,8 +95,13 @@ func (p *Pack) createSnapshot(w http.ResponseWriter, r *http.Request) {
 		if volumeType == "" {
 			volumeType = textOf(volume.Attrs["volume_type"])
 		}
-		if got, ok := volume.Attrs["size"].(uint64); ok {
-			size = got
+		// Through the shared reader: the assertion this replaces answered
+		// ok=false on a volume that had crossed a snapshot, so a snapshot taken
+		// after a `feint snapshot load` recorded a size of zero (#542).
+		// TestAnInstanceSnapshotOfARestoredVolumeInheritsItsSize fails without
+		// this.
+		if _, present := volume.Attrs["size"]; present {
+			size = resource.Uint64(volume, "size")
 		}
 	}
 	if volumeType == "" {

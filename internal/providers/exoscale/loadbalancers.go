@@ -649,7 +649,7 @@ func (p *Pack) updateLoadBalancerService(w http.ResponseWriter, r *http.Request)
 			// Replaced whole rather than merged, which is what their update
 			// schema describes: `healthcheck` is one property, and a client
 			// sending it sends the block it wants to hold.
-			stored.Attrs["healthcheck"] = healthcheckOrDefault(req.Healthcheck, int64Of(stored.Attrs["target-port"]))
+			stored.Attrs["healthcheck"] = healthcheckOrDefault(req.Healthcheck, resource.Int64(stored, "target-port"))
 		}
 		return nil
 	})

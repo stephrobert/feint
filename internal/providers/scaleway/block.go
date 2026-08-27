@@ -146,7 +146,12 @@ func (p *Pack) createBlockVolume(w http.ResponseWriter, r *http.Request) {
 		parent = snapshot.ID
 		// The snapshot's size unless a resize was asked for, which is what the
 		// SDK says the optional size on this branch is for.
-		size, _ = snapshot.Attrs["size"].(uint64)
+		// Through the shared reader: a size written as a uint64 comes back a
+		// float64 once the store has crossed a snapshot, so the assertion this
+		// replaces answered 0 and a volume restored from a snapshot was created
+		// with no size at all (#542).
+		// TestASnapshotChainTakenAfterARestoreKeepsItsSize fails without this.
+		size = resource.Uint64(snapshot, "size")
 		if req.FromSnapshot.Size != nil && *req.FromSnapshot.Size > 0 {
 			// Larger only. A restore into something smaller than the snapshot is
 			// a volume the data cannot fit in, and answering 201 to it is the
@@ -418,7 +423,16 @@ func (p *Pack) updateBlockVolume(w http.ResponseWriter, r *http.Request) {
 	// to another field of the same volume after its 200 (#295).
 	var updated *resource.Resource
 	err := p.env.Store.Update(Name, kindBlockVolume, res.ID, func(stored *resource.Resource) error {
-		current, _ := stored.Attrs["size"].(uint64)
+		// Through the shared reader, and this is the site that carries the
+		// most: the plain `.(uint64)` answered 0 on a volume that had crossed a
+		// snapshot, so `*req.Size < current` was never true and a restored
+		// block volume shrank with a 200 — the refusal this handler exists for,
+		// gone, with nothing red anywhere (#542). Outscale had the same defect
+		// on the same reader in its own vocabulary; Exoscale found it, wrote it
+		// down and fixed it for its own block volumes on 2026-08-17 (5680efb),
+		// ten days before #542, and nothing carried it across.
+		// TestARestoredBlockVolumeStillRefusesToShrink fails without this.
+		current := resource.Uint64(stored, "size")
 		if req.Size != nil && *req.Size < current {
 			return errBlockVolumeShrinks
 		}

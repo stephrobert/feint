@@ -811,26 +811,23 @@ func membershipsOf(res *resource.Resource) []string {
 	return ids
 }
 
-// portOf reads back the port a spreader answers on, tolerating the float64 a
-// snapshot restore produces.
+// portOf reads back the port a spreader answers on.
 //
 // The plain `res.Attrs["port"].(int)` was what this pack wrote first, and it is
 // wrong in a way nothing here would have shown: Attrs is decoded as
 // map[string]any, so every stored number comes back a float64 and the int
 // assertion yields zero — a balancer silently listening on port 0 after a
-// `feint snapshot load`. Measured on 2026-08-27, and it is a rediscovery
-// rather than a discovery: exoscale/privatenetworks.go carries the same helper
-// with the same sentence, and two of the three real packs do not. That is the
-// #475 shape one storey down — a lesson living in one pack of three, which a
-// fourth pack has no way to inherit.
+// `feint snapshot load`. Measured on 2026-08-27, and it was a rediscovery
+// rather than a discovery: seven copies of the same tolerance existed across
+// the three real packs under six different names, and outscale/volumes.go
+// still read a size with a plain assertion three files from one of them. That
+// is the #475 shape one storey down — a lesson living in some packs and not
+// others, which a fourth pack has no way to inherit — and #542 is where it
+// stopped being a lesson: resource.Int is the reader, and internal/cli's
+// TestNoPackReadsAStoredNumberByAssertion is what refuses the assertion this
+// pack wrote first.
 func portOf(res *resource.Resource) int {
-	switch n := res.Attrs["port"].(type) {
-	case int:
-		return n
-	case float64:
-		return int(n)
-	}
-	return 0
+	return resource.Int(res, "port")
 }
 
 func backendsOf(res *resource.Resource) []string {

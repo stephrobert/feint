@@ -109,10 +109,10 @@ func (p *Pack) firewallRulesOf(rule map[string]any, fresh *resource.Resource) []
 		Action:    "allow",
 		Protocol:  strings.ToLower(stringAttr(rule["protocol"])),
 	}
-	if from := int(numOf(rule["start-port"])); from > 0 {
+	if from := int(resource.Number(rule["start-port"])); from > 0 {
 		base.PortFrom = from
 	}
-	if to := int(numOf(rule["end-port"])); to > 0 {
+	if to := int(resource.Number(rule["end-port"])); to > 0 {
 		base.PortTo = to
 	}
 
@@ -145,21 +145,6 @@ func (p *Pack) firewallRulesOf(rule map[string]any, fresh *resource.Resource) []
 		out = append(out, converted)
 	}
 	return out
-}
-
-// numOf reads a number that may be an int fresh from a handler or a float64
-// restored from a JSON snapshot.
-func numOf(v any) float64 {
-	switch n := v.(type) {
-	case int:
-		return float64(n)
-	case int64:
-		return float64(n)
-	case float64:
-		return n
-	default:
-		return 0
-	}
 }
 
 func stringAttr(v any) string {

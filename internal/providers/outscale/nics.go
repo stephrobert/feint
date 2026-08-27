@@ -252,7 +252,7 @@ func (p *Pack) storedNicView(nic *resource.Resource) map[string]any {
 		flag, _ := nic.Attrs["DeleteOnVmDeletion"].(bool)
 		out["LinkNic"] = map[string]any{
 			"DeleteOnVmDeletion": flag,
-			"DeviceNumber":       numOf(nic.Attrs["DeviceNumber"]),
+			"DeviceNumber":       resource.Number(nic.Attrs["DeviceNumber"]),
 			"LinkNicId":          stringOf(nic.Attrs["LinkNicId"]),
 			"State":              "attached",
 			"VmAccountId":        accountID,
@@ -389,7 +389,7 @@ func (p *Pack) linkNic(w http.ResponseWriter, r *http.Request) {
 	// The device number is exclusive per Vm, primary included.
 	for _, other := range p.env.Store.List(kindNic, resource.Tenant{Provider: Name}) {
 		if stringOf(other.Attrs["LinkVmId"]) == req.VMID &&
-			int(numOf(other.Attrs["DeviceNumber"])) == *req.DeviceNumber {
+			int(resource.Number(other.Attrs["DeviceNumber"])) == *req.DeviceNumber {
 			p.conflict(w, "device number "+strconv.Itoa(*req.DeviceNumber)+" is already used on "+req.VMID)
 			return
 		}

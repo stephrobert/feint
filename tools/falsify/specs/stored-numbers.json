@@ -1,0 +1,84 @@
+{
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "the shrink refusal compares against a size read as zero, which is what a restored volume gave it before the shared reader: 40 shrank to 1 with a 200 (#542)",
+      "file": "internal/providers/outscale/volumes.go",
+      "find": "\t\t\tcurrent := resource.Int(stored, \"Size\")",
+      "replace": "\t\t\tcurrent := resource.Int(stored, \"Size\") * 0",
+      "test": "TestARestoredVolumeStillRefusesToShrink"
+    },
+    {
+      "label": "a snapshot inherits a size read as zero, so every volume later created from it is born empty while the API describes 40 (#542)",
+      "file": "internal/providers/outscale/snapshots.go",
+      "find": "\tsize := resource.Int(volume, \"Size\")",
+      "replace": "\tsize := resource.Int(volume, \"Size\") * 0",
+      "test": "TestASnapshotOfARestoredVolumeInheritsItsSize"
+    },
+    {
+      "label": "the same defect in the pack #542's grep cleared, because this one spells the field uint64 and the sweep looked for int (#542)",
+      "file": "internal/providers/scaleway/block.go",
+      "find": "\t\tcurrent := resource.Uint64(stored, \"size\")",
+      "replace": "\t\tcurrent := resource.Uint64(stored, \"size\") * 0",
+      "test": "TestARestoredBlockVolumeStillRefusesToShrink",
+      "package": "./internal/providers/scaleway/"
+    },
+    {
+      "label": "the size an instance snapshot records off a restored volume, which is the third uint64 read the AST scan found in the pack the grep had cleared (#542)",
+      "file": "internal/providers/scaleway/snapshots.go",
+      "find": "\t\t\tsize = resource.Uint64(volume, \"size\")",
+      "replace": "\t\t\tsize = resource.Uint64(volume, \"size\") * 0",
+      "test": "TestAnInstanceSnapshotOfARestoredVolumeInheritsItsSize",
+      "package": "./internal/providers/scaleway/"
+    },
+    {
+      "label": "the shared reader stops tolerating the one type a snapshot actually produces, which is the whole subject: every number in Attrs comes back float64 (#542)",
+      "file": "internal/core/resource/attrs.go",
+      "find": "func Number(v any) float64 {\n\tswitch n := v.(type) {\n\tcase float64:\n\t\treturn n",
+      "replace": "func Number(v any) float64 {\n\tswitch n := v.(type) {\n\tcase float64:\n\t\treturn n * 0",
+      "test": "TestEveryGoTypeAPackWritesCrossesTheSnapshotAsMeasured",
+      "package": "./internal/core/store/"
+    },
+    {
+      "label": "a pack writes the seventh hand-made copy of the tolerance and forgets the float64 case, which is the draft the fake fourth pack shipped (#542)",
+      "file": "internal/providers/outscale/volumes.go",
+      "find": "func volumeMatches(res *resource.Resource, f filterSet) bool {",
+      "replace": "func plantedSize(v any) int {\n\tswitch n := v.(type) {\n\tcase int:\n\t\treturn n\n\t}\n\treturn 0\n}\n\nfunc volumeMatches(res *resource.Resource, f filterSet) bool {",
+      "test": "TestNoPackReadsAStoredNumberByAssertion",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "a pack reads a stored number with the plain assertion again, in the pack the original sweep reported clean (#542)",
+      "file": "internal/providers/scaleway/securitygroups.go",
+      "find": "func positionOf(res *resource.Resource) uint32 {",
+      "replace": "func plantedPort(res *resource.Resource) int {\n\tn, _ := res.Attrs[\"port\"].(int)\n\treturn n\n}\n\nfunc positionOf(res *resource.Resource) uint32 {",
+      "test": "TestNoPackReadsAStoredNumberByAssertion",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "the detector stops recognising the very type the defect was written in, so it reports a disciplined repository because it looked for nothing (#542)",
+      "file": "internal/cli/stored_numbers_test.go",
+      "find": "\t\"int\": true, \"int8\": true,",
+      "replace": "\t\"int8\": true,",
+      "test": "TestTheStoredNumberDetectorFindsWhatItLooksFor",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "the size a block volume created from a snapshot inherits, which propagates the zero forward through every restore of that chain (#542)",
+      "file": "internal/providers/scaleway/block.go",
+      "find": "\t\tsize = resource.Uint64(snapshot, \"size\")",
+      "replace": "\t\tsize = resource.Uint64(snapshot, \"size\") * 0",
+      "test": "TestASnapshotChainTakenAfterARestoreKeepsItsSize",
+      "package": "./internal/providers/scaleway/"
+    },
+    {
+      "label": "the health check falls back to a forward port read as zero, so a restored backend is probed on port 0 and the call installing it still answers 200 (#542)",
+      "file": "internal/providers/scaleway/loadbalancer_children.go",
+      "find": "\tif port := resource.Int64(res, \"forward_port\"); port > 0 && port <= math.MaxInt32 {",
+      "replace": "\tif port := resource.Int64(res, \"forward_port\") * 0; port > 0 && port <= math.MaxInt32 {",
+      "test": "TestARestoredBackendsHealthCheckKeepsItsForwardPort",
+      "package": "./internal/providers/scaleway/"
+    }
+  ],
+  "note": "#542 filed three sites in one pack and asked whether any other stored number is read back anywhere, marking the answer not established because the sweep was a grep for `Attrs[…].(int)` and `.(float64)`. The AST scan that replaced it found four more on its first run, all in the pack the grep had cleared, because Scaleway spells the same field uint64 and one health check reads an int32 — the only one of the seven that is not a size, and the one whose cost is a check that can never pass — which is why mutations three, four and nine exist and why they are the ones worth reading. Four was mispointed on its first replay and the harness said so: it was written against the block snapshot chain while claiming the instance snapshot's read, and reported STILL GREEN because createBlockSnapshot copies the size verbatim and asserts nothing. Two paths, two tests, and the note is kept because a test credited with a site it never reaches is exactly the instrument this repository keeps finding: the defect was in two packs, at seven sites, and the instrument that said otherwise was a grep for two spellings of a number. Mutation five is the reader itself, judged on the round trip rather than on a pack: it is the measurement the numbers-only boundary rests on, and #542 recorded the bool half of that boundary as a supposition. The last three are the discipline test rather than the fix, and they are what buys the property the issue asked for — that the *next* pack cannot write this. Six plants the tolerant helper with a case missing, which is how six copies of it came to exist under six names; seven plants the plain assertion in a pack that no longer has one; and eight is the detector's own positive control, because a scan that finds nothing is indistinguishable from a scan that looked nowhere."
+}

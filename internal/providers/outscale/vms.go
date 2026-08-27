@@ -1168,7 +1168,7 @@ func (p *Pack) rootDeviceOf(imageID string) rootDevice {
 			continue
 		}
 		device.snapshotID = stringOf(bsu["SnapshotId"])
-		device.size = int(numOf(bsu["VolumeSize"]))
+		device.size = int(resource.Number(bsu["VolumeSize"]))
 		device.volumeType = orDefault(stringOf(bsu["VolumeType"]), defaultVolumeType)
 		return device
 	}
@@ -1198,7 +1198,7 @@ func (p *Pack) rootDeviceOfCatalogue(image map[string]any) rootDevice {
 	for _, raw := range mappings {
 		mapping, _ := raw.(map[string]any)
 		if bsu, ok := mapping["Bsu"].(map[string]any); ok {
-			return rootDevice{size: int(numOf(bsu["VolumeSize"]))}
+			return rootDevice{size: int(resource.Number(bsu["VolumeSize"]))}
 		}
 	}
 	return rootDevice{}

@@ -217,7 +217,7 @@ func (p *Pack) createBlockVolume(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "resource not found")
 			return
 		}
-		size = int64Of(snapshot.Attrs["size"])
+		size = resource.Int64(snapshot, "size")
 	}
 	// A volume of no size is not a volume, and the refusal belongs at the door:
 	// a client that forgot the field gets told, rather than receiving a record
@@ -238,30 +238,6 @@ func (p *Pack) createBlockVolume(w http.ResponseWriter, r *http.Request) {
 	}
 	p.env.Store.Put(res)
 	p.writeOperation(w, p.operationReferring(nounBlockVolume, res.ID))
-}
-
-// int64Of reads a stored size back whatever shape it comes in.
-//
-// Not a convenience: a size written as int64 comes back as float64 after
-// `PUT /_feint/state`, because a snapshot round-trips the store through JSON.
-// A type assertion on int64 alone would quietly answer zero on a restored
-// store, and the two readers of this value are the shrink refusal and the size a
-// snapshot inherits — so a restored emulator would accept a shrink and hand out
-// zero-sized snapshots, with nothing red anywhere. That is the "a restored state
-// is untrusted input" rule of CLAUDE.md, met at the point where the value is
-// read rather than hoped away.
-//
-// TestABlockVolumeSurvivesASnapshotRestore fails without this.
-func int64Of(v any) int64 {
-	switch n := v.(type) {
-	case int64:
-		return n
-	case int:
-		return int64(n)
-	case float64:
-		return int64(n)
-	}
-	return 0
 }
 
 // labelsOrEmpty keeps a declared map present. A nil map marshals to null, and a
@@ -369,7 +345,12 @@ func (p *Pack) resizeBlockVolume(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "resource not found")
 		return
 	}
-	if current := int64Of(res.Attrs["size"]); *req.Size < current {
+	// Through the shared reader, which is where the tolerance this pack used to
+	// carry as int64Of now lives (#542): a size written as int64 comes back a
+	// float64 after `PUT /_feint/state`, and an assertion on int64 alone would
+	// answer zero on a restored store — so the refusal below would never fire.
+	// TestABlockVolumeSurvivesASnapshotRestore fails without this.
+	if current := resource.Int64(res, "size"); *req.Size < current {
 		writeError(w, http.StatusBadRequest, "a volume cannot be shrunk")
 		return
 	}
@@ -555,7 +536,7 @@ func (p *Pack) createBlockSnapshot(w http.ResponseWriter, r *http.Request) {
 	now := p.env.Now()
 	res := resource.New(p.env.NewID(), kindBlockSnapshot, resource.Tenant{Provider: Name}, blockSnapshotCreated, now)
 	volumeName, _ := volume.Attrs["name"].(string)
-	size := int64Of(volume.Attrs["size"])
+	size := resource.Int64(volume, "size")
 	res.Attrs = map[string]any{
 		"name": orSnapshotName(req.Name, volumeName, now),
 		// size is what the snapshot occupies, volume-size what it restores to.

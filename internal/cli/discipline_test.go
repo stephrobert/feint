@@ -221,6 +221,7 @@ func barrageCalls(t *testing.T, file string) map[string]int {
 func TestEveryBarrageExemptionSaysWhy(t *testing.T) {
 	for _, exemptions := range []map[string]string{
 		ownExclusion, notInTheBarrage, notInTheDriverSurface, runtimeKnowledgeExemptions,
+		storedNumberExemptions,
 	} {
 		for key, reason := range exemptions {
 			if reasonIsThin(reason) {

@@ -2,6 +2,7 @@ package scaleway
 
 import (
 	"encoding/json"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -382,9 +383,16 @@ func (p *Pack) updateLBHealthCheck(w http.ResponseWriter, r *http.Request) {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
 		return
 	}
+	// Through the shared reader: forward_port is written as an int32 and comes
+	// back a float64 once the store has crossed a snapshot, so the assertion
+	// this replaces answered 0 and a restored backend's health check probed
+	// port 0 (#542) — a check that can only ever fail, installed by a call that
+	// answered 200. The bound is what a value from a restored snapshot needs
+	// before it becomes an int32: a stored number is untrusted input.
+	// TestARestoredBackendsHealthCheckKeepsItsForwardPort fails without this.
 	var forwardPort int32
-	if port, ok := res.Attrs["forward_port"].(int32); ok {
-		forwardPort = port
+	if port := resource.Int64(res, "forward_port"); port > 0 && port <= math.MaxInt32 {
+		forwardPort = int32(port)
 	}
 	attrs := healthCheckAttrs(&req, forwardPort)
 	err := p.env.Store.Update(Name, kindLBBackend, res.ID, func(stored *resource.Resource) error {

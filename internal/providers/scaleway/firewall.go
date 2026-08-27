@@ -174,8 +174,12 @@ func toFirewallRule(res *resource.Resource) (machine.FirewallRule, bool) {
 	out := machine.FirewallRule{
 		Action:   toRuntimeAction(action),
 		Protocol: strings.ToLower(protocol),
-		PortFrom: portValue(res.Attrs["dest_port_from"]),
-		PortTo:   portValue(res.Attrs["dest_port_to"]),
+		// Through the shared reader: a port held as a uint32 fresh from a
+		// request comes back a float64 once the store has crossed a snapshot,
+		// and the tolerance this pack carried as portValue now lives in one
+		// place for every pack (#542).
+		PortFrom: resource.Int(res, "dest_port_from"),
+		PortTo:   resource.Int(res, "dest_port_to"),
 	}
 	switch direction {
 	case "outbound":
@@ -201,21 +205,6 @@ func toRuntimeAction(action string) string {
 		return "drop"
 	default:
 		return ""
-	}
-}
-
-// portValue reads a port back from Attrs, which may hold a uint32 fresh from a
-// request or a float64 restored from a JSON snapshot.
-func portValue(v any) int {
-	switch n := v.(type) {
-	case uint32:
-		return int(n)
-	case int:
-		return n
-	case float64:
-		return int(n)
-	default:
-		return 0
 	}
 }
 

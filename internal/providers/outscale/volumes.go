@@ -174,7 +174,13 @@ func (p *Pack) updateVolume(w http.ResponseWriter, r *http.Request) {
 	var updated *resource.Resource
 	err := p.env.Store.Update(Name, kindVolume, req.VolumeID, func(stored *resource.Resource) error {
 		if req.Size > 0 {
-			current, _ := stored.Attrs["Size"].(int)
+			// Through the shared reader, because a size that has crossed a
+			// snapshot comes back a float64 and the plain `.(int)` this used
+			// to be yielded 0 — so `req.Size < current` was never true and a
+			// restored volume shrank from 40 to 1 with a 200 (#542, measured
+			// 2026-08-27). TestARestoredVolumeStillRefusesToShrink fails
+			// without this.
+			current := resource.Int(stored, "Size")
 			if req.Size < current {
 				return errVolumeShrinks
 			}
@@ -332,9 +338,24 @@ func volumeMatches(res *resource.Resource, f filterSet) bool {
 	if linkedVM != "" {
 		linkState = "attached"
 	}
+	// Through the shared reader for the same reason as the shrink refusal
+	// above, and with one honest difference: no test can redden this line
+	// today, because nothing reaches it. #542 said a restored volume "publishes
+	// no size at all" and the measurement disproved that twice over —
+	// volumeView copies Attrs verbatim, so the read publishes 40 either way,
+	// and the VolumeSizes filter is declared by the API as an array of
+	// integers, which filterSet.strings cannot decode: it reports the decode
+	// failure as "filter absent" and matchesAny then passes everything. So the
+	// comparison below has never discriminated, before or after a restore, for
+	// any client. That is a defect of its own and a wider one — Progresses is
+	// the second numeric filter this pack claims — and it is deliberately not
+	// fixed here: changing which volumes a filter answers is client-visible
+	// surface and belongs to a measurement of its own. This line is corrected
+	// so it is right on the day that one lands, and this comment is here so
+	// nobody reads its silence as proof.
 	size := ""
-	if n, ok := res.Attrs["Size"].(int); ok {
-		size = strconv.Itoa(n)
+	if _, present := res.Attrs["Size"]; present {
+		size = strconv.Itoa(resource.Int(res, "Size"))
 	}
 	// Read from the volume, not written here as false. It became a per-volume
 	// fact when a Vm's root device arrived (#378): a machine's root volume dies

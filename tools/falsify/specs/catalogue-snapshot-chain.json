@@ -74,8 +74,8 @@
     {
       "label": "createImage stores an Iops it cannot honour, which makes the ReadImages decline fiction for one of the two kinds of object it answers",
       "file": "internal/providers/outscale/images.go",
-      "find": "\t\tif numOf(bsu[\"Iops\"]) > 0 {",
-      "replace": "\t\tif numOf(bsu[\"Iops\"]) > 0 && false {",
+      "find": "\t\tif resource.Number(bsu[\"Iops\"]) > 0 {",
+      "replace": "\t\tif resource.Number(bsu[\"Iops\"]) > 0 && false {",
       "test": "TestCreateImageRefusesAnIopsItCannotHonour"
     },
     {

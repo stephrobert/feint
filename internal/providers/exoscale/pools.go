@@ -375,7 +375,7 @@ func (p *Pack) newPoolMember(pool *resource.Resource, index int64) *resource.Res
 
 	member.Attrs = map[string]any{
 		"name":      prefix + "-" + strconv.FormatInt(index+1, 10),
-		"disk-size": int64Of(pool.Attrs["disk-size"]),
+		"disk-size": resource.Int64(pool, "disk-size"),
 		"user-data": pool.Attrs["user-data"],
 		"labels":    pool.Attrs["labels"],
 		// The relation upstream publishes on the instance itself: a client
@@ -695,7 +695,7 @@ func (p *Pack) evictInstancePoolMembers(w http.ResponseWriter, r *http.Request) 
 	// An evict lowers the pool's declared size, which is upstream's behaviour:
 	// the pool does not replace what a client explicitly removed.
 	_ = p.env.Store.Update(Name, kindPool, id, func(stored *resource.Resource) error {
-		stored.Attrs["size"] = int64Of(stored.Attrs["size"]) - int64(len(evicting))
+		stored.Attrs["size"] = resource.Int64(stored, "size") - int64(len(evicting))
 		return nil
 	})
 	unlock()

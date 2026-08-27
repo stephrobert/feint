@@ -83,10 +83,10 @@ func (p *Pack) firewallRulesOf(group *resource.Resource, side, direction string,
 			Action:    "allow",
 			Protocol:  protocolOf(rule["IpProtocol"]),
 		}
-		if from := int(numOf(rule["FromPortRange"])); from > 0 {
+		if from := int(resource.Number(rule["FromPortRange"])); from > 0 {
 			base.PortFrom = from
 		}
-		if to := int(numOf(rule["ToPortRange"])); to > 0 {
+		if to := int(resource.Number(rule["ToPortRange"])); to > 0 {
 			base.PortTo = to
 		}
 

@@ -57,7 +57,13 @@ func (p *Pack) createSnapshot(w http.ResponseWriter, r *http.Request) {
 		p.notFound(w, "volume", req.VolumeID)
 		return
 	}
-	size, _ := volume.Attrs["Size"].(int)
+	// Through the shared reader: the plain `.(int)` this used to be yielded 0
+	// on a volume that had crossed a snapshot, so a snapshot taken after a
+	// `feint snapshot load` recorded VolumeSize 0 for a 40 GiB volume — and
+	// every volume later created from that snapshot inherits the zero (#542,
+	// measured 2026-08-27).
+	// TestASnapshotOfARestoredVolumeInheritsItsSize fails without this.
+	size := resource.Int(volume, "Size")
 
 	now := p.env.Now()
 	res := resource.New(newID("snap", p.env.NewID()), kindSnapshot, resource.Tenant{Provider: Name}, "completed", now)
@@ -195,4 +201,4 @@ func (p *Pack) findSnapshot(id string) (map[string]any, bool) {
 // snapshotSize is a snapshot's VolumeSize, whatever numeric type it was stored
 // as. The catalogue holds ints and a client's snapshot copies the volume's, so
 // reading it with a single type assertion returned zero for one of the two.
-func snapshotSize(view map[string]any) int { return int(numOf(view["VolumeSize"])) }
+func snapshotSize(view map[string]any) int { return int(resource.Number(view["VolumeSize"])) }
