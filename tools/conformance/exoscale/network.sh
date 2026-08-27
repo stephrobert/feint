@@ -10,9 +10,25 @@
 # because a bridge-backed mode cannot deliver it (docs/limits.md) and claiming
 # it anyway would be the half-truth this project exists to avoid.
 #
-# What is deliberately not here: firewall assertions. The Exoscale pack does
-# not yet sync its security groups onto the machines, so a rule assertion would
-# measure nothing — the Scaleway and Outscale suites own that ground for now.
+# What used to stand here, and what it cost. Until 2026-08-27 this header said
+# that firewall assertions were deliberately absent "because the Exoscale pack
+# does not yet sync its security groups onto the machines, so a rule assertion
+# would measure nothing". That stopped being true at a344f8d (#494/#475), when
+# the packs began handing their groups to the host — and the sentence stayed,
+# read as a live fact, steering every reader of this file away from the
+# firewall. It is the exact shape CLAUDE.md names: a control's obituary read as
+# a measurement.
+#
+# What it hid is #574. The pack applied the `default` group's rule set to every
+# interface, the private-network NIC included, where Exoscale states the
+# opposite in as many words — "Security group rules do not apply to traffic
+# inside private networks". The group carries no ingress rule, so the NIC ended
+# up with a drop default and two instances of one segment could not reach each
+# other under `--vm incus`: 0/10 probes, and 10/10 with the rule set stripped.
+# The reachability assertion below is what fails when that comes back, and it
+# fails only under the bridge — under OVN the same wrong rule is outranked by
+# the sender's catch-all egress allow (#491), so a green there proves nothing
+# about the rule being absent.
 #
 # Requires a machine runtime: `FEINT_VM=incus mise run serve` at least, and
 # `FEINT_VM=incus-ovn` for the isolation assertion to be hard. With --vm off
