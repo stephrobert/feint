@@ -999,7 +999,33 @@ fi
 prove_end "$neg"
 
 scw lb route delete "$route_id" zone="$ZONE" >/dev/null || fail "route delete rejected"
+
+# THE ORPHAN LINE IN EVERY CONFORMANCE LOG COMES FROM HERE (#505).
+#
+# scw 2.56.3 prints "runtime error: invalid memory address or nil pointer
+# dereference" on the stderr of this command, and exits 0 having deleted the
+# ACL. The fault is upstream and entirely client-side, read rather than guessed
+# (scaleway-cli v2.56.3, internal/namespaces/lb/v1/custom_acl.go): the
+# interceptor on the four ACL verbs asserts *ZonedAPIDeleteCertificateRequest
+# where the argument is *ZonedAPIDeleteACLRequest, so its getACL stays nil, and
+# a delete that SUCCEEDS then dereferences getACL.Frontend.LB.Tags. The three
+# sibling verbs answer an *lb.ACL rather than a *core.SuccessResult and never
+# reach that branch, which is why only this line prints it.
+#
+# Nothing this emulator answers can avoid it: ZonedAPI.DeleteACL decodes the
+# response into nil (lb_sdk.go), so no body reaches the faulty path, and the
+# command builds its SuccessResult unconditionally on a nil error. The only
+# lever left is to FAIL a delete that worked — measured on 2026-08-28 with a
+# fault rule: the panic goes, and the ACL survives. docs/limits.md carries the
+# whole measurement.
+#
+# So the noise is tolerated, and this asserts what makes tolerating it honest:
+# the delete did its work. Without this line, "rc=0 and a panic on stderr" is
+# taken on trust.
 scw lb acl delete "$acl_id" zone="$ZONE" >/dev/null || fail "acl delete rejected"
+scw lb acl list frontend-id="$frontend_id" zone="$ZONE" -o json \
+  | jq -e --arg id "$acl_id" 'all(.[]; .id != $id)' >/dev/null \
+  || fail "the acl survived a delete that answered 0 (#505 is noise, not a failed delete)"
 scw lb frontend delete "$frontend_id" zone="$ZONE" >/dev/null || fail "frontend delete rejected"
 scw lb backend delete "$backend_id" zone="$ZONE" >/dev/null || fail "backend delete rejected"
 scw lb private-network detach "$lb_id" private-network-id="$lb_pn_id" zone="$ZONE" >/dev/null \

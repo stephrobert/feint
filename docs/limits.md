@@ -3684,16 +3684,59 @@ recovered, printed, and the process exits 0.
 
 Measured: the exact command, rc=0, the ACL deleted, the stack, the
 reproduction under `--vm off` as under `--vm incus-ovn`, and no ERROR on the
-emulator's side. Deduced, not measured on a real account: the real cloud would
-provoke the same panic — nothing in the faulty path depends on the emulator's
-answer.
+emulator's side.
 
-What to do with it: nothing, here. This is not a divergence and there is
-nothing to fix in the emulator; the line is one of noise in every conformance
-log, tolerated because delete stderr passes through and rc is 0. Whoever meets
-it in a log: #505 is the reference to point at. What would lift it: the
-upstream fix in scaleway-cli — one type in the assertion, to be reported
-through `scw feedback bug`; the line disappears when a fixed `scw` ships.
+### The one question worth asking, and its answer: no
+
+**Could this emulator answer something else, without lying, that does not
+trigger the fault?** That is the only version of #505 that would be a fix
+rather than a note, so it was answered by reading the two functions and then by
+experiment, on 2026-08-28.
+
+Read (`scaleway-cli/v2@v2.56.3` and `scaleway-sdk-go` in the module cache):
+
+- `ZonedAPI.DeleteACL` ends on `s.client.Do(scwReq, nil, opts...)` — the
+  response is decoded into `nil`. **No body this emulator sends reaches the
+  faulty path**, so the shape of the answer is not a lever at all.
+- `lbACLDelete`'s `Run` returns `&core.SuccessResult{Resource: "acl", Verb:
+  "delete"}` unconditionally whenever that call returns a nil error. So *any*
+  truthful success produces the value the interceptor then dereferences.
+- The interceptor is installed on all four ACL verbs, and its pre-fetch is
+  guarded by `argsI.(*lb.ZonedAPIDeleteCertificateRequest)` — never true here,
+  so `getACL` is nil on every path.
+
+Measured, with the emulator's own fault injection, which is what makes this an
+experiment rather than a second reading:
+
+| what the emulator answers | rc | panic on stderr | the ACL |
+|---|---|---|---|
+| 204, as it does (`DeleteACL` succeeds) | 0 | yes | deleted |
+| 500, via `PUT /_feint/faults` | 1 | **no** | **survives** |
+
+And the three sibling verbs — `acl get`, `acl update`, `acl create` — carry the
+same interceptor, exit 0 with empty stderr, and never panic: they answer an
+`*lb.ACL` rather than a `*core.SuccessResult`, so they never reach the branch.
+That locates the fault exactly at "the runner returned a success", and nowhere
+near the emulator.
+
+So the emulator's only lever is to **fail a delete that worked**, which loses
+the resource and lies about it — the one thing this project exists not to do.
+Option (1) is disproved, and #505 closes as documentation rather than as a fix.
+
+What to do with it: nothing, here. This is not a divergence; the line is noise
+in every conformance log, tolerated because delete stderr passes through and rc
+is 0. Not filtered either, which would be a workaround hiding a real upstream
+defect: it is tolerated *and* the suite now asserts what makes tolerating it
+honest — `scw-cli.sh` reads the ACL list back after the delete, so "rc=0 with a
+panic on stderr" is measured rather than trusted. Whoever meets the line in a
+log: #505 is the reference to point at. What would lift it: the upstream fix in
+scaleway-cli — one type in the assertion, to be reported through
+`scw feedback bug`; the line disappears when a fixed `scw` ships.
+
+Still not measured, and it does not change the verdict: what a real account
+answers. Nothing in the faulty path reads a response, so the same panic is
+expected there — but that sentence is a deduction from the source above, not a
+measurement, and it is written here as one.
 
 ## The Exoscale stack's second plan is not empty: two per-id outputs read back null at apply time (#520)
 
