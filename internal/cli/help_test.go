@@ -293,3 +293,138 @@ func flagsTheHelpNames(t *testing.T) map[string][]string {
 	}
 	return verbs
 }
+
+// The command table is two tables, because it was two audiences (#591).
+//
+// Twenty-six verbs stood in one table on both front pages, and ten of them are
+// this repository measuring itself: `corpus`, `shapes`, `evidence`, `probe`,
+// `proxy`, `transcript`, `replay`, `coverage`, `docs`, `catalog`. Somebody who
+// came to point Terraform at a local cloud had no way to know that, so they
+// read the whole list wondering which part of it they had to understand before
+// starting. The audit of 2026-08-28 measured that as friction and not as
+// length: the split costs no lines at all.
+//
+// A split, though, adds a way to go wrong that one table did not have, and it
+// is the class this repository pays for repeatedly — a fact expressed in two
+// places. A new verb can land in neither table, in both, or in a third stray
+// group, and TestEveryCommandIsNamedInTheReadmes would not notice: it accepts a
+// mention anywhere on the page, which is why `stop` and `restart` once read as
+// documented while they were folded into one entry about `start`.
+//
+// So this one asserts the partition rather than the mention:
+//
+//   - every dispatched verb has exactly one row, across every group;
+//   - every row names a verb the binary really dispatches, so a verb that is
+//     removed does not leave its row behind;
+//   - the rows are grouped under at least two headings, each holding at least
+//     three, so flattening the tables back into one fails here rather than
+//     silently undoing the split.
+//
+// Both pages, for the reason TestEveryCommandIsNamedInTheReadmes states:
+// README.fr.md is the one that fell ten verbs behind while nothing read it.
+func TestEveryCommandHasExactlyOneRowUnderAnAudience(t *testing.T) {
+	dispatched := topLevelCommands(t)
+	if len(dispatched) < 15 {
+		t.Fatalf("only %d commands found in the dispatch: the scan is broken, "+
+			"not the tables, and would otherwise pass while measuring nothing", len(dispatched))
+	}
+	accepts := map[string]bool{}
+	for _, name := range dispatched {
+		accepts[name] = true
+	}
+
+	for _, doc := range []string{"README.md", "README.fr.md"} {
+		body, err := os.ReadFile(filepath.Join("..", "..", doc))
+		if err != nil {
+			t.Fatalf("read %s: %v", doc, err)
+		}
+
+		groups := commandTableGroups(string(body))
+		rows := map[string][]string{}
+		for _, group := range groups {
+			for _, verb := range group.verbs {
+				rows[verb] = append(rows[verb], group.heading)
+			}
+		}
+		// A page whose tables vanished would otherwise pass every assertion
+		// below by having no row left to fail on: this count is the witness
+		// that the reader found the tables at all.
+		if len(rows) < 15 {
+			t.Fatalf("%s: only %d command row(s) were parsed out of the page: the reader is broken, "+
+				"not the tables, and would otherwise pass while measuring nothing", doc, len(rows))
+		}
+
+		if len(groups) < 2 {
+			t.Errorf("%s: the %d command rows sit under %d heading(s). That table is two audiences — "+
+				"what somebody drives the emulator with, and what this repository measures it with — "+
+				"and one list makes a reader wonder which half they must understand before starting",
+				doc, len(rows), len(groups))
+		}
+		for _, group := range groups {
+			if len(group.verbs) < 3 {
+				t.Errorf("%s: the group %q holds %d command row(s): a group that small is not an "+
+					"audience, and it lets the split read as done while the tables are back to one",
+					doc, group.heading, len(group.verbs))
+			}
+		}
+
+		for _, name := range dispatched {
+			switch where := rows[name]; len(where) {
+			case 1:
+			case 0:
+				t.Errorf("%s: `feint %s` dispatches and no command table has a row for it. "+
+					"Naming it in a sentence somewhere is not the same thing: a reader looking for "+
+					"the list of verbs will not find it there", doc, name)
+			default:
+				t.Errorf("%s: `feint %s` has %d rows, under %s. One verb belongs to one audience, "+
+					"and two rows are two descriptions that will eventually disagree",
+					doc, name, len(where), strings.Join(where, " and "))
+			}
+		}
+
+		for verb, where := range rows {
+			if !accepts[verb] {
+				t.Errorf("%s: a command table row under %s names `feint %s` and the binary dispatches "+
+					"no such verb: a reader who types it is answered with the usage text",
+					doc, strings.Join(where, " and "), verb)
+			}
+		}
+	}
+}
+
+// commandGroup is one heading and the verbs the table rows under it name.
+type commandGroup struct {
+	heading string
+	verbs   []string
+}
+
+// commandTableGroups reads the command tables off a front page: a Markdown
+// heading opens a group, and every "| `feint <verb>` …" row until the next
+// heading belongs to it. A heading with no such row under it produces no group,
+// so the page's twenty other headings do not read as empty audiences.
+//
+// The space after the binary's name is load-bearing: the released-binary table
+// carries rows like "| `feint-darwin-amd64` |", and without it every one of
+// them would read as a command row naming a verb that does not exist.
+func commandTableGroups(page string) []commandGroup {
+	row := regexp.MustCompile("^\\|\\s*`feint ([a-z][a-z-]*)")
+
+	var groups []commandGroup
+	heading := "no heading"
+	for _, line := range strings.Split(page, "\n") {
+		if strings.HasPrefix(line, "#") {
+			heading = strings.TrimSpace(strings.TrimLeft(line, "# "))
+			continue
+		}
+		m := row.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		if len(groups) == 0 || groups[len(groups)-1].heading != heading {
+			groups = append(groups, commandGroup{heading: heading})
+		}
+		last := &groups[len(groups)-1]
+		last.verbs = append(last.verbs, m[1])
+	}
+	return groups
+}

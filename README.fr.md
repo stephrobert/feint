@@ -170,9 +170,30 @@ l'enregistre.
 
 ---
 
+## Savoir si feint convient à votre test
+
+La question se pose avant d'installer quoi que ce soit, et sa réponse est
+ailleurs qu'ici : **[ce que vous pouvez valider](docs/confidence.md)** est une
+page et un tableau, et il pose la question dans votre vocabulaire plutôt que dans
+celui du projet. Une ligne est une chose que vous pourriez vouloir tester ; son
+verdict porte ce qui l'établit : la suite qui le pilote, la capacité de runtime
+sur laquelle il s'appuie, ou la section de
+[ce qu'il ne fait pas](docs/limits.md) qui dit pourquoi la réponse est non. Une
+ligne qui ne pointe vers rien est refusée par un test, pas par un relecteur.
+
+Cette page est délibérément le seul endroit où ces verdicts sont écrits. En
+recopier six ici mettrait la réponse là où vous êtes, et l'y mettrait fausse en
+moins d'une version : une phrase de la ligne 41 de la page anglaise a contredit
+ce tableau pendant deux jours en août, à travers tous les contrôles de
+documentation verts de l'intervalle. La vue opération par opération, elle, est
+générée : [docs/routes.md](docs/routes.md).
+
+---
+
 ## Sommaire
 
 - [Démarrage rapide](#démarrage-rapide)
+- [Savoir si feint convient à votre test](#savoir-si-feint-convient-à-votre-test)
 - [Installer](#installer)
 - [S'en servir](#sen-servir)
 - [La page](#la-page)
