@@ -251,7 +251,7 @@ func (r poolRequest) attrs(size int64) map[string]any {
 		"description":     r.Description,
 		"size":            size,
 		"instance-prefix": orDefaultPrefix(r.InstancePrefix),
-		"labels":          labelsOrEmpty(r.Labels),
+		"labels":          labelsToAttr(r.Labels),
 		"disk-size":       orDefaultDiskSize(r.DiskSize),
 		"user-data":       r.UserData,
 	}
@@ -531,7 +531,7 @@ func (p *Pack) updateInstancePool(w http.ResponseWriter, r *http.Request) {
 			stored.Attrs["instance-prefix"] = req.InstancePrefix
 		}
 		if req.Labels != nil {
-			stored.Attrs["labels"] = req.Labels
+			stored.Attrs["labels"] = labelsToAttr(req.Labels)
 		}
 		if req.Template != nil {
 			stored.Attrs["template"] = map[string]any{"id": req.Template.ID}
@@ -755,7 +755,7 @@ func (p *Pack) resetInstancePoolField(w http.ResponseWriter, r *http.Request) {
 	err := p.env.Store.Update(Name, kindPool, id, func(stored *resource.Resource) error {
 		switch field {
 		case "labels":
-			stored.Attrs["labels"] = map[string]string{}
+			stored.Attrs["labels"] = map[string]any{}
 		case "min-available":
 			delete(stored.Attrs, "min-available")
 		default:

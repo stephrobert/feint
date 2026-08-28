@@ -896,6 +896,119 @@ func TestTheFourthPacksSpreaderKeepsItsPortAcrossASnapshot(t *testing.T) {
 	}
 }
 
+// A restored node still wears its barriers, joins its segments and knows its
+// addresses (#567).
+//
+// The numeric half of this is the test above, and it is the half a shared
+// reader could fix: a number that crossed JSON has exactly one right answer,
+// and resource.Number gives it. These three have none that internal/core may
+// give — recovering a []Rule means knowing Rule, which is the pack's own type
+// (rule 5) — so the pack stores the shape the door returns instead.
+//
+// Measured on 2026-08-27, before the fix, through store.Snapshot then
+// store.Restore into a fresh store: []Rule came back nil, []string came back
+// []any, map[string]string came back map[string]any. Every one of the pack's
+// readers asserted the Go type, so a restored node wore no barriers, joined no
+// segments and had no address, while the API went on describing all three.
+//
+// Behaviour rather than shape, deliberately: this asserts what the runtime is
+// asked to do with the restored node, not what its Attrs look like. A test
+// that compared the maps would pass on a pack that stored the right shape and
+// read it back with the wrong assertion.
+func TestTheFourthPacksNodeKeepsWhatItWearsAcrossASnapshot(t *testing.T) {
+	ctx := context.Background()
+	pack, _, env := fourthPack(t)
+
+	home, err := pack.CreateSegment(ctx, "front", "10.40.0.0/24", "green")
+	must(t, err)
+	later, err := pack.CreateSegment(ctx, "back", "10.41.0.0/24", "green")
+	must(t, err)
+	barrier := pack.CreateBarrier("web")
+	must(t, pack.AddRule(ctx, barrier.ID, providerfour.Rule{
+		Direction: "ingress", Action: "allow", Protocol: "tcp", Source: "0.0.0.0/0",
+		PortFrom: 443, PortTo: 443,
+	}))
+	node, err := pack.CreateNode(ctx, providerfour.NodeRequest{
+		Name:        "web-1",
+		Image:       "four-linux",
+		HomeSegment: home.ID,
+		Barriers:    []string{barrier.ID},
+	})
+	must(t, err)
+	must(t, pack.StartNode(ctx, node.ID))
+	must(t, pack.JoinSegment(ctx, node.ID, later.ID))
+
+	// The door a snapshot really travels: the format is documented as meant to
+	// outlive its instance and be loaded into another one.
+	var saved bytes.Buffer
+	if err := env.Store.Snapshot(&saved); err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	restored := store.New()
+	if err := restored.Restore(bytes.NewReader(saved.Bytes())); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+
+	// A reboot on the revived pack replays the whole post-boot order, which is
+	// what reads all four stored collections at once.
+	rec := machine.NewRecorder()
+	next := fourthEnv(t, machine.Use(rec))
+	next.Store = restored
+	revived := providerfour.New(next)
+	must(t, revived.RebootNode(ctx, node.ID))
+
+	var booted machine.Spec
+	var attached []machine.Attachment
+	var binding machine.FirewallBinding
+	var spec machine.FirewallSpec
+	for _, event := range rec.Events() {
+		switch event.Kind {
+		case "Start":
+			booted, _ = event.Args.(machine.Spec)
+		case "Attach":
+			if att, ok := event.Args.(machine.Attachment); ok {
+				attached = append(attached, att)
+			}
+		case "ApplyFirewall":
+			binding, _ = event.Args.(machine.FirewallBinding)
+		case "EnsureFirewall":
+			spec, _ = event.Args.(machine.FirewallSpec)
+		}
+	}
+
+	// addresses: the home segment rides the launch, at the address the store
+	// promised for it.
+	if len(booted.Attachments) != 1 || booted.Attachments[0].Address != "10.40.0.10" {
+		t.Errorf("the revived node booted with %v, want one interface at 10.40.0.10: a restored "+
+			"map[string]string read as map[string]string is empty, so the interface comes up "+
+			"with no address while the API still publishes one", booted.Attachments)
+	}
+
+	// segments: and the membership joined afterwards is joined again.
+	if len(attached) != 1 || attached[0].Address != "10.41.0.10" {
+		t.Errorf("the revived node was attached to %v, want the second segment at 10.41.0.10: a "+
+			"restored []string read as []string is nil, so the node joins nothing while the API "+
+			"still lists its segments", attached)
+	}
+
+	// barriers: the rule set the node wears reaches the runtime with it.
+	if len(binding.Names) != 1 {
+		t.Errorf("the revived node was bound to %d rule set(s), want 1: a restored []string read "+
+			"as []string is nil, so the machine wears nothing while the API still says it does "+
+			"— %v", len(binding.Names), binding.Names)
+	}
+
+	// rules: and the set itself still carries what was declared into it.
+	if len(spec.Rules) != 1 {
+		t.Fatalf("the revived rule set carries %d rule(s), want 1: a restored []Rule read as "+
+			"[]Rule is nil, so an empty set is handed over under a name the API describes as "+
+			"filtering — %v", len(spec.Rules), spec.Rules)
+	}
+	if spec.Rules[0].PortFrom != 443 || spec.Rules[0].Source != "0.0.0.0/0" {
+		t.Errorf("the revived rule is %+v, want the 443 rule that was declared", spec.Rules[0])
+	}
+}
+
 // ---- The fourth pack is a resource like any other ---------------------------
 
 // The fourth pack's own store use obeys the shared write-back.
@@ -933,7 +1046,9 @@ func TestTheFourthPacksNestedAttributesAreNeverWrittenThroughTheStore(t *testing
 	if !found {
 		t.Fatal("the node is gone")
 	}
-	held, _ := stored.Attrs["addresses"].(map[string]string)
+	// map[string]any, because that is the shape the pack stores since #567 —
+	// what this measures is the map's aliasing, not its element type.
+	held, _ := stored.Attrs["addresses"].(map[string]any)
 	if len(held) != 1 {
 		t.Fatalf("the node carries %d address(es) on one segment, want 1: %v", len(held), held)
 	}
@@ -949,7 +1064,7 @@ func TestTheFourthPacksNestedAttributesAreNeverWrittenThroughTheStore(t *testing
 	if !found {
 		t.Fatal("the node is gone")
 	}
-	if addresses, _ := after.Attrs["addresses"].(map[string]string); len(addresses) != 2 {
+	if addresses, _ := after.Attrs["addresses"].(map[string]any); len(addresses) != 2 {
 		t.Errorf("the store holds %d address(es) after a second segment was joined", len(addresses))
 	}
 }

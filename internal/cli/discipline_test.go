@@ -131,7 +131,15 @@ var notInTheBarrage = map[string]string{
 // declared by its author. A pack that skips one names it in notInTheBarrage with
 // a reason, which is a line somebody has to write and a reviewer can read.
 func TestEveryPackRunsTheSharedBarrage(t *testing.T) {
-	controls := []string{"Sweep", "NoLostUpdate", "Orphans"}
+	// GoShapes joined on 2026-08-28 (#567), and it is the member that shows why
+	// the list is discovered rather than declared: the issue stated the three
+	// real packs were immune because they already store the JSON shape, and the
+	// first run of this control over Scaleway's own barrage reported 82
+	// resources carrying a []string in Attrs["tags"]. Nothing was broken by it,
+	// because two files carry a hand-written type switch tolerating both
+	// shapes — which is the habit, and the habit is what a fourth pack cannot
+	// inherit.
+	controls := []string{"Sweep", "NoLostUpdate", "Orphans", "GoShapes"}
 
 	for _, dir := range packDirs(t) {
 		pack := filepath.Base(dir)

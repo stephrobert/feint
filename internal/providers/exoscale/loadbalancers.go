@@ -262,7 +262,7 @@ func (p *Pack) createLoadBalancer(w http.ResponseWriter, r *http.Request) {
 		"name":        req.Name,
 		"description": req.Description,
 		"ip":          ip,
-		"labels":      labelsOrEmpty(req.Labels),
+		"labels":      labelsToAttr(req.Labels),
 	}
 	p.env.Store.Put(res)
 	p.writeOperation(w, p.operationReferring(nounLoadBalancer, res.ID))
@@ -313,7 +313,7 @@ func (p *Pack) updateLoadBalancer(w http.ResponseWriter, r *http.Request) {
 			stored.Attrs["description"] = req.Description
 		}
 		if req.Labels != nil {
-			stored.Attrs["labels"] = req.Labels
+			stored.Attrs["labels"] = labelsToAttr(req.Labels)
 		}
 		return nil
 	})
@@ -364,7 +364,7 @@ func (p *Pack) resetLoadBalancerField(w http.ResponseWriter, r *http.Request) {
 	}
 	err := p.env.Store.Update(Name, kindLoadBalancer, id, func(stored *resource.Resource) error {
 		if field == "labels" {
-			stored.Attrs["labels"] = map[string]string{}
+			stored.Attrs["labels"] = map[string]any{}
 			return nil
 		}
 		stored.Attrs["description"] = ""

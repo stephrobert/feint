@@ -236,7 +236,7 @@ func (p *Pack) updateSnapshot(w http.ResponseWriter, r *http.Request) {
 			stored.Attrs["name"] = *req.Name
 		}
 		if req.Tags != nil {
-			stored.Attrs["tags"] = *req.Tags
+			stored.Attrs["tags"] = orEmpty(*req.Tags)
 		}
 		stored.Updated = p.env.Now()
 		updated = stored

@@ -230,7 +230,7 @@ func (p *Pack) createGatewayIP(w http.ResponseWriter, r *http.Request) {
 
 // mintGatewayIP allocates an address of the gateway block and builds the
 // resource. The caller holds the allocation lock and stores the result.
-func (p *Pack) mintGatewayIP(zone, project string, tags []string) (*resource.Resource, error) {
+func (p *Pack) mintGatewayIP(zone, project string, tags []any) (*resource.Resource, error) {
 	prefix, err := network.ParseCIDR(gatewayBlock)
 	if err != nil {
 		return nil, err
@@ -455,7 +455,7 @@ func (p *Pack) createGateway(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// "If not set, the emulator mints one", exactly as upstream creates
 		// and attaches a new address when the request names none.
-		minted, err := p.mintGatewayIP(zone, project, []string{})
+		minted, err := p.mintGatewayIP(zone, project, []any{})
 		if err != nil {
 			writePrecondition(w, "ip", "", err.Error())
 			return

@@ -443,7 +443,7 @@ func (p *Pack) updateBlockVolume(w http.ResponseWriter, r *http.Request) {
 			stored.Attrs["size"] = *req.Size
 		}
 		if req.Tags != nil {
-			stored.Attrs["tags"] = *req.Tags
+			stored.Attrs["tags"] = orEmpty(*req.Tags)
 		}
 		if req.PerfIops != nil {
 			stored.Attrs["perf_iops"] = *req.PerfIops
@@ -674,7 +674,7 @@ func (p *Pack) updateBlockSnapshot(w http.ResponseWriter, r *http.Request) {
 			stored.Attrs["name"] = *req.Name
 		}
 		if req.Tags != nil {
-			stored.Attrs["tags"] = *req.Tags
+			stored.Attrs["tags"] = orEmpty(*req.Tags)
 		}
 		stored.Updated = p.env.Now()
 		updated = stored
@@ -840,7 +840,7 @@ func (p *Pack) newBlockRootVolume(zone, project, name string, size uint64) *reso
 		Attrs: map[string]any{
 			"name":               name,
 			"project":            project,
-			"tags":               []string{},
+			"tags":               []any{},
 			"size":               size,
 			"zone":               zone,
 			"parent_snapshot_id": "",

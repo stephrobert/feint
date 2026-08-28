@@ -166,7 +166,7 @@ func (p *Pack) createLBIP(w http.ResponseWriter, r *http.Request) {
 
 // mintLBIP allocates an address of the balancer blocks and builds the
 // resource. The caller holds the allocation lock and stores the result.
-func (p *Pack) mintLBIP(zone, project string, isIPv6 bool, tags []string) (*resource.Resource, error) {
+func (p *Pack) mintLBIP(zone, project string, isIPv6 bool, tags []any) (*resource.Resource, error) {
 	block := lbBlock
 	if isIPv6 {
 		block = lbV6Block
@@ -381,7 +381,7 @@ func (p *Pack) createLB(w http.ResponseWriter, r *http.Request) {
 	// address at all, which is how the provider behaves: ip_ids conflicts
 	// with assign_flexible_ip in its own schema.
 	if len(ipIDs) == 0 && (req.AssignFlexibleIP == nil || *req.AssignFlexibleIP) {
-		minted, err := p.mintLBIP(zone, project, false, []string{})
+		minted, err := p.mintLBIP(zone, project, false, []any{})
 		if err != nil {
 			writePrecondition(w, "ip", "", err.Error())
 			return
@@ -390,7 +390,7 @@ func (p *Pack) createLB(w http.ResponseWriter, r *http.Request) {
 		ipIDs = append(ipIDs, minted.ID)
 	}
 	if req.AssignFlexibleIPv6 != nil && *req.AssignFlexibleIPv6 {
-		minted, err := p.mintLBIP(zone, project, true, []string{})
+		minted, err := p.mintLBIP(zone, project, true, []any{})
 		if err != nil {
 			writePrecondition(w, "ip", "", err.Error())
 			return

@@ -134,7 +134,7 @@ type Rule struct {
 func (p *Pack) CreateBarrier(name string) *resource.Resource {
 	res := resource.New(p.env.NewID(), KindBarrier, tenant(), StateUp, p.env.Now())
 	res.Attrs["name"] = name
-	res.Attrs["rules"] = []Rule{}
+	res.Attrs["rules"] = []any{}
 	p.env.Store.Put(res)
 	return res
 }
@@ -161,7 +161,7 @@ func (p *Pack) AddRule(ctx context.Context, barrierID string, rule Rule) error {
 	next := make([]Rule, 0, len(previous)+1)
 	next = append(next, previous...)
 	next = append(next, rule)
-	res.Attrs["rules"] = next
+	res.Attrs["rules"] = rulesAttr(next)
 	if !p.env.Store.Commit(base, res, p.env.Now()) {
 		return ErrNoSuchResource
 	}
@@ -313,9 +313,9 @@ func (p *Pack) CreateNode(ctx context.Context, req NodeRequest) (*resource.Resou
 	res := resource.New(p.env.NewID(), KindNode, tenant(), StateDown, p.env.Now())
 	res.Attrs["name"] = req.Name
 	res.Attrs["image"] = req.Image
-	res.Attrs["barriers"] = append([]string(nil), req.Barriers...)
-	res.Attrs["segments"] = []string{}
-	res.Attrs["addresses"] = map[string]string{}
+	res.Attrs["barriers"] = stringsAttr(req.Barriers)
+	res.Attrs["segments"] = []any{}
+	res.Attrs["addresses"] = map[string]any{}
 	res.Attrs["user_data"] = req.UserData
 
 	if req.HomeSegment != "" {
@@ -328,7 +328,7 @@ func (p *Pack) CreateNode(ctx context.Context, req NodeRequest) (*resource.Resou
 			return nil, fmt.Errorf("four: the segment %s has no address left", segment.ID)
 		}
 		res.Attrs["home_segment"] = req.HomeSegment
-		res.Attrs["addresses"] = map[string]string{req.HomeSegment: address}
+		res.Attrs["addresses"] = addressesAttr(map[string]string{req.HomeSegment: address})
 	}
 	p.env.Store.Put(res)
 
@@ -513,8 +513,8 @@ func (p *Pack) JoinSegment(ctx context.Context, nodeID, segmentID string) error 
 	}
 
 	base := res.Clone()
-	res.Attrs["segments"] = appendUnique(membershipsOf(res), segmentID)
-	res.Attrs["addresses"] = withAddress(addressesOf(res), segmentID, address)
+	res.Attrs["segments"] = stringsAttr(appendUnique(membershipsOf(res), segmentID))
+	res.Attrs["addresses"] = addressesAttr(withAddress(addressesOf(res), segmentID, address))
 	if !p.env.Store.Commit(base, res, p.env.Now()) {
 		return ErrNoSuchResource
 	}
@@ -538,8 +538,8 @@ func (p *Pack) LeaveSegment(ctx context.Context, nodeID, segmentID string) error
 		return ErrNoSuchResource
 	}
 	base := res.Clone()
-	res.Attrs["segments"] = without(membershipsOf(res), segmentID)
-	res.Attrs["addresses"] = withoutAddress(addressesOf(res), segmentID)
+	res.Attrs["segments"] = stringsAttr(without(membershipsOf(res), segmentID))
+	res.Attrs["addresses"] = addressesAttr(withoutAddress(addressesOf(res), segmentID))
 	if !p.env.Store.Commit(base, res, p.env.Now()) {
 		return ErrNoSuchResource
 	}
@@ -651,7 +651,7 @@ func (p *Pack) CreateSpreader(ctx context.Context, name, segmentID string, port 
 	res.Attrs["name"] = name
 	res.Attrs["segment"] = segmentID
 	res.Attrs["port"] = port
-	res.Attrs["backends"] = []string{}
+	res.Attrs["backends"] = []any{}
 	p.env.Store.Put(res)
 	p.deliver(ctx, res)
 	return res, nil
@@ -668,7 +668,7 @@ func (p *Pack) RegisterBackend(ctx context.Context, spreaderID, nodeID string) e
 		return ErrNoSuchResource
 	}
 	base := res.Clone()
-	res.Attrs["backends"] = appendUnique(backendsOf(res), nodeID)
+	res.Attrs["backends"] = stringsAttr(appendUnique(backendsOf(res), nodeID))
 	if !p.env.Store.Commit(base, res, p.env.Now()) {
 		return ErrNoSuchResource
 	}
@@ -792,6 +792,89 @@ func (p *Pack) allocate(segment *resource.Resource, nodeID string) (string, bool
 
 // ---- Reading what the store holds -------------------------------------------
 
+// ---- What goes into Attrs is what a snapshot gives back (#567) -------------
+
+// Attrs is a map[string]any and the store's snapshot is JSON, so a restore
+// hands back only what encoding/json produces: nil, a bool, a string, a
+// float64, a []any, a map[string]any. Every other Go type is a value this pack
+// would stop holding the first time somebody runs `feint snapshot load` or
+// `PUT /_feint/state`.
+//
+// This pack wrote the Go shape on its first draft — []Rule, []string,
+// map[string]string — and measured the price on 2026-08-27, through
+// store.Snapshot then store.Restore into a fresh store:
+//
+//	[]Rule            (barriers)  -> nil
+//	[]string          (segments)  -> []any
+//	map[string]string (addresses) -> map[string]any
+//
+// A restored node therefore wore no barriers, joined no segments, and a
+// spreader had no backends, while the API went on describing all three. So the
+// Go types stay in this pack's own signatures, where they are useful, and the
+// four writers below are the only door into Attrs. storetest.GoShapes is what
+// refuses the gesture across every pack, this one included, and internal/cli's
+// TestTheFourthPacksNodeKeepsWhatItWearsAcrossASnapshot fails without them.
+
+// rulesAttr stores a rule set as the array of objects a snapshot returns.
+//
+// The keys are this pack's wire names, chosen here and nowhere else: a []Rule
+// has no recovery internal/core may perform, because recovering one means
+// knowing Rule (rule 5). That is the whole difference from a stored number,
+// which resource.Number repairs for every pack there will ever be.
+func rulesAttr(rules []Rule) []any {
+	out := make([]any, 0, len(rules))
+	for _, rule := range rules {
+		out = append(out, map[string]any{
+			"direction":      rule.Direction,
+			"action":         rule.Action,
+			"protocol":       rule.Protocol,
+			"source":         rule.Source,
+			"source_barrier": rule.SourceBarrier,
+			"port_from":      rule.PortFrom,
+			"port_to":        rule.PortTo,
+		})
+	}
+	return out
+}
+
+// stringsAttr stores a list of identifiers as the array a snapshot returns.
+func stringsAttr(values []string) []any {
+	out := make([]any, 0, len(values))
+	for _, value := range values {
+		out = append(out, value)
+	}
+	return out
+}
+
+// addressesAttr stores a segment-to-address table as the object a snapshot
+// returns.
+func addressesAttr(addresses map[string]string) map[string]any {
+	out := make(map[string]any, len(addresses))
+	for segmentID, address := range addresses {
+		out[segmentID] = address
+	}
+	return out
+}
+
+// stringsOf reads a stored list of identifiers back.
+func stringsOf(v any) []string {
+	stored, _ := v.([]any)
+	out := make([]string, 0, len(stored))
+	for _, item := range stored {
+		if s, ok := item.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// textOf reads a stored string back, answering "" for anything else — the same
+// answer the comma-ok assertion it replaces gave.
+func textOf(v any) string {
+	s, _ := v.(string)
+	return s
+}
+
 func attrString(res *resource.Resource, key string) string {
 	if res == nil {
 		return ""
@@ -801,18 +884,32 @@ func attrString(res *resource.Resource, key string) string {
 }
 
 func rulesOf(res *resource.Resource) []Rule {
-	rules, _ := res.Attrs["rules"].([]Rule)
+	stored, _ := res.Attrs["rules"].([]any)
+	rules := make([]Rule, 0, len(stored))
+	for _, item := range stored {
+		fields, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		rules = append(rules, Rule{
+			Direction:     textOf(fields["direction"]),
+			Action:        textOf(fields["action"]),
+			Protocol:      textOf(fields["protocol"]),
+			Source:        textOf(fields["source"]),
+			SourceBarrier: textOf(fields["source_barrier"]),
+			PortFrom:      int(resource.Number(fields["port_from"])),
+			PortTo:        int(resource.Number(fields["port_to"])),
+		})
+	}
 	return rules
 }
 
 func wornBarriers(res *resource.Resource) []string {
-	ids, _ := res.Attrs["barriers"].([]string)
-	return ids
+	return stringsOf(res.Attrs["barriers"])
 }
 
 func membershipsOf(res *resource.Resource) []string {
-	ids, _ := res.Attrs["segments"].([]string)
-	return ids
+	return stringsOf(res.Attrs["segments"])
 }
 
 // portOf reads back the port a spreader answers on.
@@ -835,16 +932,16 @@ func portOf(res *resource.Resource) int {
 }
 
 func backendsOf(res *resource.Resource) []string {
-	ids, _ := res.Attrs["backends"].([]string)
-	return ids
+	return stringsOf(res.Attrs["backends"])
 }
 
 func addressesOf(res *resource.Resource) map[string]string {
-	addresses, _ := res.Attrs["addresses"].(map[string]string)
-	if addresses == nil {
-		return map[string]string{}
+	stored, _ := res.Attrs["addresses"].(map[string]any)
+	out := make(map[string]string, len(stored))
+	for segmentID, address := range stored {
+		out[segmentID] = textOf(address)
 	}
-	return addresses
+	return out
 }
 
 // The four helpers below all copy before writing, for one reason:

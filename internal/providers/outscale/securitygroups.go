@@ -701,6 +701,23 @@ func (p *Pack) effectiveSecurityGroups(vm *resource.Resource) []any {
 	return out
 }
 
+// idsList is how a list of identifiers enters Attrs: as the shape a snapshot
+// gives back, and never nil (#567).
+//
+// Attrs crosses encoding/json on every snapshot, so a stored []string comes
+// back a []any and the pack's own value changes type behind its readers the
+// first time `feint snapshot load` or `PUT /_feint/state` is used. stringsOf
+// below was written to survive that, one tolerant reader per shape; this
+// refuses the write instead, which is the half a reader cannot supply for a
+// reader nobody has written yet.
+func idsList(ids []string) []any {
+	out := make([]any, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, id)
+	}
+	return out
+}
+
 // stringsOf reads a list of strings whatever it crossed: the handler stores
 // []string, a snapshot restores []any.
 func stringsOf(v any) []string {

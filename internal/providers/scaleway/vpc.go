@@ -746,7 +746,7 @@ func (p *Pack) ensureDefaultVPC(region, project string) *resource.Resource {
 		}
 	}
 	res := p.newVPC(region, project, "default", true)
-	res.Attrs["tags"] = []string{defaultVPCTag}
+	res.Attrs["tags"] = []any{defaultVPCTag}
 	p.env.Store.Put(res)
 	return res
 }
@@ -781,7 +781,7 @@ func (p *Pack) newVPC(region, project, name string, isDefault bool) *resource.Re
 			"name":            name,
 			"project_id":      project,
 			"organization_id": defaultOrganization,
-			"tags":            []string{},
+			"tags":            []any{},
 			"is_default":      isDefault,
 			"routing_enabled": true,
 			// Present from the start so the fields serialize on every read.

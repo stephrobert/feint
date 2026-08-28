@@ -23,6 +23,43 @@ type Tenant struct {
 // Attrs is the provider-shaped body: the pack owns its keys and the core only
 // ever copies it. State is kept out of Attrs because the core needs it for
 // lifecycle transitions, and packs mirror it into Attrs when they serialize.
+//
+// # What may go into Attrs
+//
+// The JSON shape, never the Go shape (#567). The store's snapshot is JSON —
+// the door `feint snapshot load` and `PUT /_feint/state` both go through, and
+// the one snapshot.go documents as meant to outlive its instance — so a
+// restore hands back only what encoding/json produces:
+//
+//	nil   bool   string   float64   []any   map[string]any
+//
+// Write anything else and the value silently becomes something else the first
+// time a snapshot is taken. Measured on 2026-08-27 on the pack built to be
+// copied, internal/cli/testdata/provider-four:
+//
+//	[]Rule            -> nil               a node wearing no rule set
+//	[]string          -> []any             a node joining no segment
+//	map[string]string -> map[string]any    a node with no address
+//
+// while the API went on describing all three. And it is not only a newcomer's
+// mistake: the first run of the control below over Scaleway's own barrage,
+// 2026-08-28, reported 82 resources holding a []string in Attrs["tags"].
+// Nothing was broken by those, because two files in that pack carry a
+// hand-written type switch tolerating both shapes — which is the habit, and a
+// habit is exactly what the next pack cannot inherit.
+//
+// Numbers are the one exception, and they are an exception because they have
+// an answer: an int, an int64 and a uint32 all come back float64, and Number,
+// Int, Int64 and Uint64 in attrs.go read them back for every pack there will
+// ever be (#542). A []Rule has no such answer — recovering one means knowing
+// Rule, which is the pack's type and must not enter internal/core (rule 5) —
+// so the core repairs the number and refuses the shape.
+//
+// The rule is checked rather than only written down:
+// storetest.GoShapes reports every stored value a snapshot cannot give back as
+// itself, every pack runs it over its own barrage, and internal/cli's
+// TestEveryPackRunsTheSharedBarrage is what makes a fourth pack fail a control
+// it never had to remember to write.
 type Resource struct {
 	ID      string
 	Kind    string

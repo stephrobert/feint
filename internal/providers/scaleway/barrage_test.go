@@ -216,6 +216,14 @@ func TestABarrageLeavesTheStoreCoherent(t *testing.T) {
 			len(refused), strings.Join(firstFew(refused, 5), "\n"))
 	}
 
+	// What the store holds must be what a snapshot can give back (#567). A
+	// []string, a map[string]string or a slice of the pack's own struct type
+	// crosses store.Snapshot/store.Restore as something else, and the pack goes
+	// on describing what it no longer holds.
+	if found := storetest.GoShapes(st.All()); len(found) != 0 {
+		t.Errorf("the barrage stored %d value(s) a snapshot cannot give back as themselves:\n%s",
+			len(found), strings.Join(found, "\n"))
+	}
 	if found := storetest.Sweep(st.All(), nil, nil); len(found) != 0 {
 		t.Errorf("the store is incoherent after the barrage:\n%s", strings.Join(found, "\n"))
 	}

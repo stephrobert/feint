@@ -234,7 +234,7 @@ func (p *Pack) createBlockVolume(w http.ResponseWriter, r *http.Request) {
 		"size": size,
 		// Present and empty rather than absent, the lesson snapshots.go paid
 		// for: `exo` dereferences what the schema declares.
-		"labels": labelsOrEmpty(req.Labels),
+		"labels": labelsToAttr(req.Labels),
 	}
 	p.env.Store.Put(res)
 	p.writeOperation(w, p.operationReferring(nounBlockVolume, res.ID))
@@ -242,12 +242,6 @@ func (p *Pack) createBlockVolume(w http.ResponseWriter, r *http.Request) {
 
 // labelsOrEmpty keeps a declared map present. A nil map marshals to null, and a
 // client ranging over null is a client that stops.
-func labelsOrEmpty(labels map[string]string) map[string]string {
-	if labels == nil {
-		return map[string]string{}
-	}
-	return labels
-}
 
 // listBlockVolumes answers the volumes, narrowed to one instance's when the
 // client asks: their document declares an instance-id filter on this operation
@@ -305,7 +299,7 @@ func (p *Pack) updateBlockVolume(w http.ResponseWriter, r *http.Request) {
 			stored.Attrs["name"] = *req.Name
 		}
 		if req.Labels != nil {
-			stored.Attrs["labels"] = req.Labels
+			stored.Attrs["labels"] = labelsToAttr(req.Labels)
 		}
 		return nil
 	})
@@ -545,7 +539,7 @@ func (p *Pack) createBlockSnapshot(w http.ResponseWriter, r *http.Request) {
 		// be fiction a client could act on.
 		"size":                 size,
 		"volume-size":          size,
-		"labels":               labelsOrEmpty(req.Labels),
+		"labels":               labelsToAttr(req.Labels),
 		"block-storage-volume": map[string]any{"id": volume.ID},
 	}
 	res.Runtime = map[string]string{runtimeBlockVolumeKey: volume.ID}
@@ -593,7 +587,7 @@ func (p *Pack) updateBlockSnapshot(w http.ResponseWriter, r *http.Request) {
 			stored.Attrs["name"] = *req.Name
 		}
 		if req.Labels != nil {
-			stored.Attrs["labels"] = req.Labels
+			stored.Attrs["labels"] = labelsToAttr(req.Labels)
 		}
 		return nil
 	})

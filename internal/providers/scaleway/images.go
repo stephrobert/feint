@@ -84,7 +84,7 @@ func (p *Pack) imageView(zone, id, label string) map[string]any {
 		"project":            defaultProject,
 		"public":             true,
 		"state":              "available",
-		"tags":               []string{},
+		"tags":               []any{},
 		"zone":               zone,
 		"extra_volumes":      map[string]any{},
 		// An empty STRING, never null (#367). The SDK types it as a value —
@@ -411,7 +411,7 @@ func (p *Pack) updateImage(w http.ResponseWriter, r *http.Request) {
 			stored.Attrs["name"] = *req.Name
 		}
 		if req.Tags != nil {
-			stored.Attrs["tags"] = *req.Tags
+			stored.Attrs["tags"] = orEmpty(*req.Tags)
 		}
 		stored.Updated = p.env.Now()
 		updated = stored

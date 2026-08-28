@@ -446,7 +446,7 @@ func (p *Pack) allocateVms(req createVmsRequest, count int, now time.Time) ([]*r
 			res.Attrs["UserData"] = req.UserData
 		}
 		if len(req.SecurityGroupIDs) > 0 {
-			res.Attrs["SecurityGroupIds"] = req.SecurityGroupIDs
+			res.Attrs["SecurityGroupIds"] = idsList(req.SecurityGroupIDs)
 		}
 		p.env.Store.Put(res)
 		// The root device, cut from the snapshot the image names — the last
@@ -600,7 +600,7 @@ func (p *Pack) updateVm(w http.ResponseWriter, r *http.Request) {
 			stored.Attrs["VmType"] = req.VMType
 		}
 		if len(req.SecurityGroupIDs) > 0 {
-			stored.Attrs["SecurityGroupIds"] = req.SecurityGroupIDs
+			stored.Attrs["SecurityGroupIds"] = idsList(req.SecurityGroupIDs)
 		}
 		if req.KeypairName != "" {
 			stored.Attrs["KeypairName"] = req.KeypairName

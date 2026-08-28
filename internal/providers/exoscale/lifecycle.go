@@ -266,6 +266,17 @@ func (p *Pack) updateInstance(w http.ResponseWriter, r *http.Request) {
 
 // labelsToAttr stores labels as the map[string]any every attrs consumer
 // (snapshot round-trip included) expects.
+//
+// It is the pack's only door for labels since #567, and the reason is that it
+// used to have two. block.go carried labelsOrEmpty, the same conversion minus
+// the conversion: it answered map[string]string, so a pool, a block volume and
+// a load balancer stored a Go map that a snapshot gives back as
+// map[string]any, while an instance and a private network — created through
+// this one — stored the shape the door returns. One pack, one job, two helpers
+// and only one of them right, which is #542's seven copies wearing labels.
+// storetest.GoShapes refuses the wrong shape now, so the second helper is gone
+// rather than fixed: a second door is a door the next author picks by
+// proximity.
 func labelsToAttr(labels map[string]string) map[string]any {
 	out := make(map[string]any, len(labels))
 	for k, v := range labels {

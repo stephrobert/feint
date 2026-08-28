@@ -1491,11 +1491,30 @@ func hasEveryTag(res *resource.Resource, wanted []string) bool {
 	return true
 }
 
-func orEmpty(tags []string) []string {
-	if tags == nil {
-		return []string{}
+// orEmpty is how a list of strings enters Attrs: as the shape a snapshot gives
+// back, and never null (#567).
+//
+// Two jobs in one line, and the second is the one that was missing. The empty
+// list rather than nil, because every recording of this API answers `"tags":
+// []` and a client reading null where the cloud sends an array branches
+// differently. And []any rather than []string, because Attrs crosses
+// encoding/json on every snapshot: a stored []string comes back a []any, so
+// the pack's own value changes type behind the readers' backs the first time
+// `feint snapshot load` or `PUT /_feint/state` is used. Measured on
+// 2026-08-28: a barrage of this pack left 82 resources — security groups,
+// snapshots, volumes and a VPC — carrying a []string in Attrs["tags"].
+//
+// Nothing broke, and that is the reason it lasted: hasEveryTag and tagsOf each
+// carry a hand-written type switch tolerating both shapes, one per file, which
+// is #542's seven copies one storey down. storetest.GoShapes now refuses the
+// write instead of asking each reader to survive it, and
+// TestABarrageLeavesTheStoreCoherent fails without this.
+func orEmpty(tags []string) []any {
+	out := make([]any, 0, len(tags))
+	for _, tag := range tags {
+		out = append(out, tag)
 	}
-	return tags
+	return out
 }
 
 func orDefault(v, fallback string) string {

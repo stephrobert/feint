@@ -314,7 +314,7 @@ func (p *Pack) createNic(w http.ResponseWriter, r *http.Request) {
 		"Tags": []any{},
 	}
 	if len(req.SecurityGroupIDs) > 0 {
-		nic.Attrs["SecurityGroupIds"] = req.SecurityGroupIDs
+		nic.Attrs["SecurityGroupIds"] = idsList(req.SecurityGroupIDs)
 	}
 	p.env.Store.Put(nic)
 	unlock()

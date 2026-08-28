@@ -196,7 +196,7 @@ func (p *Pack) updateNic(w http.ResponseWriter, r *http.Request) {
 			stored.Attrs["Description"] = *req.Description
 		}
 		if req.SecurityGroupIDs != nil {
-			stored.Attrs["SecurityGroupIds"] = req.SecurityGroupIDs
+			stored.Attrs["SecurityGroupIds"] = idsList(req.SecurityGroupIDs)
 		}
 		if req.LinkNic != nil && req.LinkNic.DeleteOnVMDeletion != nil {
 			// The attachment lives in the flat keys linkNic writes; the

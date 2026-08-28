@@ -207,7 +207,7 @@ func (p *Pack) setPlacementGroupFull(w http.ResponseWriter, r *http.Request) {
 		if req.Tags != nil {
 			stored.Attrs["tags"] = orEmpty(*req.Tags)
 		} else {
-			stored.Attrs["tags"] = []string{}
+			stored.Attrs["tags"] = []any{}
 		}
 		stored.Updated = p.env.Now()
 		updated = stored

@@ -678,7 +678,7 @@ func (p *Pack) newSecurityGroup(zone, project, name, description, inbound, outbo
 			"description":             description,
 			"organization":            defaultOrganization,
 			"project":                 project,
-			"tags":                    []string{},
+			"tags":                    []any{},
 			"inbound_default_policy":  inbound,
 			"outbound_default_policy": outbound,
 			"enable_default_security": true,

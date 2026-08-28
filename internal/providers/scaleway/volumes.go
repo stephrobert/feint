@@ -197,7 +197,7 @@ func (p *Pack) newVolume(zone, project, organization, name, volumeType string, s
 			"organization": organization,
 			"size":         size,
 			"volume_type":  volumeType,
-			"tags":         []string{},
+			"tags":         []any{},
 			"export_uri":   nil,
 			"boot":         false,
 		},
