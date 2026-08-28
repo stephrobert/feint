@@ -21,6 +21,20 @@
       "find": "# waits on silence: the verdict below is drawn from a connection that does NOT",
       "replace": "# it waits on the silence, and the verdict below is drawn from a connection that does NOT",
       "test": "TestEveryFixedSleepInARuntimeSuiteSaysWhatItWaitsFor"
+    },
+    {
+      "label": "the trace reports the SCALED budget instead of the one the caller asked for, so every WAIT_SCALE run reads as a suite whose budgets had already been raised (#587)",
+      "file": "tools/conformance/shared/waiting.sh",
+      "find": "      _wait_record until EXPIRED \"$asked\" \"$started\" \"$@\"",
+      "replace": "      _wait_record until EXPIRED \"${asked:+$budget}\" \"$started\" \"$@\"",
+      "test": "TestTheWaitsRecordWhatTheyCostWhenAskedTo"
+    },
+    {
+      "label": "WAIT_SCALE stops reaching the budget, so the one run that answers 'slow or broken' silently measures the unscaled wait (#587)",
+      "file": "tools/conformance/shared/waiting.sh",
+      "find": "wait_until() { # seconds command...\n  local budget=\"$1\"\n  shift\n  local asked=\"$budget\"\n  budget=$((budget * WAIT_SCALE))",
+      "replace": "wait_until() { # seconds command...\n  local budget=\"$1\"\n  shift\n  local asked=\"$budget\"\n  budget=$((budget * WAIT_SCALE / WAIT_SCALE))",
+      "test": "TestTheWaitsRecordWhatTheyCostWhenAskedTo"
     }
   ]
 }
