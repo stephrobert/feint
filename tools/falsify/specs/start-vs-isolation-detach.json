@@ -1,0 +1,27 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the first boot stops holding its network's lock across `incus start`, so an isolation detach deletes the referenced rule set inside the plug and the machine is left stopped behind a green apply",
+      "file": "internal/core/machine/incus.go",
+      "find": "\tvar gate func()\n\tif !routed && !bare {\n\t\tgate = d.networkLock(primary.Network)\n\t}",
+      "replace": "\tvar gate func()\n\tif !routed && !bare && false {\n\t\tgate = d.networkLock(primary.Network)\n\t}",
+      "test": "TestAStartAndAnIsolationDetachTakeTurns"
+    },
+    {
+      "label": "the poweron door stops locking the networks its NICs sit on, so a detach lands inside the re-plug of a restarted machine",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\trelease := d.lockNetworks(nicNetworks(devices.expanded))\n\t\t_, err = d.run(ctx, \"start\", spec.Name)",
+      "replace": "\t\trelease := d.lockNetworks(nicNetworks(devices.expanded)[:0])\n\t\t_, err = d.run(ctx, \"start\", spec.Name)",
+      "test": "TestARestartAndAnIsolationDetachTakeTurns"
+    },
+    {
+      "label": "the extra-interface add takes its network's lock only after the add has run, which is no ordering at all",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\trelease := d.networkLock(att.Network)\n\t\t_, err := d.run(ctx, args...)\n\t\trelease()",
+      "replace": "\t\t_, err := d.run(ctx, args...)\n\t\trelease := d.networkLock(att.Network)\n\t\trelease()",
+      "test": "TestAnExtraInterfaceAndAnIsolationDetachTakeTurns"
+    }
+  ],
+  "note": "The interleaving is staged, not bet on: fakeStartd's plug snapshots the referenced rule sets when the operation begins and resolves them when it ends, and the detach goroutine is released at the exact moment the plug begins, so without the ordering the delete is inside on every run. The daemon behaviour the fake models was measured on the station on 2026-08-28 (Incus 7.2, OVN): a detach fired 50-300 ms into a ~600 ms container start killed 12 of 14 starts with `Cannot find security ACL ID`; the attach direction produced it in 0 of 14 tries. Each mutation keeps every name of its find: the first neutralises the condition, the second empties the lock set, the third reorders the lock after the act."
+}

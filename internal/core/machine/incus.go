@@ -418,7 +418,24 @@ func (d *Incus) Start(ctx context.Context, spec Spec) (Machine, error) {
 	if _, ok, err := d.Inspect(ctx, spec.Name); err != nil {
 		return Machine{}, err
 	} else if ok {
-		if _, err := d.run(ctx, "start", spec.Name); err != nil &&
+		// Starting an instance plugs every one of its OVN ports, and the
+		// daemon re-ensures each rule set the port's network references while
+		// doing so — the references are read as the start begins and resolved
+		// to IDs as the port is set up, with no lock shared with its own ACL
+		// paths (#493's mechanism, on a third call site). An isolation detach
+		// landing inside deletes the set between the two steps, and the start
+		// dies on `Cannot find security ACL ID for "iso-fnt-…"`. Same lock as
+		// the detach, so the two take turns; every network the NICs sit on,
+		// in sorted order, which is the multi-lock rule peerLock follows.
+		// TestARestartAndAnIsolationDetachTakeTurns fails without it.
+		devices, err := d.instanceDevices(ctx, spec.Name)
+		if err != nil {
+			return Machine{}, fmt.Errorf("inspect %s before starting it: %w", spec.Name, err)
+		}
+		release := d.lockNetworks(nicNetworks(devices.expanded))
+		_, err = d.run(ctx, "start", spec.Name)
+		release()
+		if err != nil &&
 			!strings.Contains(strings.ToLower(err.Error()), "already running") {
 			return Machine{}, fmt.Errorf("start instance %s: %w", spec.Name, err)
 		}
@@ -597,9 +614,27 @@ func (d *Incus) Start(ctx context.Context, spec Spec) (Machine, error) {
 		}
 	}
 
-	if _, err := d.run(ctx, "start", spec.Name); err != nil {
+	// The same turn-taking as the already-running branch above: this first
+	// `incus start` plugs eth0's OVN port, the daemon resolves the network's
+	// ACL references inside it, and an isolation detach — a peering
+	// acceptance empties the foreign list mid-apply, and IsolateNetwork then
+	// unsets and deletes the set — landing inside kills the start with
+	// `Cannot find security ACL ID for "iso-fnt-…"`, a machine left
+	// 'stopped' behind a green apply. Staged on the host: 12 failures in 14
+	// starts with a detach 50–300 ms in. Held only around the start itself:
+	// everything before edits a cold instance, which plugs nothing.
+	// TestAStartAndAnIsolationDetachTakeTurns fails without it.
+	var gate func()
+	if !routed && !bare {
+		gate = d.networkLock(primary.Network)
+	}
+	_, startErr := d.run(ctx, "start", spec.Name)
+	if gate != nil {
+		gate()
+	}
+	if startErr != nil {
 		return Machine{}, d.abandonStart(ctx, spec.Name,
-			fmt.Errorf("start instance %s: %w", spec.Name, err))
+			fmt.Errorf("start instance %s: %w", spec.Name, startErr))
 	}
 	if err := d.attachExtra(ctx, spec); err != nil {
 		return Machine{}, err
@@ -633,7 +668,13 @@ func (d *Incus) attachExtra(ctx context.Context, spec Spec) error {
 		if att.Address != "" {
 			args = append(args, "ipv4.address="+att.Address)
 		}
-		if _, err := d.run(ctx, args...); err != nil {
+		// The instance is running by now, so this add plugs an OVN port and
+		// resolves the network's ACL references inside it — the same window
+		// the two start branches close above, on this interface's network.
+		release := d.networkLock(att.Network)
+		_, err := d.run(ctx, args...)
+		release()
+		if err != nil {
 			return fmt.Errorf("attach instance %s to network %s: %w", spec.Name, att.Network, err)
 		}
 	}
@@ -1134,6 +1175,40 @@ func freeInterface(devices map[string]map[string]string) string {
 // TestAnIsolationDetachDoesNotOrphanTheNetworkBeingDeleted fails without it.
 func (d *Incus) networkLock(name string) func() {
 	return serialise.Lock("incus.network." + name)
+}
+
+// nicNetworks answers the networks an instance's NIC devices sit on, sorted
+// and deduplicated. From the expanded devices, because the daemon plugs a
+// profile's NIC at start exactly as it plugs the instance's own.
+func nicNetworks(devices map[string]map[string]string) []string {
+	seen := map[string]bool{}
+	for _, cfg := range devices {
+		if cfg["type"] == "nic" && cfg["network"] != "" {
+			seen[cfg["network"]] = true
+		}
+	}
+	names := make([]string, 0, len(seen))
+	for name := range seen {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return names
+}
+
+// lockNetworks takes each named network's lock and answers one release for
+// them all. The caller passes the set sorted (nicNetworks does), which is the
+// same deadlock rule peerLock applies: two takers of several locks must ask
+// in the same order, or each ends up holding the other's next one.
+func (d *Incus) lockNetworks(names []string) func() {
+	releases := make([]func(), 0, len(names))
+	for _, name := range names {
+		releases = append(releases, d.networkLock(name))
+	}
+	return func() {
+		for i := len(releases) - 1; i >= 0; i-- {
+			releases[i]()
+		}
+	}
 }
 
 // EnsureNetwork implements Driver. It creates a managed bridge carrying the
