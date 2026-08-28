@@ -2614,9 +2614,15 @@ real cloud part ways:
   snapshot for the flag to reveal. The state filter is real code on the
   default path; the difference from the real cloud, which retains deleted
   volumes for a while, is this line.
-- **`s3_integration_enabled=true` matches nothing.** No VPC or Private Network
-  here integrates with Object Storage, which is not emulated (see above), so
-  true truthfully answers an empty list and false answers everything.
+- **`object_storage_private_access_enabled=true` matches nothing**, and so does
+  `s3_integration_enabled=true`, which is the name Scaleway retired on
+  2026-08-25 and this filter still accepts (#570): a client that has not been
+  rebuilt keeps sending it. No VPC or Private Network here integrates with
+  Object Storage, which is not emulated (see above), so true truthfully answers
+  an empty list and false answers everything. The *body* answers the new name
+  alone — both upstream sources declare only that one, and inventing a
+  deprecation alias in an answer is not the same decision as tolerating a name
+  a client still sends in a request.
 - **`arch` and `type` on marketplace ListLocalImages are equalities against
   the one published image.** `arch=arm64` or `type=instance_local` answers an
   empty list — the catalogue is x86_64 and `instance_sbs` — where dropping the
