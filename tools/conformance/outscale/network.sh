@@ -279,6 +279,18 @@ ip_b="$(printf '%s' "$vm_b_doc" | jq -r '.Vms[0].PrivateIp // empty')"
 
 # The machine must be up and carrying its address before absence of reach can
 # mean isolation rather than a machine still booting.
+#
+# 24 IS NOT A MEASUREMENT, AND RAISING IT WAS THE WRONG FIX (#587). It is the
+# `for _ in 1..12; do sleep 2; done` this line replaced, transcribed. This wait
+# expired at 24.816 s on the maintainer's station while CI passed the same
+# suite, and three measurements said the budget was never the lever: at the end
+# of a 90 s wait the guest's DHCP client was gone, a `udhcpc` exchange in that
+# same guest was answered in 97–143 ms, and the alpine machine never took its
+# address at 45 s, 90 s or 180 s. The defect was in the driver's first-boot
+# door, docs/limits.md carries the decomposition, and with it fixed the address
+# is on the machine 31–36 ms after the create answers. The number below is left
+# where it was because nothing measured asks it to move; WAIT_TRACE in
+# shared/waiting.sh is how the next reader re-derives it instead of guessing.
 booted=""
 if wait_until 24 machine_carries "feint-osc-$vm_b" "$ip_b"; then booted="yes"; fi
 [ -n "$booted" ] || fail "feint-osc-$vm_b does not carry $ip_b; cannot measure reachability"
