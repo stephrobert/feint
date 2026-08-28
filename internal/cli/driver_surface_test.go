@@ -720,7 +720,8 @@ var mustStayOutside = []string{
 	// firewall last — is a property of the runtime, and a pack that starts a
 	// machine through the binding skips it.
 	"Binding.Start", "Binding.Stop", "Binding.Remove", "Binding.Addresses",
-	"Binding.Name", "Binding.PowerOn", "Binding.Refresh", "Binding.ForgetPlacements",
+	"Binding.Name", "Binding.PowerOn", "Binding.Refresh", "Binding.Rescan",
+	"Binding.ForgetPlacements",
 	// The unkinded address reader (#541, plural since #548). It was in the
 	// surface until an Exoscale instance with no public IP published its
 	// private-network address as `public-ip`: the binding records whatever

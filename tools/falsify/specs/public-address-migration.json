@@ -58,6 +58,20 @@
       "find": "\t\tif err := d.restorePinnedAddress(ctx, machine, device, devices.own[device]); err != nil {\n\t\t\treturn err\n\t\t}",
       "replace": "\t\tif false {\n\t\t\tif err := d.restorePinnedAddress(ctx, machine, device, devices.own[device]); err != nil {\n\t\t\t\treturn err\n\t\t\t}\n\t\t}",
       "test": "TestARestartedMachineGetsItsPinnedAddressBack"
+    },
+    {
+      "label": "the boot's own record is never re-read, so it stays older than the machine by the addresses the replay installed",
+      "file": "internal/core/machine/binding.go",
+      "find": "\tif joined == \"\" || joined == res.Runtime[b.AddressKey] {\n\t\treturn false\n\t}",
+      "replace": "\tif joined == \"\" || joined == res.Runtime[b.AddressKey] || true {\n\t\treturn false\n\t}",
+      "test": "TestABootRecordsEveryAddressTheReplayInstalled"
+    },
+    {
+      "label": "a runtime with nothing to say overwrites the record anyway, erasing what an earlier read had learned",
+      "file": "internal/core/machine/binding.go",
+      "find": "\taddresses, found := b.Addresses(ctx, res.ID, res.Runtime[b.RuntimeKey])\n\tif !found {\n\t\treturn false\n\t}\n\tjoined := joinAddresses(addresses)\n\tif joined == \"\" || joined == res.Runtime[b.AddressKey] {",
+      "replace": "\taddresses, found := b.Addresses(ctx, res.ID, res.Runtime[b.RuntimeKey])\n\tif !found && false {\n\t\treturn false\n\t}\n\tjoined := joinAddresses(addresses)\n\tif joined == res.Runtime[b.AddressKey] {",
+      "test": "TestABootRecordsEveryAddressTheReplayInstalled"
     }
   ]
 }

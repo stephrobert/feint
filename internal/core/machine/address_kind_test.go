@@ -119,3 +119,50 @@ func TestARestoredAddressThatIsNotAnAddressIsNotPublished(t *testing.T) {
 		t.Errorf("private = %q, want 10.199.0.2", got)
 	}
 }
+
+// TestABootRecordsEveryAddressTheReplayInstalled: the record a boot leaves is
+// written before the replay installs the addresses the plan promised, so it is
+// older than the machine by exactly those. Measured 2026-08-28 under
+// `--vm incus-ovn`, on a server rebooted through the API once its public
+// address had moved onto its private NIC: the store came back `10.199.0.2`
+// alone while the station reached 203.0.113.2 on that machine in the same
+// pass, and a pack asking the layer for a public address would have been told
+// there was none.
+//
+// What the recorder can hold is the read itself and its two directions, since
+// the double answers one address per machine and cannot stage a set that grows
+// mid-boot. The runtime half is the measurement above, re-read after the fix:
+// `10.199.0.2,203.0.113.2`.
+func TestABootRecordsEveryAddressTheReplayInstalled(t *testing.T) {
+	b := newGroupSyncBench()
+	vm := b.machine("m", "")
+	r := reconcilerBench(b, Plan{Publics: []string{"203.0.113.9"}})
+
+	if !r.PowerOn(context.Background(), vm, Boot{Image: "ubuntu:24.04"}) {
+		t.Fatalf("the boot did not start; sequence: %v", b.rec.Sequence())
+	}
+	if got := vm.Runtime["address"]; got == "" {
+		t.Fatalf("the boot recorded no address at all: %v", vm.Runtime)
+	}
+
+	// A record older than the machine is replaced by what the runtime holds.
+	vm.Runtime["address"] = "10.0.0.254"
+	if !r.binding().Rescan(context.Background(), vm) {
+		t.Fatalf("a stale record was not re-read: %v", vm.Runtime)
+	}
+	if got := vm.Runtime["address"]; got == "10.0.0.254" {
+		t.Errorf("the record still holds what nobody answered: %q", got)
+	}
+
+	// And a runtime with nothing to say leaves the record alone, which is what
+	// a virtual machine still booting looks like: overwriting there would
+	// erase what an earlier read had learned.
+	before := vm.Runtime["address"]
+	vm.Runtime["machine"] = ""
+	if r.binding().Rescan(context.Background(), vm) {
+		t.Errorf("a machine the runtime cannot answer for had its record overwritten")
+	}
+	if vm.Runtime["address"] != before {
+		t.Errorf("the record moved to %q, want %q kept", vm.Runtime["address"], before)
+	}
+}

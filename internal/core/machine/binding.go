@@ -590,6 +590,40 @@ func (b Binding) Refresh(ctx context.Context, res *resource.Resource) bool {
 	return true
 }
 
+// Rescan re-reads what the machine answers on and records the whole of it,
+// where Refresh only fills a blank.
+//
+// It exists because a boot records too early to be complete (#548). Start
+// answers as soon as the instance is up, and the addresses the plan promised
+// are installed *after* that — the replay routes them — so the set recorded at
+// the boot is whatever the guest happened to carry in between. Measured
+// 2026-08-28 under `--vm incus-ovn`, on a server rebooted through the API once
+// its public address had moved onto its private NIC: the record came back
+// `10.199.0.2` alone while the machine answered on 203.0.113.2 as well, so a
+// pack asking the layer for a public address would have been told there was
+// none.
+//
+// Overwriting is the difference, and it is safe in the one direction that
+// matters: a runtime with nothing to say leaves the record alone, so a virtual
+// machine still booting never erases what an earlier read learned.
+//
+// TestABootRecordsEveryAddressTheReplayInstalled fails without this.
+func (b Binding) Rescan(ctx context.Context, res *resource.Resource) bool {
+	addresses, found := b.Addresses(ctx, res.ID, res.Runtime[b.RuntimeKey])
+	if !found {
+		return false
+	}
+	joined := joinAddresses(addresses)
+	if joined == "" || joined == res.Runtime[b.AddressKey] {
+		return false
+	}
+	if res.Runtime == nil {
+		res.Runtime = map[string]string{}
+	}
+	res.Runtime[b.AddressKey] = joined
+	return true
+}
+
 // RefreshIfRunning fills the address in when the resource is running and has
 // none yet. It was written out in all three packs, running-state comparison
 // included, which is exactly the line the binding exists to hold.

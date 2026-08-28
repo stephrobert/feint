@@ -59,11 +59,15 @@ type Reconciler struct {
 	// PlanOf builds the machine's declared interface shape from the resource —
 	// the pack's own field walks, nothing else.
 	PlanOf func(res *resource.Resource) Plan
-	// Settle, optional, is the pack's bookkeeping between the start and the
-	// replay: what the boot produced, recorded in the pack's own attributes
-	// before the firewall expansion reads them. One pack keeps the machine's
-	// private address in an API field the others do not declare; forcing that
-	// into the shared sequence would invent a field, so it is a hook.
+	// Settle, optional, is the pack's bookkeeping at the end of the replay:
+	// what the boot produced, recorded in the pack's own attributes before the
+	// firewall expansion reads them. One pack keeps the machine's private
+	// address in an API field the others do not declare; forcing that into the
+	// shared sequence would invent a field, so it is a hook.
+	//
+	// After the replay and not before it (#548): the addresses the plan
+	// promised are installed by the replay, so a hook that ran first read a
+	// record that did not have them yet.
 	Settle func(res *resource.Resource)
 	// PublicBlock is the emulated public range this pack may route. It guards
 	// every address on its way to the driver, routing and unrouting alike: a
@@ -129,9 +133,6 @@ func (r Reconciler) PowerOn(ctx context.Context, res *resource.Resource, boot Bo
 	if !r.binding().PowerOn(ctx, res, boot) {
 		return false
 	}
-	if r.Settle != nil {
-		r.Settle(res)
-	}
 	// The launch installed the host half of every public route; this hands
 	// the guest its addresses, and repairs a machine that already existed.
 	// Idempotent, like everything in the replay.
@@ -145,6 +146,22 @@ func (r Reconciler) PowerOn(ctx context.Context, res *resource.Resource, boot Bo
 	// firewall still describe what the store says.
 	for _, m := range plan.Memberships {
 		_ = r.attach(ctx, res, m)
+	}
+	// What the two loops above delivered is read back before the firewall,
+	// because the record written at the boot is older than they are (#548):
+	// the addresses the plan promised are installed here, not there. The
+	// expansion that follows then sees the same set a client will.
+	r.binding().Rescan(ctx, res)
+	// The pack's own bookkeeping, after that read and before the expansion.
+	// It used to run straight after the start, and that was too early by
+	// exactly the addresses this replay installs: the one pack that
+	// implements it copies the machine's private address into an API field,
+	// and a boot whose record was still empty left that field unset for the
+	// life of the resource — measured by internal/providers/outscale's
+	// TestAStoppedVmKeepsItsPrivateAddress, which went red the day the read
+	// above was added and the hook stayed where it was.
+	if r.Settle != nil {
+		r.Settle(res)
 	}
 	// The firewall last, so the expansion sees every address and every
 	// interface the two loops above delivered. This line is the order the

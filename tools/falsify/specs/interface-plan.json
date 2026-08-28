@@ -4,8 +4,8 @@
     {
       "label": "the boot replay applies the firewall before joining the memberships, the order three packs kept only in comments (#510)",
       "file": "internal/core/machine/plan.go",
-      "find": "\tfor _, m := range plan.Memberships {\n\t\t_ = r.attach(ctx, res, m)\n\t}\n\t// The firewall last, so the expansion sees every address and every\n\t// interface the two loops above delivered. This line is the order the\n\t// packs kept in comments; TestTheReplayRoutesThenJoinsThenAppliesTheFirewall\n\t// is what holds it now.\n\tr.Groups.AfterBoot(ctx, res)",
-      "replace": "\t// The firewall last, so the expansion sees every address and every\n\t// interface the two loops above delivered. This line is the order the\n\t// packs kept in comments; TestTheReplayRoutesThenJoinsThenAppliesTheFirewall\n\t// is what holds it now.\n\tr.Groups.AfterBoot(ctx, res)\n\tfor _, m := range plan.Memberships {\n\t\t_ = r.attach(ctx, res, m)\n\t}",
+      "find": "\tfor _, m := range plan.Memberships {\n\t\t_ = r.attach(ctx, res, m)\n\t}",
+      "replace": "\tr.Groups.AfterBoot(ctx, res)\n\tfor _, m := range plan.Memberships {\n\t\t_ = r.attach(ctx, res, m)\n\t}",
       "test": "TestTheReplayRoutesThenJoinsThenAppliesTheFirewall"
     },
     {
