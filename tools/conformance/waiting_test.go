@@ -212,10 +212,17 @@ func TestTheWaitsRecordWhatTheyCostWhenAskedTo(t *testing.T) {
 	dir := t.TempDir()
 	trace := filepath.Join(dir, "trace.tsv")
 
-	// Budget 1 at scale 3: unscaled, `wait_until 1 false` gives up at about two
-	// seconds (the budget plus the one-second rounding the file explains), and
-	// scaled it must run to about four. The threshold sits between the two, so
-	// a multiplier that is ignored is measured rather than argued about.
+	// Budget 1 at scale 3, and the threshold below is derived rather than
+	// picked. The wait ends when `SECONDS` reaches budget+1, and `SECONDS`
+	// ticks on the shell's own integer boundary, so a shell started at X.99
+	// sees it a hundredth of a second later: unscaled the wait lasts between
+	// 1 and 2 seconds, scaled between 3 and 4. 2.5 s is the midpoint of the
+	// gap, which is the only value that separates them on every host.
+	//
+	// The first version asserted 3.5 s and went red under `go test -race` at
+	// 3.27 s — a threshold inside the scaled band rather than between the two
+	// bands, which is the harness failing before its subject. It is written
+	// down because that is the mistake this repository keeps paying for.
 	script := `
 export WAIT_TRACE="$1" WAIT_SCALE=3
 if wait_until 1 false; then echo "verdict=passed"; else echo "verdict=failed"; fi
@@ -256,10 +263,10 @@ if wait_until 1 false; then echo "verdict=passed"; else echo "verdict=failed"; f
 			"trace would then describe budgets nobody wrote, and a distribution read off it "+
 			"would justify raising a number that had already been raised", fields[3])
 	}
-	if elapsed < 3500*time.Millisecond {
-		t.Errorf("wait_until 1 under WAIT_SCALE=3 gave up after %s, which is the unscaled "+
-			"budget: the multiplier never reached it, so a scaled run measures the "+
-			"unscaled wait", elapsed)
+	if elapsed < 2500*time.Millisecond {
+		t.Errorf("wait_until 1 under WAIT_SCALE=3 gave up after %s, which is inside the "+
+			"UNSCALED band of one to two seconds: the multiplier never reached the budget, "+
+			"so a scaled run measures the unscaled wait", elapsed)
 	}
 
 	// The other half. Unset, the instrument must not exist: these suites run in
