@@ -216,6 +216,14 @@ func TestABridgeModeRestartLaysNoAggregates(t *testing.T) {
 // — an operator reading "the machine is running" and finding it unreachable is
 // the state #549 was.
 func TestAGuestThatNeverConfiguresItsInterfaceIsReported(t *testing.T) {
+	// The guest takes every command and reports no address, which is the one
+	// shape that isolates the wait: the restore that now runs before it (#548)
+	// succeeds here, so a failure can only come from the wait itself.
+	//
+	// Written that way after a falsification measured the alternative: with an
+	// `exec` that fails outright, neutralising the wait's own error return left
+	// this test green — the restore was failing first, and the test had
+	// silently changed subject.
 	f := &fakeRuntime{}
 	f.hook = func(_ int, args []string) ([]byte, error, bool) {
 		switch args[0] {
@@ -232,7 +240,10 @@ func TestAGuestThatNeverConfiguresItsInterfaceIsReported(t *testing.T) {
 				return []byte("10.30.1.1/24\n"), nil, true
 			}
 		case "exec":
-			return nil, errors.New("incus: Error: Command not found"), true
+			// The guest answers everything, and carries nothing: `ip address
+			// add` and `ip link set` succeed, and the read the wait makes
+			// comes back empty for ever.
+			return nil, nil, true
 		}
 		return nil, nil, false
 	}
@@ -244,7 +255,7 @@ func TestAGuestThatNeverConfiguresItsInterfaceIsReported(t *testing.T) {
 	if err == nil {
 		t.Fatal("a guest that never configured its interface was reported as repaired")
 	}
-	for _, want := range []string{"srv", "eth1"} {
+	for _, want := range []string{"srv", "eth1", "carries no IPv4 address"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("the failure does not name %q: %v", want, err)
 		}
