@@ -192,28 +192,32 @@ const rootVolumeSize = 20_000_000_000
 // volumes endpoint, so the volume has to be a stored resource, not an inline
 // object.
 //
-// The type stays b_ssd whatever is asked, and there are two reasons, not one.
-// The single reason this comment used to give covered only half the values it
-// refuses, which is how a reader came to lift the restriction for the other
-// half — reported by @vde-dis on #8, with the measurement below.
+// The requested type is honoured for sbs_volume and refused for the LOCAL ones,
+// and there are two reasons, not one. The single reason this comment used to
+// give covered only half the values it refuses, which is how a reader came to
+// lift the restriction for the other half — reported by @vde-dis on #8, with the
+// measurement below. Both halves are stated here for that reason, and neither is
+// repeated inside the function.
 //
 // Against a *local* type (l_ssd, scratch): the catalogue declares
 // volumes_constraint.min_size at 0 and the CLI sums local volumes against it,
 // so attaching one here would make the CLI refuse the very creation it just
-// asked for.
+// asked for. That is unchanged and it is why the local branch is still an
+// override rather than an honouring.
 //
 // Against sbs_volume, which is block and sums to nothing there: honouring it
 // sends the Terraform provider to GET /block/v1/zones/{zone}/volumes/{id} to
-// read the volume back, no pack serves block/v1, and the apply dies on
-// "waiting for Volume failed: http error 404 Not Found". A permanent diff is
-// bad; an apply that cannot finish is worse. It becomes honourable with #8
-// (SW-3) and not before — the two belong in one batch.
+// read the volume back. No pack served block/v1 before SW-3, and the apply died
+// on "waiting for Volume failed: http error 404 Not Found"; block/v1 is served
+// now, so it is honoured — and since #365 it is also what a request naming no
+// type gets, because it is what the cloud gives a DEV1-S.
 //
-// So today there is no writable value: the provider refuses b_ssd outright from
-// 2.79 on ("b_ssd volumes are not supported anymore"), and sbs_volume plans for
-// ever. Omitting the root_volume block is the way through, which is what the
-// conformance fixture happens to do — which is also why nothing here shows it.
-// docs/limits.md carries that as a stated limit rather than a surprise.
+// What that leaves a client: b_ssd is refused by the provider itself from 2.79
+// on ("b_ssd volumes are not supported anymore"), sbs_volume works, and omitting
+// the block gets sbs_volume too. The conformance fixture declares the block
+// rather than omitting it, which is the whole point of #8 — a fixture that
+// avoids the one input that breaks is a test that cannot fail. docs/limits.md
+// carries what is still not emulated behind an SBS volume: the storage itself.
 func (p *Pack) rootVolume(server *resource.Resource, name, project, organization, parentSnapshot string, wanted volumeTemplate) *resource.Resource {
 	// The size the client asked for, when it asked. Ignoring it gave every
 	// server the catalogue's disk whatever the request said.

@@ -397,9 +397,9 @@ img_root="$(printf '%s' "$img_server" | jq -r '(.server // .).volumes["0"].id')"
 # `unified=true` the command calls instance.GetVolume itself before it sends
 # anything (scaleway-cli 2.56.3, internal/namespaces/instance/v1/
 # custom_snapshot.go) and returns that error. The instance route DOES resolve a
-# block volume — TestAnInstanceSnapshotOfABlockVolumeIsAnSbsSnapshot, and
-# `unified=true` reaches it — but a fixture cannot assert it through a client
-# that stops one call earlier.
+# block volume — TestAnInstanceSnapshotOfABlockVolumeDoesNotPromiseTheBlockProduct
+# covers it and `unified=true` reaches it — but a fixture cannot assert it
+# through a client that stops one call earlier.
 root_snap="$(scw block snapshot create name=conformance-root-snap volume-id="$img_root" \
               zone="$ZONE" -o json)" || fail "block snapshot of the server root rejected: $root_snap"
 root_snap_id="$(printf '%s' "$root_snap" | jq -r '(.snapshot // .).id')"
