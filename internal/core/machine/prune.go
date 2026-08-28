@@ -59,20 +59,33 @@ type Surveyor interface {
 	Survey(ctx context.Context) (Leftovers, error)
 }
 
-// UplinkReleaser is the optional half of a driver whose networks share one
-// piece of host plumbing no resource delete will ever remove: the uplink.
-// Every emulated resource goes when a client deletes it, so a run whose
-// clients cleaned up after themselves still leaves exactly one labelled
-// network standing — and the doorstep of the next run refuses exactly that
-// (#521, measured twice after two green conformance runs). The process that
-// set the uplink up is the one that takes it down, on its way out.
-type UplinkReleaser interface {
-	// ReleaseUplink removes the uplink when, and only when, this process is
-	// the one holding it and nothing draws from it any more. It reports
-	// whether the uplink went; an uplink another run left, one an operator
-	// named, or one that networks still sit on is left standing, so the sweep
-	// and the doorstep keep naming what this path must not hide.
-	ReleaseUplink(ctx context.Context) (bool, error)
+// PlumbingReleaser is the optional half of a driver that creates host objects
+// no emulated resource owns and no client's delete will ever reach. Every
+// emulated resource goes when a client deletes it, so a run whose clients
+// cleaned up after themselves still leaves those standing — and the doorstep
+// of the next run refuses exactly that (#521, measured twice after two green
+// conformance runs, and again on 2026-08-28 with three more objects). The
+// process that set them up is the one that takes them down, on its way out.
+//
+// Which objects those are is the driver's own knowledge and is deliberately
+// not spelled here; what is shared is the rule. On the Incus driver they are
+// the uplink every OVN network draws from, the default network a machine with
+// no attachment boots on (DefaultMachineNetwork), and the rule sets it wrote
+// for security groups a client cannot delete — a provider's default group
+// exists before any client call and outlives every one of them, so its rule
+// set is nobody's to remove but this process's.
+type PlumbingReleaser interface {
+	// ReleasePlumbing removes those objects, when and only when this process
+	// is the one holding them and nothing on the host draws from them any
+	// more. It names what went, in the order it went, so a graceful exit can
+	// say it out loud.
+	//
+	// What it must never do is force. An object another run left, one an
+	// operator named, or one something still sits on is left standing, so the
+	// sweep and the doorstep keep naming what this path must not hide: a
+	// release that tore down a machine's live rule set would be the audit's
+	// own `network unset security.acls` primitive, dressed as tidiness.
+	ReleasePlumbing(ctx context.Context) ([]string, error)
 }
 
 // A leftover the sweep can still remove is untidy. A leftover no ordinary

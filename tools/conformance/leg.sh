@@ -166,4 +166,4 @@ fi
 # leg that left a machine or a network behind is the leg that fails. The trap
 # above stays the safety net for a leg that dies mid-flight.
 ./feint stop --addr "$addr"
-tools/conformance/guard.sh leftovers "$vm"
+tools/conformance/guard.sh leftovers-after "$vm"

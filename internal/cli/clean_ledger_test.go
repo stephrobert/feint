@@ -108,7 +108,7 @@ func TestTheDoorstepRefusesAHostHoldingAPreviousRunsNetwork(t *testing.T) {
 	withDriver(t, machine.Use(held))
 
 	var out bytes.Buffer
-	err := reportStuckLeftovers(&out, newLedger(&out, false, time.Now()), "incus", true)
+	err := reportStuckLeftovers(&out, newLedger(&out, false, time.Now()), "incus", momentDoorstep)
 	if err == nil {
 		t.Fatal("the doorstep accepted a host still holding a network of an earlier run: " +
 			"the run starts, takes minutes, and dies on \"Address already in use\" for that block (#426)")
@@ -126,7 +126,7 @@ func TestTheDoorstepRefusesAHostHoldingAPreviousRunsNetwork(t *testing.T) {
 	// The accepting half, on the same path.
 	withDriver(t, machine.Use(&sweptDriver{}))
 	var clean bytes.Buffer
-	if err := reportStuckLeftovers(&clean, newLedger(&clean, false, time.Now()), "incus", true); err != nil {
+	if err := reportStuckLeftovers(&clean, newLedger(&clean, false, time.Now()), "incus", momentDoorstep); err != nil {
 		t.Fatalf("the doorstep refused a runtime holding nothing: %v (%q)", err, clean.String())
 	}
 }
@@ -142,7 +142,7 @@ func TestTheDoorstepSaysItCouldNotLookRatherThanCallingTheHostClean(t *testing.T
 
 	var out bytes.Buffer
 	led := newLedger(&out, true, time.Now())
-	if err := reportStuckLeftovers(&out, led, "incus", true); err == nil {
+	if err := reportStuckLeftovers(&out, led, "incus", momentDoorstep); err == nil {
 		t.Fatal("a runtime that could not be surveyed was reported as a clean host")
 	}
 	if why := whyOfLines(t, out.String()); !why[whyUnreadable] {
@@ -188,7 +188,9 @@ func TestTheSweepNamesWhatSurvivedItsOwnSuccessfulDelete(t *testing.T) {
 	if survived.Kind != "network" {
 		t.Errorf("kind %q, want network", survived.Kind)
 	}
-	if !strings.HasPrefix(survived.Attribution, "name-prefix:") {
+	// A network is found by the label Survey reads, not by the name prefix this
+	// line used to claim — see TestTheLedgerAttributesEachObjectToTheMarkItWasFoundBy.
+	if !strings.HasPrefix(survived.Attribution, "label:") {
 		t.Errorf("attribution %q says nothing about how this run knows the object is ours", survived.Attribution)
 	}
 	if survived.Stage != stageSweep {
@@ -358,7 +360,7 @@ func TestTheLeftoverCheckMidRunIgnoresTheRunsOwnObjects(t *testing.T) {
 	withDriver(t, machine.Use(live))
 
 	var out bytes.Buffer
-	if err := reportStuckLeftovers(&out, newLedger(&out, false, time.Now()), "incus", false); err != nil {
+	if err := reportStuckLeftovers(&out, newLedger(&out, false, time.Now()), "incus", momentInFlight); err != nil {
 		t.Fatalf("the mid-run check refused a run for owning the machines and networks it had just created: %v\n%s",
 			err, out.String())
 	}
@@ -372,7 +374,7 @@ func TestTheLeftoverCheckMidRunIgnoresTheRunsOwnObjects(t *testing.T) {
 	// The same runtime at the doorstep must refuse, or this test is passing
 	// because nothing looks at all.
 	var door bytes.Buffer
-	if err := reportStuckLeftovers(&door, newLedger(&door, false, time.Now()), "incus", true); err == nil {
+	if err := reportStuckLeftovers(&door, newLedger(&door, false, time.Now()), "incus", momentDoorstep); err == nil {
 		t.Fatal("the doorstep accepted the same runtime, so the mid-run pass above proves nothing")
 	}
 }

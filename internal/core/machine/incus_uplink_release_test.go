@@ -27,7 +27,7 @@ func TestAShutdownReleaseTakesTheUnusedUplinkOfThisProcess(t *testing.T) {
 	d := newFakeDriver(f)
 	d.OVN = true
 
-	released, err := d.ReleaseUplink(context.Background())
+	released, err := d.releaseUplink(context.Background())
 	if err != nil {
 		t.Fatalf("release: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestAReleaseLeavesAnUplinkStillInUse(t *testing.T) {
 	d := newFakeDriver(f)
 	d.OVN = true
 
-	released, err := d.ReleaseUplink(context.Background())
+	released, err := d.releaseUplink(context.Background())
 	if err != nil {
 		t.Fatalf("an uplink still in use is the outcome asked for, not an error: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestAReleaseNeverTouchesAnUplinkThisProcessDoesNotHold(t *testing.T) {
 		d := newFakeDriver(f)
 		d.OVN = true
 
-		released, err := d.ReleaseUplink(context.Background())
+		released, err := d.releaseUplink(context.Background())
 		if err != nil {
 			t.Fatalf("%s: release: %v", name, err)
 		}
@@ -102,7 +102,7 @@ func TestAReleaseDoesNothingOffOVN(t *testing.T) {
 	f := &fakeRuntime{}
 	d := newFakeDriver(f)
 
-	released, err := d.ReleaseUplink(context.Background())
+	released, err := d.releaseUplink(context.Background())
 	if err != nil || released {
 		t.Fatalf("released=%v err=%v off OVN, want false and nil", released, err)
 	}
@@ -122,7 +122,7 @@ func TestAReleaseTreatsAMissingUplinkAsAlreadyGone(t *testing.T) {
 	d := newFakeDriver(f)
 	d.OVN = true
 
-	released, err := d.ReleaseUplink(context.Background())
+	released, err := d.releaseUplink(context.Background())
 	if err != nil {
 		t.Fatalf("a missing uplink is the outcome asked for, not an error: %v", err)
 	}

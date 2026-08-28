@@ -26,6 +26,7 @@ func clean(args []string, stdout io.Writer) error {
 	check := fs.Bool("check", false, "report what this user cannot remove and remove nothing; exit 1 if anything is stuck")
 	format := fs.String("format", "text", "output format: text, or json for one aggregatable line per object found")
 	doorstep := fs.Bool("doorstep", false, "also refuse a machine or network of an earlier run; only true before a run starts, because a run in flight owns both")
+	closing := fs.Bool("closing", false, "the same refusal, asked once this run's emulator has stopped: what is found is then this run's own leak, and the report says so")
 	force := fs.Bool("force", false, "also clear what no ordinary command of the runtime reaches: the peering rows a deleted network left behind, named one by one before they go")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -40,9 +41,24 @@ func clean(args []string, stdout io.Writer) error {
 	if *check && *force {
 		return fmt.Errorf("--check removes nothing and --force removes what nothing else can: ask for one of the two")
 	}
+	// The two moments name opposite culprits — "a previous run" and "this run" —
+	// and a caller who asked for both wants a sentence that cannot be true. The
+	// refusal is identical either way, so guessing here would cost nothing at
+	// the gate and everything at the report, which is the whole subject of the
+	// leg that made this flag exist.
+	if *doorstep && *closing {
+		return fmt.Errorf("--doorstep asks what an earlier run left and --closing what this one did: ask for one of the two")
+	}
+	moment := momentInFlight
+	switch {
+	case *doorstep:
+		moment = momentDoorstep
+	case *closing:
+		moment = momentClosing
+	}
 	led := newLedger(stdout, *format == "json", time.Now())
 	if *check {
-		return reportStuckLeftovers(stdout, led, *vm, *doorstep)
+		return reportStuckLeftovers(stdout, led, *vm, moment)
 	}
 
 	// The state directories go first, and deliberately before the runtime is
@@ -207,7 +223,7 @@ var (
 //
 // TestCleanCheckRefusesAHostWhoseLeftoverThisUserCannotEnd and
 // TestCleanCheckPassesWhenTheSweepItselfWouldClearThem fail without it.
-func reportStuckLeftovers(stdout io.Writer, led *ledger, vm string, doorstep bool) error {
+func reportStuckLeftovers(stdout io.Writer, led *ledger, vm string, moment leftoverMoment) error {
 	// The runtime half first, and #426 is why it exists at all.
 	//
 	// Before this, the doorstep asked one question — is there a DHCP service
@@ -253,8 +269,8 @@ func reportStuckLeftovers(stdout io.Writer, led *ledger, vm string, doorstep boo
 		return fmt.Errorf("could not ask the %s runtime what a previous run left: %w", vm, err)
 	}
 
-	if doorstep {
-		if err := refuseRuntimeLeftovers(stdout, led, vm, rt); err != nil {
+	if moment.asks() {
+		if err := refuseRuntimeLeftovers(stdout, led, vm, rt, moment); err != nil {
 			return err
 		}
 	}

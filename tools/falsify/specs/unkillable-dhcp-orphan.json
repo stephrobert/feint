@@ -41,8 +41,8 @@
     {
       "label": "the shell refusal never fires, so the leg starts on a host whose block is held and dies in the sweep twelve steps later",
       "file": "tools/conformance/guard.sh",
-      "find": "  if ! \"$binary\" clean --check $doorstep --vm \"$machines\" >&2; then",
-      "replace": "  if ! \"$binary\" clean --check $doorstep --vm \"$machines\" >&2 && false; then",
+      "find": "  if ! \"$binary\" clean --check $moment --vm \"$machines\" >&2; then",
+      "replace": "  if ! \"$binary\" clean --check $moment --vm \"$machines\" >&2 && false; then",
       "test": "TestTheLeftoverGuardRefusesAHostItCannotClean",
       "package": "./tools/conformance/"
     },

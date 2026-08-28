@@ -100,7 +100,50 @@ const (
 const (
 	stageDoorstep = "doorstep"
 	stageSweep    = "sweep"
+	// stageClosing is the same question as the doorstep, asked once a run's
+	// emulator has stopped rather than before it started (#521). It is a stage
+	// of its own and not a flavour of the doorstep because the ledger exists to
+	// name *which mechanism* produces waste: "a previous run left this" and
+	// "the run that just ended left this" are the two different findings, and
+	// counting them together loses the only one an operator can act on today.
+	stageClosing = "closing"
 )
+
+// leftoverMoment says when in a run the machine-and-network question is being
+// asked. It changes no verdict — the same objects refuse at both moments — and
+// it changes every sentence, because the wrong sentence sends the reader to the
+// wrong run.
+//
+// Measured on 2026-08-28: the incus-ovn leg of runtime-proof.yml failed on a
+// GitHub runner nothing had ever touched with "a previous run left 0 machine(s)
+// and 2 network(s) on this host", naming objects the very same job had created
+// eight steps earlier. There was no previous run. A reader who believed the
+// sentence would have gone looking at the schedule instead of at the ssh suites.
+type leftoverMoment string
+
+const (
+	// momentInFlight is a run asking about itself, which is why the question is
+	// not asked at all: see reportStuckLeftovers.
+	momentInFlight leftoverMoment = ""
+	// momentDoorstep is before anything of this run has started, so anything
+	// found belongs to somebody else's run.
+	momentDoorstep leftoverMoment = "doorstep"
+	// momentClosing is after this run's emulator has stopped, so anything found
+	// is this run's own leak — the form #521 gave `mise run conformance`, which
+	// runtime-proof.yml had not been given.
+	momentClosing leftoverMoment = "closing"
+)
+
+// asks reports whether this moment asks the machine-and-network question.
+func (m leftoverMoment) asks() bool { return m == momentDoorstep || m == momentClosing }
+
+// stage names the ledger stage of this moment.
+func (m leftoverMoment) stage() string {
+	if m == momentClosing {
+		return stageClosing
+	}
+	return stageDoorstep
+}
 
 // newRunID identifies one invocation. Random rather than a counter because two
 // runs may append to one file from two shells, and time alone collides.
@@ -184,13 +227,24 @@ func (l *ledger) recordAll(left machine.Leftovers, stage, why, action string) {
 		names       []string
 		attribution string
 	}{
-		// Machines and rule sets carry a label the emulator wrote; a network is
-		// recognised by the prefix this code derives. Saying which is which is
-		// the "who produced it" column, and it is also the answer to whether
-		// this run was ever entitled to touch the object.
+		// Machines and networks carry a label the emulator wrote; a rule set
+		// carries no config at all, so it is recognised by the description
+		// EnsureFirewall writes. Saying which is which is the "who produced it"
+		// column, and it is also the answer to whether this run was ever
+		// entitled to touch the object.
+		//
+		// The network line said "name-prefix:fnt-" until 2026-08-28, and it was
+		// a column lying about its own subject: Incus.Survey selects networks
+		// by `user.feint.provider` exactly as it does machines, and the first
+		// network the leg of that day reported was `feint-uplink`, which does
+		// not carry the prefix the column claimed had identified it. A ledger
+		// whose attribution column can name a mark the object does not carry is
+		// a ledger that cannot be used to decide what may be touched.
+		// TestTheLedgerAttributesEachObjectToTheMarkItWasFoundBy fails without
+		// the correction.
 		{"machine", left.Machines, "label:" + machine.LabelKey},
-		{"network", left.Networks, "name-prefix:" + machine.NetworkPrefix + "-"},
-		{"rule-set", left.Firewalls, "label:" + machine.LabelKey},
+		{"network", left.Networks, "label:" + machine.LabelKey},
+		{"rule-set", left.Firewalls, "description:" + machine.FirewallDescription},
 	} {
 		names := append([]string(nil), group.names...)
 		sort.Strings(names)
@@ -224,10 +278,11 @@ func (l *ledger) recordAll(left machine.Leftovers, stage, why, action string) {
 // The driver is resolved by the caller and passed in, since the check now asks
 // this runtime two questions rather than one and resolving it twice would let
 // them disagree about which host they are talking about.
-func refuseRuntimeLeftovers(out io.Writer, led *ledger, vm string, rt machine.Runtime) error {
+func refuseRuntimeLeftovers(out io.Writer, led *ledger, vm string, rt machine.Runtime, moment leftoverMoment) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	stage := moment.stage()
 	left, surveyable, err := surveyRuntime(ctx, rt)
 	if !surveyable {
 		// --vm off, and every driver that cannot be asked. Said out loud rather
@@ -238,28 +293,88 @@ func refuseRuntimeLeftovers(out io.Writer, led *ledger, vm string, rt machine.Ru
 	}
 	if err != nil {
 		led.record(leftoverRecord{Kind: "survey", Name: rt.Name(), Attribution: "none",
-			Stage: stageDoorstep, Why: whyUnreadable, Action: actionNone})
+			Stage: stage, Why: whyUnreadable, Action: actionNone})
 		return fmt.Errorf("could not look at what the %s runtime holds, so this host cannot be called clean: %w",
 			rt.Name(), err)
 	}
 	if len(left.Machines) == 0 && len(left.Networks) == 0 {
-		led.prose("no machine or network of an earlier run is left on this runtime\n")
+		reportRuleSetsLeftBehind(out, led, vm, left, stage)
+		led.prose("no machine or network %s is left on this runtime\n", moment.whose())
 		return nil
 	}
 
-	led.recordAll(left, stageDoorstep, whyUnswept, actionReported)
+	led.recordAll(left, stage, whyUnswept, actionReported)
 	if !led.asJSON {
-		fmt.Fprintf(out, "\na previous run left %d machine(s) and %d network(s) on this host.\n",
-			len(left.Machines), len(left.Networks))
-		fmt.Fprintf(out, "They hold their address blocks, and the next run asks for those blocks under new\n"+
-			"names, so it fails on \"Address already in use\" thirty steps in instead of here.\n")
+		fmt.Fprintf(out, "\n%s left %d machine(s) and %d network(s) on this host.\n",
+			moment.subject(), len(left.Machines), len(left.Networks))
+		fmt.Fprintf(out, "%s\n", moment.consequence())
 		// One command, nothing to copy out of the text above it. #375 measured
 		// what the other shape costs: a remedy that needs a pid retyped out of a
 		// log did not get run for three consecutive failures.
 		fmt.Fprintf(out, "\nRun:  feint clean --vm %s\n", vm)
 	}
-	return fmt.Errorf("%d machine(s) and %d network(s) of an earlier run still hold this host",
-		len(left.Machines), len(left.Networks))
+	return fmt.Errorf("%d machine(s) and %d network(s) %s still hold this host",
+		len(left.Machines), len(left.Networks), moment.whose())
+}
+
+// reportRuleSetsLeftBehind names the rule sets a run left when nothing refuses
+// on them, which is every time: refuseRuntimeLeftovers refuses on machines and
+// networks alone, because a rule set holds no address block and refusing on one
+// would fire on a host nothing was going to fail on (unkillable-dhcp-orphan's
+// mutation 7 holds that).
+//
+// Not refusing is not the same as not saying. Until 2026-08-28 a host holding
+// nothing but rule sets of this emulator was reported "no machine or network of
+// an earlier run is left" and the rule sets were never printed at all — they
+// appeared in the ledger only when some *other* object had already made the
+// check refuse. So the one artefact that accumulates one object per session on
+// an operator's station (a Scaleway project default group is minted per run)
+// was invisible precisely on the hosts where it was the only thing left.
+//
+// An expected remainder is admitted with its reason written, never in silence.
+// TestTheDoorstepNamesRuleSetsItDoesNotRefuseOn fails without this.
+func reportRuleSetsLeftBehind(out io.Writer, led *ledger, vm string, left machine.Leftovers, stage string) {
+	if len(left.Firewalls) == 0 {
+		return
+	}
+	led.recordAll(machine.Leftovers{Firewalls: left.Firewalls}, stage, whyUnswept, actionReported)
+	if led.asJSON {
+		return
+	}
+	fmt.Fprintf(out, "\n%d rule set(s) of this emulator are on this host, and nothing here refuses on them:\n",
+		len(left.Firewalls))
+	fmt.Fprintf(out, "they hold no address block, so no run fails for their sake. They are still waste —\n"+
+		"`feint clean --vm %s` removes them, and a graceful `feint stop` gives back the ones\n"+
+		"nothing uses, so a rule set surviving one is a finding rather than housekeeping.\n", vm)
+}
+
+// subject names who left what this moment found, in the sentence's own words.
+func (m leftoverMoment) subject() string {
+	if m == momentClosing {
+		return "this run"
+	}
+	return "a previous run"
+}
+
+// whose is the same fact in the possessive, for the error a caller reads.
+func (m leftoverMoment) whose() string {
+	if m == momentClosing {
+		return "of this run"
+	}
+	return "of an earlier run"
+}
+
+// consequence is why it matters, and it differs because the reader's next step
+// differs: before a run, the leftovers are what will make it fail later; after
+// one, they are what this run failed to clean up.
+func (m leftoverMoment) consequence() string {
+	if m == momentClosing {
+		return "Its clients were supposed to delete what they created, and the emulator gives its own\n" +
+			"plumbing back on the way out (machine.PlumbingReleaser). What is named above is neither,\n" +
+			"so it is this run's leak — and the next run would have been blamed for it."
+	}
+	return "They hold their address blocks, and the next run asks for those blocks under new\n" +
+		"names, so it fails on \"Address already in use\" thirty steps in instead of here."
 }
 
 // survivors returns the objects present in both surveys: the ones a sweep was

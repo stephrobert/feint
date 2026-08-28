@@ -237,7 +237,7 @@ func (d *Incus) ownedACLs(ctx context.Context) []string {
 		// to the description check. coreOwnedACL matches the emulator's own
 		// network prefix (and the permissive posture set's fixed name) rather
 		// than a bare iso-, which used to claim an operator's rule sets too.
-		if strings.HasPrefix(acl.Description, aclDescription) || coreOwnedACL(acl.Name) {
+		if strings.HasPrefix(acl.Description, FirewallDescription) || coreOwnedACL(acl.Name) {
 			names = append(names, acl.Name)
 		}
 	}

@@ -59,7 +59,7 @@ func checkAgainst(t *testing.T, driver machine.Runtime) (string, error) {
 	withDriver(t, driver)
 
 	var out bytes.Buffer
-	err := reportStuckLeftovers(&out, newLedger(&out, false, time.Now()), "incus", false)
+	err := reportStuckLeftovers(&out, newLedger(&out, false, time.Now()), "incus", momentInFlight)
 	return out.String(), err
 }
 

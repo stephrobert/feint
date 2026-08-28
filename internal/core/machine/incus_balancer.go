@@ -30,7 +30,7 @@ import (
 
 // balancerDescription marks a balancer as the emulator's own. A load balancer
 // carries no user config that a sweep could key on, so the description is what
-// ownership is read from — exactly as aclDescription is for a rule set.
+// ownership is read from — exactly as FirewallDescription is for a rule set.
 const balancerDescription = "feint load balancer"
 
 type lbBackend struct {

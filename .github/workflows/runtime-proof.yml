@@ -437,6 +437,25 @@ jobs:
         if: always()
         run: sudo ./feint stop --addr 127.0.0.1:4599 || true
 
+      # The closing doorstep (#521), which this workflow did not have and paid
+      # for on 2026-08-27 and 2026-08-28: the leg's own suites left four objects
+      # on the host, the next step asked the doorstep question at its start, and
+      # the answer came back as "a previous run left …" on a runner nothing had
+      # ever touched. Both halves were wrong to leave alone — a leak reported by
+      # the *next* thing to run, and a sentence naming a run that never existed.
+      #
+      # So the same form `mise run conformance` and conformance:leg.sh already
+      # carry: stop, then ask, in the closing spelling. Whatever the suites left
+      # reddens the leg that left it, and the report says "this run".
+      #
+      # Not `if: always()`, deliberately. A leg whose suite already failed left
+      # its machines by accident and not by leak; a second red there would say
+      # "this run leaked" about a run that simply died, and the finding this
+      # gate exists for would be buried under it. On the failure path the state
+      # is printed by the step above instead.
+      - name: What this leg left on the host
+        run: sudo tools/conformance/guard.sh leftovers-after "${{ matrix.mode }}"
+
       # The dataplane witness gate (#486) needs Terraform: it applies the
       # example stacks through `feint up`. Same pinned version and upstream
       # checksums as conformance.yml's TERRAFORM_VERSION — one client, two
@@ -504,11 +523,14 @@ jobs:
   #     2026-08-28, reproducing the leg: the three ssh suites each exit 0 and
   #     each leave something standing — `scw-…` and `exo-…` rule sets no client
   #     can delete, `fnt-default` and `feint-uplink` no resource owns — and
-  #     `feint stop` sweeps none of them. That is why the witness gate below
-  #     failed at its own doorstep on the one night it has been reached since it
-  #     landed — 2026-08-27, "this host still holds what an earlier run left",
-  #     naming feint-uplink and fnt-default; the night after never got that far.
-  #     A job of its own starts on a runner nothing has touched.
+  #     `feint stop` swept none of them. That is why the witness gate below
+  #     failed at its own doorstep on the two nights it has been reached since
+  #     it landed, "this host still holds what an earlier run left", naming
+  #     objects the same job had made minutes earlier. The four are released by
+  #     the graceful exit now (machine.PlumbingReleaser) and the leg asks the
+  #     closing doorstep after its stop, so the leg reddens itself if that ever
+  #     stops being true — but a job of its own still starts on a runner nothing
+  #     has touched, which is one fewer thing to be wrong about.
   #   - Three passes is half an hour. Added to that leg it would push a 45-minute
   #     job onto its own timeout, and a job that times out is a verdict nobody
   #     wrote.

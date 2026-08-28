@@ -631,7 +631,7 @@ FEINT_FIELD_GATE=1 tools/conformance/score.sh "http://$FEINT_ADDR"
 # that leaks now fails the run that leaked, not the next one.
 # TestTheConformanceTaskEndsOnItsOwnDoorstep fails without these two lines.
 ./feint stop --addr $FEINT_ADDR
-tools/conformance/guard.sh leftovers "${FEINT_VM:-off}"
+tools/conformance/guard.sh leftovers-after "${FEINT_VM:-off}"
 """
 
 [tasks.falsify]

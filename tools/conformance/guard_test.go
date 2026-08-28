@@ -369,8 +369,13 @@ func TestTheConformanceTaskEndsOnItsOwnDoorstep(t *testing.T) {
 		if trimmed == "./feint stop --addr $FEINT_ADDR" {
 			stopAt = i
 		}
+		// `leftovers-after`, not `leftovers`: the same refusal, and the
+		// sentence that names this run rather than a previous one. The
+		// doorstep spelling here would print "a previous run left…" about
+		// objects the task had just made, which is exactly what the incus-ovn
+		// leg of runtime-proof.yml printed on a runner nothing had touched.
 		if stopAt >= 0 && i > stopAt &&
-			strings.HasPrefix(trimmed, "tools/conformance/guard.sh leftovers ") {
+			strings.HasPrefix(trimmed, "tools/conformance/guard.sh leftovers-after ") {
 			askedAfterStop = true
 		}
 	}
@@ -379,8 +384,9 @@ func TestTheConformanceTaskEndsOnItsOwnDoorstep(t *testing.T) {
 			"can ask the doorstep question after the run — the residue waits for the next run's refusal (#521)")
 	}
 	if !askedAfterStop {
-		t.Error("the conformance task never re-asks the doorstep after its stop: a green run may " +
-			"leave what its own doorstep refuses, and the next run pays for it (#521)")
+		t.Error("the conformance task never re-asks the doorstep after its stop, in its closing " +
+			"form: a green run may leave what its own doorstep refuses, and the next run pays " +
+			"for it and is blamed for it (#521)")
 	}
 }
 
@@ -455,5 +461,48 @@ func TestOnlyTheDoorstepAsksWhatAnEarlierRunLeft(t *testing.T) {
 	}
 	if !strings.Contains(doorstep, "--doorstep") {
 		t.Errorf("the doorstep never asked what an earlier run left, which is the whole of #426:\n%s", doorstep)
+	}
+
+	// And the closing form, which asks the same question of the same runtime
+	// and must name this run rather than a previous one. Both flags at once is
+	// refused by the binary itself (internal/cli's
+	// TestTheTwoMomentsCannotBeAskedAtOnce), so reading which one was passed is
+	// reading the whole answer.
+	code, closing := bashGuard(t, `. "$1"; guard_leftovers_for "$2" closing`, "incus", stubBinary(t, 0))
+	if code != 0 {
+		t.Fatalf("the closing check refused a host the stub reports clean (exit %d):\n%s", code, closing)
+	}
+	if !strings.Contains(closing, "--closing") {
+		t.Errorf("the closing check asked the doorstep's question, so a leg that leaks would blame "+
+			"a run that never existed:\n%s", closing)
+	}
+	if strings.Contains(closing, "--doorstep") {
+		t.Errorf("the closing check still carries --doorstep:\n%s", closing)
+	}
+}
+
+// TestTheClosingRefusalBlamesThisRunAndNotAnEarlierOne is the sentence half.
+// The flag above decides the binary's report; this decides the shell's, and it
+// is the one an operator reads first in a job log.
+func TestTheClosingRefusalBlamesThisRunAndNotAnEarlierOne(t *testing.T) {
+	code, closing := bashGuard(t, `. "$1"; guard_leftovers_for "$2" closing`, "incus", stubBinary(t, 1))
+	if code == 0 {
+		t.Fatalf("the closing check passed on a host the stub reports dirty:\n%s", closing)
+	}
+	if strings.Contains(closing, "an earlier run") {
+		t.Errorf("the closing refusal blames an earlier run for what this one left:\n%s", closing)
+	}
+	if !strings.Contains(closing, "this run left") {
+		t.Errorf("the closing refusal never names whose leak it found:\n%s", closing)
+	}
+
+	// The witness: the doorstep must keep its own sentence, or this passes on
+	// code that renamed both.
+	code, doorstep := bashGuard(t, `. "$1"; guard_leftovers_for "$2" doorstep`, "incus", stubBinary(t, 1))
+	if code == 0 {
+		t.Fatalf("the doorstep passed on a host the stub reports dirty:\n%s", doorstep)
+	}
+	if !strings.Contains(doorstep, "an earlier run") {
+		t.Errorf("the doorstep stopped naming the earlier run it exists to name:\n%s", doorstep)
 	}
 }

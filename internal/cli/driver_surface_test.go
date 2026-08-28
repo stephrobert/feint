@@ -699,7 +699,7 @@ var mustStayOutside = []string{
 	// them.
 	"Capable", "Waiter",
 	"ImageBuilder", "ImageLister", "Pruner", "Repairer", "Surveyor", "Watcher",
-	"UplinkReleaser",
+	"PlumbingReleaser",
 	// The handle itself, and its door. It is the emulator's and the CLI's
 	// spelling of a runtime; a pack that names it has gone looking for the
 	// value #511 took out of its reach.

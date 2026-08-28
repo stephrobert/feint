@@ -29,9 +29,13 @@ import (
 // A rule that names another group has to reach this layer already expanded into
 // blocks; there is nothing this driver can do about it.
 
-// aclDescription marks a rule set as the emulator's own. Rule sets carry no
+// FirewallDescription marks a rule set as the emulator's own. Rule sets carry no
 // user config, so this is what a sweep recognises them by.
-const aclDescription = "feint security group"
+//
+// Exported because the report an operator reads names the mark each object was
+// found by, and a report that names a mark the object does not carry cannot be
+// used to decide what may be touched (internal/cli/clean_ledger.go).
+const FirewallDescription = "feint security group"
 
 // mustOwnACL refuses to touch a rule set the emulator did not create.
 //
@@ -57,7 +61,7 @@ func (d *Incus) mustOwnACL(ctx context.Context, name string) error {
 	if err := json.Unmarshal(out, &acl); err != nil {
 		return fmt.Errorf("read the description of firewall %s: %w", name, err)
 	}
-	if !strings.HasPrefix(acl.Description, aclDescription) {
+	if !strings.HasPrefix(acl.Description, FirewallDescription) {
 		return fmt.Errorf("firewall %s was not created by the emulator; refusing to delete it", name)
 	}
 	return nil
@@ -117,7 +121,7 @@ func (d *Incus) EnsureFirewall(ctx context.Context, spec FirewallSpec) error {
 	}
 
 	body := aclBody{
-		Description: aclDescription,
+		Description: FirewallDescription,
 		Ingress:     []aclRule{},
 		Egress:      []aclRule{},
 		Config:      map[string]string{},

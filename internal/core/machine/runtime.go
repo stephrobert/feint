@@ -165,15 +165,16 @@ func (r Runtime) Prune(ctx context.Context) (pruned Pruned, asked bool, err erro
 	return pruned, true, err
 }
 
-// ReleaseUplink gives back the host plumbing no resource delete removes, when
-// and only when this process is the one holding it. asked is false for a
-// runtime with no uplink to give back.
-func (r Runtime) ReleaseUplink(ctx context.Context) (released, asked bool, err error) {
-	u, ok := r.backing().(UplinkReleaser)
+// ReleasePlumbing gives back the host objects no resource delete removes, when
+// and only when this process is the one holding them and nothing draws from
+// them. It names what went. asked is false for a runtime with no plumbing to
+// give back.
+func (r Runtime) ReleasePlumbing(ctx context.Context) (released []string, asked bool, err error) {
+	u, ok := r.backing().(PlumbingReleaser)
 	if !ok {
-		return false, false, nil
+		return nil, false, nil
 	}
-	released, err = u.ReleaseUplink(ctx)
+	released, err = u.ReleasePlumbing(ctx)
 	return released, true, err
 }
 

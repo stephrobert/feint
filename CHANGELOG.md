@@ -53,6 +53,36 @@ what this project is judged on: **a response shape a client can observe**, and
 
 ### Fixed
 
+- **A graceful exit gives back every piece of host plumbing no client can
+  delete, and a run that leaks is the run that goes red (#521).** The incus-ovn
+  leg of `runtime-proof.yml` failed at the doorstep of the next step on a
+  GitHub runner nothing had ever touched: *a previous run left 0 machine(s) and
+  2 network(s) on this host*, naming `feint-uplink`, `fnt-default` and the rule
+  sets of two providers' default security groups. There was no previous run —
+  the leg's own three ssh suites had made all four, each exiting 0.
+
+  Four objects, one property: **no client call can remove any of them**, so
+  leaving them measured nothing about the suites. `fnt-default` is the network
+  a machine with no attachment of its own boots on, created here by an Outscale
+  Vm outside a Net and owned by no resource; `feint-uplink` had been released
+  since #521 and stayed because `fnt-default` still drew from it; the `scw-*`
+  and `exo-*` rule sets belong to default security groups a client cannot
+  delete, and Scaleway's is minted per run, so one host ACL accumulated per
+  session. The exit now releases all four, in the only order the runtime
+  accepts, and each release answers both questions — is it ours, and is
+  anything still drawing from it — so a `feint stop` without `--cleanup` leaves
+  the firewall on the machines it deliberately leaves running.
+
+  The second half is the sentence. `feint clean --check --closing` and
+  `tools/conformance/guard.sh leftovers-after` ask the identical question and
+  name **this** run, `runtime-proof.yml` asks it after its own stop instead of
+  letting the next step meet the residue, and the doorstep now names the rule
+  sets it does *not* refuse on rather than passing over them in silence. The
+  ledger's attribution column was corrected with them: a network is found by
+  the label `Survey` reads, not by the `fnt-` prefix the column claimed — and
+  the first network the failing leg reported, `feint-uplink`, carries no such
+  prefix.
+
 - **The stack gate's closing doorstep asks the question its own comment
   claimed, and the gate stops choosing its runtime in silence (#504).** It
   closed with `guard_leftovers_for "$RUNTIME" "the end of the run"` under a

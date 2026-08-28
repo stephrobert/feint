@@ -242,12 +242,25 @@ guard_leftovers() {
 
 # guard_leftovers_for is the same refusal for a caller that has no emulator to
 # ask yet: `mise run conformance` runs it before it starts anything, from the
-# mode it is about to pass to `feint start`.
+# mode it is about to pass to `feint start`, and again once that emulator has
+# stopped.
+#
+# Three scopes, and the third exists because of a sentence rather than a
+# verdict. `doorstep` and `closing` refuse identically; what differs is who is
+# named. On 2026-08-28 the incus-ovn leg of runtime-proof.yml failed on a
+# GitHub runner nothing had ever touched with "this host still holds what an
+# earlier run left", about four objects its own ssh suites had made eight steps
+# earlier. There was no earlier run. A reader who believed it would have gone
+# looking at the schedule instead of at the suites, and that reader is who this
+# distinction is for.
 guard_leftovers_for() {
-  local machines="${1:-off}" scope="${2:-inflight}" binary doorstep=""
-  # Only the caller that runs before `feint start` may ask what an earlier run
+  local machines="${1:-off}" scope="${2:-inflight}" binary moment=""
+  # Only the callers that run outside a serving emulator may ask what a run
   # left standing: see guard_leftovers above for what happens otherwise.
-  [ "$scope" = "doorstep" ] && doorstep="--doorstep"
+  case "$scope" in
+    doorstep) moment="--doorstep" ;;
+    closing) moment="--closing" ;;
+  esac
 
   # With no machine runtime nothing will take an address block, so the question
   # does not apply. Said out loud rather than returned in silence, per the rule
@@ -274,7 +287,26 @@ EOF
     exit 1
   fi
 
-  if ! "$binary" clean --check $doorstep --vm "$machines" >&2; then
+  if ! "$binary" clean --check $moment --vm "$machines" >&2; then
+    if [ "$scope" = "closing" ]; then
+      cat >&2 <<EOF
+
+FAIL: this run left the host holding what is named above.
+
+Its emulator has stopped. Its clients were supposed to delete what they created,
+and the emulator gives its own plumbing back on the way out — the uplink, the
+default machine network, the rule sets nothing uses. What survived both is this
+run's leak, and it is reported here rather than at the start of the next run so
+that the run which produced it is the one that goes red (#521).
+
+Running the sweep below is not the fix. The fix is whichever suite above stopped
+short of deleting what it made.
+
+Run:  $binary clean --vm $machines        (networks and machines)
+      sudo $binary clean --vm $machines   (if a DHCP service was named)
+EOF
+      exit 1
+    fi
     cat >&2 <<EOF
 
 FAIL: this host still holds what an earlier run left. What was found is named
@@ -308,8 +340,13 @@ EOF
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
   case "${1:-}" in
     leftovers) guard_leftovers_for "${2:-off}" doorstep ;;
+    # The other half of #521: the same question, asked once the run's emulator
+    # is gone, so a leg that leaks fails the leg that leaked instead of the one
+    # after it — and says so in those words.
+    leftovers-after) guard_leftovers_for "${2:-off}" closing ;;
     *)
-      echo "usage: tools/conformance/guard.sh leftovers <machine runtime>" >&2
+      echo "usage: tools/conformance/guard.sh leftovers <machine runtime>        (before a run starts)" >&2
+      echo "       tools/conformance/guard.sh leftovers-after <machine runtime>  (after its emulator stopped)" >&2
       echo "  (the other guards take an endpoint and are sourced, not run)" >&2
       exit 2 ;;
   esac

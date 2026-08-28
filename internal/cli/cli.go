@@ -199,11 +199,22 @@ const (
 // needs the API that is about to stop. Two verbs added; nothing was removed, no
 // exit code moved, and a pipeline keyed on version 17 keeps working.
 //
+// Version 19 adds `clean --closing` (#521, and the leg of 2026-08-28): the
+// doorstep refusal, asked once a run's emulator has stopped rather than before
+// it started. The refusal is identical — a machine or a network nothing here
+// owns — and the sentence is not, because the culprit is not: the incus-ovn leg
+// of runtime-proof.yml failed on a GitHub runner nothing had ever touched with
+// "a previous run left 0 machine(s) and 2 network(s) on this host", naming
+// objects the same job had created eight steps earlier. A reader who believed
+// it would have gone looking at the schedule instead of at the ssh suites. An
+// addition to one existing verb; nothing was removed, no exit code moved, and a
+// pipeline keyed on version 18 keeps working.
+//
 // The surface itself is frozen in testdata/frozen/cli.json, compared by
 // TestTheFrozenSurfacesStillMatchTheirFixture, and a fixture regenerated
 // without bumping this constant fails TestASurfaceChangeDemandsItsVersionBump.
 // The procedure for a deliberate change is in RELEASING.md ("Frozen surfaces").
-const cliSurfaceVersion = 18
+const cliSurfaceVersion = 19
 
 // Run executes one command and returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -555,8 +566,8 @@ Usage:
   feint catalog    [--format json]
                     Print the emulated inventory a client reads before creating.
 
-  feint clean      [--vm incus|incus-vm|incus-ovn] [--check] [--doorstep] [--force]
-                   [--format text|json]
+  feint clean      [--vm incus|incus-vm|incus-ovn] [--check] [--doorstep|--closing]
+                   [--force] [--format text|json]
                     Remove every machine, network and rule set the emulator
                     created. Labelled resources only; nothing else is touched.
                     --check removes nothing: it names what a run left behind
@@ -565,6 +576,12 @@ Usage:
                     doorstep instead of dying on the block minutes in. It also
                     names the states no ordinary command of the runtime can
                     leave, and exits 1 on those.
+                    --doorstep and --closing add the same refusal — a machine
+                    or a network of a run that is not this one — and differ in
+                    the sentence they print: before a run starts what is found
+                    belongs to a previous one, after its emulator stopped it is
+                    that run's own leak. Naming the wrong culprit sends the
+                    reader to the wrong run, which a nightly job measured.
                     --force clears those states, which today means the peering
                     rows a deleted network left behind. It reaches the runtime's
                     own database through "incus admin sql", touches only rows
@@ -1052,17 +1069,21 @@ func serve(args []string, stdout io.Writer) error {
 }
 
 // shutdownSweep is what a graceful exit leaves the host as: --cleanup prunes
-// everything this run created, and the uplink goes in every case where it is
-// this process's own and nothing draws from it any more (#521).
+// everything this run created, and the host plumbing goes in every case where
+// it is this process's own and nothing draws from it any more (#521).
 //
 // The release is not gated on --cleanup, deliberately. --cleanup is a sweep,
 // and running it by default would hide a client that leaks — the suites are
-// supposed to delete what they create, and the doorstep of the next run is the
-// instrument that says whether they did. The uplink is different in kind: no
+// supposed to delete what they create, and the doorstep after the stop is the
+// instrument that says whether they did. The plumbing is different in kind: no
 // client owns it and no client's delete will ever remove it, so leaving it is
 // not a measurement of anything, it is a leftover by construction — the one
-// that made two green conformance runs fail their successor's doorstep.
-// TestAGracefulExitReleasesTheUplink fails without the call.
+// that made two green conformance runs fail their successor's doorstep, and
+// then the incus-ovn leg of runtime-proof.yml fail its own witness gate with
+// four objects rather than one. machine.PlumbingReleaser lists them and says
+// what each is.
+// TestAGracefulExitReleasesTheUplink fails without the call, and
+// TestAGracefulExitNamesEveryPieceOfPlumbingItGaveBack without the names.
 func shutdownSweep(rt machine.Runtime, cleanup bool, stdout io.Writer) {
 	if cleanup {
 		if pruned, asked, err := rt.Prune(context.Background()); asked {
@@ -1073,15 +1094,20 @@ func shutdownSweep(rt machine.Runtime, cleanup bool, stdout io.Writer) {
 			}
 		}
 	}
-	if released, asked, err := rt.ReleaseUplink(context.Background()); asked {
-		switch {
-		case err != nil:
-			// Said rather than swallowed: an uplink this exit could not judge
-			// is one the next run's doorstep will refuse, and the operator
+	if released, asked, err := rt.ReleasePlumbing(context.Background()); asked {
+		if len(released) > 0 {
+			// Named, not counted. What was given back is the difference between
+			// a host this run left clean and one the next doorstep refuses, and
+			// an operator reading "released 3 object(s)" cannot tell which
+			// three.
+			fmt.Fprintf(stdout, "released the plumbing this run held: %s\n",
+				strings.Join(released, ", "))
+		}
+		if err != nil {
+			// Said rather than swallowed: plumbing this exit could not judge is
+			// what the doorstep after the stop will refuse, and the operator
 			// should hear it from the run that caused it.
-			fmt.Fprintf(stdout, "uplink: %v\n", err)
-		case released:
-			fmt.Fprintf(stdout, "released the uplink; no network of this run holds the host\n")
+			fmt.Fprintf(stdout, "plumbing: %v\n", err)
 		}
 	}
 }

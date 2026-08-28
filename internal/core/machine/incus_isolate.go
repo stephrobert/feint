@@ -159,7 +159,7 @@ func (d *Incus) IsolateNetwork(ctx context.Context, network string, foreign []st
 	// gets an immediate answer instead of a timeout, which is the difference
 	// between an obvious topology mistake and a puzzling hang.
 	body := aclBody{
-		Description: aclDescription,
+		Description: FirewallDescription,
 		Ingress:     []aclRule{},
 		Egress:      []aclRule{},
 		Config:      map[string]string{},

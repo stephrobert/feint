@@ -31,29 +31,142 @@
       "test": "TestAShutdownReleaseTakesTheUnusedUplinkOfThisProcess"
     },
     {
-      "label": "serve stops asking the driver on its way out, so the uplink outlives every graceful stop again and the next run's doorstep refuses the host",
+      "label": "serve stops asking the driver on its way out, so the uplink, the default machine network and every unused rule set outlive each graceful stop and the closing doorstep refuses the host",
       "file": "internal/cli/cli.go",
-      "find": "\tif released, asked, err := rt.ReleaseUplink(context.Background()); asked {",
-      "replace": "\tif released, asked, err := rt.ReleaseUplink(context.Background()); asked && false {",
+      "find": "\tif released, asked, err := rt.ReleasePlumbing(context.Background()); asked {",
+      "replace": "\tif released, asked, err := rt.ReleasePlumbing(context.Background()); asked && false {",
       "test": "TestAGracefulExitReleasesTheUplink",
       "package": "./internal/cli/"
     },
     {
       "label": "the conformance task stops re-asking the doorstep after its stop, so a green run may again leave what its own doorstep refuses and the next run pays for it",
       "file": "mise.toml",
-      "find": "./feint stop --addr $FEINT_ADDR\ntools/conformance/guard.sh leftovers \"${FEINT_VM:-off}\"",
-      "replace": "./feint stop --addr $FEINT_ADDR\ntrue || tools/conformance/guard.sh leftovers \"${FEINT_VM:-off}\"",
+      "find": "./feint stop --addr $FEINT_ADDR\ntools/conformance/guard.sh leftovers-after \"${FEINT_VM:-off}\"",
+      "replace": "./feint stop --addr $FEINT_ADDR\ntrue || tools/conformance/guard.sh leftovers-after \"${FEINT_VM:-off}\"",
       "test": "TestTheConformanceTaskEndsOnItsOwnDoorstep",
       "package": "./tools/conformance/"
     },
     {
       "label": "the explicit stop goes back into the trap alone, where the doorstep cannot follow it — bash keeps the pre-trap exit status, so a red doorstep there reddens nothing",
       "file": "mise.toml",
-      "find": "./feint stop --addr $FEINT_ADDR\ntools/conformance/guard.sh leftovers \"${FEINT_VM:-off}\"",
-      "replace": "true || ./feint stop --addr $FEINT_ADDR\ntools/conformance/guard.sh leftovers \"${FEINT_VM:-off}\"",
+      "find": "./feint stop --addr $FEINT_ADDR\ntools/conformance/guard.sh leftovers-after \"${FEINT_VM:-off}\"",
+      "replace": "true || ./feint stop --addr $FEINT_ADDR\ntools/conformance/guard.sh leftovers-after \"${FEINT_VM:-off}\"",
       "test": "TestTheConformanceTaskEndsOnItsOwnDoorstep",
+      "package": "./tools/conformance/"
+    },
+    {
+      "label": "the exit counts what it gave back instead of naming it, so an operator reading \"released 3 object(s)\" cannot tell which three, and the next doorstep's silence explains nothing",
+      "file": "internal/cli/cli.go",
+      "find": "\t\t\tfmt.Fprintf(stdout, \"released the plumbing this run held: %s\\n\",\n\t\t\t\tstrings.Join(released, \", \"))",
+      "replace": "\t\t\tfmt.Fprintf(stdout, \"released %d piece(s) of plumbing\\n\",\n\t\t\t\tlen(strings.Join(released, \", \")))",
+      "test": "TestAGracefulExitNamesEveryPieceOfPlumbingItGaveBack",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "the exit stops giving back the default machine network, which is the object that kept the uplink standing on the leg of 2026-08-28 — one release short and both networks survive",
+      "file": "internal/core/machine/incus_release.go",
+      "find": "func (d *Incus) releaseDefaultNetwork(ctx context.Context) (bool, error) {\n\tname := DefaultMachineNetwork",
+      "replace": "func (d *Incus) releaseDefaultNetwork(ctx context.Context) (bool, error) {\n\tif true {\n\t\treturn false, nil\n\t}\n\tname := DefaultMachineNetwork",
+      "test": "TestAGracefulExitReleasesEveryPieceOfPlumbingItHolds"
+    },
+    {
+      "label": "the exit stops giving back the rule sets nothing uses, so a default security group no client can delete leaves one host ACL per session behind it",
+      "file": "internal/core/machine/incus_release.go",
+      "find": "func (d *Incus) releaseUnusedRuleSets(ctx context.Context) ([]string, error) {\n\tout, err := d.run(ctx, \"query\", \"/1.0/network-acls?recursion=1\")",
+      "replace": "func (d *Incus) releaseUnusedRuleSets(ctx context.Context) ([]string, error) {\n\tif true {\n\t\treturn nil, nil\n\t}\n\tout, err := d.run(ctx, \"query\", \"/1.0/network-acls?recursion=1\")",
+      "test": "TestAGracefulExitReleasesEveryPieceOfPlumbingItHolds"
+    },
+    {
+      "label": "the release takes the uplink before the network that draws from it, so the runtime answers \"in use\" and the exit gives back nothing — the measured state, reintroduced by an ordering nobody would call a defect",
+      "file": "internal/core/machine/incus_release.go",
+      "find": "\tif gone, err := d.releaseDefaultNetwork(ctx); err != nil {\n\t\tfailures = append(failures, err.Error())\n\t} else if gone {\n\t\treleased = append(released, DefaultMachineNetwork)\n\t}\n\n\tif gone, err := d.releaseUplink(ctx); err != nil {\n\t\tfailures = append(failures, err.Error())\n\t} else if gone {\n\t\treleased = append(released, d.uplinkName())\n\t}",
+      "replace": "\tif gone, err := d.releaseUplink(ctx); err != nil {\n\t\tfailures = append(failures, err.Error())\n\t} else if gone {\n\t\treleased = append(released, d.uplinkName())\n\t}\n\n\tif gone, err := d.releaseDefaultNetwork(ctx); err != nil {\n\t\tfailures = append(failures, err.Error())\n\t} else if gone {\n\t\treleased = append(released, DefaultMachineNetwork)\n\t}",
+      "test": "TestTheReleaseOrderIsRuleSetsThenNetworkThenUplink"
+    },
+    {
+      "label": "the release stops asking whether anything sits on the default network, so the emulator exiting first takes it from under a second one's machines",
+      "file": "internal/core/machine/incus_release.go",
+      "find": "\tif len(existing.UsedBy) > 0 {\n\t\treturn false, nil\n\t}",
+      "replace": "\tif false && len(existing.UsedBy) > 0 {\n\t\treturn false, nil\n\t}",
+      "test": "TestAReleaseLeavesTheDefaultNetworkAMachineStillSitsOn"
+    },
+    {
+      "label": "the release stops reading the label on the default network, so an operator's own network under that short and ordinary name is deleted on the way out",
+      "file": "internal/core/machine/incus_release.go",
+      "find": "\tif existing.Config[\"user.\"+LabelKey] == \"\" {",
+      "replace": "\tif false && existing.Config[\"user.\"+LabelKey] == \"\" {",
+      "test": "TestAReleaseNeverTouchesAnUnlabelledNetworkUnderTheDefaultName"
+    },
+    {
+      "label": "the release stops asking whether a rule set is in use, so a stop without --cleanup tears the firewall off the machines it deliberately left running — the audit's own `network unset security.acls`, dressed as tidiness",
+      "file": "internal/core/machine/incus_release.go",
+      "find": "\t\tif len(acl.UsedBy) > 0 {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif false && len(acl.UsedBy) > 0 {\n\t\t\tcontinue\n\t\t}",
+      "test": "TestAReleaseKeepsTheRuleSetOfAMachineLeftRunning"
+    },
+    {
+      "label": "the release stops asking whether a rule set is ours, so an operator's own ACL is named and reached for on every graceful exit",
+      "file": "internal/core/machine/incus_release.go",
+      "find": "\t\tif !strings.HasPrefix(acl.Description, FirewallDescription) && !coreOwnedACL(acl.Name) {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tif false && !strings.HasPrefix(acl.Description, FirewallDescription) && !coreOwnedACL(acl.Name) {\n\t\t\tcontinue\n\t\t}",
+      "test": "TestAReleaseNeverTouchesARuleSetTheEmulatorDidNotWrite"
+    },
+    {
+      "label": "the closing check speaks the doorstep's sentence, so a leg that leaks blames a previous run that never existed — the half of the 2026-08-28 failure a green gate would have hidden",
+      "file": "internal/cli/clean_ledger.go",
+      "find": "func (m leftoverMoment) subject() string {\n\tif m == momentClosing {\n\t\treturn \"this run\"\n\t}",
+      "replace": "func (m leftoverMoment) subject() string {\n\tif m == momentClosing && false {\n\t\treturn \"this run\"\n\t}",
+      "test": "TestTheClosingCheckBlamesTheRunThatLeaked",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "the doorstep goes back to saying nothing about the rule sets it does not refuse on, so the one artefact that accumulates once per session is invisible exactly on the hosts where it is all that is left",
+      "file": "internal/cli/clean_ledger.go",
+      "find": "\tif len(left.Firewalls) == 0 {\n\t\treturn\n\t}",
+      "replace": "\tif len(left.Firewalls) == 0 || true {\n\t\treturn\n\t}",
+      "test": "TestTheDoorstepNamesRuleSetsItDoesNotRefuseOn",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "the ledger goes back to attributing a network to a name prefix it does not carry — `feint-uplink` was reported as found by `fnt-` — so the column that decides what may be touched names a mark nobody read",
+      "file": "internal/cli/clean_ledger.go",
+      "find": "\t\t{\"network\", left.Networks, \"label:\" + machine.LabelKey},",
+      "replace": "\t\t{\"network\", left.Networks, \"name-prefix:\" + machine.NetworkPrefix + \"-\" + machine.LabelKey[:0]},",
+      "test": "TestTheLedgerAttributesEachObjectToTheMarkItWasFoundBy",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "clean accepts --doorstep and --closing together and picks one of the two sentences, printing a confident lie about which run left what",
+      "file": "internal/cli/clean.go",
+      "find": "\tif *doorstep && *closing {",
+      "replace": "\tif *doorstep && *closing && false {",
+      "test": "TestTheTwoMomentsCannotBeAskedAtOnce",
+      "package": "./internal/cli/"
+    },
+    {
+      "label": "the shell refusal after a run speaks about an earlier run, sending the reader of a job log to a run that never existed",
+      "file": "tools/conformance/guard.sh",
+      "find": "    if [ \"$scope\" = \"closing\" ]; then",
+      "replace": "    if [ \"$scope\" = \"closing\" ] && false; then",
+      "test": "TestTheClosingRefusalBlamesThisRunAndNotAnEarlierOne",
+      "package": "./tools/conformance/"
+    },
+    {
+      "label": "the closing scope passes --doorstep to the binary, so the report names a previous run for what this one left",
+      "file": "tools/conformance/guard.sh",
+      "find": "    closing) moment=\"--closing\" ;;",
+      "replace": "    closing) moment=\"--doorstep\" ;;",
+      "test": "TestOnlyTheDoorstepAsksWhatAnEarlierRunLeft",
+      "package": "./tools/conformance/"
+    },
+    {
+      "label": "the runtime proof's closing doorstep runs on the failure path too, so a leg that already died reports its wreckage as a leak and buries the finding under a second red",
+      "file": ".github/workflows/runtime-proof.yml",
+      "find": "      - name: What this leg left on the host\n        run: sudo tools/conformance/guard.sh leftovers-after \"${{ matrix.mode }}\"",
+      "replace": "      - name: What this leg left on the host\n        if: always()\n        run: sudo tools/conformance/guard.sh leftovers-after \"${{ matrix.mode }}\"",
+      "test": "TestTheRuntimeProofEndsOnItsOwnDoorstep",
       "package": "./tools/conformance/"
     }
   ],
-  "note": "The subject is #521: two full `FEINT_VM=incus-ovn mise run conformance` runs, both green, each left the host holding `feint-uplink` and one detached `osc-*` rule set at used_by 0 — and the suite's own doorstep refused the next launch on exactly that, `0 machine(s) and 1 network(s) of an earlier run still hold this host`. Five manual `feint clean --vm incus-ovn` were paid in one day, in four different work streams, for a sweep the task never mentions.\n\nTwo residues, two causes, and neither is the suites' fault. The `osc-*` rule set is the default security group a Net is born with: DeleteSecurityGroup refuses it by design (`the default security group of ... cannot be deleted`), so a client that tears down Vms, Subnet, Net — balancer.sh's cleanup, or any terraform destroy — has no call that could ever drop its host ACL; only the DeleteNet cascade can, and the cascade deleted the store record without touching the runtime. The uplink is process plumbing: no resource owns it, so no resource's delete removes it, and the closing `feint stop` pruned nothing.\n\nThe fix lands the end of the run where the start would accept it: the DeleteNet cascade drops the default group's rule set (the store delete and the runtime delete were asymmetric — deleteSecurityGroup had both since #475, the cascade had one); a graceful serve exit releases the uplink when this process holds it and nothing draws from it; and the conformance task stops explicitly, then re-asks its own doorstep, so a suite that leaks fails the run that leaked rather than the next one.\n\nThe refusing halves matter as much as the release: mutations 2 and 3 are the #455 family one object up — an exit that deletes an uplink held by another live run, or an operator's bridge under the uplink's name because a pid claim outranked the label. Mutation 4 is the lying-instrument family: released=true over an uplink still standing reads exactly like the fix working."
+  "note": "The subject is #521: two full `FEINT_VM=incus-ovn mise run conformance` runs, both green, each left the host holding `feint-uplink` and one detached `osc-*` rule set at used_by 0 — and the suite's own doorstep refused the next launch on exactly that, `0 machine(s) and 1 network(s) of an earlier run still hold this host`. Five manual `feint clean --vm incus-ovn` were paid in one day, in four different work streams, for a sweep the task never mentions.\n\nTwo residues, two causes, and neither is the suites' fault. The `osc-*` rule set is the default security group a Net is born with: DeleteSecurityGroup refuses it by design (`the default security group of ... cannot be deleted`), so a client that tears down Vms, Subnet, Net — balancer.sh's cleanup, or any terraform destroy — has no call that could ever drop its host ACL; only the DeleteNet cascade can, and the cascade deleted the store record without touching the runtime. The uplink is process plumbing: no resource owns it, so no resource's delete removes it, and the closing `feint stop` pruned nothing.\n\nThe fix lands the end of the run where the start would accept it: the DeleteNet cascade drops the default group's rule set (the store delete and the runtime delete were asymmetric — deleteSecurityGroup had both since #475, the cascade had one); a graceful serve exit releases the uplink when this process holds it and nothing draws from it; and the conformance task stops explicitly, then re-asks its own doorstep, so a suite that leaks fails the run that leaked rather than the next one.\n\nThe refusing halves matter as much as the release: mutations 2 and 3 are the #455 family one object up — an exit that deletes an uplink held by another live run, or an operator's bridge under the uplink's name because a pid claim outranked the label. Mutation 4 is the lying-instrument family: released=true over an uplink still standing reads exactly like the fix working.\n\n2026-08-28, the same family measured again and larger. The incus-ovn leg of runtime-proof.yml failed at the doorstep of its own witness gate on a GitHub runner nothing had ever touched: `a previous run left 0 machine(s) and 2 network(s) on this host`, naming feint-uplink, fnt-default and the rule sets of two providers' default security groups. The station reproduced it exactly — the three ssh suites each exit 0 and each leave something standing.\n\nFour objects, one property: no client call can remove any of them. fnt-default is DefaultMachineNetwork, created the first time a machine boots with no attachment of its own (an Outscale Vm outside a Net) and owned by no resource; feint-uplink was already released by #521 and stayed because fnt-default still drew from it; the scw-* and exo-* rule sets belong to default security groups a client cannot delete, and the Scaleway one is minted per run, so it accumulates one host ACL per session. So the graceful exit gives all four back (machine.PlumbingReleaser), in the only order the runtime accepts, and each release answers both questions — ours, and used by nothing — because a release that took a rule set off a machine a --cleanup-less stop deliberately left running would be the firewall-disarming primitive an audit already demonstrated.\n\nThe second half is the sentence. The refusal was right and its subject was not: there was no previous run. `clean --closing` and `guard.sh leftovers-after` ask the identical question and name this run, and runtime-proof.yml now asks it after its own stop instead of letting the next step meet the residue."
 }

@@ -1242,8 +1242,8 @@ func (d *Incus) dropUplinkRoutes(ctx context.Context, routes []string) error {
 	return nil
 }
 
-// ReleaseUplink implements UplinkReleaser: the graceful exit takes the one
-// object no client's delete will ever remove (#521). Two green conformance
+// releaseUplink is the uplink half of ReleasePlumbing: the graceful exit takes
+// the object no client's delete will ever remove (#521). Two green conformance
 // runs each left `feint-uplink` standing — every resource had been deleted by
 // the clients that made it, the closing `feint stop` pruned nothing, and the
 // next run's own doorstep refused the host on exactly that network.
@@ -1258,11 +1258,13 @@ func (d *Incus) dropUplinkRoutes(ctx context.Context, routes []string) error {
 // An uplink that networks still draw from stays, silently: those networks are
 // this run's leftovers, the doorstep and the sweep name them, and a release
 // that hid them behind a forced teardown would be the sweep this path
-// deliberately is not.
+// deliberately is not. It is also why ReleasePlumbing gives the default machine
+// network back first — that network is what kept this one standing on the leg
+// of 2026-08-28.
 // TestAShutdownReleaseTakesTheUnusedUplinkOfThisProcess fails without the
 // release; TestAReleaseNeverTouchesAnUplinkThisProcessDoesNotHold holds the
 // refusing half.
-func (d *Incus) ReleaseUplink(ctx context.Context) (bool, error) {
+func (d *Incus) releaseUplink(ctx context.Context) (bool, error) {
 	if !d.OVN {
 		return false, nil
 	}

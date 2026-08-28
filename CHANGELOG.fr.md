@@ -38,6 +38,38 @@ change ni l'un ni l'autre a sa place dans `git log`.
 
 ### Corrigé
 
+- **Un arrêt propre rend toute la plomberie qu'aucun client ne peut supprimer,
+  et l'exécution qui fuit est celle qui rougit (#521).** La jambe incus-ovn de
+  `runtime-proof.yml` a échoué au portillon de l'étape suivante sur un runner
+  neuf : *a previous run left 0 machine(s) and 2 network(s) on this host*, en
+  nommant `feint-uplink`, `fnt-default` et les jeux de règles des groupes de
+  sécurité par défaut de deux providers. Il n'y avait pas d'exécution
+  précédente : les trois suites ssh de la jambe avaient créé les quatre, en
+  sortant chacune à 0.
+
+  Quatre objets, une propriété : **aucun appel client ne peut en retirer un
+  seul**, donc les laisser ne mesurait rien sur les suites. `fnt-default` est
+  le réseau sur lequel démarre une machine sans attachement à elle, créé ici
+  par une Vm Outscale hors Net et possédé par aucune ressource ;
+  `feint-uplink` était relâché depuis #521 et restait parce que `fnt-default`
+  y puisait encore ; les jeux `scw-*` et `exo-*` appartiennent à des groupes
+  par défaut qu'un client ne peut pas supprimer, et celui de Scaleway est tiré
+  à chaque exécution, donc une ACL s'accumulait par session. L'arrêt rend
+  désormais les quatre, dans le seul ordre que le runtime accepte, et chaque
+  restitution pose les deux questions — est-ce à nous, et quelque chose y
+  puise-t-il encore — de sorte qu'un `feint stop` sans `--cleanup` laisse leur
+  pare-feu aux machines qu'il laisse délibérément tourner.
+
+  La seconde moitié est la phrase. `feint clean --check --closing` et
+  `tools/conformance/guard.sh leftovers-after` posent la même question et
+  nomment **cette** exécution, `runtime-proof.yml` la pose après son propre
+  arrêt au lieu de laisser l'étape suivante rencontrer le reste, et le
+  portillon nomme désormais les jeux de règles sur lesquels il ne refuse *pas*
+  au lieu de passer dessus en silence. La colonne d'attribution du registre a
+  été corrigée avec eux : un réseau est trouvé par l'étiquette que lit
+  `Survey`, pas par le préfixe `fnt-` que la colonne annonçait — et le premier
+  réseau nommé par la jambe en échec, `feint-uplink`, ne porte pas ce préfixe.
+
 - **Le portillon de sortie de la porte des stacks pose enfin la question que
   son propre commentaire annonçait, et la porte cesse de choisir son runtime
   en silence (#504).** Elle se terminait sur
