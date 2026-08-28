@@ -56,6 +56,13 @@ func (r *buildRecorder) run(_ context.Context, args ...string) ([]byte, error) {
 	r.mu.Unlock()
 
 	switch {
+	// A real builder carries an address, and BuildImage now waits for one
+	// before it fetches a package (#583). A recorder that answered nothing here
+	// would make every build in this file wait out its three-minute deadline —
+	// which is what it did for one run, and is why this case says what it
+	// stands for rather than returning a bare string.
+	case len(args) > 3 && args[0] == "exec" && args[3] == "ip":
+		return []byte("2: eth0    inet 10.248.68.10/24 scope global eth0\n"), nil
 	case len(args) > 1 && args[0] == "image" && args[1] == "list":
 		out := "["
 		for i, alias := range published {

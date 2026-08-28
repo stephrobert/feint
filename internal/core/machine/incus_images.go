@@ -169,7 +169,7 @@ func (d *Incus) waitForBuilder(ctx context.Context, builder string) error {
 		if _, err := d.run(ctx, "exec", builder, "--", "true"); err == nil {
 			// cloud-init is absent on some images and that is not an error.
 			_, _ = d.run(ctx, "exec", builder, "--", "cloud-init", "status", "--wait")
-			return nil
+			return d.waitForBuilderAddress(ctx, builder, deadline)
 		}
 		select {
 		case <-ctx.Done():
@@ -178,6 +178,50 @@ func (d *Incus) waitForBuilder(ctx context.Context, builder string) error {
 		}
 	}
 	return fmt.Errorf("the build instance never answered")
+}
+
+// waitForBuilderAddress waits for the thing the next command actually needs.
+//
+// Answering `exec -- true` proves an init is up. It does not prove the instance
+// has an address, and the very next thing this build does is fetch a package
+// over the network. The two were treated as one, and on 2026-08-28 the whole
+// nightly runtime proof died on the difference, on both legs, before a suite
+// ran:
+//
+//	apk add --no-cache openssh in the build instance:
+//	  fetching https://dl-cdn.alpinelinux.org/alpine/v3.21/main: Permission denied
+//
+// Alpine is the one that shows it because Alpine is the one that boots in about
+// a second: `exec -- true` answers almost at once, its cloud image carries no
+// cloud-init so the wait above is a no-op, and apk runs before DHCP has handed
+// out a lease. AlmaLinux, built in the same pass and from the same bridge,
+// succeeded every time — systemd and cloud-init take long enough that the lease
+// is there by the time dnf runs. What made a five-year-old race visible was a
+// runner image that jumped three weeks and changed the timings; the race was
+// always there.
+//
+// So this waits on the observable condition rather than on a proxy for it,
+// which is #459's rule applied one layer down: the machine carries a global
+// address, asked of the machine itself. A build instance that never gets one is
+// refused by name, because a build that proceeds without an address fails later
+// and blames the package repository.
+//
+// TestTheBuilderIsNotDeclaredReadyWithoutAnAddress fails without it.
+func (d *Incus) waitForBuilderAddress(ctx context.Context, builder string, deadline time.Time) error {
+	for time.Now().Before(deadline) {
+		out, err := d.run(ctx, "exec", builder, "--",
+			"ip", "-4", "-o", "addr", "show", "scope", "global")
+		if err == nil && strings.TrimSpace(string(out)) != "" {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Second):
+		}
+	}
+	return fmt.Errorf("the build instance never carried a global address, so the " +
+		"package fetch below would fail on the network rather than on the package")
 }
 
 func (d *Incus) execInBuilder(ctx context.Context, builder string, command []string) error {

@@ -1,0 +1,19 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the builder is declared ready as soon as its init answers, so apk runs before DHCP and the package repository takes the blame (#583)",
+      "file": "internal/core/machine/incus_images.go",
+      "find": "\t\t\treturn d.waitForBuilderAddress(ctx, builder, deadline)",
+      "replace": "\t\t\tif false {\n\t\t\t\treturn d.waitForBuilderAddress(ctx, builder, deadline)\n\t\t\t}\n\t\t\treturn nil",
+      "test": "TestTheBuilderIsNotDeclaredReadyWithoutAnAddress"
+    },
+    {
+      "label": "an empty address list counts as an address, so a builder carrying nothing is let through (#583)",
+      "file": "internal/core/machine/incus_images.go",
+      "find": "\t\tif err == nil && strings.TrimSpace(string(out)) != \"\" {",
+      "replace": "\t\tif err == nil && (strings.TrimSpace(string(out)) != \"\" || true) {",
+      "test": "TestTheBuilderIsNotDeclaredReadyWithoutAnAddress"
+    }
+  ]
+}

@@ -2,8 +2,10 @@ package machine
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 // The image table is data, and a row that names no source or no package is a
@@ -385,5 +387,63 @@ func TestLocalImagesSurviveASecondAlias(t *testing.T) {
 	}
 	if len(asked) == 0 || !strings.Contains(asked[0], "--format json") {
 		t.Fatalf("the listing did not ask for JSON, so a second alias will truncate: %v", asked)
+	}
+}
+
+// The builder is ready when it carries an address, not when its init answers.
+//
+// `exec -- true` proves an init is up; the very next thing BuildImage does is
+// fetch a package over the network. Treating the two as one killed the whole
+// nightly runtime proof on 2026-08-28, on both legs, before a suite ran — apk
+// on Alpine, whose cloud image carries no cloud-init and which boots in about a
+// second, so the fetch beat DHCP to it. AlmaLinux in the same pass, from the
+// same bridge, succeeded every time.
+//
+// The control that makes this test mean something is the second half: a builder
+// that answers WITH an address must not be waited on at all, or the test would
+// pass over a wait that always blocks.
+func TestTheBuilderIsNotDeclaredReadyWithoutAnAddress(t *testing.T) {
+	addressAsked := 0
+	d := NewIncus()
+	d.runner = func(_ context.Context, args ...string) ([]byte, error) {
+		joined := strings.Join(args, " ")
+		switch {
+		case strings.Contains(joined, "-- true"):
+			return nil, nil
+		case strings.Contains(joined, "cloud-init"):
+			return nil, errors.New("cloud-init: not found")
+		case strings.Contains(joined, "ip -4 -o addr show scope global"):
+			addressAsked++
+			return nil, nil // up, and holding no address
+		}
+		return nil, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+	err := d.waitForBuilder(ctx, "feint-build-x")
+	if err == nil {
+		t.Fatal("a builder with no global address was declared ready, so the package " +
+			"fetch that follows would fail on the network and blame the repository")
+	}
+	if addressAsked == 0 {
+		t.Fatal("the address was never asked for: this test would pass over a wait " +
+			"that returns early for any other reason")
+	}
+
+	// The control: the same builder, carrying an address, is ready at once.
+	d2 := NewIncus()
+	d2.runner = func(_ context.Context, args ...string) ([]byte, error) {
+		joined := strings.Join(args, " ")
+		switch {
+		case strings.Contains(joined, "cloud-init"):
+			return nil, errors.New("cloud-init: not found")
+		case strings.Contains(joined, "ip -4 -o addr show scope global"):
+			return []byte("2: eth0    inet 10.248.68.10/24 scope global eth0\n"), nil
+		}
+		return nil, nil
+	}
+	if err := d2.waitForBuilder(context.Background(), "feint-build-x"); err != nil {
+		t.Fatalf("a builder holding 10.248.68.10 was refused: %v", err)
 	}
 }
