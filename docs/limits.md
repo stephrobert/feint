@@ -1745,6 +1745,97 @@ Until then `mise run conformance:parity` runs on demand and is deliberately not
 in the `conformance` aggregate: a red suite inside the gate every other change is
 judged by teaches people to skip the gate.
 
+## The guest's DHCP client is not how a published address reaches a machine (#587)
+
+The driver reserves the address on the NIC (`ipv4.address`) and, until
+2026-08-29, left the guest to ask for it. That worked on two of the three images
+the Outscale catalogue serves and **never** on the third, which is what a
+verdict that depends on the host looks like when the host is not the variable.
+
+One Subnet, one OVN network, one machine per image, twice each. The number is
+how long after `CreateVms` answered the machine carried the address the API had
+published, read from the runtime (`incus query /1.0/instances/<name>/state`),
+not from the emulator:
+
+| image | AMI | address carried after the create answered |
+|---|---|---|
+| `ubuntu:24.04` | `ami-00000001` | 27 ms, 32 ms |
+| `debian:12` | `ami-00000002` | 46 ms, 35 ms |
+| `alpine:3.21` | `ami-00000003` | **never** |
+
+`never` is measured, not inferred: six alpine machines, ceilings of 45 s, 90 s
+and 180 s, none of them carried it. Station of the maintainer, 2026-08-29,
+`--vm incus-ovn`, Incus 7.2, OVN 24.03.6, `CreateVms` itself 22.0–22.5 s
+throughout (#562's constant, unchanged).
+
+### Why alpine and not the other two
+
+The alpine cloud image ships **dhcpcd 10.1.0**, and `ifupdown-ng` prefers it to
+busybox's `udhcpc` whenever it is installed. dhcpcd ARP-probes the address it
+was offered before accepting it. Inside the guest:
+
+```text
+eth0: soliciting a DHCP lease
+eth0: offered 10.182.9.4 from 10.182.9.1
+eth0: probing address 10.182.9.4/24
+eth0: 10:66:6a:88:5e:54(10:66:6a:88:5e:54) claims 10.182.9.4
+eth0: DAD detected 10.182.9.4
+```
+
+once a second, for ever. The MAC that "claims" the address is not the machine's
+own (`10:66:6a:4a:aa:69` in that run) and not another machine's: it is the OVN
+**gateway router's external port**, `10.209.83.128` on `feint-uplink`. The probe
+is flooded to the network's localnet port, reaches the uplink, and the gateway
+answers it — answering ARP for the block it fronts is exactly that router's job,
+and the block is on the uplink because `ipv4.routes` puts it there so the host
+can reach the network at all. The guest reads its own address as taken, declines
+its own lease, and asks again.
+
+Ubuntu and Debian configure the interface from the lease without an ACD probe,
+so they never see the answer.
+
+### It was broken, not slow, and the budget was never the lever
+
+`tools/conformance/outscale/network.sh` waits `wait_until 24` for that address
+and expired at 24.816 s on this station while CI passed the same suite. The
+temptation is to raise 24. Three measurements say it would have been the wrong
+fix:
+
+- at the end of a 90 s wait the guest's DHCP client is **gone** — nothing is
+  asking any more, so no budget reaches it;
+- in that same guest, at that same moment, one `udhcpc` exchange is answered in
+  **97–143 ms**: the path was open the whole time;
+- waiting longer makes the DAD answer *more* certain, not less, because the
+  gateway is programmed by then. CI's green on this suite is its probe winning a
+  race, not the address arriving.
+
+### The fix, and where it sits
+
+`Incus.Start` now calls `settleFirstBoot` on the launch branch: for every NIC of
+ours that reserves an address, the address is configured inside the guest and —
+under OVN — the private aggregates are laid through the network's router. That
+is what `Attach` already does for a hot-added NIC and what `restoreGuestNetwork`
+puts back after a reboot (#548, #549); the first boot was the last door still
+trusting the lease. A device that reserves **nothing** is left to DHCP, which is
+correct and is the case #202 exists for.
+
+After it, on the same station and the same images: `alpine:3.21` carries its
+address 31 ms and 36 ms after the create answers, like the other two.
+
+### What this does not claim
+
+- It is not a statement about dhcpcd being wrong. A real cloud's DHCP server
+  does not sit behind a gateway that proxy-ARPs the block, so the probe is
+  answered here and not there.
+- Nothing was measured about `--vm incus-vm`. The same door is used, and a
+  virtual machine's `incus exec` needs its agent; no VM was booted for this.
+- The station also carried **394 stale `ovn-bridge-mappings` entries for two
+  live OVS bridges**, one added per OVN run, which made `ovn-controller` log
+  ~4 MB of `Bridge 'incusovnNNNN' not found for network 'feint-uplink'` per
+  machine creation. Pruning them changed nothing about the measurement above —
+  the alpine machines still never took their address — so it is a separate
+  matter, recorded here because it is real and nobody had looked.
+
 ## A machine's route out: which shapes reach a package repository (#507)
 
 Whether an emulated machine can reach the internet is a property of its
