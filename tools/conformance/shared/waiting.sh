@@ -67,6 +67,24 @@
 # condition here is one `incus exec`, tens of milliseconds.
 WAIT_POLL="${WAIT_POLL:-0.25}"
 
+# --- INSTRUMENT (temporary, #587) --------------------------------------------
+WAIT_TRACE="${WAIT_TRACE:-}"
+WAIT_SCALE="${WAIT_SCALE:-1}"
+
+_wait_now() { date +%s%N; }
+_wait_record() { # kind verdict budget started command...
+  [ -n "$WAIT_TRACE" ] || return 0
+  local kind=$1 verdict=$2 budget=$3 started=$4
+  shift 4
+  local now elapsed
+  now="$(_wait_now)"
+  elapsed=$(((now - started) / 1000000))
+  printf '%s\t%s\t%s\t%s\t%s.%03d\t%s\n' \
+    "$(basename "$0")" "$kind" "$verdict" "$budget" \
+    "$((elapsed / 1000))" "$((elapsed % 1000))" "$*" >>"$WAIT_TRACE"
+}
+# -----------------------------------------------------------------------------
+
 # wait_until <seconds> <command...> — poll until the command succeeds.
 #
 # Answers 0 as soon as it does, and 1 if the budget runs out. The caller keeps
@@ -82,12 +100,18 @@ WAIT_POLL="${WAIT_POLL:-0.25}"
 wait_until() { # seconds command...
   local budget="$1"
   shift
+  local asked="$budget"
+  budget=$((budget * WAIT_SCALE))
+  local started
+  started="$(_wait_now)"
   local deadline=$((SECONDS + budget + 1))
   while :; do
     if "$@"; then
+      _wait_record until held "$asked" "$started" "$@"
       return 0
     fi
     if [ "$SECONDS" -ge "$deadline" ]; then
+      _wait_record until EXPIRED "$asked" "$started" "$@"
       return 1 # the budget ran out and the condition never held
     fi
     sleep "$WAIT_POLL"
@@ -104,12 +128,18 @@ wait_until() { # seconds command...
 wait_gone() { # seconds command...
   local budget="$1"
   shift
+  local asked="$budget"
+  budget=$((budget * WAIT_SCALE))
+  local started
+  started="$(_wait_now)"
   local deadline=$((SECONDS + budget + 1))
   while :; do
     if ! "$@"; then
+      _wait_record gone held "$asked" "$started" "$@"
       return 0
     fi
     if [ "$SECONDS" -ge "$deadline" ]; then
+      _wait_record gone EXPIRED "$asked" "$started" "$@"
       return 1 # the budget ran out and the object is still there
     fi
     sleep "$WAIT_POLL"
