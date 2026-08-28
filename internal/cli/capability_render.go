@@ -147,7 +147,7 @@ func renderPromise(french bool) (string, error) {
 
 	if french {
 		b.WriteString("**Pointez Terraform et les CLI officielles vers votre propre machine.**\n")
-		b.WriteString("Aucun compte cloud, aucun identifiant, et rien de créé nulle part.\n\n")
+		b.WriteString("Aucun compte cloud, aucun identifiant de cloud, et rien de créé nulle part.\n\n")
 		b.WriteString(wrapParagraph(fmt.Sprintf(
 			"%s pilotent %s. Chaque pack a en plus son CLI officiel, et chacun d'eux pilote cet "+
 				"émulateur de bout en bout :",
@@ -155,7 +155,7 @@ func renderPromise(french bool) (string, error) {
 		b.WriteString("\n")
 	} else {
 		b.WriteString("**Point Terraform and the official cloud CLIs at your own machine.**\n")
-		b.WriteString("No cloud account, no credentials, and nothing created anywhere.\n\n")
+		b.WriteString("No cloud account, no cloud credentials, and nothing created anywhere.\n\n")
 		b.WriteString(wrapParagraph(fmt.Sprintf(
 			"%s drive %s. Each pack also has its own official CLI, and every one of them drives "+
 				"this emulator end to end:",

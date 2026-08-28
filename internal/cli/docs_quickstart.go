@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -91,6 +92,32 @@ func renderQuickstart(goMod, changelog string, french bool) (string, error) {
 	} else {
 		b.WriteString("**On your machine** — one static binary, and a stack short enough to read whole:\n\n")
 	}
+
+	// What the reader needs that these four commands do not install.
+	//
+	// They install feint, clone, change directory and run — and the third one
+	// runs the engine the stack declares, which is not feint. Measured
+	// 2026-08-28: a reader on a machine carrying neither Git nor Terraform
+	// cannot reach the `Apply complete!` this block prints underneath, which is
+	// #593's own complaint one level out: a Quick Start that displays an output
+	// its own commands cannot produce.
+	//
+	// The engine and its floor are read from the stack's own declaration and its
+	// `required_version`, never typed here: a number written beside a file that
+	// owns it is a number that goes stale in silence, and this block exists
+	// because that happened to the resource count.
+	if engine, floor, ok := quickstartEngineFloor(stack); ok {
+		if french {
+			fmt.Fprintf(&b, "> Il vous faut **Git** et **%s %s**. feint lui-même n'a aucune dépendance\n"+
+				"> d'exécution : c'est la stack qui réclame le moteur.\n\n",
+				engineName(engine), floor)
+		} else {
+			fmt.Fprintf(&b, "> You need **Git** and **%s %s**. feint itself has no runtime\n"+
+				"> dependency: it is the stack that asks for the engine.\n\n",
+				engineName(engine), floor)
+		}
+	}
+
 	b.WriteString("```bash\n")
 	fmt.Fprintf(&b, "brew install %s/%s\n", slug, pathBase(slug))
 	fmt.Fprintf(&b, "git clone https://github.com/%s\n", slug)
@@ -363,4 +390,47 @@ func writeSplicedTranslatedBanner(root string, order []string, routes map[string
 		return fmt.Errorf("%s: %w", path, err)
 	}
 	return os.WriteFile(path, []byte(updated), 0o644) //nolint:gosec // documentation is world-readable by design
+}
+
+// quickstartEngineFloor answers the engine a quickstart declares and the lowest
+// version its Terraform will accept, both read from the files that own them.
+//
+// Two files, because the two facts live apart: `feint.yaml` names the engine
+// `feint up` will run, and `main.tf`'s `required_version` names the floor that
+// engine will refuse to go below. Typing either one beside this block is what
+// #593's resource count already proved goes stale.
+//
+// It answers false rather than guessing when either is missing: a prerequisite
+// line that names a version nobody declared is worse than none, because a reader
+// installs that version and still fails.
+func quickstartEngineFloor(stack string) (engine, floor string, ok bool) {
+	declaration, err := os.ReadFile(filepath.Join(stack, "feint.yaml"))
+	if err != nil {
+		return "", "", false
+	}
+	engineLine := regexp.MustCompile(`(?m)^\s*engine:\s*(\S+)\s*$`).FindSubmatch(declaration)
+	if engineLine == nil {
+		return "", "", false
+	}
+	main, err := os.ReadFile(filepath.Join(stack, "main.tf"))
+	if err != nil {
+		return "", "", false
+	}
+	version := regexp.MustCompile(`required_version\s*=\s*"([^"]+)"`).FindSubmatch(main)
+	if version == nil {
+		return "", "", false
+	}
+	return string(engineLine[1]), strings.TrimSpace(string(version[1])), true
+}
+
+// engineName spells an engine the way its own project does.
+func engineName(engine string) string {
+	switch engine {
+	case "terraform":
+		return "Terraform"
+	case "opentofu":
+		return "OpenTofu"
+	default:
+		return engine
+	}
 }

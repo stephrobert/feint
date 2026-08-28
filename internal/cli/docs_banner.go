@@ -196,7 +196,8 @@ func renderSafety(facts safetyFacts, french bool) string {
 	b.WriteString("> [!IMPORTANT]\n")
 	b.WriteString("> **What is safe to point at this emulator, and what is not.**\n>\n")
 	fmt.Fprintf(&b, "> **Proven**: %d of the %d mounted operations are driven by a real client, on every "+
-		"pull request. `scw`, `octl`, `exo`, Terraform and OpenTofu run against the emulator in "+
+		"pull request: each pack's own official CLI, and an infrastructure engine "+
+		"wherever a pack admits one, all of them running against the emulator in "+
 		"CI, and machines really boot: an ssh login on each provider's own default account, isolated "+
 		"subnets, a firewall that filters. The whole chain is described in "+
 		"[docs/conformance.md](docs/conformance.md).\n>\n", facts.Driven, facts.Mounted)

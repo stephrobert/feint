@@ -101,9 +101,9 @@ nothing is signed until it is released:
 go install github.com/stephrobert/feint/cmd/feint@latest
 ```
 
-That gives you the control plane — every API answers, `scw`, `octl`, `exo`
-and Terraform drive it, and nothing runs. It is what CI uses and it needs no
-prerequisite at all.
+That gives you the control plane — every API answers, `scw`, `octl` and `exo`
+drive their own packs, Terraform and OpenTofu drive Scaleway and Outscale, and
+nothing runs. It is what CI uses and it needs no prerequisite at all.
 
 ## With Homebrew
 
