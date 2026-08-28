@@ -131,6 +131,76 @@ func TestEachPackAnswersItsOwnSpace(t *testing.T) {
 	}
 }
 
+// Every refusal a pack makes for its own space carries the out-of-band marker,
+// and no served answer does (#477).
+//
+// Why the marker is a header and not a status. Replaying the register's best
+// Exoscale stack — seven resources applied, empty second plan, seven destroyed,
+// green end to end — the recorder showed three refusals of
+// `GET /v2/reverse-dns/elastic-ip/{id}`, an operation that pack declines, and
+// nothing anywhere said so: a bare 404 is also what the cloud answers for an
+// elastic IP with no reverse record, so the refusal and the ordinary empty
+// answer were the same bytes to a program.
+//
+// The obvious remedy was measured and refused. Answering 501 there, the way the
+// Scaleway pack does in its own space, is legible and costs `exo` 1.95.1
+// nothing in latency — 22, 21 and 19 ms against the 19 ms of a served route —
+// and it FAILS `exo compute instance create`, which calls
+// GET /v2/reverse-dns/instance/{id} after every create and treats anything but
+// a 404 as fatal. Measured on 2026-08-28: the exo-cli conformance leg died at
+// "instance create rejected" under 501 and passes under 404. A refusal loud
+// enough to fail a client the real cloud would have served is the polar star
+// inverted, and it is the symmetric defect of the one #477 reports.
+//
+// So the marker goes where no client trips over it. Here rather than in each
+// pack: a control copied into three packs is a control the fourth forgets, and
+// the three spellings of a refusal are exactly what #477 is about.
+//
+// The value is the pack's own name, read out of this process's mount table.
+// Never the path: what a client chose does not become a value this emulator
+// writes, which is the same rule the "pointing without a served prefix" warning
+// below the call site already follows.
+func TestAnUnroutedAnswerCarriesTheNotEmulatedHeader(t *testing.T) {
+	env := emulator.DefaultEnv()
+	ts := serve(t, scaleway.New(env), outscale.New(env), unroutedPack{})
+
+	header := func(t *testing.T, path string) (int, string) {
+		t.Helper()
+		res, err := http.Get(ts.URL + path) //nolint:noctx // test client
+		if err != nil {
+			t.Fatalf("get %s: %v", path, err)
+		}
+		defer func() { _ = res.Body.Close() }()
+		return res.StatusCode, res.Header.Get(emulator.NotEmulatedHeader)
+	}
+
+	// Three packs, three dialects, one marker — including the pack whose
+	// refusal is a bare 404 that no body field can distinguish.
+	for path, want := range map[string]string{
+		"/instance/v1/zones/fr-par-1/nope": "scaleway",
+		"/api/v1/ReadNotAnOperation":       "outscale",
+		"/stub/v1/nothing-here":            "stub",
+	} {
+		status, got := header(t, path)
+		if got != want {
+			t.Errorf("%s answered %d with %s=%q, want %q: a program cannot otherwise tell this "+
+				"emulator refusing an operation from a cloud answering nothing",
+				path, status, emulator.NotEmulatedHeader, got, want)
+		}
+	}
+
+	// The other direction, twice, because a header set on every answer marks
+	// nothing. A served route does not carry it, and neither does a path no
+	// pack claims — nothing is refusing an operation there, and attributing it
+	// to a provider would be a guess.
+	if status, got := header(t, "/stub/v1/things"); got != "" {
+		t.Errorf("a served route (%d) carries %s=%q", status, emulator.NotEmulatedHeader, got)
+	}
+	if status, got := header(t, "/nothing/at/all"); got != "" {
+		t.Errorf("a path no pack claims (%d) carries %s=%q", status, emulator.NotEmulatedHeader, got)
+	}
+}
+
 // overlappingPack claims a space that swallows another pack's.
 type overlappingPack struct{ unroutedPack }
 

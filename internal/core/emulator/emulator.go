@@ -519,6 +519,16 @@ func checkSpaces(packs []Pack) error {
 	return nil
 }
 
+// NotEmulatedHeader marks an answer that is this emulator refusing an operation
+// rather than a cloud answering, and names the pack whose URL space the request
+// landed in. No real cloud sends it — the same trade FaultHeader documents.
+//
+// It exists because a status cannot carry that fact for every operation: for
+// one whose real 404 means "this object has no such record", a louder refusal
+// fails a client the real cloud would have served. See handleUnrouted for the
+// measurement (#477).
+const NotEmulatedHeader = "X-Feint-Not-Emulated"
+
 // handleUnrouted answers a request no route claimed, in the dialect of whichever
 // pack owns the URL space it landed in.
 //
@@ -527,6 +537,7 @@ func checkSpaces(packs []Pack) error {
 // is right for a request that belongs to no provider at all.
 func (s *Server) handleUnrouted(w http.ResponseWriter, r *http.Request) {
 	best, bestLen := (Unrouted)(nil), -1
+	bestName := ""
 	for _, p := range s.packs {
 		unrouted, ok := p.(Unrouted)
 		if !ok {
@@ -534,9 +545,45 @@ func (s *Server) handleUnrouted(w http.ResponseWriter, r *http.Request) {
 		}
 		for _, prefix := range unrouted.Prefixes() {
 			if len(prefix) > bestLen && strings.HasPrefix(r.URL.Path, prefix) {
-				best, bestLen = unrouted, len(prefix)
+				best, bestLen, bestName = unrouted, len(prefix), p.Name()
 			}
 		}
+	}
+	// The marker, out of band, and here rather than in each pack (#477).
+	//
+	// A refusal a program cannot tell from an empty answer is a refusal that
+	// reads as success. Replaying the register's best Exoscale stack — seven
+	// resources applied, empty second plan, seven destroyed — the recorder
+	// showed three refusals of an operation that pack declines, and nothing
+	// anywhere said so: a bare 404 is also what the cloud answers for an
+	// elastic IP with no reverse record, so the refusal and the ordinary empty
+	// answer were the same bytes.
+	//
+	// It could not be fixed in the status, and that was measured rather than
+	// argued. Answering 501, as the Scaleway pack does for its own space, is
+	// legible and costs exo 1.95.1 nothing in latency (22, 21 and 19 ms against
+	// the 19 ms of a served route) — and it breaks `exo compute instance
+	// create`, which calls GET /v2/reverse-dns/instance/{id} after every create
+	// and treats anything but a 404 as fatal. Measured on 2026-08-28: the
+	// exo-cli leg failed at "instance create rejected" with 501 and passes with
+	// 404. That is the polar star inverted — a refusal loud enough to fail a
+	// client the real cloud would have served — and it is why the status of an
+	// operation whose real 404 means "nothing here" cannot carry the marker.
+	//
+	// So the marker goes where no client can trip over it, and where every pack
+	// gets it at once: a header in this emulator's own namespace, beside
+	// X-Feint-Fault and X-Feint-Probe, which faults.go already documents as
+	// headers no real cloud sends. Its value is the pack that owns the URL
+	// space, read out of this process's own mount table — never the path the
+	// client chose, for the reason the log below gives.
+	//
+	// What it does NOT do, and what the packs' own bodies still have to: tell an
+	// operator. A header is invisible to Terraform and to a human reading an
+	// apply. That half is #477's open remainder.
+	//
+	// TestAnUnroutedAnswerCarriesTheNotEmulatedHeader fails without this.
+	if bestName != "" {
+		w.Header().Set(NotEmulatedHeader, bestName)
 	}
 	// Logged like any other request, and this is the line the log exists for:
 	// a client walking a plan meets one route nobody mounted, the whole apply

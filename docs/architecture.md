@@ -152,6 +152,51 @@ without the second, "not done yet" and "out of scope" become the same thing.
 A change that makes any of the three inoperative is a bad change, even if it
 simplifies the code.
 
+### A decline has to be legible on the wire, not only in `coverage/`
+
+`Declined()` and the coverage artefacts are honest about what a pack does not
+serve, and they are read by nobody at run time. A **client** meets the refusal
+instead, and it must be able to tell "feint does not serve this operation" from
+"the cloud has nothing for you" — otherwise a decline reads as an empty answer
+and a green run proves something it did not (#477: three refusals of
+`GET /v2/reverse-dns/elastic-ip/{id}` inside a stack that applied seven
+resources, planned empty and destroyed seven, with nothing anywhere saying so).
+
+Each pack answers in its own dialect, and each spelling was decided by what its
+clients do rather than by a house style:
+
+| pack | status | body | why that one |
+|---|---|---|---|
+| Scaleway | `501` | `{"type":"not_emulated", "message": …}` | a type their SDK does not map, so `errors.As(&ResourceNotFoundError{})` cannot agree that a resource is missing; their SDK has no retry policy, so the status costs nothing |
+| Outscale | `404` | `{"Errors":[{"Code":"", "Type":"OperationNotEmulated", …}]}` | their envelope has a `Type` to put the marker in, and `501` costs `oapi-cli` 12 seconds of backed-off retries — measured |
+| Exoscale | `404` | `{"message": …}` | their envelope has nowhere to put a marker, and `501` **fails `exo compute instance create`** — measured |
+
+**No status and no body carries the marker for every operation, and that is a
+measurement rather than a preference.** Exoscale is the case that proves it:
+`exo compute instance create` calls `GET /v2/reverse-dns/instance/{id}` after
+every create and treats anything but a `404` as fatal, so the status a program
+could branch on is the status that breaks the client. Their error envelope
+requires `message` and declares no code field, so a marker in the body would be
+an invented format (rule 4). Both doors are shut, and `404` on a declined
+operation is then the same bytes as "this elastic IP has no reverse record".
+
+So the marker is **out of band**, set once in the shared layer for every pack:
+
+```text
+X-Feint-Not-Emulated: exoscale
+```
+
+`emulator.handleUnrouted` sets it on every unrouted refusal, with the name of
+the pack that owns the URL space — read from this process's mount table, never
+from the path the client sent. It sits beside `X-Feint-Fault` and
+`X-Feint-Probe`, headers no real cloud sends, and no client can trip over it.
+
+Two things it deliberately does not do. It does not mark a `404` that is an
+ordinary missing object — only a refusal — or the marker would mean nothing.
+And it does not tell an **operator**: a header is invisible to Terraform and to
+a human reading an apply, so a run can still be green while three declined
+operations were called (#477's remaining half).
+
 Those three are the first links of a longer chain — the contract, the two
 witnesses that drive it, the recordings that look in the omission direction, the
 seven-axis evidence record, and the versioned surface a pipeline reads.

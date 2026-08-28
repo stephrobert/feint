@@ -157,10 +157,17 @@ func TestAProtectedInstanceRefusesItsDelete(t *testing.T) {
 }
 
 // An action the pack does not serve on a served base path answers the pack's
-// own 404 envelope, not net/http's page: the dispatcher hands the miss to the
+// own envelope, not net/http's page: the dispatcher hands the miss to the
 // pack, and with dozens of actions still untriaged this is an answer real
 // clients will meet.
-func TestAnUnservedActionAnswersThePacksOwn404(t *testing.T) {
+//
+// Still 404 and not 501, measured rather than chosen: `exo compute instance
+// create` calls GET /v2/reverse-dns/instance/{id} after every create and treats
+// anything but a 404 as fatal, so a louder refusal fails a client the real
+// cloud would have served (#477). The marker a program can read is the
+// X-Feint-Not-Emulated header the shared layer sets —
+// emulator.TestAnUnroutedAnswerCarriesTheNotEmulatedHeader.
+func TestAnUnservedActionAnswersThePacksOwnRefusal(t *testing.T) {
 	h := serve(t)
 	id := createDemo(t, h)
 

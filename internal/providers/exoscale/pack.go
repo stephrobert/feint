@@ -842,6 +842,46 @@ func (p *Pack) Prefixes() []string { return []string{pathPrefix} }
 // The body is the pack's own error envelope, a bare message field, because that
 // is what their API returns and inventing a richer shape would be exactly the
 // rule-4 violation this project forbids.
+//
+// # 404, and why no status could carry the marker instead (#477)
+//
+// This answers a bare 404, which is also what the real cloud answers when an
+// object is simply not there — and that is the defect #477 reports. Replaying
+// the register's best third-party stack (seven resources applied, empty second
+// plan, seven destroyed, green end to end) the recorder showed three refusals
+// of `GET /v2/reverse-dns/elastic-ip/{id}`, an operation this pack declines and
+// carries in coverage/exoscale-coverage.json, and nothing anywhere said so: to
+// a program the refusal and "this elastic IP has no reverse record" are the
+// same bytes, so a reader of that green run would conclude reverse DNS works.
+//
+// The obvious remedy was tried, measured, and refused. Answering 501 — what the
+// Scaleway pack does in its own space, and what their document declares on none
+// of its 374 operations, which is exactly what would make it legible — costs
+// exo 1.95.1 / egoscale v3.1.36 nothing in latency: `exo dns list` at 22, 21 and
+// 19 ms against the 19 ms of a served route, one attempt, no backoff, reading
+// "Not Implemented: feint does not serve …". It also FAILS
+// `exo compute instance create`, which calls GET /v2/reverse-dns/instance/{id}
+// after every create and treats anything but a 404 as fatal. Measured on
+// 2026-08-28: the exo-cli conformance leg died at "instance create rejected"
+// under 501 and passes under 404.
+//
+// That is the symmetric defect — a refusal loud enough to fail a client the
+// real cloud would have served — and it generalises: for an operation whose
+// real 404 means "this object has no such record", no status can carry the
+// distinction. Neither can the body: Exoscale's envelope requires `message`,
+// declares no code field, and the one refusal recorded from the real cloud
+// carries exactly that (corpus/exoscale/exo-refusals.jsonl), so a field added
+// here would be the invented format rule 4 forbids.
+//
+// So the marker is out of band, and in the shared layer rather than here:
+// emulator.handleUnrouted sets X-Feint-Not-Emulated on every pack's refusal, so
+// a program can tell this answer from an empty one and no client can trip over
+// it. What that does NOT do is tell an operator, since a header is invisible to
+// Terraform and to a human reading an apply; that half is #477's remainder, and
+// the body below is what carries it today.
+//
+// emulator.TestAnUnroutedAnswerCarriesTheNotEmulatedHeader holds the marker and
+// TestADeclinedOperationKeepsTheStatusItsClientNeeds holds the status.
 func (p *Pack) NotFound(w http.ResponseWriter, r *http.Request) {
 	// A call that arrived through a zone-list signpost is refused with the
 	// zone mismatch named, not with the generic line below: the reader of the
@@ -849,6 +889,14 @@ func (p *Pack) NotFound(w http.ResponseWriter, r *http.Request) {
 	// deployment does not serve (#284). See unservedZonePathPrefix in
 	// catalog.go; TestAnUnservedZoneSignpostNamesTheMismatch fails without
 	// this branch.
+	//
+	// Still 404, and deliberately not 501, because the ambiguity above does not
+	// exist here: /v2/unserved-zone/… is a path feint itself publishes in its
+	// zone list, so no cloud answer can be confused with this one and a client
+	// that reached it is unambiguously talking to the emulator. The operation
+	// may well be served — in another zone — which is what the diagnosis says
+	// and what "not implemented" would contradict. The status difference is
+	// pinned by the test above rather than left to whoever edits this next.
 	if diagnosis, ok := p.unservedZoneDiagnosis(r.URL.Path); ok {
 		writeError(w, http.StatusNotFound, diagnosis)
 		return

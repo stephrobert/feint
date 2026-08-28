@@ -65,6 +65,78 @@ func TestAnUnservedRouteAnswersDecodableJSON(t *testing.T) {
 	}
 }
 
+// A declined operation is refused, and a 404 cannot say so — which is why the
+// marker is out of band (#477).
+//
+// The measurement that scoped it: replaying the register's best third-party
+// stack — seven resources applied, empty second plan, seven destroyed, green
+// end to end — the recorder showed three refusals of
+// GET /v2/reverse-dns/elastic-ip/{id}, an operation this pack declines and
+// carries in coverage/exoscale-coverage.json, and nothing anywhere said so. A
+// bare 404 is also what the real cloud answers when an elastic IP has no
+// reverse record, so to a program the two were the same bytes.
+//
+// The obvious remedy was tried and measured, and it is refused. Answering 501,
+// as the Scaleway pack does in its own space, is legible and costs exo 1.95.1 /
+// egoscale v3.1.36 nothing in latency — `exo dns list` at 22, 21 and 19 ms
+// against the 19 ms of a served route, one attempt, no backoff, and the message
+// reads "Not Implemented: feint does not serve …". And it FAILS
+// `exo compute instance create`: the CLI calls
+// GET /v2/reverse-dns/instance/{id} after every create and treats anything but
+// a 404 as fatal. Measured on 2026-08-28 — the exo-cli conformance leg died at
+// "instance create rejected" under 501 and passes under 404.
+//
+// That is the symmetric defect of the one #477 reports: a refusal loud enough
+// to fail a client the real cloud would have served. For an operation whose
+// real 404 means "this object has no such record", NO status and no body field
+// can carry the distinction — the body cannot either, since Exoscale's envelope
+// requires `message` and declares no code field, and the one refusal shape
+// recorded from the real cloud carries exactly that (rule 4).
+//
+// So this test holds the wire shape unchanged and names what carries the marker
+// instead: the X-Feint-Not-Emulated header, set once in the shared layer for
+// all three packs (emulator.TestAnUnroutedAnswerCarriesTheNotEmulatedHeader).
+func TestADeclinedOperationKeepsTheStatusItsClientNeeds(t *testing.T) {
+	h := serve(t)
+
+	// The operation the stack replay caught, verbatim.
+	rec, body := call(t, h, "GET", "/v2/reverse-dns/elastic-ip/00000000-0000-4000-8000-000000000000", "")
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status %d, want 404: `exo compute instance create` reads GET "+
+			"/v2/reverse-dns/instance/{id} after every create and treats anything else as fatal, "+
+			"so a louder refusal here fails a client the real cloud would have served", rec.Code)
+	}
+	// The envelope stays theirs: message and nothing else, which is the whole of
+	// egoscale.APIError's required shape and the whole of what the recorded
+	// cloud refusal carries.
+	for key := range body {
+		if key != "message" {
+			t.Errorf("the refusal carries %q, which Exoscale's error envelope does not declare", key)
+		}
+	}
+	if message, _ := body["message"].(string); !strings.Contains(message, "feint does not serve") {
+		t.Errorf("the refusal does not say who refused: %q", message)
+	}
+	// And the marker a program reads, which is the whole point: the same bytes
+	// as an empty answer, plus one header no cloud sends.
+	if got := rec.Header().Get(emulator.NotEmulatedHeader); got != "exoscale" {
+		t.Errorf("%s = %q, want \"exoscale\": without it this answer is indistinguishable from "+
+			"an elastic IP that simply has no reverse record", emulator.NotEmulatedHeader, got)
+	}
+
+	// The other direction, or a pack that marked every answer would pass the
+	// line above. A resource that is genuinely absent is a 404 the emulator is
+	// NOT refusing, and it must not carry the marker.
+	rec, _ = call(t, h, "GET", "/v2/instance/00000000-0000-4000-8000-000000000000", "")
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("an absent instance answered %d, want 404", rec.Code)
+	}
+	if got := rec.Header().Get(emulator.NotEmulatedHeader); got != "" {
+		t.Errorf("an instance that is simply absent carries %s=%q: the marker would then mean "+
+			"nothing", emulator.NotEmulatedHeader, got)
+	}
+}
+
 // The zone list is the first call the official CLI makes and the address every
 // call after it uses. Two things must hold, and both were found by running the
 // CLI rather than by reading the specification.
