@@ -70,11 +70,16 @@ import (
 //     without it, and TestEveryDeclaredFilterKindIsTheOneTheContractDeclares
 //     holds the kinds against the contract so the table cannot drift from its
 //     source.
-//   - the matchers below fail *closed* on an unreadable value. The gate should
-//     mean they never see one; if a future handler forgets the gate, an empty
-//     answer is a defect somebody reports, and a full one is a defect nobody
-//     ever notices. TestAnUnreadableFilterMatchesNothingRatherThanEverything
-//     fails without it.
+//   - the matchers below fail *closed* on an unreadable value, and that half is
+//     defence in depth rather than the guard. Measured by running the
+//     falsification: neutralising any of the three `err != nil` branches leaves
+//     TestAnUnreadableFilterMatchesNothingRatherThanEverything green, because
+//     json.Unmarshal leaves the slice empty on a failure and a present filter
+//     with no accepted values already matches nothing. The property is
+//     structural; the branches state it, and cost nothing, and their comment
+//     must not claim a test they cannot redden — which is the exact defect this
+//     repository names in "un commentaire n'est pas un contrôle", found here in
+//     the code that fixes it.
 //
 // What no type can catch is the third line of the measurement — a filter
 // declared and never compared. TestEveryDeclaredFilterCanExcludeSomething is
@@ -362,10 +367,18 @@ func matchesStrings(f filterSet, name, value string) bool {
 func matchesAny(f filterSet, name string, values ...string) bool {
 	wanted, present, err := f.strings(name)
 	if err != nil {
-		// refuseFilters should mean this is unreachable, and it is here for the
-		// day a handler forgets the gate: an unreadable filter that matches
+		// refuseFilters should mean this is unreachable, and it is stated for
+		// the day a handler forgets the gate: an unreadable filter that matches
 		// nothing is a defect somebody reports, and one that matches everything
 		// is #566, which nobody reported for a year.
+		//
+		// It is not the guard, and saying so is the point. Neutralised in a
+		// copy of the tree, every test stays green: the reader answers
+		// (nil, present, err) and a present filter with no accepted values
+		// already matches nothing, so the property survives this line's
+		// removal. Kept because it costs nothing and because a future reader of
+		// filterSet.strings could change what an unreadable value looks like;
+		// not cited as though a test held it.
 		return false
 	}
 	if !present {
@@ -390,7 +403,7 @@ func matchesAny(f filterSet, name string, values ...string) bool {
 func matchesInts(f filterSet, name string, values ...int) bool {
 	wanted, present, err := f.ints(name)
 	if err != nil {
-		return false // fail closed, as matchesAny does and for the same reason
+		return false // fail closed, as matchesAny does and with the same caveat
 	}
 	if !present {
 		return true
@@ -410,7 +423,7 @@ func matchesInts(f filterSet, name string, values ...int) bool {
 func matchesBool(f filterSet, name string, value bool) bool {
 	wanted, present, err := f.boolean(name)
 	if err != nil {
-		return false // fail closed, as matchesAny does and for the same reason
+		return false // fail closed, as matchesAny does and with the same caveat
 	}
 	if !present {
 		return true

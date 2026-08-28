@@ -1,0 +1,70 @@
+{
+  "_why": [
+    "Every refusal this lot made legible, and the three mutations that are NOT here.",
+    "",
+    "The matchers' `err != nil -> return false` branches were written as guards",
+    "and cited as though a test held them. Running this spec proved otherwise:",
+    "neutralised one at a time, TestAnUnreadableFilterMatchesNothingRatherThan",
+    "Everything stays green, because json.Unmarshal leaves the slice empty on a",
+    "failure and a present filter with no accepted values already matches nothing.",
+    "The property is structural, the branches are defence in depth, and a spec",
+    "entry that cannot redden its test is exactly the voided verdict this harness",
+    "exists to refuse. So they are stated in filters.go as what they are, and not",
+    "declared here."
+  ],
+  "package": "./internal/providers/outscale/",
+  "mutations": [
+    {
+      "label": "#566: a filter whose value cannot be read is reported as absent again, so matchesAny passes every candidate and a 200 carries the whole inventory",
+      "file": "internal/providers/outscale/filters.go",
+      "find": "\tif unreadable := f.unreadable(supported); len(unreadable) > 0 {",
+      "replace": "\tif unreadable := f.unreadable(supported); len(unreadable) > 0 && false {",
+      "test": "TestAFilterOfTheWrongShapeIsRefusedRatherThanIgnored"
+    },
+    {
+      "label": "#566: every declared filter collapses to a list of strings, which is the shape of the defect — VolumeSizes and Progresses were read that way and their integers never decoded",
+      "file": "internal/providers/outscale/filters.go",
+      "find": "\t\tout = append(out, filterSpec{Name: name, Kind: kind})",
+      "replace": "\t\tout = append(out, filterSpec{Name: name, Kind: kind - kind})",
+      "test": "TestEveryDeclaredFilterKindIsTheOneTheContractDeclares"
+    },
+    {
+      "label": "#566: ReadSnapshots stops comparing the account, which is the filter no decoder and no contract check could ever have caught — declared applied, compared nowhere",
+      "file": "internal/providers/outscale/snapshots.go",
+      "find": "\t\tmatchesStrings(f, \"AccountIds\", stringOf(view[\"AccountId\"])) &&",
+      "replace": "\t\t(matchesStrings(f, \"AccountIds\", stringOf(view[\"AccountId\"])) || true) &&",
+      "test": "TestEveryDeclaredFilterCanExcludeSomething"
+    },
+    {
+      "label": "#566: the volume size filter matches every volume again, which is the exact reading the issue measured",
+      "file": "internal/providers/outscale/volumes.go",
+      "find": "\t\tmatchesInts(f, \"VolumeSizes\", sizes...) &&",
+      "replace": "\t\t(matchesInts(f, \"VolumeSizes\", sizes...) || len(sizes) >= 0) &&",
+      "test": "TestAVolumeSizeFilterExcludesAVolumeOfAnotherSize"
+    },
+    {
+      "label": "#474: the boot refusal is levelled as an incident again, and fourteen ERROR lines over fifteen stack replays teach an operator to skip the log's errors",
+      "file": "internal/core/machine/binding.go",
+      "find": "\tb.logger().Warn(\"refusing to boot: nothing says which operating system this image identifier names\",",
+      "replace": "\tb.logger().Error(\"refusing to boot: nothing says which operating system this image identifier names\",",
+      "test": "TestADocumentedRefusalIsAWarningAndAFailureStaysAnError",
+      "package": "./internal/core/machine/"
+    },
+    {
+      "label": "#477: an operation feint declines answers the same bytes as an empty answer, with nothing out of band to tell a program which it met",
+      "file": "internal/core/emulator/emulator.go",
+      "find": "\tif bestName != \"\" {\n\t\tw.Header().Set(NotEmulatedHeader, bestName)",
+      "replace": "\tif bestName != \"\" && false {\n\t\tw.Header().Set(NotEmulatedHeader, bestName)",
+      "test": "TestAnUnroutedAnswerCarriesTheNotEmulatedHeader",
+      "package": "./internal/core/emulator/"
+    },
+    {
+      "label": "the redaction flattens a list of scalars back to one string, which is how the corpus came to hold a KeypairNames array written as a bare string and a replay came to reissue a shape no client ever sent",
+      "file": "internal/proxy/redact.go",
+      "find": "\t\t\t\tif items, ok := scalarList(nested); ok {",
+      "replace": "\t\t\t\tif items, ok := scalarList(nested); ok && false {",
+      "test": "TestARedactedListOfScalarsStaysAList",
+      "package": "./internal/proxy/"
+    }
+  ]
+}
