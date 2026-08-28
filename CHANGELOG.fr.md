@@ -103,6 +103,15 @@ change ni l'un ni l'autre a sa place dans `git log`.
   cela coûte l'adresse elle-même. Le chemin de démarrage restitue donc ce que
   le device réserve avant d'attendre.
 
+  Et l'enregistrement laissé par un démarrage est relu à la fin du rejeu, parce
+  qu'il était écrit avant que le rejeu n'installe les adresses promises par le
+  plan : la même machine redémarrée était enregistrée avec `10.199.0.2` seule,
+  alors que la station atteignait 203.0.113.2 dessus dans la même passe. Le
+  crochet de comptabilité du pack a suivi cette relecture, de juste après le
+  démarrage à juste après elle : il arrivait trop tôt d'exactement ces
+  adresses, et c'est le test Outscale sur l'adresse privée d'une Vm arrêtée qui
+  l'a mesuré.
+
 - **Un arrêt propre rend toute la plomberie qu'aucun client ne peut supprimer,
   et l'exécution qui fuit est celle qui rougit (#521).** La jambe incus-ovn de
   `runtime-proof.yml` a échoué au portillon de l'étape suivante sur un runner

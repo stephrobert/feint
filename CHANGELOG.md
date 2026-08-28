@@ -115,6 +115,14 @@ what this project is judged on: **a response shape a client can observe**, and
   the address itself. The start path restores what the device reserves before
   it waits.
 
+  And the record a boot leaves is re-read at the end of the replay, because it
+  was written before the replay installed the addresses the plan promised: the
+  same rebooted machine recorded `10.199.0.2` alone while the station reached
+  203.0.113.2 on it in the same pass. The pack's own bookkeeping hook moved
+  with that read, from straight after the start to just after it — it ran early
+  by exactly those addresses, and the Outscale test that keeps a stopped Vm's
+  private address is what measured it.
+
 - **A graceful exit gives back every piece of host plumbing no client can
   delete, and a run that leaks is the run that goes red (#521).** The incus-ovn
   leg of `runtime-proof.yml` failed at the doorstep of the next step on a
