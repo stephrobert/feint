@@ -274,3 +274,6 @@ crash.*.log
 
 # Sandbox artefact: the harness bind-mounts /dev/null here, it is not a project file
 .mcp.json
+
+# Site mockups, the maintainer's own work in progress
+maquettes-site/
