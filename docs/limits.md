@@ -3570,7 +3570,32 @@ replayed green for this record on 2026-08-27 — and
 `tools/falsify/specs/lifecycle-tells-the-truth.json` replays them with the
 guard neutralised in both directions, the refusal and the acceptance.
 
-## Fourteen ERROR lines over fifteen stack replays are one documented refusal, logged at the wrong level (#474)
+## An ERROR is a failure and a WARN is a decline, and one refusal was on the wrong side (#474)
+
+**Fixed on 2026-08-28.** The refusal below is logged at WARN, and the rule the
+measurement suggested is now written where the refusal is
+(`Binding.refuseUnknownImage`) and held by
+`TestADocumentedRefusalIsAWarningAndAFailureStaysAnError`:
+
+> An **ERROR** is something this emulator did not do that it was built to do.
+> A **WARN** is something it deliberately declines and documents, where the API
+> answer stays honest.
+
+The half the issue had not measured is measured now: of the **48 ERROR sites
+under `internal/` on 2026-08-28**, that one call was the only one on the wrong
+side of the line. Its own neighbours are failures and stay ERROR — a start the
+driver refused, an image build that could not fetch its source, a pack that
+declares no interface plan (`plan.go` says why that one is not a decline). The
+test asserts both directions for exactly that reason: a change that made every
+refusal a warning would pass its first half and quiet the lines the log exists
+for. Nothing else moved — the boot is still refused, the machine still reads
+back its `FailedState`, and the refusal still names the identifier, the reason,
+the consequence and both gestures.
+
+What follows is the measurement that established it, kept because the reasoning
+is the reusable part.
+
+### The measurement, 2026-08-25
 
 Replaying the fifteen surveyed stacks under a machine runtime (`main@72d861d`,
 `--vm incus-ovn`, logs of 2026-08-25), five runs printed `level=ERROR` —
@@ -3592,14 +3617,11 @@ it is the one that follows the rule. The run that printed five of these ERRORs
 was a **success**: ztiac applied 54 of 54, matched its reference exactly, and
 destroyed 54 cleanly.
 
-What to do with it: do not grade an emulator log by `grep ERROR` alone — under
-these replays it finds fourteen lines about a documented behaviour and nothing
-about the run that really failed. What would lift it: logging this refusal at
-WARN, where its balancer sibling already is; the distinction, if a rule is
-wanted, is that an ERROR is something the emulator did not do that it was
-built to do, and a WARN is something it deliberately declines and documents
-while the API answer stays honest. Not measured: whether any other ERROR site
-is in the same position — the fifteen replays surfaced only this one.
+The lesson that outlives the fix: do not grade an emulator log by `grep ERROR`
+alone, and do not level a limit like an incident. Under those replays the grep
+found fourteen lines about a documented behaviour and nothing about the run
+that really failed, which is precisely how a team learns to skip a log's
+errors.
 
 ## `feint images resolve` can print a `FEINT_BOOT_IMAGES` line that cannot boot (#476)
 

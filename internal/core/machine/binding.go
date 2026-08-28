@@ -360,7 +360,36 @@ func (b Binding) Start(ctx context.Context, boot Boot) Started {
 // worse, a machine that boots and then fails at its first package install —
 // the reason #392's generic substitution was refused.
 //
-// TestTheBootRefusalNamesTheGesturesThatUnblock fails without the gestures.
+// WARN, not ERROR, and that is the rule rather than a taste (#474).
+//
+// An ERROR is something this emulator did not do that it was built to do; a
+// WARN is something it deliberately declines and documents, where the API
+// answer stays honest. This is the second: docs/limits.md says this emulator
+// keeps records and not disk contents, the machine reads back its FailedState,
+// and no client is lied to.
+//
+// The measurement that settled it: replaying fifteen surveyed stacks under
+// `--vm incus-ovn`, five runs printed fourteen level=ERROR lines and every one
+// was this call. The run that printed five of them applied 54 resources of 54,
+// matched its reference and destroyed 54 cleanly — so an operator grepping
+// ERROR found fourteen lines about a documented behaviour and nothing about
+// the run that failed. In one of those logs the sibling refusal 200 ms later
+// was already a WARN: loadbalancer_dataplane.go's ErrBalancerNotDistributed
+// (#457), whose comment states the rule — a limit is not an incident.
+//
+// Of the 48 ERROR sites under internal/ on 2026-08-28, this was the only one on
+// the wrong side of that line; the rest are failures, its own neighbours
+// included — a start the driver refused, a build that could not fetch its
+// source, a pack that declares no interface plan.
+//
+// The level is the only thing that moved: the boot is still refused, the
+// resource still reads FailedState, and the four keys below still say what to
+// do about it.
+//
+// TestTheBootRefusalNamesTheGesturesThatUnblock fails without the gestures, and
+// TestADocumentedRefusalIsAWarningAndAFailureStaysAnError fails without the
+// level — in both directions, so a change that made every refusal a warning
+// fails it too.
 func (b Binding) refuseUnknownImage(boot Boot) {
 	reason := boot.Reason
 	if reason == "" {
@@ -370,7 +399,7 @@ func (b Binding) refuseUnknownImage(boot Boot) {
 	if id == "" {
 		id = "<empty>"
 	}
-	b.logger().Error("refusing to boot: nothing says which operating system this image identifier names",
+	b.logger().Warn("refusing to boot: nothing says which operating system this image identifier names",
 		"provider", b.Provider, "resource", boot.ID, "image", id, "reason", reason,
 		"consequence", "the machine stays "+b.FailedState+"; guessing an OS would boot a machine that fails at its first package install",
 		"ask", "`feint images resolve "+id+"` looks it up in the providers' public listings, no account needed",

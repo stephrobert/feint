@@ -155,6 +155,18 @@ func (d *buildingDriver) BuildImage(_ context.Context, spec ImageSpec, _ io.Writ
 	return nil
 }
 
+// failingDriver is a recordingDriver whose Start refuses, so the difference
+// between "this emulator declined" and "the runtime failed" can be asserted
+// without one.
+type failingDriver struct {
+	recordingDriver
+	err error
+}
+
+func (d *failingDriver) Start(context.Context, Spec) (Machine, error) {
+	return Machine{}, d.err
+}
+
 func TestABootDerivesAndBuildsTheImageItNames(t *testing.T) {
 	t.Run("a version the station lacks is built on the boot path", func(t *testing.T) {
 		driver := &buildingDriver{}
@@ -289,6 +301,94 @@ func TestTheBootRefusalNamesTheGesturesThatUnblock(t *testing.T) {
 			t.Errorf("the refusal does not carry %q\nlog: %s", needle, log.String())
 		}
 	}
+}
+
+// A refusal this emulator declares is a WARN; only what it failed to do is an
+// ERROR (#474).
+//
+// The measurement that scoped it: replaying fifteen surveyed stacks under
+// `--vm incus-ovn`, five runs printed level=ERROR, fourteen lines in all, and
+// every one was this refusal. The run that printed five of them was a success
+// — ztiac applied 54 of 54, matched its reference and destroyed 54 cleanly. An
+// operator grepping ERROR to find what went wrong found fourteen lines about a
+// documented behaviour and nothing about the run that really failed, which is
+// how a log teaches people to skip its errors.
+//
+// The sibling refusal 200 ms later, in the same log, was already a WARN:
+// loadbalancer_dataplane.go's ErrBalancerNotDistributed (#457), whose comment
+// states the rule — "a limit is not an incident". This is that rule applied to
+// the other refusal in the same layer.
+//
+// The line separating the two, measured over the 48 ERROR sites in internal/ on
+// 2026-08-28: an ERROR is something this emulator did not do that it was built
+// to do; a WARN is something it deliberately declines and documents, where the
+// API answer stays honest. Exactly one site was on the wrong side — this one.
+// Its neighbours stay ERROR and are asserted here, because a change that made
+// every refusal a warning would pass the first half of this test and hide the
+// failures the log exists for:
+//
+//   - a start the driver refused (the runtime failed at something it accepted);
+//   - a pack that declares no interface plan (a fault in the pack itself, not
+//     a decline, and plan.go says why).
+//
+// The API answer is unchanged and asserted too: the machine still does not
+// boot, and the resource still reads FailedState. Lowering the level must not
+// quiet the refusal, only stop it claiming to be an incident.
+func TestADocumentedRefusalIsAWarningAndAFailureStaysAnError(t *testing.T) {
+	t.Run("the image refusal warns", func(t *testing.T) {
+		var log bytes.Buffer
+		b := bootBinding(&recordingDriver{})
+		b.Log = slog.New(slog.NewTextHandler(&log, nil))
+		res := &resource.Resource{ID: "srv-1", State: "stopped"}
+
+		if b.PowerOn(context.Background(), res, Boot{Requested: "ami-538af795"}) {
+			t.Fatal("an undeclared identifier booted")
+		}
+		if res.State != "failed" {
+			t.Errorf("the resource reads %q, want failed: the level moved, the answer must not", res.State)
+		}
+		if strings.Contains(log.String(), "level=ERROR") {
+			t.Errorf("the documented refusal is logged at ERROR:\n%s", log.String())
+		}
+		if !strings.Contains(log.String(), "level=WARN") {
+			t.Errorf("the refusal is not logged at WARN, so it is quieter than a limit should be:\n%s", log.String())
+		}
+		// Still actionable at the lower level: the level is the only thing
+		// that changed.
+		for _, needle := range []string{"ami-538af795", "feint images resolve", "FEINT_BOOT_IMAGES"} {
+			if !strings.Contains(log.String(), needle) {
+				t.Errorf("the refusal lost %q on the way down:\n%s", needle, log.String())
+			}
+		}
+	})
+
+	t.Run("a start the runtime refused stays an error", func(t *testing.T) {
+		var log bytes.Buffer
+		b := bootBinding(&failingDriver{err: errors.New("the runtime said no")})
+		b.Log = slog.New(slog.NewTextHandler(&log, nil))
+		res := &resource.Resource{ID: "srv-2", State: "stopped"}
+
+		if b.PowerOn(context.Background(), res, Boot{Image: "ubuntu:22.04", Requested: "ubuntu_jammy"}) {
+			t.Fatal("a start the driver refused reported success")
+		}
+		if !strings.Contains(log.String(), "level=ERROR") {
+			t.Errorf("a runtime failure is not an ERROR any more, so this change made the log quieter "+
+				"about the thing it exists for:\n%s", log.String())
+		}
+	})
+
+	t.Run("a pack with no interface plan stays an error", func(t *testing.T) {
+		var log bytes.Buffer
+		b := bootBinding(&recordingDriver{})
+		b.Log = slog.New(slog.NewTextHandler(&log, nil))
+		r := Reconciler{Groups: GroupSync{Binding: b}}
+		if _, ok := r.plan(&resource.Resource{ID: "srv-3"}); ok {
+			t.Fatal("a nil PlanOf answered a plan")
+		}
+		if !strings.Contains(log.String(), "level=ERROR") {
+			t.Errorf("a pack that declares no plan is a fault in the pack, not a decline:\n%s", log.String())
+		}
+	})
 }
 
 // A client cloud-config that declares a package step cannot complete on a
