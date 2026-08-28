@@ -272,6 +272,18 @@ func (p *Pack) attachStoredVolume(vol *resource.Resource, server *resource.Resou
 		}
 		stored.Runtime[runtimeServerKey] = server.ID
 		stored.Attrs["server_name"] = serverName
+		// The mirror of what detachStoredVolume does on the way out, and the
+		// same asymmetry: block/v1's `status` IS res.State, so a volume a server
+		// holds reads `in_use` there while an instance volume has no such state.
+		// Without it, `scw block volume create` then `scw instance server
+		// attach-volume` left a disk whose references say "attached" and whose
+		// status says "available" — and `scw` polls the status, not the
+		// references.
+		//
+		// TestAttachingABlockVolumeMarksItInUse fails without this.
+		if stored.Kind == kindBlockVolume {
+			stored.State = blockVolumeInUse
+		}
 		stored.Updated = p.env.Now()
 		return nil
 	})
@@ -283,6 +295,9 @@ func (p *Pack) attachStoredVolume(vol *resource.Resource, server *resource.Resou
 	}
 	vol.Runtime[runtimeServerKey] = server.ID
 	vol.Attrs["server_name"] = serverName
+	if vol.Kind == kindBlockVolume {
+		vol.State = blockVolumeInUse
+	}
 	return nil
 }
 
@@ -340,6 +355,22 @@ func (p *Pack) volumesOf(serverID string) []*resource.Resource {
 	return out
 }
 
+// volumeOf resolves the {id} of an instance/v1 volume route, and resolves
+// kindVolume ALONE on purpose.
+//
+// This is the one place where answering about a block volume would be a defect
+// rather than a fix. The SDK's own dual-product reader
+// (api/instance/v1/volume_utils.go, getUnknownVolume) calls instance GetVolume
+// first and falls back to block.GetVolume only on a typed ResourceNotFoundError,
+// so an instance route that answered here for a block volume would end the
+// search before it reached the product that owns the disk. `scw instance server
+// terminate` walks exactly that pair, and the trace of a block-root server shows
+// it: GET /instance/v1/…/volumes/{id} → 404, then
+// GET /block/v1alpha1/…/volumes/{id} → 200.
+//
+// TestAnSbsRootVolumeIsReadableThroughTheBlockFallback fails if this ever
+// resolves both kinds — which is why anyVolume below is a separate function and
+// not a change to this one.
 func (p *Pack) volumeOf(w http.ResponseWriter, r *http.Request) (*resource.Resource, bool) {
 	zone, ok := zoneOf(w, r)
 	if !ok {
@@ -352,6 +383,48 @@ func (p *Pack) volumeOf(w http.ResponseWriter, r *http.Request) (*resource.Resou
 		return nil, false
 	}
 	return res, true
+}
+
+// anyVolume resolves a volume id in BOTH products, which is what every operation
+// on the SERVER-volume relationship has to do.
+//
+// A server's disks can live in two stores since #8 served sbs_volume, and every
+// operation that takes a server and a volume id resolved kindVolume alone. So a
+// disk created by `root-volume=sbs:20GB` — or by `scw block volume create` —
+// could not be attached, detached, put in an update's volume map, named by a
+// create, or snapshotted. Measured with scw 2.56.3 against the binary built from
+// 3b00d23, and the worst of the six was not a 404: `detach-volume` answered 200
+// and released nothing, so `scw instance server terminate` polled
+// GET /block/v1alpha1/…/volumes/{id} for `in_use` to clear and never returned.
+//
+// It is deliberately NOT used by the instance/v1 volume routes themselves: see
+// volumeOf, whose 404 is the fallback the SDK depends on.
+//
+// The zone is the caller's business, because the callers disagree and both are
+// right: the server operations check it (a volume of another zone is not
+// attachable), CreateSnapshot never did and gains no refusal here.
+func (p *Pack) anyVolume(id string) (*resource.Resource, bool) {
+	for _, kind := range []string{kindVolume, kindBlockVolume} {
+		if res, found := p.env.Store.Get(Name, kind, id); found {
+			return res, true
+		}
+	}
+	return nil, false
+}
+
+// serverVolumeView renders a volume the way instance/v1 lists it inside a
+// server's `volumes` map, whichever product owns it.
+//
+// One dispatch rather than a branch per caller: the map is built in four places
+// (a create's root, a create's additional volumes, an update, attach-volume) and
+// three of them rendered the instance view unconditionally. On a block volume
+// that view publishes no volume_type at all, and volume_type is the field the
+// Terraform provider branches on to fall back to block/v1.
+func serverVolumeView(res *resource.Resource) map[string]any {
+	if res.Kind == kindBlockVolume {
+		return blockVolumeServerView(res)
+	}
+	return volumeView(res)
 }
 
 // volumeView is the wire shape, shared by the volume endpoints and by the

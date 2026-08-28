@@ -1284,7 +1284,12 @@ func (p *Pack) setServerVolumes(server *resource.Resource, wanted map[string]vol
 	for key, tmpl := range wanted {
 		switch {
 		case tmpl.ID != "":
-			vol, found := p.env.Store.Get(Name, kindVolume, tmpl.ID)
+			// Both products, through the shared resolver: the map named a
+			// volume by id and only instance/v1 was searched, so
+			// `volumes.0.id=<a block disk>` answered "volume … does not exist
+			// in fr-par-1" about a disk the same emulator had just created
+			// (#571).
+			vol, found := p.anyVolume(tmpl.ID)
 			if !found || vol.Tenant.Zone != server.Tenant.Zone {
 				return fmt.Errorf("volume %s does not exist in %s", tmpl.ID, server.Tenant.Zone)
 			}
@@ -1302,7 +1307,7 @@ func (p *Pack) setServerVolumes(server *resource.Resource, wanted map[string]vol
 				return err
 			}
 			keep[vol.ID] = true
-			view[key] = volumeView(vol)
+			view[key] = serverVolumeView(vol)
 		case tmpl.Size > 0:
 			// A template with a size and no id asks for a new disk, the way
 			// creation does. Same helper, so the two paths cannot diverge.
@@ -1547,19 +1552,21 @@ func deref(p *bool, fallback bool) bool {
 //
 // TestAdditionalVolumesAreAttachedAtCreate fails without this.
 func (p *Pack) attachTemplateVolumes(templates map[string]volumeTemplate, root, server *resource.Resource, zone, serverName string) map[string]any {
-	// A root volume that lives in block gets block's rendering inside the server,
+	// A volume that lives in block gets block's rendering inside the server,
 	// which is an instance VolumeServer carrying volume_type "sbs_volume" — the
 	// value that sends the Terraform provider to the block fallback (#8).
 	// Copying the instance view here would publish a volume with no type at all.
-	out := map[string]any{"0": volumeView(root)}
-	if root.Kind == kindBlockVolume {
-		out["0"] = blockRootVolumeServerView(root)
-	}
+	out := map[string]any{"0": serverVolumeView(root)}
 	for key, tpl := range templates {
 		if key == "0" || tpl.ID == "" {
 			continue
 		}
-		vol, ok := p.env.Store.Get(Name, kindVolume, tpl.ID)
+		// Both products: `additional-volumes.0=<a block volume id>` resolved
+		// instance/v1 alone, so a create naming a disk of the block product
+		// skipped it silently and answered 201 with the volume unattached —
+		// the same "declared, read, not to the end" shape this function was
+		// written for, one product further on (#571).
+		vol, ok := p.anyVolume(tpl.ID)
 		if !ok || vol.Tenant.Zone != zone {
 			continue
 		}
@@ -1569,7 +1576,7 @@ func (p *Pack) attachTemplateVolumes(templates map[string]volumeTemplate, root, 
 		if err := p.attachStoredVolume(vol, server, serverName); err != nil {
 			continue
 		}
-		out[key] = volumeView(vol)
+		out[key] = serverVolumeView(vol)
 	}
 	return out
 }
@@ -1605,13 +1612,25 @@ func (p *Pack) attachServerVolume(w http.ResponseWriter, r *http.Request) {
 		writeInvalidArguments(w, ArgumentError{ArgumentName: "body", Reason: "format", HelpMessage: err.Error()})
 		return
 	}
-	vol, ok := p.env.Store.Get(Name, kindVolume, req.VolumeID)
+	// Both products. AttachServerVolumeRequest declares volume_type with
+	// "sbs_volume" among its values (instance_sdk.go), so the operation this
+	// route claims is defined over a block volume — and resolving kindVolume
+	// alone answered 404 for every one of them, including a disk `scw block
+	// volume create` had just made. Measured with scw 2.56.3 (#571).
+	vol, ok := p.anyVolume(req.VolumeID)
 	if !ok || vol.Tenant.Zone != zone {
 		writeNotFound(w, "volume", req.VolumeID)
 		return
 	}
 	// The API refuses to move a volume already in use, and Terraform reads that
 	// error rather than guessing.
+	//
+	// This is also where the anti-theft guard of #202 starts covering a block
+	// disk: while the resolution above found nothing, one server could not take
+	// another's block root because nobody could reach it at all, which is an
+	// accident and not a control. attachStoredVolume asks the question for both
+	// kinds — TestAttachingDoesNotStealAnotherServersVolume now walks its three
+	// doors twice, once per product.
 	key := p.nextVolumeKey(res)
 	serverName, _ := res.Attrs["name"].(string)
 	if err := p.attachStoredVolume(vol, res, serverName); err != nil {
@@ -1623,7 +1642,7 @@ func (p *Pack) attachServerVolume(w http.ResponseWriter, r *http.Request) {
 	// stored map — never through the clone's, which resource.Clone shares with
 	// the store, and never by Commit, whose wholesale write erased a concurrent
 	// write to another field of the same server after its 200 (#295).
-	entry := volumeView(vol)
+	entry := serverVolumeView(vol)
 	var updated *resource.Resource
 	err := p.env.Store.Update(Name, kindServer, id, func(stored *resource.Resource) error {
 		volumes := make(map[string]any, len(volumeMapOf(stored))+1)
@@ -1669,7 +1688,19 @@ func (p *Pack) detachServerVolume(w http.ResponseWriter, r *http.Request) {
 		writeNotFound(w, "volume", req.VolumeID)
 		return
 	}
-	if vol, ok := p.env.Store.Get(Name, kindVolume, req.VolumeID); ok {
+	// Both products, and this is the operation of the family that did not answer
+	// 404 — it answered 200 and released nothing, which is worse.
+	//
+	// `scw instance server terminate` walks GetVolume (instance, 404) →
+	// GetVolume (block, 200) → detach-volume → and then polls the block volume
+	// until its status leaves `in_use`. With the resolution below reading
+	// kindVolume alone, the detach came back 200 while the disk kept its server
+	// in Runtime, so the status never moved and the CLI never returned: rc=124
+	// at twenty-five seconds, five identical block GETs in its own -D trace,
+	// measured on 2026-08-28 against a binary built from 3b00d23.
+	//
+	// TestTerminateReleasesABlockRootVolume fails without this.
+	if vol, ok := p.anyVolume(req.VolumeID); ok && vol.Tenant.Zone == zone {
 		p.detachStoredVolume(vol)
 	}
 	// The server's map shrinks inside the store lock, on a fresh copy — the

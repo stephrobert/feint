@@ -774,8 +774,9 @@ func (p *Pack) listBlockVolumeTypes(w http.ResponseWriter, r *http.Request) {
 
 // ---- The bridge with instance/v1 -------------------------------------------
 
-// blockRootVolumeServerView renders a block volume the way instance/v1 lists it
-// inside a server.
+// blockVolumeServerView renders a block volume the way instance/v1 lists it
+// inside a server. Reached through serverVolumeView, which is what every builder
+// of a `volumes` map calls.
 //
 // Two shapes for one disk, and both are needed: the server's `volumes` map is an
 // instance VolumeServer whatever product owns the volume, and the fallback read
@@ -785,7 +786,11 @@ func (p *Pack) listBlockVolumeTypes(w http.ResponseWriter, r *http.Request) {
 //
 // volume_type is "sbs_volume", which is what tells the provider to fall back at
 // all: it reads instance.GetVolume first and only tries block on a typed 404.
-func blockRootVolumeServerView(res *resource.Resource) map[string]any {
+//
+// It was named blockRootVolumeServerView while a root disk was the only block
+// volume a server could carry. It is not: `scw instance server attach-volume
+// volume-type=sbs_volume` puts one under any key, and the name said otherwise.
+func blockVolumeServerView(res *resource.Resource) map[string]any {
 	out := map[string]any{
 		"id":                res.ID,
 		"name":              textOf(res.Attrs["name"]),

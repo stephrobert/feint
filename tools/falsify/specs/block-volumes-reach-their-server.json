@@ -1,0 +1,103 @@
+{
+  "subject": "a disk in the block product is reachable through the operations that take a server and a volume id, and stays unreachable through the ones a client uses to fall back (#571)",
+  "why": "Since #8 served sbs_volume, one server's disks can live in two stores, and every operation on the SERVER-volume relationship resolved instance/v1 alone: attach-volume, detach-volume, the update's volume map, a create naming a volume, and CreateSnapshot. Measured with scw 2.56.3 against a binary built from 3b00d23 on 2026-08-28. Four answered 404 on a disk the same emulator had just published; the fifth, detach-volume, answered 200 and released nothing, so `scw instance server terminate <sbs-root server> with-block=true` polled GET /block/v1alpha1/.../volumes/{id} for a status that could never move and returned rc=124 at twenty-five seconds. The mutations below split into two families, and the second is the one this spec exists for: instance/v1 GetVolume must KEEP answering 404 for a block volume, because the SDK's own dual-product reader (api/instance/v1/volume_utils.go, getUnknownVolume) falls back to block only on a typed ResourceNotFoundError. A fix that made every route resolve both kinds would have ended the search before it reached the product that owns the disk.",
+  "package": "./internal/providers/scaleway/",
+  "mutations": [
+    {
+      "label": "the shared resolver looks in one product again",
+      "file": "internal/providers/scaleway/volumes.go",
+      "find": "\tfor _, kind := range []string{kindVolume, kindBlockVolume} {\n\t\tif res, found := p.env.Store.Get(Name, kind, id); found {\n\t\t\treturn res, true\n\t\t}\n\t}",
+      "replace": "\tfor _, kind := range []string{kindVolume, kindBlockVolume}[:1] {\n\t\tif res, found := p.env.Store.Get(Name, kind, id); found {\n\t\t\treturn res, true\n\t\t}\n\t}",
+      "expect": "every operation on the server-volume relationship goes back to instance/v1 alone, which is the state #571 measured",
+      "test": "TestABlockVolumeAttachesAndDetachesThroughTheServerRoutes"
+    },
+    {
+      "label": "detach-volume stops releasing a block disk and keeps answering 200",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\tif vol, ok := p.anyVolume(req.VolumeID); ok && vol.Tenant.Zone == zone {\n\t\tp.detachStoredVolume(vol)\n\t}",
+      "replace": "\tif vol, ok := p.anyVolume(req.VolumeID); ok && vol.Tenant.Zone == zone && vol.Kind == kindVolume {\n\t\tp.detachStoredVolume(vol)\n\t}",
+      "expect": "the block root keeps its server in Runtime while the server's map loses it, which is the 200 that makes `scw instance server terminate` poll for ever",
+      "test": "TestTerminateReleasesABlockRootVolume"
+    },
+    {
+      "label": "attach-volume refuses a block disk again",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\tvol, ok := p.anyVolume(req.VolumeID)\n\tif !ok || vol.Tenant.Zone != zone {\n\t\twriteNotFound(w, \"volume\", req.VolumeID)\n\t\treturn\n\t}",
+      "replace": "\tvol, ok := p.anyVolume(req.VolumeID)\n\tif !ok || vol.Tenant.Zone != zone || vol.Kind == kindBlockVolume {\n\t\twriteNotFound(w, \"volume\", req.VolumeID)\n\t\treturn\n\t}",
+      "expect": "`scw instance server attach-volume volume-type=sbs_volume` answers \"cannot find resource 'volume'\" on a volume `scw block volume create` has just made",
+      "test": "TestABlockVolumeAttachesAndDetachesThroughTheServerRoutes"
+    },
+    {
+      "label": "the update's volume map cannot name a block disk",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\t\t\tvol, found := p.anyVolume(tmpl.ID)\n\t\t\tif !found || vol.Tenant.Zone != server.Tenant.Zone {",
+      "replace": "\t\t\tvol, found := p.anyVolume(tmpl.ID)\n\t\t\tif !found || vol.Tenant.Zone != server.Tenant.Zone || vol.Kind == kindBlockVolume {",
+      "expect": "a Terraform plan writing volumes.1.id over a block disk is refused with \"volume … does not exist in fr-par-1\" about a disk the same emulator holds",
+      "test": "TestAnUpdatesVolumeMapReachesABlockVolume"
+    },
+    {
+      "label": "a create naming a block disk skips it silently",
+      "file": "internal/providers/scaleway/servers.go",
+      "find": "\t\tvol, ok := p.anyVolume(tpl.ID)\n\t\tif !ok || vol.Tenant.Zone != zone {\n\t\t\tcontinue\n\t\t}",
+      "replace": "\t\tvol, ok := p.anyVolume(tpl.ID)\n\t\tif !ok || vol.Tenant.Zone != zone || vol.Kind == kindBlockVolume {\n\t\t\tcontinue\n\t\t}",
+      "expect": "additional_volume_ids naming a block disk answers 201 with the volume left detached and nothing saying so",
+      "test": "TestACreateNamingABlockVolumeAttachesIt"
+    },
+    {
+      "label": "an instance snapshot cannot be taken of a block disk",
+      "file": "internal/providers/scaleway/snapshots.go",
+      "find": "\t\tvolume, found := p.anyVolume(*req.VolumeID)\n\t\tif !found {",
+      "replace": "\t\tvolume, found := p.anyVolume(*req.VolumeID)\n\t\tif !found || volume.Kind == kindBlockVolume {",
+      "expect": "the golden-image path answers 404 on the disk the server publishes under volumes[\"0\"]",
+      "test": "TestAnInstanceSnapshotOfABlockVolumeIsAnSbsSnapshot"
+    },
+    {
+      "label": "a snapshot of a block disk is typed as the other product's",
+      "file": "internal/providers/scaleway/snapshots.go",
+      "find": "\t\tif volumeType == \"\" && volume.Kind == kindBlockVolume {\n\t\t\tvolumeType = \"sbs_snapshot\"\n\t\t}",
+      "replace": "\t\tif volumeType == \"\" && volume.Kind == kindBlockVolume && false {\n\t\t\tvolumeType = \"sbs_snapshot\"\n\t\t}",
+      "expect": "the snapshot falls through to the b_ssd default, naming a product it was not taken from",
+      "test": "TestAnInstanceSnapshotOfABlockVolumeIsAnSbsSnapshot"
+    },
+    {
+      "label": "a block disk is published inside a server with no type at all",
+      "file": "internal/providers/scaleway/volumes.go",
+      "find": "\tif res.Kind == kindBlockVolume {\n\t\treturn blockVolumeServerView(res)\n\t}\n\treturn volumeView(res)",
+      "replace": "\tif res.Kind == kindBlockVolume && false {\n\t\treturn blockVolumeServerView(res)\n\t}\n\treturn volumeView(res)",
+      "expect": "the server's volumes map carries no volume_type for a block disk, and volume_type is the field the Terraform provider branches on to fall back to block/v1",
+      "test": "TestABlockVolumeAttachesAndDetachesThroughTheServerRoutes"
+    },
+    {
+      "label": "a block disk a server holds keeps saying it is available",
+      "file": "internal/providers/scaleway/volumes.go",
+      "find": "\t\tif stored.Kind == kindBlockVolume {\n\t\t\tstored.State = blockVolumeInUse\n\t\t}",
+      "replace": "\t\tif stored.Kind == kindBlockVolume && false {\n\t\t\tstored.State = blockVolumeInUse\n\t\t}",
+      "expect": "an attached block volume answers references [attached] and status available at once, and `scw` polls the status",
+      "test": "TestAttachingABlockVolumeMarksItInUse"
+    },
+    {
+      "label": "the ownership question is asked and its answer thrown away, over both products",
+      "file": "internal/providers/scaleway/volumes.go",
+      "find": "\treleasable := \"\"\n\tif owner := vol.Runtime[runtimeServerKey]; owner != \"\" && owner != server.ID {\n\t\tif _, alive := p.env.Store.Get(Name, kindServer, owner); alive {\n\t\t\treturn fmt.Errorf(\"volume %s is attached to server %s\", vol.ID, owner)\n\t\t}\n\t\treleasable = owner\n\t}",
+      "replace": "\treleasable := vol.Runtime[runtimeServerKey]\n\tif owner := vol.Runtime[runtimeServerKey]; owner != \"\" && owner != server.ID && false {\n\t\tif _, alive := p.env.Store.Get(Name, kindServer, owner); alive {\n\t\t\treturn fmt.Errorf(\"volume %s is attached to server %s\", vol.ID, owner)\n\t\t}\n\t\treleasable = owner\n\t}",
+      "expect": "one server takes another's root disk through all three doors, in both products — the block half of this table is what the shared resolver made assertable at all",
+      "test": "TestAttachingDoesNotStealAnotherServersVolume"
+    },
+    {
+      "label": "the orphan sweep stops declaring that a block disk belongs to a server",
+      "file": "internal/providers/scaleway/privatenics.go",
+      "find": "\tcase kindPrivateNIC, kindVolume, kindBlockVolume:",
+      "replace": "\tcase kindPrivateNIC, kindVolume, kindBlockVolume[:0]:",
+      "expect": "storetest.Orphans cannot report a block disk that names a machine that is gone, whatever it holds — a kind absent from this switch is a kind the sweep never looks at",
+      "test": "TestTheSweepSeesABlockVolumeThatNamesADeadServer"
+    },
+    {
+      "label": "instance/v1 GetVolume answers for a block disk, and the SDK's fallback never fires",
+      "file": "internal/providers/scaleway/volumes.go",
+      "find": "\tid := r.PathValue(\"id\")\n\tres, found := p.env.Store.Get(Name, kindVolume, id)\n\tif !found || res.Tenant.Zone != zone {",
+      "replace": "\tid := r.PathValue(\"id\")\n\tres, found := p.anyVolume(id)\n\tif !found {\n\t\tres, found = p.env.Store.Get(Name, kindVolume, id)\n\t}\n\tif !found || res.Tenant.Zone != zone {",
+      "expect": "the over-correction: getUnknownVolume stops at the instance answer and never reads block, so the Terraform provider gets a field set without size, references or status — the failure #8 exists to prevent, reintroduced by a fix that looked symmetrical",
+      "test": "TestAnSbsRootVolumeIsReadableThroughTheBlockFallback"
+    }
+  ]
+}

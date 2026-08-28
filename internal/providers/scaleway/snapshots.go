@@ -83,7 +83,14 @@ func (p *Pack) createSnapshot(w http.ResponseWriter, r *http.Request) {
 	size := uint64(rootVolumeSize)
 	base := map[string]any{"id": "", "name": ""}
 	if req.VolumeID != nil && *req.VolumeID != "" {
-		volume, found := p.env.Store.Get(Name, kindVolume, *req.VolumeID)
+		// Both products. A server's root disk lives in block as soon as the
+		// client asks for sbs_volume, and this resolved kindVolume alone — so
+		// `scw instance snapshot create volume-id=<that root>` answered 404 on
+		// the disk the same emulator had just published in the server's own
+		// volumes map (#571). The conformance suite's golden-image path takes
+		// exactly that route: it snapshots volumes["0"] and cuts an image from
+		// the snapshot.
+		volume, found := p.anyVolume(*req.VolumeID)
 		if !found {
 			writeNotFound(w, "volume", *req.VolumeID)
 			return
@@ -94,6 +101,26 @@ func (p *Pack) createSnapshot(w http.ResponseWriter, r *http.Request) {
 		}
 		if volumeType == "" {
 			volumeType = textOf(volume.Attrs["volume_type"])
+		}
+		// A block volume carries no volume_type attribute — its product has one
+		// class, "sbs" — so the reading above leaves it empty and the default
+		// below would call the snapshot b_ssd, which is a different product.
+		//
+		// The value comes from the SDK's enum, not from the wire: instance/v1
+		// VolumeVolumeType declares sbs_snapshot beside sbs_volume, and
+		// Snapshot.VolumeType is a VolumeVolumeType, while CreateSnapshotRequest
+		// .VolumeType (SnapshotVolumeType) cannot even spell it — its four
+		// values are unknown_volume_type, l_ssd, b_ssd and unified, and its
+		// documentation says "if omitted, the volume type of the original volume
+		// will be used". So the request cannot ask for this and the answer has
+		// to derive it. No recorded account here holds one: this is a reading,
+		// declared as such, like the block snapshot shape above it.
+		//
+		// Only when the client named none: the request field "overrides the
+		// volume_type of the snapshot", which is the SDK's own wording, so a
+		// client that asked for one keeps it.
+		if volumeType == "" && volume.Kind == kindBlockVolume {
+			volumeType = "sbs_snapshot"
 		}
 		// Through the shared reader: the assertion this replaces answered
 		// ok=false on a volume that had crossed a snapshot, so a snapshot taken

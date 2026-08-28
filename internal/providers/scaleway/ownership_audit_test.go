@@ -81,17 +81,62 @@ func TestAVolumeStateIsOneTheSDKDeclares(t *testing.T) {
 	}
 }
 
+// holderOf answers which server holds a volume, whichever product it lives in.
+//
+// It walks instance first and block on a 404, which is not a convenience: it is
+// the SDK's own reader (api/instance/v1/volume_utils.go, getUnknownVolume), and
+// a test that asked only the instance side would report "nobody holds it" about
+// every disk of the block product — the exact shape of the defect it is here to
+// catch (measurement-integrity, rule 2: a reader with two outcomes reports
+// "absent" when it means "elsewhere").
+func holderOf(t *testing.T, ts *httptest.Server, volumeID string) string {
+	t.Helper()
+	if status, out := do(t, ts, "GET", zone+"/volumes/"+volumeID, ""); status == http.StatusOK {
+		vol, _ := out["volume"].(map[string]any)
+		server, _ := vol["server"].(map[string]any)
+		if server == nil {
+			return ""
+		}
+		id, _ := server["id"].(string)
+		return id
+	}
+	status, out := do(t, ts, "GET", blockURL+"/volumes/"+volumeID, "")
+	if status != http.StatusOK {
+		t.Fatalf("volume %s answers on neither product (block said %d): the test cannot read its owner", volumeID, status)
+	}
+	refs, _ := out["references"].([]any)
+	for _, entry := range refs {
+		ref, _ := entry.(map[string]any)
+		if ref["product_resource_type"] == "instance_server" {
+			id, _ := ref["product_resource_id"].(string)
+			return id
+		}
+	}
+	return ""
+}
+
 // Attaching a volume must not take it from the server that owns it.
 //
 // The guard read Attrs["server"] while every other reader in the pack — the
 // view, volumesOf, the delete and terminate paths — reads
 // Runtime[runtimeServerKey]. So it saw nothing on a root volume, and an audit
 // moved one server's root volume onto another: both then listed it.
+//
+// It is run once per PRODUCT since #571, and the honest account of why is not
+// "it caught a theft". Before the shared resolver the three doors resolved
+// kindVolume alone, so a block root was unstealable because it was unreachable:
+// this table would have passed on the block half for a reason that had nothing
+// to do with ownership. That is the failure mode this repository keeps
+// measuring — a control that reads as present and is standing on an accident —
+// and the resolver is what removes the accident. What the block half asserts is
+// therefore forward-looking and it is checked by mutation, not by history:
+// neutralise the owner comparison in attachStoredVolume and BOTH halves fail,
+// which is the property the instance half alone could not give.
 func TestAttachingDoesNotStealAnotherServersVolume(t *testing.T) {
 	// Three doors onto the same fact. A third audit walked the two the previous
 	// fix had not touched: only attach-volume asked the question, so a create
 	// naming another server's root volume moved it and both servers listed it.
-	for _, door := range []struct {
+	doors := []struct {
 		what string
 		take func(t *testing.T, ts *httptest.Server, thief, volume string) int
 	}{
@@ -109,59 +154,64 @@ func TestAttachingDoesNotStealAnotherServersVolume(t *testing.T) {
 				`{"volumes":{"1":{"id":"`+volume+`"}}}`)
 			return status
 		}},
-	} {
-		t.Run(door.what, func(t *testing.T) {
-			ts := newTestServer(t)
-			owner := aServer(t, ts, "owner")
-			thief := aServer(t, ts, "thief-host")
+	}
+	// The owner's root disk, in each of the two products a Scaleway server's
+	// disks can live in.
+	products := []struct {
+		what  string
+		owner string
+	}{
+		{"an instance root", `{"name":"owner","commercial_type":"DEV1-S","image":"ubuntu_jammy"}`},
+		{"a block root", `{"name":"owner","commercial_type":"DEV1-S","image":"ubuntu_jammy","volumes":{"0":{"volume_type":"sbs_volume","size":20000000000}}}`},
+	}
+	for _, product := range products {
+		for _, door := range doors {
+			t.Run(product.what+"/"+door.what, func(t *testing.T) {
+				ts := newTestServer(t)
+				owner, ownerBody := serverWith(t, ts, product.owner)
+				thief := aServer(t, ts, "thief-host")
 
-			_, out := do(t, ts, "GET", zone+"/servers/"+owner, "")
-			srv, _ := out["server"].(map[string]any)
-			volumes, _ := srv["volumes"].(map[string]any)
-			root, _ := volumes["0"].(map[string]any)
-			rootID, _ := root["id"].(string)
-			if rootID == "" {
-				t.Fatalf("the owner has no root volume: %v", srv)
-			}
-
-			// The thief's own root, which a failed steal must not cost it.
-			_, out = do(t, ts, "GET", zone+"/servers/"+thief, "")
-			srv, _ = out["server"].(map[string]any)
-			volumes, _ = srv["volumes"].(map[string]any)
-			own, _ := volumes["0"].(map[string]any)
-			ownRoot, _ := own["id"].(string)
-
-			door.take(t, ts, thief, rootID)
-
-			// Whatever the status, the volume must not have moved: a create that
-			// skips an unavailable volume answers 201, and that is fine — what is
-			// not fine is the owner losing its disk.
-			_, out = do(t, ts, "GET", zone+"/volumes/"+rootID, "")
-			vol, _ := out["volume"].(map[string]any)
-			server, _ := vol["server"].(map[string]any)
-			if server == nil || server["id"] != owner {
-				t.Errorf("%s moved the root volume: it now names %v", door.what, vol["server"])
-			}
-
-			// The two consequences the first version of this test did not
-			// assert, which is how the PATCH door went on stealing through
-			// three audits: the thief must not list the volume, and must not
-			// have lost its own root doing so.
-			_, out = do(t, ts, "GET", zone+"/servers/"+thief, "")
-			srv, _ = out["server"].(map[string]any)
-			volumes, _ = srv["volumes"].(map[string]any)
-			for key, entry := range volumes {
-				listed, _ := entry.(map[string]any)
-				if id, _ := listed["id"].(string); id == rootID {
-					t.Errorf("%s: the thief lists the owner's volume under %q — both servers hold it", door.what, key)
+				volumes, _ := ownerBody["volumes"].(map[string]any)
+				root, _ := volumes["0"].(map[string]any)
+				rootID, _ := root["id"].(string)
+				if rootID == "" {
+					t.Fatalf("the owner has no root volume: %v", ownerBody)
 				}
-			}
-			_, out = do(t, ts, "GET", zone+"/volumes/"+ownRoot, "")
-			vol, _ = out["volume"].(map[string]any)
-			if holder, _ := vol["server"].(map[string]any); holder == nil || holder["id"] != thief {
-				t.Errorf("%s: the thief's own root was detached by the attempt: %v", door.what, vol["server"])
-			}
-		})
+
+				// The thief's own root, which a failed steal must not cost it.
+				_, out := do(t, ts, "GET", zone+"/servers/"+thief, "")
+				srv, _ := out["server"].(map[string]any)
+				volumes, _ = srv["volumes"].(map[string]any)
+				own, _ := volumes["0"].(map[string]any)
+				ownRoot, _ := own["id"].(string)
+
+				door.take(t, ts, thief, rootID)
+
+				// Whatever the status, the volume must not have moved: a create that
+				// skips an unavailable volume answers 201, and that is fine — what is
+				// not fine is the owner losing its disk.
+				if holder := holderOf(t, ts, rootID); holder != owner {
+					t.Errorf("%s moved the root volume: it now names %q, want the owner %q", door.what, holder, owner)
+				}
+
+				// The two consequences the first version of this test did not
+				// assert, which is how the PATCH door went on stealing through
+				// three audits: the thief must not list the volume, and must not
+				// have lost its own root doing so.
+				_, out = do(t, ts, "GET", zone+"/servers/"+thief, "")
+				srv, _ = out["server"].(map[string]any)
+				volumes, _ = srv["volumes"].(map[string]any)
+				for key, entry := range volumes {
+					listed, _ := entry.(map[string]any)
+					if id, _ := listed["id"].(string); id == rootID {
+						t.Errorf("%s: the thief lists the owner's volume under %q — both servers hold it", door.what, key)
+					}
+				}
+				if holder := holderOf(t, ts, ownRoot); holder != thief {
+					t.Errorf("%s: the thief's own root was detached by the attempt: it names %q", door.what, holder)
+				}
+			})
+		}
 	}
 }
 

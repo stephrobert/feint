@@ -588,9 +588,16 @@ func (p *Pack) privateNICView(res *resource.Resource) map[string]any {
 // volume that named a deleted server, then a NIC that did (#214). The vocabulary
 // is Scaleway's, so it is declared here; the invariant is everyone's, so it lives
 // in storetest.
+//
+// kindBlockVolume was missing from this list for as long as the block product
+// has existed here (#571). It holds its server in the same Runtime key, it is
+// released by the same detachStoredVolume, and it was simply not declared — so
+// the sweep that proves no disk names a dead machine skipped every disk of one
+// product. Not a hypothesis: a kind absent from this switch cannot be reported
+// by storetest.Orphans, whatever it holds.
 func Owns(res *resource.Resource) (kind, id string, ok bool) {
 	switch res.Kind {
-	case kindPrivateNIC, kindVolume:
+	case kindPrivateNIC, kindVolume, kindBlockVolume:
 		if serverID := res.Runtime[runtimeServerKey]; serverID != "" {
 			return kindServer, serverID, true
 		}
