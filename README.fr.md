@@ -525,6 +525,17 @@ sont pas encore appliqués : [docs/conformance.fr.md](docs/conformance.fr.md).
 cette page ne nomme pas est un verbe que seul un lecteur du code trouvera, et
 c'est arrivé à dix d'entre eux avant qu'un test compare les deux listes.
 
+Les codes de sortie sont stables, parce que la CI en dépend : **0** succès,
+**1** erreur, **2** dérive détectée.
+
+Deux tableaux, parce que ce sont deux publics. Si vous venez pointer un client
+vers un cloud local, le premier est toute la surface qui vous concerne et vous
+pouvez arrêter votre lecture à la fin. Le second mesure la fidélité de ce
+cloud : c'est ce que ce dépôt exécute sur lui-même, et rien de ce qu'il contient
+n'est une étape dans le travail de qui que ce soit.
+
+### Usage quotidien
+
 | commande | ce qu'elle fait |
 | --- | --- |
 | `feint serve` | les trois clouds émulés sur un port, au premier plan |
@@ -540,6 +551,18 @@ c'est arrivé à dix d'entre eux avant qu'un test compare les deux listes.
 | `feint doctor` | diagnostique l'hôte : le port, le runtime, les clients |
 | `feint env <provider>` | l'environnement dont un vrai client de ce provider a besoin |
 | `feint snapshot` | nomme l'état d'un émulateur qui tourne et y revient : `save`, `load`, `list`, `rm` |
+| `feint images` | construit les images de machines, qui portent un démon ssh pour répondre sans dépôt de paquets |
+| `feint clean` | retire les machines, réseaux et jeux de règles que l'émulateur a créés |
+| `feint version` | affiche la version |
+
+### Outils de fidélité et de développement
+
+Ils répondent à la question *à quelle distance du vrai cloud sommes-nous*, et
+leur sujet est [docs/conformance.fr.md](docs/conformance.fr.md), pas le
+Terraform de qui que ce soit.
+
+| commande | ce qu'elle fait |
+| --- | --- |
 | `feint coverage` | la surface amont servie, déclinée ou non triée |
 | `feint proxy` | enregistre ce qu'un vrai client et un vrai cloud se disent, identifiants masqués |
 | `feint transcript` | lit un enregistrement : quoi servir ensuite, quelle forme, ce que l'émulateur omet |
@@ -548,14 +571,8 @@ c'est arrivé à dix d'entre eux avant qu'un test compare les deux listes.
 | `feint probe` | pilote chaque route montée depuis sa description d'API et contrôle les réponses |
 | `feint shapes` | ce qu'un vrai cloud renvoie, et ce que l'émulateur en omet |
 | `feint evidence` | écrit le registre de preuves qu'une exécution de conformance a gagnées, opération par opération |
-| `feint images` | construit les images de machines, qui portent un démon ssh pour répondre sans dépôt de paquets |
 | `feint docs` | régénère les tableaux de couverture de cette page |
 | `feint catalog` | affiche l'inventaire émulé qu'un client lit avant de créer |
-| `feint clean` | retire les machines, réseaux et jeux de règles que l'émulateur a créés |
-| `feint version` | affiche la version |
-
-Les codes de sortie sont stables, parce que la CI en dépend : **0** succès,
-**1** erreur, **2** dérive détectée.
 
 `feint replay` et `feint coverage --observed` ferment la boucle que `feint
 proxy` ouvre. Le premier renvoie chaque requête enregistrée à l'émulateur et
