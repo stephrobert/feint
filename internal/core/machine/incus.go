@@ -741,13 +741,46 @@ func (d *Incus) Attach(ctx context.Context, name string, att Attachment) error {
 		if att.Address != "" {
 			args = append(args, "ipv4.address="+att.Address)
 		}
-		if _, err := d.run(ctx, args...); err != nil {
+		// The hot half of a membership: the machine is running, so this add
+		// plugs an OVN port and the daemon resolves the network's ACL
+		// references inside it — the same window #577 closed on the two start
+		// doors and on attachExtra, on this call site the packs' Join drives.
+		// An isolation detach landing inside (a peering acceptance empties the
+		// foreign list mid-apply, IsolateNetwork unsets and deletes the rule
+		// set) kills the add with `Cannot find security ACL ID for "iso-…"`.
+		// Measured raw on the station (2026-08-28, Incus 7.2, OVN): a detach
+		// fired 25–200 ms into a ~400 ms device add killed 11 adds of 14 with
+		// exactly that error. Same lock as the detach, so the two take turns.
+		// The attach-per-machine lock above orders nothing here: the detach
+		// never takes it. Lock order is attach-lock then network-lock,
+		// nowhere the reverse. TestAHotAttachAndAnIsolationDetachTakeTurns
+		// fails without this.
+		//
+		// `unlock`, not `release`: attachExtra above holds this lock around
+		// the same command, and the falsify harness rewrites a fragment that
+		// must match exactly once.
+		unlock := d.networkLock(att.Network)
+		_, err := d.run(ctx, args...)
+		unlock()
+		if err != nil {
 			return fmt.Errorf("attach %s to network %s: %w", name, att.Network, err)
 		}
 	case att.Address != "" && devices.own[device]["ipv4.address"] != att.Address:
 		// Re-attached at a different address: the reservation must follow, or
 		// the bridge keeps handing the machine the address of a previous life.
-		if _, err := d.run(ctx, "config", "device", "set", name, device, "ipv4.address="+att.Address); err != nil {
+		//
+		// Under the network's lock too, and that is measured, not symmetry:
+		// ipv4.address is not among the keys an OVN NIC updates in place, so
+		// the daemon removes and re-adds the device — a ~10 s operation on
+		// this station that re-plugs the OVN port and resolves the network's
+		// ACL references exactly as the add above does. A detach fired 50 ms
+		// or later into it killed 6 moves of 8 with the same `Cannot find
+		// security ACL ID`. TestAnAddressMoveAndAnIsolationDetachTakeTurns
+		// fails without this.
+		unlock := d.networkLock(att.Network)
+		_, err := d.run(ctx, "config", "device", "set", name, device, "ipv4.address="+att.Address)
+		unlock()
+		if err != nil {
 			return fmt.Errorf("move %s to %s on network %s: %w", name, att.Address, att.Network, err)
 		}
 	}

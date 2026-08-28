@@ -1,0 +1,20 @@
+{
+  "package": "./internal/core/machine/",
+  "mutations": [
+    {
+      "label": "the hot attach takes its network's lock only after the add has run, which is no ordering at all, so an isolation detach deletes the referenced rule set inside the plug and the machine misses the network its API says it joined",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tunlock := d.networkLock(att.Network)\n\t\t_, err := d.run(ctx, args...)\n\t\tunlock()",
+      "replace": "\t\t_, err := d.run(ctx, args...)\n\t\tunlock := d.networkLock(att.Network)\n\t\tunlock()",
+      "test": "TestAHotAttachAndAnIsolationDetachTakeTurns"
+    },
+    {
+      "label": "the address move takes its network's lock only after the set has run, so the remove-and-re-add the OVN NIC turns the set into plugs with nothing holding the detach back",
+      "file": "internal/core/machine/incus.go",
+      "find": "\t\tunlock := d.networkLock(att.Network)\n\t\t_, err := d.run(ctx, \"config\", \"device\", \"set\", name, device, \"ipv4.address=\"+att.Address)\n\t\tunlock()",
+      "replace": "\t\t_, err := d.run(ctx, \"config\", \"device\", \"set\", name, device, \"ipv4.address=\"+att.Address)\n\t\tunlock := d.networkLock(att.Network)\n\t\tunlock()",
+      "test": "TestAnAddressMoveAndAnIsolationDetachTakeTurns"
+    }
+  ],
+  "note": "The fifth and sixth doors of the family #577 closed on three: Attach is the hot half of a membership, driven by the packs' Join while a peering acceptance can be detaching isolation on the same network. Measured raw on the station on 2026-08-28 (Incus 7.2, OVN) before being staged: a detach fired 25-200 ms into a ~400 ms `config device add` killed 11 adds of 14 with `Cannot find security ACL ID`, and 6 address moves of 8 died the same way, because ipv4.address is not a key an OVN NIC updates in place, so the daemon removes and re-adds the device (~10 s here) and re-plugs its port. The interleaving in the tests is staged exactly as in start-vs-isolation-detach.json: fakeStartd releases the detach the moment the plug begins. Both mutations keep every name of their find and reorder the lock after the act, the shape the third mutation of that spec already proved compiles."
+}

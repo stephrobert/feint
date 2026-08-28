@@ -117,8 +117,11 @@ func (f *fakeStartd) devicesJSON() string {
 	defer f.mu.Unlock()
 	parts := make([]string, 0, len(f.devices))
 	for name, cfg := range f.devices {
-		parts = append(parts,
-			fmt.Sprintf(`%q:{"type":%q,"network":%q}`, name, cfg["type"], cfg["network"]))
+		entry := fmt.Sprintf(`%q:{"type":%q,"network":%q`, name, cfg["type"], cfg["network"])
+		if cfg["ipv4.address"] != "" {
+			entry += fmt.Sprintf(`,"ipv4.address":%q`, cfg["ipv4.address"])
+		}
+		parts = append(parts, entry+"}")
 	}
 	body := "{" + strings.Join(parts, ",") + "}"
 	return fmt.Sprintf(`{"name":%q,"devices":%s,"expanded_devices":%s}`,
@@ -251,6 +254,26 @@ func (f *fakeStartd) run(_ context.Context, args ...string) ([]byte, error) {
 		f.mu.Lock()
 		f.devices[fmt.Sprintf("eth%d", len(f.devices))] =
 			map[string]string{"type": "nic", "network": network}
+		f.mu.Unlock()
+		return nil, nil
+
+	case strings.HasPrefix(key, "config device set "+racedStartMachine+" ") &&
+		strings.Contains(key, " ipv4.address="):
+		// As measured on the station: ipv4.address is not a key an OVN NIC
+		// updates in place, so the daemon removes and re-adds the device,
+		// which re-plugs its OVN port and resolves the network's ACL
+		// references exactly as an add does.
+		fields := strings.Fields(key)
+		device := fields[4]
+		address := strings.TrimPrefix(fields[5], "ipv4.address=")
+		f.mu.Lock()
+		network := f.devices[device]["network"]
+		f.mu.Unlock()
+		if err := f.plug(network); err != nil {
+			return nil, err
+		}
+		f.mu.Lock()
+		f.devices[device]["ipv4.address"] = address
 		f.mu.Unlock()
 		return nil, nil
 	}
@@ -404,6 +427,90 @@ func TestAnExtraInterfaceAndAnIsolationDetachTakeTurns(t *testing.T) {
 	}
 	if startErr != nil {
 		t.Fatalf("the start failed: %v", startErr)
+	}
+	if detachErr != nil && !errors.Is(detachErr, ErrNetworkGone) {
+		t.Fatalf("the detach failed for a reason other than the network being gone: %v", detachErr)
+	}
+}
+
+// The fourth call site of the same daemon behaviour, and the one the packs'
+// Join drives: Attach adds a NIC to a machine that is already running, so the
+// add plugs an OVN port and resolves the network's ACL references inside it.
+// Measured raw on the station before being staged (2026-08-28, Incus 7.2,
+// OVN): a detach fired 25–200 ms into a ~400 ms `config device add` killed 11
+// adds of 14 with `Cannot find security ACL ID for "iso-…"`. The attach lock
+// Attach already holds is per machine; the detach never takes it, so it
+// orders nothing here — only the network's lock does.
+func TestAHotAttachAndAnIsolationDetachTakeTurns(t *testing.T) {
+	f := newFakeStartd(true)
+	f.running = true
+	f.plugOn = racedStartNet2
+	d := NewIncusOVN()
+	d.runner = f.run
+
+	var wg sync.WaitGroup
+	var attachErr, detachErr error
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		attachErr = d.Attach(context.Background(), racedStartMachine,
+			Attachment{Network: racedStartNet2})
+	}()
+	go func() {
+		defer wg.Done()
+		<-f.plugBegun
+		detachErr = d.IsolateNetwork(context.Background(), racedStartNet2, nil)
+	}()
+	wg.Wait()
+
+	if failures := f.plugFailures(); len(failures) != 0 {
+		t.Fatalf("the isolation detach landed inside the hot attach:\n%s\nattach: %v\ndetach: %v",
+			strings.Join(failures, "\n"), attachErr, detachErr)
+	}
+	if attachErr != nil {
+		t.Fatalf("the attach failed: %v", attachErr)
+	}
+	if detachErr != nil && !errors.Is(detachErr, ErrNetworkGone) {
+		t.Fatalf("the detach failed for a reason other than the network being gone: %v", detachErr)
+	}
+}
+
+// And on Attach's other mutating branch: moving a NIC to a different address
+// is a `config device set ipv4.address=…`, which under OVN removes and
+// re-adds the device — a re-plug that resolves the same references (measured
+// raw: 6 moves of 8 killed by a detach fired 50 ms or later into a ~10 s
+// set). The detach of that network must wait for the move too.
+func TestAnAddressMoveAndAnIsolationDetachTakeTurns(t *testing.T) {
+	f := newFakeStartd(true)
+	f.running = true
+	f.plugOn = racedStartNet2
+	f.devices["eth1"] = map[string]string{
+		"type": "nic", "network": racedStartNet2, "ipv4.address": "10.0.9.20",
+	}
+	d := NewIncusOVN()
+	d.runner = f.run
+
+	var wg sync.WaitGroup
+	var attachErr, detachErr error
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		attachErr = d.Attach(context.Background(), racedStartMachine,
+			Attachment{Network: racedStartNet2, Address: "10.0.9.30"})
+	}()
+	go func() {
+		defer wg.Done()
+		<-f.plugBegun
+		detachErr = d.IsolateNetwork(context.Background(), racedStartNet2, nil)
+	}()
+	wg.Wait()
+
+	if failures := f.plugFailures(); len(failures) != 0 {
+		t.Fatalf("the isolation detach landed inside the address move:\n%s\nattach: %v\ndetach: %v",
+			strings.Join(failures, "\n"), attachErr, detachErr)
+	}
+	if attachErr != nil {
+		t.Fatalf("the attach failed: %v", attachErr)
 	}
 	if detachErr != nil && !errors.Is(detachErr, ErrNetworkGone) {
 		t.Fatalf("the detach failed for a reason other than the network being gone: %v", detachErr)

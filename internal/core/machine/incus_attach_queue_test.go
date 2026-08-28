@@ -24,6 +24,14 @@ import (
 // agent takes a beat to answer. Serialised, the pair costs two beats; per
 // machine, it costs one. The assertion is on the total, because that is the
 // property a stack feels: a slow machine must not tax its neighbours.
+//
+// Two different *networks* too, and that is a decision, not a convenience.
+// Since the hot attach takes its network's lock around the device add (the
+// turn-taking with the isolation detach, measured in
+// incus_start_race_test.go), two adds on one network do take turns — the same
+// bounded, plug-length wait #577 accepted for two starts on one network. What
+// this test refuses is the defect it was measured against: a lock one
+// machine's wait makes every other machine pay, whatever network it is on.
 func TestTwoMachinesAttachWithoutQueueing(t *testing.T) {
 	const beat = 300 * time.Millisecond
 
@@ -53,14 +61,15 @@ func TestTwoMachinesAttachWithoutQueueing(t *testing.T) {
 
 	var wg sync.WaitGroup
 	start := time.Now()
-	for _, name := range []string{"feint-scw-one", "feint-scw-two"} {
+	for i, name := range []string{"feint-scw-one", "feint-scw-two"} {
+		network := []string{"fnt-net-a", "fnt-net-b"}[i]
 		wg.Add(1)
-		go func(machine string) {
+		go func(machine, network string) {
 			defer wg.Done()
 			// The error is not the subject: a stub runtime cannot complete an
 			// attachment. What is asserted is how long the pair took.
-			_ = d.Attach(context.Background(), machine, Attachment{Network: "fnt-net"})
-		}(name)
+			_ = d.Attach(context.Background(), machine, Attachment{Network: network})
+		}(name, network)
 	}
 	wg.Wait()
 	elapsed := time.Since(start)
