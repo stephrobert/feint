@@ -3826,16 +3826,50 @@ data sources is present from the first apply. The clean second plan
 `docs/clients.md` records for 2026-08-18 was measured on the 13-resource
 stack, before those doors existed.
 
-Deduced, not instrumented: Terraform omits an output whose value is null, so
-the first apply's by-id read — issued immediately after the create — answered
-a document whose `name` (and the elastic IP's address) was empty, while the
-same read at plan time answers the filled document. That points at the pack's
-by-id GET racing its own async create-completion, but nobody has captured the
-raw exchange; a `feint proxy --record` of the apply would settle it.
+The reading above was deduced rather than instrumented: Terraform omits an
+output whose value is null, so the first apply's by-id read — issued
+immediately after the create — must have answered a document whose `name` (and
+the elastic IP's address) was empty. That pointed at the pack's by-id GET
+racing its own async create-completion.
 
-What to do with it: this stack is replayed by hand (it is deliberately not in
-CI — "The Exoscale Terraform provider is refused, and why"), and
-`-detailed-exitcode` does not distinguish an outputs-only diff from a resource
-diff. An honest replay of it therefore reports "exit 2, outputs-only,
-resources at zero", not "red". What would lift it: capturing the exchange and
-making the by-id read answer the filled document on the first apply (#520).
+**Measured on 2026-08-28, and that reading is wrong.** The by-id read was
+driven against the pack directly, which is the surface this repository has
+decided to drive, with `--vm off` because the question is the document and not
+the runtime:
+
+| what was asked | reads | empty answers |
+|---|--:|--:|
+| `GET /v2/load-balancer/{id}` on one balancer, back to back | 100 | **0** |
+| create a balancer, read it by id with no delay | 100 | **0** name, **0** ip |
+| create an elastic IP, read it by id with no delay | 1 | **0** |
+| create an instance pool, read its size by id with no delay | 50 | **0** |
+
+There is no window to race. `createLoadBalancer` puts the resource with `name`
+and `ip` in its attributes **before** it writes the operation, and the
+operation it writes is already `state: success` — the async shape is in the
+envelope, never in the document. The same holds for the elastic IP. The `exo`
+CLI reads the same balancer back with its name and `ip_address` filled.
+
+Two consequences, and the second is why this stays here rather than becoming a
+fix:
+
+- **The emulator does not discriminate between the three per-id doors.** The
+  stack has three by-id data sources — the NLB, the elastic IP and the instance
+  pool — and only the first two came back null. The emulator serves all three
+  from one store and answers all three completely, so whatever produced the
+  nulls tells them apart and this pack does not.
+- **What tells them apart is on the client side, and it is the client this
+  repository refuses.** The provider builds two clients and only one honours
+  `EXOSCALE_API_ENDPOINT` (the section above, and
+  [#573][exo-573]); `setEndpointFromContext` in `egoscale/v2` does not rewrite
+  a literal address, so which door answers depends on which client the provider
+  built for it. That is a reading of the provider, not a measurement of it —
+  the fork is not checked out here — and it is written as one.
+
+What to do with it: nothing drives this stack, by decision (#525), so this is
+not a defect anybody can meet through a supported path. The replay that found
+it was the pinned maintainer fork, and `-detailed-exitcode` does not
+distinguish an outputs-only diff from a resource diff either, so an honest
+replay reports "exit 2, outputs-only, resources at zero" rather than "red".
+What would lift it is upstream [#573][exo-573]; what would **not** lift it is
+any change to this pack, and the table above is why.
