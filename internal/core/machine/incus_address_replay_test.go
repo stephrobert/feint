@@ -203,6 +203,36 @@ func TestMigrationRefusesAnInstanceTheEmulatorDidNotCreate(t *testing.T) {
 	}
 }
 
+// TestAMigrationIsNotStartedForANetworkTheEmulatorDoesNotOwn: the move is a
+// real change to one of our own machines, and the network it moves the address
+// *to* is named by the pack's plan, which is built from stored values a
+// restored snapshot controls. Refusing after the release — which is what the
+// route itself does for a foreign network — would leave the machine having
+// lost the address it answered on, for a route it never got.
+func TestAMigrationIsNotStartedForANetworkTheEmulatorDoesNotOwn(t *testing.T) {
+	for name, ovn := range map[string]bool{"bridge mode": false, "ovn mode": true} {
+		t.Run(name, func(t *testing.T) {
+			f := &fakeRuntime{answers: map[string]string{
+				"/1.0/instances/srv": routedAndPrivate,
+				// The network carries no label of ours.
+				"network get fnt-368798629f8 user." + LabelKey: "\n",
+			}}
+			d := newFakeDriver(f)
+			d.OVN = ovn
+
+			if err := d.RouteAddress(context.Background(), AddressSpec{
+				Machine: "srv", Address: "203.0.113.4", Network: "fnt-368798629f8",
+			}); err == nil {
+				t.Fatal("the migration was accepted through a network the emulator did not create")
+			}
+			if got := f.matching("config device set srv eth0"); len(got) != 0 {
+				t.Errorf("the address was taken off the machine before the refusal:\n%s",
+					strings.Join(got, "\n"))
+			}
+		})
+	}
+}
+
 // step is the position of the first command containing substr, -1 when none
 // does: the migration's verdict is an order, not a set. Its neighbour indexOf
 // compares whole commands, which cannot express "the device set, whatever it

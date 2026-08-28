@@ -81,6 +81,19 @@ func (d *Incus) RouteAddress(ctx context.Context, spec AddressSpec) error {
 		return err
 	}
 	if routed != "" {
+		// The network is asked about before the address moves, and that order
+		// is the answer to what a failure would cost. The release is a real
+		// change to one of our own machines; refusing afterwards — which is
+		// what the mode branches below do for a network the emulator did not
+		// create — would leave the machine having lost the address it
+		// answered on, for a route it never got. A network name reaching here
+		// comes from the pack's Plan.RouteVia, which is built from stored
+		// values a restored snapshot controls.
+		// TestAMigrationIsNotStartedForANetworkTheEmulatorDoesNotOwn fails
+		// without this.
+		if err := d.mustOwn(ctx, network); err != nil {
+			return err
+		}
 		if err := d.releaseFromRoutedNIC(ctx, spec.Machine, routed, spec.Address); err != nil {
 			return err
 		}
