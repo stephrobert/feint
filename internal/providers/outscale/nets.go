@@ -84,11 +84,11 @@ type readNetsRequest struct {
 // keyword. Refusing the filter fails every `terraform destroy` of an
 // outscale_dhcp_option.
 var (
-	netFilters = []string{"NetIds", "IpRanges", "States", "DhcpOptionsSetIds"}
+	netFilters = stringFilters("NetIds", "IpRanges", "States", "DhcpOptionsSetIds")
 	// SubregionNames is served since the subregion became a stored fact
 	// (#269): FiltersSubnet declares it (osc-sdk-go, client.gen.go:5058), and
 	// it is how a stack that spreads subnets across zones reads its own back.
-	subnetFilters = []string{"SubnetIds", "NetIds", "IpRanges", "States", "SubregionNames"}
+	subnetFilters = stringFilters("SubnetIds", "NetIds", "IpRanges", "States", "SubregionNames")
 )
 
 type readSubnetsRequest struct {
@@ -170,7 +170,7 @@ func (p *Pack) readNets(w http.ResponseWriter, r *http.Request) {
 	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
-	if p.refuseUnsupported(w, req.Filters, netFilters...) {
+	if p.refuseFilters(w, req.Filters, netFilters) {
 		return
 	}
 
@@ -405,7 +405,7 @@ func (p *Pack) readSubnets(w http.ResponseWriter, r *http.Request) {
 	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
-	if p.refuseUnsupported(w, req.Filters, subnetFilters...) {
+	if p.refuseFilters(w, req.Filters, subnetFilters) {
 		return
 	}
 

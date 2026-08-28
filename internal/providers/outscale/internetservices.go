@@ -52,7 +52,7 @@ func (p *Pack) createInternetService(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-var internetServiceFilters = []string{"InternetServiceIds", "LinkNetIds"}
+var internetServiceFilters = stringFilters("InternetServiceIds", "LinkNetIds")
 
 func (p *Pack) readInternetServices(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -67,7 +67,7 @@ func (p *Pack) readInternetServices(w http.ResponseWriter, r *http.Request) {
 	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
-	if p.refuseUnsupported(w, req.Filters, internetServiceFilters...) {
+	if p.refuseFilters(w, req.Filters, internetServiceFilters) {
 		return
 	}
 

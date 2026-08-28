@@ -294,6 +294,81 @@ func TestARedactedNullStaysNull(t *testing.T) {
 	}
 }
 
+// A list of scalars under a credential-bearing name keeps its brackets.
+//
+// The null case above, one type over, and measured the same way. The committed
+// corpus holds
+// `ReadKeypairs {"Filters":{"KeypairNames":"REDACTED-17"}}`: oapi-cli sent an
+// array, `KeypairNames` matches "key", and the whole array was written down as
+// one string. A replay then reissues a shape no client ever sent — the argument
+// [setHeaders] already makes for the headers it refuses to copy.
+//
+// Nothing could see it until 2026-08-28 (#566), because the Outscale pack read
+// an undecodable filter as an absent one and answered 200 with the whole
+// inventory. Two silent defects cancelling out is why this needs a test rather
+// than a comment: neither instrument could report the other.
+//
+// Both directions are asserted. A list of scalars keeps its length and its type
+// with one placeholder per element, so two distinct originals stay two; a list
+// of objects still goes wholesale, which is
+// TestASensitiveContainerIsStillReplacedWholesale's rule and must not have
+// widened.
+func TestARedactedListOfScalarsStaysAList(t *testing.T) {
+	body := map[string]any{
+		"KeypairNames": []any{"one-name", "another-name"},
+		"api_keys":     []any{"secret-a", "secret-a", "secret-b"},
+		"ssh_keys":     []any{map[string]any{"public_key": publicKeyLine(t)}},
+		"VmIds":        []any{"i-1", "i-2"},
+	}
+	out, ok := redactValue(body).(map[string]any)
+	if !ok {
+		t.Fatalf("redactValue did not answer an object")
+	}
+
+	names, isList := out["KeypairNames"].([]any)
+	if !isList {
+		t.Fatalf("KeypairNames came back %#v, want a list: flattening it changes the "+
+			"recorded type, and a replay then reissues a shape the client never sent",
+			out["KeypairNames"])
+	}
+	if len(names) != 2 {
+		t.Fatalf("KeypairNames came back with %d element(s), want 2", len(names))
+	}
+	for i, item := range names {
+		if !IsPlaceholder(item) {
+			t.Errorf("KeypairNames[%d] came back %#v, want a placeholder: the brackets are "+
+				"kept, the values are not", i, item)
+		}
+	}
+	if names[0] == names[1] {
+		t.Errorf("two distinct names came back as one placeholder (%v): a transcript would "+
+			"then claim the client asked for the same keypair twice", names[0])
+	}
+
+	keys, isList := out["api_keys"].([]any)
+	if !isList || len(keys) != 3 {
+		t.Fatalf("api_keys came back %#v, want a list of three", out["api_keys"])
+	}
+	if keys[0] != keys[1] {
+		t.Errorf("two equal secrets came back as two placeholders (%v, %v): the placeholder "+
+			"stands for a value, so equal values share one", keys[0], keys[1])
+	}
+	if keys[1] == keys[2] {
+		t.Errorf("two different secrets came back as one placeholder (%v)", keys[1])
+	}
+
+	// The rule that must not have widened: a list of objects is still one
+	// string, because descending into it would publish every leaf the denylist
+	// does not name.
+	if !IsPlaceholder(out["ssh_keys"]) {
+		t.Errorf("a list of objects came back %#v, want %q", out["ssh_keys"], Placeholder)
+	}
+	// And an ordinary list is untouched, or the whole corpus becomes unreadable.
+	if ids, _ := out["VmIds"].([]any); len(ids) != 2 || ids[0] != "i-1" || ids[1] != "i-2" {
+		t.Errorf("an ordinary list was redacted: %#v", out["VmIds"])
+	}
+}
+
 // An OpenSSH public key under a name the denylist matches is written down.
 //
 // `public_key` matches "key", and the substitution that follows is not a

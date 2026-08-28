@@ -3,7 +3,6 @@ package outscale
 import (
 	"errors"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/stephrobert/feint/internal/core/emulator"
@@ -112,12 +111,17 @@ type readVolumesRequest struct {
 // filters included: the Terraform provider polls ReadVolumes filtered on
 // LinkVolumeVmIds to wait for an attach and again for a detach, so refusing
 // them fails `outscale_volume_link` on the apply and again on the destroy.
-var volumeFilters = []string{
-	"VolumeIds", "VolumeStates", "VolumeTypes", "SubregionNames",
-	"SnapshotIds", "VolumeSizes", "ClientTokens",
-	"LinkVolumeVmIds", "LinkVolumeDeviceNames", "LinkVolumeLinkStates",
-	"LinkVolumeDeleteOnVmDeletion",
-}
+var volumeFilters = joinFilters(
+	stringFilters(
+		"VolumeIds", "VolumeStates", "VolumeTypes", "SubregionNames",
+		"SnapshotIds", "ClientTokens",
+		"LinkVolumeVmIds", "LinkVolumeDeviceNames", "LinkVolumeLinkStates",
+	),
+	// FiltersVolume declares VolumeSizes as a list of integers, which is why
+	// reading it as strings reported every value as "filter absent" (#566).
+	intFilters("VolumeSizes"),
+	boolFilters("LinkVolumeDeleteOnVmDeletion"),
+)
 
 func (p *Pack) readVolumes(w http.ResponseWriter, r *http.Request) {
 	var req readVolumesRequest
@@ -128,7 +132,7 @@ func (p *Pack) readVolumes(w http.ResponseWriter, r *http.Request) {
 	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
-	if p.refuseUnsupported(w, req.Filters, volumeFilters...) {
+	if p.refuseFilters(w, req.Filters, volumeFilters) {
 		return
 	}
 
@@ -338,25 +342,20 @@ func volumeMatches(res *resource.Resource, f filterSet) bool {
 	if linkedVM != "" {
 		linkState = "attached"
 	}
-	// Through the shared reader for the same reason as the shrink refusal
-	// above, and with one honest difference: no test can redden this line
-	// today, because nothing reaches it. #542 said a restored volume "publishes
-	// no size at all" and the measurement disproved that twice over —
-	// volumeView copies Attrs verbatim, so the read publishes 40 either way,
-	// and the VolumeSizes filter is declared by the API as an array of
-	// integers, which filterSet.strings cannot decode: it reports the decode
-	// failure as "filter absent" and matchesAny then passes everything. So the
-	// comparison below has never discriminated, before or after a restore, for
-	// any client. That is a defect of its own and a wider one — Progresses is
-	// the second numeric filter this pack claims — and it is deliberately not
-	// fixed here: changing which volumes a filter answers is client-visible
-	// surface and belongs to a measurement of its own. This line is corrected
-	// so it is right on the day that one lands, and this comment is here so
-	// nobody reads its silence as proof.
-	size := ""
-	if _, present := res.Attrs["Size"]; present {
-		size = strconv.Itoa(resource.Int(res, "Size"))
-	}
+	// That day landed: #566. The comment that stood here said this comparison
+	// "has never discriminated, before or after a restore, for any client",
+	// because FiltersVolume declares VolumeSizes as an array of integers and
+	// the size was compared as a string — filterSet.strings reported the decode
+	// failure as "filter absent", and matchesAny then passed every volume.
+	// Reproduced on 2026-08-28 before the fix: VolumeSizes [40] against a 40 GiB
+	// and a 10 GiB volume answered 200 with both.
+	//
+	// Read through the shared reader for the same reason as the shrink refusal
+	// above. A volume whose Attrs hold no Size answers no number at all, so it
+	// cannot match a VolumeSizes filter — the honest reading of "the emulator
+	// does not know this volume's size", and the one case a restore can produce.
+	// TestAVolumeSizeFilterExcludesAVolumeOfAnotherSize fails without this.
+	sizes := numbersOf(res.Attrs, "Size")
 	// Read from the volume, not written here as false. It became a per-volume
 	// fact when a Vm's root device arrived (#378): a machine's root volume dies
 	// with the machine, a volume the client linked does not, and a filter that
@@ -368,7 +367,7 @@ func volumeMatches(res *resource.Resource, f filterSet) bool {
 		matchesStrings(f, "SubregionNames", stringOf(res.Attrs["SubregionName"])) &&
 		matchesStrings(f, "SnapshotIds", stringOf(res.Attrs["SnapshotId"])) &&
 		matchesStrings(f, "ClientTokens", stringOf(res.Attrs["ClientToken"])) &&
-		matchesStrings(f, "VolumeSizes", size) &&
+		matchesInts(f, "VolumeSizes", sizes...) &&
 		matchesStrings(f, "LinkVolumeVmIds", linkedVM) &&
 		matchesStrings(f, "LinkVolumeDeviceNames", device) &&
 		matchesStrings(f, "LinkVolumeLinkStates", linkState) &&
@@ -414,6 +413,8 @@ func (p *Pack) volumeView(res *resource.Resource) map[string]any {
 // MaintenanceEvents is always empty and that is the honest answer: this emulator
 // schedules no maintenance, and inventing an event would put a date in a client's
 // plan that nothing will ever act on.
+var vmStateFilters = stringFilters("VmIds", "VmStates", "SubregionNames")
+
 func (p *Pack) readVmsState(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Filters        filterSet `json:"Filters"`
@@ -428,7 +429,7 @@ func (p *Pack) readVmsState(w http.ResponseWriter, r *http.Request) {
 	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
-	if p.refuseUnsupported(w, req.Filters, "VmIds", "VmStates", "SubregionNames") {
+	if p.refuseFilters(w, req.Filters, vmStateFilters) {
 		return
 	}
 

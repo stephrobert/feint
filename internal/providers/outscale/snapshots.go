@@ -87,10 +87,13 @@ func (p *Pack) createSnapshot(w http.ResponseWriter, r *http.Request) {
 
 // snapshotFilters: the same lesson as volumes — a client filters on what it
 // knows, and a filter refused is an apply that stops.
-var snapshotFilters = []string{
-	"SnapshotIds", "VolumeIds", "States", "Descriptions",
-	"AccountIds", "Progresses", "VolumeSizes",
-}
+var snapshotFilters = joinFilters(
+	stringFilters("SnapshotIds", "VolumeIds", "States", "Descriptions", "AccountIds"),
+	// FiltersSnapshot declares both of these as lists of integers, and both
+	// were declared here and compared nowhere: a client asking for
+	// Progresses [7] got four snapshots of Progress 100, with a 200 (#566).
+	intFilters("Progresses", "VolumeSizes"),
+)
 
 func (p *Pack) readSnapshots(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -105,7 +108,7 @@ func (p *Pack) readSnapshots(w http.ResponseWriter, r *http.Request) {
 	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
-	if p.refuseUnsupported(w, req.Filters, snapshotFilters...) {
+	if p.refuseFilters(w, req.Filters, snapshotFilters) {
 		return
 	}
 
@@ -171,11 +174,29 @@ func snapshotView(res *resource.Resource) map[string]any {
 // snapshotMatches filters a rendered snapshot, so a catalogue entry and one a
 // client cut are filtered by exactly the same rules — the reason imageMatches
 // exists on the other half of the same pair.
+// Three of the seven filters snapshotFilters declares were compared nowhere
+// here until #566: AccountIds, Progresses and VolumeSizes. Two of them are the
+// integer filters that filterSet.strings could never have read; AccountIds is a
+// plain list of strings and no decoder could have caught it — the list simply
+// named a filter the comparison did not mention. Measured on 2026-08-28 before
+// the fix: AccountIds ["000000000000"] answered 200 with four snapshots whose
+// AccountId is 000000000001, and Progresses [7] answered 200 with four
+// snapshots whose Progress is 100.
+//
+// The values come from the rendered view rather than from Attrs, so a filter
+// and a read cannot disagree about what a snapshot carries — the reason this
+// function takes a view at all.
+// TestEveryDeclaredFilterCanExcludeSomething fails without these three lines.
 func snapshotMatches(view map[string]any, f filterSet) bool {
+	progress := numbersOf(view, "Progress")
+	size := numbersOf(view, "VolumeSize")
 	return matchesStrings(f, "SnapshotIds", stringOf(view["SnapshotId"])) &&
 		matchesStrings(f, "VolumeIds", stringOf(view["VolumeId"])) &&
 		matchesStrings(f, "States", stringOf(view["State"])) &&
-		matchesStrings(f, "Descriptions", stringOf(view["Description"]))
+		matchesStrings(f, "Descriptions", stringOf(view["Description"])) &&
+		matchesStrings(f, "AccountIds", stringOf(view["AccountId"])) &&
+		matchesInts(f, "Progresses", progress...) &&
+		matchesInts(f, "VolumeSizes", size...)
 }
 
 // findSnapshot resolves a SnapshotId to what it holds, whichever half of the

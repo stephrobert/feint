@@ -42,10 +42,10 @@ const kindNic = "nic"
 // the same reason they are on a Vm: `terraform destroy` asks which interfaces
 // still wear a security group before it removes one, and a filter it sends and
 // this pack refuses fails the destroy after a successful apply.
-var nicFilters = []string{
+var nicFilters = stringFilters(
 	"NicIds", "LinkNicVmIds", "SubnetIds", "NetIds",
 	"SecurityGroupIds", "SecurityGroupNames",
-}
+)
 
 func (p *Pack) readNics(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -60,7 +60,7 @@ func (p *Pack) readNics(w http.ResponseWriter, r *http.Request) {
 	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
-	if p.refuseUnsupported(w, req.Filters, nicFilters...) {
+	if p.refuseFilters(w, req.Filters, nicFilters) {
 		return
 	}
 

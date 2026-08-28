@@ -86,7 +86,7 @@ type readSecurityGroupsRequest struct {
 
 // securityGroupFilters are what a stored group can answer. The API declares 21;
 // the rest are refused rather than silently matched, per filters.go.
-var securityGroupFilters = []string{"SecurityGroupIds", "SecurityGroupNames", "NetIds", "Descriptions"}
+var securityGroupFilters = stringFilters("SecurityGroupIds", "SecurityGroupNames", "NetIds", "Descriptions")
 
 func (p *Pack) readSecurityGroups(w http.ResponseWriter, r *http.Request) {
 	var req readSecurityGroupsRequest
@@ -97,7 +97,7 @@ func (p *Pack) readSecurityGroups(w http.ResponseWriter, r *http.Request) {
 	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
-	if p.refuseUnsupported(w, req.Filters, securityGroupFilters...) {
+	if p.refuseFilters(w, req.Filters, securityGroupFilters) {
 		return
 	}
 

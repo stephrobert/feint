@@ -352,7 +352,7 @@ func (p *Pack) sourceSecurityGroup(sgID string) map[string]any {
 	}
 }
 
-var loadBalancerFilters = []string{"LoadBalancerNames"}
+var loadBalancerFilters = stringFilters("LoadBalancerNames")
 
 // readLoadBalancers answers the real inventory. It was the family's first
 // served operation — before anything could be created here, the empty answer
@@ -371,7 +371,7 @@ func (p *Pack) readLoadBalancers(w http.ResponseWriter, r *http.Request) {
 		p.badRequest(w, err.Error())
 		return
 	}
-	if p.refuseUnsupported(w, req.Filters, loadBalancerFilters...) {
+	if p.refuseFilters(w, req.Filters, loadBalancerFilters) {
 		return
 	}
 	out := make([]map[string]any, 0)

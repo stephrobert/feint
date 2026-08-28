@@ -295,6 +295,22 @@
     },
     {
       "file": "outscale/oapi-cli-lifecycle.jsonl",
+      "operation": "osc/Client.ReadKeypairs",
+      "kind": "status",
+      "path": "",
+      "reason": "NOT A DIVERGENCE OF THE EMULATOR, and the recorded REQUEST is what is wrong. oapi-cli sent Filters.KeypairNames as the array FiltersKeypair declares (contracts/outscale.json); the proxy's redaction replaced the whole value with one string, because KeypairNames matches the \"key\" carrier \u2014 a price internal/proxy/redact.go names as paid knowingly. So the corpus holds {\"Filters\":{\"KeypairNames\":\"REDACTED-17\"}} and the replay reissues it verbatim. Nothing could see it: until 2026-08-28 the Outscale pack read an undecodable filter as an absent one and answered 200 with the whole inventory, so two silent defects cancelled out and this gate passed by accident. #566's type gate refuses the value with a 400, and the absent Keypairs finding on the same exchange is that 400's body. redactValue now keeps a list of scalars a list (TestARedactedListOfScalarsStaysAList), so a recording made after that change carries the array and needs neither entry \u2014 these two cover the two lines recorded before it, and the staleness rule deletes them the day this corpus is recorded again.",
+      "issue": "https://github.com/stephrobert/feint/issues/566"
+    },
+    {
+      "file": "outscale/oapi-cli-lifecycle.jsonl",
+      "operation": "osc/Client.ReadKeypairs",
+      "kind": "absent",
+      "path": "Keypairs",
+      "reason": "NOT A DIVERGENCE OF THE EMULATOR, and the recorded REQUEST is what is wrong. oapi-cli sent Filters.KeypairNames as the array FiltersKeypair declares (contracts/outscale.json); the proxy's redaction replaced the whole value with one string, because KeypairNames matches the \"key\" carrier \u2014 a price internal/proxy/redact.go names as paid knowingly. So the corpus holds {\"Filters\":{\"KeypairNames\":\"REDACTED-17\"}} and the replay reissues it verbatim. Nothing could see it: until 2026-08-28 the Outscale pack read an undecodable filter as an absent one and answered 200 with the whole inventory, so two silent defects cancelled out and this gate passed by accident. #566's type gate refuses the value with a 400, and the absent Keypairs finding on the same exchange is that 400's body. redactValue now keeps a list of scalars a list (TestARedactedListOfScalarsStaysAList), so a recording made after that change carries the array and needs neither entry \u2014 these two cover the two lines recorded before it, and the staleness rule deletes them the day this corpus is recorded again.",
+      "issue": "https://github.com/stephrobert/feint/issues/566"
+    },
+    {
+      "file": "outscale/oapi-cli-lifecycle.jsonl",
       "operation": "osc/Client.ReadLoadBalancers",
       "kind": "absent",
       "path": "LoadBalancers[]",

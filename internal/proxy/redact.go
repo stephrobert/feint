@@ -178,6 +178,29 @@ func redactValue(v any) any {
 				// a name-pattern rule catches names as well as secrets, and two
 				// names written as one string make a transcript claim two
 				// objects were the same. See [placeholderFor] and #384.
+				//
+				// A list of scalars keeps its brackets, for the null case's
+				// reason one type over: flattening it to a string changes the
+				// recorded type, and a replay then reissues a shape the client
+				// never sent. Measured on 2026-08-28 (#566): the corpus holds
+				// `ReadKeypairs {"Filters":{"KeypairNames":"REDACTED-17"}}`,
+				// where oapi-cli sent an array — KeypairNames matches "key",
+				// which redact.go's own comment names as the price paid
+				// knowingly. Nothing had ever been able to see it, because the
+				// Outscale pack read an undecodable filter as an absent one and
+				// answered 200 with the whole inventory. The type gate that
+				// closed #566 turned that silence into a 400, which is how this
+				// surfaced at all.
+				//
+				// Scalars only: an array of objects still goes wholesale,
+				// because descending into it would publish every leaf the
+				// denylist does not name, which is the opposite of what this
+				// function is for.
+				// TestARedactedListOfScalarsStaysAList fails without this.
+				if items, ok := scalarList(nested); ok {
+					value[k] = items
+					continue
+				}
 				value[k] = placeholderFor(textOf(nested))
 				continue
 			}
@@ -192,6 +215,42 @@ func redactValue(v any) any {
 	default:
 		return v
 	}
+}
+
+// scalarList replaces every element of a list of scalars with its own
+// placeholder, and reports whether the value was such a list.
+//
+// The brackets are the point. A recording is reissued, and a shape the client
+// never sent is a measurement of nothing — the argument [setHeaders] already
+// makes for the headers it refuses to copy. One placeholder per element rather
+// than one for the list, for [placeholderFor]'s reason: two originals must stay
+// two.
+//
+// A publishable element keeps its value, because the same allowlist that buys
+// back a public key at the top level buys it back inside a list.
+func scalarList(v any) ([]any, bool) {
+	items, isList := v.([]any)
+	if !isList {
+		return nil, false
+	}
+	out := make([]any, 0, len(items))
+	for _, item := range items {
+		switch item.(type) {
+		case map[string]any, []any:
+			return nil, false
+		case nil:
+			// Kept, for the same reason a null field is: it holds nothing to
+			// reveal, and writing over it invents a value.
+			out = append(out, item)
+		default:
+			if publishable(item) {
+				out = append(out, item)
+				continue
+			}
+			out = append(out, placeholderFor(textOf(item)))
+		}
+	}
+	return out, true
 }
 
 // publishable reports whether a value is one whose own format proves it is

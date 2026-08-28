@@ -110,12 +110,12 @@ type readNetPeeringsRequest struct {
 // the tag filters are refused rather than silently matched, the same triage
 // as every other Read* of this pack; the Terraform provider's own read sends
 // NetPeeringIds and nothing else (resource_net_peering.go, v1.8.0).
-var netPeeringFilters = []string{
+var netPeeringFilters = stringFilters(
 	"NetPeeringIds",
 	"AccepterNetAccountIds", "AccepterNetIpRanges", "AccepterNetNetIds",
 	"SourceNetAccountIds", "SourceNetIpRanges", "SourceNetNetIds",
 	"StateMessages", "StateNames",
-}
+)
 
 func (p *Pack) createNetPeering(w http.ResponseWriter, r *http.Request) {
 	var req createNetPeeringRequest
@@ -344,7 +344,7 @@ func (p *Pack) readNetPeerings(w http.ResponseWriter, r *http.Request) {
 	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
-	if p.refuseUnsupported(w, req.Filters, netPeeringFilters...) {
+	if p.refuseFilters(w, req.Filters, netPeeringFilters) {
 		return
 	}
 

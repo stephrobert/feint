@@ -925,8 +925,14 @@ func TestTheServedFiltersFilter(t *testing.T) {
 		{`{"Filters":{"VmTypes":["tinav6.c2r2p2"]}}`, 1},
 		{`{"Filters":{"SubnetIds":["` + subnetID + `"]}}`, 2},
 		{`{"Filters":{"SubnetIds":["subnet-deadbeef"]}}`, 0},
-		{`{"Filters":{"VmStates":["stopped"]}}`, 2},
-		{`{"Filters":{"VmStates":["running"]}}`, 0},
+		// VmStateNames is what FiltersVm declares. This test drove VmStates for
+		// a year — a filter FiltersVmsState declares for ReadVmsState and
+		// FiltersVm does not have — so the emulator served an invented name and
+		// refused the real one, and this test agreed with it. That is the
+		// emulator proving itself against itself, and it is why the kind
+		// control reads contracts/outscale.json instead of this file (#566).
+		{`{"Filters":{"VmStateNames":["stopped"]}}`, 2},
+		{`{"Filters":{"VmStateNames":["running"]}}`, 0},
 		// Conjunctive, like upstream: both must hold.
 		{`{"Filters":{"ImageIds":["ami-11111111"],"VmTypes":["tinav6.c2r2p2"]}}`, 1},
 		{`{"Filters":{"ImageIds":["ami-11111111"],"VmTypes":["nope"]}}`, 0},

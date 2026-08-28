@@ -50,8 +50,18 @@ type readVmsRequest struct {
 // else FiltersVm declares — 66 fields, most of them about block device
 // mappings, NIC sub-objects and account ids the emulator has no model for — is
 // refused rather than ignored.
-var vmFilters = []string{
-	"VmIds", "VmStates", "ImageIds", "VmTypes", "KeypairNames",
+// VmStateNames, not VmStates, and the difference is not cosmetic. FiltersVm
+// declares VmStateNames (osc-sdk-go, client.gen.go, and contracts/outscale.json
+// after it); VmStates belongs to FiltersVmsState, which is ReadVmsState's, one
+// call over. This pack served VmStates here and refused VmStateNames, so a
+// client sending the filter the API actually has was answered 400 while an
+// invented one worked — and TestTheServedFiltersFilter drove the invented one,
+// which is the emulator proving itself against itself that contract_test.go's
+// preamble names. Found by TestEveryDeclaredFilterKindIsTheOneTheContractDeclares
+// on the day it was written (#566); nothing outside this pack's own tests used
+// the old spelling.
+var vmFilters = stringFilters(
+	"VmIds", "VmStateNames", "ImageIds", "VmTypes", "KeypairNames",
 	"SubnetIds", "NetIds", "PrivateIps",
 	// The zone filter FiltersVm declares (osc-sdk-go, client.gen.go:5304),
 	// served since the subregion became a stored fact rather than a constant
@@ -62,7 +72,7 @@ var vmFilters = []string{
 	// fails on the group, after the apply succeeded — so the whole fixture is
 	// left standing by a filter nobody had declared.
 	"SecurityGroupIds", "SecurityGroupNames",
-}
+)
 
 // vmPlacement is CreateVmsRequest's Placement (osc-sdk-go,
 // pkg/osc/client.gen.go:6804): the subregion the machine goes to, and its
@@ -156,7 +166,7 @@ func (p *Pack) readVms(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if p.refuseUnsupported(w, req.Filters, vmFilters...) {
+	if p.refuseFilters(w, req.Filters, vmFilters) {
 		return
 	}
 
@@ -210,7 +220,7 @@ func (p *Pack) vmMatches(res *resource.Resource, f filterSet) bool {
 	}
 
 	return matchesStrings(f, "VmIds", res.ID) &&
-		matchesStrings(f, "VmStates", res.State) &&
+		matchesStrings(f, "VmStateNames", res.State) &&
 		matchesStrings(f, "ImageIds", attr("ImageId")) &&
 		matchesStrings(f, "VmTypes", attr("VmType")) &&
 		matchesStrings(f, "KeypairNames", attr("KeypairName")) &&

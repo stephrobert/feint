@@ -60,7 +60,7 @@ type readDhcpOptionsRequest struct {
 	DryRun         *bool     `json:"DryRun"`
 }
 
-var dhcpOptionsFilters = []string{"DhcpOptionsSetIds", "DomainNames"}
+var dhcpOptionsFilters = stringFilters("DhcpOptionsSetIds", "DomainNames")
 
 func (p *Pack) readDhcpOptions(w http.ResponseWriter, r *http.Request) {
 	var req readDhcpOptionsRequest
@@ -71,7 +71,7 @@ func (p *Pack) readDhcpOptions(w http.ResponseWriter, r *http.Request) {
 	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
-	if p.refuseUnsupported(w, req.Filters, dhcpOptionsFilters...) {
+	if p.refuseFilters(w, req.Filters, dhcpOptionsFilters) {
 		return
 	}
 

@@ -79,12 +79,16 @@ type readRouteTablesRequest struct {
 // routeTableFilters are what a stored table can answer. The nested ones matter
 // as much as the top-level: the Terraform provider reads a route back by
 // filtering on its destination, and a table by the subnet its link names.
-var routeTableFilters = []string{
-	"RouteTableIds", "NetIds",
-	"LinkRouteTableIds", "LinkSubnetIds", "LinkRouteTableMain",
-	"RouteDestinationIpRanges", "RouteGatewayIds", "RouteNatServiceIds",
-	"RouteCreationMethods", "RouteStates",
-}
+var routeTableFilters = joinFilters(
+	stringFilters(
+		"RouteTableIds", "NetIds",
+		"LinkRouteTableIds", "LinkSubnetIds",
+		"RouteDestinationIpRanges", "RouteGatewayIds", "RouteNatServiceIds",
+		"RouteCreationMethods", "RouteStates",
+	),
+	// FiltersRouteTable declares this one as a bare boolean, not a list.
+	boolFilters("LinkRouteTableMain"),
+)
 
 func (p *Pack) readRouteTables(w http.ResponseWriter, r *http.Request) {
 	var req readRouteTablesRequest
@@ -95,7 +99,7 @@ func (p *Pack) readRouteTables(w http.ResponseWriter, r *http.Request) {
 	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
-	if p.refuseUnsupported(w, req.Filters, routeTableFilters...) {
+	if p.refuseFilters(w, req.Filters, routeTableFilters) {
 		return
 	}
 

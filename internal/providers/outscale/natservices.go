@@ -104,7 +104,7 @@ func (p *Pack) createNatService(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-var natServiceFilters = []string{"NatServiceIds", "NetIds", "SubnetIds", "States"}
+var natServiceFilters = stringFilters("NatServiceIds", "NetIds", "SubnetIds", "States")
 
 func (p *Pack) readNatServices(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -119,7 +119,7 @@ func (p *Pack) readNatServices(w http.ResponseWriter, r *http.Request) {
 	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
-	if p.refuseUnsupported(w, req.Filters, natServiceFilters...) {
+	if p.refuseFilters(w, req.Filters, natServiceFilters) {
 		return
 	}
 

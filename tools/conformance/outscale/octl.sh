@@ -519,6 +519,45 @@ restored_id="$(printf '%s' "$restored" | jq -r '.Volume.VolumeId')"
 listed="$(osc ReadVolumes --Filters.VolumeIds "$restored_id")" || fail "ReadVolumes rejected: $listed"
 printf '%s' "$listed" | jq -e --arg s "$snap_id" '.Volumes[0].SnapshotId == $s' >/dev/null \
   || fail "the listed restored volume does not carry its provenance: $listed"
+
+# THE NUMERIC FILTERS, DRIVEN BY THE CLIENT THAT SENDS THEM AS NUMBERS (#566).
+#
+# FiltersVolume declares VolumeSizes as a list of integers and FiltersSnapshot
+# declares Progresses the same way; this pack read both as lists of strings, so
+# the decode failed, the failure was reported as "filter absent", and every
+# candidate came back with a 200. That comparison had therefore never
+# discriminated for any client, and no unit test and no leg of this suite could
+# see it, because nothing here had ever asserted that a filter EXCLUDED
+# something.
+#
+# A volume of a size no other volume here carries, so the assertion names one
+# and refuses the rest. octl builds the body from the API description, which is
+# what makes this the measurement rather than the curl beside it: it sends 3,
+# not "3".
+odd="$(osc CreateVolume --SubregionName eu-west-2a --Size 3)" || fail "CreateVolume rejected: $odd"
+odd_id="$(printf '%s' "$odd" | jq -r '.Volume.VolumeId // empty')"
+sized="$(osc ReadVolumes --Filters.VolumeSizes 3)" || fail "ReadVolumes rejected a VolumeSizes filter: $sized"
+printf '%s' "$sized" | jq -e --arg v "$odd_id" \
+  '([.Volumes[].VolumeId] | length == 1) and .Volumes[0].VolumeId == $v' >/dev/null \
+  || fail "VolumeSizes 3 did not exclude the volumes of another size: $sized"
+# And the accepting half, or a filter that refuses everything would pass the
+# line above.
+kept="$(osc ReadVolumes --Filters.VolumeSizes 7)" || fail "ReadVolumes rejected: $kept"
+printf '%s' "$kept" | jq -e --arg v "$odd_id" \
+  '(.Volumes | length > 0) and (any(.Volumes[]; .VolumeId == $v) | not)' >/dev/null \
+  || fail "VolumeSizes 7 answered nothing, or kept the 3 GiB volume: $kept"
+empty="$(osc ReadVolumes --Filters.VolumeSizes 4096)" || fail "ReadVolumes rejected: $empty"
+printf '%s' "$empty" | jq -e '.Volumes | length == 0' >/dev/null \
+  || fail "a size no volume carries matched something: $empty"
+osc DeleteVolume --VolumeId "$odd_id" >/dev/null || fail "DeleteVolume rejected"
+progressed="$(osc ReadSnapshots --Filters.Progresses 100)" || fail "ReadSnapshots rejected a Progresses filter: $progressed"
+printf '%s' "$progressed" | jq -e --arg s "$snap_id" 'any(.Snapshots[]; .SnapshotId == $s)' >/dev/null \
+  || fail "Progresses 100 lost the snapshot that is at 100: $progressed"
+unfinished="$(osc ReadSnapshots --Filters.Progresses 7)" || fail "ReadSnapshots rejected: $unfinished"
+printf '%s' "$unfinished" | jq -e '.Snapshots | length == 0' >/dev/null \
+  || fail "a progress no snapshot carries matched something: $unfinished"
+ok "the numeric filters exclude, driven by a client that sends numbers"
+
 osc DeleteSnapshot --SnapshotId "$snap_id" >/dev/null || fail "DeleteSnapshot rejected"
 osc DeleteVolume --VolumeId "$restored_id" >/dev/null || fail "DeleteVolume rejected"
 ok "record, restore, and the key only when it means something"

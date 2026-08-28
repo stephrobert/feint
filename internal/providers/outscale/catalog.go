@@ -386,7 +386,7 @@ const accountID = "000000000001"
 // select on is told, instead of being handed everything.
 //
 // TestAVmTypeFilterIsAppliedRatherThanIgnored fails without this.
-var vmTypeFilters = []string{"VmTypeNames"}
+var vmTypeFilters = stringFilters("VmTypeNames")
 
 func (p *Pack) readVmTypes(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -401,7 +401,7 @@ func (p *Pack) readVmTypes(w http.ResponseWriter, r *http.Request) {
 	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
-	if p.refuseUnsupported(w, req.Filters, vmTypeFilters...) {
+	if p.refuseFilters(w, req.Filters, vmTypeFilters) {
 		return
 	}
 	out := make([]map[string]any, 0, len(vmTypes))
@@ -419,7 +419,7 @@ func (p *Pack) readVmTypes(w http.ResponseWriter, r *http.Request) {
 // imageFilters are what an image can answer. ImageIds is the one a client
 // actually sends on the path to a create — it resolves the image it was given
 // before posting anything.
-var imageFilters = []string{"ImageIds", "ImageNames", "AccountIds", "States", "Architectures", "RootDeviceTypes"}
+var imageFilters = stringFilters("ImageIds", "ImageNames", "AccountIds", "States", "Architectures", "RootDeviceTypes")
 
 // readImages serves the fixed catalogue and everything a client registered on
 // top of it. Both, always: an image a client made and could not then read back
@@ -437,7 +437,7 @@ func (p *Pack) readImages(w http.ResponseWriter, r *http.Request) {
 	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
-	if p.refuseUnsupported(w, req.Filters, imageFilters...) {
+	if p.refuseFilters(w, req.Filters, imageFilters) {
 		return
 	}
 
@@ -487,6 +487,8 @@ func (p *Pack) readRegions(w http.ResponseWriter, r *http.Request) {
 // to ignore the body entirely and answer a single fixed zone; the body matters
 // because the Terraform datasource is exactly the client that reads this
 // before deciding where to place everything else (#269).
+var subregionFilters = stringFilters("SubregionNames", "RegionNames", "States")
+
 func (p *Pack) readSubregions(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Filters        filterSet `json:"Filters"`
@@ -500,7 +502,7 @@ func (p *Pack) readSubregions(w http.ResponseWriter, r *http.Request) {
 	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
-	if p.refuseUnsupported(w, req.Filters, "SubregionNames", "RegionNames", "States") {
+	if p.refuseFilters(w, req.Filters, subregionFilters) {
 		return
 	}
 	out := make([]map[string]any, 0, len(p.subregions))
@@ -541,6 +543,8 @@ func netAccessPointServices(region string) []map[string]any {
 	}
 }
 
+var serviceFilters = stringFilters("ServiceIds", "ServiceNames")
+
 func (p *Pack) readNetAccessPointServices(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Filters        filterSet `json:"Filters"`
@@ -554,7 +558,7 @@ func (p *Pack) readNetAccessPointServices(w http.ResponseWriter, r *http.Request
 	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
-	if p.refuseUnsupported(w, req.Filters, "ServiceIds", "ServiceNames") {
+	if p.refuseFilters(w, req.Filters, serviceFilters) {
 		return
 	}
 	services := netAccessPointServices(p.region)

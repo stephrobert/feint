@@ -36,7 +36,7 @@ type readKeypairsRequest struct {
 
 // keypairFilters are what a keypair answers from what is stored. Tags are not
 // modelled on a keypair here, so they are refused.
-var keypairFilters = []string{"KeypairNames", "KeypairFingerprints", "KeypairTypes"}
+var keypairFilters = stringFilters("KeypairNames", "KeypairFingerprints", "KeypairTypes")
 
 type deleteKeypairRequest struct {
 	KeypairName string `json:"KeypairName"`
@@ -107,7 +107,7 @@ func (p *Pack) readKeypairs(w http.ResponseWriter, r *http.Request) {
 	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
-	if p.refuseUnsupported(w, req.Filters, keypairFilters...) {
+	if p.refuseFilters(w, req.Filters, keypairFilters) {
 		return
 	}
 

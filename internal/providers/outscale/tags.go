@@ -199,6 +199,8 @@ func (p *Pack) deleteTags(w http.ResponseWriter, r *http.Request) {
 // readTags answers the flat view: every tag of every resource, with what it is
 // attached to. It is a different shape from the Tags a resource carries, which
 // is why the API has both.
+var tagFilters = stringFilters("ResourceIds", "Keys", "Values", "ResourceTypes")
+
 func (p *Pack) readTags(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Filters        filterSet `json:"Filters"`
@@ -211,7 +213,7 @@ func (p *Pack) readTags(w http.ResponseWriter, r *http.Request) {
 	if p.refusePageSize(w, req.ResultsPerPage) {
 		return
 	}
-	if p.refuseUnsupported(w, req.Filters, "ResourceIds", "Keys", "Values", "ResourceTypes") {
+	if p.refuseFilters(w, req.Filters, tagFilters) {
 		return
 	}
 
