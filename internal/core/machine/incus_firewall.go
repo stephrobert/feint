@@ -100,10 +100,19 @@ func (d *Incus) EnsureFirewall(ctx context.Context, spec FirewallSpec) error {
 
 	if _, err := d.run(ctx, "network", "acl", "show", spec.Name); err != nil {
 		if !isNotFound(err) {
-			return d.firewallRefused(fmt.Errorf("inspect firewall %s: %w", spec.Name, err))
+			return d.firewallWriteFailed(fmt.Errorf("inspect firewall %s: %w", spec.Name, err))
 		}
-		if _, err := d.run(ctx, "network", "acl", "create", spec.Name); err != nil {
-			return d.firewallRefused(fmt.Errorf("create firewall %s: %w", spec.Name, err))
+		// A lost create race is a success: two EnsureFirewall of one name —
+		// the two machines of a group applied concurrently both ensuring the
+		// permissive set, or two rule writes of one group — both pass the
+		// show above, and the daemon answers the loser "The network ACL
+		// already exists" (measured on this station, 2026-08-28). The object
+		// the loser wanted is there; refusing would fail the caller's rules
+		// and, worse, withdraw capabilities.firewall over a race the winner
+		// already resolved. TestALostCreateRaceIsNotARefusal fails without
+		// the tolerance.
+		if _, err := d.runUntilFree(ctx, "network", "acl", "create", spec.Name); err != nil && !isAlreadyExists(err) {
+			return d.firewallWriteFailed(fmt.Errorf("create firewall %s: %w", spec.Name, err))
 		}
 	}
 
@@ -140,11 +149,54 @@ func (d *Incus) EnsureFirewall(ctx context.Context, spec FirewallSpec) error {
 	if err != nil {
 		return fmt.Errorf("encode firewall %s: %w", spec.Name, err)
 	}
-	if _, err := d.run(ctx, "query", "-X", "PUT", "--data", string(encoded),
+	// runUntilFree, not run: replacing a rule set that is in use makes the
+	// daemon re-ensure it in OVN, and that ensure loses the same OVSDB
+	// port-group collision ApplyFirewall's device edits ride out. Measured in
+	// the wild on 2026-08-28 (serve-after.log, functional outscale chain):
+	// `write firewall osc-…: Failed creating port group "incus_acl4448_net4613"
+	// … constraint violation: Transaction causes multiple rows in "Port_Group"
+	// table`, twice in one run, nine seconds apart, both inserts colliding
+	// with the same row that predated them both — so the daemon's own
+	// existence check can read stale for seconds under load, and no ordering
+	// of this process's calls could have prevented the second failure. The
+	// remedy is asking again, which is #522's settled answer for exactly this
+	// wording; #577's refusal to retry (`Cannot find security ACL ID`, a
+	// *deleted* rule set no retry can resurrect) names a different cause and
+	// stands. TestEnsureFirewallRidesOutADuplicatePortGroupRace fails without
+	// the retry.
+	if _, err := d.runUntilFree(ctx, "query", "-X", "PUT", "--data", string(encoded),
 		"/1.0/network-acls/"+spec.Name); err != nil {
-		return d.firewallRefused(fmt.Errorf("write firewall %s: %w", spec.Name, err))
+		return d.firewallWriteFailed(fmt.Errorf("write firewall %s: %w", spec.Name, err))
 	}
 	return nil
+}
+
+// isAlreadyExists recognises the daemon refusing to create an object that is
+// already there — "The network ACL already exists" is the wording Incus 7.2
+// answers the loser of two concurrent creates with.
+func isAlreadyExists(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "already exists")
+}
+
+// firewallWriteFailed reports a failed firewall write, withdrawing the
+// firewall capability only when the host actually refused the rule set.
+//
+// The distinction is measured, not cautious. On 2026-08-28 a transient OVSDB
+// port-group collision failed one EnsureFirewall PUT and the process answered
+// with `capabilities.firewall is now false` for the rest of its life — every
+// suite keyed on the capability then skips its enforcement assertions, so one
+// timing blip mutes the very instrument that would notice a real refusal.
+// A conflict that outlives the retry budget is still an error, returned and
+// logged by the caller; what it is not is the host saying these rules cannot
+// be enforced, which is the one thing firewallRefused exists to record (#454,
+// #181). TestASpentConflictBudgetDoesNotWithdrawTheCapability fails without
+// the distinction; TestAFirewallWriteTheHostRefusesWithdrawsTheCapability
+// holds the refusing half.
+func (d *Incus) firewallWriteFailed(err error) error {
+	if isTransientConflict(err) {
+		return err
+	}
+	return d.firewallRefused(err)
 }
 
 // firewallRefused records that the host refused a rule set this driver had
