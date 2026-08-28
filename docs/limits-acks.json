@@ -10,12 +10,12 @@
     "A public address is the provider's value, made to answer on the host": "2026-08-27",
     "A run presented as local can still reach the real cloud (#280)": "2026-08-27",
     "An API reboot used to log `Failed to add route: file exists` for its own public /32 (#498, lifted 2026-08-27)": "2026-08-27",
+    "An ERROR is a failure and a WARN is a decline, and one refusal was on the wrong side (#474)": "2026-08-28",
     "An Exoscale network load balancer records its configuration, names its backends, and grades none of them": "2026-08-27",
     "An Outscale Vm's options round-trip as data; their behavioural half has nothing to act on here": "2026-08-27",
     "An Outscale load balancer distributes packets inside its network, and nowhere else": "2026-08-27",
     "An Outscale machine owns a root volume, and that volume holds no bytes": "2026-08-27",
     "Exoscale has one zone per process, and the reason is the client": "2026-08-27",
-    "An ERROR is a failure and a WARN is a decline, and one refusal was on the wrong side (#474)": "2026-08-28",
     "Identifiers are not checked against anything": "2026-08-27",
     "Lifecycle transitions are immediate": "2026-08-27",
     "Managed Kubernetes is not emulated, and a CRUD-only version is refused (#283)": "2026-08-27",
@@ -35,6 +35,6 @@
     "Two Outscale filters reach the API only as a payload, and that is `octl`'s gap": "2026-08-27",
     "What survives a dead emulator, in one table": "2026-08-27",
     "`feint images resolve` can print a `FEINT_BOOT_IMAGES` line that cannot boot (#476)": "2026-08-27",
-    "`scw` 2.56.3 prints a recovered panic on every successful `lb acl delete`, and the defect is upstream (#505)": "2026-08-27"
+    "`scw` 2.56.3 prints a recovered panic on every successful `lb acl delete`, and the defect is upstream (#505)": "2026-08-28"
   }
 }
