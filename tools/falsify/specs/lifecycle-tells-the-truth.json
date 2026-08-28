@@ -63,8 +63,8 @@
     {
       "label": "#498, since #548: the address is no longer released from the routed NIC before the uplink is asked for the same /32, which is the `file exists` that shouted an ERROR over a correct host \u2014 and the published address stays where no rule set reaches it",
       "file": "internal/core/machine/incus_address.go",
-      "find": "\tif routed != \"\" {\n\t\tif err := d.releaseFromRoutedNIC(ctx, spec.Machine, routed, spec.Address); err != nil {\n\t\t\treturn err\n\t\t}\n\t}",
-      "replace": "\tif routed != \"\" && false {\n\t\tif err := d.releaseFromRoutedNIC(ctx, spec.Machine, routed, spec.Address); err != nil {\n\t\t\treturn err\n\t\t}\n\t}",
+      "find": "\tif routed != \"\" {",
+      "replace": "\tif routed != \"\" && false {",
       "test": "TestAPublicAddressMovesOntoTheFilteredNIC"
     },
     {

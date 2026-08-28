@@ -18,6 +18,13 @@
       "test": "TestMigrationRefusesAnInstanceTheEmulatorDidNotCreate"
     },
     {
+      "label": "the address is taken off the machine before anyone asks whether the network it is moving to is ours",
+      "file": "internal/core/machine/incus_address.go",
+      "find": "\t\tif err := d.mustOwn(ctx, network); err != nil {\n\t\t\treturn err\n\t\t}\n\t\tif err := d.releaseFromRoutedNIC(ctx, spec.Machine, routed, spec.Address); err != nil {",
+      "replace": "\t\tif err := d.mustOwn(ctx, network); err != nil && false {\n\t\t\treturn err\n\t\t}\n\t\tif err := d.releaseFromRoutedNIC(ctx, spec.Machine, routed, spec.Address); err != nil {",
+      "test": "TestAMigrationIsNotStartedForANetworkTheEmulatorDoesNotOwn"
+    },
+    {
       "label": "a routed NIC that carries nothing is reported as an escape again, so every migrated machine fails its firewall apply",
       "file": "internal/core/machine/incus_firewall.go",
       "find": "\t\t\tif attached != \"\" && len(device.addresses) > 0 {",
