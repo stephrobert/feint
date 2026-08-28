@@ -1,0 +1,48 @@
+{
+  "package": "./internal/cli/",
+  "mutations": [
+    {
+      "label": "the second heading dissolves into prose, so the twenty-six verbs are back in one list and the split reads as done while it is undone",
+      "file": "README.md",
+      "find": "### Fidelity and development tools",
+      "replace": "Fidelity and development tools",
+      "test": "TestEveryCommandHasExactlyOneRowUnderAnAudience"
+    },
+    {
+      "label": "a verb loses its row while the page still names it in prose, which is exactly what TestEveryCommandIsNamedInTheReadmes accepts",
+      "file": "README.md",
+      "find": "| `feint catalog` | print the emulated inventory a client reads before creating |",
+      "replace": "| `feint-catalog` | print the emulated inventory a client reads before creating |",
+      "test": "TestEveryCommandHasExactlyOneRowUnderAnAudience"
+    },
+    {
+      "label": "a verb is described in both audiences at once, which is one fact in two places and the class this repository keeps paying for",
+      "file": "README.md",
+      "find": "| `feint probe` | drive every mounted route from its API description and check the answers |",
+      "replace": "| `feint probe` | drive every mounted route from its API description and check the answers |\n| `feint probe` | drive every mounted route from its API description and check the answers |",
+      "test": "TestEveryCommandHasExactlyOneRowUnderAnAudience"
+    },
+    {
+      "label": "a row survives the verb it described, so a reader types a command the binary answers with the usage text",
+      "file": "README.fr.md",
+      "find": "| `feint catalog` | affiche l'inventaire émulé qu'un client lit avant de créer |",
+      "replace": "| `feint catalog` | affiche l'inventaire émulé qu'un client lit avant de créer |\n| `feint inventaire` | affiche l'inventaire émulé qu'un client lit avant de créer |",
+      "test": "TestEveryCommandHasExactlyOneRowUnderAnAudience"
+    },
+    {
+      "label": "a path of the docs index stops arriving at a file, and an index a reader trusts is worse than no index",
+      "file": "docs/README.md",
+      "find": "- [fourth-pack.md](fourth-pack.md)",
+      "replace": "- [fourth-pack.md](fourth-pack-renamed.md)",
+      "test": "TestTheDocsIndexResolvesEveryPathItOffers"
+    },
+    {
+      "label": "a path arrives at the page and not at the section it named, which is how limits.md's fifty headings rot a link without moving a file",
+      "file": "docs/README.md",
+      "find": "Start at the [quick start](../README.md#quick-start)",
+      "replace": "Start at the [quick start](../README.md#quick-start-guide)",
+      "test": "TestTheDocsIndexResolvesEveryPathItOffers"
+    }
+  ],
+  "note": "#591. The commands table listed twenty-six verbs on both front pages and ten of them are this repository measuring itself; splitting it by audience costs no lines and answers the audit's finding, but it adds three ways to be wrong that one table did not have — a verb in neither half, a verb in both, a stray third group — and TestEveryCommandIsNamedInTheReadmes cannot see any of them, because it accepts a mention anywhere on the page. That is not hypothetical: `stop` and `restart` read as documented for a while because both were folded into one entry about `start`. The last two mutations hold the docs index to the same rule the confidence page is held to, since an index is nothing but links and a link that stopped resolving reads exactly like one that never did."
+}

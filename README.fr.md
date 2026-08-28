@@ -205,6 +205,9 @@ générée : [docs/routes.md](docs/routes.md).
 - [Contribuer](#contribuer)
 - [Licence](#licence)
 
+Tout ce qui n'est pas sur cette page vit dans [docs/](docs/README.md), regroupé
+par la question à laquelle il répond plutôt que listé.
+
 ---
 
 ## Installer

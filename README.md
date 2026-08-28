@@ -189,6 +189,9 @@ The per-operation view, which is generated, is [docs/routes.md](docs/routes.md).
 - [Contributing](#contributing)
 - [License](#license)
 
+Everything that is not on this page lives in [docs/](docs/README.md), grouped
+by the question it answers rather than listed.
+
 ---
 
 ## Install
